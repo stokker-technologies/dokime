@@ -51,12 +51,13 @@ use dokime_domain::model::time::Timestamp;
 /* === Structs === */
 
 pub(super) struct NativeOutput {
-    file: tempfile::NamedTempFile,
+    pub(super) file: tempfile::NamedTempFile,
     created_at: Timestamp,
     captured: bool,
     pending: Option<FrozenFile>,
     descriptor: Option<ExecutionOutput>,
     log: Option<LogPrefix>,
+    metadata: Option<FileMetadata>,
     production: Option<follow::Production>,
 }
 
@@ -105,6 +106,36 @@ impl FileSelection {
 }
 
 impl NativeOutput {
+    pub(super) fn artifact(metadata: FileMetadata) -> Result<Self> {
+        let mut output = Self::new("")?;
+        output.log = Some(LogPrefix { acknowledged: 0, closed: None });
+        output.metadata = Some(metadata);
+        Ok(output)
+    }
+
+    pub(super) fn has_production(&self) -> bool {
+        self.production.is_some()
+    }
+
+    pub(super) fn settle_artifact(&mut self, descriptor: &ExecutionOutput) {
+        self.log.as_mut().expect("artifact prefix registered").closed = descriptor.stream_state;
+        self.descriptor = Some(descriptor.clone());
+        self.captured = true;
+    }
+
+    pub(super) fn acknowledge(&mut self, length: u64) {
+        self.log.as_mut().expect("artifact prefix registered").acknowledged = length;
+    }
+
+    pub(super) fn close_artifact(&mut self, complete: bool) {
+        self.log.as_mut().expect("artifact prefix registered").closed =
+            Some(if complete { SavedStreamState::Finalized } else { SavedStreamState::Interrupted });
+    }
+
+    pub(super) fn content_type(&self, path: &str) -> Option<&str> {
+        self.metadata.as_ref().map(|metadata| metadata.media_type.as_str()).or_else(|| media_type_for_path(path))
+    }
+
     fn closed_state(&self) -> Option<SavedStreamState> {
         self.log.as_ref().and_then(|log| log.closed).or(self.captured.then_some(SavedStreamState::Finalized))
     }
@@ -119,6 +150,7 @@ impl NativeOutput {
             pending: None,
             descriptor: None,
             log: None,
+            metadata: None,
             production: None,
         })
     }
@@ -148,7 +180,7 @@ impl ExecutionStorage {
             if acquisition.finish_requested || acquisition.outputs_sealed {
                 return Err(error("execution has no open output acquisition"));
             }
-            if acquisition.native_outputs.contains_key(&relative_path) {
+            if acquisition.output(&relative_path).is_some() {
                 return Err(error("duplicate execution output path"));
             }
             let output = NativeOutput::new(&relative_path)?;
@@ -173,14 +205,19 @@ impl ExecutionStorage {
         let execution = execution.clone();
         tokio::task::spawn_blocking(move || {
             let mut entries = Vec::with_capacity(acquisition.native_outputs.len());
-            for (path, output) in &acquisition.native_outputs {
+            let outputs = acquisition
+                .native_outputs
+                .iter()
+                .map(|(path, output)| (path, output, None))
+                .chain(acquisition.artifacts.values().map(|upload| (&upload.relative_path, &upload.output, Some(upload))));
+            for (path, output, upload) in outputs {
                 #[cfg(windows)]
                 let _path_access = std::fs::File::open(output.file.path()).map_err(error)?;
                 let file = output.file.reopen().map_err(error)?;
                 let size_bytes = output.visible_length(file.metadata().map_err(error)?.len())?;
-                let content_type = media_type_for_path(path).map(str::to_owned);
+                let content_type = output.content_type(path).map(str::to_owned);
                 entries.push(ExecutionFileEntry {
-                    artifact_id: format!("{}:{path}", execution.as_str()),
+                    artifact_id: upload.map_or_else(|| format!("{}:{path}", execution.as_str()), |upload| upload.artifact_id().to_string()),
                     relative_path: path.clone(),
                     content_kind: ExecutionFileContentKind::from_metadata(path, content_type.as_deref()),
                     content_type,
@@ -211,7 +248,7 @@ impl ExecutionStorage {
             return Ok(None);
         };
         let acquisition = owner.lock().await;
-        let Some(output) = acquisition.native_outputs.get(path) else {
+        let Some(output) = acquisition.output(path) else {
             return Ok(None);
         };
         // Reopen The Original Inode While Its Registered Owner Is Protected
@@ -220,9 +257,10 @@ impl ExecutionStorage {
         let file = output.file.reopen().map_err(error)?;
         let size_bytes = output.visible_length(file.metadata().map_err(error)?.len())?;
         let stream_state = output_state(output.closed_state());
+        let content_type = output.content_type(path).map(str::to_owned);
         drop(acquisition);
         let (offset, length) = selection.extent(size_bytes)?;
-        let reader = reader::Reader::new(self.storage.clone(), file, path, size_bytes, stream_state)?;
+        let reader = reader::Reader::new(self.storage.clone(), file, path, size_bytes, stream_state, content_type)?;
         reader.into_window(offset, length).await.map(Some)
     }
 
@@ -237,7 +275,7 @@ impl ExecutionStorage {
             return Ok(None);
         };
         let acquisition = owner.lock().await;
-        let Some(output) = acquisition.native_outputs.get(path) else {
+        let Some(output) = acquisition.output(path) else {
             return Ok(None);
         };
         #[cfg(windows)]
@@ -245,8 +283,9 @@ impl ExecutionStorage {
         let file = output.file.reopen().map_err(error)?;
         let observed_size = output.visible_length(file.metadata().map_err(error)?.len())?;
         let stream_state = output_state(output.closed_state());
+        let content_type = output.content_type(path).map(str::to_owned);
         drop(acquisition);
-        Ok(Some(reader::Reader::new(self.storage.clone(), file, path, observed_size, stream_state)?))
+        Ok(Some(reader::Reader::new(self.storage.clone(), file, path, observed_size, stream_state, content_type)?))
     }
 
     pub(crate) async fn retire_outputs(self: &Arc<Self>, execution: &TestExecutionId) -> Result<()> {
@@ -290,6 +329,21 @@ impl ExecutionStorage {
         let owner = self.acquisition(execution).await.ok_or_else(|| error("output finalization has no admitted acquisition"))?;
         owner.lock().await.outputs_sealed = true;
         Ok(())
+    }
+}
+
+impl Acquisition {
+    pub(super) fn output(&self, path: &str) -> Option<&NativeOutput> {
+        self.native_outputs
+            .get(path)
+            .or_else(|| self.artifacts.values().find(|upload| upload.relative_path == path).map(|upload| &upload.output))
+    }
+
+    pub(super) fn output_mut(&mut self, path: &str) -> Option<&mut NativeOutput> {
+        if self.native_outputs.contains_key(path) {
+            return self.native_outputs.get_mut(path);
+        }
+        self.artifacts.values_mut().find(|upload| upload.relative_path == path).map(|upload| &mut upload.output)
     }
 }
 

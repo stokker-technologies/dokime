@@ -16,7 +16,8 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 
 // Local Imports
-import { createRuntimeProjectionRefreshCoordinator, createThrottledRefresh } from "@/app/live/runtime-refresh";
+import { createExecutionFileRefresh, createRuntimeProjectionRefreshCoordinator, createThrottledRefresh } from "@/app/live/runtime-refresh";
+import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { mapNativeExecutionSummary, projectExecutionStatus } from "@/lib/api/native-planning";
 
 /* === Re-Exports === */
@@ -104,5 +105,44 @@ test("Unstarted Attempt Status", () => {
     const projected = mapNativeExecutionSummary(attempt, [], cycle as never);
     assert.equal(projected.status, "planned");
     assert.equal(projected.sealed, false);
+  }
+});
+
+test("Live File Refresh", () => {
+  vi.useFakeTimers();
+  const refresh = vi.fn();
+  const files = createExecutionFileRefresh(refresh, 100);
+  const frame = (phase: string, cursor = "1") =>
+    ({
+      cursor: { epoch: "epoch", stream: "runtime", position: BigInt(cursor) },
+      operations: [{ operationId: "upload", phase, startedAt: { seconds: 1n, nanos: 0 } }],
+    }) as unknown as RuntimeStateFrame;
+  try {
+    files.observe(frame("Receiving 3 B"));
+    vi.advanceTimersByTime(100);
+    assert.equal(refresh.mock.calls.length, 1);
+    files.observe(frame("Receiving 3 B"));
+    vi.advanceTimersByTime(1_000);
+    assert.equal(refresh.mock.calls.length, 1);
+    files.observe(frame("Receiving 4 B"));
+    files.observe(frame("Receiving 5 B"));
+    vi.advanceTimersByTime(100);
+    assert.equal(refresh.mock.calls.length, 2);
+    files.observe(frame("Saving"));
+    vi.advanceTimersByTime(100);
+    assert.equal(refresh.mock.calls.length, 3);
+    files.observe(frame("Saving", "2"));
+    vi.advanceTimersByTime(100);
+    assert.equal(refresh.mock.calls.length, 4);
+    files.observe({ ...frame("Saving", "2"), resynchronized: true });
+    vi.advanceTimersByTime(100);
+    assert.equal(refresh.mock.calls.length, 5);
+    files.observe(frame("Finished", "2"));
+    files.dispose();
+    vi.advanceTimersByTime(1_000);
+    assert.equal(refresh.mock.calls.length, 5);
+  } finally {
+    files.dispose();
+    vi.useRealTimers();
   }
 });

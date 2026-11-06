@@ -82,6 +82,16 @@ async fn serve(root: &Path) -> u16 {
     port
 }
 
+// Recoverable FTP Passes May Be Empty; Drive The Same Watch Until It Advances.
+async fn next_events(watch: &mut FileWatch) -> Vec<WatchEvent> {
+    loop {
+        let events = poll(watch).await;
+        if !events.is_empty() {
+            return events;
+        }
+    }
+}
+
 fn ftp(url: String, secret: Option<&str>) -> FileWatchSourcePayload {
     FileWatchSourcePayload::Ftp(FtpWatchSource {
         url,
@@ -169,12 +179,17 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
         markers: vec![model::files::wire::LineMarker::new("WARN", "tracking.warning")],
     };
     let mut extraction = bench.handle.open_watch_file(&request, None).await.unwrap();
-    poll(&mut extraction).await;
+    let armed = next_events(&mut extraction).await;
+    assert!(armed.iter().any(|event| matches!(event, WatchEvent::Armed { .. })));
     append(&log, b"WARN\n");
-    poll(&mut extraction).await;
+    next_events(&mut extraction).await;
     append(&log, b"WARN\n");
     let mut events = Vec::new();
-    let error = extraction.poll(&mut events).await.unwrap_err();
+    let error = loop {
+        if let Err(error) = extraction.poll(&mut events).await {
+            break error;
+        }
+    };
     assert_eq!(error.code(), Some(dokime_runtime::domains::files::UNSUPPORTED));
     assert!(error.to_string().contains("Enable REST"));
     assert!(events.iter().any(|event| matches!(event, WatchEvent::Gap { reason: GapReason::ResumeUnsupported, .. })));
@@ -189,9 +204,10 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
         ..request
     };
     let mut artifact = bench.handle.open_watch_file(&artifact_request, None).await.unwrap();
-    poll(&mut artifact).await;
+    let armed = next_events(&mut artifact).await;
+    assert!(armed.iter().any(|event| matches!(event, WatchEvent::Armed { .. })));
     append(&log, b"tail\n");
-    let fallback = poll(&mut artifact).await;
+    let fallback = next_events(&mut artifact).await;
     assert!(fallback.iter().any(|event| matches!(event, WatchEvent::Gap { reason: GapReason::ResumeUnsupported, .. })));
     seal(&mut artifact).await;
     let record = &artifact.sealed()[0];

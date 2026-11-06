@@ -96,6 +96,14 @@ pub fn validate(name: &str) -> Result<(), InvalidName> {
     Ok(())
 }
 
+// A Collision Suffix Preserves The Final Extension And Parent Path.
+pub fn collision_name(path: &str, suffix: u64) -> String {
+    match path.rsplit_once('.') {
+        Some((stem, extension)) if !extension.contains('/') => format!("{stem}.{suffix}.{extension}"),
+        _ => format!("{path}.{suffix}"),
+    }
+}
+
 /* === Private Functions === */
 
 /* === Tests === */

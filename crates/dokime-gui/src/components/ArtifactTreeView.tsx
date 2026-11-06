@@ -318,6 +318,15 @@ function ArtifactFile({
 }) {
   const fileLabel = artifactLabel(artifact.label);
   const size = formatArtifactSize(artifact.size_bytes);
+  const state =
+    artifact.stream_state === "streaming"
+      ? "Live"
+      : artifact.stream_state === "finalized"
+        ? "Finished"
+        : artifact.stream_state === "interrupted"
+          ? "Interrupted"
+          : null;
+  const details = [state, size].filter(Boolean).join(" · ");
   const primaryHref = artifact.href ?? artifact.downloadHref ?? null;
   const secondaryHref = artifact.downloadHref && artifact.downloadHref !== primaryHref ? artifact.downloadHref : null;
   const opensLocalFile = isLocalFileHref(primaryHref);
@@ -327,7 +336,7 @@ function ArtifactFile({
   const previewText = nativePreviewEnabled && isPreviewableTextArtifact(artifact);
   const nativeTransfer =
     !primaryHref && (artifact.group_id !== "execution-files" || Boolean(artifact.scope?.test_execution_id?.trim() && artifact.path.trim()));
-  const title = [artifact.fileName, fileLabel, artifact.description, artifact.displayPath, size].filter(Boolean).join("\n");
+  const title = [artifact.fileName, fileLabel, artifact.description, artifact.displayPath, details].filter(Boolean).join("\n");
 
   return (
     <div className="grid min-h-7 grid-cols-[minmax(0,1fr)_auto] items-center gap-1" style={{ paddingLeft: `${level * 16 + 28}px` }}>
@@ -341,7 +350,7 @@ function ArtifactFile({
         >
           <ArtifactIcon mediaType={artifact.media_type} />
           <span className="min-w-0 truncate">{artifact.fileName}</span>
-          <span className="text-xs tabular-nums text-muted-foreground">{size}</span>
+          <span className="text-xs tabular-nums text-muted-foreground">{details}</span>
         </button>
       ) : primaryHref ? (
         <a
@@ -354,7 +363,7 @@ function ArtifactFile({
         >
           <ArtifactIcon mediaType={artifact.media_type} />
           <span className="min-w-0 truncate">{artifact.fileName}</span>
-          <span className="text-xs tabular-nums text-muted-foreground">{size}</span>
+          <span className="text-xs tabular-nums text-muted-foreground">{details}</span>
         </a>
       ) : nativeOpenEnabled && nativeTransfer && !previewText ? (
         <button
@@ -367,13 +376,13 @@ function ArtifactFile({
         >
           <ArtifactIcon mediaType={artifact.media_type} />
           <span className="min-w-0 truncate">{artifact.fileName}</span>
-          <span className="text-xs tabular-nums text-muted-foreground">{size}</span>
+          <span className="text-xs tabular-nums text-muted-foreground">{details}</span>
         </button>
       ) : (
         <div className="grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1" title={title}>
           <ArtifactIcon mediaType={artifact.media_type} />
           <span className="min-w-0 truncate">{artifact.fileName}</span>
-          <span className="text-xs tabular-nums text-muted-foreground">{size}</span>
+          <span className="text-xs tabular-nums text-muted-foreground">{details}</span>
         </div>
       )}
 

@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
+import { ArtifactTreeView } from "@/components/ArtifactTreeView";
 import { PromptPanel } from "@/components/PromptPanel";
 import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
 // Local Imports
@@ -47,6 +48,8 @@ import {
   type ScopedPrompt,
 } from "@/features/cycle/prompt-banner-model";
 import { durationText } from "@/features/cycle/use-elapsed";
+import { buildArtifactTree, type ArtifactTreeInput } from "@/lib/artifact-tree";
+import { shouldFollowArtifact } from "@/lib/execution-file-text";
 import { advanceFollowCursor, connectingFollowCursor, followTailOffset } from "@/lib/execution-file-paging";
 import { durationParts, formatDuration } from "@/lib/format";
 import { promptDecision } from "@/lib/prompts";
@@ -500,5 +503,40 @@ test("Prompt Answering", () => {
   assert.deepEqual(
     answerablePrompts(pending, owners(true)).map((item) => item.correlation_id),
     ["running"],
+  );
+});
+
+test("Live Artifact Tree", () => {
+  const file: ArtifactTreeInput = {
+    artifact_id: "f1399950-a652-422c-8e3b-59405391b2e4",
+    label: "device.log",
+    path: "artifacts/logs/sub/device.log",
+    content_kind: "text",
+    stream_state: "streaming",
+    size_bytes: 3,
+  };
+  const render = (artifact: ArtifactTreeInput) =>
+    renderToStaticMarkup(
+      createElement(ArtifactTreeView, {
+        artifacts: [{ ...artifact, path: "device.log" }],
+        emptyMessage: "Empty",
+      }),
+    );
+  assert.match(render(file), />Live · 3 B</);
+  const tree = buildArtifactTree([file]);
+  const nested = tree.folders[0].folders[0].folders[0];
+  assert.equal(nested.path, "artifacts/logs/sub");
+  assert.equal(nested.files[0].fileName, "device.log");
+  assert.equal(nested.files[0].size_bytes, 3);
+  assert.equal(shouldFollowArtifact(nested.files[0]), true);
+  const finished = buildArtifactTree([{ ...file, size_bytes: 9, stream_state: "finalized" }]).folders[0].folders[0].folders[0].files[0];
+  assert.equal(finished.artifact_id, file.artifact_id);
+  assert.equal(finished.size_bytes, 9);
+  assert.equal(shouldFollowArtifact(finished), false);
+  assert.match(render(finished), />Finished · 9 B</);
+  const collision = buildArtifactTree([file, { ...file, artifact_id: "other", path: "artifacts/logs/sub/device.2.log" }]);
+  assert.deepEqual(
+    collision.folders[0].folders[0].folders[0].files.map((entry) => entry.fileName),
+    ["device.2.log", "device.log"],
   );
 });

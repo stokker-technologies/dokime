@@ -180,7 +180,7 @@ impl RuntimeHandle {
             };
         self.start_execution_file_capture(execution, &live).await?;
         let progress = reader.progress();
-        let media = crate::execution_runtime::outputs::media_type_for_path(path).unwrap_or("application/octet-stream");
+        let media = live.media_type.as_ref();
         let metadata = metadata(
             &live.identity,
             execution,

@@ -153,6 +153,21 @@ The plot projection encodes false as 0 and true as 1; missing readings are gaps.
 Stored evidence retains its declared Boolean type. The live view and report use
 the captured column schema to select this presentation.
 
+## Live Artifact Files
+
+The execution artifact tree uses mirrored `artifacts/<output>/<relative path>`
+paths, including step uploads, without upload or UUID folders. Same-path uploads
+reserve deterministic `.2`, `.3` suffixes before the final extension. Existing
+replacement/copy-truncate `.segmentN` names remain intact.
+
+Stream files appear when captured bytes are saved. Tree rows show Live beside
+current size, then Finished or Interrupted after capture closes. The existing execution-file
+follower shows growing text with its live size, then Finished after sealing,
+without changing the file identity. Pausing or closing a viewer does not stop
+capture. Read frames, tail offsets and retained text keep their existing budgets.
+Runtime operation changes refresh the file list and size without idle polling.
+Untouched baseline files do not clutter the tree; new empty files remain visible.
+
 ## Canonical Bindings And Transport
 
 - `mise run check:typescript:generated --source` checks locally prepared bindings
