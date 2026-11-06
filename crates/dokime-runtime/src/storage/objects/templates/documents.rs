@@ -447,49 +447,11 @@ pub struct Axis {
 /* === Traits === */
 
 /* === Implementations === */
-impl Document {
-    pub fn encoding_memory(value: &crate::document::DocumentDefinition) -> Result<usize> {
-        let metadata = metadata::Row::encoding_memory(&value.metadata)?;
-        let layout = layout::Layout::encoding_memory(&value.layout)?;
-        if [metadata, layout].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(value.document_id.as_str().len())
-            .saturating_add(metadata.saturating_sub(std::mem::size_of::<metadata::Row>()))
-            .saturating_add(layout.saturating_sub(std::mem::size_of::<layout::Layout>()));
-        for card in &value.cards {
-            bytes = bytes.saturating_add(CardDefinition::encoding_memory(card)?);
-        }
-        for section in &value.sections {
-            bytes = bytes.saturating_add(Section::encoding_memory(section)?);
-        }
-        Ok(bytes)
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("document metadata is missing"))?.projection_memory()?;
-        let mut bytes = std::mem::size_of::<crate::document::DocumentDefinition>()
-            .saturating_add(self.document_id.capacity())
-            .saturating_add(metadata)
-            .saturating_add(self.layout.projection_memory()?);
-        for card in &self.cards {
-            bytes = bytes.saturating_add(card.projection_memory()?);
-        }
-        for section in &self.sections {
-            bytes = bytes.saturating_add(section.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
 
 impl TryFrom<&crate::document::DocumentDefinition> for Document {
     type Error = Error;
 
     fn try_from(value: &crate::document::DocumentDefinition) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("document encoding memory overflows"));
-        }
         let mut cards = Vec::new();
         cards.try_reserve_exact(value.cards.len()).map_err(|_| Error::Invalid("document cards allocation failed"))?;
         for card in &value.cards {
@@ -514,9 +476,6 @@ impl TryFrom<Document> for crate::document::DocumentDefinition {
     type Error = Error;
 
     fn try_from(row: Document) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("document projection memory overflows"));
-        }
         let mut cards = Vec::new();
         cards.try_reserve_exact(row.cards.len()).map_err(|_| Error::Invalid("document cards allocation failed"))?;
         for card in row.cards {
@@ -537,40 +496,10 @@ impl TryFrom<Document> for crate::document::DocumentDefinition {
     }
 }
 
-impl CardDefinition {
-    fn encoding_memory(value: &crate::document::DocumentCardDefinition) -> Result<usize> {
-        let metadata = metadata::Row::encoding_memory(&value.metadata)?;
-        let body = body_encoding_memory(&value.body)?;
-        if [metadata, body].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let mut bytes =
-            std::mem::size_of::<Self>().saturating_add(metadata.saturating_sub(std::mem::size_of::<metadata::Row>())).saturating_add(body);
-        for filter in &value.filters {
-            bytes = bytes.saturating_add(Filter::encoding_memory(filter)?);
-        }
-        Ok(bytes)
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
-        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("document card metadata is missing"))?.projection_memory()?;
-        let mut bytes = std::mem::size_of::<crate::document::DocumentCardDefinition>()
-            .saturating_add(metadata)
-            .saturating_add(body_memory(&self.kind, &self.data)?);
-        for filter in &self.filters {
-            bytes = bytes.saturating_add(filter.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
-
 impl TryFrom<&crate::document::DocumentCardDefinition> for CardDefinition {
     type Error = Error;
 
     fn try_from(value: &crate::document::DocumentCardDefinition) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("document card encoding memory overflows"));
-        }
         let mut filters = Vec::new();
         filters.try_reserve_exact(value.filters.len()).map_err(|_| Error::Invalid("document filters allocation failed"))?;
         for filter in &value.filters {
@@ -590,9 +519,6 @@ impl TryFrom<CardDefinition> for crate::document::DocumentCardDefinition {
     type Error = Error;
 
     fn try_from(row: CardDefinition) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("document card definition projection memory overflows"));
-        }
         let mut filters = Vec::new();
         filters.try_reserve_exact(row.filters.len()).map_err(|_| Error::Invalid("document card filters allocation failed"))?;
         for filter in row.filters {
@@ -606,44 +532,11 @@ impl TryFrom<CardDefinition> for crate::document::DocumentCardDefinition {
     }
 }
 
-impl Card {
-    fn encoding_memory(value: &crate::document::DocumentCard) -> Result<usize> {
-        let metadata = metadata::Row::encoding_memory(&value.metadata)?;
-        let layout = CardLayout::encoding_memory(&value.layout)?;
-        let body = body_encoding_memory(&value.body)?;
-        if [metadata, layout, body].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(metadata.saturating_sub(std::mem::size_of::<metadata::Row>()))
-            .saturating_add(layout.saturating_sub(std::mem::size_of::<CardLayout>()))
-            .saturating_add(body);
-        for filter in &value.filters {
-            bytes = bytes.saturating_add(Filter::encoding_memory(filter)?);
-        }
-        Ok(bytes)
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
-        self.layout.validate()?;
-        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("document card metadata is missing"))?.projection_memory()?;
-        let mut bytes = std::mem::size_of::<crate::document::DocumentCard>()
-            .saturating_add(metadata)
-            .saturating_add(body_memory(&self.kind, &self.data)?);
-        for filter in &self.filters {
-            bytes = bytes.saturating_add(filter.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
-
 impl TryFrom<&crate::document::DocumentCard> for Card {
     type Error = Error;
 
     fn try_from(value: &crate::document::DocumentCard) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("document card encoding memory overflows"));
-        }
+        CardLayout::admit(&value.layout)?;
         let mut filters = Vec::new();
         filters.try_reserve_exact(value.filters.len()).map_err(|_| Error::Invalid("document filters allocation failed"))?;
         for filter in &value.filters {
@@ -664,9 +557,6 @@ impl TryFrom<Card> for crate::document::DocumentCard {
     type Error = Error;
 
     fn try_from(row: Card) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("document card projection memory overflows"));
-        }
         let mut filters = Vec::new();
         filters.try_reserve_exact(row.filters.len()).map_err(|_| Error::Invalid("document card filters allocation failed"))?;
         for filter in row.filters {
@@ -681,40 +571,10 @@ impl TryFrom<Card> for crate::document::DocumentCard {
     }
 }
 
-impl Section {
-    fn encoding_memory(value: &crate::document::DocumentSection) -> Result<usize> {
-        let metadata = metadata::Row::encoding_memory(&value.metadata)?;
-        let repeat = value.repeat.as_ref().map(Repeat::encoding_memory).transpose()?.unwrap_or(0);
-        if [metadata, repeat].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(metadata.saturating_sub(std::mem::size_of::<metadata::Row>()))
-            .saturating_add(repeat.saturating_sub(std::mem::size_of::<Repeat>()));
-        for card in &value.cards {
-            bytes = bytes.saturating_add(Card::encoding_memory(card)?);
-        }
-        Ok(bytes)
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
-        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("document section metadata is missing"))?.projection_memory()?;
-        let repeat = self.repeat.as_ref().map(Repeat::projection_memory).transpose()?.unwrap_or(0);
-        let mut bytes = std::mem::size_of::<crate::document::DocumentSection>().saturating_add(metadata).saturating_add(repeat);
-        for card in &self.cards {
-            bytes = bytes.saturating_add(card.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
-
 impl TryFrom<&crate::document::DocumentSection> for Section {
     type Error = Error;
 
     fn try_from(value: &crate::document::DocumentSection) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("document section encoding memory overflows"));
-        }
         let mut cards = Vec::new();
         cards.try_reserve_exact(value.cards.len()).map_err(|_| Error::Invalid("document cards allocation failed"))?;
         for card in &value.cards {
@@ -732,9 +592,6 @@ impl TryFrom<Section> for crate::document::DocumentSection {
     type Error = Error;
 
     fn try_from(row: Section) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("document section projection memory overflows"));
-        }
         let mut cards = Vec::new();
         cards.try_reserve_exact(row.cards.len()).map_err(|_| Error::Invalid("section cards allocation failed"))?;
         for card in row.cards {
@@ -748,126 +605,10 @@ impl TryFrom<Section> for crate::document::DocumentSection {
     }
 }
 
-impl Plot {
-    fn encoding_memory(value: &crate::document::PlotDefinition) -> Result<usize> {
-        let metadata = metadata::Row::encoding_memory(&value.metadata)?;
-        let fft = Fft::encoding_memory(&value.fft)?;
-        Interval::encoding_memory(&value.interval)?;
-        let histogram = Histogram::encoding_memory(&value.histogram)?;
-        if [metadata, fft, histogram].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            metadata.saturating_sub(std::mem::size_of::<metadata::Row>()),
-            name(&value.plot_type).len(),
-            name(&value.style).len(),
-            name(&value.x_scale).len(),
-            name(&value.y_scale).len(),
-            fft.saturating_sub(std::mem::size_of::<Fft>()),
-            histogram.saturating_sub(std::mem::size_of::<Histogram>()),
-            value.y.len().saturating_mul(std::mem::size_of::<String>()),
-            value.marker_record_types.len().saturating_mul(std::mem::size_of::<String>()),
-        ];
-        let mut bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
-        for text in [&value.stream, &value.x, &value.z_stream, &value.z_field, &value.series_by, &value.unit].into_iter().flatten() {
-            bytes = bytes.saturating_add(text.len());
-        }
-        for text in value.y.iter().chain(&value.marker_record_types) {
-            bytes = bytes.saturating_add(text.len());
-        }
-        for expression in [&value.x_expression, &value.z_expression, &value.series_by_expression].into_iter().flatten() {
-            let memory = Data::encoding_memory(expression)?;
-            if memory == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            bytes = bytes.saturating_add(memory.saturating_sub(std::mem::size_of::<Data>()));
-        }
-        for expression in &value.y_expressions {
-            bytes = bytes.saturating_add(Data::encoding_memory(expression)?);
-        }
-        for filter in &value.filters {
-            bytes = bytes.saturating_add(Filter::encoding_memory(filter)?);
-        }
-        for line in &value.reference_lines {
-            bytes = bytes.saturating_add(Line::encoding_memory(line)?);
-        }
-        for band in &value.reference_bands {
-            bytes = bytes.saturating_add(Band::encoding_memory(band)?);
-        }
-        for format in [&value.x_format, &value.y_format].into_iter().flatten() {
-            let memory = Format::encoding_memory(format);
-            if memory == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            bytes = bytes.saturating_add(memory.saturating_sub(std::mem::size_of::<Format>()));
-        }
-        if let Some(axis) = &value.x_axis {
-            let memory = Axis::encoding_memory(axis);
-            if memory == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            bytes = bytes.saturating_add(memory.saturating_sub(std::mem::size_of::<Axis>()));
-        }
-        if let Some(analysis) = &value.analysis {
-            bytes = bytes.saturating_add(super::analysis::Selection::encoding_memory(analysis)?);
-        }
-        Ok(bytes)
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
-        use harmos::MemorySize;
-        parse::<crate::document::PlotType>(&self.plot_type, "invalid plot type")?;
-        parse::<crate::document::PlotStyle>(&self.style, "invalid plot style")?;
-        parse::<crate::document::AxisScale>(&self.x_scale, "invalid axis scale")?;
-        parse::<crate::document::AxisScale>(&self.y_scale, "invalid axis scale")?;
-        self.fft.validate()?;
-        self.interval.validate()?;
-        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("plot metadata is missing"))?.projection_memory()?;
-        let strings = [&self.stream, &self.x, &self.z_stream, &self.z_field, &self.series_by, &self.unit];
-        let mut bytes = strings
-            .into_iter()
-            .fold(std::mem::size_of::<crate::document::PlotDefinition>(), |bytes, value| {
-                bytes.saturating_add(value.as_ref().map_or(0, String::capacity))
-            })
-            .saturating_add(metadata);
-        let y = self.y.memory_size();
-        let markers = self.marker_record_types.memory_size();
-        bytes = bytes.saturating_add(y).saturating_add(markers).saturating_add(self.histogram.projection_memory()?);
-        for value in [&self.x_expression, &self.z_expression, &self.series_by_expression].into_iter().flatten() {
-            bytes = bytes.saturating_add(value.projection_memory()?);
-        }
-        for value in &self.y_expressions {
-            bytes = bytes.saturating_add(value.projection_memory()?);
-        }
-        for filter in &self.filters {
-            bytes = bytes.saturating_add(filter.projection_memory()?);
-        }
-        for line in &self.reference_lines {
-            bytes = bytes.saturating_add(line.projection_memory()?);
-        }
-        for band in &self.reference_bands {
-            bytes = bytes.saturating_add(band.projection_memory()?);
-        }
-        for format in [&self.x_format, &self.y_format].into_iter().flatten() {
-            bytes = bytes.saturating_add(format.projection_memory()?);
-        }
-        if let Some(axis) = &self.x_axis {
-            bytes = bytes.saturating_add(axis.projection_memory()?);
-        }
-        if let Some(analysis) = &self.analysis {
-            bytes = bytes.saturating_add(analysis.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
-
 impl TryFrom<&crate::document::PlotDefinition> for Plot {
     type Error = Error;
 
     fn try_from(value: &crate::document::PlotDefinition) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("plot encoding memory overflows"));
-        }
         let mut y_expressions = Vec::new();
         y_expressions.try_reserve_exact(value.y_expressions.len()).map_err(|_| Error::Invalid("plot expressions allocation failed"))?;
         for expression in &value.y_expressions {
@@ -930,9 +671,6 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
     type Error = Error;
 
     fn try_from(row: Plot) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("plot projection memory overflows"));
-        }
         let mut y_expressions = Vec::new();
         y_expressions.try_reserve_exact(row.y_expressions.len()).map_err(|_| Error::Invalid("plot expressions allocation failed"))?;
         for expression in row.y_expressions {
@@ -993,16 +731,6 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
 }
 
 impl Fft {
-    pub fn encoding_memory(value: &crate::document::FftOptions) -> Result<usize> {
-        for number in [value.sample_rate_hz, value.min_frequency_hz, value.max_frequency_hz].into_iter().flatten() {
-            finite(number)?;
-        }
-        Ok(std::mem::size_of::<Self>()
-            .saturating_add(name(&value.window).len())
-            .saturating_add(name(&value.detrend).len())
-            .saturating_add(name(&value.level_unit).len()))
-    }
-
     pub fn validate(&self) -> Result<()> {
         for value in [self.sample_rate_hz, self.min_frequency_hz, self.max_frequency_hz].into_iter().flatten() {
             finite(value)?;
@@ -1018,8 +746,8 @@ impl TryFrom<&crate::document::FftOptions> for Fft {
     type Error = Error;
 
     fn try_from(value: &crate::document::FftOptions) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("fft encoding memory overflows"));
+        for number in [value.sample_rate_hz, value.min_frequency_hz, value.max_frequency_hz].into_iter().flatten() {
+            finite(number)?;
         }
         Ok(Self {
             sample_rate_hz: value.sample_rate_hz,
@@ -1051,12 +779,6 @@ impl TryFrom<Fft> for crate::document::FftOptions {
 }
 
 impl Interval {
-    pub fn encoding_memory(value: &crate::document::SigmaIntervalOptions) -> Result<usize> {
-        finite(value.bin_width)?;
-        finite(value.sigma)?;
-        Ok(std::mem::size_of::<Self>())
-    }
-
     pub fn validate(&self) -> Result<()> {
         finite(self.bin_width)?;
         finite(self.sigma)?;
@@ -1068,7 +790,8 @@ impl TryFrom<&crate::document::SigmaIntervalOptions> for Interval {
     type Error = Error;
 
     fn try_from(value: &crate::document::SigmaIntervalOptions) -> Result<Self> {
-        Self::encoding_memory(value)?;
+        finite(value.bin_width)?;
+        finite(value.sigma)?;
         Ok(Self {
             bin_width: value.bin_width,
             sigma: value.sigma,
@@ -1090,25 +813,10 @@ impl TryFrom<Interval> for crate::document::SigmaIntervalOptions {
     }
 }
 
-impl Histogram {
-    pub fn encoding_memory(value: &crate::document::HistogramOptions) -> Result<usize> {
-        u64::try_from(value.bins).map_err(|_| Error::Invalid("histogram bins overflow"))?;
-        Ok(std::mem::size_of::<Self>().saturating_add(value.unit.as_deref().map_or(0, str::len)))
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        usize::try_from(self.bins).map_err(|_| Error::Invalid("histogram bins overflow"))?;
-        Ok(std::mem::size_of::<crate::document::HistogramOptions>().saturating_add(self.unit.as_ref().map_or(0, String::capacity)))
-    }
-}
-
 impl TryFrom<&crate::document::HistogramOptions> for Histogram {
     type Error = Error;
 
     fn try_from(value: &crate::document::HistogramOptions) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("histogram encoding memory overflows"));
-        }
         Ok(Self {
             bins: u64::try_from(value.bins).map_err(|_| Error::Invalid("histogram bins overflow"))?,
             unit: value.unit.as_deref().map(str::to_owned),
@@ -1127,43 +835,12 @@ impl TryFrom<Histogram> for crate::document::HistogramOptions {
     }
 }
 
-impl Line {
-    pub fn encoding_memory(value: &crate::document::ReferenceLine) -> Result<usize> {
-        if let Some(number) = value.value {
-            finite(number)?;
-        }
-        finite(value.source_scale)?;
-        let source = value.source.as_ref().map(Data::encoding_memory).transpose()?.unwrap_or(0);
-        if source == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        Ok(std::mem::size_of::<Self>()
-            .saturating_add(name(&value.axis).len())
-            .saturating_add(source.saturating_sub(std::mem::size_of::<Data>()))
-            .saturating_add(value.label.as_deref().map_or(0, str::len))
-            .saturating_add(value.color.len()))
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        parse::<crate::document::ReferenceAxis>(&self.axis, "invalid reference axis")?;
-        if let Some(value) = self.value {
-            finite(value)?;
-        }
-        finite(self.source_scale)?;
-        let source = self.source.as_ref().map(Data::projection_memory).transpose()?.unwrap_or(0);
-        Ok(std::mem::size_of::<crate::document::ReferenceLine>()
-            .saturating_add(source)
-            .saturating_add(self.label.as_ref().map_or(0, String::capacity))
-            .saturating_add(self.color.capacity()))
-    }
-}
-
 impl TryFrom<&crate::document::ReferenceLine> for Line {
     type Error = Error;
 
     fn try_from(value: &crate::document::ReferenceLine) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("reference line encoding memory overflows"));
+        for number in value.value.into_iter().chain([value.source_scale]) {
+            finite(number)?;
         }
         Ok(Self {
             axis: name(&value.axis),
@@ -1180,8 +857,8 @@ impl TryFrom<Line> for crate::document::ReferenceLine {
     type Error = Error;
 
     fn try_from(row: Line) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("reference line projection memory overflows"));
+        for number in row.value.into_iter().chain([row.source_scale]) {
+            finite(number)?;
         }
         Ok(Self {
             axis: parse(&row.axis, "invalid reference axis")?,
@@ -1194,45 +871,12 @@ impl TryFrom<Line> for crate::document::ReferenceLine {
     }
 }
 
-impl Band {
-    pub fn encoding_memory(value: &crate::document::ReferenceBand) -> Result<usize> {
-        for number in [value.min, value.max].into_iter().flatten() {
-            finite(number)?;
-        }
-        let center = value.center.as_ref().map(Data::encoding_memory).transpose()?.unwrap_or(0);
-        let tolerance = value.tolerance.as_ref().map(Data::encoding_memory).transpose()?.unwrap_or(0);
-        if [center, tolerance].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        Ok(std::mem::size_of::<Self>()
-            .saturating_add(name(&value.axis).len())
-            .saturating_add(center.saturating_sub(std::mem::size_of::<Data>()))
-            .saturating_add(tolerance.saturating_sub(std::mem::size_of::<Data>()))
-            .saturating_add(value.label.as_deref().map_or(0, str::len))
-            .saturating_add(value.color.len()))
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        parse::<crate::document::ReferenceAxis>(&self.axis, "invalid reference axis")?;
-        for value in [self.min, self.max].into_iter().flatten() {
-            finite(value)?;
-        }
-        let center = self.center.as_ref().map(Data::projection_memory).transpose()?.unwrap_or(0);
-        let tolerance = self.tolerance.as_ref().map(Data::projection_memory).transpose()?.unwrap_or(0);
-        Ok(std::mem::size_of::<crate::document::ReferenceBand>()
-            .saturating_add(center)
-            .saturating_add(tolerance)
-            .saturating_add(self.label.as_ref().map_or(0, String::capacity))
-            .saturating_add(self.color.capacity()))
-    }
-}
-
 impl TryFrom<&crate::document::ReferenceBand> for Band {
     type Error = Error;
 
     fn try_from(value: &crate::document::ReferenceBand) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("reference band encoding memory overflows"));
+        for number in [value.min, value.max].into_iter().flatten() {
+            finite(number)?;
         }
         Ok(Self {
             axis: name(&value.axis),
@@ -1250,8 +894,8 @@ impl TryFrom<Band> for crate::document::ReferenceBand {
     type Error = Error;
 
     fn try_from(row: Band) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("reference band projection memory overflows"));
+        for number in [row.min, row.max].into_iter().flatten() {
+            finite(number)?;
         }
         Ok(Self {
             axis: parse(&row.axis, "invalid reference axis")?,
@@ -1266,17 +910,7 @@ impl TryFrom<Band> for crate::document::ReferenceBand {
 }
 
 impl Format {
-    pub fn encoding_memory(value: &dokime_domain::model::values::ValueFormat) -> usize {
-        use dokime_domain::model::values::ValueFormat;
-        let fields = match value {
-            ValueFormat::AbsoluteTime { pattern } => pattern.len(),
-            ValueFormat::ElapsedSinceRun { unit } | ValueFormat::ElapsedSinceCycle { unit } => name(unit).len(),
-            _ => 0,
-        };
-        std::mem::size_of::<Self>().saturating_add(format_name(value).len()).saturating_add(fields)
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
+    pub fn validate(&self) -> Result<()> {
         let kind = self.kind.as_str();
         let required = [
             (self.decimals.is_some(), kind == "fixed"),
@@ -1298,8 +932,7 @@ impl Format {
         if let Some(unit) = &self.unit {
             parse::<dokime_domain::model::values::ElapsedUnit>(unit, "invalid elapsed unit")?;
         }
-        Ok(std::mem::size_of::<dokime_domain::model::values::ValueFormat>()
-            .saturating_add(self.pattern.as_ref().map_or(0, String::capacity)))
+        Ok(())
     }
 }
 
@@ -1308,9 +941,6 @@ impl TryFrom<&dokime_domain::model::values::ValueFormat> for Format {
 
     fn try_from(value: &dokime_domain::model::values::ValueFormat) -> Result<Self> {
         use dokime_domain::model::values::ValueFormat;
-        if Self::encoding_memory(value) == usize::MAX {
-            return Err(Error::Invalid("value format encoding memory overflows"));
-        }
         let mut format = Self {
             kind: format_name(value).to_owned(),
             ..Default::default()
@@ -1332,7 +962,7 @@ impl TryFrom<Format> for dokime_domain::model::values::ValueFormat {
     type Error = Error;
 
     fn try_from(row: Format) -> Result<Self> {
-        row.projection_memory()?;
+        row.validate()?;
         match row.kind.as_str() {
             "normal" => Ok(Self::Normal {
                 max_fraction_digits: row.max_fraction_digits.map(format_digits).transpose()?,
@@ -1362,19 +992,9 @@ impl TryFrom<Format> for dokime_domain::model::values::ValueFormat {
 }
 
 impl Axis {
-    pub fn encoding_memory(value: &crate::document::PlotAxisKind) -> usize {
-        use crate::document::PlotAxisKind;
-        let (kind, unit) = match value {
-            PlotAxisKind::WallTime => ("wall_time", 0),
-            PlotAxisKind::Elapsed { unit } => ("elapsed", unit.len()),
-        };
-        std::mem::size_of::<Self>().saturating_add(kind.len()).saturating_add(unit)
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
+    pub fn validate(&self) -> Result<()> {
         match (self.kind.as_str(), &self.unit) {
-            ("wall_time", None) => Ok(std::mem::size_of::<crate::document::PlotAxisKind>()),
-            ("elapsed", Some(unit)) => Ok(std::mem::size_of::<crate::document::PlotAxisKind>().saturating_add(unit.capacity())),
+            ("wall_time", None) | ("elapsed", Some(_)) => Ok(()),
             _ => Err(Error::Invalid("plot axis fields differ")),
         }
     }
@@ -1385,9 +1005,6 @@ impl TryFrom<&crate::document::PlotAxisKind> for Axis {
 
     fn try_from(value: &crate::document::PlotAxisKind) -> Result<Self> {
         use crate::document::PlotAxisKind;
-        if Self::encoding_memory(value) == usize::MAX {
-            return Err(Error::Invalid("plot axis encoding memory overflows"));
-        }
         Ok(match value {
             PlotAxisKind::WallTime => Self { kind: "wall_time".into(), unit: None },
             PlotAxisKind::Elapsed { unit } => Self {
@@ -1402,7 +1019,7 @@ impl TryFrom<Axis> for crate::document::PlotAxisKind {
     type Error = Error;
 
     fn try_from(row: Axis) -> Result<Self> {
-        row.projection_memory()?;
+        row.validate()?;
         match row.kind.as_str() {
             "wall_time" => Ok(Self::WallTime),
             "elapsed" => Ok(Self::Elapsed { unit: row.unit.unwrap() }),
@@ -1411,31 +1028,10 @@ impl TryFrom<Axis> for crate::document::PlotAxisKind {
     }
 }
 
-impl Summary {
-    fn encoding_memory(value: &crate::document::TelemetrySummaryDefinition) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<Self>();
-        for group in &value.groups {
-            bytes = bytes.saturating_add(SummaryGroup::encoding_memory(group)?);
-        }
-        Ok(bytes)
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<crate::document::TelemetrySummaryDefinition>();
-        for group in &self.groups {
-            bytes = bytes.saturating_add(group.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
-
 impl TryFrom<&crate::document::TelemetrySummaryDefinition> for Summary {
     type Error = Error;
 
     fn try_from(value: &crate::document::TelemetrySummaryDefinition) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("summary encoding memory overflows"));
-        }
         let mut groups = Vec::new();
         groups.try_reserve_exact(value.groups.len()).map_err(|_| Error::Invalid("summary groups allocation failed"))?;
         for group in &value.groups {
@@ -1449,9 +1045,6 @@ impl TryFrom<Summary> for crate::document::TelemetrySummaryDefinition {
     type Error = Error;
 
     fn try_from(row: Summary) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("summary projection memory overflows"));
-        }
         let mut groups = Vec::new();
         groups.try_reserve_exact(row.groups.len()).map_err(|_| Error::Invalid("summary groups allocation failed"))?;
         for group in row.groups {
@@ -1461,36 +1054,10 @@ impl TryFrom<Summary> for crate::document::TelemetrySummaryDefinition {
     }
 }
 
-impl SummaryGroup {
-    fn encoding_memory(value: &crate::document::TelemetrySummaryGroupDefinition) -> Result<usize> {
-        let metadata = metadata::Row::encoding_memory(&value.metadata)?;
-        if metadata == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        let mut bytes = std::mem::size_of::<Self>().saturating_add(metadata.saturating_sub(std::mem::size_of::<metadata::Row>()));
-        for tile in &value.tiles {
-            bytes = bytes.saturating_add(Tile::encoding_memory(tile)?);
-        }
-        Ok(bytes)
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
-        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("summary group metadata is missing"))?.projection_memory()?;
-        let mut bytes = std::mem::size_of::<crate::document::TelemetrySummaryGroupDefinition>().saturating_add(metadata);
-        for tile in &self.tiles {
-            bytes = bytes.saturating_add(tile.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
-
 impl TryFrom<&crate::document::TelemetrySummaryGroupDefinition> for SummaryGroup {
     type Error = Error;
 
     fn try_from(value: &crate::document::TelemetrySummaryGroupDefinition) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("summary group encoding memory overflows"));
-        }
         let mut tiles = Vec::new();
         tiles.try_reserve_exact(value.tiles.len()).map_err(|_| Error::Invalid("summary tiles allocation failed"))?;
         for tile in &value.tiles {
@@ -1507,9 +1074,6 @@ impl TryFrom<SummaryGroup> for crate::document::TelemetrySummaryGroupDefinition 
     type Error = Error;
 
     fn try_from(row: SummaryGroup) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("summary group projection memory overflows"));
-        }
         let mut tiles = Vec::new();
         tiles.try_reserve_exact(row.tiles.len()).map_err(|_| Error::Invalid("summary tiles allocation failed"))?;
         for tile in row.tiles {
@@ -1522,59 +1086,10 @@ impl TryFrom<SummaryGroup> for crate::document::TelemetrySummaryGroupDefinition 
     }
 }
 
-impl Tile {
-    fn encoding_memory(value: &crate::document::TelemetrySummaryTileDefinition) -> Result<usize> {
-        let metadata = metadata::Row::encoding_memory(&value.metadata)?;
-        let scalar = Data::encoding_memory(&value.value)?;
-        if [metadata, scalar].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            metadata.saturating_sub(std::mem::size_of::<metadata::Row>()),
-            scalar.saturating_sub(std::mem::size_of::<Data>()),
-            name(&value.stat).len(),
-            name(&value.format).len(),
-            name(&value.presentation).len(),
-            value.unit.as_deref().map_or(0, str::len),
-        ];
-        let mut bytes = fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add);
-        for filter in &value.filters {
-            bytes = bytes.saturating_add(Filter::encoding_memory(filter)?);
-        }
-        for condition in &value.conditions {
-            bytes = bytes.saturating_add(TileCondition::encoding_memory(condition)?);
-        }
-        Ok(bytes)
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
-        if self.stat != "latest" {
-            return Err(Error::Invalid("invalid summary statistic"));
-        }
-        parse::<crate::document::TelemetrySummaryFormat>(&self.format, "invalid summary format")?;
-        parse::<crate::document::TelemetrySummaryPresentation>(&self.presentation, "invalid summary presentation")?;
-        let metadata = self.metadata.as_ref().ok_or(Error::Invalid("summary tile metadata is missing"))?.projection_memory()?;
-        let mut bytes = std::mem::size_of::<crate::document::TelemetrySummaryTileDefinition>()
-            .saturating_add(metadata)
-            .saturating_add(self.value.projection_memory()?)
-            .saturating_add(self.unit.as_ref().map_or(0, String::capacity));
-        for filter in &self.filters {
-            bytes = bytes.saturating_add(filter.projection_memory()?);
-        }
-        for condition in &self.conditions {
-            bytes = bytes.saturating_add(condition.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
-
 impl TryFrom<&crate::document::TelemetrySummaryTileDefinition> for Tile {
     type Error = Error;
 
     fn try_from(value: &crate::document::TelemetrySummaryTileDefinition) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("summary tile encoding memory overflows"));
-        }
         let mut filters = Vec::new();
         filters.try_reserve_exact(value.filters.len()).map_err(|_| Error::Invalid("summary filters allocation failed"))?;
         for filter in &value.filters {
@@ -1602,8 +1117,8 @@ impl TryFrom<Tile> for crate::document::TelemetrySummaryTileDefinition {
     type Error = Error;
 
     fn try_from(row: Tile) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("summary tile projection memory overflows"));
+        if row.stat != "latest" {
+            return Err(Error::Invalid("invalid summary statistic"));
         }
         let mut filters = Vec::new();
         filters.try_reserve_exact(row.filters.len()).map_err(|_| Error::Invalid("summary filters allocation failed"))?;
@@ -1628,32 +1143,10 @@ impl TryFrom<Tile> for crate::document::TelemetrySummaryTileDefinition {
     }
 }
 
-impl TileCondition {
-    fn encoding_memory(value: &crate::document::TelemetrySummaryCondition) -> Result<usize> {
-        let scalar = Value::encoding_memory(&value.value)?;
-        if scalar == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        Ok(std::mem::size_of::<Self>()
-            .saturating_add(name(&value.operator).len())
-            .saturating_add(name(&value.state).len())
-            .saturating_add(scalar.saturating_sub(std::mem::size_of::<Value>())))
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
-        parse::<crate::document::FilterOperator>(&self.operator, "invalid document filter operator")?;
-        parse::<crate::document::TelemetrySummaryState>(&self.state, "invalid summary state")?;
-        Ok(std::mem::size_of::<crate::document::TelemetrySummaryCondition>().saturating_add(self.value.projection_memory()?))
-    }
-}
-
 impl TryFrom<&crate::document::TelemetrySummaryCondition> for TileCondition {
     type Error = Error;
 
     fn try_from(value: &crate::document::TelemetrySummaryCondition) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("summary condition encoding memory overflows"));
-        }
         Ok(Self {
             operator: name(&value.operator),
             value: Value::try_from(&value.value)?,
@@ -1666,9 +1159,6 @@ impl TryFrom<TileCondition> for crate::document::TelemetrySummaryCondition {
     type Error = Error;
 
     fn try_from(row: TileCondition) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("summary condition projection memory overflows"));
-        }
         Ok(Self {
             operator: parse(&row.operator, "invalid document filter operator")?,
             value: row.value.try_into()?,
@@ -1677,39 +1167,10 @@ impl TryFrom<TileCondition> for crate::document::TelemetrySummaryCondition {
     }
 }
 
-impl Data {
-    pub fn encoding_memory(value: &DataExpression) -> Result<usize> {
-        let source = DataSource::encoding_memory(&value.source);
-        if source == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(value.label.as_deref().map_or(0, str::len))
-            .saturating_add(source.saturating_sub(std::mem::size_of::<DataSource>()));
-        for transform in &value.transforms {
-            bytes = bytes.saturating_add(Transform::encoding_memory(transform));
-        }
-        Ok(bytes)
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<DataExpression>()
-            .saturating_add(self.label.as_ref().map_or(0, String::capacity))
-            .saturating_add(self.source.projection_memory()?);
-        for transform in &self.transforms {
-            bytes = bytes.saturating_add(transform.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
-
 impl TryFrom<&DataExpression> for Data {
     type Error = Error;
 
     fn try_from(value: &DataExpression) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("data expression encoding memory overflows"));
-        }
         let mut transforms = Vec::new();
         transforms.try_reserve_exact(value.transforms.len()).map_err(|_| Error::Invalid("data transforms allocation failed"))?;
         for transform in &value.transforms {
@@ -1727,9 +1188,6 @@ impl TryFrom<Data> for DataExpression {
     type Error = Error;
 
     fn try_from(row: Data) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("data expression projection memory overflows"));
-        }
         let mut transforms = Vec::new();
         transforms.try_reserve_exact(row.transforms.len()).map_err(|_| Error::Invalid("data transforms allocation failed"))?;
         for transform in row.transforms {
@@ -1744,18 +1202,7 @@ impl TryFrom<Data> for DataExpression {
 }
 
 impl DataSource {
-    fn encoding_memory(value: &DomainSource) -> usize {
-        let (kind, fields) = match value {
-            DomainSource::Telemetry { stream, field } => ("telemetry", stream.len().saturating_add(field.len())),
-            DomainSource::Parameter { name } => ("parameter", name.len()),
-            DomainSource::Dimension { name } => ("dimension", name.len()),
-            DomainSource::Record { record_type } => ("record", record_type.len()),
-            DomainSource::Artifact { artifact } => ("artifact", artifact.len()),
-        };
-        std::mem::size_of::<Self>().saturating_add(kind.len()).saturating_add(fields)
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
+    fn validate(&self) -> Result<()> {
         let kind = self.kind.as_str();
         let fields = [
             (self.stream.is_some(), kind == "telemetry"),
@@ -1769,10 +1216,7 @@ impl DataSource {
         {
             return Err(Error::Invalid("data source fields differ"));
         }
-        let fields = [&self.stream, &self.field, &self.name, &self.record_type, &self.artifact];
-        Ok(fields
-            .into_iter()
-            .fold(std::mem::size_of::<DomainSource>(), |bytes, field| bytes.saturating_add(field.as_ref().map_or(0, String::capacity))))
+        Ok(())
     }
 }
 
@@ -1780,9 +1224,6 @@ impl TryFrom<&DomainSource> for DataSource {
     type Error = Error;
 
     fn try_from(value: &DomainSource) -> Result<Self> {
-        if Self::encoding_memory(value) == usize::MAX {
-            return Err(Error::Invalid("data source encoding memory overflows"));
-        }
         let mut source = Self::default();
         let kind = match value {
             DomainSource::Telemetry { stream, field } => {
@@ -1816,7 +1257,7 @@ impl TryFrom<DataSource> for DomainSource {
     type Error = Error;
 
     fn try_from(row: DataSource) -> Result<Self> {
-        row.projection_memory()?;
+        row.validate()?;
         match row.kind.as_str() {
             "telemetry" => Ok(Self::Telemetry {
                 stream: row.stream.unwrap(),
@@ -1832,17 +1273,7 @@ impl TryFrom<DataSource> for DomainSource {
 }
 
 impl Transform {
-    fn encoding_memory(value: &DataTransform) -> usize {
-        let fields = match value {
-            DataTransform::TimeBetween { previous_record_type } => previous_record_type.len(),
-            DataTransform::Detail { name } => name.len(),
-            DataTransform::Aggregate(aggregate) => aggregate.name().len(),
-            _ => 0,
-        };
-        std::mem::size_of::<Self>().saturating_add(transform_name(value).len()).saturating_add(fields)
-    }
-
-    fn projection_memory(&self) -> Result<usize> {
+    fn validate(&self) -> Result<()> {
         let kind = self.kind.as_str();
         let fields = [
             (self.previous_record_type.is_some(), kind == "time_between"),
@@ -1854,10 +1285,7 @@ impl Transform {
         {
             return Err(Error::Invalid("data transform fields differ"));
         }
-        let fields = [&self.previous_record_type, &self.name, &self.aggregate];
-        Ok(fields
-            .into_iter()
-            .fold(std::mem::size_of::<DataTransform>(), |bytes, field| bytes.saturating_add(field.as_ref().map_or(0, String::capacity))))
+        Ok(())
     }
 }
 
@@ -1865,9 +1293,6 @@ impl TryFrom<&DataTransform> for Transform {
     type Error = Error;
 
     fn try_from(value: &DataTransform) -> Result<Self> {
-        if Self::encoding_memory(value) == usize::MAX {
-            return Err(Error::Invalid("data transform encoding memory overflows"));
-        }
         let mut transform = Self {
             kind: transform_name(value).to_owned(),
             ..Default::default()
@@ -1888,7 +1313,7 @@ impl TryFrom<Transform> for DataTransform {
     type Error = Error;
 
     fn try_from(row: Transform) -> Result<Self> {
-        row.projection_memory()?;
+        row.validate()?;
         match row.kind.as_str() {
             "aggregate" => row
                 .aggregate
@@ -1906,35 +1331,10 @@ impl TryFrom<Transform> for DataTransform {
     }
 }
 
-impl Filter {
-    pub fn encoding_memory(value: &crate::document::DocumentFilter) -> Result<usize> {
-        let expression = Data::encoding_memory(&value.expression)?;
-        let scalar = value.value.as_ref().map(Value::encoding_memory).transpose()?.unwrap_or(0);
-        if [expression, scalar].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        Ok(std::mem::size_of::<Self>()
-            .saturating_add(expression.saturating_sub(std::mem::size_of::<Data>()))
-            .saturating_add(name(&value.operator).len())
-            .saturating_add(scalar.saturating_sub(std::mem::size_of::<Value>())))
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        parse::<crate::document::FilterOperator>(&self.operator, "invalid document filter operator")?;
-        let value = self.value.as_ref().map(Value::projection_memory).transpose()?.unwrap_or(0);
-        Ok(std::mem::size_of::<crate::document::DocumentFilter>()
-            .saturating_add(self.expression.projection_memory()?)
-            .saturating_add(value))
-    }
-}
-
 impl TryFrom<&crate::document::DocumentFilter> for Filter {
     type Error = Error;
 
     fn try_from(value: &crate::document::DocumentFilter) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("document filter encoding memory overflows"));
-        }
         Ok(Self {
             expression: Data::try_from(&value.expression)?,
             operator: name(&value.operator),
@@ -1947,9 +1347,6 @@ impl TryFrom<Filter> for crate::document::DocumentFilter {
     type Error = Error;
 
     fn try_from(row: Filter) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("document filter projection memory overflows"));
-        }
         Ok(Self {
             expression: row.expression.try_into()?,
             operator: parse(&row.operator, "invalid document filter operator")?,
@@ -1958,45 +1355,10 @@ impl TryFrom<Filter> for crate::document::DocumentFilter {
     }
 }
 
-impl Repeat {
-    pub(super) fn encoding_memory(value: &crate::document::DocumentSectionRepeat) -> Result<usize> {
-        let scalar = Data::encoding_memory(&value.value)?;
-        let order = value.order_by.as_ref().map(Data::encoding_memory).transpose()?.unwrap_or(0);
-        if [scalar, order].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(scalar.saturating_sub(std::mem::size_of::<Data>()))
-            .saturating_add(order.saturating_sub(std::mem::size_of::<Data>()))
-            .saturating_add(value.label_template.len())
-            .saturating_add(value.id_template.as_deref().map_or(0, str::len));
-        for filter in &value.filters {
-            bytes = bytes.saturating_add(Filter::encoding_memory(filter)?);
-        }
-        Ok(bytes)
-    }
-
-    pub(super) fn projection_memory(&self) -> Result<usize> {
-        let order = self.order_by.as_ref().map(Data::projection_memory).transpose()?.unwrap_or(0);
-        let mut bytes = std::mem::size_of::<crate::document::DocumentSectionRepeat>()
-            .saturating_add(self.value.projection_memory()?)
-            .saturating_add(order)
-            .saturating_add(self.label_template.capacity())
-            .saturating_add(self.id_template.as_ref().map_or(0, String::capacity));
-        for filter in &self.filters {
-            bytes = bytes.saturating_add(filter.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
-
 impl TryFrom<&crate::document::DocumentSectionRepeat> for Repeat {
     type Error = Error;
 
     fn try_from(value: &crate::document::DocumentSectionRepeat) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("document repeat encoding memory overflows"));
-        }
         let mut filters = Vec::new();
         filters.try_reserve_exact(value.filters.len()).map_err(|_| Error::Invalid("document filters allocation failed"))?;
         for filter in &value.filters {
@@ -2016,9 +1378,6 @@ impl TryFrom<Repeat> for crate::document::DocumentSectionRepeat {
     type Error = Error;
 
     fn try_from(row: Repeat) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("document repeat projection memory overflows"));
-        }
         let mut filters = Vec::new();
         filters.try_reserve_exact(row.filters.len()).map_err(|_| Error::Invalid("document filters allocation failed"))?;
         for filter in row.filters {
@@ -2049,7 +1408,7 @@ impl TryFrom<Span> for crate::document::ResponsiveSpan {
 }
 
 impl CardLayout {
-    pub fn encoding_memory(value: &crate::document::DocumentCardLayout) -> Result<usize> {
+    pub fn admit(value: &crate::document::DocumentCardLayout) -> Result<()> {
         for value in
             [Some(value.col_span.base), value.col_span.sm, value.col_span.md, value.col_span.lg, value.col_span.xl, Some(value.row_span)]
                 .into_iter()
@@ -2057,7 +1416,7 @@ impl CardLayout {
         {
             span(u32::from(value))?;
         }
-        Ok(std::mem::size_of::<Self>().saturating_add(name(&value.density).len()).saturating_add(name(&value.rail).len()))
+        Ok(())
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -2088,30 +1447,11 @@ impl TryFrom<CardLayout> for crate::document::DocumentCardLayout {
     }
 }
 
-impl Placement {
-    pub(super) fn encoding_memory(value: &crate::document::DocumentCardPlacement) -> Result<usize> {
-        let layout = CardLayout::encoding_memory(&value.layout)?;
-        if layout == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        Ok(std::mem::size_of::<Self>()
-            .saturating_add(value.card_id.as_str().len())
-            .saturating_add(layout.saturating_sub(std::mem::size_of::<CardLayout>())))
-    }
-
-    pub(super) fn projection_memory(&self) -> Result<usize> {
-        self.layout.validate()?;
-        Ok(std::mem::size_of::<crate::document::DocumentCardPlacement>().saturating_add(self.card_id.capacity()))
-    }
-}
-
 impl TryFrom<&crate::document::DocumentCardPlacement> for Placement {
     type Error = Error;
 
     fn try_from(value: &crate::document::DocumentCardPlacement) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("document placement encoding memory overflows"));
-        }
+        CardLayout::admit(&value.layout)?;
         Ok(Self {
             card_id: value.card_id.as_str().to_owned(),
             layout: value.layout.clone().into(),
@@ -2123,9 +1463,6 @@ impl TryFrom<Placement> for crate::document::DocumentCardPlacement {
     type Error = Error;
 
     fn try_from(row: Placement) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("document placement projection memory overflows"));
-        }
         Ok(Self {
             card_id: dokime_domain::model::identity::Identifier::new(row.card_id)?,
             layout: row.layout.try_into()?,
@@ -2160,40 +1497,8 @@ impl From<crate::document::DocumentCardLayout> for CardLayout {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn body_encoding_memory(value: &crate::document::DocumentCardBody) -> Result<usize> {
-    use crate::document::DocumentCardBody;
-    let mut bytes = body_name(value).len();
-    match value {
-        DocumentCardBody::Text { markdown } => bytes = bytes.saturating_add(markdown.len()),
-        DocumentCardBody::TelemetrySummary { summary } => {
-            let memory = Summary::encoding_memory(summary)?;
-            if memory == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            bytes = bytes.saturating_add(memory.saturating_sub(std::mem::size_of::<Summary>()));
-        }
-        DocumentCardBody::Plot { plot } => {
-            let memory = Plot::encoding_memory(plot)?;
-            if memory == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            bytes = bytes.saturating_add(memory.saturating_sub(std::mem::size_of::<Plot>()));
-        }
-        DocumentCardBody::Table { rows } => {
-            for row in rows {
-                bytes = bytes.saturating_add(Map::encoding_memory(row)?);
-            }
-        }
-        _ => {}
-    }
-    Ok(bytes)
-}
-
 fn encode_body(value: &crate::document::DocumentCardBody) -> Result<(String, Option<CardData>)> {
     use crate::document::DocumentCardBody;
-    if body_encoding_memory(value)? == usize::MAX {
-        return Err(Error::Invalid("document body encoding memory overflows"));
-    }
     let data = match value {
         DocumentCardBody::Text { markdown } => Some(CardData {
             markdown: Some(markdown.as_str().to_owned()),
@@ -2272,8 +1577,7 @@ fn parse<T: serde::de::DeserializeOwned>(value: &str, invalid: &'static str) -> 
     T::deserialize(serde::de::value::StrDeserializer::<serde::de::value::Error>::new(value)).map_err(|_| Error::Invalid(invalid))
 }
 
-fn body_memory(kind: &str, data: &Option<CardData>) -> Result<usize> {
-    let mut bytes = std::mem::size_of::<crate::document::DocumentCardBody>();
+fn body_shape(kind: &str, data: &Option<CardData>) -> Result<()> {
     match (kind, data) {
         ("text" | "telemetry_summary" | "plot" | "table", Some(data)) => {
             let fields = [
@@ -2284,30 +1588,16 @@ fn body_memory(kind: &str, data: &Option<CardData>) -> Result<usize> {
             if fields.iter().any(|(present, expected)| present != expected) || (kind != "table" && !data.rows.is_empty()) {
                 return Err(Error::Invalid("document card body fields differ"));
             }
-            if let Some(markdown) = &data.markdown {
-                bytes = bytes.saturating_add(markdown.capacity());
-            }
-            if let Some(summary) = &data.summary {
-                bytes = bytes.saturating_add(summary.projection_memory()?);
-            }
-            if let Some(plot) = &data.plot {
-                bytes = bytes.saturating_add(plot.projection_memory()?);
-            }
-            for row in &data.rows {
-                bytes = bytes.saturating_add(row.projection_memory()?);
-            }
         }
         ("steps" | "criteria" | "traceability" | "notes" | "records" | "artifacts" | "media" | "health" | "telemetry_context", None) => {}
         _ => return Err(Error::Invalid("document card body kind or data differs")),
     }
-    Ok(bytes)
+    Ok(())
 }
 
 fn consume_body(kind: String, data: Option<CardData>) -> Result<crate::document::DocumentCardBody> {
     use crate::document::DocumentCardBody;
-    if body_memory(&kind, &data)? == usize::MAX {
-        return Err(Error::Invalid("document card body projection memory overflows"));
-    }
+    body_shape(&kind, &data)?;
     Ok(match kind.as_str() {
         "text" => DocumentCardBody::Text {
             markdown: data.unwrap().markdown.unwrap(),

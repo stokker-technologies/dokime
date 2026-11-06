@@ -93,11 +93,6 @@ pub(crate) fn encode(details: &BTreeMap<String, Value>) -> Result<Vec<Cell>> {
     Ok(cells)
 }
 
-pub(crate) fn value_encoding_memory(value: &Value) -> Result<usize> {
-    let plan = value_encoding(value)?;
-    Ok(std::mem::size_of::<Vec<Cell>>().saturating_add(plan.cells.saturating_mul(std::mem::size_of::<Cell>())).saturating_add(plan.strings))
-}
-
 pub(crate) fn encode_value(value: &Value) -> Result<Vec<Cell>> {
     let plan = value_encoding(value)?;
     let mut cells = Vec::new();
