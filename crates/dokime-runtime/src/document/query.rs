@@ -16,15 +16,18 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::io::Write;
 
 // Third Party Imports
 use arrow_array::{Array, StringArray, StructArray, UInt64Array};
+use sha2::{Digest, Sha256};
+use tokio::sync::OnceCell;
 
 // Local Imports
 use super::{DocumentCardBody, DocumentCardDefinition, DocumentSelection, TelemetrySummaryGroupPayload};
 use super::{
     binding::{self, Evidence},
-    capture::{Capture, CardBindingResult},
+    capture::{CardBinding, CardBindingResult},
     input::BorrowedData,
 };
 use crate::expressions::{DataSource, DataTransform};
@@ -39,6 +42,21 @@ use dokime_domain::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+pub(crate) struct Context<'a> {
+    runtime: &'a RuntimeHandle,
+    snapshot: &'a RuntimeStateSnapshot,
+    selection: &'a DocumentSelection,
+    pub(crate) at: &'a harmos::storage::StorageCursor,
+    artifacts: OnceCell<ArtifactInput>,
+}
+
+struct ArtifactInput {
+    rows: harmos::storage::ReadBatch<Vec<crate::artifacts::ArtifactRecord>>,
+    sha256: String,
+}
+
+struct HashWriter(Sha256);
 
 struct ProjectedRow<'a> {
     metadata: &'a StructArray,
@@ -111,21 +129,118 @@ impl ProjectedRow<'_> {
     }
 }
 
-/* === Public Functions === */
+impl Context<'_> {
+    pub(crate) fn new<'a>(
+        runtime: &'a RuntimeHandle, snapshot: &'a RuntimeStateSnapshot, selection: &'a DocumentSelection,
+        at: &'a harmos::storage::StorageCursor,
+    ) -> Context<'a> {
+        Context {
+            runtime,
+            snapshot,
+            selection,
+            at,
+            artifacts: OnceCell::new(),
+        }
+    }
 
-pub(crate) async fn summaries(
-    runtime: &RuntimeHandle, snapshot: &RuntimeStateSnapshot, selection: &DocumentSelection, at: &harmos::storage::StorageCursor,
-    cards: Vec<DocumentCardDefinition>, capture: &mut Capture, data: BorrowedData<'_>,
-) -> crate::runtime::Result<()> {
-    let evidence = Evidence {
-        records: data.records,
-        artifacts: data.artifacts,
-        telemetry: data.telemetry,
-        context: data.context,
-        selection: Some(selection),
-    };
-    for card in cards {
-        let DocumentCardBody::TelemetrySummary { summary } = &card.body else { continue };
+    pub(crate) fn artifact_digest(&self) -> Option<&str> {
+        self.artifacts.get().map(|input| input.sha256.as_str())
+    }
+
+    pub(crate) fn validate_membership(&self) -> crate::runtime::Result<()> {
+        if self.selection.scope.test_execution_id.is_none()
+            && let Some(id) = &self.selection.scope.test_cycle_id
+        {
+            let captured = self.snapshot.state().cycles.get(id);
+            let current = self.runtime.watch_state().latest();
+            if captured
+                .is_none_or(|captured| current.state().cycles.get(id).is_none_or(|current| current.execution_ids != captured.execution_ids))
+            {
+                return Err(crate::runtime::Error::conflict("document_capture_incomplete", "cycle members changed"));
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn artifacts(&self) -> crate::runtime::Result<&[crate::artifacts::ArtifactRecord]> {
+        let input = self
+            .artifacts
+            .get_or_try_init(|| async {
+                self.validate_membership()?;
+                let executions = if let Some(id) = &self.selection.scope.test_execution_id {
+                    vec![id.clone()]
+                } else {
+                    let id = self
+                        .selection
+                        .scope
+                        .test_cycle_id
+                        .as_ref()
+                        .ok_or_else(|| crate::runtime::Error::Operation("artifact query requires an owner".into()))?;
+                    let cycle = self
+                        .snapshot
+                        .state()
+                        .cycles
+                        .get(id)
+                        .ok_or_else(|| crate::runtime::Error::not_found("document_not_found", "document cycle was not found"))?;
+                    cycle
+                        .execution_ids
+                        .iter()
+                        .filter(|id| {
+                            self.selection.scope.test_case_id.as_ref().is_none_or(|case| {
+                                self.snapshot.state().executions.get(*id).is_some_and(|execution| &execution.test_case_id == case)
+                            })
+                        })
+                        .cloned()
+                        .collect()
+                };
+                let rows = self.runtime.execution_storage.selected_artifact_records(self.runtime.storage(), self.at, &executions).await?;
+                validate_cycle_artifacts(self.selection, self.snapshot, rows.as_slice())
+                    .map_err(|_| crate::runtime::Error::conflict("document_capture_incomplete", "artifact capture scope differs"))?;
+                if rows.iter().any(|record| self.selection.foreign_execution_scope(Some(&record.scope))) {
+                    return Err(crate::runtime::Error::conflict("document_capture_incomplete", "artifact capture scope differs"));
+                }
+                let mut digest = HashWriter(Sha256::new());
+                for record in rows.iter().filter(|record| self.selection.matches_scope(Some(&record.scope))) {
+                    serde_json::to_writer(&mut digest, record).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
+                    digest.write_all(b"\n").map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
+                }
+                let sha256 = digest.0.finalize().iter().map(|byte| format!("{byte:02x}")).collect();
+                Ok::<_, crate::runtime::Error>(ArtifactInput { rows, sha256 })
+            })
+            .await?;
+        Ok(input.rows.as_slice())
+    }
+
+    pub(crate) async fn card(
+        &self, card: DocumentCardDefinition, mut binding: CardBinding, data: BorrowedData<'_>,
+    ) -> crate::runtime::Result<CardBinding> {
+        let (runtime, snapshot, selection, at) = (self.runtime, self.snapshot, self.selection, self.at);
+        let limits = super::bounded::DocumentLimits::default();
+        let DocumentCardBody::TelemetrySummary { summary } = &card.body else { return Ok(binding) };
+        let artifacts_needed = card
+            .filters
+            .iter()
+            .map(|filter| &filter.expression)
+            .chain(
+                summary
+                    .groups
+                    .iter()
+                    .flat_map(|group| &group.tiles)
+                    .flat_map(|tile| std::iter::once(&tile.value).chain(tile.filters.iter().map(|filter| &filter.expression))),
+            )
+            .any(|expression| matches!(expression.source, DataSource::Artifact { .. }));
+        let data = BorrowedData {
+            artifacts: if artifacts_needed { super::input::Artifacts::Native(self.artifacts().await?) } else { data.artifacts },
+            ..data
+        };
+        let evidence = Evidence {
+            records: data.records,
+            artifacts: data.artifacts,
+            telemetry: data.telemetry,
+            context: data.context,
+            selection: Some(selection),
+        };
+        let mut output_bytes = 0usize;
         let mut groups = Vec::new();
         for group in &summary.groups {
             let mut tiles = Vec::new();
@@ -170,42 +285,106 @@ pub(crate) async fn summaries(
                             payload.state =
                                 payload.value.as_ref().and_then(|value| super::resolve::matching_summary_state(value, &tile.conditions));
                         }
-                        Err(error) => {
-                            use crate::runtime::Error;
-                            use dokime_domain::model::query::error::Reason;
-                            let source_failure = match &error {
-                                Error::Storage(_) | Error::Admission(_) => true,
-                                Error::Query(failure) => {
-                                    matches!(failure.reason, Reason::Corruption | Reason::StorageUnavailable | Reason::SnapshotUnavailable)
-                                }
-                                _ => false,
-                            };
-                            if source_failure {
-                                return Err(error);
-                            }
-                            payload.value = None;
-                            payload.state = None;
-                            payload.unavailable = Some(format!("card {}: {error}", card.metadata.identifier));
+                        Err(crate::runtime::Error::Query(mut error)) => {
+                            error.message = format!("tile {}: {}", tile.metadata.identifier, error.message);
+                            return Err(error.into());
                         }
+                        Err(error) => return Err(error),
                     }
+                }
+                if let Some(reason) = &payload.unavailable {
+                    return Err(crate::runtime::Error::Operation(reason.clone()));
+                }
+                output_bytes = output_bytes.saturating_add(
+                    super::bounded::document_size(&payload, usize::MAX, limits.depth)
+                        .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?,
+                );
+                if output_bytes > limits.materialized_bytes {
+                    return Err(crate::Error::Document(super::DocumentFailure::Budget {
+                        budget: "materialized_bytes",
+                        limit: limits.materialized_bytes,
+                        reached: output_bytes,
+                        card: card.metadata.identifier.to_string(),
+                    })
+                    .into());
                 }
                 tiles.push(payload);
             }
             groups.push(TelemetrySummaryGroupPayload { metadata: group.metadata.clone(), tiles });
         }
-        let binding = capture
-            .cards
-            .iter_mut()
-            .find(|binding| binding.metadata.identifier == card.metadata.identifier)
-            .expect("captured summary query has a binding");
         binding.result = CardBindingResult::Summary { groups };
-        let limits = super::bounded::DocumentLimits::default();
-        super::bounded::card_size(binding, limits.materialized_bytes, limits.depth, card.metadata.identifier.as_str())?;
+        super::bounded::card_size(&binding, limits.materialized_bytes, limits.depth, card.metadata.identifier.as_str())?;
+        Ok(binding)
+    }
+}
+
+impl Write for HashWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.update(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/* === Public Functions === */
+
+pub(crate) fn validate_cycle_artifacts(
+    selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records: &[crate::artifacts::ArtifactRecord],
+) -> harmos::Result<()> {
+    if selection.scope.test_execution_id.is_some() {
+        return Ok(());
+    }
+    let Some(id) = &selection.scope.test_cycle_id else {
+        return Ok(());
+    };
+    let cycle = snapshot.state().cycles.get(id).ok_or_else(cycle_artifact_scope)?;
+    let members = cycle.execution_ids.iter().collect::<std::collections::BTreeSet<_>>();
+    for record in records {
+        let Some(execution_id) = &record.scope.test_execution_id else {
+            continue;
+        };
+        let owner = snapshot.state().executions.get(execution_id);
+        if record.scope.test_cycle_id.as_ref() != Some(id) && owner.is_none_or(|owner| &owner.test_cycle_id != id) {
+            continue;
+        }
+        let owner = owner.ok_or_else(cycle_artifact_scope)?;
+        if &owner.test_cycle_id != id
+            || !members.contains(execution_id)
+            || !crate::evidence_runtime::scopes_correlate(Some(&record.scope), Some(&owner.scope))
+        {
+            return Err(cycle_artifact_scope());
+        }
     }
     Ok(())
 }
 
 /* === Private Functions === */
+
+fn cycle_artifact_scope() -> harmos::Error {
+    harmos::Error::InvalidInput {
+        field: "document artifact scope",
+        reason: "artifact descriptor differs from the captured cycle members",
+    }
+}
+
+async fn finish(fold: super::frame::Fold, config: crate::config::QueryConfig) -> crate::runtime::Result<Option<Value>> {
+    let mut work = QueryWork::document(config, "dokime.documents.summary");
+    let _cancel = work.cancellation();
+    tokio::task::spawn_blocking(move || {
+        work.check()?;
+        let result = fold.finish_checked(&mut || {
+            work.check().map_err(|_| harmos::storage::Error::ResourceExhausted {
+                resource: "document query cancelled or expired",
+            })
+        });
+        work.check()?;
+        Ok(result?)
+    })
+    .await
+    .map_err(|_| crate::runtime::Error::Operation("document fold worker failed".into()))?
+}
 
 async fn telemetry(
     runtime: &RuntimeHandle, snapshot: &RuntimeStateSnapshot, selection: &DocumentSelection, at: &harmos::storage::StorageCursor,
@@ -246,23 +425,35 @@ async fn telemetry(
         && let (DataSource::Telemetry { field, .. }, [DataTransform::Aggregate(aggregate)]) =
             (&expression.source, expression.transforms.as_slice())
         && let Some(stream) = streams.first()
+        && let Some(value_type) = contracts
+            .iter()
+            .filter(|contract| contract.stream.as_str() == stream)
+            .flat_map(|contract| &contract.columns)
+            .find(|column| column.metadata.identifier.as_str() == field)
+            .map(|column| &column.value_type)
         && contracts.iter().filter(|contract| contract.stream.as_str() == stream).all(|contract| {
             contract.columns.iter().any(|column| {
                 column.metadata.identifier.as_str() == field
-                    && column.required
-                    && !column.nullable
-                    && (column.value_type == dokime_domain::model::values::ValueType::Number || *aggregate == harmos::Aggregate::Count)
+                    && &column.value_type == value_type
+                    && (matches!(
+                        value_type,
+                        dokime_domain::model::values::ValueType::Number | dokime_domain::model::values::ValueType::Integer
+                    ) || *aggregate == harmos::Aggregate::Count)
             })
         })
-        && let Some(moments) =
-            runtime.local_storage.document_moments(execution.to_string(), stream.clone(), field.clone(), at.clone()).await?
+        && let Some(value) = runtime
+            .local_storage
+            .document_statistic(
+                execution.to_string(),
+                stream.clone(),
+                field.clone(),
+                at.clone(),
+                *aggregate,
+                *value_type == dokime_domain::model::values::ValueType::Integer,
+            )
+            .await?
     {
-        if *aggregate == harmos::Aggregate::Count {
-            return Ok(Some(Value::Unsigned(moments.count)));
-        }
-        if let Some(value) = moments.value(*aggregate).filter(|value| value.is_finite()) {
-            return Ok(Some(Value::Number(value)));
-        }
+        return Ok(Some(value));
     }
     let expires = dokime_domain::model::identity::wire::Timestamp::from(
         time::OffsetDateTime::now_utc()
@@ -392,7 +583,7 @@ async fn telemetry(
             .map_err(query_error)?;
         state = result;
     }
-    Ok(state.0.finish()?)
+    finish(state.0, runtime.query_config().clone()).await
 }
 
 async fn records(
@@ -480,7 +671,7 @@ async fn records(
             }
         }
     }
-    Ok(fold.finish()?)
+    finish(fold, runtime.query_config().clone()).await
 }
 
 fn record_key(record_type: &str, scope: Option<&dokime_domain::model::execution::RecordScope>) -> (String, String, String) {

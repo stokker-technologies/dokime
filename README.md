@@ -285,6 +285,8 @@ failure leaves the others available. Markers follow the display point budget.
 
 Live summary tiles fold finite saved-evidence queries with bounded memory. Document
 capture no longer rejects estimated work based on retained source-row count.
+The page shows its structure first, then each data card loads and refreshes
+independently. A failed card leaves the others available.
 
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.

@@ -14,11 +14,9 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::io::Write;
 
 // Third Party Imports
 use harmos::MemorySize;
-use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::document::{DocumentDataInput, DocumentSelection, bounded::document_size};
@@ -33,13 +31,10 @@ use crate::telemetry::TelemetrySample;
 /* === Structs === */
 
 pub(super) struct Acquired {
-    pub at: harmos::storage::StorageCursor,
     pub data: DocumentDataInput,
     pub records: crate::storage::projection::Pages<dokime_domain::model::records::evidence::RecordEntry>,
     pub artifacts: Option<harmos::storage::ReadBatch<Vec<crate::artifacts::ArtifactRecord>>>,
-    pub telemetry_cut: Option<harmos::storage::StorageCursor>,
     pub telemetry: Option<harmos::storage::ReadBatch<Vec<TelemetrySample>>>,
-    pub artifacts_sha256: Option<String>,
 }
 
 /* === Enums === */
@@ -48,9 +43,6 @@ pub(super) struct Acquired {
 pub(super) enum DocumentAcquisitionFailure {
     #[error("document source or materialization budget exceeded")]
     Limit,
-
-    #[error("{0}")]
-    Budget(String),
 
     #[error("document selection not found")]
     Missing,
@@ -75,9 +67,7 @@ impl From<harmos::storage::Error> for DocumentAcquisitionFailure {
 impl From<DocumentAcquisitionFailure> for crate::runtime::Error {
     fn from(error: DocumentAcquisitionFailure) -> Self {
         match error {
-            DocumentAcquisitionFailure::Budget(_) | DocumentAcquisitionFailure::Limit => {
-                Self::overload("document_limit", error.to_string())
-            }
+            DocumentAcquisitionFailure::Limit => Self::overload("document_limit", error.to_string()),
             DocumentAcquisitionFailure::Missing => Self::not_found("document_not_found", error.to_string()),
             DocumentAcquisitionFailure::IncompleteCapture => Self::conflict("document_capture_incomplete", error.to_string()),
             DocumentAcquisitionFailure::Source(_) => Self::unavailable("document_source_unavailable", error.to_string()),
@@ -89,21 +79,15 @@ impl From<DocumentAcquisitionFailure> for crate::runtime::Error {
 
 pub(super) async fn acquire(
     runtime: &crate::RuntimeHandle, selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records_needed: bool,
-    telemetry_needed: bool, artifacts_needed: bool, limits: Option<crate::document::bounded::DocumentLimits>,
+    telemetry_needed: bool, artifacts_needed: bool, at: harmos::storage::StorageCursor,
 ) -> Result<Acquired, DocumentAcquisitionFailure> {
-    let (source_bytes, source_depth) = match limits {
-        Some(limits) => (limits.source_bytes, limits.depth),
-        None => (16 * 1024 * 1024, 32),
-    };
-    let at = runtime.saved_through(snapshot.revision()).await.map_err(source)?;
+    let limits = crate::document::bounded::DocumentLimits::default();
+    let (source_bytes, source_depth) = (limits.source_bytes, limits.depth);
     let mut captured = Acquired {
-        at: at.clone(),
         data: DocumentDataInput::default(),
         records: harmos::storage::ReadBatch::new(Vec::new()),
         artifacts: None,
-        telemetry_cut: None,
         telemetry: None,
-        artifacts_sha256: None,
     };
     let session = runtime.storage().clone();
     let mut bytes = 0usize;
@@ -183,21 +167,9 @@ pub(super) async fn acquire(
         for sample in samples.iter() {
             document_size(sample, source_bytes, source_depth).map_err(|_| DocumentAcquisitionFailure::Limit)?;
         }
-        captured.telemetry_cut = Some(at.clone());
         captured.telemetry = Some(samples);
     }
     if artifacts_needed {
-        struct Hasher(Sha256);
-        impl Write for Hasher {
-            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-                self.0.update(bytes);
-                Ok(bytes.len())
-            }
-            fn flush(&mut self) -> std::io::Result<()> {
-                Ok(())
-            }
-        }
-        let mut digest = Hasher(Sha256::new());
         let executions =
             if let Some(id) = &selection.scope.test_execution_id {
                 vec![id.clone()]
@@ -223,7 +195,7 @@ pub(super) async fn acquire(
         captured.artifacts = Some(
             records
                 .try_map(|mut records| -> harmos::Result<_> {
-                    validate_cycle_artifacts(selection, snapshot, &records)?;
+                    crate::document::query::validate_cycle_artifacts(selection, snapshot, &records)?;
                     if records.iter().any(|record| selection.foreign_execution_scope(Some(&record.scope))) {
                         return Err(harmos::Error::InvalidInput {
                             field: "document artifact scope",
@@ -235,15 +207,7 @@ pub(super) async fn acquire(
                     charge(records.memory_size()).map_err(artifact_limit)?;
                     for record in &records {
                         document_size(record, source_bytes, source_depth).map_err(artifact_limit)?;
-                        serde_json::to_writer(&mut digest, record).map_err(|error| {
-                            harmos::Error::backend("encode document artifact fingerprint", harmos::BackendFailure::Corrupt, error)
-                        })?;
-                        digest.write_all(b"\n").map_err(|error| {
-                            harmos::Error::backend("write document artifact fingerprint", harmos::BackendFailure::Corrupt, error)
-                        })?;
                     }
-                    charge(size_of::<String>() + 64).map_err(artifact_limit)?;
-                    captured.artifacts_sha256 = Some(digest.0.finalize().iter().map(|byte| format!("{byte:02x}")).collect());
                     Ok(records)
                 })
                 .map_err(|error| native_error(error.into()))?,
@@ -253,43 +217,6 @@ pub(super) async fn acquire(
 }
 
 /* === Private Functions === */
-
-fn validate_cycle_artifacts(
-    selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records: &[crate::artifacts::ArtifactRecord],
-) -> harmos::Result<()> {
-    if selection.scope.test_execution_id.is_some() {
-        return Ok(());
-    }
-    let Some(id) = &selection.scope.test_cycle_id else {
-        return Ok(());
-    };
-    let cycle = snapshot.state().cycles.get(id).ok_or_else(cycle_artifact_scope)?;
-    let members = cycle.execution_ids.iter().collect::<std::collections::BTreeSet<_>>();
-    for record in records {
-        let Some(execution_id) = &record.scope.test_execution_id else {
-            continue;
-        };
-        let owner = snapshot.state().executions.get(execution_id);
-        if record.scope.test_cycle_id.as_ref() != Some(id) && owner.is_none_or(|owner| &owner.test_cycle_id != id) {
-            continue;
-        }
-        let owner = owner.ok_or_else(cycle_artifact_scope)?;
-        if &owner.test_cycle_id != id
-            || !members.contains(execution_id)
-            || !crate::evidence_runtime::scopes_correlate(Some(&record.scope), Some(&owner.scope))
-        {
-            return Err(cycle_artifact_scope());
-        }
-    }
-    Ok(())
-}
-
-fn cycle_artifact_scope() -> harmos::Error {
-    harmos::Error::InvalidInput {
-        field: "document artifact scope",
-        reason: "artifact descriptor differs from the captured cycle members",
-    }
-}
 
 fn artifact_limit(_: impl std::fmt::Display) -> harmos::Error {
     harmos::Error::ResourceExhausted {

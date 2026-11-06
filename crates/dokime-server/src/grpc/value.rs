@@ -54,8 +54,14 @@ impl Budget {
         Ok(Self { remaining, maximum_depth })
     }
     pub(super) fn node(&mut self, depth: usize) -> Result<(), Status> {
-        if depth > self.maximum_depth || self.remaining == 0 {
-            return Err(Status::resource_exhausted("value/expression budget exceeded"));
+        if depth > self.maximum_depth {
+            return Err(Status::resource_exhausted(format!("budget value_depth exceeded (limit {}, reached {depth})", self.maximum_depth)));
+        }
+        if self.remaining == 0 {
+            return Err(Status::resource_exhausted(format!(
+                "budget value_nodes exceeded (limit {SERVER_VALUE_NODES}, reached {})",
+                SERVER_VALUE_NODES + 1
+            )));
         }
         self.remaining -= 1;
         Ok(())

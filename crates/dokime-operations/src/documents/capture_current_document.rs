@@ -37,6 +37,10 @@ use super::*;
 pub struct CaptureCurrentDocument {
     pub scope: Option<DocumentScope>,
     pub document_id: String,
+    #[serde(default)]
+    pub structure_only: bool,
+    #[serde(default)]
+    pub card_ids: Vec<String>,
 }
 
 /* === Enums === */

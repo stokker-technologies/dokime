@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 
 /* === Local Imports === */
@@ -17,7 +17,15 @@ import { useEffect, useMemo } from "react";
 import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
 import { createNativeNote, editNativeNote, fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
 import { fetchNativeExecutionFiles } from "@/lib/api/native-content";
-import { type CompletedDocument, fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
+import {
+  type CompletedDocument,
+  type NativeDocumentRequest,
+  type NativeDocumentSession,
+  fetchNativeDocument,
+  mapNativeDocument,
+  mapNativeDocumentCard,
+  nativeDocumentCardKey,
+} from "@/lib/api/native-documents";
 import {
   appendRecordTail,
   fetchNativeRecordTail,
@@ -29,8 +37,9 @@ import {
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { fetchNativeTraceability } from "@/lib/api/native-observation";
 import { respondNativePrompt } from "@/lib/api/native-prompts";
-import type { DocumentViewPayload, RecordScope } from "@/lib/types";
-import { documentRetry, documentRetryDelay } from "./document-query-model";
+import type { DocumentViewCard, DocumentViewPayload, RecordScope } from "@/lib/types";
+import { failureOf } from "@/lib/notification-details";
+import { documentRetry, documentRetryDelay, mergeDocumentProgress } from "./document-query-model";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
 
 /* === Constants === */
@@ -198,30 +207,46 @@ export function useExecutionFilesQuery(executionId: string | null, enabled: bool
 }
 
 export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) {
+  const queryClient = useQueryClient();
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const query = useQuery({
-    enabled: Boolean(cycleId && executionId) && session !== null,
+    enabled: Boolean(cycleId && executionId) && session !== null && !snapshot,
     queryFn: ({ queryKey, signal }) =>
-      capturedDocument(queryKey, (previous) =>
-        fetchNativeDocument(
-          nativeDocumentSession(requireSession(session)),
-          {
-            cycleId: cycleId ?? "",
-            documentId: "default",
-            executionId: executionId ?? "",
-            epoch: nativeEpoch(requireSession(session)),
-          },
-          signal,
-          previous,
-        ),
+      capturedDocument(
+        queryKey,
+        (previous, publish) =>
+          fetchNativeDocument(
+            nativeDocumentSession(requireSession(session)),
+            {
+              cycleId: cycleId ?? "",
+              documentId: "default",
+              executionId: executionId ?? "",
+              epoch: nativeEpoch(requireSession(session)),
+              structureOnly: true,
+            },
+            signal,
+            previous,
+            publish,
+          ),
+        (document) => queryClient.setQueryData(queryKey, document),
       ),
     queryKey: [...workflowQueryKeys.executionDocument({ cycleId, executionId }), generationOf(session)],
     gcTime: EVIDENCE_GC_MS,
     retry: documentRetry,
     retryDelay: documentRetryDelay,
   });
-  return snapshot && executionId ? frozenQuery(snapshot.document(executionId) ?? undefined) : query;
+  const cards = useDocumentCards({
+    document: query.data,
+    queryKey: [...workflowQueryKeys.executionDocument({ cycleId, executionId }), generationOf(session)],
+    request: { cycleId: cycleId ?? "", executionId: executionId ?? "", documentId: "default", epoch: session ? nativeEpoch(session) : "" },
+    session: session ? nativeDocumentSession(session) : null,
+    retryRoot: () => query.refetch(),
+    enabled: Boolean(cycleId && executionId) && !snapshot,
+  });
+  return snapshot && executionId
+    ? { ...frozenQuery(snapshot.document(executionId) ?? undefined), retryCard: cards.retryCard }
+    : { ...query, data: cards.data, retryCard: cards.retryCard };
 }
 
 /**
@@ -230,30 +255,46 @@ export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: s
  * in its scope. A frozen report answers from its embedded cycle capture.
  */
 export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) {
+  const queryClient = useQueryClient();
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const query = useQuery({
-    enabled: Boolean(cycleId) && enabled && session !== null,
+    enabled: Boolean(cycleId) && enabled && session !== null && !snapshot,
     queryFn: ({ queryKey, signal }) =>
-      capturedDocument(queryKey, (previous) =>
-        fetchNativeDocument(
-          nativeDocumentSession(requireSession(session)),
-          {
-            cycleId: cycleId ?? "",
-            documentId: "default",
-            executionId: "",
-            epoch: nativeEpoch(requireSession(session)),
-          },
-          signal,
-          previous,
-        ),
+      capturedDocument(
+        queryKey,
+        (previous, publish) =>
+          fetchNativeDocument(
+            nativeDocumentSession(requireSession(session)),
+            {
+              cycleId: cycleId ?? "",
+              documentId: "default",
+              executionId: "",
+              epoch: nativeEpoch(requireSession(session)),
+              structureOnly: true,
+            },
+            signal,
+            previous,
+            publish,
+          ),
+        (document) => queryClient.setQueryData(queryKey, document),
       ),
     queryKey: [...workflowQueryKeys.executionDocument({ cycleId, executionId: null }), generationOf(session)],
     gcTime: EVIDENCE_GC_MS,
     retry: documentRetry,
     retryDelay: documentRetryDelay,
   });
-  return snapshot && enabled ? frozenQuery(snapshot.document(null) ?? undefined) : query;
+  const cards = useDocumentCards({
+    document: query.data,
+    queryKey: [...workflowQueryKeys.executionDocument({ cycleId, executionId: null }), generationOf(session)],
+    request: { cycleId: cycleId ?? "", executionId: "", documentId: "default", epoch: session ? nativeEpoch(session) : "" },
+    session: session ? nativeDocumentSession(session) : null,
+    retryRoot: () => query.refetch(),
+    enabled: Boolean(cycleId) && enabled && !snapshot,
+  });
+  return snapshot && enabled
+    ? { ...frozenQuery(snapshot.document(null) ?? undefined), retryCard: cards.retryCard }
+    : { ...query, data: cards.data, retryCard: cards.retryCard };
 }
 
 /* === Invalidation === */
@@ -292,9 +333,8 @@ export async function invalidateRuntimeProjectionQueries(queryClient: QueryClien
 }
 
 /**
- * Re-read the open documents. Each read pages every record of its scope and
- * reassembles the document, so a running cycle refreshes them on a throttle
- * rather than on every runtime cursor.
+ * Refresh structure and card queries independently. Active card requests keep
+ * their cut while completed cards can refresh at the latest durable cut.
  */
 export async function invalidateRuntimeDocuments(queryClient: QueryClient) {
   await queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }, { cancelRefetch: false });
@@ -365,7 +405,7 @@ function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
 /* === Captured Documents === */
 
 /** The documents last captured, by query: a capture whose frontiers are unchanged answers these. */
-const capturedDocuments = new Map<string, { completed: CompletedDocument; mapped: DocumentViewPayload }>();
+const capturedDocuments = new Map<string, { completed?: CompletedDocument; current: CompletedDocument; mapped: DocumentViewPayload }>();
 
 /** The most open documents remembered at once; the oldest is forgotten first. */
 const CAPTURED_DOCUMENT_LIMIT = GUI_CAPTURED_DOCUMENTS;
@@ -377,15 +417,21 @@ const CAPTURED_DOCUMENT_LIMIT = GUI_CAPTURED_DOCUMENTS;
  */
 async function capturedDocument(
   queryKey: readonly unknown[],
-  capture: (previous: CompletedDocument | null) => Promise<CompletedDocument>,
+  capture: (previous: CompletedDocument | null, publish: (document: CompletedDocument) => void) => Promise<CompletedDocument>,
+  publish: (document: DocumentViewPayload) => void,
 ): Promise<DocumentViewPayload> {
   const key = JSON.stringify(queryKey);
   const held = capturedDocuments.get(key);
-  const completed = await capture(held?.completed ?? null);
+  let progress = held?.mapped;
+  const completed = await capture(held?.completed ?? null, (document) => {
+    progress = mergeDocumentProgress(mapNativeDocument(document), progress);
+    capturedDocuments.set(key, { completed: held?.completed, current: document, mapped: progress });
+    publish(progress);
+  });
   if (held && completed === held.completed) return held.mapped;
   const mapped = mapNativeDocument(completed);
   capturedDocuments.delete(key);
-  capturedDocuments.set(key, { completed, mapped });
+  capturedDocuments.set(key, { completed, current: completed, mapped });
   for (const oldest of capturedDocuments.keys()) {
     if (capturedDocuments.size <= CAPTURED_DOCUMENT_LIMIT) break;
     capturedDocuments.delete(oldest);
@@ -394,6 +440,69 @@ async function capturedDocument(
 }
 
 /* === Record Tails === */
+
+type CardRead = { document: CompletedDocument; card: DocumentViewCard };
+
+function useDocumentCards({
+  document,
+  queryKey,
+  request,
+  session,
+  retryRoot,
+  enabled,
+}: {
+  document: DocumentViewPayload | undefined;
+  queryKey: readonly unknown[];
+  request: NativeDocumentRequest;
+  session: NativeDocumentSession | null;
+  retryRoot: () => Promise<unknown>;
+  enabled: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const held = capturedDocuments.get(JSON.stringify(queryKey));
+  const candidates = (document?.cards ?? []).flatMap((card) => {
+    const source = held?.current.bindings.has(card.card_id) ? held.current : held?.completed;
+    if (source?.bindings.get(card.card_id)?.result?.HarmosVariant.case !== "Pending") return [];
+    const key = [...queryKey, "cards", card.card_id, nativeDocumentCardKey(source, card.card_id)];
+    return [{ id: card.card_id, key }];
+  });
+  const results = useQueries({
+    queries: candidates.map(({ id, key }) => ({
+      queryKey: key,
+      enabled: enabled && session !== null,
+      gcTime: EVIDENCE_GC_MS,
+      retry: documentRetry,
+      retryDelay: documentRetryDelay,
+      queryFn: async ({ signal }: { signal: AbortSignal }): Promise<CardRead> => {
+        if (!session) throw new Error("A connected native backend is required.");
+        const previous = queryClient.getQueryData<CardRead>(key);
+        const captured = await fetchNativeDocument(session, { ...request, cardIds: [id] }, signal, previous?.document);
+        if (previous && captured === previous.document) return previous;
+        return { document: captured, card: mapNativeDocumentCard(captured, id) };
+      },
+    })),
+  });
+  const values = new Map(
+    results.map((query, index) => {
+      const id = candidates[index]?.id;
+      const original = document?.cards.find((card) => card.card_id === id);
+      if (!original) return [id, undefined] as const;
+      if (query.error)
+        return [id, { ...(query.data?.card ?? original), loading: false, failure: failureOf(query.error, original.title) }] as const;
+      return [id, query.data?.card] as const;
+    }),
+  );
+  const data = document ? { ...document, cards: document.cards.map((card) => values.get(card.card_id) ?? card) } : undefined;
+  const retryCard = async (id?: string) => {
+    const index = id ? candidates.findIndex((card) => card.id === id) : -1;
+    if (index >= 0) {
+      await results[index]?.refetch();
+      return;
+    }
+    await Promise.all([retryRoot(), ...results.filter((query) => query.error || query.data?.card.failure).map((query) => query.refetch())]);
+  };
+  return { data, retryCard };
+}
 
 /** One live record stream per scope, shared by every holder of that scope. */
 const recordTails = new Map<string, { holders: number; stop: () => void }>();

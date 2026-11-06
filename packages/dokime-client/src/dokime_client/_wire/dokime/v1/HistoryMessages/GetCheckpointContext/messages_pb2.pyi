@@ -509,16 +509,18 @@ class Row35(_message.Message):
     def __init__(self, status: _Optional[_Union[Row89, _Mapping]] = ..., passed: _Optional[int] = ..., failed: _Optional[int] = ..., blocked: _Optional[int] = ..., skipped: _Optional[int] = ...) -> None: ...
 
 class Row36(_message.Message):
-    __slots__ = ("process_epoch", "state_revision", "telemetry", "artifacts_sha256")
+    __slots__ = ("process_epoch", "state_revision", "telemetry", "artifacts_sha256", "evidence")
     PROCESS_EPOCH_FIELD_NUMBER: _ClassVar[int]
     STATE_REVISION_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_FIELD_NUMBER: _ClassVar[int]
     ARTIFACTS_SHA256_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_FIELD_NUMBER: _ClassVar[int]
     process_epoch: str
     state_revision: int
     telemetry: Row90
     artifacts_sha256: str
-    def __init__(self, process_epoch: _Optional[str] = ..., state_revision: _Optional[int] = ..., telemetry: _Optional[_Union[Row90, _Mapping]] = ..., artifacts_sha256: _Optional[str] = ...) -> None: ...
+    evidence: Row90
+    def __init__(self, process_epoch: _Optional[str] = ..., state_revision: _Optional[int] = ..., telemetry: _Optional[_Union[Row90, _Mapping]] = ..., artifacts_sha256: _Optional[str] = ..., evidence: _Optional[_Union[Row90, _Mapping]] = ...) -> None: ...
 
 class Row37(_message.Message):
     __slots__ = ("Section", "Placement")

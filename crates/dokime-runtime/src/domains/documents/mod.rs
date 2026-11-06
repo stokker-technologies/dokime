@@ -22,7 +22,7 @@ mod stream;
 
 pub(crate) use crate::transactions::documents::AddExecutionDocumentParts;
 
-pub use current::{CurrentDocumentCapture, PreparedCurrentDocument};
+pub use current::{CurrentDocumentCapture, CurrentDocumentEvent, CurrentDocumentQuery, PreparedCurrentDocument};
 pub use follow::ExecutionFileFollower;
 pub use stream::ExecutionFileStream;
 

@@ -26,12 +26,11 @@ import type { DocumentViewCard, DocumentViewNode, DocumentViewPayload, Metadata 
 /* === Constants === */
 
 const DOCUMENTS_ENCODED_DEPTH = 32;
-const DOCUMENTS_EVALUATION_WORK = 256_000_000;
 const DOCUMENTS_EXPANDED_NODES = 4_096;
 
 /* === Types === */
 export type DeclaredNode =
-  | { type: "section"; node_id: string; repeat: boolean; children: DeclaredNode[] }
+  | { type: "section"; node_id: string; metadata?: Metadata; repeat: boolean; children: DeclaredNode[] }
   | Extract<DocumentViewNode, { type: "card" }>;
 
 export interface CaptureAssembly {
@@ -41,6 +40,7 @@ export interface CaptureAssembly {
   bindings: readonly { source_id: string; card: DocumentViewCard }[];
   nodes: DeclaredNode[];
   repeats: ReadonlyMap<string, readonly { suffix: string; node_id: string }[]>;
+  pendingRepeats?: ReadonlySet<string>;
   sections: ReadonlyMap<string, { metadata: Metadata; unavailable?: string | null }>;
 }
 
@@ -67,13 +67,11 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
   const usedRepeats = new Set<string>();
   const usedSections = new Set<string>();
   let count = 0;
-  let work = 0;
   function assemble(nodes: DeclaredNode[], suffixes: string[], depth: number): DocumentViewNode[] {
     if (depth > DOCUMENTS_ENCODED_DEPTH && nodes.length > 0) throw new Error("Captured document depth exceeds its budget");
     const result: DocumentViewNode[] = [];
     const suffix = suffixes.map((part) => `.${part}`).join("");
     for (const node of nodes) {
-      if (++work > DOCUMENTS_EVALUATION_WORK) throw new Error("Captured document assembly exceeds its budget");
       if (node.type === "card") {
         const id = node.card_id + suffix;
         const binding = cards.get(id);
@@ -89,6 +87,12 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
       if (node.repeat) {
         if (usedRepeats.has(id)) throw new Error(`Captured repeat identity is duplicated: ${id}`);
         usedRepeats.add(id);
+      }
+      if (capture.pendingRepeats?.has(id)) {
+        if (!node.metadata) throw new Error("Pending section metadata is missing");
+        if (++count > DOCUMENTS_EXPANDED_NODES) throw new Error("Captured document expansion exceeds its budget");
+        result.push({ type: "section", node_id: id, metadata: node.metadata, loading: true, children: [] });
+        continue;
       }
       const failedSection = capture.sections.get(id);
       const failed = unavailableReason(failedSection?.unavailable);
@@ -109,7 +113,6 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
       }
       const suffixesSeen = new Set<string>();
       for (const instance of instances) {
-        if (++work > DOCUMENTS_EVALUATION_WORK) throw new Error("Captured document assembly exceeds its budget");
         if (instance.suffix !== null) {
           if (!instance.suffix || suffixesSeen.has(instance.suffix)) throw new Error("Captured repeat suffix is empty or duplicated");
           suffixesSeen.add(instance.suffix);

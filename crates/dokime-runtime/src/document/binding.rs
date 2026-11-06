@@ -191,8 +191,25 @@ pub(crate) fn repeat_records_needed(definition: &DocumentDefinition) -> bool {
         || nodes_need(&definition.layout.nodes, needs)
 }
 
-pub(crate) fn artifacts_needed(definition: &DocumentDefinition) -> bool {
-    bindings_need(definition, |expression| matches!(expression.source, DataSource::Artifact { .. }))
+pub(crate) fn repeat_artifacts_needed(definition: &DocumentDefinition) -> bool {
+    let needs = |expression: &DataExpression| matches!(expression.source, DataSource::Artifact { .. });
+    definition.sections.iter().filter_map(|section| section.repeat.as_ref()).any(|repeat| repeat_needs(repeat, needs))
+        || nodes_need(&definition.layout.nodes, needs)
+}
+
+pub(crate) fn card_artifacts_needed(card: &super::DocumentCardDefinition) -> bool {
+    let DocumentCardBody::TelemetrySummary { summary } = &card.body else { return false };
+    card.filters
+        .iter()
+        .map(|filter| &filter.expression)
+        .chain(
+            summary
+                .groups
+                .iter()
+                .flat_map(|group| &group.tiles)
+                .flat_map(|tile| std::iter::once(&tile.value).chain(tile.filters.iter().map(|filter| &filter.expression))),
+        )
+        .any(|expression| matches!(expression.source, DataSource::Artifact { .. }))
 }
 
 pub(crate) fn context_needed(definition: &DocumentDefinition) -> bool {
