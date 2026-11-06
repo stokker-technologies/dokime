@@ -13,7 +13,7 @@ attaches to the same backend through a pairing file.
 
 ## What Changes
 
-- Add `crates/dokime-python`, a thin PyO3 interface beside the GUI and the CLI.
+- Add `sdk/python`, a thin PyO3 interface beside the GUI and the CLI.
 - Replace `packages/dokime-client` and its generated wire code with that package.
 - Mirror the Rust API, including a decorator API harmonized with the Rust macros.
 - Start a backend from Python and export a pairing file for the GUI.
@@ -22,7 +22,7 @@ attaches to the same backend through a pairing file.
 - Extend `EmbeddedProvider` with the operations, observers and settings sections
   Python plugins need.
 - Refuse a data root written by a different storage format, for every backend.
-- Add a Python system test lane.
+- Add a Python system test lane that runs in Nightly.
 - Build one abi3 wheel per machine, after the product build.
 
 ## Locked Decisions
@@ -39,6 +39,7 @@ attaches to the same backend through a pairing file.
   that wrote it. This is a refusal only: no migration, compatibility or reset.
 - **Stubs:** written by hand in the crate's `python/` folder, mirroring its modules.
 - **Decorators:** the Rust macro names and arguments, deviating only when necessary.
+- **Concepts:** authoring names follow the concept model shared by every language's SDK.
 - **Name:** decided later. The `dokime` PyPI project is unrelated and also imports as
   `dokime`, so the package cannot be published until the name is settled.
 

@@ -49,9 +49,17 @@ after the product build and outside default workspace builds.
 - **THEN** it imports and passes the same acceptance tests
 
 ### Requirement: Python System Lane
-A `test:python:system` lane SHALL prove the whole flow on every required platform.
+A `test:python:system` lane SHALL prove the whole flow on every required platform, running in Nightly rather than on pull requests.
 
 #### Scenario: End To End Story
 - **WHEN** a script starts a backend with a Python plugin, exports a pairing file, attaches
   a client through it, runs an execution with a prompt and a stream, then exits
 - **THEN** a new backend on that root reads the sealed report without the plugin
+
+### Requirement: Simple Installation
+Developers SHALL install the package with `uv add`, the language's idiomatic modern toolchain, and any
+required command-line tools through mise.
+
+#### Scenario: New Project
+- **WHEN** a developer follows the install section in a new project
+- **THEN** a few documented commands reach a building sample, with no manual downloads

@@ -47,7 +47,7 @@ asyncio.run(main())
 ## Layout
 
 ```text
-crates/dokime-python/
+sdk/python/
   Cargo.toml  pyproject.toml          # maturin, private _native extension, abi3
   src/{client,authoring,domain,runtime}/   # PySomething wrappers, one mod.rs per folder
   python/dokime/                      # public package, py.typed, hand-written .pyi

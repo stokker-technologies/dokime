@@ -1,0 +1,19 @@
+# Tasks
+
+## 1. Implementation
+
+- [ ] 1.1 Map what authoring uses from `dokime-runtime` and fix the crate boundary in design.md.
+- [ ] 1.2 Extract the authoring API into `sdk/rust` as `dokime-sdk`.
+- [ ] 1.3 Migrate the host and OBC plugins, the starter template and `cargo dokime`.
+- [ ] 1.4 Remove `plugin-sidecar` and superseded paths from `dokime`.
+- [ ] 1.5 Measure plugin build time and bundle size before and after.
+- [ ] 1.6 Update the README, plugin guides and contract tests.
+
+## 2. Final Validation
+
+- [ ] 2.1 Run `check:rust`, compile contracts and focused plugin tests.
+
+## Workflow Follow-Up
+
+- Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
+- SDK system tests run in Nightly only, not on pull requests.
