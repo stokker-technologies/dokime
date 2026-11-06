@@ -50,7 +50,6 @@ zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
 
 # Parsing
 cargo_metadata = { workspace = true }
-syn = { workspace = true }
 
 # Concurrency
 
