@@ -8,6 +8,7 @@
 - [ ] 1.4 Remove `plugin-sidecar` and superseded paths from `dokime`.
 - [ ] 1.5 Measure plugin build time and bundle size before and after.
 - [ ] 1.6 Update the README, plugin guides and contract tests.
+- [ ] 1.7 Add `dokime new --lang` sharing one implementation with `cargo dokime sidecar new`, with per-language minimal `mise.toml` templates.
 
 ## 2. Final Validation
 
