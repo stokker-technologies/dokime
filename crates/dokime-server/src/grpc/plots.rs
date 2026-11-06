@@ -130,11 +130,13 @@ impl Resources {
         &self, current: &PlotPayloadRequest, mode: RuntimePlotQueryMode, at: &StorageCursor,
     ) -> Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error> {
         let started = Instant::now();
-        let result = dokime::app::live_runtime(&self.runtime)
-            .await
-            .map_err(|error| dokime::runtime::Error::Operation(error.to_string()))?
-            .query_plot_payloads_at(vec![current.clone()], mode, at)
-            .await;
+        let runtime =
+            dokime::app::live_runtime(&self.runtime).await.map_err(|error| dokime::runtime::Error::Operation(error.to_string()))?;
+        let mut at = at.clone();
+        if current.window_s.is_none() {
+            at.sequence = at.sequence.min(runtime.storage().cursor_saved().sequence);
+        }
+        let result = runtime.query_plot_payloads_at(vec![current.clone()], mode, &at).await;
         tracing::debug!(
             plot_id = current.plot_id.as_deref().unwrap_or(current.stream.as_str()),
             elapsed_ms = started.elapsed().as_millis() as u64,
@@ -267,10 +269,12 @@ impl Serve<contract::Watch> for Resources {
                 let mut waiting = requests.clone();
                 self.send_pending(output, &waiting, &selections, &original, &epoch).await?;
 
-                // The Passive Native Wait Subscribes Before Checking This Frontier,
-                // So A Save Racing Any Initial Read Cannot Be Missed.
+                // Subscribe Before Capturing The Read Cut So Publications Racing The Opening Read Are Followed.
                 let mut states = runtime.watch_state();
-                let mut observed = runtime.storage().cursor_saved();
+                let mut telemetry = runtime.watch_plot_telemetry();
+                let mut saved_observed = runtime.storage().cursor_saved();
+                let mut observed = saved_observed.clone();
+                observed.sequence = observed.sequence.max(*telemetry.borrow_and_update());
                 let initial = observed.clone();
                 let mut dirty = BTreeSet::new();
                 let mut opened = BTreeSet::new();
@@ -306,7 +310,8 @@ impl Serve<contract::Watch> for Resources {
                         }
                     }
                 }
-                let keys = original.iter().map(|request| (plot_key(request), PlotWatchKeys::for_request(request))).collect::<Vec<_>>();
+                let keys = original.iter().map(|request| (plot_key(request), PlotWatchKeys::for_request(request), request.window_s.is_some())).collect::<Vec<_>>();
+                let live = keys.iter().any(|(_, _, live)| *live);
                 let throttle = Duration::from_millis(SERVER_PLOT_THROTTLE_MS);
                 let mut retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS);
                 let mut last_flush = Instant::now() - throttle;
@@ -318,19 +323,19 @@ impl Serve<contract::Watch> for Resources {
                     tokio::select! {
                         changed = states.next() => {
                             if changed.is_none() { return Ok(().into()); }
-                            dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state()).map(|(key, _)| key.clone()));
+                            dirty.extend(keys.iter().filter(|(_, keys, _)| keys.follows_state()).map(|(key, _, _)| key.clone()));
                         }
                         _ = tokio::time::sleep_until(next_flush.unwrap_or_else(Instant::now)), if next_flush.is_some() => {
                             next_flush = None;
                             last_flush = Instant::now();
-                            // Every Query And Any Reduced Retry In This Pass Uses One
-                            // Durable Primary Cut; None Reads Accepted Pending Samples.
-                            let at = runtime.storage().cursor_saved();
+                            // Timed Watches Share One Readable Cut; All Remains Capped At Saved Data.
+                            let mut at = runtime.storage().cursor_saved();
+                            at.sequence = at.sequence.max(*telemetry.borrow_and_update());
                             if at.sequence > observed.sequence {
-                                let streams = runtime.plot_streams_saved_between(&observed, &at).await
+                                let streams = runtime.plot_streams_between(&observed, &at).await
                                     .map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
-                                dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream)))
-                                    .map(|(key, _)| key.clone()));
+                                dirty.extend(keys.iter().filter(|(_, keys, live)| *live && (keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream))))
+                                    .map(|(key, _, _)| key.clone()));
                             }
                             observed = at.clone();
                             let served = requests.iter().filter(|request| dirty.contains(&plot_key(request))).cloned().collect::<Vec<_>>();
@@ -363,13 +368,18 @@ impl Serve<contract::Watch> for Resources {
                                 retry_delay = (retry_delay * 2).min(Duration::from_millis(SERVER_PLOT_RETRY_MAX_MS));
                             } else { retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS); }
                         }
-                        advanced = runtime.storage().wait_saved_after(&observed) => {
+                        changed = telemetry.changed(), if live => {
+                            changed.map_err(|_| Status::unavailable("plot telemetry watch closed"))?;
+                            // Discover Changed Streams Once Per Throttle Pass, Not Once Per Publication.
+                            next_flush.get_or_insert(last_flush + throttle);
+                        }
+                        advanced = runtime.storage().wait_saved_after(&saved_observed) => {
                             let advanced = advanced.map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
-                            let streams = runtime.plot_streams_saved_between(&observed, &advanced).await
+                            let streams = runtime.plot_streams_between(&saved_observed, &advanced).await
                                 .map_err(|error| Status::unavailable(format!("plot storage watch unavailable: {error}")))?;
-                            dirty.extend(keys.iter().filter(|(_, keys)| keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream)))
-                                .map(|(key, _)| key.clone()));
-                            observed = advanced;
+                            dirty.extend(keys.iter().filter(|(_, keys, _)| keys.follows_state() || streams.iter().any(|stream| keys.reads_stream(stream)))
+                                .map(|(key, _, _)| key.clone()));
+                            saved_observed = advanced;
                         }
                         () = tokio::time::sleep_until(heartbeat) => {
                             // A Quiet Watch Repeats Each Plot's Pending Notice, Which Leaves A Delivered Plot Unchanged.
@@ -445,7 +455,8 @@ fn add_reduction_warning(
     value: ReadBatch<PlotPayloadEnvelope>, original: &PlotPayloadRequest, reduced: &PlotPayloadRequest,
 ) -> Result<ReadBatch<PlotPayloadEnvelope>, Status> {
     let mut length = WarningLength(0);
-    write_reduction_warning(&mut length, original, reduced).map_err(|_| plot_memory_status())?;
+    write_reduction_warning(&mut length, original, reduced)
+        .map_err(|_| Status::resource_exhausted("plot response construction size overflows"))?;
     value
         .try_map(|mut value| {
             let mut warning = String::new();
@@ -480,10 +491,6 @@ fn write_reduction_warning(
 
 fn plot_memory() -> dokime::harmos::Error {
     dokime::harmos::Error::ResourceExhausted { resource: "plot response construction" }
-}
-
-fn plot_memory_status() -> Status {
-    Status::resource_exhausted("plot response construction size overflows")
 }
 
 // The plot a request names, the key its frames and dirty marks share.

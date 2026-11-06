@@ -267,7 +267,9 @@ and [storage defaults](crates/dokime-runtime/src/config/storage/defaults.rs).
 Plugin metadata preparation uses the shared [schema budget configuration](docs/product-guide.md#plugin-schema-budgets)
 for packaging, inspection and installation.
 
-Live plots combine saved telemetry batches with the unflushed in-memory tail. The time-range slider filters storage queries:
+Timed live plots combine saved telemetry batches with the bounded, unflushed admission tail,
+independently of the save interval. Finite queries, All refreshes and frozen reports use saved data.
+The time-range slider filters storage queries:
 selecting a wider range retrieves older saved samples, and selecting a narrower
 range changes only what is displayed. It does not change storage retention.
 
