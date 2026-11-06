@@ -2,7 +2,7 @@
 
 ## 1. Foundations
 
-- [ ] 1.1 Derive the storage format identity, verify it covers every stored encoding, and refuse mismatched roots in every backend.
+- [x] 1.1 Derive the storage format identity, verify it covers every stored encoding, and refuse mismatched roots in every backend.
 - [x] 1.2 Create `sdk/python` with maturin, abi3, `_native`, `py.typed` and declared layout exceptions, outside default builds.
 - [x] 1.3 Build one wheel per platform after the product build through the machine wrapper; measure build reuse and wheel size.
 - [x] 1.4 Replace the pure-wheel CI, package and release steps with per-platform wheels.
@@ -44,8 +44,9 @@
 
 ## Workflow Follow-Up
 
-- This slice owns 2.1–2.5: `sdk/python` native client wrappers, Python contexts/readers/conversions, stubs, moved client tests/examples; removal of `packages/dokime-client` and its generated wire/tooling; all referring consumers, manifests, locks, CI/task configuration and affected documentation. One writer owns `feat/dokime-python`; Rust transport precedes Python conversion, consumer migration and targeted proof.
-- Slice proof: moved client tests, built-extension stubtest, built-wheel import on Windows, `check:rust`, repository checks and the required diff scan. Record measurements and decisions in `design.md`. Push without a PR, merge or full simulation. Task 1.1 and its untracked drafts stay parked and untouched; later tasks remain open.
+- This slice owns 3.1–3.3: server session composition, pairing export and startup errors; Python backend context, configuration, exceptions and stubs; installed-plugin admission and ID collision refusal; focused wheel tests and affected documentation. Task 1.1 is merged first. Authoring and invocation callbacks remain owned by tasks 4.x and the separate unified-operation worker.
+- Slice proof: focused backend startup, pairing export, ID clash and storage-format refusal tests against the Windows wheel; strict stubtest, `check:rust`, repository checks and the required diff scan. Record decisions and measurements in `design.md`. Push without PR, dev merge or full simulation; later tasks stay open.
+- Task 6.1 retains the existing native source-policy repairs; this slice does not waive them.
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - The owner decides the PyPI and import name before any publication; a final `dokime-client` release then points to the new package.
 - Depends on the separate rule that completed executions and cycles do not depend on their plugins.

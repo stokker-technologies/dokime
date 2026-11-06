@@ -2637,6 +2637,7 @@ dependencies = [
  "libunftp",
  "nokhwa",
  "plugin-host",
+ "proc-macro2",
  "prost",
  "rand 0.10.3",
  "regex",

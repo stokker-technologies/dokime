@@ -147,7 +147,7 @@ fn storage_refusal(error: &dokime::runtime::Error) -> Option<&dokime::storage::s
 fn incompatible(error: &dokime::storage::sqlite::Error) -> bool {
     use dokime::storage::sqlite::{Error, rusqlite::ErrorCode};
     match error {
-        Error::Incompatible(_) | Error::Conflict(_) | Error::Corrupt(_) => true,
+        Error::StorageFormatMismatch { .. } | Error::Incompatible(_) | Error::Conflict(_) | Error::Corrupt(_) => true,
         Error::Sqlite(error) => matches!(error.sqlite_error_code(), Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt)),
         _ => false,
     }

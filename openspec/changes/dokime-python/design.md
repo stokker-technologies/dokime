@@ -81,7 +81,11 @@ Clean-break development keeps v1. The identity must not depend on manually bumpi
 - A different digest or a populated root without a marker refuses with `StorageFormatMismatch`, naming root and both builds.
 - Refusal rewrites, migrates and deletes nothing.
 
-The coverage audit found JSON state snapshots, journals, settings, history and previews, custom SQLite object frames, and Arrow IPC outside the message graphs. Graphs alone cannot satisfy task 1.1. The owner decision on supplementing them with normalized codec inputs remains pending; no conservative-refusal exception is assumed.
+The coverage audit found JSON state snapshots, journals, settings, history and previews, custom SQLite object frames, and Arrow IPC outside the message graphs. Graphs alone cannot satisfy task 1.1.
+
+Owner decision (2026-11-06): include normalized codec source, removing comments and whitespace between tokens while preserving literal contents and token boundaries. An edit that leaves stored bytes unchanged can occasionally refuse a root.
+
+The explicit inputs in `crates/dokime-runtime/build/mod.rs` and `crates/dokime-domain/src/storage_format.rs` cover the SQLite layout and stored JSON, object-frame and Arrow IPC codecs, including native execution-context and report-publication frames, persisted query contract cuts, and transitive snapshot and journal types; unrelated source files are excluded. The build also hashes the Harmos graphs for application settings and the two stored history summaries. The writer commit is recorded separately and never contributes to format identity.
 
 ## Foundation Decisions
 
