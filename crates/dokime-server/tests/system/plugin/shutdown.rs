@@ -7,7 +7,7 @@
  * ***
  */
 
-// Stop The Host While An Operator Question Waits
+// Stop the Host While an Operator Question Waits
 
 /* === Modules === */
 
@@ -90,7 +90,7 @@ async fn stop_while_prompt_waits() {
         mut changes,
     } = Session::ready().await;
 
-    // The Start-Up Case Runs To Its Operator Question, Which Nobody Answers
+    // The Start-Up Case Runs to Its Operator Question, Which Nobody Answers
     let (mut catalog, mut planning, mut execution, mut prompts) = (client.clone(), client.clone(), client.clone(), client.clone());
     let template = suite(&mut catalog, STARTUP_SUITE)
         .await
@@ -107,7 +107,7 @@ async fn stop_while_prompt_waits() {
     assert!(cfg!(not(target_os = "linux")) || !sidecars.is_empty(), "the plugin runs as a sidecar of the host");
     drop((changes, client, catalog, planning, execution, prompts));
 
-    // The Stop Settles The Run, Leaves No Sidecar Behind And Exits Cleanly In Bounded Time
+    // The Stop Settles the Run, Leaves No Sidecar Behind and Exits Cleanly in Bounded Time
     let (status, elapsed, diagnostics) = tokio::time::timeout(STOP_GUARD, host.shutdown()).await.unwrap_or_else(|_| {
         let diagnostics = std::fs::read_to_string(home.join("host.stderr.log")).unwrap_or_default();
         panic!("host shutdown did not finish within {STOP_GUARD:?}:\n{diagnostics}");
@@ -149,7 +149,7 @@ async fn idle_stop_leaves_sealing_to_next_start() {
         mut changes,
     } = Session::ready().await;
 
-    // A Case Runs To Completion And Its Cycle Stays Active
+    // A Case Runs to Completion and Its Cycle Stays Active
     let (mut catalog, mut planning, mut execution) = (client.clone(), client.clone(), client.clone());
     let template = suite(&mut catalog, PROTECTION_SUITE)
         .await
@@ -175,7 +175,7 @@ async fn idle_stop_leaves_sealing_to_next_start() {
     eprintln!("the idle host stopped in {elapsed:?} with {status}");
     assert!(status.success(), "the host exited with {status}:\n{diagnostics}");
 
-    // The Next Start Seals The Cycle And Serves Its Report
+    // The Next Start Seals the Cycle and Serves Its Report
     let session = Session::relaunch(root, bytes, bundle, home).await;
     assert!(!cycle_report(&session.client, &cycle_id).await.is_empty());
     session.stop().await;

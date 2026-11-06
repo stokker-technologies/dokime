@@ -9,7 +9,7 @@ Defines the host telemetry streams, including separate Wi-Fi streams and interne
 
 Every Dokime child process SHALL start through `dokime_domain::process::command`, which SHALL start Windows children without a console window, and the workspace lint configuration SHALL refuse any other `Command::new`.
 
-#### Scenario: Desktop Starts A Probe
+#### Scenario: Desktop Starts a Probe
 
 - **WHEN** the desktop or a plugin starts a console program on Windows
 - **THEN** no console window opens

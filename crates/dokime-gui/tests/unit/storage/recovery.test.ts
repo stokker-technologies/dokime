@@ -117,7 +117,7 @@ async function renderConnection() {
   );
 }
 
-test("Startup Recovery Confirms Both Paths Before Calling Reset And Allows Cancellation", async () => {
+test("Startup Recovery Confirms Both Paths Before Calling Reset and Allows Cancellation", async () => {
   await renderConnection();
   const trigger = container.querySelector<HTMLButtonElement>('[data-action="backup-reset"]');
   assert.ok(trigger);
@@ -143,7 +143,7 @@ test("Another Backend's Folder Never Offers Recovery", async () => {
   assert.equal(storageRecoveryAvailable(fixture.state.error, true, true), false);
 });
 
-test("Local Startup Failures Do Not Require Diagnostics Or Specific Error Prose", () => {
+test("Local Startup Failures Do Not Require Diagnostics or Specific Error Prose", () => {
   for (const error of [
     { kind: "startup", message: "decode", diagnostics: null },
     { kind: "startup", message: "format", diagnostics: { cause: "corrupt", log: null } },
@@ -160,7 +160,7 @@ test("A Saved Archive Remains Visible After Restart Fails", async () => {
   assert.ok(container.querySelector('[data-path="/fixture/archive.zip"]'));
 });
 
-test("Reset Progress Includes Archive And Reinstallation Phases", async () => {
+test("Reset Progress Includes Archive and Reinstallation Phases", async () => {
   fixture.state = { phase: "connecting", reset: "backup", error: null };
   fixture.status.mockResolvedValue({ statusRevision: 2, phase: "reinstalling", connection: { endpoint: null } });
   await renderConnection();
@@ -171,27 +171,27 @@ test("Reset Progress Includes Archive And Reinstallation Phases", async () => {
 });
 
 test("Storage Reset", () => {
-  // A Development Desktop That Owns Its Backend Offers The Reset
+  // A Development Desktop That Owns Its Backend Offers the Reset
   assert.equal(storageResetAvailable(resetContext()), true);
 
-  // An Installer Build Never Offers The Reset
+  // An Installer Build Never Offers the Reset
   assert.equal(storageResetAvailable(resetContext({ development: false })), false);
 
-  // A Browser Build Never Offers The Reset
+  // A Browser Build Never Offers the Reset
   assert.equal(storageResetAvailable(resetContext({ desktop: false })), false);
 
-  // A Backend This Desktop Did Not Start Is Never Offered The Reset
+  // A Backend This Desktop Did Not Start Is Never Offered the Reset
   for (const ownership of ["attached", "none", null, undefined]) {
     const context = resetContext({ ownership: ownership as StorageResetContext["ownership"] });
     assert.equal(storageResetAvailable(context), false, String(ownership));
   }
 
-  // The Reset Waits Until The Backend Names Its Data Directory
+  // The Reset Waits Until the Backend Names Its Data Directory
   for (const directory of ["", null, undefined]) {
     assert.equal(storageResetAvailable(resetContext({ directory })), false, String(directory));
   }
 
-  // Only The Exact Confirmation Word Arms The Reset
+  // Only the Exact Confirmation Word Arms the Reset
   assert.equal(storageResetConfirmed(STORAGE_RESET_CONFIRMATION), true);
   for (const typed of ["", "reset", "Reset", " RESET", "RESET ", "RESETS", "RES"]) {
     assert.equal(storageResetConfirmed(typed), false, JSON.stringify(typed));

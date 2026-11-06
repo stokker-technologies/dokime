@@ -299,7 +299,7 @@ pub(crate) fn summaries(
             .find(|(metadata, _, _)| metadata.identifier == binding.source_id);
         let Some((_, filters, body)) = definition else { continue };
         let DocumentCardBody::TelemetrySummary { summary } = body else { continue };
-        // A Repeated Copy Carries Its Instance Filter, Which The Execution-Wide
+        // A Repeated Copy Carries Its Instance Filter, Which the Execution-Wide
         // Exact Summaries Cannot Honour.
         let repeated = binding.metadata.identifier != binding.source_id;
         for (group, source) in groups.iter_mut().zip(&summary.groups) {

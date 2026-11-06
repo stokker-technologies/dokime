@@ -7,7 +7,7 @@
  * ***
  */
 
-// Quiet Plot And Log Watches Survive Their Configured Idle Period
+// Quiet Plot and Log Watches Survive Their Configured Idle Period
 
 /* === Modules === */
 

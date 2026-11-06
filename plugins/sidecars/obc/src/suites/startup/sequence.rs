@@ -103,7 +103,7 @@ pub struct Started {}
 
 #[dokime::record(
     id = "obc.charger.startup.checkpoint",
-    label = "Review the charger status indicator and start-up trace",
+    label = "Review the Charger Status Indicator and Start-up Trace",
     description = "The operator was asked to look at the bench."
 )]
 #[derive(Clone, Debug)]
@@ -117,7 +117,7 @@ pub struct Checkpoint {
 
 #[dokime::record(
     id = "obc.charger.startup.completed",
-    label = "Start-up measurement and operator decision captured",
+    label = "Start-up Measurement and Operator Decision Captured",
     description = "The start-up measurement and the operator's decision, together."
 )]
 #[derive(Clone, Debug)]
@@ -164,27 +164,27 @@ pub struct Parameters {
     )]
     pub sample_interval_s: f64,
 
-    #[parameter(label = "Attach measurement summary", default = true)]
+    #[parameter(label = "Attach Measurement Summary", default = true)]
     pub emit_artifact: bool,
 
-    #[parameter(label = "Attach reference.png from image directory", default = false)]
+    #[parameter(label = "Attach reference.png from Image Directory", default = false)]
     pub attach_reference: bool,
 
-    #[parameter(label = "Pace samples in real time", default = false)]
+    #[parameter(label = "Pace Samples in Real Time", default = false)]
     pub realtime: bool,
 
     #[parameter(
-        label = "Observe until stopped",
+        label = "Observe Until Stopped",
         default = false,
         description = "Whether a host stop is the expected end of this run, named once more on the template's own `graceful_stop`."
     )]
     pub continuous: bool,
 
-    #[parameter(label = "Wait for the unit to report itself connected", default = false)]
+    #[parameter(label = "Wait for the Unit to Report Itself Connected", default = false)]
     pub await_connection: bool,
 
     #[parameter(
-        label = "Connection wait budget",
+        label = "Connection Wait Budget",
         unit = "s",
         default = CONNECTION_BUDGET_S,
         min = 0.0,
@@ -467,7 +467,7 @@ impl Startup {
 
     #[dokime::criterion(
         id = "obc.charger.startup.acceptance",
-        label = "Start-up trace and operator inspection",
+        label = "Start-up Trace and Operator Inspection",
         description = "Passed once the trace is unfaulted and, for a bounded run, the operator accepted it."
     )]
     fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
@@ -545,7 +545,7 @@ fn current_distribution(identifier: &str) -> PlotDefinition {
 }
 
 fn voltage_by_phase(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::box_summary("Voltage By Phase");
+    let mut plot = Plot::box_summary("Voltage by Phase");
     plot.id(identifier);
     plot.unit("V");
     plot.series_by(signal("phase"));
@@ -555,7 +555,7 @@ fn voltage_by_phase(identifier: &str) -> PlotDefinition {
 }
 
 fn mean_signal_by_phase(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::bar("Mean Signal By Phase");
+    let mut plot = Plot::bar("Mean Signal by Phase");
     plot.id(identifier);
     plot.unit("V");
     plot.x(signal("phase"));
@@ -566,7 +566,7 @@ fn mean_signal_by_phase(identifier: &str) -> PlotDefinition {
 }
 
 fn sample_count_by_phase(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::bar("Sample Count By Phase");
+    let mut plot = Plot::bar("Sample Count by Phase");
     plot.id(identifier);
     plot.unit("samples");
     plot.x(signal("phase"));

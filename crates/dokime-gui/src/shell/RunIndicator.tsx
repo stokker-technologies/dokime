@@ -92,7 +92,7 @@ export function RunIndicator() {
     const pending = cycles.isPending || details.some((detail) => detail.isPending);
     return (
       <span className="flex min-w-0 flex-1 items-center truncate text-muted-foreground">
-        {failed ? "Execution status unavailable" : pending ? "Loading executions…" : "No active execution"}
+        {failed ? "Execution Status Unavailable" : pending ? "Loading Executions…" : "No Active Execution"}
       </span>
     );
   }

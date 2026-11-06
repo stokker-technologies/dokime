@@ -7,7 +7,7 @@
  * ***
  */
 
-// Authenticated Bounded Snapshot And Seek Tokens
+// Authenticated Bounded Snapshot and Seek Tokens
 
 /* === Modules === */
 

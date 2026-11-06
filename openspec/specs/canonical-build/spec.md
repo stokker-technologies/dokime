@@ -28,7 +28,7 @@ All provider CI pipelines SHALL use only canonical configurations. The explicit 
 
 Warm-cache provider pipelines SHALL finish within 45 minutes, targeting 30 minutes. Tests Build SHALL take no longer than Product Build for the same candidate, native platform and profile. Relocated fixture or starter work SHALL remain visible in total critical-path accounting. A breach SHALL trigger phase-level investigation of compilation, feature selection and test structure; required coverage SHALL NOT be removed silently.
 
-#### Scenario: Exceed The Build Budget
+#### Scenario: Exceed the Build Budget
 
 - **WHEN** a measured candidate exceeds the pipeline ceiling or Tests Build exceeds Product Build
 - **THEN** the responsible phases and configurations are identified and redundant work is repaired

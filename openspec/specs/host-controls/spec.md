@@ -5,7 +5,7 @@ Defines invertible host radio, adapter and power plan controls and the CPU capac
 
 ## Requirements
 
-### Requirement: Invertible Radio And Adapter Controls
+### Requirement: Invertible Radio and Adapter Controls
 
 `host.network.radio.set` and `host.network.adapter.set` SHALL be invertible transactions whose inverse restores the prior state; every change made during an execution SHALL be recorded with timestamps and inverted at run end, and pending inverses SHALL be applied first when the backend starts after a crash.
 
@@ -29,7 +29,7 @@ Defines invertible host radio, adapter and power plan controls and the CPU capac
 - **WHEN** a step would switch off the radio or adapter carrying the active remote client or backend connection without explicitly allowing it
 - **THEN** the change is refused
 
-### Requirement: Power Plan And CPU Capacity
+### Requirement: Power Plan and CPU Capacity
 
 The host plugin SHALL read the active power plan, set it as an invertible transaction, and report CPU load as an absolute GFLOP/s measure derived from a documented calibration.
 

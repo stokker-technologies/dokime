@@ -7,7 +7,7 @@
  * ***
  */
 
-// Backend Authentication And Connection Inspection
+// Backend Authentication and Connection Inspection
 
 /* === Modules === */
 

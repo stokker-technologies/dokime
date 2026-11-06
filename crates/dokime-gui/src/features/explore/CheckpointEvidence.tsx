@@ -243,7 +243,7 @@ function TelemetryRows({ checkpoint, session, table }: SessionProps & { table: s
         if (!row.epoch || !sample) throw new Error("Captured sample source identity is missing.");
         return (
           <div key={`${row.epoch}:${row.ordinal}:${sample.sampleId}`} className="min-w-0 border-b pb-2 text-sm">
-            <p className="text-muted-foreground">{timestampIso(sample.timestamp) ?? "Unknown time"}</p>
+            <p className="text-muted-foreground">{timestampIso(sample.timestamp) ?? "Unknown Time"}</p>
             <ValueObjectView value={sample.values} />
             {sample.summary && (
               <details className="mt-2">
@@ -407,8 +407,8 @@ function Context({ checkpoint, session }: SessionProps) {
   const context = query.data;
   return (
     <div className="grid min-w-0 gap-3">
-      <h3 className="font-medium">{context.cycle?.cycle?.metadata?.label ?? "Execution context"}</h3>
-      <h4 className="text-sm font-medium">Notes At Capture</h4>
+      <h3 className="font-medium">{context.cycle?.cycle?.metadata?.label ?? "Execution Context"}</h3>
+      <h4 className="text-sm font-medium">Notes at Capture</h4>
       {!context.notes.length && <p>No notes captured.</p>}
       {context.notes.map((note) => (
         <div key={note.noteId} className="break-words text-sm">
@@ -416,14 +416,14 @@ function Context({ checkpoint, session }: SessionProps) {
           <p className="whitespace-pre-wrap">{note.message}</p>
         </div>
       ))}
-      <h4 className="text-sm font-medium">Health At Capture</h4>
+      <h4 className="text-sm font-medium">Health at Capture</h4>
       {!context.health.length && <p>No health items captured.</p>}
       {context.health.map((item) => (
         <p key={item.healthItemId} className="break-words text-sm">
           {severityLabel(item.severity)} · {item.message}
         </p>
       ))}
-      <h4 className="text-sm font-medium">Prompts At Capture</h4>
+      <h4 className="text-sm font-medium">Prompts at Capture</h4>
       <p className="text-xs text-muted-foreground">Historical prompts are read-only.</p>
       {!context.prompts.length && <p>No prompts captured.</p>}
       {context.prompts.map((prompt) => (
@@ -439,7 +439,7 @@ function Context({ checkpoint, session }: SessionProps) {
         const presentation = document.presentation;
         return (
           <p key={presentation?.documentId || presentation?.metadata?.identifier || `document-${index}`}>
-            {presentation?.metadata?.label || presentation?.documentId || "Captured document"}
+            {presentation?.metadata?.label || presentation?.documentId || "Captured Document"}
           </p>
         );
       })}

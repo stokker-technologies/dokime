@@ -1191,7 +1191,7 @@ pub(crate) async fn step_failure_isolation() {
         entry.level == dokime_runtime::execution::log::Level::Error as i32 && entry.message == detail.redacted().to_string()
     }));
 
-    // A Panic Also Settles Without Disabling The Workflow
+    // A Panic Also Settles Without Disabling the Workflow
     workflow.start(start_request("panicking", serde_json::json!({"samples": 1, "panic": true}))).unwrap();
     let replies = drain_until_terminal(&workflow, "panicking", None).await;
     let panic_detail = self::detail(&replies);
@@ -1204,7 +1204,7 @@ pub(crate) async fn step_failure_isolation() {
     );
     assert!(!outcome(&replies).0.passed);
 
-    // A Later Run Completes On The Same Workflow
+    // A Later Run Completes on the Same Workflow
     workflow.start(start_request("after-fault", serde_json::json!({"samples": 1}))).unwrap();
     let recovered = drain_until_terminal(&workflow, "after-fault", None).await;
     assert!(outcome(&recovered).0.passed, "{:?}", outcome(&recovered).0);
@@ -1292,7 +1292,7 @@ pub(crate) async fn declared_stream_decides() {
     assert_eq!(status(criterion), dokime_runtime::transport::SidecarCriterionStatus::Passed);
     assert!(outcome.detail_json.is_none());
 
-    // Diagnostic Severity Does Not Change A Measured Verdict
+    // Diagnostic Severity Does Not Change a Measured Verdict
     let entries = diagnostics(&replies).collect::<Vec<_>>();
     for phase in ["initializing", "step", "cleanup"] {
         for (level, suffix) in

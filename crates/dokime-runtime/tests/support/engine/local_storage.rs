@@ -7,7 +7,7 @@
  * ***
  */
 
-// Shared Fixtures For SQLite Backend And Storage Manager Scenarios
+// Shared Fixtures for SQLite Backend and Storage Manager Scenarios
 
 /* === Modules === */
 
@@ -165,12 +165,12 @@ pub(crate) fn key() -> SchemaKey {
     }
 }
 
-// A Single-Definition Row Graph For Fixture Schemas
+// A Single-Definition Row Graph for Fixture Schemas
 pub(crate) fn graph(fields: Vec<Field>) -> Schema {
     Schema { root: 0, definitions: vec![fields] }
 }
 
-// The Prepared Row Graph Of A Described Message
+// The Prepared Row Graph of a Described Message
 pub(crate) fn declared<T: harmos::schema::Described>() -> Schema {
     Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap()
 }

@@ -134,7 +134,7 @@ beforeEach(() => {
   });
 });
 
-test("Profile Selection Uses The Shared Native Registry Before Negotiating Identity", async () => {
+test("Profile Selection Uses the Shared Native Registry Before Negotiating Identity", async () => {
   const owner = new NativeSession();
   await owner.select({ kind: "profile", identifier: "lab" });
   assert.deepEqual(
@@ -153,7 +153,7 @@ test("Profile Selection Uses The Shared Native Registry Before Negotiating Ident
   assert.equal(state.session.identity.isCurrent(), false);
 });
 
-test("Failed Selection Stays Failed Until An Explicit New Selection", async () => {
+test("Failed Selection Stays Failed Until an Explicit New Selection", async () => {
   const failure = { kind: "identity_changed" };
   fixture.invoke.mockRejectedValueOnce(failure);
   const owner = new NativeSession();
@@ -165,7 +165,7 @@ test("Failed Selection Stays Failed Until An Explicit New Selection", async () =
   assert.equal(owner.snapshot().phase, "connected");
 });
 
-test("Confirmed Recovery Publishes The Archive And Connects A Fresh Generation", async () => {
+test("Confirmed Recovery Publishes the Archive and Connects a Fresh Generation", async () => {
   const announce = vi.spyOn(toast, "success").mockReturnValue("fixture");
   const snapshot = { ...connected("9"), ownership: "owned_local" as const, archive: "/fixture/saved.zip" };
   fixture.invoke.mockResolvedValueOnce(snapshot);
@@ -188,7 +188,7 @@ test("Confirmed Recovery Publishes The Archive And Connects A Fresh Generation",
   }
 });
 
-test("Deleting The Active Backend Invalidates Its Generation And Owned Resources", async () => {
+test("Deleting the Active Backend Invalidates Its Generation and Owned Resources", async () => {
   const owner = new NativeSession();
   await owner.select({ kind: "profile", identifier: "lab" });
   const state = owner.snapshot();
@@ -223,7 +223,7 @@ test("Registry Commands Preserve Profile Fields Without Bearer Material", async 
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backends_list", undefined]);
 });
 
-test("Pairing Commands Pass Only Identifiers And Saved Paths Across IPC", async () => {
+test("Pairing Commands Pass Only Identifiers and Saved Paths Across IPC", async () => {
   const document = { version: 1, default: null, profiles: [] };
   fixture.invoke.mockResolvedValueOnce(document);
   assert.deepEqual(await preferencesCommands.desktopBackendImportPairing("lab"), document);
@@ -240,7 +240,7 @@ test("Pairing Commands Pass Only Identifiers And Saved Paths Across IPC", async 
   assert.equal(await commands.desktopPairingCreate(), null);
 });
 
-test("Startup Attempts The Saved Default Once And Exposes Failure Without Fallback", async () => {
+test("Startup Attempts the Saved Default Once and Exposes Failure Without Fallback", async () => {
   fixture.invoke.mockImplementation(async (command: string) => {
     if (command === "desktop_session_launch") return { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
     if (command === "desktop_backends_list") return { version: 1, default: "stale", profiles: [] };
@@ -263,7 +263,7 @@ test("Startup Attempts The Saved Default Once And Exposes Failure Without Fallba
   cleanup();
 });
 
-test("Startup Without A Saved Default Leaves Selection To The Operator", async () => {
+test("Startup Without a Saved Default Leaves Selection to the Operator", async () => {
   fixture.invoke.mockImplementation(async (command: string) => {
     if (command === "desktop_session_launch") return { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
     if (command === "desktop_backends_list") return { version: 1, default: null, profiles: [] };
@@ -279,7 +279,7 @@ test("Startup Without A Saved Default Leaves Selection To The Operator", async (
   cleanup();
 });
 
-test("Manual Backend Entry Accepts Only Unsecured Lab Origins And Distinct Identifiers", () => {
+test("Manual Backend Entry Accepts Only Unsecured Lab Origins and Distinct Identifiers", () => {
   assert.deepEqual(backendValidation(" lab ", " http://lab.local:8765 ", []), {});
   assert.deepEqual(Object.keys(backendValidation(" ", "not an origin", [])), ["identifier", "endpoint"]);
   assert.deepEqual(Object.keys(backendValidation("lab", "http://lab.local", ["lab"])), ["identifier"]);
@@ -343,7 +343,7 @@ test("Startup Recovery Feedback", async () => {
   assert.equal(descendants(tree).filter((element) => element.type === "details").length, 0);
 });
 
-test("Backend Loading Stays In The Status Indicator", () => {
+test("Backend Loading Stays in the Status Indicator", () => {
   const contents = descendants(BackendsTable());
   assert.equal(contents.filter((element) => element.props.role === "status").length, 1);
   assert.equal(contents.filter((element) => element.type === NotificationMessage).length, 0);
@@ -378,7 +378,7 @@ test("Occupied Local Remains Usable", async () => {
   assert.equal(owner.snapshot().phase, "connected");
 });
 
-test("Backend Failure Replaces Loading With Notification Feedback", () => {
+test("Backend Failure Replaces Loading with Notification Feedback", () => {
   const contents = descendants(BackendsTable({ failure: "fixture-failure" }));
   const notices = contents.filter((element) => element.type === NotificationMessage);
   assert.equal(notices.length, 1);
@@ -386,7 +386,7 @@ test("Backend Failure Replaces Loading With Notification Feedback", () => {
   assert.ok(Children.toArray(notices[0].props.children).includes("fixture-failure"));
 });
 
-test("Remote Import Starts From The Backend Toolbar", async () => {
+test("Remote Import Starts from the Backend Toolbar", async () => {
   const table = descendants(BackendsTable()).find((element) => element.props.actions);
   assert.ok(table);
   const action = descendants(table.props.actions).find((element) => element.type === Button && element.props.children === "Import Remote");
@@ -396,7 +396,7 @@ test("Remote Import Starts From The Backend Toolbar", async () => {
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: null }]);
 });
 
-test("Remote Import Refresh Retains The Native Connection Failure", async () => {
+test("Remote Import Refresh Retains the Native Connection Failure", async () => {
   const snapshot = connected();
   fixture.invoke.mockResolvedValueOnce({
     ...snapshot,

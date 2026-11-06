@@ -224,7 +224,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
         {!busy && recoverable && (
           <div className="grid gap-3">
             <Button variant="destructive" disabled={preparingBackup} onClick={() => void prepareBackup()} data-action="backup-reset">
-              Back Up And Reset
+              Back Up and Reset
             </Button>
             {backupError ? <p role="alert">{connectionError(backupError)}</p> : null}
           </div>
@@ -271,7 +271,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                   void owner.backupAndResetLocalStorage(confirmed.directory, confirmed.archive);
                 }}
               >
-                Back Up And Reset
+                Back Up and Reset
               </Button>
             </DialogFooter>
           </DialogContent>

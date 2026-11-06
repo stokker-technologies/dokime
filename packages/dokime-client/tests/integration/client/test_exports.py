@@ -145,7 +145,7 @@ def test_export_refusal(tmp_path: Path, fault: str) -> None:
     assert transport.requests == 1
     assert not destination.with_suffix(".zip.part").exists()
 
-    # Retry Transfers The Same Saved Subject Without Admitting Any Execution
+    # Retry Transfers the Same Saved Subject Without Admitting Any Execution
     transport.reader = Reader(_frames())
     execution = Execution._bind(IDENTITY, transport, BACKEND)
     saved = asyncio.run(execution.export(destination, overwrite=True))

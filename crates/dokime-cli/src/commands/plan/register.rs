@@ -7,7 +7,7 @@
  * ***
  */
 
-// Register A Canonical Selection Request
+// Register a Canonical Selection Request
 
 /* === Modules === */
 

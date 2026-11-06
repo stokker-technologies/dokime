@@ -111,7 +111,7 @@ def test_tag_requires_signature(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     root, dist = _candidate(tmp_path, monkeypatch)
     _tag(monkeypatch, provider)
 
-    # A Public Verifier Has No Private Key And Must Still Refuse Unsigned Bytes
+    # A Public Verifier Has No Private Key and Must Still Refuse Unsigned Bytes
     with pytest.raises(FileNotFoundError):
         installer.check_package(root, dist=dist, profile="release")
 
@@ -121,7 +121,7 @@ def test_tag_refuses_unsigned_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyP
     _tag(monkeypatch, "github")
     monkeypatch.setattr(installer.sys, "platform", "win32")
 
-    # Missing Secrets Fail Before Reading Or Changing Build Outputs
+    # Missing Secrets Fail Before Reading or Changing Build Outputs
     with pytest.raises(ValueError, match="signing key and password"):
         installer.bundle(root, profile="release")
     assert not (root / "target").exists()
@@ -144,7 +144,7 @@ def test_candidate_verifies_signature(tmp_path: Path, monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(installer, "verify_signature", refuse_signature)
 
-    # Optional Candidate Signing Does Not Permit Invalid Signatures On A Branch
+    # Optional Candidate Signing Does Not Permit Invalid Signatures on a Branch
     with pytest.raises(ValueError, match="cryptographic refusal"):
         installer.check_package(root, dist=dist)
 
@@ -160,7 +160,7 @@ def test_development_unsigned_candidate(tmp_path: Path, monkeypatch: pytest.Monk
     installer.check_package(root, dist=dist, profile="dev")
     assert not list(dist.glob("*.sig"))
 
-    # Explicit Signed Verification Cannot Silently Downgrade A Candidate
+    # Explicit Signed Verification Cannot Silently Downgrade a Candidate
     with pytest.raises(FileNotFoundError):
         installer.check_package(root, dist=dist, require_signed=True)
 
@@ -182,7 +182,7 @@ def test_published_signature_from_manifest(tmp_path: Path, monkeypatch: pytest.M
     assert verified == [(root, executable, "embedded signature")]
     assert not executable.with_suffix(".exe.sig").exists()
 
-    # A Sidecar Cannot Override The Manifest Signature
+    # A Sidecar Cannot Override the Manifest Signature
     executable.with_suffix(".exe.sig").write_text("different signature", encoding="utf-8")
     with pytest.raises(ValueError):
         installer.check_package(root, dist=dist, require_signed=True)

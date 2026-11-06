@@ -7,7 +7,7 @@
  * ***
  */
 
-// Shared Fixture Cadences And Boundaries
+// Shared Fixture Cadences and Boundaries
 
 /* === Modules === */
 

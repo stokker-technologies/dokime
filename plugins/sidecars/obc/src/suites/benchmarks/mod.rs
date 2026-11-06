@@ -7,7 +7,7 @@
  * ***
  */
 
-// Benchmark-Only High-Volume Evidence And Prompt Fixture
+// Benchmark-Only High-Volume Evidence and Prompt Fixture
 
 /* === Modules === */
 mod capture;

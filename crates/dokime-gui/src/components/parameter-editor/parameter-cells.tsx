@@ -276,7 +276,7 @@ export function SelectCell({
   return (
     <Select onValueChange={onChange} value={raw.trim()}>
       <SelectTrigger className={cn("w-full", CELL_HEIGHT)} id={inputId}>
-        <SelectValue placeholder="Select A Value" />
+        <SelectValue placeholder="Select a Value" />
       </SelectTrigger>
       <SelectContent>
         {choices.map((choice) => (
@@ -483,7 +483,7 @@ export function FileValueCell({
         disabled={row.uploading}
         id={`${parameterInputId(definition.name)}-file`}
         onChange={(event) => onPathChange(event.target.value)}
-        placeholder={definition.default ?? "No file chosen"}
+        placeholder={definition.default ?? "No File Chosen"}
         spellCheck={false}
         value={row.path}
       />
@@ -636,7 +636,7 @@ export function WifiChannelCell({
         </ScrollArea>
         <DialogFooter>
           <div className="min-w-0 flex-1 text-xs text-muted-foreground">
-            {selectedChoices.length ? `${selectedChoices.length} selected` : "Template default"}
+            {selectedChoices.length ? `${selectedChoices.length} selected` : "Template Default"}
           </div>
           <DialogClose asChild>
             <Button type="button">Done</Button>

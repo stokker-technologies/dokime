@@ -5,7 +5,7 @@ Define indexed discovery of executions and cycles across locally retained histor
 
 ## Requirements
 
-### Requirement: Execution And Cycle History Selection
+### Requirement: Execution and Cycle History Selection
 History queries SHALL search the backend's local retained catalog across executions/cycles, including durable live revisions. Execution filters SHALL support template/cycle IDs, status and started_at windows; cycles SHALL support ID, phase and created_at windows. Filters SHALL be typed, exact and conjunctive, with bounded alternatives. Archive selection SHALL default to unarchived and allow archived/all.
 
 #### Scenario: History Filter Boundaries

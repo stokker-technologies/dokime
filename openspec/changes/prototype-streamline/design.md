@@ -30,7 +30,7 @@ All other operational leaves become constants beside the implementation using th
 
 Simple: theme mode/family, density, report points/downsampling, Backends, plugin fields and secret references. Advanced includes Simple plus both client timeouts, endpoint stagger, telemetry interval and all five listener fields. Duration values are positive integers within the existing monotonic/transport range; report points use the existing semantic range, not an admission budget. Keep listener TLS/authentication validation and certificate-name checks. UI validation supplements domain validation. Apply appearance immediately, client settings to new connections/requests, telemetry at the next sample scheduling boundary, report defaults to new materializations, and listener edits through the existing explicit restart operation. Show effective listener state and failures separately from saved intent.
 
-## Persistence And Bootstrap
+## Persistence and Bootstrap
 
 Reuse `storage/sqlite.rs`'s `local.sqlite`, lease and serialized transaction executor. Add `application_settings` singleton `(id=1, revision, body)` via `storage/sqlite/settings.rs`; initialize absent settings atomically. On the existing `storage::sqlite::State`, provide `async fn read_application_settings(&self) -> Result<SettingsSnapshot, storage::Error>` and `async fn update_application_settings(&self, update: UpdateSettings) -> Result<SettingsSnapshot, storage::Error>` with compare-and-update transactions. B adds `storage::Error::SettingsConflict { expected: u64, actual: u64 }` and `storage::Error::InvalidSettings(String)`; A consumes these variants. No second connection owner or JSON-file cache. Validation errors and conflicts leave the stored body unchanged; runtime operations delegate here.
 

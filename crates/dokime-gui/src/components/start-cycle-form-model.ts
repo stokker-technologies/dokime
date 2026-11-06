@@ -9,6 +9,7 @@
 
 /* === Local Imports === */
 
+import { formatTitleWord } from "@/lib/format";
 import { formatListRaw, type ParseResult } from "@/lib/parameter-parser";
 import type { ParameterDefinition, SuiteTemplateEntry, TestCycleSelection } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
@@ -226,12 +227,12 @@ export function titleCaseIdentifier(value: string): string {
   return words.map(titleCaseWord).join(" ");
 }
 
-export function titleCaseWord(word: string): string {
+export function titleCaseWord(word: string, index = 0, words = [word]): string {
   const upper = word.toUpperCase();
   if (["API", "BSSID", "ID", "IP", "SSID", "URL", "USB", "WIFI"].includes(upper)) {
     return upper === "WIFI" ? "WiFi" : upper;
   }
-  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  return formatTitleWord(word.toLowerCase(), index, words);
 }
 
 export function parameterInputId(name: string): string {
@@ -312,7 +313,7 @@ export function wifiChannelChoices(definition: ParameterDefinition, fallbackChoi
 
 export function wifiSelectionSummary(choices: WifiChannelChoice[]): string {
   if (!choices.length) {
-    return "Template default";
+    return "Template Default";
   }
   if (choices.length <= 2) {
     return choices.map((choice) => choice.label).join(", ");

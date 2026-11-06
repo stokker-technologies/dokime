@@ -7,7 +7,7 @@
  * ***
  */
 
-// The Smoke-Provider Sampling Paths, Shared By Their Acceptance Guards And Full-Scale
+// The Smoke-Provider Sampling Paths, Shared by Their Acceptance Guards and Full-Scale
 // System Stories: Paged Replay, Whole-Capture Seals, Running Reports And Report Progress.
 
 /* === Modules === */

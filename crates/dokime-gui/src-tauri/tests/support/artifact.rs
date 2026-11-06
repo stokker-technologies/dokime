@@ -144,7 +144,7 @@ pub async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String {
         .start_execution(executions[0].clone(), dokime::domain::model::execution::ExecutionMode::Automatic, Default::default())
         .await;
     assert_eq!(receipt.status, dokime::runtime::command::CommandStatus::Accepted);
-    // The Provider Publishes The Artifact Once Its Upload Finished
+    // The Provider Publishes the Artifact Once Its Upload Finished
     let mut published = provider.0.subscribe();
     published.wait_for(Option::is_some).await.expect("the provider outlives its cycle").clone().unwrap()
 }

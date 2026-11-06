@@ -95,7 +95,7 @@ export function EditableOperatorNotes({ notes, pending, failure, onReset, onSubm
           type="button"
         >
           <Plus size={16} />
-          Add a note
+          Add a Note
         </button>
       )}
       {notes.length ? (

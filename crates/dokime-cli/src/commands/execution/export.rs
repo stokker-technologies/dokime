@@ -7,7 +7,7 @@
  * ***
  */
 
-// Export Execution Evidence With Explicit Interrupt Ownership
+// Export Execution Evidence with Explicit Interrupt Ownership
 
 /* === Modules === */
 

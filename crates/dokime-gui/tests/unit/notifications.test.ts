@@ -133,7 +133,7 @@ test("History Paging", async () => {
   assert.deepEqual(previous.records, second.records);
 });
 
-test("Unread And Clear", async () => {
+test("Unread and Clear", async () => {
   const history = await import("@/lib/notifications");
   await history.recordNotification(record(0));
   await history.recordNotification(record(1));
@@ -202,7 +202,7 @@ test("Plugin Settings Action Survives History", async () => {
   assert.deepEqual(page.records[0].consequences, ["workflow unavailable"]);
 });
 
-test("Notification Sources Never Use Empty Or Root Route Labels", async () => {
+test("Notification Sources Never Use Empty or Root Route Labels", async () => {
   const history = await import("@/lib/notifications");
   vi.stubGlobal("location", { pathname: "/" });
   for (const source of [undefined, "", " ", "/", " / "]) {
@@ -250,7 +250,7 @@ test("Closed Connections Recover", async () => {
   assert.equal((await history.notificationPage()).records.length, 2);
 });
 
-test("Every Toast And History Entry Opens The Retained Details", async () => {
+test("Every Toast and History Entry Opens the Retained Details", async () => {
   const history = await import("@/lib/notifications");
   const { NotificationHistoryEntry } = await import("@/features/notifications/NotificationsSurface");
   for (const tone of ["error", "warning", "info", "success"] as const) {
@@ -274,7 +274,7 @@ test("Every Toast And History Entry Opens The Retained Details", async () => {
   assert.deepEqual(history.getNotificationDetails(), retained);
 });
 
-test("Details Show Problems And Copy Collapsed Diagnostics Without Debug Formatting", async () => {
+test("Details Show Problems and Copy Collapsed Diagnostics Without Debug Formatting", async () => {
   const history = await import("@/lib/notifications");
   const { failureOf } = await import("@/lib/notification-details");
   const { NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog");
@@ -345,7 +345,7 @@ test("Details Show Problems And Copy Collapsed Diagnostics Without Debug Formatt
   assert.deepEqual(failureOf(nested, "fixture-title").causes, ["root", "inner"]);
 });
 
-test("Native Rejections And Captured Diagnostics Reach Notification History", async () => {
+test("Native Rejections and Captured Diagnostics Reach Notification History", async () => {
   const { create, toBinary } = await import("@bufbuild/protobuf");
   const { StatusSchema, RejectionSchema, CapturedRecordErrorSchema } = await import("@/lib/rpc/generated/errors");
   const { normalizeRpcError } = await import("@/lib/rpc/errors");
@@ -404,7 +404,7 @@ test("Native Rejections And Captured Diagnostics Reach Notification History", as
   assert.equal(admission?.failure?.invocationId, request.invocationId);
 });
 
-test("Failure Stem Retains Identity And All Context", async () => {
+test("Failure Stem Retains Identity and All Context", async () => {
   const { failureOf } = await import("@/lib/notification-details");
   assert.ok(failureOf(new Error(" "), "fixture-title").message.trim());
   const root = new Error("fixture-root");
@@ -431,7 +431,7 @@ test("Failure Stem Retains Identity And All Context", async () => {
   assert.equal(failureOf("fixture", "fixture", "fixture-event"), failureOf("fixture", "fixture", "fixture-event"));
 });
 
-test("Failure Routes And Console Report Once Per Occurrence", async () => {
+test("Failure Routes and Console Report Once per Occurrence", async () => {
   const { failureOf, failureText } = await import("@/lib/notification-details");
   const { routeFailure, failureDestinations, reportFailure } = await import("@/lib/failure-routing");
   assert.deepEqual(failureDestinations("view"), { inline: true, toast: false, history: false, console: true });
@@ -454,7 +454,7 @@ test("Failure Routes And Console Report Once Per Occurrence", async () => {
   assert.equal(output.mock.calls.length, 2);
 });
 
-test("ErrorCard Renders Full Record Retry And Copy Without Toast", async () => {
+test("ErrorCard Renders Full Record Retry and Copy Without Toast", async () => {
   const { failureOf, failureText } = await import("@/lib/notification-details");
   const { ErrorCard } = await import("@/components/ErrorCard");
   const failure = failureOf(
@@ -475,7 +475,7 @@ test("ErrorCard Renders Full Record Retry And Copy Without Toast", async () => {
   assert.equal(shown.error.mock.calls.length, 0);
 });
 
-test("Shared Failure Delivers Unchanged Once To Toast And History", async () => {
+test("Shared Failure Delivers Unchanged Once to Toast and History", async () => {
   const { failureOf } = await import("@/lib/notification-details");
   const history = await import("@/lib/notifications");
   const failure = failureOf(new Error("fixture-message"), "fixture-title");

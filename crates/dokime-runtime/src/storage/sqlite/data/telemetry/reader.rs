@@ -7,7 +7,7 @@
  * ***
  */
 
-// Indexed Arrow Batch Reads At A Storage Frontier
+// Indexed Arrow Batch Reads at a Storage Frontier
 
 /* === Modules === */
 

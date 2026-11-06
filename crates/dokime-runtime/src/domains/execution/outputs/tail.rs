@@ -189,7 +189,7 @@ impl RuntimeHandle {
     }
 
     pub(crate) async fn finish_execution_outputs(&self, execution: &TestExecutionId) -> Result<()> {
-        // Running Captures Seal Into The Execution While It Still Admits Artifacts
+        // Running Captures Seal into the Execution While It Still Admits Artifacts
         self.execution_storage.captures.close(execution).await;
         {
             let _starts = self.execution_storage.tail_stops.lock().await;

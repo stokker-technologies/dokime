@@ -77,7 +77,7 @@ wlp5s0: 0000   70.  -40.  -256        0      0      0      0      0        0
 #[dokime_tracing::trace_test]
 #[test]
 fn iw_link_parsing() {
-    // HE 160 MHz Link Captured From A Live Association
+    // HE 160 MHz Link Captured from a Live Association
     assert_eq!(
         WifiLinkReport::parse_iw_link(HE_160_LINK),
         Some(WifiLinkReport {
@@ -87,7 +87,7 @@ fn iw_link_parsing() {
         })
     );
 
-    // Legacy Rates With Per-Chain Signal And A Signal Average
+    // Legacy Rates with Per-Chain Signal and a Signal Average
     assert_eq!(
         WifiLinkReport::parse_iw_link(LEGACY_LINK),
         Some(WifiLinkReport {
@@ -97,7 +97,7 @@ fn iw_link_parsing() {
         })
     );
 
-    // Disconnected Interface And Non-Netdev Devices
+    // Disconnected Interface and Non-Netdev Devices
     assert_eq!(WifiLinkReport::parse_iw_link("Not connected.\n"), None);
     assert_eq!(parse_iw_interfaces(IW_DEVICES), vec!["wlp5s0".to_owned()]);
 }

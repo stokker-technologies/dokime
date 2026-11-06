@@ -7,7 +7,7 @@
  * ***
  */
 
-// Execute Remote Examples Against The Built OBC Plugin
+// Execute Remote Examples Against the Built OBC Plugin
 
 /* === Modules === */
 
@@ -43,7 +43,7 @@ use dokime::domain::model::{
 
 const PROFILE_IDENTIFIER: &str = "lab";
 
-// The Identity The Examples' Pairing Files Expect From The Host Under Test
+// The Identity the Examples' Pairing Files Expect from the Host Under Test
 static BACKEND_IDENTIFIER: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 
 /* === Macros === */

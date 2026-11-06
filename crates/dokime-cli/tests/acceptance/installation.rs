@@ -114,7 +114,7 @@ fn gui_receives_endpoint() {
     let installed = installation(&[cli]);
     let arguments = installed.path().join("arguments");
 
-    // Installed Beside The CLI
+    // Installed Beside the CLI
     stub_gui(&installed.path().join("dokime-gui"), &arguments);
     let output = dokime(installed.path()).args(["gui", "--endpoint", ENDPOINT, "--", "--shutdown-stdin"]).output().unwrap();
     succeeded(output);

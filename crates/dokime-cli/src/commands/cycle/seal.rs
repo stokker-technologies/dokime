@@ -7,7 +7,7 @@
  * ***
  */
 
-// Seal A Remote Cycle And Wait For Durability
+// Seal a Remote Cycle and Wait for Durability
 
 /* === Modules === */
 

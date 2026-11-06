@@ -50,7 +50,7 @@ budget. Buffer admission charges encoded and declared decoded bytes, with no
 per-source-row object estimate. Document scans retain cancellation, deadlines and bounded buffers without a
 source-row admission ceiling. Public finite-query policies retain their limits.
 
-## Replacement And Delivery
+## Replacement and Delivery
 
 Remove raw live acquisition, array summary evaluation in runtime delivery and
 superseded preflight estimates as their replacements land. Keep pure authored

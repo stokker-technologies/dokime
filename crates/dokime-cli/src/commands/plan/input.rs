@@ -7,7 +7,7 @@
  * ***
  */
 
-// Construct Canonical Selection Plans From Flags
+// Construct Canonical Selection Plans from Flags
 
 /* === Modules === */
 

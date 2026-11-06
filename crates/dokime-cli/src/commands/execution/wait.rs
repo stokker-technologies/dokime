@@ -7,7 +7,7 @@
  * ***
  */
 
-// Wait For One Durable Execution Outcome
+// Wait for One Durable Execution Outcome
 
 /* === Modules === */
 

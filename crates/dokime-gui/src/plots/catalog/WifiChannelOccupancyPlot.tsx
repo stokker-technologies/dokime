@@ -271,11 +271,11 @@ function ScanSlider({
         <span className="font-medium text-foreground">
           {followLatest ? "Latest Scan" : "Selected Scan"} {clampedSelectedIndex + 1}/{scans.length}
         </span>
-        <span className="tabular-nums">{scan ? `${scan.label} · ${scan.total_networks} networks` : "No scan"}</span>
+        <span className="tabular-nums">{scan ? `${scan.label} · ${scan.total_networks} networks` : "No Scan"}</span>
       </div>
       <Slider
         aria-label="WiFi Occupancy Scan"
-        aria-valuetext={scan ? `${scan.label}, ${scan.total_networks} networks` : "No scan"}
+        aria-valuetext={scan ? `${scan.label}, ${scan.total_networks} networks` : "No Scan"}
         max={latestIndex}
         min={0}
         step={1}

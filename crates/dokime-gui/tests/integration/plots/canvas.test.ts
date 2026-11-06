@@ -49,7 +49,7 @@ type Reply = { id?: number; result?: { result?: { value?: unknown }; exceptionDe
 
 /* === Entry Point === */
 
-test("Sparse Samples On Live And Frozen Canvas", async () => {
+test("Sparse Samples on Live and Frozen Canvas", async () => {
   if (process.platform === "win32") assert.ok(existsSync(browserPath), "Chromium is available for canvas proof");
   const scratch = await mkdtemp(join(tmpdir(), "dokime-plot-canvas-"));
   let child: ReturnType<typeof spawn> | undefined;

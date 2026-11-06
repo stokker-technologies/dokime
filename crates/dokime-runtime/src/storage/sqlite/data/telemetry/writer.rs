@@ -7,7 +7,7 @@
  * ***
  */
 
-// Durable Telemetry Batches And Execution File Lifetime
+// Durable Telemetry Batches and Execution File Lifetime
 
 /* === Modules === */
 

@@ -58,7 +58,7 @@ pub(crate) async fn media_capture_artifacts() {
     let client = connect(&server).await;
     let scope = running_execution(&owner, &client, &gate).await;
 
-    // Scope And Limits Are Refused Before Any Device Opens
+    // Scope and Limits Are Refused Before Any Device Opens
     let unscoped = client
         .unary::<contracts::media::Screenshot>(authenticated(contracts::media::Screenshot {
             scope: Some(model::content::wire::ArtifactScope { execution_id: None, ..scope.clone() }),
@@ -158,7 +158,7 @@ pub(crate) async fn media_capture_artifacts() {
         .await;
     }
 
-    // An Execution Sealing Mid-Recording Seals The Recording Into It
+    // An Execution Sealing Mid-Recording Seals the Recording into It
     if live_audio {
         let mut frames = recording(
             &client,
@@ -190,7 +190,7 @@ pub(crate) async fn media_capture_artifacts() {
         gate.release.notify_one();
     }
 
-    // Video Recording Is Declared But Refused Until An Encoder Is Chosen
+    // Video Recording Is Declared but Refused Until an Encoder Is Chosen
     let screen = recording_refusal::<contracts::media::ScreenRecording>(
         &client,
         contracts::media::ScreenRecording {
@@ -264,7 +264,7 @@ async fn recording(
 ) -> Result<WireStream<model::media::wire::RecordingFrame>, tonic::Status> {
     let mut frames = client.download::<contracts::media::AudioRecording>(authenticated(request)).await?.into_inner();
 
-    // A Refusal Before Recording Arrives As The First Frame
+    // A Refusal Before Recording Arrives as the First Frame
     use futures_util::StreamExt;
     let first = frames.message().await?;
     let frames = futures_util::stream::iter(first.map(Ok)).chain(frames.frames);

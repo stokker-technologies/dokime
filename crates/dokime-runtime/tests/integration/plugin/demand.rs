@@ -578,7 +578,7 @@ async fn listener_publishes_asked() {
             connected("STALL").encode(),
         )
         .unwrap();
-    // A Paused Clock Advances Without Turning Pending Delivery Into A Success
+    // A Paused Clock Advances Without Turning Pending Delivery into a Success
     assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());
     tokio::time::advance(Duration::from_millis(100)).await;
     assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());

@@ -72,7 +72,7 @@ export class NativeSession {
   async backupAndResetLocalStorage(directory: string, archive: string): Promise<void> {
     await this.connect(async () => {
       const snapshot = await this.controls.backupResetLocalStorage(directory, archive);
-      toast.success("Local Storage Backed Up And Reset", { description: snapshot.archive ?? archive });
+      toast.success("Local Storage Backed Up and Reset", { description: snapshot.archive ?? archive });
       return snapshot;
     }, "backup");
   }

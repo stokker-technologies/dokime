@@ -5,7 +5,7 @@ Define execution and cycle membership for canonical records and telemetry sample
 
 ## Requirements
 
-### Requirement: Produced Or Captured Evidence
+### Requirement: Produced or Captured Evidence
 Execution and cycle selections SHALL include evidence produced by that owner or captured by its executions, preserving the producer scope and one stored payload.
 
 #### Scenario: Observer Capture

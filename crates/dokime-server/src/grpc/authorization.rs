@@ -7,7 +7,7 @@
  * ***
  */
 
-// Authorize External Calls From Canonical Operation Declarations
+// Authorize External Calls from Canonical Operation Declarations
 
 /* === Modules === */
 

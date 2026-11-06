@@ -94,7 +94,7 @@ beforeEach(() => {
   );
 });
 
-test("Picked Bundle Installs In One Native Invoke", async () => {
+test("Picked Bundle Installs in One Native Invoke", async () => {
   const progress: InstallPluginProgress[] = [];
   fixture.invoke.mockImplementation(async () => {
     emit({ phase: "reading" }, { phase: "uploading", sent: 52_500_000, total: 52_500_000 }, { phase: "installing" });
@@ -145,7 +145,7 @@ test("Cancelled Picker Installs Nothing", async () => {
   assert.equal(fixture.getInstallation.mock.calls.length, 0);
 });
 
-test("Connection Change Discards The Installed Installation Reply", async () => {
+test("Connection Change Discards the Installed Installation Reply", async () => {
   const changed = { generation: "7", isCurrent: () => false };
   fixture.invoke.mockResolvedValue("old-host-installation");
 
@@ -153,7 +153,7 @@ test("Connection Change Discards The Installed Installation Reply", async () => 
   assert.equal(fixture.getInstallation.mock.calls.length, 0);
 });
 
-test("Native Installation Failure Preserves The Error Without Looking Up An Installation", async () => {
+test("Native Installation Failure Preserves the Error Without Looking Up an Installation", async () => {
   const failure = new Error("The plugin bundle could not be read: permission denied");
   fixture.invoke.mockRejectedValue(failure);
 
@@ -162,7 +162,7 @@ test("Native Installation Failure Preserves The Error Without Looking Up An Inst
   assert.equal(fixture.getInstallation.mock.calls.length, 0);
 });
 
-test("Dropped Bundle Installs From The Shell's Recorded Drop", async () => {
+test("Dropped Bundle Installs from the Shell's Recorded Drop", async () => {
   fixture.invoke.mockResolvedValue("dropped");
 
   const entry = await installNativePlugin(session, "drop");
@@ -175,7 +175,7 @@ test("Dropped Bundle Installs From The Shell's Recorded Drop", async () => {
   assert.equal(options, undefined, "no bundle bytes or path cross the bridge");
 });
 
-test("Failed Plugin Settings Retain Owner And Secret", async () => {
+test("Failed Plugin Settings Retain Owner and Secret", async () => {
   const failed = {
     ...installation("install-1"),
     restart: { HarmosVariant: { case: "Idle", value: {} } },

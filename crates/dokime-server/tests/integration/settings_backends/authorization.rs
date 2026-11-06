@@ -478,7 +478,7 @@ pub(crate) async fn remote_refuses_local() {
     let endpoint = endpoint.tls_config(tls).unwrap();
     let channel = endpoint.connect().await.unwrap();
 
-    // Media Capture, File Watches And Host Paths Stay On The Loopback Listener
+    // Media Capture, File Watches and Host Paths Stay on the Loopback Listener
     let mut covered = 0;
     let served = cases();
     let native_cases = served.filter(|case| {

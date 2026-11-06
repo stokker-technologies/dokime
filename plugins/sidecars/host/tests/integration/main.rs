@@ -7,7 +7,7 @@
  * ***
  */
 
-// Host Operation Contracts, Platform Parsers And Native Collectors
+// Host Operation Contracts, Platform Parsers and Native Collectors
 
 /* === Modules === */
 

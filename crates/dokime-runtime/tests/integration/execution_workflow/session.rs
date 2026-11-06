@@ -1174,7 +1174,7 @@ pub(crate) async fn reload_restarts_one_plugin() {
     assert!(failed.boot_failed && !failed.active);
     let Some(PluginLastBoot::Failed { failure, .. }) = &failed.installation.last_boot else { panic!("the failed start is recorded") };
     assert_eq!(failure.missing_secret.as_deref(), Some("token"));
-    let cycle_id = held_cycle(&handle, &probe, metadata("session.retry", "Retry During A Cycle")).await;
+    let cycle_id = held_cycle(&handle, &probe, metadata("session.retry", "Retry During a Cycle")).await;
     handle
         .operations()
         .operation::<dokime_runtime::operations::secrets::Put>(dokime_runtime::operations::secrets::Put {

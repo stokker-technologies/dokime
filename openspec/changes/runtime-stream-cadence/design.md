@@ -24,7 +24,7 @@ interval method. Settings defaults and each manual generic observer's INTERVAL
 share constants owned solely by settings.rs. Restart or Retry applies saved changes. Static telemetry schemas
 omit nominal cadence rather than advertise defaults as effective values.
 
-## Ownership And Dependency Order
+## Ownership and Dependency Order
 
 Harmos integration: ../../harmos.wt/cadence, feat/runtime-observer-interval.
 Dokime integration: this worktree, feat/host-configurable-settings.

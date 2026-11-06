@@ -25,6 +25,33 @@ export type TimeFormatOrigin = {
 
 /* === Constants === */
 
+const TITLE_SMALL_WORDS = new Set([
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "but",
+  "nor",
+  "of",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "by",
+  "with",
+  "from",
+  "as",
+  "into",
+  "per",
+  "via",
+  "vs",
+  "over",
+  "up",
+  "off",
+]);
+
 /** The units below a minute, each used while the rounded value stays under its limit (seconds). */
 const SUBSECOND_SCALES: ReadonlyArray<{ divisor: number; limit: number; unit: string }> = [
   { divisor: 1e-6, limit: 1e-3, unit: "µs" },
@@ -55,6 +82,23 @@ const MIN_SI_EXPONENT = SI_PREFIXES[0][0];
 const MAX_SI_EXPONENT = SI_PREFIXES[SI_PREFIXES.length - 1][0];
 
 /* === Public Functions === */
+
+/** Format one generated title word while retaining caller-owned acronyms. */
+export function formatTitleWord(word: string, index: number, words: readonly string[]): string {
+  const lower = word.toLowerCase();
+  if (
+    index > 0 &&
+    index < words.length - 1 &&
+    TITLE_SMALL_WORDS.has(lower) &&
+    !(
+      ["up", "off", "on", "in", "over"].includes(lower) &&
+      /^(back|turn|log|sign|set|power|switch|clean|shut|hand|take)$/i.test(words[index - 1])
+    )
+  ) {
+    return lower;
+  }
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
 
 /** A label and its optional unit share one line in every presentation. */
 export function formatUnitLabel(label: string, unit?: string | null): string {

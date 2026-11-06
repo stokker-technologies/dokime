@@ -601,7 +601,7 @@ pub(super) async fn repeated_sections_follow() {
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (mut owner, runtime) = started_with_fixture(wifi_config(root.path()), executor.clone()).await;
 
-    // Declare A Section Repeated Per Channel, Without An Explicit Order
+    // Declare a Section Repeated per Channel, Without an Explicit Order
     let channel = dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_channel");
     let mut section = DocumentSection::new("Channels");
     section.note("One section per channel the scan saw.");
@@ -612,7 +612,7 @@ pub(super) async fn repeated_sections_follow() {
     suite.test_case_templates[0].document = Some(document);
     register_python_suite(&runtime, suite.clone()).await;
 
-    // Publish Channels Out Of Order Into The Running Execution
+    // Publish Channels Out of Order into the Running Execution
     let cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
@@ -629,7 +629,7 @@ pub(super) async fn repeated_sections_follow() {
 
     runtime.storage().flush_until(&runtime.storage().cursor_accepted()).await.unwrap();
 
-    // Materialized Sections Come Out In Ascending Channel Order
+    // Materialized Sections Come Out in Ascending Channel Order
     let document = runtime
         .resolve_cycle_document(
             &cycle_id,
@@ -662,7 +662,7 @@ pub(super) async fn repeated_sections_freeze() {
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (mut owner, runtime) = started_with_fixture(wifi_config(root.path()), executor.clone()).await;
 
-    // One Section Per Network, Plotting Signal Per Band, Then A Plain Section
+    // One Section per Network, Plotting Signal per Band, Then a Plain Section
     let network = dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_ssid");
     let mut signal = Plot::time_series("Signal");
     signal.id("fixture.repeat.signal");
@@ -691,7 +691,7 @@ pub(super) async fn repeated_sections_freeze() {
     suite.test_case_templates[0].document = Some(document);
     register_python_suite(&runtime, suite.clone()).await;
 
-    // The Middle Network Lies Far From Both Ends Of The Evidence
+    // The Middle Network Lies Far from Both Ends of the Evidence
     let cycle_id = start_cycle(&runtime, suite).await;
     runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
     executor.wait_until_entered().await;
@@ -722,7 +722,7 @@ pub(super) async fn repeated_sections_freeze() {
     let case = &payload["case_runs"][0];
     let capture = &case["documents"]["default"];
 
-    // Every Network Expands, In Ascending Order, Into A Present Section
+    // Every Network Expands, in Ascending Order, into a Present Section
     let instances = capture["repeats"]["fixture.repeat.networks"].as_array().expect("the repeat expanded");
     let values = instances.iter().map(|instance| instance["filter"]["value"].clone()).collect::<Vec<_>>();
     let expected = blocks.iter().map(|(ssid, _)| serde_json::to_value(Value::from(*ssid)).unwrap()).collect::<Vec<_>>();
@@ -733,7 +733,7 @@ pub(super) async fn repeated_sections_freeze() {
     }
     assert!(capture["sections"].as_object().unwrap().values().any(|section| section["metadata"]["label"] == "Host"));
 
-    // The Authored Table Keeps Every Row, In Order
+    // The Authored Table Keeps Every Row, in Order
     let readings = capture["definition"]["cards"]
         .as_array()
         .unwrap()
@@ -744,7 +744,7 @@ pub(super) async fn repeated_sections_freeze() {
     let expected = (0..table_rows).map(|index| serde_json::to_value(Value::Integer(index)).unwrap()).collect::<Vec<_>>();
     assert_eq!(indices, expected);
 
-    // Each Instance Plots Exactly Its Own Samples, One Series Per Band
+    // Each Instance Plots Exactly Its Own Samples, One Series per Band
     let plots = capture["cards"]
         .as_array()
         .unwrap()

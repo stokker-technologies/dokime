@@ -57,7 +57,7 @@ function bytes(length: number) {
 /* === Entry Point === */
 
 test("File Paging", async () => {
-  // A Small File Loads In One Request
+  // A Small File Loads in One Request
   const small = new TextEncoder().encode("x".repeat(314));
   const streaming = boundedServer(small, { state: "streaming" });
   const smallPage = await pageExecutionFile(streaming.read, { budgetBytes: 256 * 1024 });
@@ -67,7 +67,7 @@ test("File Paging", async () => {
   assert.equal(smallPage.state, "streaming");
   assert.deepEqual(smallPage.data, small);
 
-  // A File Larger Than The Bound Is Read In Bounded Pages With Offset Continuation
+  // A File Larger Than the Bound Is Read in Bounded Pages with Offset Continuation
   const large = bytes(3 * EXECUTION_FILE_WINDOW_BYTES + 17);
   const bounded = boundedServer(large);
   const largePage = await pageExecutionFile(bounded.read, { budgetBytes: 256 * 1024 });
@@ -80,7 +80,7 @@ test("File Paging", async () => {
   );
   assert.deepEqual(largePage.data, large);
 
-  // Continuation Follows The Bytes The Server Actually Returned
+  // Continuation Follows the Bytes the Server Actually Returned
   const shrinking = bytes(10_000);
   const short = boundedServer(shrinking, { shrinkTo: 4_000 });
   const shortPage = await pageExecutionFile(short.read, { budgetBytes: 256 * 1024 });
@@ -90,14 +90,14 @@ test("File Paging", async () => {
   );
   assert.deepEqual(shortPage.data, shrinking);
 
-  // The Budget Caps Retained Bytes And The Last Request
+  // The Budget Caps Retained Bytes and the Last Request
   const budgeted = boundedServer(bytes(5 * EXECUTION_FILE_WINDOW_BYTES));
   const budgetPage = await pageExecutionFile(budgeted.read, { budgetBytes: 100_000 });
   assert.equal(budgetPage.stop, "budget");
   assert.equal(budgetPage.data.byteLength, 100_000);
   assert.equal(budgeted.requests.at(-1)?.maxBytes, 100_000 - EXECUTION_FILE_WINDOW_BYTES);
 
-  // An Empty Window Before The Observed End Stops Instead Of Spinning
+  // An Empty Window Before the Observed End Stops Instead of Spinning
   let calls = 0;
   const stalled = await pageExecutionFile(
     async (offset) => {

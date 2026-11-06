@@ -230,7 +230,7 @@ async fn finalization_during_cycle_report() {
     let root = tempdir().unwrap();
     let (mut owner, runtime, executor, cycle, execution) = plotted_cycle(root.path()).await;
 
-    // The Member Has Finished But Not Yet Persisted Its Finalization Boundary
+    // The Member Has Finished but Not Yet Persisted Its Finalization Boundary
     let request = dokime_runtime::testing::hold_report_request(&execution);
     let receipt = runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
@@ -243,7 +243,7 @@ async fn finalization_during_cycle_report() {
         assert!(!snapshot.state().report_finalizations.contains_key(&execution));
     }
 
-    // The Report Reads The Cycle, Then The Boundary Lands Beyond Its Cursor Before The Member Is Captured
+    // The Report Reads the Cycle, Then the Boundary Lands Beyond Its Cursor Before the Member Is Captured
     let capture = dokime_runtime::testing::hold_member_capture(&execution);
     let task_runtime = runtime.clone();
     let task_cycle = cycle.clone();
@@ -277,7 +277,7 @@ async fn settling_member_report() {
     let root = tempdir().unwrap();
     let (mut owner, runtime, executor, cycle, execution) = plotted_cycle(root.path()).await;
 
-    // The Member's Last Samples Persist After A Report Cursor Was Chosen
+    // The Member's Last Samples Persist After a Report Cursor Was Chosen
     let receipt = runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
@@ -288,7 +288,7 @@ async fn settling_member_report() {
     publish(&runtime, Some(&scope), &[11.0], 2).await;
     runtime.release_stream_leases(leases).await.unwrap();
 
-    // It Finishes, And Its Finalization Has Not Persisted A Boundary Yet
+    // It Finishes, and Its Finalization Has Not Persisted a Boundary Yet
     let request = dokime_runtime::testing::hold_report_request(&execution);
     executor.release();
     request.entered().await;
@@ -317,7 +317,7 @@ async fn lifecycle_during_cycle_report() {
     assert_eq!(receipt.status, CommandStatus::Accepted);
     executor.wait_until_entered().await;
 
-    // The Report Reads The Running Member, Which Then Finishes And Freezes Its Lifecycle
+    // The Report Reads the Running Member, Which Then Finishes and Freezes Its Lifecycle
     let capture = dokime_runtime::testing::hold_member_capture(&execution);
     let task_runtime = runtime.clone();
     let task_cycle = cycle.clone();
@@ -359,7 +359,7 @@ async fn finalizing_member_execution_report() {
     publish(&runtime, Some(&scope), &[11.0], 2).await;
     runtime.release_stream_leases(leases).await.unwrap();
 
-    // Its Lifecycle Is Frozen, But Its Background Report Has Not Started
+    // Its Lifecycle Is Frozen, but Its Background Report Has Not Started
     let job = dokime_runtime::testing::hold_report_job(&execution);
     executor.release();
     job.entered().await;

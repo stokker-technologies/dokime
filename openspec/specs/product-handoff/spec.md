@@ -5,7 +5,7 @@ Preserve complete product behavior, branding and native delivery contracts when 
 
 ## Requirements
 
-### Requirement: Preserve The Complete Product Handoff
+### Requirement: Preserve the Complete Product Handoff
 The integration SHALL include the intended product work from both existing handoff branches and the native CI migration in one candidate, with explicit resolution of overlapping ownership.
 
 #### Scenario: Divergent Input Branches
@@ -13,10 +13,10 @@ The integration SHALL include the intended product work from both existing hando
 - **THEN** the source inventory accounts for both and no product capability is omitted merely because the CI migration began from older dev
 - **AND** contradictory public contracts are resolved before source closure
 
-### Requirement: Ship The Intended Branding
+### Requirement: Ship the Intended Branding
 The app SHALL use the reconciled current branding assets and sidebar presentation through one authoritative asset ownership chain.
 
-#### Scenario: Native App And Package
+#### Scenario: Native App and Package
 - **WHEN** the integrated product builds and packages its GUI and runtime resources
 - **THEN** manifests, generated exports, runtime reports and the visible app use the intended surface-aware artwork
 - **AND** obsolete asset ownership is removed rather than kept as a competing fallback
@@ -24,12 +24,12 @@ The app SHALL use the reconciled current branding assets and sidebar presentatio
 ### Requirement: Preserve Migration Contracts
 The combined tree SHALL preserve the approved native CI, client naming, publication boundaries, package freshness and cross-platform correctness contracts.
 
-#### Scenario: Conflicting Product And Tooling Edits
+#### Scenario: Conflicting Product and Tooling Edits
 - **WHEN** a product branch overlaps a migration repair
 - **THEN** explicit conflict resolution preserves the intended product behavior and approved migration contract
 - **AND** generated root and starter workflows derive from the reviewed Hub source without provider protection mutations
 
-### Requirement: Prove The Combined Candidate
+### Requirement: Prove the Combined Candidate
 Integration into dev SHALL require applicable full local proof and every required native provider check on the complete combined candidate.
 
 #### Scenario: Older Baseline Passed

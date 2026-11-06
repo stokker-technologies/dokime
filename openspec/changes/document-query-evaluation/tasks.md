@@ -1,4 +1,4 @@
-## Slice 1: Static Structure And Query Summaries
+## Slice 1: Static Structure and Query Summaries
 
 - [x] 1.1 Runtime documents/current, document/bounded/binding/resolve: static structure and query-backed summaries/statistics; preserve plot path.
 - [x] 1.2 Remove estimated row-work admission and source-row ceilings; enforce actual output/expansion budgets with card diagnostics.
@@ -18,7 +18,7 @@
 - [ ] 3.3 Reuse/extend maintained count/min/max/mean/RMS at ingest; exact median query; prove raw-row equivalence and update affected guides.
 - [ ] 3.4 Focused tests, check:rust, GUI tests/bindings if touched and diff scan.
 
-## Slice 4: Frozen Reports And Benchmark
+## Slice 4: Frozen Reports and Benchmark
 
 - [ ] 4.1 Report materialization uses the same card queries at sealed cuts, retaining complete paged tables and repeated sections; remove old acquisition and superseded tests.
 - [ ] 4.2 Add deterministic sealed report parity proof and update product/GUI/query guides and affected README claims.

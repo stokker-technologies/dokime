@@ -18,7 +18,7 @@ The desktop SHALL deliver interface feedback through toasts and retain notificat
 - **THEN** the corresponding history remains available in Notifications
 - **AND** updating a visible toast does not discard earlier recorded messages
 
-#### Scenario: History Navigation And Clear
+#### Scenario: History Navigation and Clear
 
 - **WHEN** the user browses history larger than one page
 - **THEN** bounded pages expose every retained record, with an unread badge in navigation

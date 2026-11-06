@@ -50,10 +50,10 @@ import { type CycleExecutionRow, caseActionTooltip, progressStepLabel } from "./
 const REPORTS: Record<ExecutionAction, { done: string; failed: string }> = {
   Cancel: { done: "Execution Cancelled", failed: "Execution Could Not Be Cancelled" },
   Pause: { done: "Execution Pause Requested", failed: "Execution Control Failed" },
-  "Re-Run": { done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" },
+  "Re-Run": { done: "New Attempt Ready to Start", failed: "Case Re-Run Failed" },
   Resume: { done: "Execution Resume Requested", failed: "Execution Control Failed" },
   Start: { done: "Execution Started", failed: "Execution Could Not Start" },
-  Stop: { done: "Execution Stopped And Evidence Saved", failed: "Execution Control Failed" },
+  Stop: { done: "Execution Stopped and Evidence Saved", failed: "Execution Control Failed" },
 };
 
 const ACTION_ICONS: Record<ExecutionAction, ReactNode> = {

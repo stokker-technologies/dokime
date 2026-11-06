@@ -7,7 +7,7 @@
  * ***
  */
 
-// Atomically Bind Explicit Executions To Registered Cases
+// Atomically Bind Explicit Executions to Registered Cases
 
 /* === Modules === */
 

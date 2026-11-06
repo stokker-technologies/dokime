@@ -5,7 +5,7 @@
 Document structure SHALL cost only the declared definition and SHALL read no
 telemetry. Every data binding SHALL resolve through a query at a fixed cut.
 
-#### Scenario: Large Document On A Short Run
+#### Scenario: Large Document on a Short Run
 
 - **WHEN** a large document with many plots and summaries opens on a short run
 - **THEN** its structure is available without telemetry acquisition
@@ -17,7 +17,7 @@ Cards SHALL load independently. Summary count/min/max/mean/RMS SHALL use maintai
 aggregates where applicable, with exact statistics queries otherwise. Median SHALL
 remain exact. Existing plots SHALL retain their bounded query path.
 
-#### Scenario: Slow Or Oversized Card
+#### Scenario: Slow or Oversized Card
 
 - **WHEN** one card is delayed or exceeds its actual output budget
 - **THEN** other cards become available independently
@@ -29,13 +29,13 @@ remain exact. Existing plots SHALL retain their bounded query path.
 - **THEN** document summary queries complete with bounded working memory
 - **AND** statistics match exact values independently computed from the raw rows
 
-### Requirement: Output Based Limits And Paging
+### Requirement: Output Based Limits and Paging
 
 Limits SHALL bound real encoded payload and actually expanded sections, with
 paging. Source row counts and estimated evaluation work SHALL NOT reject a
 document. Repeated sections SHALL page an index of every distinct selected value.
 
-#### Scenario: Distinct Value In Interior History
+#### Scenario: Distinct Value in Interior History
 
 - **WHEN** a repeat value occurs only within interior retained evidence
 - **THEN** indexed paging includes it once without loading raw history

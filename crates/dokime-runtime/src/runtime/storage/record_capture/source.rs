@@ -294,7 +294,7 @@ impl Process {
                 Ok(Some(row)) => row,
                 Ok(None) => break,
                 Err(failure) => {
-                    // Retry Keeps The Same Fixed View And Original Pending Page
+                    // Retry Keeps the Same Fixed View and Original Pending Page
                     return Err(failure);
                 }
             };

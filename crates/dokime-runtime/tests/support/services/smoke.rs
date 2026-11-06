@@ -81,7 +81,7 @@ struct Check {
     behaviour: Arc<Behaviour>,
 }
 
-// In-Process Pushes Have No IPC Backpressure, So The Window Holds Every Row The
+// In-Process Pushes Have No IPC Backpressure, So the Window Holds Every Row The
 // Largest Story Pushes Before Ingest Takes Them In.
 #[dokime_runtime::stream(
     id = "fixture_suites.pulse",

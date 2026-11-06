@@ -439,7 +439,7 @@ impl AwaitEvent {
         Ok((template, shared))
     }
 
-    #[dokime_runtime::step(label = "Hear The Event")]
+    #[dokime_runtime::step(label = "Hear the Event")]
     async fn hear(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
         // An operation is the only road a step has to the plugin. Its type
         // belongs to the required catalog declared by this template.
@@ -506,7 +506,7 @@ impl Faults {
         Ok((template, shared))
     }
 
-    #[dokime_runtime::step(label = "Wait For Independent Observers")]
+    #[dokime_runtime::step(label = "Wait for Independent Observers")]
     async fn proceed(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
         ctx.listen::<SuiteObserved>().next().await.expect("the healthy observer continues");
         *self.0.released.lock().unwrap() = true;
@@ -561,7 +561,7 @@ impl Pending {
         Ok((template, shared))
     }
 
-    #[dokime_runtime::step(label = "Wait For Cancellation")]
+    #[dokime_runtime::step(label = "Wait for Cancellation")]
     async fn wait(&mut self, _: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
         std::future::pending().await
     }

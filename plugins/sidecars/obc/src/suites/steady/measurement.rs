@@ -94,19 +94,19 @@ pub struct BenchEvent {
 
 #[dokime::record(
     id = "obc.charger.steady.initialized",
-    label = "Steady-state Charger initialized",
+    label = "Steady-state Charger Initialized",
     description = "The Charger was initialized for this attempt."
 )]
 #[derive(Clone, Debug)]
 pub struct Initialized {}
 
-#[dokime::record(id = "obc.charger.steady.started", label = "Steady-state Charger energized", description = "The supply was energized.")]
+#[dokime::record(id = "obc.charger.steady.started", label = "Steady-state Charger Energized", description = "The supply was energized.")]
 #[derive(Clone, Debug)]
 pub struct Started {}
 
 #[dokime::record(
     id = "obc.charger.steady.completed",
-    label = "Steady-state measurement and operator decision captured",
+    label = "Steady-state Measurement and Operator Decision Captured",
     description = "The steady-state measurement and the operator's decision, together."
 )]
 #[derive(Clone, Debug)]

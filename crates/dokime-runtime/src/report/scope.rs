@@ -7,7 +7,7 @@
  * ***
  */
 
-// What Report Materialization Reads Of The Application, Held By The Host
+// What Report Materialization Reads of the Application, Held by the Host
 // Because An Authored Operation Context Carries No Runtime Scope.
 
 /* === Modules === */

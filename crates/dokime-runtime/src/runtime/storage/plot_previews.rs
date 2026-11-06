@@ -7,7 +7,7 @@
  * ***
  */
 
-// Bounded Replay For Captures That Predate Plot-Specific Checkpoints
+// Bounded Replay for Captures That Predate Plot-Specific Checkpoints
 
 /* === Modules === */
 

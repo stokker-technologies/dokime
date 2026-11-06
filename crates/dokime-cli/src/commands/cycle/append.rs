@@ -7,7 +7,7 @@
  * ***
  */
 
-// Register Explicit Execution Identities In An Existing Cycle
+// Register Explicit Execution Identities in an Existing Cycle
 
 /* === Modules === */
 
@@ -148,7 +148,7 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
             serde_json::json!({ "cycle_id": cycle_id, "observed_cursor": reply.observed_cursor, "execution_ids": reply.execution_ids })
         );
     } else {
-        println!("Appended Executions To Cycle {cycle_id}");
+        println!("Appended Executions to Cycle {cycle_id}");
         for id in reply.execution_ids {
             println!("Execution {id}");
         }

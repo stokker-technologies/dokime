@@ -8,7 +8,7 @@ Define explicit plugin reloads, backend comparisons of saved and running setting
 ### Requirement: Explicit Settings Application
 The backend SHALL save plugin settings without restarting programs and SHALL report field identifiers whose saved values differ from the running generation startup values. GUIs SHALL show Applied On Reload with a warning highlight for these fields. A backend restart starts from saved settings.
 
-#### Scenario: Save And Reopen
+#### Scenario: Save and Reopen
 - **WHEN** a running plugin setting is saved and its view is reopened or another GUI attaches
 - **THEN** the program continues with its original values and every GUI receives the same differing field identifiers
 

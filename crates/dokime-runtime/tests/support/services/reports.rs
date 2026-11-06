@@ -145,7 +145,7 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
     let manager = Manager::new(StorageBackends { primary, state: recovery }, settings).unwrap();
     let owner = storage_runtime(&manager).await;
 
-    // Settle The Execution Like A Final Capture
+    // Settle the Execution Like a Final Capture
     let mut input = input.clone();
     let finished_at = input.generated_at.clone();
     let execution = &mut input.cycle.test_executions[0];
@@ -154,7 +154,7 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
     let row = Execution::try_from(&execution).unwrap();
     let receipt = manager.write_object(&row).await.unwrap();
 
-    // Freeze The Inspection Context And Declared Contracts
+    // Freeze the Inspection Context and Declared Contracts
     let mut grouping = input.cycle.clone();
     grouping.test_executions.clear();
     let context = dokime_runtime::execution::context::ExecutionContext {
@@ -210,7 +210,7 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
         context,
     };
 
-    // Prepare, Save, And Read Back The Stored Report
+    // Prepare, Save, and Read Back the Stored Report
     let captured = harmos::storage::ReadBatch::new(captured);
     let revision = captured.execution.as_ref().unwrap().clone();
     let outputs = Vec::new();

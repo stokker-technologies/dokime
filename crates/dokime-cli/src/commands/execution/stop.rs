@@ -7,7 +7,7 @@
  * ***
  */
 
-// Stop And Seal One Backend Execution
+// Stop and Seal One Backend Execution
 
 /* === Modules === */
 
@@ -60,7 +60,7 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     if args.json {
         println!("{}", serde_json::json!({ "execution_id": args.execution_id, "observed_cursor": reply.observed_cursor }));
     } else {
-        println!("Execution {} Stopped And Sealed", args.execution_id);
+        println!("Execution {} Stopped and Sealed", args.execution_id);
     }
     Ok(())
 }

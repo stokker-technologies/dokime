@@ -112,7 +112,7 @@ async fn store_ftp_secret(bench: &Bench) {
     bench.handle.operations().operation::<dokime_operations::secrets::Put>(request).await.unwrap();
 }
 
-// Preserve The Real Server's Data Plane While Refusing REST On Its Control Plane
+// Preserve the Real Server's Data Plane While Refusing REST on Its Control Plane
 async fn refusing_resume(port: u16) -> (u16, tokio::task::JoinHandle<()>) {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -232,7 +232,7 @@ async fn stream_ftp_source() {
     let url = format!("ftp://{USER}@127.0.0.1:{port}/bench");
     let rules = vec![include("**/*.log")];
 
-    // A Wrong Or Missing Secret Is Refused At Open
+    // A Wrong or Missing Secret Is Refused at Open
     let refused = bench
         .handle
         .open_file_watch(&request(&bench.execution, ftp(url.clone(), None), rules.clone(), FileWatchPolicy::Stream), None)
@@ -267,7 +267,7 @@ async fn stream_ftp_source() {
     append(&log, b"line 2\n");
     poll(&mut watch).await;
 
-    // Truncation Restarts At The First Byte With A Gap
+    // Truncation Restarts at the First Byte with a Gap
     write(&served.path().join("bench/logs/new/bms.log"), b"x\n");
     let truncated = poll(&mut watch).await;
     assert!(truncated.iter().any(|event| matches!(

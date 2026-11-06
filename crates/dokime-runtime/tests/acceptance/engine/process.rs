@@ -108,7 +108,7 @@ impl RunOnce {
     }
 }
 
-#[dokime_runtime::template(id = CANCEL, label = "Spawn And Cancel", parameters = CancelParameters)]
+#[dokime_runtime::template(id = CANCEL, label = "Spawn and Cancel", parameters = CancelParameters)]
 impl SpawnCancel {
     async fn initialize(_: &CancelParameters, _ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
         Ok(Self)

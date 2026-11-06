@@ -7,7 +7,7 @@
  * ***
  */
 
-// Committed Running Work Remains Visible At Fixed History Cuts
+// Committed Running Work Remains Visible at Fixed History Cuts
 
 /* === Modules === */
 

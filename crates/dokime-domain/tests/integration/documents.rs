@@ -123,10 +123,10 @@ fn histogram_requires_x() {
 #[dokime_tracing::trace_test]
 #[test]
 fn box_keeps_y() {
-    let mut plot = Plot::box_summary("Voltage By Phase");
+    let mut plot = Plot::box_summary("Voltage by Phase");
     plot.y(reconnection("voltage_v"));
     validate_plot_definition(&plot).unwrap();
 
-    let message = refusal(&Plot::box_summary("Voltage By Phase"));
+    let message = refusal(&Plot::box_summary("Voltage by Phase"));
     assert!(message.contains("box_summary plots must declare exactly one y field or y expression"), "{message}");
 }

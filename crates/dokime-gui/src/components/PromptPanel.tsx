@@ -132,7 +132,7 @@ function VerificationPromptDialog({ emergencyAction, prompt }: { emergencyAction
 function verificationConditionLabel(prompt: PromptRequest) {
   const condition = prompt.verification?.condition;
   if (!condition) {
-    return "Verification condition";
+    return "Verification Condition";
   }
   if (condition.kind === "record") {
     const detailLabels = Object.entries(condition.details ?? {}).map(([key, value]) => `${key}=${String(value)}`);

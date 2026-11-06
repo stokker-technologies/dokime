@@ -7,7 +7,7 @@
  * ***
  */
 
-// Verify And Stage Installer Plugin Bundles
+// Verify and Stage Installer Plugin Bundles
 
 /* === Modules === */
 

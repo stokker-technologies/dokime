@@ -7,7 +7,7 @@
  * ***
  */
 
-// CLI Story Configuration Uses The Production Bootstrap
+// CLI Story Configuration Uses the Production Bootstrap
 
 /* === Modules === */
 

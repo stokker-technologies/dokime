@@ -57,7 +57,7 @@ struct Measured {
 
 #[dokime_runtime::prompt(
     id = "fixture.declaring.confirm",
-    label = "Confirm The Bench",
+    label = "Confirm the Bench",
     description = "Confirm the bench is ready before the measurement starts."
 )]
 struct Confirm;
@@ -238,7 +238,7 @@ impl EmbeddedProvider for DeclaringProvider {
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn template_declarations_register() {
-    // The Plugin Grants The Shared Stream Once
+    // The Plugin Grants the Shared Stream Once
     let granted = <Declaring as Declared>::STREAMS.iter().map(|entry| entry.id).collect::<Vec<_>>();
     assert_eq!(granted, [Sample::ID], "two templates share one stream grant");
 
@@ -246,7 +246,7 @@ async fn template_declarations_register() {
     let mut runtime = Runtime::start(config(root.path()).register(Arc::new(DeclaringProvider::new()))).await.unwrap();
     let handle = runtime.handle();
 
-    // Admission Registered The Template Record And Prompt
+    // Admission Registered the Template Record and Prompt
     let records = handle.record_contracts().await;
     assert!(records.iter().any(|contract| contract.record_type.as_str() == RECORD), "{records:?}");
     let prompts = handle.prompt_definitions().await;

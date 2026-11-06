@@ -482,7 +482,7 @@ pub(crate) async fn oversized_delivery_evidence() {
             .code(),
         Code::ResourceExhausted
     );
-    // A Rejected Delivery Must Leave The Original Captured Record Readable
+    // A Rejected Delivery Must Leave the Original Captured Record Readable
     {
         let captured = handle.captured_records();
         let retained = captured.next(before, captured.frontier()).await.unwrap().unwrap();

@@ -69,9 +69,9 @@ struct Reading {
 struct ProbeParameters {
     #[parameter(label = "Probe", default = "unregistered")]
     probe: String,
-    #[parameter(label = "Call The Public Operation", default = true)]
+    #[parameter(label = "Call the Public Operation", default = true)]
     public: bool,
-    #[parameter(label = "Wait For Cancellation", default = false)]
+    #[parameter(label = "Wait for Cancellation", default = false)]
     wait: bool,
 }
 
@@ -230,7 +230,7 @@ impl Probe {
         Ok(Self)
     }
 
-    #[dokime_runtime::step(label = "Call The Plugin's Own Operation")]
+    #[dokime_runtime::step(label = "Call the Plugin's Own Operation")]
     async fn call(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
         let ProbeParameters { probe, public, wait } = ctx.parameters();
         let (probe, public, wait) = (probe.clone(), *public, *wait);
@@ -258,7 +258,7 @@ impl ConsumerProbe {
         Ok(Self)
     }
 
-    #[dokime_runtime::step(label = "Call The Provider's Public Operation")]
+    #[dokime_runtime::step(label = "Call the Provider's Public Operation")]
     async fn call(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
         ctx.operation(ReadPublic {
             probe: String::new(),

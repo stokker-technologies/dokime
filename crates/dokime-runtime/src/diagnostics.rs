@@ -7,7 +7,7 @@
  * ***
  */
 
-// Plugin Diagnostic Runtime Hooks With Shared Portable Values
+// Plugin Diagnostic Runtime Hooks with Shared Portable Values
 
 /* === Modules === */
 

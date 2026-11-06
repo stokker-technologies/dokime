@@ -7,7 +7,7 @@
  * ***
  */
 
-// Seal A Cycle After Its Executions Become Durable
+// Seal a Cycle After Its Executions Become Durable
 
 /* === Modules === */
 

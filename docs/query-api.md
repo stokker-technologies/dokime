@@ -236,7 +236,7 @@ selection and reducer; each page rescans the fixed cut within its work budget,
 without retaining a transaction or sample history between calls. Schema,
 snapshot and the longest required continuation count against page byte limits.
 
-## Finite Records And Follow
+## Finite Records and Follow
 
 `RuntimeHandle::query_list_records` selects one record type within an execution
 or cycle, optionally narrowed to a member execution. It reads the existing indexed
@@ -267,7 +267,7 @@ can change between calls. Schema, snapshot and continuation metadata count towar
 the page ceiling. An indivisible oversized row or metadata, work exhaustion,
 corruption or unavailable cut returns a typed failure, never a complete subset.
 
-## Transport Access And CLI Paging
+## Transport Access and CLI Paging
 
 Native and gRPC calls use the runtime's five canonical handlers. Existing remote
 keys grant full product read access; native-only operations keep their separate

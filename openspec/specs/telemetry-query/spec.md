@@ -5,7 +5,7 @@ Define Arrow telemetry projection and filtering, exact statistics, time buckets 
 
 ## Requirements
 
-### Requirement: Arrow Projection And Filtering
+### Requirement: Arrow Projection and Filtering
 Telemetry queries SHALL prune Arrow batches through SQLite execution/stream/schema/time indexes and decode needed columns where compression permits. Predicates/windows SHALL precede reductions. Raw results SHALL preserve typed identity, time, sequence, scope, selected values and schema/units. Unsupported layouts SHALL fail without unbounded fallback.
 
 #### Scenario: Server Execution Plan
@@ -13,7 +13,7 @@ Telemetry queries SHALL prune Arrow batches through SQLite execution/stream/sche
 - **THEN** omitted fields selects all declared columns within limits, and projection includes predicate/time columns
 - **AND** it uses no per-sample RPC, full-history Python decode, JSON round-trip or plot-preview substitution
 
-#### Scenario: Narrow Window And Projection
+#### Scenario: Narrow Window and Projection
 - **WHEN** a query selects two fields and a short time window from a million-sample execution
 - **THEN** catalog time indexes skip irrelevant batches and only admitted projected batches are processed
 - **AND** raw selected values agree with the stored contract and original evidence at that cut
@@ -21,7 +21,7 @@ Telemetry queries SHALL prune Arrow batches through SQLite execution/stream/sche
 ### Requirement: Exact Server Statistics
 `aggregate_samples` SHALL accept bounded ordered unique alias/field/Harmos Aggregate outputs: count, sum, mean, min, max, median, std, rms and integral percentile ranks 0..100. Arithmetic SHALL follow Harmos f64 projection/population-std semantics; non-finite results SHALL fail. Percentiles SHALL interpolate exactly at `(n-1)*rank/100` without sketches.
 
-#### Scenario: Reduction Types And Empty Data
+#### Scenario: Reduction Types and Empty Data
 - **WHEN** outputs reduce a numeric selection containing absent, null or non-finite values
 - **THEN** empty-field count counts rows, field count counts finite numbers, other outputs require declared numeric fields, and excluded values are counted in quality metadata without becoming zero
 - **AND** empty numeric selections return count=0 and null for other statistics; raw int64/uint64 values stay lossless
@@ -36,19 +36,19 @@ Telemetry queries SHALL prune Arrow batches through SQLite execution/stream/sche
 
 Requests SHALL share native projected batch decoding across outputs within working, scan and time budgets. Moments and rank indexes MAY answer only matching scope, selection and frontier. Other percentiles SHALL use bounded exact numeric selection. Accumulators SHALL NOT retain unbounded decoded raw history. Numeric spools SHALL respect caller memory budgets. Deadline or resource exhaustion SHALL fail without approximation or partial results; cancellation SHALL stop selection cooperatively.
 
-#### Scenario: Completed Or Exhausted Reduction
+#### Scenario: Completed or Exhausted Reduction
 
 - **WHEN** an exact reduction finishes or exhausts its admitted work
 - **THEN** success identifies output types/units, selected row counts, excluded-value counts and snapshot
 - **AND** exhaustion returns a typed failure, never current-frontier statistics, partial estimates or preview aggregates
 
-#### Scenario: Older Cut With Newer Numeric Index
+#### Scenario: Older Cut with Newer Numeric Index
 
 - **WHEN** samples arrive after a query snapshot and its mutable numeric summary has advanced
 - **THEN** the query computes from the original Arrow cut or a matching retained index
 - **AND** it never reads a newer summary as if it belonged to that cut
 
-#### Scenario: Shared Decode And Numeric Spool
+#### Scenario: Shared Decode and Numeric Spool
 
 - **WHEN** one request selects several statistics or bucket fields
 - **THEN** borrowed projected columns feed the existing sequential reducers after version, capture, predicate, window and frontier selection
@@ -59,13 +59,13 @@ Requests SHALL share native projected batch decoding across outputs within worki
 ### Requirement: Explicit Time Buckets
 `every` SHALL select fixed positive duration buckets anchored at Unix epoch UTC using floor(timestamp/every), with `agg` required. Numeric bucket reducers SHALL be count/sum/mean/min/max. Windows SHALL clip inputs, not labeled bucket bounds. Buckets SHALL reduce each execution/stream/schema-compatible partition separately and omit empty buckets.
 
-#### Scenario: Bucket Request And Output Contract
+#### Scenario: Bucket Request and Output Contract
 - **WHEN** a caller requests buckets or supplies agg without every
 - **THEN** agg without every fails; percentile/median/std/rms require unbucketed aggregate_samples
 - **AND** buckets use no calendar/DST alignment, cross-execution/source grouping, interpolation or gap filling
 - **AND** a populated bucket without finite values returns field count zero and null reduction (count zero); typed replies identify bounds, sample/field counts, units and reducer, not authored sample IDs
 
-#### Scenario: Boundary And Missing Interval
+#### Scenario: Boundary and Missing Interval
 - **WHEN** every is one second and samples occur at 00:00:00.999, 00:00:01.000 and 00:00:03.000 UTC
 - **THEN** they populate buckets starting at seconds 0, 1 and 3 and no second-2 bucket is invented
 - **AND** paging preserves complete buckets and ascending bucket order

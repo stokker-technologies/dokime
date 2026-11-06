@@ -564,7 +564,7 @@ async fn stream_local_tree() {
         .await
         .unwrap();
 
-    // Files Present At The Start Baseline At Their Length
+    // Files Present at the Start Baseline at Their Length
     let first = poll(&mut watch).await;
     assert_eq!(phases(&first, Phase::Baseline), vec![("logs/charger.log".to_owned(), 0), ("logs/debug/bms.log".to_owned(), 0)]);
     assert!(phases(&first, Phase::Capturing).is_empty());
@@ -587,7 +587,7 @@ async fn stream_local_tree() {
     let segment = sealed(&rotated);
     assert_artifact(&segment["logs/charger.log"], "logs/charger.log", b"line 1\n");
 
-    // A Vanished File Is Sealed With A Gap While The Watch Continues
+    // A Vanished File Is Sealed with a Gap While the Watch Continues
     append(&tree.path().join("logs/debug/bms.log"), b"cell 3\n");
     poll(&mut watch).await;
     std::fs::remove_file(tree.path().join("logs/debug/bms.log")).unwrap();
@@ -596,7 +596,7 @@ async fn stream_local_tree() {
     let early = sealed(&vanished);
     assert_artifact(&early["logs/debug/bms.log"], "logs/debug/bms.log", b"cell 3\n");
 
-    // Sealing Captures The Last Bytes Of Every Remaining File
+    // Sealing Captures the Last Bytes of Every Remaining File
     append(&tree.path().join("logs/charger.log"), b"tail\n");
     let last = seal(&mut watch).await;
     let sealed = sealed(&last);
@@ -628,12 +628,12 @@ async fn mirror_local_tree() {
         .await
         .unwrap();
 
-    // The Whole File Is Mirrored At Discovery, Then Only On Change
+    // The Whole File Is Mirrored at Discovery, Then Only on Change
     let first = poll(&mut watch).await;
     assert_eq!(phases(&first, Phase::Synced), vec![("report.csv".to_owned(), 8)]);
     assert!(phases(&poll(&mut watch).await, Phase::Synced).is_empty());
 
-    // A Rewrite Of Equal Length Is Detected By Its Modification Time
+    // A Rewrite of Equal Length Is Detected by Its Modification Time
     write(&report, b"a,b\n3,4\n");
     let later = SystemTime::now() + Duration::from_secs(5);
     std::fs::File::options().write(true).open(&report).unwrap().set_modified(later).unwrap();
@@ -641,7 +641,7 @@ async fn mirror_local_tree() {
     let changed = poll(&mut watch).await;
     assert_eq!(phases(&changed, Phase::Synced), vec![("report.csv".to_owned(), 8), ("runs/second.csv".to_owned(), 2)]);
 
-    // A Shrunk Source Retains Its Previous Segment Before Mirroring A Fresh One
+    // A Shrunk Source Retains Its Previous Segment Before Mirroring a Fresh One
     write(&report, b"a\n");
     let shrunk = poll(&mut watch).await;
     assert_eq!(gaps(&shrunk), [("report.csv".to_owned(), 8, GapReason::Truncated)]);
@@ -703,7 +703,7 @@ async fn watch_refusals() {
     write(&tree.path().join("b.log"), b"0123456789");
     let base = || request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Mirror);
 
-    // The File Cap Refuses The Second File, After Sealing The First
+    // The File Cap Refuses the Second File, After Sealing the First
     let mut capped = bench.handle.open_file_watch(&FileWatch { maximum_files: Some(1), ..base() }, None).await.unwrap();
     let mut events = Vec::new();
     let refused = capped.poll(&mut events).await.unwrap_err();
@@ -711,13 +711,13 @@ async fn watch_refusals() {
     let sealed = sealed(&seal(&mut capped).await);
     assert_artifact(&sealed["a.log"], "a.log", b"0123456789");
 
-    // The Byte Cap Refuses A File That Would Exceed It
+    // The Byte Cap Refuses a File That Would Exceed It
     let mut small = bench.handle.open_file_watch(&FileWatch { maximum_bytes: Some(15), ..base() }, None).await.unwrap();
     let refused = small.poll(&mut Vec::new()).await.unwrap_err();
     assert_eq!(code(&refused), CAPPED, "{refused}");
     seal(&mut small).await;
 
-    // Requests Are Refused Before A Source Opens
+    // Requests Are Refused Before a Source Opens
     let refusals = [
         FileWatch { execution_id: None, ..base() },
         FileWatch { rules: vec![exclude("*.log")], ..base() },
@@ -735,14 +735,14 @@ async fn watch_refusals() {
         assert_eq!(code(&error), INVALID, "{error}");
     }
 
-    // The Context Execution Must Agree With An Explicit One
+    // The Context Execution Must Agree with an Explicit One
     let error = bench.handle.open_file_watch(&base(), Some("00000000-0000-7000-8000-000000000000")).await.err().unwrap();
     assert_eq!(code(&error), INVALID, "{error}");
     let scoped = bench.handle.open_file_watch(&FileWatch { execution_id: None, ..base() }, Some(&bench.execution)).await;
     assert!(scoped.is_ok(), "the calling step's execution scopes the watch");
     drop(scoped);
 
-    // FTP Sources Refuse Untrusted Plain FTP, SFTP And Inline Passwords
+    // FTP Sources Refuse Untrusted Plain FTP, SFTP and Inline Passwords
     let ftp = |url: &str| FileWatch {
         source: Some(model::files::wire::FileWatchSource {
             payload: Some(FileWatchSourcePayload::Ftp(FtpWatchSource { url: url.to_owned(), secret_id: None })),
@@ -780,7 +780,7 @@ async fn mirror_keeps_last() {
         .unwrap();
     assert_eq!(phases(&poll(&mut watch).await, Phase::Synced), vec![("report.csv".to_owned(), 3)]);
 
-    // The Source Changes But Cannot Be Read
+    // The Source Changes but Cannot Be Read
     write(&report, b"version two, longer\n");
     std::fs::set_permissions(&report, std::fs::Permissions::from_mode(0o000)).unwrap();
     let unreadable = std::fs::File::open(&report).is_err();
@@ -816,7 +816,7 @@ async fn execution_seals_watch() {
     poll(&mut watch).await;
     append(&log, b"captured before the execution closed\n");
 
-    // Poll Once For The Appended Line, Then Drive The Watch Until The Execution Asks It To Seal
+    // Poll Once for the Appended Line, Then Drive the Watch Until the Execution Asks It to Seal
     poll(&mut watch).await;
     let driver = tokio::spawn(async move {
         watch.seal_requested().await;
@@ -886,7 +886,7 @@ async fn watch_file_matchers() {
     let (operations, ticket) = ticketed(&bench);
     let watch = operations.submit::<WatchFile>(request).unwrap();
 
-    // Lines Written After The Start Are Captured And Matched
+    // Lines Written After the Start Are Captured and Matched
     bench
         .handle
         .operations()
@@ -906,7 +906,7 @@ async fn watch_file_matchers() {
     );
     assert!(outcome.gaps.is_empty());
 
-    // Rows Reach The Declared Stream In The Execution's Scope
+    // Rows Reach the Declared Stream in the Execution's Scope
     let execution = dokime_runtime::TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
     let rows = bench
         .handle
@@ -938,7 +938,7 @@ async fn watch_file_matchers() {
     assert_eq!(markers[0].record.details.get("warning_code"), Some(&Value::Text("W42".to_owned())));
     assert_eq!(markers[0].record.message.as_deref(), Some("WARN W42"));
 
-    // The Artifact Holds Only The Appended Bytes
+    // The Artifact Holds Only the Appended Bytes
     let record = bench
         .handle
         .artifacts()

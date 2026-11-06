@@ -29,7 +29,7 @@ operating conditions, and review the evidence behind each result.
 - **Reusable Procedures:** Define suites, typed parameters, ordered steps, acceptance criteria and explicit cleanup.
 - **Traceability:** Capture and edit device and bench identity from steps; retain it with the execution and reports.
 - **Parameter Sweeps:** Expand one template into operating points without copying the procedure.
-- **Measurements And Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts.
+- **Measurements and Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts.
 - **Operator Workflows:** Combine automation with confirmations and manual checkpoints; keep responses with the execution.
 - **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust authoring API.
 - **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.
@@ -52,17 +52,17 @@ structure, so you can use any instrument library.
 | Open Source | ✓ | – | – | ✓ | ✓ | ◐ | ✗ |
 | Repeatable Procedures | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Pass/Fail Criteria | ✓ | ◐ | ◐ | ✓ | ✓ | ✓ | ✓ |
-| **Running It With People** | | | | | | | |
+| **Running It with People** | | | | | | | |
 | GUI & Operator Flow | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
 | Device & Bench Traceability | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
 | HTML Report Generation | ✓ | ✗ | ✗ | ◐ | ◐ | ◐ | ✓ |
-| **Scaling The Test** | | | | | | | |
+| **Scaling the Test** | | | | | | | |
 | Parameter Sweeps | ✓ | ✗ | ◐ | ✓ | ◐ | ✓ | ✓ |
 | Storage Layer Abstraction | ✓ | ✗ | ✗ | ✗ | ◐ | ◐ | ◐ |
 | Live Measurements | ✓ | ✗ | ◐ | ✗ | ◐ | ◐ | ◐ |
 | Remote Control | ✓ | ✗ | ◐ | ✗ | ◐ | ✓ | ✓ |
 | Long-Run Reliability | ✓ \* | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
-| **Extending And Pushing Limits** | | | | | | | |
+| **Extending and Pushing Limits** | | | | | | | |
 | Plugin Template | ✓ | ✗ | ✗ | ✗ | ◐ | ✓ | ✓ |
 | Sidecar Plugin System | ✓ | ✗ | ✗ | ✗ | ✗ | ◐ | ◐ |
 | Fast Stream Support | ✓ \* | ✗ | ◐ | ✗ | ✗ | ◐ | ◐ |

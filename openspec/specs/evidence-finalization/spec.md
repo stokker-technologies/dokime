@@ -38,7 +38,7 @@ first/last rows and identify full evidence. Limits SHALL come from configuration
 Unsupported history-dependent analyses SHALL be explicitly unavailable without
 scanning.
 
-#### Scenario: Saved Report At Four Times The History
+#### Scenario: Saved Report at Four Times the History
 
 - **WHEN** an execution report is materialized and saved at one-hour and four-hour volume
 - **THEN** the work scales with bounded report size rather than raw history
@@ -63,7 +63,7 @@ selects. A repeat selector is row-local: a document whose repeated section selec
 on `time_between` in its value, order or filters SHALL be refused when it is
 validated, naming the section.
 
-#### Scenario: Repeated Section Beyond The Bounded Rows
+#### Scenario: Repeated Section Beyond the Bounded Rows
 
 - **WHEN** a sealed execution's document repeats a section per value of a column
 - **AND** a value occurs only outside the bounded first and last rows
@@ -90,7 +90,7 @@ SHALL await readiness or expose the publication failure.
 - **AND** successful publication advances to ready or a render error advances to failed
 - **AND** repeated Stop still succeeds after a report failure
 
-#### Scenario: Shutdown With Pending Publication
+#### Scenario: Shutdown with Pending Publication
 
 - **WHEN** shutdown reaches a pending report
 - **THEN** it preserves the durable intent without waiting for HTML

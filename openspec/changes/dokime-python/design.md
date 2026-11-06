@@ -58,7 +58,7 @@ sdk/python/
 The Rust module tree mirrors the public Python modules, so `python/dokime/client/`
 and `src/client/` correspond. Stubs live at public paths, never under `_native/`.
 
-## Reuse Of Landed Code
+## Reuse of Landed Code
 
 | Need | Landed | Change |
 | --- | --- | --- |
@@ -72,7 +72,7 @@ and `src/client/` correspond. Stubs live at public paths, never under `_native/`
 templates run through host-level `dokime.template.*` operations. Extending it keeps
 one provider path for Python rather than adding a second one.
 
-## Rust To Python Calls
+## Rust to Python Calls
 
 Tokio owns the runtime; Rust code releases the interpreter while it waits.
 

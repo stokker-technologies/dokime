@@ -155,11 +155,11 @@ async fn scene_development_session(session: &mut Session) {
     status_ready(&client).await;
     assert!(installations(&client).await.is_empty());
 
-    // Reloading Unchanged Bytes Keeps The Suites
+    // Reloading Unchanged Bytes Keeps the Suites
     assert_eq!(session.host.command(reload.clone()).await["event"], "reloaded");
     assert!(serves_startup(&client).await);
 
-    // A Reload Refuses Bytes That Are Not A Distribution
+    // A Reload Refuses Bytes That Are Not a Distribution
     std::fs::write(&session.bundle, b"not a distribution").unwrap();
     assert_eq!(session.host.command(reload.clone()).await["event"], "reload_failed");
     assert!(serves_startup(&client).await, "a refused reload keeps the suites");
@@ -241,7 +241,7 @@ async fn scene_startup(session: &mut Session) {
     assert!(followed.contains("record=started"));
     drop(follow);
 
-    // The Followed Prefix Is Also What A Plain Read Serves While Still Streaming
+    // The Followed Prefix Is Also What a Plain Read Serves While Still Streaming
     let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
     assert_eq!(file.state, model::content::wire::ExecutionFileState::Streaming);
     let window = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
@@ -345,8 +345,8 @@ async fn scene_clean_stop(session: Session) {
     drop(root);
 }
 
-// A Cycle Report Opens On Every Request From The Measuring Member's Settlement, Through The
-// Prompting Member's Admission, To Its Pending Question, And Both Reports Open While That
+// A Cycle Report Opens on Every Request from the Measuring Member's Settlement, Through the
+// Prompting Member's Admission, to Its Pending Question, and Both Reports Open While That
 // Question Waits Without Answering It.
 async fn scene_open_report_while_cycle_runs(session: &mut Session) {
     const BOUND: Duration = crate::support::budgets::settings::STORY_BOUND;
@@ -402,7 +402,7 @@ async fn scene_open_report_while_cycle_runs(session: &mut Session) {
         assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))), "{reply:?}");
     }
 
-    // Back-To-Back Requests Cover The Measuring Member's Seal, The Next Admission And The Question
+    // Back-To-Back Requests Cover the Measuring Member's Seal, the Next Admission and the Question
     on_change(changes, "the measuring member to pass", async || {
         let page = execution
             .call(contracts::execution::ListExecutions {
@@ -435,7 +435,7 @@ async fn scene_open_report_while_cycle_runs(session: &mut Session) {
         }
     };
 
-    // Both Reports Open While The Question Waits, And It Still Waits
+    // Both Reports Open While the Question Waits, and It Still Waits
     let execution_id = pending.scope.as_ref().and_then(|scope| scope.execution_id.clone()).expect("execution scope");
     let cycle_html =
         tokio::time::timeout(BOUND, cycle_report(&client, &cycle_id)).await.expect("the cycle report opens while the prompt waits");
@@ -455,7 +455,7 @@ async fn scene_open_report_while_cycle_runs(session: &mut Session) {
         .unwrap();
     assert!(still.prompts.iter().any(|prompt| prompt.prompt_id == pending.prompt_id), "opening a report leaves the prompt pending");
 
-    // Answering The Question Completes The Cycle
+    // Answering the Question Completes the Cycle
     prompts
         .call(contracts::prompts::Respond {
             prompt_id: pending.prompt_id,
@@ -1215,7 +1215,7 @@ async fn store() {
     let root = tempfile::tempdir().unwrap();
     let bytes = std::fs::read(support::artifacts::plugin_obc_bundle()).unwrap();
 
-    // An Installed Plugin Starts In The Running Backend, And Again On The Next Boot
+    // An Installed Plugin Starts in the Running Backend, and Again on the Next Boot
     let store = root.path().join("store");
     std::fs::create_dir_all(store.join("plugins")).unwrap();
     std::fs::copy(support::artifacts::host_plugin_bundle(), store.join("plugins/plugin-host.dokime")).unwrap();

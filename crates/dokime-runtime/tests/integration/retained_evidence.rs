@@ -7,7 +7,7 @@
  * ***
  */
 
-// Shared Bounded-Evidence Proof At The Lane-Owned Volume
+// Shared Bounded-Evidence Proof at the Lane-Owned Volume
 
 /* === Modules === */
 

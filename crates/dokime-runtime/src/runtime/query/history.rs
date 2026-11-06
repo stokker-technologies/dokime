@@ -7,7 +7,7 @@
  * ***
  */
 
-// Indexed Local History Selection And Bounded Seek Pages
+// Indexed Local History Selection and Bounded Seek Pages
 
 /* === Modules === */
 

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Admit One Execution By Its Durable Identity
+// Admit One Execution by Its Durable Identity
 
 /* === Modules === */
 
@@ -72,7 +72,7 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     if args.json {
         println!("{}", serde_json::json!({"execution_id": args.execution_id}));
     } else {
-        println!("Execution {} Started Or Already Admitted", args.execution_id);
+        println!("Execution {} Started or Already Admitted", args.execution_id);
     }
     Ok(())
 }

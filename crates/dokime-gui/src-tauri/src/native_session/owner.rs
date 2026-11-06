@@ -298,7 +298,7 @@ impl DesktopSession {
     }
 
     pub async fn reset_local_storage(&self, confirmed: &Path, root: StorageRoot) -> Result<DesktopSessionSnapshot, Error> {
-        // Refuse Before Touching The Running Backend
+        // Refuse Before Touching the Running Backend
         if self.status().ownership != BackendOwnership::OwnedLocal {
             return Err(Error::StorageReset {
                 reason: StorageResetReason::NotOwned,
@@ -308,7 +308,7 @@ impl DesktopSession {
         root.verify(confirmed)?;
         self.backend()?;
 
-        // Reset Under A New Revision
+        // Reset Under a New Revision
         let revision = self.begin(false)?;
         let owner = self.clone();
         let result = tokio::spawn(async move { owner.reset_owned(revision, root, None).await }).await.map_err(|error| Error::Startup {
@@ -335,7 +335,7 @@ impl DesktopSession {
         }
         root.verify(root.path())?;
 
-        // Back Up And Reset Under A New Revision
+        // Back Up and Reset Under a New Revision
         let revision = self.begin(false)?;
         let owner = self.clone();
         let result = tokio::spawn(async move { owner.reset_owned(revision, root, Some(destination)).await }).await.map_err(|error| {
@@ -488,7 +488,7 @@ impl DesktopSession {
         }
     }
     async fn reset_owned(&self, revision: u64, root: StorageRoot, backup: Option<PathBuf>) -> Result<DesktopSessionSnapshot, Error> {
-        // Stop The Owned Backend
+        // Stop the Owned Backend
         // The transition lock stays held until the new backend is ready, so
         // no other selection starts a backend on a half-deleted root.
         let mut resources = self.0.transition.lock().await;
@@ -497,7 +497,7 @@ impl DesktopSession {
         resources.shutdown(&self.0.abandon).await?;
         self.current(revision)?;
 
-        // Archive The Data Root First, When Asked
+        // Archive the Data Root First, When Asked
         let Some(destination) = backup else {
             return self.clear_and_restart(revision, root, &mut resources).await;
         };
@@ -535,7 +535,7 @@ impl DesktopSession {
             .map_err(|error| reset_failure(error.to_string()))?
             .map_err(|error| reset_failure(error.to_string()))?;
 
-        // Delete The Contents Of The Data Root
+        // Delete the Contents of the Data Root
         self.current(revision)?;
         self.report_phase(revision, "deleting");
         let path = root.path().to_path_buf();
@@ -556,7 +556,7 @@ impl DesktopSession {
         // Once Clear Completes, Restore Installations Even If Closing Superseded This Revision.
         plugins.restore(&source, &application).await.map_err(|error| reset_failure(error.to_string()))?;
 
-        // Start Again On The Empty Root
+        // Start Again on the Empty Root
         self.current(revision)?;
         self.report_phase(revision, "starting");
         self.establish(revision, BackendSelection::OwnedLocal, resources).await

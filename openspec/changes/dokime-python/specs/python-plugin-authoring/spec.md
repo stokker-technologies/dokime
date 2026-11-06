@@ -55,6 +55,6 @@ Python SHALL publish stream rows in batches from column buffers in one host cros
 ### Requirement: Plugin Identity Conflict
 A Python plugin SHALL NOT use the ID of an installed plugin.
 
-#### Scenario: Same ID As Installed
+#### Scenario: Same ID as Installed
 - **WHEN** a script registers a plugin whose ID matches an installed plugin
 - **THEN** startup raises a typed error naming the ID, and no backend remains

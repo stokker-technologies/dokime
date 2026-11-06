@@ -189,7 +189,7 @@ async fn execution(
     }
     let gate = resources.execution_storage.materialization_gate(id).await?;
     let _guard = gate.lock().await;
-    // A Persisted Finalization Boundary Is The Report's Boundary, Also One Persisted After
+    // A Persisted Finalization Boundary Is the Report's Boundary, Also One Persisted After
     // The Caller Chose `at`; Its Lifecycle Is Read Before The Member So Both Agree.
     let intent = resources.execution_storage.report_finalization(id).await?;
     let at = intent.as_ref().map_or(at, |intent| &intent.evidence_at);
