@@ -34,7 +34,7 @@ use dokime_domain::model::identity::PromptId;
 /* === Constants === */
 
 // Replay Frames Retained Per Execution; Only Host-Confirmed Frames Are Evicted By Progress.
-const RETAINED_FRAMES: usize = 1024;
+const RETAINED_FRAMES: usize = crate::execution::listen::EVIDENCE_ROWS;
 
 // Lease Gaps Retained Per Stream: The Earliest Ones Plus The Latest In The Final Slot.
 const RETAINED_STREAM_GAPS: usize = 64;
@@ -172,7 +172,7 @@ impl ExecutionState {
     }
 
     pub(crate) fn local_sample(&mut self, mut sample: crate::telemetry::TelemetrySample) -> Result<(), String> {
-        if self.local_samples.len() as u64 >= 1024 {
+        if self.local_samples.len() >= crate::execution::listen::EVIDENCE_ROWS {
             return Err("local sample buffer is full; consume local evidence while executing".into());
         }
         if self.local_inputs {
@@ -211,7 +211,7 @@ impl ExecutionState {
             },
             local_admitted: 0,
             callbacks: crate::execution::Callbacks::default(),
-            listening: crate::execution::listening_rows(1024),
+            listening: crate::execution::listening_rows(crate::execution::listen::EVIDENCE_ROWS),
             controls: Arc::new(super::control::Controls::new(request.mode == "interactive", 4096)),
             request,
             cancel,

@@ -56,21 +56,19 @@ async fn snapshot_query_samples() {
     runtime.publish_telemetry_batch(samples("host.wifi.scan", 30, None)).await.unwrap();
     let accepted = runtime.storage().cursor_accepted();
     assert!(accepted.sequence > saved.sequence);
-    let pending =
-        runtime.query_plot_payloads_at(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot, &accepted).await.unwrap();
+    let pending = runtime.query_plot_payloads_at(vec![wifi_request(None, Some(5))], &accepted).await.unwrap();
     assert_eq!(pending[0].payload.series[0].raw_points, 30);
     assert_eq!(pending[0].revision, accepted.sequence);
     let mut marked = wifi_request(None, Some(5));
     marked.marker_record_types = vec!["test.cycle.started".into()];
-    let pending = runtime.query_plot_payloads_at(vec![marked], RuntimePlotQueryMode::Snapshot, &accepted).await.unwrap();
+    let pending = runtime.query_plot_payloads_at(vec![marked], &accepted).await.unwrap();
     assert_eq!(pending[0].payload.series[0].raw_points, 30);
     assert_eq!(pending[0].revision, accepted.sequence);
-    let historical =
-        runtime.query_plot_payloads_at(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot, &saved).await.unwrap();
+    let historical = runtime.query_plot_payloads_at(vec![wifi_request(None, Some(5))], &saved).await.unwrap();
     assert!(historical[0].payload.series.iter().all(|series| series.raw_points == 0));
     runtime.storage().flush().await.unwrap();
 
-    let envelopes = runtime.query_plot_payloads(vec![wifi_request(None, Some(5))], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![wifi_request(None, Some(5))]).await.unwrap();
 
     assert_eq!(envelopes.len(), 1);
     assert_eq!(envelopes[0].payload.series[0].raw_points, 30);
@@ -82,14 +80,14 @@ async fn snapshot_query_samples() {
         automatic.technique = DownsampleTechnique::Auto;
         let mut explicit = automatic.clone();
         explicit.technique = expected;
-        let automatic = runtime.query_plot_payloads(vec![automatic], RuntimePlotQueryMode::Snapshot).await.unwrap();
-        let explicit = runtime.query_plot_payloads(vec![explicit], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        let automatic = runtime.query_plot_payloads(vec![automatic]).await.unwrap();
+        let explicit = runtime.query_plot_payloads(vec![explicit]).await.unwrap();
         assert_eq!(automatic[0].payload.series, explicit[0].payload.series);
     }
-    let raw = runtime.query_plot_payloads(vec![wifi_request(None, Some(0))], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let raw = runtime.query_plot_payloads(vec![wifi_request(None, Some(0))]).await.unwrap();
     assert_eq!(raw[0].payload.series[0].points.len(), 30);
     assert!(!raw[0].payload.series[0].downsampled);
-    let default = runtime.query_plot_payloads(vec![wifi_request(None, None)], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let default = runtime.query_plot_payloads(vec![wifi_request(None, None)]).await.unwrap();
     assert_eq!(default[0].payload.series[0].raw_points, 30);
     owner.shutdown().await.unwrap();
 }
@@ -111,21 +109,21 @@ async fn batch_replacement_requests() {
     let mut missing = first.clone();
     missing.stream = "missing".to_owned();
 
-    for mode in [RuntimePlotQueryMode::Replace, RuntimePlotQueryMode::Snapshot] {
+    {
         let before = runtime.storage_read_counters().data_scan_rows;
-        let absent = runtime.query_plot_payloads(vec![missing.clone()], mode).await.unwrap();
+        let absent = runtime.query_plot_payloads(vec![missing.clone()]).await.unwrap();
         assert!(absent[0].payload.series.iter().all(|series| series.raw_points == 0));
         assert_eq!(runtime.storage_read_counters().data_scan_rows - before, 0);
         let before = runtime.storage_read_counters().data_scan_rows;
-        let single = runtime.query_plot_payloads(vec![first.clone()], mode).await.unwrap();
+        let single = runtime.query_plot_payloads(vec![first.clone()]).await.unwrap();
         let single_work = runtime.storage_read_counters().data_scan_rows - before;
         let catalog_work = single_work - single[0].payload.series[0].raw_points as u64;
         assert!(catalog_work > 0);
         let before = runtime.storage_read_counters().data_scan_rows;
-        runtime.query_plot_payloads(vec![narrow.clone()], mode).await.unwrap();
+        runtime.query_plot_payloads(vec![narrow.clone()]).await.unwrap();
         let narrow_work = runtime.storage_read_counters().data_scan_rows - before;
         let before = runtime.storage_read_counters().data_scan_rows;
-        let envelopes = runtime.query_plot_payloads(vec![first.clone(), narrow.clone(), second.clone()], mode).await.unwrap();
+        let envelopes = runtime.query_plot_payloads(vec![first.clone(), narrow.clone(), second.clone()]).await.unwrap();
         assert_eq!(runtime.storage_read_counters().data_scan_rows - before, single_work + narrow_work - catalog_work);
 
         assert_eq!(envelopes.iter().map(|envelope| envelope.plot_id.as_str()).collect::<Vec<_>>(), vec!["first", "narrow", "second"]);
@@ -139,10 +137,10 @@ async fn batch_replacement_requests() {
         let mut raw = first.clone();
         raw.max_points = Some(0);
         let before = runtime.storage_read_counters().data_scan_rows;
-        let original = runtime.query_plot_payloads(vec![raw.clone()], mode).await.unwrap();
+        let original = runtime.query_plot_payloads(vec![raw.clone()]).await.unwrap();
         let raw_work = runtime.storage_read_counters().data_scan_rows - before;
         let before = runtime.storage_read_counters().data_scan_rows;
-        let mixed = runtime.query_plot_payloads(vec![raw, narrow.clone()], mode).await.unwrap();
+        let mixed = runtime.query_plot_payloads(vec![raw, narrow.clone()]).await.unwrap();
         assert_eq!(runtime.storage_read_counters().data_scan_rows - before, raw_work + narrow_work - catalog_work);
         assert_eq!(mixed[0].payload.series, original[0].payload.series);
         assert_eq!(mixed[1].payload.series, envelopes[1].payload.series);
@@ -171,7 +169,7 @@ async fn series_window_summaries() {
     let mut zoomed = whole.clone();
     zoomed.summary_window = Some(PlotWindow { from: midnight + 2.0, to: midnight + 4.0 });
 
-    let envelopes = runtime.query_plot_payloads(vec![whole.clone(), trailing, zoomed], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![whole.clone(), trailing, zoomed]).await.unwrap();
 
     // The whole window: 0..=9, though the plot draws three points.
     assert!(envelopes[0].payload.series[0].points.len() <= 3);
@@ -191,16 +189,10 @@ async fn series_window_summaries() {
         [midnight + 2.0, midnight + 4.0],
     );
 
-    // A Replacement Summarizes The Same Complete Stored Window.
-    let replacement = whole.clone();
-    let replaced = runtime.query_plot_payloads(vec![replacement], RuntimePlotQueryMode::Replace).await.unwrap();
-    assert_eq!(replaced[0].payload.series[0].raw_points, 10);
-    assert_eq!(replaced[0].payload.summaries, envelopes[0].payload.summaries);
-
     // Narrowing Does Not Destroy Older Stored Samples; Widening And All Requery Them.
     for (window_s, count, minimum) in [(Some(2.0), 3, 7.0), (Some(8.0), 9, 1.0), (None, 10, 0.0)] {
         let request = PlotPayloadRequest { window_s, ..whole.clone() };
-        let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Replace).await.unwrap();
+        let result = runtime.query_plot_payloads(vec![request]).await.unwrap();
         assert_eq!(result[0].payload.series[0].raw_points, count);
         assert_eq!(result[0].payload.summaries[0].count, count);
         assert_eq!(result[0].payload.summaries[0].min, Some(minimum));
@@ -242,7 +234,7 @@ async fn wifi_occupancy_scans() {
     request.x_key = Some("timestamp".to_owned());
     request.series_by = Some("wifi_channel".to_owned());
 
-    let envelopes = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![request]).await.unwrap();
 
     let Some(PlotAnalysis::WifiOccupancy {
         channels,
@@ -281,7 +273,7 @@ async fn interval_raw_points() {
     request.interval.bin_width = 4.0;
     request.interval.sigma = 1.0;
 
-    let envelopes = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![request.clone()]).await.unwrap();
 
     let Some(PlotAnalysis::SigmaInterval { series }) = &envelopes[0].payload.analysis else {
         panic!("no interval: {:?}", envelopes[0].payload.analysis);
@@ -296,17 +288,17 @@ async fn interval_raw_points() {
 
     request.interval.sigma = 10.0;
     request.interval.clip_to_observed = true;
-    let clipped = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let clipped = runtime.query_plot_payloads(vec![request]).await.unwrap();
     let Some(PlotAnalysis::SigmaInterval { series }) = &clipped[0].payload.analysis else {
         panic!("no interval");
     };
     assert_eq!(series[0].bins.iter().map(|bin| (bin.lower, bin.upper)).collect::<Vec<_>>(), [(0.0, 3.0), (4.0, 7.0), (8.0, 9.0)]);
 }
 
-// Replacement Frames Carry The Complete Cartesian Window.
+// Snapshot Frames Carry The Complete Cartesian Window.
 #[dokime_tracing::trace_test]
 #[tokio::test]
-async fn replacement_frame_domains() {
+async fn snapshot_frame_domains() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
@@ -317,18 +309,14 @@ async fn replacement_frame_domains() {
     let mut whole = wifi_request(None, Some(0));
     whole.plot_type = Some(dokime_runtime::document::PlotType::TimeSeries);
     whole.x_key = None;
-    let replacement = whole.clone();
 
-    let snapshot = runtime.query_plot_payloads(vec![whole], RuntimePlotQueryMode::Snapshot).await.unwrap();
-    let replaced = runtime.query_plot_payloads(vec![replacement], RuntimePlotQueryMode::Replace).await.unwrap();
+    let snapshot = runtime.query_plot_payloads(vec![whole]).await.unwrap();
 
-    let snapshot = snapshot[0].payload.cartesian.as_ref().unwrap();
-    let frame = replaced[0].payload.cartesian.as_ref().unwrap();
+    let frame = snapshot[0].payload.cartesian.as_ref().unwrap();
     assert_eq!(frame.series[0].x.len(), 10);
     assert_eq!(frame.x_domain, Some(PlotDomain { min: midnight, max: midnight + 9.0 }));
     assert_eq!(frame.y_domain, Some(PlotDomain { min: 0.0, max: 9.0 }));
     assert_eq!(frame.point_count, 10);
-    assert_eq!((&frame.x_domain, &frame.y_domain, frame.point_count), (&snapshot.x_domain, &snapshot.y_domain, snapshot.point_count));
 }
 
 #[dokime_tracing::trace_test]
@@ -508,8 +496,7 @@ async fn execution_plots_samples() {
     runtime.storage().flush().await.unwrap();
     assert_eq!(receipt.accepted, 2);
     assert_eq!(receipt.dropped, 0);
-    let envelopes =
-        runtime.query_plot_payloads(vec![wifi_request(Some(execution.clone()), Some(100))], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![wifi_request(Some(execution.clone()), Some(100))]).await.unwrap();
 
     assert_eq!(envelopes[0].payload.series[0].raw_points, 2);
     assert_eq!(envelopes[0].payload.series[0].points.len(), 2);
@@ -632,7 +619,7 @@ async fn execution_plots_samples() {
     let mut precise = request;
     precise.y_keys.clear();
     precise.y_expressions = vec![dokime_runtime::expressions::telemetry("fixture.exact", "sample_index")];
-    let precise = runtime.query_plot_payloads(vec![precise], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let precise = runtime.query_plot_payloads(vec![precise]).await.unwrap();
     assert_eq!(precise[0].payload.summaries[0].mean, Some(9_007_199_254_740_994.0));
     assert_eq!(precise[0].payload.summaries[0].median, Some(9_007_199_254_740_994.0));
     // The Report Preview Keeps The Same Exact Integer Statistics As The Typed Live Query.
@@ -755,7 +742,7 @@ async fn window_context_uses_latest_source_time_then_persisted_position() {
     request.window_s = Some(10.0);
     request.z_stream = Some("tracking".into());
     request.z_field = Some("elapsed_s".into());
-    let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let result = runtime.query_plot_payloads(vec![request]).await.unwrap();
     let points = &result[0].payload.series[0].points;
     assert_eq!(points.len(), 2);
     assert_eq!(points.iter().map(|point| point.z).collect::<Vec<_>>(), [Some(88.0), Some(88.0)]);
@@ -783,7 +770,7 @@ async fn distribution_query_budget() {
     let mut value_on_y = request.clone();
     value_on_y.x_key = None;
     value_on_y.y_keys = vec!["network_count".to_owned()];
-    let envelopes = runtime.query_plot_payloads(vec![request, value_on_y], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![request, value_on_y]).await.unwrap();
     let payload = serde_json::to_value(&envelopes[0].payload).unwrap();
 
     let series = &payload["analysis"]["series"][0];
@@ -843,7 +830,7 @@ async fn record_query_absent() {
             }],
             ..Default::default()
         };
-        let result = runtime.query_plot_payloads_at(vec![request], RuntimePlotQueryMode::Snapshot, &at).await.unwrap();
+        let result = runtime.query_plot_payloads_at(vec![request], &at).await.unwrap();
         let count = result[0].payload.series.iter().map(|series| series.points.len()).sum::<usize>();
         assert_eq!(count > 0, matches);
         assert_eq!(result[0].revision, at.sequence);
@@ -867,7 +854,7 @@ async fn selected_analysis_provenance() {
         version: 1,
         parameters: Default::default(),
     });
-    let envelopes = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![request.clone()]).await.unwrap();
     let result = envelopes[0].payload.computed.as_ref().unwrap();
     assert_eq!(result.series[0].input_samples, 100);
     assert_eq!(result.series[0].output.outputs[0].values, [49.5]);
@@ -881,10 +868,10 @@ async fn selected_analysis_provenance() {
     expressions.y_keys.clear();
     expressions.x_expression = Some(dokime_runtime::expressions::telemetry("host.wifi.scan", "sample_index"));
     expressions.y_expressions = vec![dokime_runtime::expressions::telemetry("host.wifi.scan", "network_count")];
-    let equivalent = runtime.query_plot_payloads(vec![expressions.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let equivalent = runtime.query_plot_payloads(vec![expressions.clone()]).await.unwrap();
     assert_eq!(equivalent[0].payload.computed.as_ref().unwrap(), result);
     expressions.y_expressions[0] = expressions.y_expressions[0].clone().mean();
-    assert!(runtime.query_plot_payloads(vec![expressions], RuntimePlotQueryMode::Snapshot).await.is_err());
+    assert!(runtime.query_plot_payloads(vec![expressions]).await.is_err());
 
     let batches = runtime.query_plot_stream_batches(&[request]).await.unwrap();
     assert_eq!(batches[0].mode, RuntimePlotQueryMode::Replace);
@@ -907,7 +894,7 @@ async fn selected_original_coordinates() {
         version: 1,
         parameters: [("points".into(), Value::Integer(7))].into(),
     });
-    let envelopes = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![request]).await.unwrap();
     let result = &envelopes[0].payload.computed.as_ref().unwrap().series[0];
     assert_eq!(result.input_samples, 100);
     let output = &result.output.outputs[0];
@@ -941,7 +928,7 @@ async fn selected_fft_manager() {
         version: 1,
         parameters: [("hann".into(), Value::Bool(false))].into(),
     });
-    let envelopes = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![request]).await.unwrap();
     let result = &envelopes[0].payload.computed.as_ref().unwrap().series[0];
     assert_eq!(result.origin.as_deref(), Some("2026-01-01T00:00:00Z"));
     let output = &result.output.outputs[0];
@@ -965,7 +952,7 @@ async fn selected_analysis_read() {
     ] {
         let mut request = wifi_request(None, Some(1));
         request.analysis = Some(dokime_runtime::analysis::Selection { id: id.into(), version, parameters });
-        let error = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap_err();
+        let error = runtime.query_plot_payloads(vec![request]).await.unwrap_err();
         assert!(error.to_string().contains(expected), "{error}");
     }
     drop(runtime);
@@ -995,7 +982,7 @@ async fn selected_analysis_axes() {
         version: 1,
         parameters: Default::default(),
     });
-    let envelopes = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+    let envelopes = runtime.query_plot_payloads(vec![request]).await.unwrap();
     let payload = &envelopes[0].payload;
     let series = &payload.computed.as_ref().unwrap().series[0];
     assert_eq!(series.input_samples, 10);
@@ -1102,7 +1089,7 @@ async fn numeric_query_reductions_match_spilled_results() {
                         plot_type: Some(dokime_runtime::document::PlotType::TimeSeries),
                         ..Default::default()
                     };
-                    let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+                    let result = runtime.query_plot_payloads(vec![request]).await.unwrap();
                     results.push(serde_json::to_string(&serde_json::json!({"series":result[0].payload.series,"summaries":result[0].payload.summaries,"analysis":result[0].payload.analysis})).unwrap());
                 }
             }
@@ -1115,7 +1102,7 @@ async fn numeric_query_reductions_match_spilled_results() {
             plot_type: Some(dokime_runtime::document::PlotType::Histogram),
             ..Default::default()
         };
-        let histogram = runtime.query_plot_payloads(vec![histogram], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        let histogram = runtime.query_plot_payloads(vec![histogram]).await.unwrap();
         results.push(serde_json::to_string(&histogram[0].payload.analysis).unwrap());
         if let Some(reference) = &reference {
             assert_eq!(&results, reference);

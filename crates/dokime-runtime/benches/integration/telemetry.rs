@@ -30,7 +30,7 @@ use futures_util::FutureExt;
 use dokime_domain::model::exports::EvidenceSubject;
 use dokime_runtime::runtime::{
     command::{CommandContext, CommandStatus},
-    query::{PlotPayloadRequest, RuntimePlotQueryMode},
+    query::PlotPayloadRequest,
 };
 use dokime_runtime::{Runtime, RuntimeHandle};
 
@@ -216,8 +216,7 @@ pub fn benchmark(criterion: &mut Criterion) {
                         ..Default::default()
                     };
                     let started = Instant::now();
-                    let result =
-                        fixture.runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).boxed_local().await.unwrap();
+                    let result = fixture.runtime.query_plot_payloads(vec![request]).boxed_local().await.unwrap();
                     elapsed += started.elapsed();
                     assert_eq!(result[0].payload.series[0].raw_points, QUERY_ROWS);
                     assert!(result[0].payload.series[0].points.len() <= 1_500);

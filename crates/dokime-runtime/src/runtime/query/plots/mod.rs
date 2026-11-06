@@ -120,26 +120,26 @@ pub fn reduce_plot_payload(
 }
 
 pub async fn query_plot_payloads(
-    runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, mode: RuntimePlotQueryMode,
+    runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
     let at = runtime.storage().cursor_saved();
     let session = runtime.storage().clone();
     let context = RuntimePlotEnvelopeContext::load_at(runtime, &requests, &at, &session).await?;
-    query_plot_payloads_with_context(&context, runtime, requests, mode, &at, &session, true).await
+    query_plot_payloads_with_context(&context, runtime, requests, &at, &session, true).await
 }
 
 pub async fn query_plot_payloads_at(
-    runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, mode: RuntimePlotQueryMode, at: &harmos::storage::StorageCursor,
+    runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, at: &harmos::storage::StorageCursor,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
     let session = runtime.storage().clone();
     let context = RuntimePlotEnvelopeContext::load_at(runtime, &requests, at, &session).await?;
-    query_plot_payloads_with_context(&context, runtime, requests, mode, at, &session, false).await
+    query_plot_payloads_with_context(&context, runtime, requests, at, &session, false).await
 }
 
 pub async fn query_plot_stream_batches(
     runtime: &RuntimeHandle, requests: &[PlotPayloadRequest],
 ) -> crate::runtime::Result<Vec<RuntimePlotStreamBatch>> {
-    Ok(query_plot_payloads(runtime, requests.to_vec(), RuntimePlotQueryMode::Replace)
+    Ok(query_plot_payloads(runtime, requests.to_vec())
         .await?
         .into_iter()
         .map(|envelope| RuntimePlotStreamBatch {
@@ -195,8 +195,8 @@ fn plot_payload_context<'a>(
 }
 
 async fn query_plot_payloads_with_context(
-    context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, _mode: RuntimePlotQueryMode,
-    at: &harmos::storage::StorageCursor, session: &crate::storage::Manager, current_previews: bool,
+    context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, at: &harmos::storage::StorageCursor,
+    session: &crate::storage::Manager, current_previews: bool,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
     let mut unique = Vec::new();
     let mut keys = Vec::new();

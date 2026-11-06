@@ -61,7 +61,7 @@ use serde::{Serialize, de::DeserializeOwned, ser::SerializeSeq};
 
 /* === Constants === */
 
-const MAX_ROW_BYTES: u64 = 16 * 1024 * 1024;
+pub(crate) const MAX_ROW_BYTES: u64 = 16 * 1024 * 1024;
 // One Read Fills Many Rows: Iteration Costs One Seek And Read Per Window, Not Per Row Or Byte.
 #[cfg(feature = "native")]
 const READ_WINDOW_BYTES: u64 = 1024 * 1024;

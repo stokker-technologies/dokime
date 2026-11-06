@@ -22,7 +22,7 @@
 // Local Imports
 use super::*;
 use dokime_runtime::document::{DocumentDefinition, DocumentSection, PlotDefinition, PlotType};
-use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimePlotQueryMode};
+use dokime_runtime::runtime::query::PlotPayloadRequest;
 
 /* === Constants === */
 
@@ -106,7 +106,7 @@ async fn boolean_connectivity() {
     };
     // The Live Tail And Saved Reads Use The Same Declared Boolean Encoding.
     for _ in 0..2 {
-        let live = runtime.query_plot_payloads(vec![request.clone()], RuntimePlotQueryMode::Snapshot).await.unwrap();
+        let live = runtime.query_plot_payloads(vec![request.clone()]).await.unwrap();
         assert_eq!(live[0].payload.series[0].raw_points, 4);
         assert_eq!(
             live[0].payload.series[0].points.iter().map(|point| point.y).collect::<Vec<_>>(),

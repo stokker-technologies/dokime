@@ -40,6 +40,9 @@ use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
+// Bounded Execution Evidence Queues.
+pub(crate) const EVIDENCE_ROWS: usize = 1024;
+
 /* === Macros === */
 
 /* === Type Aliases === */
