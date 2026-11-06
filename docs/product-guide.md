@@ -2134,7 +2134,7 @@ the preview cap. Medians and percentiles use those inputs when available;
 longer captures replay the selected stream's numeric Arrow columns through
 the saved frontier and sort them in disposable SQLite storage. The replay
 uses bounded pages and a bounded SQLite cache; it does not build a permanent
-rank index during ingestion. Raw evidence remains unchanged. Development roots
+rank counts during ingestion. Raw evidence remains unchanged. Development roots
 with older evidence indexes need a fresh storage root and are never reset
 automatically.
 

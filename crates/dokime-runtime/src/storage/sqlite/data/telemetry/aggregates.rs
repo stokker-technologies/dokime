@@ -488,8 +488,8 @@ fn document_median(
     // Keep The Ordered Dictionary Outer: Reversing This Join Scans Every Value For Each Posting.
     // Equal Numeric Values Need No Position Tie-Breaker, Which Would Sort Large Duplicate Groups.
     let mut statement = connection.prepare(
-        "SELECT d.value,p.value_type FROM storage_distinct_values d INDEXED BY storage_distinct_order
-        CROSS JOIN storage_value_postings p USING(execution,kind,source,path,value_key)
+        "SELECT d.value_key,p.value_type FROM storage_distinct_values d INDEXED BY storage_distinct_order
+        CROSS JOIN storage_value_postings p INDEXED BY storage_value_numeric USING(execution,kind,source,path,value_key)
         WHERE d.execution=?1 AND d.kind='telemetry' AND d.source=?2 AND d.path=?3 AND p.position<=?4
         AND p.value_type IN (1,2,3) AND document_alive()
         ORDER BY d.sort_key,d.value_key LIMIT 1 OFFSET ?5",
@@ -497,8 +497,13 @@ fn document_median(
     let path = serde_json::to_string(&[&key.2])?;
     for (index, ordinal) in [(moments.count - 1) / 2, moments.count / 2].into_iter().enumerate() {
         let ordinal = i64::try_from(ordinal).map_err(|_| Error::Data("median rank exceeds SQLite range"))?;
-        let (bytes, kind): (Vec<u8>, u8) = statement
+        let (selected, kind): (Vec<u8>, u8) = statement
             .query_row(params![key.0, key.1, path, super::super::position(at.sequence), ordinal], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let bytes: Vec<u8> = connection.query_row(
+            "SELECT value FROM storage_distinct_values WHERE execution=?1 AND kind='telemetry' AND source=?2 AND path=?3 AND value_key=?4",
+            params![key.0, key.1, path, selected],
+            |row| row.get(0),
+        )?;
         let mut value = super::super::distinct::posted_value(&bytes, kind)?;
         if moments.floating {
             value =

@@ -406,9 +406,17 @@ pub(super) async fn summary_queries() {
     for (plot_count, total, text_bytes) in [(64, 301, 0), (0, 10_001, 32_768), (0, 3_001, 0), (0, 250_003, 0)] {
         let root = tempdir().unwrap();
         let executor = Arc::new(BlockingPublishingExecutor::new());
-        let (mut owner, runtime) = started_with_fixture(wifi_config(root.path()), executor.clone()).await;
+        let settings = config(root.path()).with_installed_plugins([dokime_runtime::InstalledPlugin {
+            source: "fixture_documents".into(),
+            version: "test".into(),
+            description: "Document Fixture".into(),
+            enabled: true,
+            telemetry_contracts: vec![crate::service_support::contracts::fixture_telemetry_contract()],
+            ..Default::default()
+        }]);
+        let (mut owner, runtime) = started_with_fixture(settings, executor.clone()).await;
         let mut suite = fixture_suite(&["passed"]);
-        let field = telemetry("host.wifi.scan", "sample_index");
+        let field = telemetry("fixture.telemetry", "value");
         let mut group = TelemetrySummaryGroupDefinition::new("values", "Values");
         for (label, expression) in [
             ("Count", field.clone().count()),
@@ -447,10 +455,25 @@ pub(super) async fn summary_queries() {
         while raw.len() < total {
             let first = raw.len();
             let count = (total - first).min(2_000);
-            let batch = crate::service_support::evidence::samples_from("host.wifi.scan", first, count, Some(execution.scope.clone()));
-            raw.extend(batch.samples.iter().map(|sample| match sample.values["sample_index"] {
-                Value::Integer(value) => value as f64,
-                _ => panic!("integer fixture column"),
+            let samples = (first..first + count)
+                .map(|index| {
+                    let timestamp = Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(index as i64));
+                    let mut sample = TelemetrySample::new(
+                        dokime_runtime::model::identity::new_id(),
+                        identifier("fixture.telemetry"),
+                        index as u64,
+                        timestamp,
+                        "fixture_documents",
+                    );
+                    sample.scope = Some(execution.scope.clone());
+                    sample.values.insert("value".into(), Value::Number(index as f64));
+                    crate::service_support::contracts::typed_fixture_sample(sample)
+                })
+                .collect();
+            let batch = TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier("fixture.telemetry"), samples);
+            raw.extend(batch.samples.iter().map(|sample| match sample.values["value"] {
+                Value::Number(value) => value,
+                _ => panic!("numeric fixture column"),
             }));
             runtime.publish_telemetry_batch(batch).await.unwrap();
         }

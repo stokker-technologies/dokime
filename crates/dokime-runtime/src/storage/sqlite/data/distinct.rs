@@ -48,6 +48,9 @@ CREATE TABLE IF NOT EXISTS storage_value_postings (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS storage_value_field_position
     ON storage_value_postings(execution,kind,source,path,position,value_key);
+CREATE INDEX IF NOT EXISTS storage_value_numeric
+    ON storage_value_postings(execution,kind,source,path,value_key,position,value_type)
+    WHERE value_type IN (1,2,3);
 CREATE INDEX IF NOT EXISTS storage_value_file ON storage_value_postings(file_id);
 CREATE INDEX IF NOT EXISTS storage_value_record ON storage_value_postings(record_position);
 CREATE TRIGGER IF NOT EXISTS storage_distinct_retire AFTER DELETE ON storage_value_postings BEGIN
@@ -175,6 +178,10 @@ pub(super) fn insert<'a>(
     let mut postings = connection.prepare_cached("INSERT OR IGNORE INTO storage_value_postings VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)")?;
     let mut pending = fields.into_iter().map(|(name, value)| (vec![name], value)).collect::<Vec<_>>();
     while let Some((path, value)) = pending.pop() {
+        // Telemetry Schemas Retain Root Presence; Null Has No Distinct Value Or Aggregate Contribution.
+        if row.kind == "telemetry" && path.len() == 1 && matches!(value, Value::Null) {
+            continue;
+        }
         if let Value::Object(fields) = value {
             pending.extend(fields.iter().map(|(name, value)| {
                 let mut path = path.clone();
@@ -265,12 +272,14 @@ fn read_page(
         let fallback = arguments.len();
         arguments.push(Sql::Text(serde_json::to_string(&query.path[..1])?));
         let root = arguments.len();
+        let declared = schema_field("p", root);
         selected = format!(
             "p.execution=d.execution AND p.kind=d.kind AND p.source=d.source
             AND p.value_key=d.value_key AND p.position<=?5 AND p.path IN (?4,?{fallback})
             AND (p.path=?4 OR NOT EXISTS(SELECT 1 FROM storage_value_postings exact
                 WHERE exact.execution=p.execution AND exact.kind=p.kind AND exact.source=p.source
-                AND exact.path=?{root} AND exact.position=p.position))"
+                AND exact.path=?{root} AND exact.position=p.position)
+                AND NOT {declared})"
         );
         candidates = format!(
             "d.execution=?1 AND d.kind=?2 AND d.source=?3 AND (d.path=?4 OR (d.path=?{fallback}
@@ -398,30 +407,50 @@ fn field_sql(field: Field, arguments: &mut Vec<rusqlite::types::Value>) -> Resul
             Ok(format!("?{}", arguments.len()))
         }
         Field::Path { path, fallback } => {
+            let scalar = path.len() == 1;
             let root = serde_json::to_string(&path[..1])?;
             arguments.push(Sql::Text(serde_json::to_string(&path)?));
             let primary = arguments.len();
+            let declared = schema_field("p", primary);
+            let mut nulls = if scalar { declared.clone() } else { "0".into() };
             let paths = if let Some(fallback) = fallback {
+                let scalar = fallback.len() == 1;
                 arguments.push(Sql::Text(serde_json::to_string(&fallback)?));
                 let fallback = arguments.len();
+                if scalar {
+                    nulls.push_str(&format!(" OR (NOT {declared} AND {})", schema_field("p", fallback)));
+                }
                 arguments.push(Sql::Text(root));
+                let root = arguments.len();
+                let declared = schema_field("q", root);
                 format!(
                     "(q.path=?{primary} OR (q.path=?{fallback} AND NOT EXISTS(SELECT 1 FROM storage_value_postings exact
                     WHERE exact.execution=q.execution AND exact.kind=q.kind AND exact.source=q.source
-                    AND exact.position=q.position AND exact.path=?{})))",
-                    arguments.len()
+                    AND exact.position=q.position AND exact.path=?{root})
+                    AND NOT {declared}))"
                 )
             } else {
                 format!("q.path=?{primary}")
             };
+            arguments.push(Sql::Blob(serde_json::to_vec(&Value::Null)?));
             Ok(format!(
-                "(SELECT v.value FROM storage_value_postings q JOIN storage_distinct_values v
+                "coalesce((SELECT v.value FROM storage_value_postings q JOIN storage_distinct_values v
                 USING(execution,kind,source,path,value_key) WHERE q.execution=p.execution AND q.kind=p.kind
                 AND q.source=p.source AND q.position=p.position AND {paths}
-                ORDER BY (q.path=?{primary}) DESC LIMIT 1)"
+                ORDER BY (q.path=?{primary}) DESC LIMIT 1),CASE WHEN {nulls} THEN ?{} END)",
+                arguments.len()
             ))
         }
     }
+}
+
+#[cfg(feature = "native")]
+fn schema_field(alias: &str, path: usize) -> String {
+    format!(
+        "EXISTS(SELECT 1 FROM streams s, json_each(s.contract,'$.columns') c
+        WHERE {alias}.kind='telemetry' AND s.file_id={alias}.file_id
+        AND json_extract(c.value,'$.metadata.identifier')=json_extract(?{path},'$[0]'))"
+    )
 }
 
 pub(crate) fn sort_key(value: &Value) -> Result<Vec<u8>, Error> {
@@ -587,6 +616,123 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(retained, 0);
+        state.close().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn nullable_aliases_use_the_saved_schema() {
+        use crate::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+        use dokime_domain::model::{
+            document::FilterOperator,
+            identity::{Identifier, Metadata, TestExecutionId},
+        };
+        let root = tempfile::tempdir().unwrap();
+        let state = super::super::State::open(root.path()).await.unwrap();
+        let saved = state.data_open(None).await.unwrap();
+        let execution = TestExecutionId::from_seed("nullable-alias-owner");
+        let scope = RecordScope::default().with_test_execution(execution.clone());
+        let owner = scope.clone();
+        state.call(move |connection| {
+            let result = (|| -> Result<(), Error> {
+                let transaction = connection.transaction()?;
+                for (position, names) in [(1, vec!["group", "name", "metric.name", "detail"]), (2, vec!["group", "name", "detail"])] {
+                    let file = format!("fixture.{position}");
+                    let columns = names.iter().map(|name| {
+                        let value_type = if *name == "detail" {
+                            dokime_domain::model::values::ValueType::Object
+                        } else {
+                            dokime_domain::model::values::ValueType::Integer
+                        };
+                        TelemetryColumn::new(Metadata::new(Identifier::new(*name).unwrap(), *name, None), value_type, TelemetryRole::Value)
+                    }).collect();
+                    let contract = TelemetryContract {
+                        stream: Identifier::new("fixture").unwrap(),
+                        schema_version: position as u32,
+                        metadata: Metadata::new(Identifier::new("fixture").unwrap(), "Fixture", None),
+                        template_id: None,
+                        owner: None,
+                        storage_schema: None,
+                        columns,
+                        default_x: None,
+                        interval: None,
+                        allow_extra_fields: false,
+                        scalar: false,
+                        validation_mode: None,
+                        foreign: false,
+                    };
+                    transaction.execute(
+                        "INSERT INTO files VALUES (?1,'telemetry',?2,0,zeroblob(32),'fixture')",
+                        params![file, format!("{file}.arrow")],
+                    )?;
+                    transaction.execute(
+                        "INSERT INTO streams(file_id,execution,session,stream,schema_key,contract,rows,first_position,last_position,durable_end,hash_state,finalized)
+                        VALUES (?1,?2,'fixture','fixture','fixture',?3,1,?4,?4,0,x'',0)",
+                        params![file, owner.test_execution_id.as_ref().unwrap().as_str(), serde_json::to_string(&contract)?, super::super::position(position)],
+                    )?;
+                    let mut fields = BTreeMap::from([
+                        ("group", Value::Unsigned(position)),
+                        ("name", Value::Integer(7)),
+                        ("detail", Value::Object(BTreeMap::from([("nullable".into(), Value::Null)]))),
+                    ]);
+                    if position == 1 {
+                        fields.insert("metric.name", Value::Null);
+                    }
+                    insert(
+                        &transaction,
+                        Row {kind: "telemetry", source: "fixture", position, file: Some(&file), record: false, scope: &owner},
+                        fields.iter().map(|(name,value)| (*name,value)),
+                    )?;
+                }
+                transaction.execute("UPDATE storage_data_head SET saved=?1", [super::super::position(2)])?;
+                transaction.commit()?;
+                Ok(())
+            })();
+            Ok(result)
+        }).await.unwrap().unwrap();
+        let cut = harmos::storage::StorageCursor { history: saved.history, sequence: 2 };
+        let config =
+            crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
+        let query = Query {
+            execution: execution.to_string(),
+            kind: "telemetry".into(),
+            source: "fixture".into(),
+            path: vec!["metric.name".into()],
+            fallback: Some(vec!["name".into()]),
+            scope: scope.clone(),
+            filters: vec![],
+            order: None,
+            key: None,
+        };
+        let page = state
+            .distinct_page(cut.clone(), query.clone(), None, 10, super::super::super::QueryWork::document(config.clone(), "fixture"))
+            .await
+            .unwrap();
+        assert_eq!(page.values.into_iter().map(|value| value.value).collect::<Vec<_>>(), vec![Value::Integer(7)]);
+        for (path, fallback, operator, expected) in [
+            (vec!["metric.name"], Some(vec!["name"]), FilterOperator::Eq, vec![Value::Unsigned(1)]),
+            (vec!["metric.name"], Some(vec!["name"]), FilterOperator::Ne, vec![Value::Unsigned(2)]),
+            (vec!["detail", "nullable"], None, FilterOperator::Eq, vec![Value::Unsigned(1), Value::Unsigned(2)]),
+            (vec!["detail", "missing"], None, FilterOperator::Eq, vec![]),
+        ] {
+            let query = Query {
+                path: vec!["group".into()],
+                fallback: None,
+                filters: vec![Predicate {
+                    field: Field::Path {
+                        path: path.into_iter().map(String::from).collect(),
+                        fallback: fallback.map(|names| names.into_iter().map(String::from).collect()),
+                    },
+                    operator,
+                    expected: Some(Value::Null),
+                }],
+                ..query.clone()
+            };
+            let page = state
+                .distinct_page(cut.clone(), query, None, 10, super::super::super::QueryWork::document(config.clone(), "fixture"))
+                .await
+                .unwrap();
+            assert_eq!(page.values.into_iter().map(|value| value.value).collect::<Vec<_>>(), expected);
+        }
         state.close().await.unwrap();
     }
 

@@ -53,6 +53,12 @@ document. Repeated sections SHALL page an index of every distinct selected value
 - **THEN** the maintained prefix and bounded remaining values match raw-row statistics
 - **AND** nulls, missing fields and integers beyond f64 precision preserve their semantics
 
+#### Scenario: Nullable Aliases Across Schemas
+
+- **WHEN** a declared canonical field is null in one schema and absent in another
+- **THEN** indexed repeats and filters preserve canonical-field precedence, null predicates and alias fallback at the captured cut
+- **AND** a nested null remains distinguishable from a missing detail
+
 ### Requirement: Linear Record Evaluation
 
 TimeBetween and PerCase SHALL use sorted merge or single partition passes rather

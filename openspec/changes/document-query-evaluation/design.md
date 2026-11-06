@@ -35,7 +35,11 @@ retain integer extrema and totals without f64 rounding. Stored-format replacemen
 retains v1 and requires a fresh root rather than a migration or reset.
 Exact document median walks the ordered distinct dictionary with occurrence-index
 lookups; the dictionary owns the outer join order, avoiding a dictionary scan per
-occurrence and sorting of duplicate-value groups.
+occurrence and sorting of duplicate-value groups. Both walks use covering indexes;
+only the two selected values are decoded. Nullable telemetry roots derive their
+presence from each file's saved contract rather than storing a null occurrence
+per sample. Alias precedence and null-versus-missing predicates stay exact,
+including nested fields and schema changes.
 
 Repeat continuations reuse the persisted finite-query cut/context and authenticated
 cursor ownership. Their context contains authored definitions and selected scalar

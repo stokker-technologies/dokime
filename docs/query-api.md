@@ -169,6 +169,8 @@ batch reads only the bounded remainder after its checkpoint. Integer extrema and
 totals remain lossless. Median selects exact ranks from the ordered distinct-value
 dictionary and its occurrence index at the same cut. Other folds consume bounded
 typed pages, with exact order statistics spilling scratch where required.
+Null telemetry roots do not create occurrence rows; their saved schema preserves
+field presence, alias precedence and null predicates across contract versions.
 Record bindings seek execution-owned record pages and preserve subscribed capture
 scope. The document structure is authored metadata, with no row-based evaluation
 estimate or document source-row ceiling. Encoded output and actual expansion have
