@@ -174,8 +174,9 @@ mise run ci:simulate
 ```
 
 The default run covers every declared required platform; selecting one platform
-is only partial proof. Local simulation runs independent jobs concurrently in dependency order without CPU, memory
-or thread limits. Changes limited to skills, agent guidance, README or
+is only partial proof. Local simulation runs independent jobs concurrently in dependency order by default.
+Use `mise run ci:simulate --jobs 1` to execute the same complete graph one job at a time on machines that need serial validation.
+Changes limited to skills, agent guidance, README or
 CONTRIBUTING files select no execution jobs; the required status gate still
 completes. Other documentation uses its declared checks, while mixed source or
 policy changes retain full selection.

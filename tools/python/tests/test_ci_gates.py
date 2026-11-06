@@ -43,6 +43,38 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 class ImpactTests(unittest.TestCase):
+    def test_serial_simulation(self):
+        jobs = [
+            {"key": "first", "needs": []},
+            {"key": "second", "needs": []},
+            {"key": "dependent", "needs": ["second"]},
+            {"key": "last", "needs": ["first"]},
+        ]
+        executed = []
+        events = []
+
+        def execute(job):
+            executed.append(job["key"])
+            return {"state": "failed" if job["key"] == "second" else "passed", "seconds": 0, "cache": None}
+
+        with patch.object(simulate, "emit", side_effect=lambda key, state: events.append((key, state))):
+            results = simulate.schedule(jobs, execute, workers=1)
+
+        self.assertEqual(executed, ["first", "second", "last"])
+        self.assertEqual([results[job["key"]]["state"] for job in jobs], ["passed", "failed", "blocked", "passed"])
+        self.assertEqual(
+            [(key, state.split(":", 1)[0]) for key, state in events],
+            [
+                ("first", "running"),
+                ("first", "passed"),
+                ("second", "running"),
+                ("second", "failed"),
+                ("dependent", "blocked"),
+                ("last", "running"),
+                ("last", "passed"),
+            ],
+        )
+
     def test_dev_and_review(self):
         plan = simulate.PLAN["impact"]
         full = impact.select(plan, {"Cargo.toml"})
