@@ -92,17 +92,16 @@ pub(crate) async fn inspection_separates_outputs() {
         planned.parameters.iter().find(|item| item.name == "fixture.result").unwrap().value.as_ref().unwrap().to_core().unwrap(),
         Value::Text("passed".into())
     );
-    assert_eq!(
-        client
-            .unary::<contracts::execution::GetCase>(authenticated(contracts::execution::GetCase {
-                cycle_id: id.clone(),
-                case_id: "missing".into()
-            }))
-            .await
-            .unwrap_err()
-            .code(),
-        Code::NotFound
-    );
+    for (case_id, code) in [("missing".into(), Code::InvalidArgument), (uuid::Uuid::now_v7().to_string(), Code::NotFound)] {
+        assert_eq!(
+            client
+                .unary::<contracts::execution::GetCase>(authenticated(contracts::execution::GetCase { cycle_id: id.clone(), case_id }))
+                .await
+                .unwrap_err()
+                .code(),
+            code
+        );
+    }
     let selected = owner.handle().cycles().await.remove(0).test_executions.remove(0).test_execution_id.to_string();
     for unknown_variant in [false, true] {
         let refused = client
@@ -356,6 +355,17 @@ pub(crate) async fn planned_params_limit() {
         .cases
         .remove(0)
         .case_id;
+    let other_case_id = client
+        .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
+            cycle_id: other_cycle.clone(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner()
+        .cases
+        .remove(0)
+        .case_id;
     let detail = client
         .unary::<contracts::execution::GetCase>(contracts::execution::GetCase {
             cycle_id: cycle_id.clone(),
@@ -392,6 +402,8 @@ pub(crate) async fn planned_params_limit() {
             wrong.cycle_id = other_cycle.clone();
             wrong.cursor = cursor.clone();
             wrong.after_name = "p000".into();
+            assert_eq!(client.unary::<contracts::execution::ListCaseParameters>(wrong.clone()).await.unwrap_err().code(), Code::NotFound);
+            wrong.case_id = other_case_id.clone();
             assert_eq!(client.unary::<contracts::execution::ListCaseParameters>(wrong).await.unwrap_err().code(), Code::InvalidArgument);
             let mut wrong = request.clone();
             wrong.case_id = "another-case".into();
