@@ -13,12 +13,14 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { test, vi } from "vitest";
 
 // Local Imports
 import { createExecutionFileRefresh, createRuntimeProjectionRefreshCoordinator, createThrottledRefresh } from "@/app/live/runtime-refresh";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { mapNativeExecutionSummary, projectExecutionStatus } from "@/lib/api/native-planning";
+import { invalidateWorkflowDocuments, workflowQueryKeys } from "@/features/cycle/server-state";
 
 /* === Re-Exports === */
 
@@ -144,5 +146,26 @@ test("Live File Refresh", () => {
   } finally {
     files.dispose();
     vi.useRealTimers();
+  }
+});
+
+test("Saved Capture Refreshes Active Execution Files", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  let files: { path: string }[] = [];
+  const observer = new QueryObserver(client, {
+    queryKey: workflowQueryKeys.executionFiles("running"),
+    queryFn: async () => files,
+    staleTime: Infinity,
+  });
+  const unsubscribe = observer.subscribe(() => undefined);
+  try {
+    await observer.refetch();
+    assert.deepEqual(observer.getCurrentResult().data, []);
+    files = [{ path: "media/capture.png" }];
+    await invalidateWorkflowDocuments(client);
+    assert.deepEqual(observer.getCurrentResult().data, files);
+  } finally {
+    unsubscribe();
+    client.clear();
   }
 });

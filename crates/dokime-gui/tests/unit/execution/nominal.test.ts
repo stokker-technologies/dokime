@@ -17,6 +17,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
+import { MediaGalleryView } from "@/components/MediaGalleryView";
+import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@/components/media-gallery-model";
 import { PromptPanel } from "@/components/PromptPanel";
 import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
 // Local Imports
@@ -539,4 +541,37 @@ test("Live Artifact Tree", () => {
     collision.folders[0].folders[0].folders[0].files.map((entry) => entry.fileName),
     ["device.2.log", "device.log"],
   );
+});
+
+test("Media Cards And Tree Share Live Uploads", () => {
+  const name = `${"capture-".repeat(30)}.png`;
+  const image = {
+    artifact_id: "image",
+    label: name,
+    path: `media/${name}`,
+    media_type: "image/png",
+    group_id: "execution-files",
+    scope: { test_execution_id: "running" },
+    href: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  };
+  const audio = { ...image, artifact_id: "audio", path: "media/recording.wav", media_type: "audio/wav", href: "blob:audio" };
+  const video = { ...image, artifact_id: "video", path: "media/clip.webm", media_type: "video/webm", href: "blob:video" };
+  const markup = renderToStaticMarkup(createElement(MediaGalleryView, { artifacts: [image, audio, video], emptyMessage: "" }));
+  assert.match(markup, /<img[^>]+src="data:image\/png;base64,/);
+  assert.match(markup, /<audio[^>]+controls=""[^>]+src="blob:audio"/);
+  assert.match(markup, /<video[^>]+controls=""[^>]+src="blob:video"/);
+  assert.match(markup, /<h3 class="truncate[^"]*" title="/);
+  // Names Belong Only In The Footer, Never In The Preview's Action Row.
+  assert.equal(markup.includes("line-clamp-2"), false);
+  assert.deepEqual(mediaArtifactSource(image), { kind: "execution_file", executionId: "running", relativePath: image.path });
+  assert.equal(mediaBlobType({ ...audio, media_type: "audio/wav; codecs=1" }), "audio/wav");
+  assert.equal(mediaBlobType({ ...image, media_type: "application/octet-stream" }), "image/png");
+  const saving = { ...image, stream_state: "streaming" as const };
+  const saved = { ...image, stream_state: "finalized" as const };
+  assert.equal(mediaBlobType(saving), null);
+  assert.equal(mediaBlobType(saved), "image/png");
+  assert.notEqual(artifactContentKey(saving), artifactContentKey(saved));
+  const tree = buildArtifactTree([image, audio, video]);
+  assert.equal(tree.folders[0].path, "media");
+  assert.equal(tree.folders[0].files.find((file) => file.artifact_id === "image")?.fileName, name);
 });

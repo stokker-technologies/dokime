@@ -2495,6 +2495,8 @@ dependencies = [
  "dotenvy",
  "harmos-packaging",
  "harmos-sdk",
+ "image",
+ "percent-encoding",
  "rand 0.10.3",
  "rcgen",
  "reqwest",

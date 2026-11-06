@@ -49,8 +49,6 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
-const ARTIFACT_PREFIX: &str = "artifacts/";
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -403,18 +401,20 @@ impl ExecutionStorage {
         let id = crate::model::identity::new_id::<ArtifactId>();
         let owner = Arc::new(());
         let requested = input.filename;
+        let content_type = input.content_type;
+        let prefix = if crate::artifacts::media_kind_for(&requested, content_type.as_deref()).is_some() { "media/" } else { "artifacts/" };
         let mut filename = requested.clone();
         let mut suffix = 2;
-        while acquisition.output(&format!("{ARTIFACT_PREFIX}{filename}")).is_some() {
+        while acquisition.output(&format!("{prefix}{filename}")).is_some() {
             filename = crate::artifacts::name::collision_name(&requested, suffix);
             suffix += 1;
         }
         crate::artifacts::name::validate(&filename).map_err(error)?;
-        let relative_path = format!("{ARTIFACT_PREFIX}{filename}");
+        let relative_path = format!("{prefix}{filename}");
         let output = NativeOutput::artifact(FileMetadata {
             id: Identifier::new(id.as_str()).map_err(error)?,
             scope: Some(Identifier::new(execution.as_str()).map_err(error)?),
-            media_type: input.content_type.as_deref().unwrap_or("application/octet-stream").to_owned(),
+            media_type: content_type.as_deref().unwrap_or("application/octet-stream").to_owned(),
             expected_length: None,
             expected_sha256: None,
         })?;
@@ -430,7 +430,7 @@ impl ExecutionStorage {
             upload_id: crate::model::identity::new_id::<UploadId>(),
             scope: input.scope,
             filename,
-            content_type: input.content_type,
+            content_type,
             size_bytes: 0,
             sha256: None,
             status: ArtifactStatus::Staged,

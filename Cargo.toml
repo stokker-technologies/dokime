@@ -126,6 +126,7 @@ zip = { version = "9.1.0", default-features = false }
 # Parsing
 cargo_metadata = { version = "0.23.1" }
 cssparser = { version = "0.38.0" }
+percent-encoding = { version = "2.3.2" }
 proc-macro-crate = { version = "3.5.0" }
 proc-macro2 = { version = "1.0.107" }
 quote = { version = "1.0.47" }

@@ -190,6 +190,25 @@ capture. Read frames, tail offsets and retained text keep their existing budgets
 Runtime operation changes refresh the file list and size without idle polling.
 Untouched baseline files do not clutter the tree; new empty files remain visible.
 
+## Media Capture And Live Artifacts
+
+Screenshot, Photo and Record Audio save execution uploads under `media/`,
+preserving their relative names and the existing `.2`, `.3` collision suffixes.
+The Media card and artifact tree refresh after a capture is saved, while the
+execution is still running; runtime file updates also refresh the same inventory.
+Other uploads retain their `artifacts/` paths. Captured bytes are readable before
+execution completion.
+
+Desktop previews use the generation-owned native media cache. The scheme handler
+decodes Tauri's encoded cache path before validating its generation and key.
+Preview preparation uses closed files and refreshes when their saved state changes.
+Images are decoded on a blocking native worker with dimension and allocation
+limits, then reduced to at most 960 × 960 pixels before the WebView reads them.
+Audio and video expose playback controls with bounded native range reads.
+Names ellipsize, retain their full text as a tooltip, and occupy a separate row
+from Inspect. Frozen HTML retains its original media and download links under
+`outputs/media/`, independently of the desktop preview cache.
+
 ## Canonical Bindings And Transport
 
 - `mise run check:typescript:generated --source` checks locally prepared bindings
