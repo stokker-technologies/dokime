@@ -896,9 +896,14 @@ pub(crate) async fn installs_apply_live() {
     let started = running_generation(&owner).await.expect("the installed program runs");
 
     // A Changed Version Becomes The Running Generation.
+    let publishing = handle.plugin_store().root().join("publishing.dokime");
+    std::fs::write(&publishing, b"an install has published its file before committing settings").unwrap();
     let second = installed(&handle, crate::service_support::bundles::host_plugin_version("99.0.0")).await;
     assert!(second.active, "{:?}", second.installation.last_boot);
-    assert!(!installation(&handle, first.installation.install_id).await.active, "the replaced installation no longer runs");
+    let store = handle.plugin_store();
+    assert!(store.list().await.unwrap().iter().all(|entry| entry.installation.install_id != first.installation.install_id));
+    assert!(!store.path(first.installation.install_id).exists());
+    assert!(publishing.is_file(), "live apply never sweeps unreferenced files");
     let replaced = running_generation(&owner).await.expect("the new version runs");
     assert_ne!(replaced, started);
 
@@ -917,9 +922,10 @@ pub(crate) async fn installs_apply_live() {
     let enabled = handle.set_plugin_enabled(second.installation.install_id, true).await.unwrap();
     assert!(settled(&handle, &enabled).await.active);
     assert!(running_generation(&owner).await.is_some() && admits_host(&handle).await);
-    let removed = handle.remove_plugin(second.installation.install_id).await.unwrap().expect("removal is recorded until the next start");
-    let removed = settled(&handle, &removed).await;
-    assert!(!removed.active);
+    handle.remove_plugin(second.installation.install_id).await.unwrap();
+    handle.plugin_bundle_settled(&second.metadata.as_ref().unwrap().identity.name).await;
+    assert!(store.list().await.unwrap().is_empty());
+    assert!(!store.path(second.installation.install_id).exists());
     assert!(running_generation(&owner).await.is_none() && !admits_host(&handle).await);
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -939,6 +945,8 @@ pub(crate) async fn replacement_waits_for_cycle() {
     let pending = installation(&handle, replacement.installation.install_id).await;
     assert_eq!(pending.restart, PluginRestart::Pending);
     assert!(!pending.active);
+    assert_eq!(installation(&handle, first.installation.install_id).await.installation.state, PluginState::RemovalPending);
+    assert!(handle.plugin_store().path(first.installation.install_id).is_file());
     assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
     next_case(&probe).await;
     assert_eq!(installation(&handle, replacement.installation.install_id).await.restart, PluginRestart::Pending);
@@ -953,6 +961,9 @@ pub(crate) async fn replacement_waits_for_cycle() {
         assert_eq!(execution.status, ExecutionStatus::Passed, "the replacement never touched the cycle: {log}");
     }
     assert!(applied.active && applied.restart == PluginRestart::Idle);
+    let store = handle.plugin_store();
+    assert!(store.list().await.unwrap().iter().all(|entry| entry.installation.install_id != first.installation.install_id));
+    assert!(!store.path(first.installation.install_id).exists());
     assert_ne!(running_generation(&owner).await.expect("the new version runs"), generation);
     probe.runtime.lock().unwrap().take();
     drop(handle);
@@ -986,8 +997,17 @@ pub(crate) async fn refused_replacement_keeps_running() {
     assert_eq!(kept.installation.state, PluginState::Installed);
     assert!(kept.active, "{:?}", kept.installation.last_boot);
     assert!(running_generation(&owner).await.is_some() && admits_host(&handle).await);
-    let installed: Vec<_> = handle.plugin_store().installed().await.unwrap();
-    assert_eq!(installed.len(), 1, "a restart runs the kept installation alone");
+    let runnable: Vec<_> = handle.plugin_store().installed().await.unwrap();
+    assert_eq!(runnable.len(), 1, "a restart runs the kept installation alone");
+    // A Later Successful Apply Still Leaves Both Refusal Diagnostics Visible.
+    let replacement = installed(&handle, crate::service_support::bundles::host_plugin_version("99.0.0")).await;
+    assert!(replacement.active);
+    for refused in [&unprepared, &unstarted] {
+        let row = installation(&handle, refused.installation.install_id).await;
+        assert_eq!(row.installation.state, PluginState::RemovalPending);
+        assert_eq!(row.installation.last_boot, refused.installation.last_boot);
+        assert!(handle.plugin_store().path(refused.installation.install_id).is_file());
+    }
     drop(handle);
     owner.shutdown().await.unwrap();
 }

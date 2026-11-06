@@ -100,7 +100,7 @@ impl RuntimeHandle {
         Ok(entry)
     }
 
-    // Queue An Installation For Removal; The Running Backend Stops It, And The Next Start Deletes Its File.
+    // Queue An Installation For Removal; Live Apply Discards It After Its Programs Stop.
     pub async fn remove_plugin(&self, install: Uuid) -> Result<Option<PluginEntry>, PluginError> {
         let store = self.plugin_store();
         store.remove(install).await?;

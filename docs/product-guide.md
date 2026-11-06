@@ -570,7 +570,9 @@ enabling, disabling or removing one, take effect in the running backend; nothing
 asks to restart Dokime. The plugin shows **Restarting…** while it starts, is
 replaced or stops. While any cycle is active, the change shows **Restart
 Pending** and applies once no cycle is active; running executions are never
-stopped for it. If a reinstall or update is refused, the previous
+stopped for it. After a successful live stop, the removed or replaced
+installation's row and bundle are deleted. If deletion fails, its row retains
+the error until startup retries. If a reinstall or update is refused, the previous
 version keeps running and stays installed, and the refused bundle is listed as
 **Refused** with its reason until the next start deletes it. A plugin that did not
 start offers **Retry**, which starts only that plugin again, at once even while
