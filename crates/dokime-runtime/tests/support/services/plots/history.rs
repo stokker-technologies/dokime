@@ -68,9 +68,8 @@ pub async fn telemetry_history(samples: usize, display_points: usize, days: usiz
     assert_eq!(series.raw_points, samples);
     assert!(series.downsampled);
     assert!(series.points.len() <= display_points);
-    // Equivalent Requests Reuse One Evidence Scan, Including Bounded Marker Work.
-    let bound = (samples + samples / SAMPLE_BATCH) as u64;
-    assert!((samples as u64..=bound).contains(&scanned), "{scanned} rows scanned for {samples} samples");
+    // One Selected Stream Schema Is Read Once Alongside One Shared Telemetry Scan.
+    assert_eq!(scanned, samples as u64 + 1);
     let baseline = serde_json::to_vec(runtime.watch_state().latest().state()).unwrap().len();
 
     let mut window_work = None;
