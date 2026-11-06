@@ -23,6 +23,7 @@ import {
   fetchNativeRecordTail,
   type NativeEvidenceSession,
   openNativeRecordStream,
+  RECORD_TAIL,
   type RecordTail,
 } from "@/lib/api/native-evidence";
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
@@ -419,6 +420,19 @@ function holdRecordTail(
   }
   let stopped = false;
   let stream: Awaited<ReturnType<typeof openNativeRecordStream>> | undefined;
+  let frame: number | null = null;
+  const pending = new Map<string, RecordTail["records"][number]>();
+  let cursor: RecordTail["cursor"] = null;
+  const flush = () => {
+    if (frame !== null) window.cancelAnimationFrame(frame);
+    frame = null;
+    if (stopped || !session.isCurrent()) return;
+    const records = [...pending.values()];
+    pending.clear();
+    const through = cursor;
+    cursor = null;
+    queryClient.setQueryData<RecordTail>(queryKey, (current) => (current ? appendRecordTail(current, records, through) : current));
+  };
   const follow = async () => {
     while (!stopped && session.isCurrent()) {
       const tail = queryClient.getQueryData<RecordTail>(queryKey);
@@ -430,15 +444,22 @@ function holdRecordTail(
         }
         for await (const page of stream) {
           if (stopped) break;
-          queryClient.setQueryData<RecordTail>(queryKey, (current) =>
-            current ? appendRecordTail(current, page.records, page.cursor) : current,
-          );
+          for (const record of page.records) {
+            pending.set(record.record_id, record);
+            if (pending.size > RECORD_TAIL) {
+              const oldest = pending.keys().next().value;
+              if (oldest !== undefined) pending.delete(oldest);
+            }
+          }
+          cursor = page.cursor ?? cursor;
+          frame ??= window.requestAnimationFrame(flush);
         }
       } catch {
         // The stream failed: the tail is re-read below and followed again.
       }
       stream = undefined;
       if (stopped || !session.isCurrent()) return;
+      flush();
       await queryClient.invalidateQueries({ queryKey, exact: true });
       await new Promise((resume) => window.setTimeout(resume, GUI_RECONNECT_MS));
     }
@@ -447,6 +468,8 @@ function holdRecordTail(
     holders: 1,
     stop: () => {
       stopped = true;
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      pending.clear();
       void stream?.cancel().catch(() => undefined);
     },
   });
