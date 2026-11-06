@@ -58,7 +58,7 @@ struct Probe {
     cancellation: tokio::sync::watch::Sender<bool>,
     token: Mutex<String>,
     // Like A Sidecar Receiver: Rows In Arrival Order, And Whether Settlement Began.
-    arrivals: Mutex<Vec<(String, String)>>,
+    arrivals: Mutex<std::collections::BTreeMap<String, Vec<(String, String)>>>,
     settling: std::sync::atomic::AtomicBool,
     settlement_signals: std::sync::atomic::AtomicUsize,
     record_ordinal: std::sync::atomic::AtomicU64,
@@ -99,7 +99,7 @@ impl Probe {
             released: tokio::sync::watch::Sender::new(false),
             cancellation: tokio::sync::watch::Sender::new(false),
             token: Mutex::new(String::new()),
-            arrivals: Mutex::new(Vec::new()),
+            arrivals: Mutex::new(std::collections::BTreeMap::new()),
             settling: std::sync::atomic::AtomicBool::new(false),
             settlement_signals: std::sync::atomic::AtomicUsize::new(0),
             record_ordinal: std::sync::atomic::AtomicU64::new(0),
@@ -108,8 +108,9 @@ impl Probe {
         }
     }
 
-    fn receive(&self, encoded: &[String]) {
-        let mut arrivals = self.arrivals.lock().unwrap();
+    fn receive(&self, token: &str, encoded: &[String]) {
+        let mut executions = self.arrivals.lock().unwrap();
+        let arrivals = executions.entry(token.to_owned()).or_default();
         for sample in encoded {
             let sample: dokime_runtime::telemetry::TelemetrySample = serde_json::from_str(sample).unwrap();
             let (stream, id) = (sample.stream.to_string(), sample.sample_id.to_string());
@@ -124,8 +125,9 @@ impl Probe {
     }
 
     // The Receipt Names The Row That Arrived Last On Each Stream, As A Sidecar Receiver Does.
-    fn receipts(&self) -> Vec<dokime_runtime::transport::protocol::SampleReceipt> {
-        let arrivals = self.arrivals.lock().unwrap();
+    fn receipts(&self, token: &str) -> Vec<dokime_runtime::transport::protocol::SampleReceipt> {
+        let executions = self.arrivals.lock().unwrap();
+        let Some(arrivals) = executions.get(token) else { return Vec::new() };
         let mut receipts: Vec<dokime_runtime::transport::protocol::SampleReceipt> = Vec::new();
         for (stream, sample_id) in arrivals.iter() {
             receipts.retain(|receipt| &receipt.stream != stream);
@@ -310,20 +312,22 @@ impl Runnable for Probe {
                 self.record_ordinal.fetch_max(record.ordinal, std::sync::atomic::Ordering::SeqCst);
             }
             let record_ordinal = self.record_ordinal.load(std::sync::atomic::Ordering::SeqCst);
+            if let Some(delivery) = &signal.samples {
+                self.receive(&signal.execution_token, &delivery.samples);
+            }
             if self.mode == Settlement::LiveReplay {
                 let settling = self.settling.load(std::sync::atomic::Ordering::SeqCst);
                 match &signal.samples {
-                    Some(delivery) => self.receive(&delivery.samples),
                     // The Second Settlement Signal Asks For The Receipt After The Replay Cut; Collection Keeps Ticking.
                     None if settling && self.settlement_signals.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 1 => {
                         let runtime = self.runtime.lock().unwrap().clone().expect("the live replay story binds its runtime");
                         let from = host_rows(&runtime).await;
                         until_telemetry(&runtime, || async { (host_rows(&runtime).await >= from + 3).then_some(()) }).await;
                     }
-                    None => {}
+                    _ => {}
                 }
                 return Ok(SignalReply {
-                    samples: self.receipts(),
+                    samples: self.receipts(&signal.execution_token),
                     record_ordinal,
                     ..Default::default()
                 });
@@ -338,7 +342,11 @@ impl Runnable for Probe {
                     self.released.subscribe().wait_for(|released| *released).await.unwrap();
                 }
             }
-            Ok(SignalReply { record_ordinal, ..Default::default() })
+            Ok(SignalReply {
+                samples: self.receipts(&signal.execution_token),
+                record_ordinal,
+                ..Default::default()
+            })
         })
     }
 
