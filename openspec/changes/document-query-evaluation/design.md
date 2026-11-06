@@ -22,6 +22,18 @@ Record TimeBetween uses ordered correlation rather than one scan per record.
 PerCase partitions once before folding. Repeated sections enumerate distinct
 indexed values through continuation pages instead of replaying raw rows.
 
+Storage keeps typed numeric prefix checkpoints per captured execution, stream and
+field at saved batch frontiers. A query selects the prefix at its cut; a partial
+batch uses the exact bounded reader. Checkpoints include nullable fields and
+retain integer extrema and totals without f64 rounding. Stored-format replacement
+retains v1 and requires a fresh root rather than a migration or reset.
+
+Repeat continuations reuse the persisted finite-query cut/context and authenticated
+cursor ownership. Their context contains authored definitions and selected scalar
+context, never captured raw rows or an in-memory document registry. Pages resume
+actual expanded output. Frozen materialization drains every page at its sealed cut;
+GUI card identities remain independent of changing page/evidence frontiers.
+
 ## Card Delivery
 
 Reuse the existing document stream operation for structure and selected-card

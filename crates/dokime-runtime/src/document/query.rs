@@ -285,6 +285,10 @@ impl Context<'_> {
                             payload.state =
                                 payload.value.as_ref().and_then(|value| super::resolve::matching_summary_state(value, &tile.conditions));
                         }
+                        Err(crate::runtime::Error::Query(mut error)) => {
+                            error.message = format!("tile {}: {}", tile.metadata.identifier, error.message);
+                            return Err(error.into());
+                        }
                         Err(error) => return Err(error),
                     }
                 }
@@ -421,23 +425,35 @@ async fn telemetry(
         && let (DataSource::Telemetry { field, .. }, [DataTransform::Aggregate(aggregate)]) =
             (&expression.source, expression.transforms.as_slice())
         && let Some(stream) = streams.first()
+        && let Some(value_type) = contracts
+            .iter()
+            .filter(|contract| contract.stream.as_str() == stream)
+            .flat_map(|contract| &contract.columns)
+            .find(|column| column.metadata.identifier.as_str() == field)
+            .map(|column| &column.value_type)
         && contracts.iter().filter(|contract| contract.stream.as_str() == stream).all(|contract| {
             contract.columns.iter().any(|column| {
                 column.metadata.identifier.as_str() == field
-                    && column.required
-                    && !column.nullable
-                    && (column.value_type == dokime_domain::model::values::ValueType::Number || *aggregate == harmos::Aggregate::Count)
+                    && &column.value_type == value_type
+                    && (matches!(
+                        value_type,
+                        dokime_domain::model::values::ValueType::Number | dokime_domain::model::values::ValueType::Integer
+                    ) || *aggregate == harmos::Aggregate::Count)
             })
         })
-        && let Some(moments) =
-            runtime.local_storage.document_moments(execution.to_string(), stream.clone(), field.clone(), at.clone()).await?
+        && let Some(value) = runtime
+            .local_storage
+            .document_statistic(
+                execution.to_string(),
+                stream.clone(),
+                field.clone(),
+                at.clone(),
+                *aggregate,
+                *value_type == dokime_domain::model::values::ValueType::Integer,
+            )
+            .await?
     {
-        if *aggregate == harmos::Aggregate::Count {
-            return Ok(Some(Value::Unsigned(moments.count)));
-        }
-        if let Some(value) = moments.value(*aggregate).filter(|value| value.is_finite()) {
-            return Ok(Some(Value::Number(value)));
-        }
+        return Ok(Some(value));
     }
     let expires = dokime_domain::model::identity::wire::Timestamp::from(
         time::OffsetDateTime::now_utc()

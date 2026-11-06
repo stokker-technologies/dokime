@@ -211,13 +211,22 @@ impl Moments {
 }
 
 impl crate::storage::sqlite::State {
-    pub(crate) async fn document_moments(
-        &self, execution: String, stream: String, field: String, at: harmos::storage::StorageCursor,
-    ) -> Result<Option<Moments>, Error> {
+    pub(crate) async fn document_statistic(
+        &self, execution: String, stream: String, field: String, at: harmos::storage::StorageCursor, aggregate: harmos::Aggregate,
+        integer: bool,
+    ) -> Result<Option<dokime_domain::model::values::Value>, Error> {
         self.read(move |connection| {
             Ok((|| {
                 let head = super::super::saved(connection)?;
-                if head.history != at.history || head.sequence != at.sequence {
+                if head.history != at.history || head.sequence < at.sequence {
+                    return Ok(None);
+                }
+                let newer: bool = connection.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM streams WHERE execution=?1 AND stream=?2 AND last_position>?3)",
+                    params![execution, stream, super::super::position(at.sequence)],
+                    |row| row.get(0),
+                )?;
+                if newer {
                     return Ok(None);
                 }
                 let shared: bool = connection.query_row(
@@ -245,7 +254,10 @@ impl crate::storage::sqlite::State {
                     params![execution, stream],
                     |row| row.get(0),
                 )?;
-                Ok((u64::try_from(captured).ok() == Some(moments.count)).then_some(moments))
+                if u64::try_from(captured).ok() != Some(moments.count) {
+                    return Ok(None);
+                }
+                document_value(connection, &(execution, stream, field), moments, aggregate, integer)
             })())
         })
         .await?
@@ -314,6 +326,46 @@ pub(super) fn numeric_summaries(connection: &Connection, execution: String) -> R
 
 /* === Private Functions === */
 
+fn document_value(
+    connection: &Connection, key: &Key, moments: Moments, aggregate: harmos::Aggregate, integer: bool,
+) -> Result<Option<dokime_domain::model::values::Value>, Error> {
+    use dokime_domain::model::values::Value;
+    use harmos::Aggregate;
+    if aggregate == Aggregate::Count {
+        return Ok(Some(Value::Unsigned(moments.count)));
+    }
+    // Float Index Keys Preserve Every Integer Strictly Inside This Range. Outside
+    // It, The Typed Query Remains The Owner Of Lossless Integer Statistics.
+    let exact_range = 9_007_199_254_740_992.0;
+    if integer {
+        let safe = match aggregate {
+            Aggregate::Min | Aggregate::Max | Aggregate::Median => moments.max_abs < exact_range,
+            Aggregate::Mean | Aggregate::Sum => moments.max_abs * (moments.count as f64) < exact_range,
+            Aggregate::Rms | Aggregate::Std => true,
+            _ => false,
+        };
+        if !safe {
+            return Ok(None);
+        }
+    }
+    let value = match aggregate {
+        Aggregate::Median => percentile(connection, key, moments.count, 50)?,
+        Aggregate::Mean if integer => moments.sum / moments.count as f64,
+        aggregate => {
+            let Some(value) = moments.value(aggregate) else { return Ok(None) };
+            value
+        }
+    };
+    if !value.is_finite() {
+        return Ok(None);
+    }
+    Ok(Some(if integer && !matches!(aggregate, Aggregate::Rms | Aggregate::Std) && value.fract() == 0.0 {
+        Value::Integer(value as i64)
+    } else {
+        Value::Number(value)
+    }))
+}
+
 pub(crate) fn ordered(value: f64) -> u64 {
     let bits = value.to_bits();
     if bits >> 63 != 0 { !bits } else { bits ^ (1 << 63) }
@@ -369,6 +421,41 @@ fn percentile(connection: &Connection, key: &Key, count: u64, percentile: u8) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn document_integer_index_matches_typed_folds() {
+        use dokime_domain::model::values::Value;
+        use harmos::Aggregate;
+        let connection = Connection::open_in_memory().unwrap();
+        let key = ("execution".into(), "fixture".into(), "value".into());
+        let rows = [-7, 3, 11, 0, 0, 3, 99];
+        let mut moments = Moments::default();
+        for value in rows {
+            moments.push(value as f64).unwrap();
+        }
+        for aggregate in [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Sum, Aggregate::Rms] {
+            let mut reference =
+                crate::document::frame::Fold::new(&crate::expressions::telemetry("fixture", "value").aggregate(aggregate)).unwrap();
+            for (position, value) in rows.iter().enumerate() {
+                reference.push_at(position as u64, Some(&Value::Integer(*value))).unwrap();
+            }
+            assert_eq!(document_value(&connection, &key, moments, aggregate, true).unwrap(), reference.finish().unwrap());
+        }
+    }
+
+    #[test]
+    fn document_integer_index_preserves_lossless_fallback() {
+        use harmos::Aggregate;
+        let connection = Connection::open_in_memory().unwrap();
+        let key = ("execution".into(), "fixture".into(), "value".into());
+        let mut moments = Moments::default();
+        for value in [9_007_199_254_740_993_u64, 9_007_199_254_740_995] {
+            moments.push(value as f64).unwrap();
+        }
+        for aggregate in [Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Median] {
+            assert!(document_value(&connection, &key, moments, aggregate, true).unwrap().is_none());
+        }
+    }
 
     #[test]
     fn moments_match_harmos() {

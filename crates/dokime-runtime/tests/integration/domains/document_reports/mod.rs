@@ -688,8 +688,8 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     runtime.storage().flush_until(&receipt.position).await.unwrap();
     crate::service_support::waits::wait_for_run_settled(&runtime, &request).await;
     runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
-    let sealed = cycle_snapshot(&runtime, &cycle_id).await;
-    assert!(sealed.saved.is_some());
+    let sealed = dokime_runtime::storage::objects::cycle::read(runtime.storage(), &cycle_id, ObjectVersion::Latest).await.unwrap().unwrap();
+    assert!(sealed.value.saved.is_some());
     runtime.open_cycle_report(&cycle_id).await.unwrap();
     let bundle = runtime.export_evidence(dokime_domain::model::exports::EvidenceSubject::Cycle(cycle_id.to_string())).await.unwrap();
     assert!(bundle.metadata().size_bytes > 0);

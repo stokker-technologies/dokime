@@ -163,4 +163,46 @@ test("Structure Projection And Binding Identity", async () => {
   assert.notEqual(nativeDocumentCardKey(capture, "fast"), nativeDocumentCardKey(changed, "fast"));
 });
 
+test("A Budget Failure Keeps The Completed Sibling", async () => {
+  const budget = { name: "frame_bytes", limit: 4096n, reached: 32768n, cardId: "slow" };
+  const frames = initial();
+  frames.push(
+    binding("fast", true),
+    frame("SummaryGroup", { cardId: "fast", ordinal: 0n, metadata: { identifier: "fast.group", label: "Fixture" }, tileCount: 2n }),
+    tile(0),
+    tile(1),
+    frame("CardComplete", "fast"),
+    frame("Binding", {
+      sourceId: "slow",
+      metadata: { identifier: "slow", label: "Fixture" },
+      result: {
+        HarmosVariant: {
+          case: "Failure",
+          value: {
+            field0: {
+              code: budget.name,
+              message: `${budget.name}: ${budget.reached} > ${budget.limit}, ${budget.cardId}`,
+              budget,
+            },
+          },
+        },
+      },
+    }),
+    frame("CardComplete", "slow"),
+  );
+  frames.push(frame("Completion", counts(frames.length + 1, false)));
+  const capture = await assembleDocument(iterable(frames), expected, () => true);
+  const mapped = mapNativeDocument(capture);
+  assert.deepEqual(
+    mapped.cards.find((card) => card.card_id === "fast")?.groups[0]?.metrics.map((tile) => tile.value),
+    [1, 2],
+  );
+  const failed = mapped.cards.find((card) => card.card_id === budget.cardId);
+  assert.ok(failed);
+  assert.ok(!failed.loading);
+  assert.equal(failed?.failure?.reason, budget.name);
+  for (const value of [budget.name, budget.cardId, String(budget.limit), String(budget.reached)])
+    assert.ok(failed?.failure?.message.includes(value));
+});
+
 /* === Entry Point === */

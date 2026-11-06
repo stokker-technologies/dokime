@@ -163,7 +163,9 @@ Captured contracts include retained Arrow versions from the selected execution o
 ## Document Bindings
 
 Live document summaries use finite storage queries at their captured saved boundary.
-Telemetry folds consume bounded typed pages; exact order statistics spill scratch.
+Compatible unfiltered telemetry statistics reuse the numeric index, including an
+exact median rank query. Integer index answers require lossless bounds; otherwise
+folds consume bounded typed pages and exact order statistics spill scratch.
 Record bindings seek execution-owned record pages and preserve subscribed capture
 scope. The document structure is authored metadata, with no row-based evaluation
 estimate or document source-row ceiling. Encoded output and actual expansion have
