@@ -34,9 +34,10 @@ import { isNumber } from "@/lib/utils";
 import { formatBooleanState, formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
 import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
+import { drawMarkerKinds, type MarkerRange, markerKinds, markerLegendRows, nearestMarker } from "@/plots/markers";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
-import { type PromptMarker, promptMarkerLabel } from "@/plots/prompt-markers";
+import type { PromptMarker } from "@/plots/prompt-markers";
 import { windowIndices } from "@/plots/reduce";
 import type { PlotViewportMode } from "@/plots/types";
 import { attachPan, type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
@@ -74,11 +75,8 @@ const SERIES_LINE_WIDTH = 2;
 const CURSOR_POINT_GROWTH = 2;
 const CURSOR_POINT_FALLBACK_COLOR = "currentColor";
 const EMPTY_TRACES: ReadonlySet<string> = new Set();
+const NO_MARKERS: PlotMarker[] = [];
 const NO_PROMPTS: PromptMarker[] = [];
-/* How near the pointer must come to a prompt marker, in CSS pixels, to read it. */
-const PROMPT_HOVER_PX = 5;
-/* The cap glyph drawn atop each prompt marker, in CSS pixels. */
-const PROMPT_CAP_PX = 4;
 
 /* === Types === */
 
@@ -90,7 +88,7 @@ type CartesianPlotProps = {
   description?: string | null;
   series: PlotSeries[];
   markers?: PlotMarker[];
-  /** Prompt lifecycle moments, drawn as quiet vertical lines the header can hide. */
+  /** Prompt lifecycle moments, toggled by kind in the plot legend. */
   promptMarkers?: PromptMarker[];
   referenceLines?: DocumentReferenceLine[];
   referenceBands?: DocumentReferenceBand[];
@@ -154,6 +152,7 @@ type ChartFrame = {
 /** A series' drawn point marks, in uPlot's terms: the outline is inset within `size`. */
 export type PointMarks = {
   show: boolean;
+  filter?: uPlot.Series.Points.Filter;
   size: number;
   width: number;
   stroke: string;
@@ -191,7 +190,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   cartesian,
   description,
   series,
-  markers = [],
+  markers = NO_MARKERS,
   promptMarkers = NO_PROMPTS,
   referenceLines = [],
   referenceBands = [],
@@ -229,16 +228,22 @@ export const CartesianPlot = memo(function CartesianPlot({
   hiddenTracesRef.current = hiddenTraces;
   const onViewportChangeRef = useRef(onViewportChange);
   onViewportChangeRef.current = onViewportChange;
-  const tableLegend = legend !== null;
+  const kinds = useMemo(() => markerKinds(markers, promptMarkers), [markers, promptMarkers]);
+  const kindsRef = useRef(kinds);
+  kindsRef.current = kinds;
+  const [hiddenMarkers, setHiddenMarkers] = useState<ReadonlySet<string>>(EMPTY_TRACES);
+  const hiddenMarkersRef = useRef(hiddenMarkers);
+  hiddenMarkersRef.current = hiddenMarkers;
+  const [markerColors, setMarkerColors] = useState<string[]>([]);
+  const markerColorsRef = useRef(markerColors);
+  markerColorsRef.current = markerColors;
+  const [markerRange, setMarkerRange] = useState<MarkerRange>(null);
+  const tableLegend = legend !== null || kinds.length > 0;
   const [following, setFollowing] = useState(true);
   const heldRangeRef = useRef<HeldViewport | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<uPlot | null>(null);
-  const markersRef = useRef<PlotMarker[]>(markers);
-  const [showPrompts, setShowPrompts] = useState(true);
-  const [hoveredPrompt, setHoveredPrompt] = useState<{ marker: PromptMarker; left: number } | null>(null);
-  const shownPrompts = showPrompts ? promptMarkers : NO_PROMPTS;
-  const promptsRef = useRef<PromptMarker[]>(shownPrompts);
+  const [hoveredMarker, setHoveredMarker] = useState<{ label: string; left: number } | null>(null);
   const referenceLinesRef = useRef<DocumentReferenceLine[]>(referenceLines);
   const referenceBandsRef = useRef<DocumentReferenceBand[]>(referenceBands);
   const intervalRangesRef = useRef<IntervalRange[]>([]);
@@ -342,6 +347,9 @@ export const CartesianPlot = memo(function CartesianPlot({
     }
     const root = rootRef.current;
     const themeColors = resolvePlotThemeColors(root);
+    const resolvedMarkerColors = kindsRef.current.map((_, index) => themeColors.palette[index % themeColors.palette.length]);
+    markerColorsRef.current = resolvedMarkerColors;
+    setMarkerColors((current) => (current.join("|") === resolvedMarkerColors.join("|") ? current : resolvedMarkerColors));
     const plotFont = resolvePlotFont(root);
     const fallbackSeriesColor = themeColors.palette[0] ?? themeColors.foreground;
     const resolvedSeriesColors = renderedSeries.map((item) => {
@@ -397,6 +405,7 @@ export const CartesianPlot = memo(function CartesianPlot({
             const { min, max } = plot.scales.x;
             if (min == null || max == null) return;
             const range = { min, max };
+            setMarkerRange((current) => (current?.min === min && current.max === max ? current : range));
             if (windowServes(drawnRef.current, range)) return;
             queueMicrotask(() => {
               if (plotRef.current !== plot) return;
@@ -423,12 +432,12 @@ export const CartesianPlot = memo(function CartesianPlot({
         setCursor: [
           (plot) => {
             const left = plot.cursor.left;
-            const prompt = left != null && left >= 0 ? nearestPrompt(plot, promptsRef.current, left) : null;
-            setHoveredPrompt((current) => {
-              if (!prompt) return current ? null : current;
+            const marker = left != null && left >= 0 ? nearestMarker(plot, kindsRef.current, hiddenMarkersRef.current, left) : null;
+            setHoveredMarker((current) => {
+              if (!marker) return current ? null : current;
               const offset = plot.over.getBoundingClientRect().left - root.getBoundingClientRect().left;
-              const next = { marker: prompt.marker, left: offset + prompt.left };
-              return current?.marker === next.marker && current.left === next.left ? current : next;
+              const next = { label: marker.label, left: offset + marker.left };
+              return current?.label === next.label && current.left === next.left ? current : next;
             });
             if (!tableLegend || left == null || left < 0) return;
             const next = {
@@ -453,8 +462,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         draw: [
           (plot) => {
             drawIntervalRanges(plot, intervalRangesRef.current, resolvedSeriesColors[0] ?? fallbackSeriesColor);
-            drawMarkers(plot, markersRef.current, root, themeColors.foreground);
-            drawPromptMarkers(plot, promptsRef.current, themeColors.mutedForeground);
+            drawMarkerKinds(plot, kindsRef.current, hiddenMarkersRef.current, markerColorsRef.current);
             drawReferenceLines(plot, referenceLinesRef.current, root, themeColors.foreground);
           },
         ],
@@ -702,7 +710,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   }, [hiddenTraces, renderedSeries]);
 
   const legendRows = useMemo(() => {
-    if (!legend) return null;
+    if (!tableLegend) return null;
     const frame = backendCartesian;
     const cursorPoints = cursor !== null && frame ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursor.x)) : null;
     const firstPointSeconds = frame?.series[0]?.x[0];
@@ -719,7 +727,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       cursorPoints,
       formatX: (x) => formatCursorX(x, axis),
       hidden: hiddenTraces,
-      summaries: legend.summaries,
+      summaries: legend?.summaries ?? [],
       traces: renderedSeries.map((item, index) => ({
         key: item.key,
         label: item.label,
@@ -733,6 +741,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     cycleStartedAt,
     hiddenTraces,
     legend,
+    tableLegend,
     renderedSeries,
     runStartedAt,
     series,
@@ -741,11 +750,24 @@ export const CartesianPlot = memo(function CartesianPlot({
     xElapsedUnit,
     xFormat,
   ]);
-  const legendColumns = useMemo(() => seriesLegendColumns(unit), [unit]);
+  const legendColumns = useMemo(() => {
+    const columns = seriesLegendColumns(unit);
+    return legend ? columns : columns.filter(({ id }) => id === "trace" || id === "count");
+  }, [unit, legend]);
+  const markerRows = useMemo(
+    () => markerLegendRows(kinds, hiddenMarkers, markerRange, markerColors),
+    [kinds, hiddenMarkers, markerRange, markerColors],
+  );
 
   useEffect(() => {
-    markersRef.current = markers;
-    promptsRef.current = shownPrompts;
+    hiddenMarkersRef.current = hiddenMarkers;
+    const root = rootRef.current;
+    if (root) {
+      const theme = resolvePlotThemeColors(root);
+      const colors = kinds.map((_, index) => theme.palette[index % theme.palette.length]);
+      markerColorsRef.current = colors;
+      setMarkerColors((current) => (current.join("|") === colors.join("|") ? current : colors));
+    }
     referenceLinesRef.current = referenceLines;
     referenceBandsRef.current = referenceBands;
     intervalRangesRef.current = intervalRanges;
@@ -759,7 +781,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         plot.redraw(true, true);
       }
     });
-  }, [intervalRanges, markers, referenceBands, referenceLines, shownPrompts]);
+  }, [intervalRanges, kinds, hiddenMarkers, referenceBands, referenceLines]);
 
   useEffect(() => {
     const plot = plotRef.current;
@@ -832,20 +854,6 @@ export const CartesianPlot = memo(function CartesianPlot({
           {actions}
           {!placeholder ? (
             <>
-              {promptMarkers.length ? (
-                <button
-                  type="button"
-                  aria-pressed={showPrompts}
-                  className="plot-prompts rounded-lg border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-[pressed=false]:text-muted-foreground"
-                  onClick={() => {
-                    setShowPrompts((current) => !current);
-                    setHoveredPrompt(null);
-                  }}
-                  title="Show When The Operator Was Asked And Answered"
-                >
-                  Prompts
-                </button>
-              ) : null}
               <button
                 type="button"
                 aria-pressed={following}
@@ -881,24 +889,29 @@ export const CartesianPlot = memo(function CartesianPlot({
       ) : (
         <div className="relative min-w-0 max-w-full">
           <div ref={rootRef} className="min-h-60 min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden" />
-          {hoveredPrompt && showPrompts ? (
+          {hoveredMarker ? (
             <div
               className="pointer-events-none absolute top-1 z-10 max-w-64 -translate-x-1/2 truncate rounded-lg border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm"
               role="tooltip"
-              style={{ left: `${hoveredPrompt.left}px` }}
+              style={{ left: `${hoveredMarker.left}px` }}
             >
-              {promptMarkerLabel(hoveredPrompt.marker)}
+              {hoveredMarker.label}
             </div>
           ) : null}
         </div>
       )}
-      {!placeholder && legend && legendRows ? (
+      {!placeholder && legendRows ? (
         <StatsSummaryTable
           legend={{
             columns: legendColumns,
-            rows: legendRows,
-            pending: legend.pending,
-            onToggle: (key) => setHiddenTraces((current) => toggleTrace(current, key)),
+            rows: [...legendRows, ...markerRows],
+            pending: legend?.pending ?? false,
+            onToggle: (key) => {
+              if (kinds.some((kind) => kind.key === key)) {
+                setHiddenMarkers((current) => toggleTrace(current, key));
+                setHoveredMarker(null);
+              } else setHiddenTraces((current) => toggleTrace(current, key));
+            },
           }}
         />
       ) : null}
@@ -1127,7 +1140,7 @@ function isUsableSpan(min: number, max: number): boolean {
  * reduced to four samples per pixel column of a `columns`-wide plot and
  * recorded as what is now drawn. A faceted frame is drawn whole.
  */
-function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns: number, fitPixels: boolean): uPlot.AlignedData {
+export function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns: number, fitPixels: boolean): uPlot.AlignedData {
   const source = drawn.source ?? ([[]] as unknown as uPlot.AlignedData);
   drawn.range = range;
   if (!drawn.aligned) {
@@ -1273,7 +1286,37 @@ export function seriesPointMarks(style: DocumentPlotStyle, densePoints: boolean,
   if (style === "points") {
     return { show: true, size, width: SOLID_POINT_OUTLINE_WIDTH, stroke: color, fill: color };
   }
-  return { show: style === "line_points" && !densePoints, size, width: SERIES_LINE_WIDTH, stroke: color, fill: background };
+  return {
+    show: style === "line_points" && !densePoints,
+    filter: isolatedAlignedPoints,
+    size,
+    width: SERIES_LINE_WIDTH,
+    stroke: color,
+    fill: background,
+  };
+}
+
+/** A gap leaves a lone sample without a segment, even when ordinary line marks are off. */
+function isolatedAlignedPoints(plot: uPlot, seriesIdx: number, show: boolean): number[] | null {
+  if (show) return null;
+  const values = plot.data[seriesIdx] as Array<number | null | undefined>;
+  const series = plot.series[seriesIdx];
+  const [from, to] = series.idxs ?? [0, values.length - 1];
+  const isolated: number[] = [];
+  if (series.spanGaps) {
+    let single = -1;
+    for (let index = 0; index < values.length; index += 1) {
+      if (!isNumber(values[index])) continue;
+      if (single >= 0) return null;
+      single = index;
+    }
+    if (single >= from && single <= to) isolated.push(single);
+  } else {
+    for (let index = from; index <= to; index += 1) {
+      if (isNumber(values[index]) && !isNumber(values[index - 1]) && !isNumber(values[index + 1])) isolated.push(index);
+    }
+  }
+  return isolated.length ? isolated : null;
 }
 
 /** The hover mark is a solid disc in the series colour, a little larger than its drawn marks. */
@@ -1288,7 +1331,7 @@ export function cursorPointOptions(marks: readonly PointMarks[]): uPlot.Cursor.P
   };
 }
 
-function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, color: string): uPlot.Series.PathBuilder {
+export function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, color: string): uPlot.Series.PathBuilder {
   return (plot, seriesIdx) => {
     const data = facetedSeriesData(plot, seriesIdx);
     if (!data) {
@@ -1301,7 +1344,7 @@ function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, color: 
     // uPlot insets the outline within the mark's size; faceted marks match its aligned marks.
     const radius = ((marks.size - marks.width) * pixelRatio) / 2;
     const line = style === "points" ? null : new Path2D();
-    const points = marks.show ? new Path2D() : null;
+    const points = new Path2D();
     let lineStarted = false;
     let previousTop: number | null = null;
 
@@ -1320,6 +1363,11 @@ function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, color: 
       }
       const left = plot.valToPos(x, "x", true);
       const top = plot.valToPos(y, "y", true);
+      if (!Number.isFinite(left) || !Number.isFinite(top)) {
+        lineStarted = false;
+        previousTop = null;
+        continue;
+      }
       if (line) {
         if (!lineStarted) {
           line.moveTo(left, top);
@@ -1332,7 +1380,9 @@ function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, color: 
         }
         previousTop = top;
       }
-      if (points) {
+      const previous = isNumber(xValues[index - 1]) && isNumber(yValues[index - 1]);
+      const next = isNumber(xValues[index + 1]) && isNumber(yValues[index + 1]);
+      if (marks.show || (!previous && !next)) {
         points.moveTo(left + radius, top);
         points.arc(left, top, radius, 0, Math.PI * 2);
       }
@@ -1343,13 +1393,11 @@ function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, color: 
       ctx.lineWidth = SERIES_LINE_WIDTH * pixelRatio;
       ctx.stroke(line);
     }
-    if (points) {
-      ctx.fillStyle = marks.fill;
-      ctx.fill(points);
-      ctx.strokeStyle = marks.stroke;
-      ctx.lineWidth = marks.width * pixelRatio;
-      ctx.stroke(points);
-    }
+    ctx.fillStyle = marks.fill;
+    ctx.fill(points);
+    ctx.strokeStyle = marks.stroke;
+    ctx.lineWidth = marks.width * pixelRatio;
+    ctx.stroke(points);
     ctx.restore();
     return null;
   };
@@ -1394,88 +1442,6 @@ function drawIntervalRanges(plot: uPlot, ranges: IntervalRange[], color: string)
     ctx.globalAlpha = alpha;
   });
   ctx.restore();
-}
-
-function drawMarkers(plot: uPlot, markers: PlotMarker[], element: Element, fallbackColor: string) {
-  if (!markers.length) {
-    return;
-  }
-  const { ctx, bbox } = plot;
-  ctx.save();
-  ctx.setLineDash([4, 4]);
-  ctx.lineWidth = 1;
-  markers.forEach((marker) => {
-    const x = xValue(marker.x, 0);
-    if (!Number.isFinite(x)) {
-      return;
-    }
-    const left = Math.round(plot.valToPos(x, "x", true)) + 0.5;
-    if (left < bbox.left || left > bbox.left + bbox.width) {
-      return;
-    }
-    ctx.strokeStyle = resolvePlotCssColor(marker.color, element, fallbackColor);
-    ctx.beginPath();
-    ctx.moveTo(left, bbox.top);
-    ctx.lineTo(left, bbox.top + bbox.height);
-    ctx.stroke();
-  });
-  ctx.restore();
-}
-
-/**
- * Prompt markers: a vertical line per moment, quieter than declared markers.
- * An asked prompt is dashed under a hollow cap, an answer solid under a
- * filled one, both in the muted axis colour.
- */
-function drawPromptMarkers(plot: uPlot, markers: PromptMarker[], color: string) {
-  if (!markers.length) {
-    return;
-  }
-  const { ctx, bbox } = plot;
-  const ratio = plotPixelRatio();
-  const cap = PROMPT_CAP_PX * ratio;
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.fillStyle = color;
-  ctx.lineWidth = ratio;
-  ctx.globalAlpha *= 0.7;
-  markers.forEach((marker) => {
-    const left = Math.round(plot.valToPos(marker.x, "x", true)) + 0.5;
-    if (!Number.isFinite(left) || left < bbox.left || left > bbox.left + bbox.width) {
-      return;
-    }
-    const asked = marker.kind === "asked";
-    ctx.setLineDash(asked ? [3 * ratio, 3 * ratio] : []);
-    ctx.beginPath();
-    ctx.moveTo(left, bbox.top + cap);
-    ctx.lineTo(left, bbox.top + bbox.height);
-    ctx.stroke();
-
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(left - cap, bbox.top);
-    ctx.lineTo(left + cap, bbox.top);
-    ctx.lineTo(left, bbox.top + cap);
-    ctx.closePath();
-    if (asked) ctx.stroke();
-    else ctx.fill();
-  });
-  ctx.restore();
-}
-
-/** The prompt marker within reach of the pointer at `left` (CSS pixels over the plot), if any. */
-function nearestPrompt(plot: uPlot, markers: PromptMarker[], left: number): { marker: PromptMarker; left: number } | null {
-  let best: { marker: PromptMarker; left: number } | null = null;
-  let distance = PROMPT_HOVER_PX + 1;
-  for (const marker of markers) {
-    const position = plot.valToPos(marker.x, "x");
-    const gap = Math.abs(position - left);
-    if (Number.isFinite(position) && gap < distance) {
-      best = { marker, left: position };
-      distance = gap;
-    }
-  }
-  return best;
 }
 
 function drawReferenceLines(plot: uPlot, lines: DocumentReferenceLine[], element: Element, fallbackColor: string) {

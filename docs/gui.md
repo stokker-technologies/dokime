@@ -147,6 +147,20 @@ Numeric time series and histograms show numeric statistics. XY scatter, XY line,
 XY interval, trajectory and heatmap plots omit the statistics block in both the
 desktop and report renderer. XY traces keep their ordinary legend.
 
+Event markers join the plot's legend table after the traces, one row per record
+type, with a matching dashed-line glyph and the number of markers in the shown
+x window. Prompt Asked and Prompt Answered have their own rows, with hollow and
+filled caps matching the canvas. Marker rows leave cursor and statistics cells
+empty. Clicking a row hides or restores only that kind; visibility belongs to
+the plot card, like trace visibility. Frozen HTML reports retain these toggles.
+Marker colors come from the theme's plot palette, and hovering a visible marker
+shows its recorded label. There is no separate prompt-marker control.
+
+Point styles draw samples independently of hover. Line, stepped and line-point
+styles also mark lone samples between gaps, including nullable XY coordinates.
+Window reduction retains gap separators so retained samples never gain a line
+across missing evidence. Live and frozen plots share this drawing path.
+
 Time series of declared Boolean fields, including host `host.network.internet`,
 use a stepped state axis labeled **False** and **True**, without numeric statistics.
 The plot projection encodes false as 0 and true as 1; missing readings are gaps.
