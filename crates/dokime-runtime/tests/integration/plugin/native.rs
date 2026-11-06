@@ -469,6 +469,9 @@ where
 
 pub(super) fn run_request(token: &str, workflow: &str, template: &str, parameters_json: String) -> dokime_runtime::transport::RunExecution {
     dokime_runtime::transport::RunExecution {
+        publication_rows: 1024,
+        publication_bytes: 1024 * 1024,
+        publication_delay_micros: 0,
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: "cycle".into(),

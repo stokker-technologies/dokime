@@ -271,7 +271,7 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
     pub async fn publish<V: Publishable>(&mut self, value: V) {
         match value.publication().into() {
             Publication::Row { stream, values, payload } => {
-                self.environment.streams().published_as(&stream, values, Some(payload), std::any::type_name::<V>()).await;
+                self.environment.streams().published_as(&stream, move || values, Some(payload), std::any::type_name::<V>()).await;
             }
             Publication::Record(request) => {
                 // A record that follows rows reaches the host after them.
@@ -301,7 +301,7 @@ impl<'a, C, O, I> Context<'a, C, O, I, Observing> {
     pub async fn publish<V: Publishable>(&mut self, value: V) {
         match value.publication().into() {
             Publication::Row { stream, values, payload } => {
-                self.environment.streams().published_as(&stream, values, Some(payload), std::any::type_name::<V>()).await;
+                self.environment.streams().published_as(&stream, move || values, Some(payload), std::any::type_name::<V>()).await;
             }
             Publication::Record(request) => {
                 if let Err(refusal) = self.stage.publisher.record(*request) {

@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::collections::BTreeMap;
+use std::io::Write;
 
 // Third Party Imports
 use rusqlite::{Connection, OptionalExtension, params};
@@ -30,11 +31,18 @@ use crate::storage::Error;
 pub(in crate::storage::sqlite) const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS storage_report_previews (
     execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL, through TEXT NOT NULL, envelope BLOB NOT NULL,
     PRIMARY KEY(execution,stream,field)
+) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS storage_report_context (
+    execution TEXT NOT NULL,stream TEXT NOT NULL,through TEXT NOT NULL,state BLOB NOT NULL,
+    PRIMARY KEY(execution,stream)
 ) WITHOUT ROWID;";
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
+type FieldProjections = BTreeMap<String, BTreeMap<String, BTreeMap<String, (u64, Projection)>>>;
+type StreamContexts = BTreeMap<(String, String), (u64, BTreeMap<String, dokime_domain::model::values::Value>)>;
 
 /* === Structs === */
 
@@ -61,22 +69,86 @@ pub(crate) struct Envelope {
     pub(crate) buckets: BTreeMap<i128, Bucket>,
 }
 
+#[derive(Clone)]
 pub(crate) struct FieldPreview {
     pub(crate) stream: String,
     pub(crate) field: String,
     pub(crate) envelope: Envelope,
+    pub(crate) exact: Vec<(Point, dokime_domain::model::values::Value)>,
+    pub(crate) total: u64,
+    pub(crate) last: Option<Point>,
+}
+
+#[derive(Clone, Copy)]
+pub(in crate::storage::sqlite) struct Input<'a> {
+    pub execution: &'a str,
+    pub stream: &'a str,
+    pub position: u64,
+    pub time: i128,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Projection {
+    envelope: Envelope,
+    exact: Vec<(Point, NumericValue)>,
+    count: u64,
+    last: Option<Point>,
 }
 
 pub(in crate::storage::sqlite) struct Batch {
     settings: crate::storage::sqlite::PreviewSettings,
-    fields: BTreeMap<(String, String, String), (u64, Envelope)>,
+    fields: FieldProjections,
+    contexts: StreamContexts,
 }
 
 /* === Enums === */
 
+#[derive(Serialize, Deserialize)]
+enum NumericValue {
+    Null,
+    Integer(i64),
+    Unsigned(u64),
+    Number(f64),
+}
+
 /* === Traits === */
 
 /* === Implementations === */
+
+impl NumericValue {
+    fn new(value: &dokime_domain::model::values::Value) -> Result<Self, Error> {
+        use dokime_domain::model::values::Value;
+        Ok(match value {
+            Value::Null => Self::Null,
+            Value::Integer(value) => Self::Integer(*value),
+            Value::Unsigned(value) => Self::Unsigned(*value),
+            Value::Number(value) => Self::Number(*value),
+            _ => return Err(Error::Invalid("numeric preview contains a nonnumeric value")),
+        })
+    }
+
+    fn value(&self) -> dokime_domain::model::values::Value {
+        use dokime_domain::model::values::Value;
+        match self {
+            Self::Null => Value::Null,
+            Self::Integer(value) => Value::Integer(*value),
+            Self::Unsigned(value) => Value::Unsigned(*value),
+            Self::Number(value) => Value::Number(*value),
+        }
+    }
+}
+
+impl Projection {
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        postcard::to_allocvec(self).map_err(|_| Error::Data("numeric preview encoding failed"))
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, Error> {
+        postcard::from_bytes(bytes).map_err(|_| {
+            Error::Incompatible("Numeric preview layout is incompatible; preserve existing evidence and use a fresh storage root".into())
+        })
+    }
+}
 
 impl Bucket {
     fn new(point: Point) -> Self {
@@ -158,42 +230,90 @@ impl Envelope {
 
 impl Batch {
     pub(in crate::storage::sqlite) fn new(settings: crate::storage::sqlite::PreviewSettings) -> Self {
-        Self { settings, fields: BTreeMap::new() }
+        Self {
+            settings,
+            fields: BTreeMap::new(),
+            contexts: BTreeMap::new(),
+        }
     }
 
     pub(in crate::storage::sqlite) fn push(
-        &mut self, connection: &Connection, row: &harmos::storage::StoredRow, field: &str, value: f64,
+        &mut self, connection: &Connection, input: Input<'_>, field: &str, value: Option<f64>, typed: &dokime_domain::model::values::Value,
     ) -> Result<(), Error> {
-        let Some(execution) = row.record.scope.as_ref() else { return Ok(()) };
-        let time = row.record.source_time.ok_or(Error::Data("preview sample has no time"))?;
-        let nanos = match time.duration_since(std::time::UNIX_EPOCH) {
-            Ok(value) => i128::try_from(value.as_nanos()).map_err(|_| Error::Data("preview time overflow"))?,
-            Err(error) => -i128::try_from(error.duration().as_nanos()).map_err(|_| Error::Data("preview time overflow"))?,
-        };
-        let time = nanos;
-        let key = (execution.to_string(), row.stream.to_string(), field.to_owned());
-        if let std::collections::btree_map::Entry::Vacant(entry) = self.fields.entry(key.clone()) {
+        let Input { execution, stream, position, time } = input;
+        if !self.fields.contains_key(execution) {
+            self.fields.insert(execution.to_owned(), BTreeMap::new());
+        }
+        let streams = self.fields.get_mut(execution).expect("loaded execution");
+        if !streams.contains_key(stream) {
+            streams.insert(stream.to_owned(), BTreeMap::new());
+        }
+        let fields = streams.get_mut(stream).expect("loaded stream");
+        if !fields.contains_key(field) {
             let existing: Option<Vec<u8>> = connection
                 .query_row(
                     "SELECT envelope FROM storage_report_previews WHERE execution=?1 AND stream=?2 AND field=?3",
-                    params![key.0, key.1, key.2],
+                    params![execution, stream, field],
                     |row| row.get(0),
                 )
                 .optional()?;
-            let envelope = match existing {
-                Some(bytes) => serde_json::from_slice(&bytes)?,
-                None => Envelope {
-                    origin: 0,
-                    width: i128::try_from(self.settings.bucket_interval.as_nanos())
-                        .map_err(|_| Error::Data("preview interval overflow"))?,
-                    buckets: BTreeMap::new(),
+            let projection = match existing {
+                Some(bytes) => Projection::decode(&bytes)?,
+                None => Projection {
+                    envelope: Envelope {
+                        origin: 0,
+                        width: i128::try_from(self.settings.bucket_interval.as_nanos())
+                            .map_err(|_| Error::Data("preview interval overflow"))?,
+                        buckets: BTreeMap::new(),
+                    },
+                    exact: Vec::new(),
+                    count: 0,
+                    last: None,
                 },
             };
-            entry.insert((0, envelope));
+            fields.insert(field.to_owned(), (0, projection));
         }
-        let (through, envelope) = self.fields.get_mut(&key).expect("loaded preview");
-        *through = row.record.position.sequence;
-        envelope.push(Point { time, position: *through, value }, self.settings.bucket_count.get())
+        let (through, projection) = fields.get_mut(field).expect("loaded preview");
+        *through = position;
+        let point = Point {
+            time,
+            position,
+            value: value.unwrap_or_default(),
+        };
+        projection.last = Some(point);
+        let before = projection.count;
+        projection.count = before.checked_add(1).ok_or(Error::Data("preview count overflow"))?;
+        if before < self.settings.exact_points.get() as u64 && projection.exact.len() as u64 == before {
+            projection.exact.push((point, NumericValue::new(typed)?));
+        } else {
+            projection.exact.clear();
+        }
+        if value.is_some() {
+            projection.envelope.push(point, self.settings.bucket_count.get())?;
+        }
+        Ok(())
+    }
+
+    pub(in crate::storage::sqlite) fn context<'a>(
+        &mut self, connection: &Connection, execution: &str, position: u64, stream: &str,
+        values: impl IntoIterator<Item = (&'a str, &'a dokime_domain::model::values::Value)>,
+    ) -> Result<(), Error> {
+        let key = (execution.to_owned(), stream.to_owned());
+        if let std::collections::btree_map::Entry::Vacant(entry) = self.contexts.entry(key.clone()) {
+            let bytes: Option<Vec<u8>> = connection
+                .query_row("SELECT state FROM storage_report_context WHERE execution=?1 AND stream=?2", params![key.0, key.1], |row| {
+                    row.get(0)
+                })
+                .optional()?;
+            let previous = bytes.as_deref().map(decode).transpose()?.unwrap_or_default();
+            entry.insert((0, previous));
+        }
+        let (through, context) = self.contexts.get_mut(&key).expect("loaded stream context");
+        *through = position;
+        for (field, value) in values {
+            context.insert(field.to_owned(), value.clone());
+        }
+        Ok(())
     }
 
     pub(in crate::storage::sqlite) fn save(self, connection: &Connection) -> Result<(), Error> {
@@ -201,14 +321,41 @@ impl Batch {
             "INSERT INTO storage_report_previews VALUES (?1,?2,?3,?4,?5)
             ON CONFLICT(execution,stream,field) DO UPDATE SET through=excluded.through,envelope=excluded.envelope",
         )?;
-        for ((execution, stream, field), (through, envelope)) in self.fields {
-            query.execute(params![execution, stream, field, super::super::position(through), serde_json::to_vec(&envelope)?])?;
+        for (execution, streams) in self.fields {
+            for (stream, fields) in streams {
+                for (field, (through, projection)) in fields {
+                    query.execute(params![execution, stream, field, super::super::position(through), projection.encode()?])?;
+                }
+            }
+        }
+        let mut query = connection.prepare_cached(
+            "INSERT INTO storage_report_context VALUES (?1,?2,?3,?4)
+            ON CONFLICT(execution,stream) DO UPDATE SET through=excluded.through,state=excluded.state",
+        )?;
+        for ((execution, stream), (through, values)) in self.contexts {
+            query.execute(params![execution, stream, super::super::position(through), encode(&values)?])?;
         }
         Ok(())
     }
 }
 
 /* === Public Functions === */
+
+pub(crate) fn report_context(
+    connection: &Connection, execution: &str, stream: &str, at: u64,
+) -> Result<BTreeMap<String, dokime_domain::model::values::Value>, Error> {
+    let mut query =
+        connection.prepare("SELECT stream,state FROM storage_report_context WHERE execution=?1 AND through<=?2 ORDER BY through")?;
+    let mut rows = query.query(params![execution, super::super::position(at)])?;
+    let mut values = BTreeMap::new();
+    while let Some(row) = rows.next()? {
+        let selected: String = row.get(0)?;
+        if crate::plot::stream_matches_alias(&selected, stream) {
+            values.extend(decode::<BTreeMap<String, dokime_domain::model::values::Value>>(super::super::blob(row, 1)?)?);
+        }
+    }
+    Ok(values)
+}
 
 pub(super) fn report_sample_rows(
     connection: &Connection, root: &std::path::Path, execution: String, stream: String, at: harmos::storage::StorageCursor, limit: usize,
@@ -317,7 +464,7 @@ pub(super) fn report_record_rows(
     Ok(rows)
 }
 
-pub(super) fn report_previews(
+pub(crate) fn report_previews(
     connection: &Connection, execution: String, at: harmos::storage::StorageCursor,
 ) -> Result<Vec<FieldPreview>, Error> {
     let head = super::super::saved(connection)?;
@@ -331,10 +478,14 @@ pub(super) fn report_previews(
         if through > super::super::position(at.sequence) {
             return Err(Error::Data("preview has advanced beyond requested evidence; request a current snapshot"));
         }
+        let projection = Projection::decode(super::super::blob(row, 2)?)?;
         fields.push(FieldPreview {
             stream: row.get(0)?,
             field: row.get(1)?,
-            envelope: serde_json::from_slice(super::super::blob(row, 2)?)?,
+            envelope: projection.envelope,
+            exact: projection.exact.iter().map(|(point, value)| (*point, value.value())).collect(),
+            total: projection.count,
+            last: projection.last,
         });
     }
     Ok(fields)
@@ -342,11 +493,143 @@ pub(super) fn report_previews(
 
 /* === Private Functions === */
 
+pub(crate) fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>, Error> {
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
+    serde_json::to_writer(&mut encoder, value)?;
+    encoder.flush()?;
+    Ok(encoder.finish()?)
+}
+
+pub(crate) fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, Error> {
+    let decoder = flate2::read::ZlibDecoder::new(bytes);
+    serde_json::from_reader(decoder).map_err(|error| {
+        Error::Incompatible(format!("Preview layout is incompatible; use a fresh storage root and preserve existing evidence: {error}"))
+    })
+}
+
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn context_merges_fields_across_flushes() {
+        use dokime_domain::model::values::Value;
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(SCHEMA).unwrap();
+        let settings = crate::config::local_storage_defaults().previews;
+        let first = Value::from(17u64);
+        let second = Value::from(29u64);
+        let mut batch = Batch::new(settings);
+        batch.context(&connection, "execution", 1, "stream", [("first", &first)]).unwrap();
+        batch.save(&connection).unwrap();
+        let mut batch = Batch::new(settings);
+        batch.context(&connection, "execution", 2, "stream", [("second", &second)]).unwrap();
+        batch.save(&connection).unwrap();
+        let context = report_context(&connection, "execution", "stream", 2).unwrap();
+        assert_eq!(context, BTreeMap::from([("first".into(), first), ("second".into(), second)]));
+        assert!(report_context(&connection, "execution", "stream", 1).unwrap().is_empty());
+    }
+
+    #[test]
+    fn increasing_capacity_cannot_restore_a_discarded_prefix() {
+        use dokime_domain::model::values::Value;
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(SCHEMA).unwrap();
+        let mut settings = crate::config::local_storage_defaults().previews;
+        settings.exact_points = 1.try_into().unwrap();
+        for position in 1..=3 {
+            if position == 3 {
+                settings.exact_points = 8.try_into().unwrap();
+            }
+            let mut batch = Batch::new(settings);
+            batch
+                .push(
+                    &connection,
+                    Input {
+                        execution: "execution",
+                        stream: "stream",
+                        position,
+                        time: position.into(),
+                    },
+                    "value",
+                    None,
+                    &Value::Null,
+                )
+                .unwrap();
+            batch.save(&connection).unwrap();
+        }
+        let bytes: Vec<u8> = connection.query_row("SELECT envelope FROM storage_report_previews", [], |row| row.get(0)).unwrap();
+        let projection = Projection::decode(&bytes).unwrap();
+        assert_eq!(projection.count, 3);
+        assert!(projection.exact.is_empty());
+        assert!(projection.envelope.buckets.is_empty());
+        assert_eq!(projection.last.unwrap().position, 3);
+    }
+
+    #[test]
+    fn exact_prefix_survives_compaction_and_yields_to_envelope() {
+        use dokime_domain::model::values::{Value, numeric_value};
+        for capacity in [1usize, 3, 8] {
+            let connection = Connection::open_in_memory().unwrap();
+            connection.execute_batch(SCHEMA).unwrap();
+            let mut settings = crate::config::local_storage_defaults().previews;
+            settings.exact_points = capacity.try_into().unwrap();
+            settings.bucket_count = 2.try_into().unwrap();
+            let values: Vec<_> = (0..capacity)
+                .map(|index| if index % 3 == 1 { Value::Null } else { Value::Unsigned((1u64 << 53) + index as u64 + 1) })
+                .collect();
+            let mut batch = Batch::new(settings);
+            for (index, value) in values.iter().enumerate() {
+                batch
+                    .push(
+                        &connection,
+                        Input {
+                            execution: "execution",
+                            stream: "stream",
+                            position: index as u64 + 1,
+                            time: index as i128 * 17 - 23,
+                        },
+                        "value",
+                        numeric_value(value),
+                        value,
+                    )
+                    .unwrap();
+            }
+            batch.save(&connection).unwrap();
+            let saved: Vec<u8> = connection.query_row("SELECT envelope FROM storage_report_previews", [], |row| row.get(0)).unwrap();
+            let projection = Projection::decode(&saved).unwrap();
+            assert_eq!(projection.exact.iter().map(|(_, value)| value.value()).collect::<Vec<_>>(), values);
+            let mut batch = Batch::new(settings);
+            let spike = Value::Number(-1e12);
+            batch
+                .push(
+                    &connection,
+                    Input {
+                        execution: "execution",
+                        stream: "stream",
+                        position: capacity as u64 + 1,
+                        time: 101,
+                    },
+                    "value",
+                    Some(-1e12),
+                    &spike,
+                )
+                .unwrap();
+            batch.save(&connection).unwrap();
+            let saved: Vec<u8> = connection.query_row("SELECT envelope FROM storage_report_previews", [], |row| row.get(0)).unwrap();
+            let projection = Projection::decode(&saved).unwrap();
+            assert!(projection.exact.is_empty());
+            assert_eq!(projection.count, values.len() as u64 + 1);
+            assert_eq!(
+                projection.envelope.buckets.values().map(|bucket| bucket.count).sum::<u64>(),
+                values.iter().filter(|value| numeric_value(value).is_some()).count() as u64 + 1
+            );
+            assert_eq!(projection.envelope.buckets.values().map(|bucket| bucket.min.value).fold(f64::INFINITY, f64::min), -1e12);
+            assert!(projection.envelope.buckets.len() <= settings.bucket_count.get());
+        }
+    }
 
     #[test]
     fn bucket_extrema() {

@@ -56,7 +56,7 @@ type Observer = harmos::sidecar::inventory::observers::Entry;
 pub type Publish = for<'a> fn(
     &'a harmos::sidecar::Supervisor,
     &'a str,
-    &'a [crate::execution::StampedRow],
+    Vec<crate::execution::StampedRow>,
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
 #[cfg(feature = "native")]
@@ -728,7 +728,7 @@ const fn write<E: Copy, const N: usize>(nodes: &[Node<E>], flat: &mut [E; N], at
 
 #[cfg(feature = "native")]
 fn publish<'a, T, P>(
-    host: &'a harmos::sidecar::Supervisor, token: &'a str, rows: &'a [crate::execution::StampedRow],
+    host: &'a harmos::sidecar::Supervisor, token: &'a str, rows: Vec<crate::execution::StampedRow>,
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>
 where
     T: TelemetryStream<Row: harmos::Message>,
@@ -740,8 +740,8 @@ where
         // Each Row Travels As The Bytes Its Producer Encoded Once; The Host
         // Validates Them Against The Stream Schema At Its Ingest Boundary.
         for row in rows {
-            let bytes = row.storage_payload.as_ref().ok_or_else(|| "typed stream publication requires original row bytes".to_owned())?;
-            batch.push_encoded_at(bytes.clone(), row.published_unix_micros);
+            let bytes = row.storage_payload.ok_or_else(|| "typed stream publication requires original row bytes".to_owned())?;
+            batch.push_encoded_at(bytes, row.published_unix_micros);
         }
         publisher.publish_batch_on_context::<T>(&batch, Some(token)).await.map_err(|error| error.to_string())
     })

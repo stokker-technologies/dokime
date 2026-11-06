@@ -434,6 +434,9 @@ impl Bench {
             },
         );
         let request = RunExecution {
+            publication_rows: 1024,
+            publication_bytes: 1024 * 1024,
+            publication_delay_micros: 0,
             mode: "automatic".into(),
             execution_token: token.into(),
             test_execution_id: token.into(),

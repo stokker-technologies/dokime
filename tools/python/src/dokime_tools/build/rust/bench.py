@@ -6,12 +6,13 @@
 #
 # ***
 
-"""Build Benchmark Leaves And Their Matching Hosts Without A Test Archive"""
+"""Build Benchmark Leaves and Their Matching Hosts Without a Test Archive"""
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
+import json
 import subprocess
 import sys
 
@@ -36,10 +37,25 @@ ROOT = frontend.ROOT
 # === Public Functions === #
 
 
-def build() -> None:
-    """Use The Shared Bench Producer And Stage The Host And OBC Fixtures Its System Stories Measure."""
-    extra = ("--exclude", "dokime-gui", "--features", "plugin-obc/benchmarks,plugin-host/runtime")
-    messages = bench.build(ROOT, extra=extra)
+def build(binary: str | None = None) -> None:
+    """Build Benchmarks and Their Matching Native Fixtures."""
+    extra = ("--features", "plugin-obc/benchmarks,plugin-host/runtime")
+    if binary is None:
+        messages = bench.build(ROOT, extra=("--exclude", "dokime-gui", *extra))
+    else:
+        metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], cwd=ROOT))
+        owners = [
+            package["name"]
+            for package in metadata["packages"]
+            if any(target["name"] == binary and "bench" in target["kind"] for target in package["targets"])
+        ]
+        if len(owners) != 1:
+            raise ValueError("benchmark selection must identify one native target")
+        packages = sorted({*owners, "plugin-host", *plugins.FIXTURES, "cargo-dokime"})
+        selection = ["--bins", "--bench", binary]
+        for package in packages:
+            selection.extend(("--package", package))
+        messages = bench.build(ROOT, extra=extra, selection=selection)
     output = paths.output(ROOT, "build", "bench")
     directory = output / "bench"
     binaries = output / "bin"
@@ -62,9 +78,10 @@ def build() -> None:
 
 def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args(arguments)
+    parser.add_argument("--binary")
+    options = parser.parse_args(arguments)
     try:
-        build()
+        build(options.binary)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"build bench: {error}", file=sys.stderr)
         return 1

@@ -280,6 +280,9 @@ impl Harness {
         let record_inputs = template.subscriptions.iter().filter_map(crate::definition::Subscription::record).cloned().collect::<Vec<_>>();
         let execution_id = crate::model::identity::new_id::<TestExecutionId>().to_string();
         let start = RunExecution {
+            publication_rows: 1024,
+            publication_bytes: 1024 * 1024,
+            publication_delay_micros: 0,
             mode: "automatic".into(),
             execution_token: execution_id.clone(),
             test_cycle_id: crate::model::identity::new_id::<TestCycleId>().to_string(),

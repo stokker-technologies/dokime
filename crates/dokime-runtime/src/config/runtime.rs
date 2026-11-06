@@ -37,8 +37,18 @@ pub type SidecarNoticeHandler = Box<dyn Fn(&harmos::ServiceContext<Dokime>, harm
 
 /* === Structs === */
 
+#[derive(Clone, Copy, Debug)]
+pub struct StreamPublicationSettings {
+    pub batch_rows: std::num::NonZeroU32,
+    pub batch_bytes: std::num::NonZeroU32,
+    pub flush_delay: std::time::Duration,
+}
+
 #[derive(Clone, serde::Deserialize)]
 pub struct RuntimeConfig {
+    #[serde(skip, default)]
+    pub stream_publication: StreamPublicationSettings,
+
     #[serde(skip, default = "super::schema_defaults")]
     pub schema: harmos::config::SchemaSettings,
 
@@ -94,6 +104,16 @@ pub struct RuntimeConfig {
 
 /* === Implementations === */
 
+impl Default for StreamPublicationSettings {
+    fn default() -> Self {
+        Self {
+            batch_rows: 4096.try_into().unwrap(),
+            batch_bytes: (1024 * 1024).try_into().unwrap(),
+            flush_delay: std::time::Duration::from_millis(2),
+        }
+    }
+}
+
 impl RuntimeConfig {
     pub fn new(storage_root: impl Into<PathBuf>, hub_metadata: Metadata) -> Self {
         let storage_root = storage_root.into();
@@ -102,6 +122,7 @@ impl RuntimeConfig {
             query: super::query_defaults(),
             session_id: crate::model::identity::new_id::<SessionId>(),
             storage: crate::config::storage_defaults(),
+            stream_publication: Default::default(),
             local_storage: crate::config::local_storage_defaults(),
             managed_storage: super::managed_storage_defaults(),
             storage_state: super::storage_state_defaults(),
