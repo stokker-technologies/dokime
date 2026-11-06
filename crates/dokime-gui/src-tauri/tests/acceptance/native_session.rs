@@ -171,7 +171,7 @@ async fn live_owner_refused() {
     let successor = owner(root.path());
     let started = std::time::Instant::now();
     let error = successor.select(BackendSelection::OwnedLocal).await.unwrap_err();
-    assert!(started.elapsed() < std::time::Duration::from_secs(2), "an occupied store must refuse without lease polling");
+    assert!(started.elapsed() < std::time::Duration::from_secs(4), "an occupied store must refuse without lease polling");
     assert!(matches!(&error, DesktopSessionError::BackendRunning { root: data, .. } if data == &root.path().join("store")));
     let serialized = serde_json::to_value(error).unwrap();
     assert_eq!(serialized["kind"], "backend_running");

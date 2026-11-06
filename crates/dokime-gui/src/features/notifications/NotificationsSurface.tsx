@@ -16,11 +16,12 @@
 // Standard Library Imports
 
 // Third Party Imports
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { relativeTime } from "@/components/document/document-overview-model";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { FailureConsequences } from "@/components/FailureConsequences";
 // Local Imports
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import {
   notificationPage,
   openNotificationDetails,
   useNotificationSummary,
+  toast,
 } from "@/lib/notifications";
 import { PageShell } from "@/shell/PageShell";
 
@@ -57,7 +59,7 @@ export function NotificationsSurface() {
   const summary = useNotificationSummary();
   const [selection, setSelection] = useState<Selection>({ direction: "older" });
   const [page, setPage] = useState<NotificationPage>({ records: [], older: false, newer: false });
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -66,7 +68,9 @@ export function NotificationsSurface() {
   }, []);
   useEffect(() => {
     if (!summary.revision || !summary.unread) return;
-    void markNotificationsRead().catch((failure: unknown) => setError(String(failure)));
+    void markNotificationsRead().catch((failure: unknown) =>
+      toast.error(failureOf(failure, "Notifications Could Not Be Marked Read"), { context: "background" }),
+    );
   }, [summary.revision, summary.unread]);
   useEffect(() => {
     if (!summary.revision) return;
@@ -76,11 +80,11 @@ export function NotificationsSurface() {
       .then((value) => {
         if (active) {
           setPage(value);
-          setError("");
+          setError(null);
         }
       })
       .catch((failure: unknown) => {
-        if (active) setError(String(failure));
+        if (active) setError(failure);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -99,13 +103,13 @@ export function NotificationsSurface() {
           onClick={() => {
             void clearNotifications()
               .then(() => setSelection({ direction: "older" }))
-              .catch((failure: unknown) => setError(String(failure)));
+              .catch((failure: unknown) => toast.error(failureOf(failure, "Notifications Could Not Be Cleared")));
           }}
         >
           Clear Notifications
         </Button>
       </div>
-      {error && <NotificationMessage source="Notifications">{error}</NotificationMessage>}
+      {Boolean(error ?? summary.error) && <ErrorCard failure={failureOf(error ?? summary.error, "Notification History Unavailable")} />}
       <ol className="divide-y rounded-lg border bg-card" aria-busy={loading}>
         {page.records.map((record) => (
           <NotificationHistoryEntry key={record.id} record={record} now={now} />

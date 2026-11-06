@@ -182,7 +182,7 @@ fn emit_phase(dev_control: bool, name: &str) {
 fn print_startup(
     terminal: &dokime::terminal::Terminal, application_root: &Path, storage_root: &Path, bind_addr: SocketAddr, local_url: &str,
 ) {
-    terminal.header("dokime server", env!("CARGO_PKG_VERSION"), "Server");
+    terminal.header("dokime server", dokime::version::label(), "Server");
     terminal.field("Bind", bind_addr);
     terminal.field("Application", application_root.display());
     terminal.field("Data", storage_root.display());

@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
@@ -32,8 +33,8 @@ export async function copyTraceabilityText(value: string): Promise<void> {
     }
     await navigator.clipboard.writeText(value);
     toast.success("Copied To Clipboard");
-  } catch {
-    toast.error("Could Not Copy To Clipboard");
+  } catch (error: unknown) {
+    toast.error(failureOf(error, "Could Not Copy To Clipboard"));
   }
 }
 

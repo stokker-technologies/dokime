@@ -56,3 +56,9 @@ async fn plugin_lifecycle() {
     Box::pin(plugins::bounded_installed_metadata()).await;
     Box::pin(plugin_admission::cancelled_admission_ownership()).await;
 }
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn plugin_install_idle_deadlines() {
+    plugins::plugin_install_idle_deadlines().await;
+}

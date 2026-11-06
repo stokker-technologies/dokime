@@ -12,8 +12,8 @@
 /* === Re-Exports === */
 
 pub use super::application::{
-    Appearance, ApplicationSettings, ClientPreferences, Density, ReportDefaults, SettingsScope, SettingsSnapshot, TelemetryPreferences,
-    ThemeMode, UpdateSettings,
+    Appearance, ApplicationSettings, ClientPreferences, Density, PluginPreferences, ReportDefaults, SettingsScope, SettingsSnapshot,
+    TelemetryPreferences, ThemeMode, UpdateSettings,
 };
 
 /* === Imports === */
@@ -171,6 +171,11 @@ pub struct PluginRuntimeSettings {
         description = "Values a plugin's discovery routes computed, by setting id, for the fields nobody saved. A value here is shown on the card with a `Discovered` marker and is used by no run: saving it is what turns it into an edited value."
     )]
     pub discovered: Option<Value>,
+
+    #[row(
+        description = "Whether saved values wait to reach the running program. A save that changes a value restarts it now, or once the executions that use it finish."
+    )]
+    pub restart: PluginRestart,
 }
 
 #[harmos::message]
@@ -263,6 +268,15 @@ pub struct SecretAvailability {
 }
 
 /* === Enums === */
+
+#[harmos::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PluginRestart {
+    Unspecified,
+    Idle,
+    Restarting,
+    Pending,
+}
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

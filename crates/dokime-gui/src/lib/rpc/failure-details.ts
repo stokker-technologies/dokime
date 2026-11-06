@@ -33,7 +33,7 @@ import { CapturedRecordErrorSchema, RejectionSchema, StatusSchema } from "./gene
 
 /* === Public Functions === */
 
-export function rpcFailureDetails(error: RpcError, reason: string): NotificationFailure {
+export function rpcFailureDetails(error: RpcError, reason: string): Partial<NotificationFailure> {
   if (error.kind === "session") {
     const detail = error.detail;
     return {
@@ -48,7 +48,7 @@ export function rpcFailureDetails(error: RpcError, reason: string): Notification
           : undefined,
     };
   }
-  const failure: NotificationFailure = { reason };
+  const failure: Partial<NotificationFailure> = { reason };
   if (error.kind !== "grpc" || !error.detail.details.length) return failure;
   try {
     const status = fromBinary(StatusSchema, Uint8Array.from(error.detail.details));

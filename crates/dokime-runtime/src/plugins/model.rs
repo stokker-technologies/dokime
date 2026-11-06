@@ -44,8 +44,9 @@ pub struct PluginEntry {
     #[serde(default)]
     pub active: bool,
 
+    // Whether the running backend still has to apply this installation's state.
     #[serde(default)]
-    pub restart_required: bool,
+    pub restart: PluginRestart,
 
     #[serde(default)]
     pub boot_failed: bool,
@@ -90,6 +91,21 @@ pub enum PluginState {
     Installed,
     Disabled,
     RemovalPending,
+}
+
+// A Saved Change Or An Installation Change Reaches The Running Backend Without Restarting It.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PluginRestart {
+    // The running programs already match what is saved.
+    #[default]
+    Idle,
+
+    // A new generation is starting, or the programs are stopping.
+    Restarting,
+
+    // A cycle is active; the change applies once none is.
+    Pending,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

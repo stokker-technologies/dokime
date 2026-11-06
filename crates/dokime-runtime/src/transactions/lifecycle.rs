@@ -131,6 +131,15 @@ pub struct BeginCycleSeal {
     pub at: Timestamp,
 }
 
+// Settles A Seal That Could Not Complete: The Cycle Leaves Sealing With Its Cause Recorded.
+#[harmos::transaction(id = "dokime.cycle.sealing.fail")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FailCycleSeal {
+    pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
+    pub cause: String,
+    pub at: Timestamp,
+}
+
 #[harmos::transaction(id = "dokime.execution.request.queued.stop")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StageQueuedStop {
@@ -168,8 +177,23 @@ impl Transaction<RuntimeState> for BeginCycleSeal {
 
     fn apply(&self, state: &mut RuntimeState) {
         use dokime_domain::model::execution::result::CyclePhase;
-        if state.cycles[&self.test_cycle_id].phase != CyclePhase::Active {
-            return;
+        match state.cycles[&self.test_cycle_id].phase {
+            CyclePhase::Active => {}
+            CyclePhase::SealFailed => {
+                // A Retry Resumes From The Frozen Header When The Previous Attempt Froze One.
+                let frozen = state.cycle_report_finalizations.get(&self.test_cycle_id).map(|intent| intent.source.clone());
+                let cycle = state.cycles.get_mut(&self.test_cycle_id).expect("checked cycle");
+                match frozen {
+                    Some(source) => *cycle = source,
+                    None => {
+                        cycle.phase = CyclePhase::Sealing;
+                        cycle.seal_failure = None;
+                        cycle.touch_at(self.at.clone());
+                    }
+                }
+                return;
+            }
+            CyclePhase::Sealing | CyclePhase::Sealed => return,
         }
         let (records, settled) = self.prompts(state);
         records.apply(state);
@@ -223,6 +247,56 @@ impl BeginCycleSeal {
             scope.test_cycle_id.as_ref() == Some(&self.test_cycle_id)
         });
         (records, settled)
+    }
+}
+
+impl Transaction<RuntimeState> for FailCycleSeal {
+    type Error = String;
+
+    fn check(&self, state: &RuntimeState) -> Result<(), String> {
+        let cycle = state.cycles.get(&self.test_cycle_id).ok_or("cycle not found")?;
+        if cycle.phase != dokime_domain::model::execution::result::CyclePhase::Sealing || cycle.saved.is_some() {
+            return Err("only an unsealed sealing cycle can record a failed seal".into());
+        }
+        // Provider Work Still Settling Owns The Seal; It Is Not Failed Yet.
+        if state.run_requests.values().any(|request| request.summary.cycle_id == self.test_cycle_id && !request.summary.phase.terminal()) {
+            return Err("a run request still owns this cycle".into());
+        }
+        Ok(())
+    }
+
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        crate::transactions::history::collect(state, self, Some(&self.test_cycle_id), out);
+        self.drafts(state).collect(out);
+    }
+
+    fn apply(&self, state: &mut RuntimeState) {
+        self.drafts(state).apply(state);
+        let cycle = state.cycles.get_mut(&self.test_cycle_id).expect("checked cycle");
+        cycle.phase = dokime_domain::model::execution::result::CyclePhase::SealFailed;
+        cycle.seal_failure = Some(self.cause.clone());
+        if !crate::transactions::archive::cycle_terminal(cycle.lifecycle) {
+            cycle.lifecycle = CycleStatus::Stopped;
+        }
+        cycle.touch_at(self.at.clone());
+    }
+}
+
+impl FailCycleSeal {
+    fn drafts(&self, state: &RuntimeState) -> Drafts {
+        let mut records = Drafts::new(state);
+        records.draft(
+            crate::transactions::records::draft::BuiltinDraft {
+                record_type: crate::records::BuiltinRecordType::TestCycleFinalizationFailed,
+                source: "runtime".to_owned(),
+                severity: crate::records::RecordSeverity::Error,
+                message: Some(self.cause.clone()),
+                details: std::collections::BTreeMap::new(),
+                scope: Some(dokime_domain::model::execution::RecordScope::default().with_cycle(self.test_cycle_id.clone())),
+            },
+            self.at.clone(),
+        );
+        records
     }
 }
 
@@ -523,9 +597,13 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         // Sealed Cycles Are Served From Native History After A Restart
         state.retire_sealed_cycles();
         for (id, cycle) in &mut state.cycles {
-            // Startup Finishes These Containers Before Exposing New Admission.
-            cycle.phase = dokime_domain::model::execution::result::CyclePhase::Sealing;
-            if let Some(intent) = state.cycle_report_finalizations.get(id) {
+            // Startup Finishes These Containers Before Exposing New Admission. A Failed
+            // Seal Is Already Settled: It Keeps Its Cause Until An Explicit Retry.
+            let failed = cycle.phase == dokime_domain::model::execution::result::CyclePhase::SealFailed;
+            if !failed {
+                cycle.phase = dokime_domain::model::execution::result::CyclePhase::Sealing;
+            }
+            if let Some(intent) = state.cycle_report_finalizations.get(id).filter(|_| !failed) {
                 // Every Member Was Already Durable Before This Frozen Intent.
                 *cycle = intent.source.clone();
                 continue;
@@ -555,6 +633,13 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
 #[track_caller]
 pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Diagnostic {
     dokime_domain::model::diagnostics::Diagnostic::of("step runner ended without a completion receipt").redacted()
+}
+
+/// Whether the cycle still holds work: running, paused or stopping, or sealing. A sealed cycle and
+/// one whose seal failed have settled.
+pub(crate) fn cycle_in_flight(cycle: &dokime_domain::model::execution::result::TestCycle) -> bool {
+    matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping)
+        || cycle.phase == dokime_domain::model::execution::result::CyclePhase::Sealing
 }
 
 /// The truthful outcome a closing cycle settles on: its members' aggregate once any ran, Stopped otherwise.
@@ -628,8 +713,117 @@ fn interrupt_step(step: &mut StepRecord, at: &Timestamp) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dokime_domain::model::identity::Metadata;
-    use dokime_domain::model::identity::TestCycleId;
+    use dokime_domain::model::definition::suite::TestCase;
+    use dokime_domain::model::execution::result::CyclePhase;
+    use dokime_domain::model::execution::snapshot::ExecutionSnapshot;
+    use dokime_domain::model::identity::{CaseId, Identifier, Metadata, TemplateId, TestCycleId};
+
+    // One Cycle Whose Single Member Was Running When The Runtime Stopped.
+    fn interrupted_cycle() -> (RuntimeState, TestCycleId, TestExecutionId) {
+        let mut state = RuntimeState::new(crate::model::identity::new_id());
+        let cycle_id = TestCycleId::from_seed("interrupted-cycle");
+        let execution_id = TestExecutionId::from_seed("interrupted-member");
+        let at = crate::model::time::now_utc();
+        let case = TestCase {
+            suite_id: "interrupted.suite".into(),
+            test_case_id: CaseId::from_seed("interrupted-case"),
+            test_case_template_id: TemplateId::from_seed("interrupted-template"),
+            metadata: Metadata::new(Identifier::new("interrupted.case").unwrap(), "Interrupted Case", None),
+            suite: None,
+            parameters: Default::default(),
+            generation_index: 0,
+            label_number: 0,
+        };
+        let snapshot = ExecutionSnapshot::from_captured(case, None, Vec::new(), None, None, Default::default(), Default::default());
+        let mut execution = crate::transactions::provider::scheduled_execution_record(&cycle_id, execution_id.clone(), snapshot);
+        execution.status = ExecutionStatus::Running;
+        execution.started_at = Some(at.clone());
+        execution.result = None;
+        state.executions.insert(execution_id.clone(), execution);
+        state.cycles.insert(
+            cycle_id.clone(),
+            dokime_domain::model::execution::result::TestCycle {
+                saved: None,
+                test_cycle_id: cycle_id.clone(),
+                session_id: Some(state.session_id.clone()),
+                metadata: Metadata::new(Identifier::new("interrupted.fixture").unwrap(), "Interrupted", None),
+                lifecycle: CycleStatus::Running,
+                phase: CyclePhase::Active,
+                created_at: at.clone(),
+                started_at: Some(at.clone()),
+                updated_at: at,
+                execution_ids: vec![execution_id.clone()],
+                records: Default::default(),
+                continue_automatically: false,
+                result: None,
+                seal_failure: None,
+            },
+        );
+        (state, cycle_id, execution_id)
+    }
+
+    fn boot(state: &mut RuntimeState) {
+        let recover = RecoverInterruptedCycles {
+            at: crate::model::time::now_utc(),
+            record_interruptions: true,
+        };
+        recover.check(state).unwrap();
+        recover.apply(state);
+    }
+
+    #[test]
+    fn interrupted_cycle_settles_when_its_seal_fails() {
+        let (mut state, cycle_id, execution_id) = interrupted_cycle();
+        assert!(cycle_in_flight(&state.cycles[&cycle_id]));
+
+        // The Next Boot Interrupts The Member And Closes Admission; The Seal Is Still In Flight.
+        boot(&mut state);
+        assert_eq!(state.executions[&execution_id].status, ExecutionStatus::Interrupted);
+        assert_eq!(state.cycles[&cycle_id].phase, CyclePhase::Sealing);
+        assert!(cycle_in_flight(&state.cycles[&cycle_id]));
+
+        // A Seal That Cannot Complete Settles With Its Cause And A Record; It Holds Nothing.
+        let cause = "stored evidence could not be decoded";
+        let failure = FailCycleSeal {
+            test_cycle_id: cycle_id.clone(),
+            cause: cause.into(),
+            at: crate::model::time::now_utc(),
+        };
+        let records = state.record_count;
+        failure.check(&state).unwrap();
+        failure.apply(&mut state);
+        let settled = state.cycles[&cycle_id].clone();
+        assert_eq!(settled.phase, CyclePhase::SealFailed);
+        assert_eq!(settled.seal_failure.as_deref(), Some(cause));
+        assert!(crate::transactions::archive::cycle_terminal(settled.lifecycle));
+        assert!(!cycle_in_flight(&settled));
+        assert_eq!(state.record_count, records + 1);
+        assert!(settled.phase.ensure_active().is_err());
+
+        // Later Boots Keep It Settled Instead Of Sealing It Again.
+        for _ in 0..2 {
+            boot(&mut state);
+            assert_eq!(state.cycles[&cycle_id], settled);
+        }
+        assert!(failure.check(&state).is_err(), "only a sealing cycle records a failed seal");
+
+        // The Operator May Archive It, Or Retry: The Retry Clears The Cause And Seals Again.
+        let archive = crate::transactions::SetArchived {
+            subject: crate::transactions::ArchiveSubject::Cycle(cycle_id.clone()),
+            archived: true,
+        };
+        archive.check(&state).unwrap();
+        let retry = BeginCycleSeal {
+            test_cycle_id: cycle_id.clone(),
+            at: crate::model::time::now_utc(),
+        };
+        retry.check(&state).unwrap();
+        retry.apply(&mut state);
+        let retried = &state.cycles[&cycle_id];
+        assert_eq!(retried.phase, CyclePhase::Sealing);
+        assert_eq!(retried.seal_failure, None);
+        assert!(archive.check(&state).is_err(), "a sealing cycle is not archivable");
+    }
 
     #[test]
     fn cycle_intent_survives_state_encoding_and_refuses_a_new_cursor() {
@@ -658,6 +852,7 @@ mod tests {
             records: Default::default(),
             continue_automatically: false,
             result: None,
+            seal_failure: None,
         };
         state.cycles.insert(id.clone(), source.clone());
         let cursor = harmos::storage::StorageCursor {

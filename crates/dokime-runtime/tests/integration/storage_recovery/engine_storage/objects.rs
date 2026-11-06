@@ -217,6 +217,7 @@ pub(crate) async fn cycles_reopen_producers() {
         records: Default::default(),
         continue_automatically: false,
         result: None,
+        seal_failure: None,
     };
     let row = dokime_runtime::storage::objects::cycle::Cycle::try_from(&expected).unwrap();
     let receipt = storage.write_object(&row).await.unwrap();

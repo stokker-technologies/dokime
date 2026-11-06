@@ -1,11 +1,3 @@
-# ***
-#
-# Dokime
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-# ***
-
 [tasks.dev]
 description = "Rebuild And Reload The Plugin In A Development Host"
 run = "cargo dokime sidecar dev"
@@ -13,13 +5,11 @@ run = "cargo dokime sidecar dev"
 [tasks.build]
 description = "Build The Plugin And Its Frozen Catalog"
 usage = 'flag "--profile <profile>" default="dev"'
-tools = { "github:stokker-technologies/dokime" = { version = "0.1.0", matching_regex = "^cargo-dokime-", bin = "cargo-dokime" } }
 run = "uv run --locked --project tools/python python -m project_tools.build.plugin --profile {{usage.profile}}"
 
 [tasks."package:rust"]
 description = "Package Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-tools = { "github:stokker-technologies/dokime" = { version = "0.1.0", matching_regex = "^cargo-dokime-", bin = "cargo-dokime" } }
 run = "uv run --locked --project tools/python python -m project_tools.package.plugin --profile {{usage.profile}}"
 
 [tasks."release:publish"]

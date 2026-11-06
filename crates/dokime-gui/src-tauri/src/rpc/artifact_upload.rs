@@ -31,7 +31,6 @@ use super::*;
 const DESKTOP_ACTIVE_UPLOADS: u64 = 2;
 const DESKTOP_INPUT_BUFFER_ITEMS: u64 = 2;
 const DESKTOP_UPLOAD_HEARTBEAT_MS: u64 = 5_000;
-const DESKTOP_UPLOAD_IDLE_MS: u64 = 30_000;
 const DESKTOP_UPLOAD_REAPER_MS: u64 = 1_000;
 
 /* === Macros === */
@@ -337,7 +336,7 @@ impl Registry {
     fn prune(&mut self) {
         self.entries.retain(|_, upload| {
             let expired = upload.last_access.lock().expect("artifact upload idle timer poisoned").elapsed()
-                >= Duration::from_millis(DESKTOP_UPLOAD_IDLE_MS);
+                >= <dokime::operations::content::UploadArtifact as dokime::harmos::operations::OperationDeclaration>::POLICY.timeout;
             if upload.cancel.is_cancelled()
                 || upload.context.owner_cancel.is_cancelled()
                 || upload.context.lease.cancellation().is_cancelled()

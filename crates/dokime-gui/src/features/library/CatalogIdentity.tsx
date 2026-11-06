@@ -14,6 +14,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { Clipboard } from "lucide-react";
 import { Fragment } from "react";
 import { toast } from "@/lib/notifications";
@@ -135,7 +136,7 @@ async function copyIdentifier(value: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(value);
     toast.success("Identifier Copied");
-  } catch {
-    toast.error("Could Not Copy Identifier");
+  } catch (error: unknown) {
+    toast.error(failureOf(error, "Could Not Copy Identifier"));
   }
 }

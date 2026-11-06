@@ -61,15 +61,15 @@ type DocumentSummaryState = Wire<documentWire.Row44>;
 type DocumentSummaryTile = Wire<documentWire.Row25>;
 type DocumentTableRow = Wire<documentWire.Row23>;
 type DocumentWarning = Wire<documentWire.Row26>;
-type NativePlotAxisKind = Wire<documentWire.Row178>;
-type PlotStyle = Wire<documentWire.Row174>;
-type AxisScale = Wire<documentWire.Row167>;
+type NativePlotAxisKind = Wire<documentWire.Row176>;
+type PlotStyle = Wire<documentWire.Row172>;
+type AxisScale = Wire<documentWire.Row165>;
 type DataExpression = Wire<documentWire.Row45>;
 type FftWindow = NonNullable<NonNullable<PlotRequest["fft"]>["window"]>;
 type FftDetrend = NonNullable<NonNullable<PlotRequest["fft"]>["detrend"]>;
 type FrequencyLevelUnit = NonNullable<NonNullable<PlotRequest["fft"]>["levelUnit"]>;
-type PlotRequest = Wire<documentWire.Row135>;
-type PlotType = Wire<documentWire.Row166>;
+type PlotRequest = Wire<documentWire.Row134>;
+type PlotType = Wire<documentWire.Row164>;
 type FilterOperator = Wire<documentWire.Row54>;
 type DocumentCardKind = Wire<documentWire.Row115>;
 type NativePlotDefinition = Wire<documentWire.Row106>;
@@ -686,13 +686,6 @@ function mapNativeExpression(value?: DataExpression): DocumentDataExpression | n
         return {
           type: "time_between" as const,
           previous_record_type: kind.value.field0.previousRecordType,
-        };
-      case "TelemetryAtOrBefore":
-        if (!kind.value.field0) invalid("expression transform is missing");
-        return {
-          type: "telemetry_at_or_before" as const,
-          stream: kind.value.field0.stream,
-          field: kind.value.field0.field,
         };
       case "Detail":
         if (!kind.value.field0) invalid("expression transform is missing");

@@ -487,20 +487,6 @@ function dataTransform(value: unknown): DataTransform {
           },
         },
       });
-    case "telemetry_at_or_before":
-      return create(DataTransformSchema, {
-        kind: {
-          HarmosVariant: {
-            case: "TelemetryAtOrBefore",
-            value: {
-              field0: {
-                stream: requiredText(input.stream, "telemetry-at-or-before stream"),
-                field: requiredText(input.field, "telemetry-at-or-before field"),
-              },
-            },
-          },
-        },
-      });
     default:
       throw new Error(`Unsupported data transform: ${kind}`);
   }

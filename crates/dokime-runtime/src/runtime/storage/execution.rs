@@ -333,8 +333,8 @@ impl ExecutionView {
         }
     }
 
-    pub async fn context_records(&self) -> Result<super::records::RecordReader> {
-        super::records::RecordReader::open(self).await
+    pub fn context_records(&self, local: &crate::storage::sqlite::State) -> Result<super::records::RecordReader> {
+        super::records::RecordReader::open(self, local)
     }
 
     pub async fn read_file(&self, file: &FileReference, range: harmos::storage::ByteRange) -> Result<FileReader> {

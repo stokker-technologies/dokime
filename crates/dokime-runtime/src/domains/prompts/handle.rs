@@ -106,8 +106,26 @@ impl RuntimeHandle {
         let Some(condition) = condition else {
             return Ok(());
         };
-        let records = self.records_at(&snapshot).await.map_err(|error| unavailable_rejection(error.to_string()))?;
-        let telemetry = self.collect_telemetry(&crate::evidence_runtime::TelemetrySelection::default()).await?;
+        let scope = snapshot.state().prompt_requests.get(prompt_id).map(|prompt| &prompt.scope);
+        let at = self.saved_through(snapshot.revision()).await.map_err(|error| unavailable_rejection(error.to_string()))?;
+        let mut records = Vec::new();
+        self.visit_record_pages_at(scope, &snapshot, &at, |page| {
+            records.extend(page.iter().cloned());
+            Ok(())
+        })
+        .await
+        .map_err(|error| unavailable_rejection(error.to_string()))?;
+        let selection = crate::evidence_runtime::TelemetrySelection {
+            scope: scope.map_or_else(Default::default, |scope| crate::evidence_runtime::ScopeSelection {
+                test_execution_id: scope.test_execution_id.clone(),
+                test_cycle_id: scope.test_cycle_id.clone(),
+                test_case_id: scope.test_case_id.clone(),
+                template_id: scope.template_id.clone(),
+                suite_id: scope.suite_id.clone(),
+            }),
+            ..Default::default()
+        };
+        let telemetry = self.collect_telemetry(&selection).await?;
         let evaluation = crate::definition::evaluate_runtime_condition(&condition, &records, &telemetry);
         if evaluation.satisfied {
             return Ok(());

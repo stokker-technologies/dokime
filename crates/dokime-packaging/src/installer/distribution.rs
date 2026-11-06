@@ -79,7 +79,7 @@ pub fn validate(directory: &Path, expected: &Artifact) -> Result<Distribution, E
     let distribution: Distribution = serde_json::from_slice(&std::fs::read(directory.join("distribution.json"))?)?;
     semver::Version::parse(&distribution.version).map_err(|error| Error::Invalid(error.to_string()))?;
     if distribution.schema != 1
-        || (expected.version() != "edge" && distribution.version != expected.version())
+        || (expected.version() != super::release::NIGHTLY && distribution.version != expected.version())
         || distribution.target != expected.target
     {
         return Err(Error::Invalid("distribution schema, version or target differs from the pinned Dokime artifact".into()));

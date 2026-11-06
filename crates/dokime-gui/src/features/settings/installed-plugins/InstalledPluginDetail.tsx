@@ -55,6 +55,11 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
         <SettingsRow label="Status" error={detail.error}>
           <InstalledPluginRuntimeBadge runtime={detail.runtime} />
           <InstalledPluginStatusBadge status={detail.status} />
+          {detail.restart === "pending" ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Restart pending: applies when no cycle is active.
+            </p>
+          ) : null}
         </SettingsRow>
         <SettingsRow label="Registration">
           <span className="min-w-0 text-sm">{registration}</span>
@@ -73,7 +78,7 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
       {detail.settings.contributions?.some((entry) => entry.kind === "secret") ? (
         <SettingsCard
           title="Required Secrets"
-          description="Identifiers are read from Secret Storage when this plugin starts. Add missing secrets, then restart Dokime or retry the plugin."
+          description="Identifiers are read from Secret Storage when this plugin starts. Add missing secrets, then retry the plugin."
         >
           {detail.settings.contributions
             .filter((entry) => entry.kind === "secret")

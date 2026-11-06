@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -35,6 +36,15 @@ ZSTD_SHA256 = "acb4e8111511749dc7a3ebedca9b04190e37a17afeb73f55d4425dbf0b90fad9"
 MISE_URL = "https://github.com/jdx/mise/releases/download/v2026.10.17/mise-v2026.10.17-windows-x64.zip"
 MISE_SHA256 = "32bcfda5f72bf7cb189e18ba93c2798bffcb4a678fd004e3127780363f2d8c8c"
 EXPORTED = {}
+# Preinstalled GitHub-Hosted Linux Toolchains No Job Uses; Heavy Builds Reclaim Their Space.
+UNUSED_RUNNER_PATHS = (
+    "/usr/local/lib/android",
+    "/usr/share/dotnet",
+    "/opt/ghc",
+    "/usr/local/.ghcup",
+    "/opt/hostedtoolcache/CodeQL",
+    "/usr/share/swift",
+)
 
 # === Types === #
 
@@ -90,6 +100,7 @@ def download(url, checksum, destination):
 
 
 def windows(workspace):
+    temporary_root(workspace)
     vswhere = Path(os.environ["ProgramFiles(x86)"]) / "Microsoft Visual Studio/Installer/vswhere.exe"
     installation = subprocess.check_output(
         [
@@ -157,11 +168,10 @@ def windows(workspace):
             os.environ["CARGO_HOME"],
             os.environ["MISE_DATA_DIR"],
         ]
+        # The Runner-Owned Temporary Root Holds Every Lane's Scratch And Test Store; Excluding It
+        # Whole Avoids Wildcard Exclusions Defender Does Not Honour On Every Volume.
         temporary_roots = native_temporary_paths()
-        for root in temporary_roots:
-            for pattern in ("dokime-*", ".tmp*"):
-                scratch = str(root / pattern)
-                exclusions.extend((scratch, scratch + r"\:{PathType:folder}"))
+        exclusions.extend(str(root) for root in temporary_roots)
         print("Native Scanner Exclusions: " + json.dumps(exclusions), flush=True)
         script = (
             "$paths = @("
@@ -177,6 +187,23 @@ def windows(workspace):
         verify_temporary_exclusions(temporary_roots)
 
 
+def temporary_root(workspace):
+    """Keep Scratch On The Workspace Volume: Hosted Images Put TEMP On The IOPS-Capped OS Disk."""
+    workspace = workspace.resolve()
+    current = Path(tempfile.gettempdir()).resolve()
+    if current.drive.casefold() != workspace.drive.casefold():
+        runner = os.environ.get("RUNNER_TEMP")
+        runner = Path(runner).resolve() if runner else None
+        current = runner if runner and runner.drive.casefold() == workspace.drive.casefold() else Path(workspace.anchor) / "tmp"
+        if current.is_relative_to(workspace):
+            raise RuntimeError(f"temporary directory must stay outside the checkout: {current}")
+        current.mkdir(parents=True, exist_ok=True)
+        export({"TEMP": str(current), "TMP": str(current)})
+        tempfile.tempdir = None
+    free = shutil.disk_usage(current).free / 2**30
+    print(f"Temporary Directory: {current} ({free:.1f} GiB Free)", flush=True)
+
+
 def native_temporary_paths():
     buffer = ctypes.create_unicode_buffer(32768)
     length = ctypes.windll.kernel32.GetTempPath2W(len(buffer), buffer)
@@ -186,10 +213,31 @@ def native_temporary_paths():
     return list(dict.fromkeys(candidate for root in roots for candidate in (root, root.resolve())))
 
 
+def scanner_status():
+    output = subprocess.check_output(
+        [
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-MpComputerStatus | Select-Object AMRunningMode, RealTimeProtectionEnabled, OnAccessProtectionEnabled | ConvertTo-Json",
+        ],
+        text=True,
+        creationflags=spawn_flags(),
+    )
+    return json.loads(output)
+
+
 def verify_temporary_exclusions(roots):
+    status = scanner_status()
+    print("Native Scanner Status: " + json.dumps(status), flush=True)
+    # A Scanner That Does Not Scan On Access Has Nothing To Exclude, And Its Exclusion Check Reports Nothing Excluded.
+    if status.get("RealTimeProtectionEnabled") is False or status.get("OnAccessProtectionEnabled") is False:
+        print("Native Scanner Check: on-access scanning is off; the exclusions take effect if it is enabled", flush=True)
+        return
     scanner = Path(os.environ["ProgramFiles"]) / "Windows Defender/MpCmdRun.exe"
     for root in roots:
-        for prefix in ("dokime-exclusion-", ".tmp"):
+        for prefix in ("dokime-exclusion-", ".tmp", "project-tmp-"):
             with (
                 tempfile.TemporaryDirectory(dir=root, prefix=prefix) as directory,
                 tempfile.NamedTemporaryFile(dir=root, prefix=prefix, delete_on_close=False) as file,
@@ -199,12 +247,21 @@ def verify_temporary_exclusions(roots):
                 nested.write_bytes(b"")
                 for path in (Path(directory), nested, Path(file.name)):
                     print(f"Native Scanner Check: {path}", flush=True)
-                    subprocess.run(
+                    checked = subprocess.run(
                         [str(scanner), "-CheckExclusion", "-Path", str(path)],
-                        check=True,
+                        check=False,
                         stdout=sys.stderr,
                         creationflags=spawn_flags(),
                     )
+                    if checked.returncode:
+                        # Show What Defender Holds Next To The Refused Probe.
+                        subprocess.run(
+                            ["powershell", "-NoProfile", "-NonInteractive", "-Command", "(Get-MpPreference).ExclusionPath"],
+                            check=False,
+                            stdout=sys.stderr,
+                            creationflags=spawn_flags(),
+                        )
+                        raise RuntimeError(f"native scanner exclusion does not cover {path} under {root}")
 
 
 def unix():
@@ -240,6 +297,26 @@ def unix():
             raise RuntimeError("provide native CI prerequisites through the declared image or bootstrap")
     if "GNU tar" not in subprocess.check_output(["tar", "--version"], text=True, creationflags=spawn_flags()):
         raise RuntimeError("GNU tar is required")
+
+
+def free_disk():
+    """Report And Reclaim Root Disk Space On A GitHub-Hosted Linux Runner."""
+
+    def available():
+        return shutil.disk_usage("/").free / 2**30
+
+    before, started = available(), time.monotonic()
+    elevate = [] if os.geteuid() == 0 else ["sudo", "-n"]
+    paths = [str(path) for pattern in UNUSED_RUNNER_PATHS for path in sorted(Path("/").glob(pattern.lstrip("/")))]
+    if paths:
+        subprocess.run([*elevate, "rm", "-rf", *paths], check=True, creationflags=spawn_flags())
+    if shutil.which("docker"):
+        subprocess.run(["docker", "image", "prune", "--all", "--force"], check=True, stdout=sys.stderr, creationflags=spawn_flags())
+    print(
+        f"Free Disk: {before:.1f} GiB Before, {available():.1f} GiB After, In {time.monotonic() - started:.1f} s",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def atomic_available():
@@ -282,6 +359,24 @@ def glab(version):
     export({"MISE_GLAB_VERSION": version})
 
 
+def cache_plan(caches, environment):
+    """Give Independent Compiler Builds Their Own Cache Before Product Fallbacks."""
+    kind = environment.get("COMPILER_CACHE_KIND", "product")
+    if kind == "product" or "sccache" not in caches:
+        return caches
+    if kind not in {"tests", "bench"}:
+        raise ValueError(f"unknown compiler cache kind: {kind}")
+
+    product = caches["sccache"]
+    prefix, toolchain, dependencies = product["key"].rsplit("-", 2)
+    if kind == "bench":
+        prefix = prefix.rsplit("-", 1)[0] + "-bench"
+    prefix = f"{prefix}-{kind}-{toolchain}-"
+    restore = [prefix, product["key"], *product.get("restore-keys", "").splitlines()]
+    compiler = product | {"key": prefix + dependencies, "restore-keys": "\n".join(restore)}
+    return caches | {"sccache": compiler}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -301,7 +396,8 @@ def main():
         rustup()
         if destination := os.environ.get("GITHUB_OUTPUT"):
             with Path(destination).open("a", encoding="utf-8") as stream:
-                for name, cache in json.loads(os.environ.get("CACHE_PLAN", "{}")).items():
+                caches = cache_plan(json.loads(os.environ.get("CACHE_PLAN", "{}")), os.environ)
+                for name, cache in caches.items():
                     for field in ("path", "key", "restore-keys"):
                         value = cache.get(field, "")
                         for variable in ("MISE_DATA_DIR", "MISE_ROOT_ID", "WORKSPACE_ROOT_ID", "RUNNER_IMAGE_ID"):
@@ -311,6 +407,10 @@ def main():
                         stream.write(f"{name}-{field}<<CACHE_VALUE\n{value}\nCACHE_VALUE\n")
     if options.roots_only:
         return
+    hosted = os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted" and options.platform == "unix"
+    if os.environ.get("FREE_RUNNER_DISK") == "true" and hosted:
+        with group("Free Runner Disk"):
+            free_disk()
     with group("Native Prerequisites"):
         windows(workspace) if options.platform == "windows" else unix()
     subprocess.run(["zstd", "--version"], check=True, stdout=sys.stderr, creationflags=spawn_flags())

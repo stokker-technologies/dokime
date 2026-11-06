@@ -64,10 +64,6 @@ impl PluginPreferences {
         }
     }
 
-    pub(crate) fn bind_installs(&self, installs: BTreeMap<String, Uuid>) {
-        *self.installs.write().unwrap_or_else(PoisonError::into_inner) = installs;
-    }
-
     pub(crate) fn bind_install(&self, plugin_id: &Identifier, install: Uuid) {
         self.installs.write().unwrap_or_else(PoisonError::into_inner).insert(plugin_id.as_str().to_owned(), install);
     }
@@ -241,7 +237,7 @@ mod tests {
         assert!(
             matches!(&missing, crate::runtime::Error::Dokime(crate::Error::UnavailableSecret(identifier)) if identifier == "api_token")
         );
-        assert_eq!(missing.to_string(), "secret `api_token` is not in Secret Storage; add it and restart");
+        assert_eq!(missing.to_string(), "secret `api_token` is not in Secret Storage; add it and retry the plugin");
 
         let store = handle.secret_store();
         // A Similar Plugin-Prefixed Identifier Never Satisfies The Declaration.

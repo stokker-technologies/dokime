@@ -95,7 +95,7 @@ mise run build:rust:tests
 ```
 
 OBC is a test-only fixture and is never shipped by default. The bundle is `target/build/dev/<target>/fixtures/plugins/plugin-obc.dokime`. Install it through
-**Settings → Plugins** and restart to admit its frozen catalog. The screenshot
+**Settings → Plugins**; the running backend admits its frozen catalog without a restart. The screenshot
 and native desktop scenarios consume this same built bundle.
 
 For a focused plugin check:

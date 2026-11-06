@@ -115,6 +115,7 @@ pub struct RuntimeHandle {
     pub(crate) owned_work: tokio_util::task::TaskTracker,
     pub(crate) plugin_admission: Arc<tokio::sync::Mutex<()>>,
     pub(crate) unavailable_plugins: Arc<RwLock<std::collections::BTreeSet<String>>>,
+    pub(in crate::runtime) plugin_restarts: Arc<super::plugins::restarts::Restarts>,
     pub(crate) state: Arc<RwLock<Arc<RuntimeState>>>,
     pub(crate) state_watch: tokio::sync::watch::Sender<crate::queries::RuntimeStateSnapshot>,
     pub(crate) action_dispatchers: Arc<RwLock<BTreeMap<Identifier, Arc<dyn ActionDispatcher>>>>,
@@ -379,7 +380,8 @@ impl RuntimeHandle {
         let brand = Arc::new(RwLock::new(None));
         let process_id = crate::model::identity::new_id::<SessionId>();
         let requests_started = std::time::Instant::now();
-        let request_storage = crate::runtime::storage::requests::RequestStorage::new(storage.clone(), &node_identity.node_id)?;
+        let request_storage =
+            crate::runtime::storage::requests::RequestStorage::new(storage.clone(), local_state.clone(), &node_identity.node_id)?;
         request_storage
             .recover(|id| {
                 initial_state.run_requests.get(id).map(|request| &request.summary).filter(|summary| {
@@ -436,6 +438,7 @@ impl RuntimeHandle {
             owned_work: Default::default(),
             plugin_admission: Default::default(),
             unavailable_plugins: resources.analysis.unavailable.clone(),
+            plugin_restarts: Default::default(),
             state: Arc::new(RwLock::new(Arc::new(initial_state))),
             state_watch,
             action_dispatchers: resources.analysis.dispatchers.clone(),

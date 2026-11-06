@@ -11,9 +11,10 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { useId, useMemo, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { Switch } from "@/components/ui/switch";
 import { useNavigationMode } from "@/shell/use-sidebar-state";
 import { useUiStore } from "@/stores/ui-store";
@@ -133,7 +134,7 @@ function SectionContent({
   if (section === "backends") return <BackendsTable />;
   if (section === "appearance") return <ApplicationPreferences advanced={advanced} />;
   if (section === "remote") return <RemoteSection advanced={advanced} />;
-  if (section === "plugins") return <PluginsSection />;
+  if (section === "plugins") return <PluginsSection advanced={advanced} />;
   if (section === "secrets") return <SecretsSection />;
   if (section === "diagnostics")
     return (
@@ -157,10 +158,7 @@ function SectionContent({
     return (
       <SettingsCard title="Settings">
         <div className="grid justify-items-start gap-3 px-4 py-3">
-          <NotificationMessage error={loadFailure}>{loadError}</NotificationMessage>
-          <Button onClick={retry} variant="outline">
-            Try Again
-          </Button>
+          <ErrorCard failure={failureOf(loadFailure, "Settings Unavailable")} onRetry={retry} />
         </div>
       </SettingsCard>
     );
@@ -168,7 +166,7 @@ function SectionContent({
 
   return (
     <SettingsCard title="Settings">
-      <NotificationMessage>This settings section is unavailable.</NotificationMessage>
+      <ErrorCard failure={failureOf("This settings section is unavailable.", "Settings Unavailable", "missing-settings-section")} />
     </SettingsCard>
   );
 }

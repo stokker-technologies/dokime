@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { FileUp, Loader2 } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
@@ -63,7 +64,9 @@ export function PluginDropZone({ disabled, error, failure, filename, onDrop, onP
           )}
           <div className="grid gap-1">
             <p className="font-medium">{disabled ? installationLabel(progress, filename) : "Drop a plugin bundle here"}</p>
-            <p className="text-sm text-muted-foreground">{brand.label} verifies and installs the bundle. It activates after restart.</p>
+            <p className="text-sm text-muted-foreground">
+              {brand.label} verifies and installs the bundle, then starts it once no cycle is active.
+            </p>
           </div>
           <Button disabled={disabled} onClick={onPick} size="sm" type="button" variant="outline">
             Choose File
@@ -112,10 +115,7 @@ function useNativeFileDrop(zone: RefObject<HTMLElement | null>, disabled: boolea
       })
       .catch((error: unknown) => {
         if (disposed) return;
-        toast.error("Plugin File Drop Unavailable", {
-          error,
-          description: error instanceof Error ? error.message : String(error),
-        });
+        toast.error(failureOf(error, "Plugin File Drop Unavailable"));
       });
     return () => {
       disposed = true;

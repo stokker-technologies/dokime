@@ -19,9 +19,11 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
+use harmos::storage::query::quantiles::Quantiles;
 
 // Local Imports
 use super::{
+    batches::{Batch, Cell},
     samples::{self, Plan},
     snapshots::Scope,
     tokens,
@@ -29,16 +31,13 @@ use super::{
 use crate::{
     RuntimeHandle,
     config::QueryConfig,
-    storage::sqlite::{Moments, QueryWork, State, ordered, unordered},
+    storage::sqlite::{Moments, QueryWork, State},
 };
-use dokime_domain::model::{
-    query::{
-        error::{Failure, Reason},
-        page::{PageLimits, PageRequest},
-        reduction::{Output, QualityCounts, Statistic, StatisticValue, Statistics},
-        schema::{Field, FieldType, Schema},
-    },
-    values::{Value, numeric_value},
+use dokime_domain::model::query::{
+    error::{Failure, Reason},
+    page::{PageLimits, PageRequest},
+    reduction::{Output, QualityCounts, Statistic, StatisticValue, Statistics},
+    schema::{Field, FieldType, Schema},
 };
 use dokime_operations::query::{AggregateSamples, ListSamples};
 
@@ -56,19 +55,15 @@ struct FieldState {
     missing: u64,
     null: u64,
     non_finite: u64,
+    spool: Option<Quantiles>,
+    percentiles: Vec<u8>,
+    quantiles: BTreeMap<u8, f64>,
 }
 
 #[derive(Default)]
 struct Population {
     rows: u64,
     fields: BTreeMap<String, FieldState>,
-}
-
-struct Rank {
-    field: String,
-    ordinal: u64,
-    prefix: u64,
-    bins: [u64; 256],
 }
 
 /* === Enums === */
@@ -150,41 +145,19 @@ impl RuntimeHandle {
 }
 
 impl FieldState {
-    fn push(&mut self, value: Option<&Value>, operation: &str) -> Result<(), Box<Failure>> {
+    fn push(&mut self, value: Cell, operation: &str) -> Result<(), Box<Failure>> {
         match value {
-            None => self.missing += 1,
-            Some(Value::Null) => self.null += 1,
-            Some(value) => match numeric_value(value) {
-                Some(value) => self
-                    .moments
-                    .push(value)
-                    .map_err(|_| Failure::new(Reason::WorkLimit, operation, "Numeric population counter overflow"))?,
-                None => self.non_finite += 1,
-            },
+            Cell::Missing => self.missing += 1,
+            Cell::Null => self.null += 1,
+            Cell::NonFinite => self.non_finite += 1,
+            Cell::Number(value) => {
+                self.moments.push(value).map_err(|_| Failure::new(Reason::WorkLimit, operation, "Numeric population counter overflow"))?;
+                if let Some(spool) = &mut self.spool {
+                    spool.push(value).map_err(|error| spool_error(error, operation))?;
+                }
+            }
         }
         Ok(())
-    }
-}
-
-impl Rank {
-    fn push(&mut self, value: f64, depth: u32) {
-        let bits = ordered(value);
-        if depth != 0 && bits >> (64 - depth * 8) != self.prefix {
-            return;
-        }
-        self.bins[((bits >> (56 - depth * 8)) & 255) as usize] += 1;
-    }
-
-    fn advance(&mut self, operation: &str) -> Result<(), Box<Failure>> {
-        for (child, count) in self.bins.iter().enumerate() {
-            if self.ordinal < *count {
-                self.prefix = (self.prefix << 8) | child as u64;
-                self.bins.fill(0);
-                return Ok(());
-            }
-            self.ordinal -= *count;
-        }
-        Err(Failure::new(Reason::Corruption, operation, "Selected percentile rank is unavailable at this cut"))
     }
 }
 
@@ -210,7 +183,7 @@ pub(super) fn finite(value: f64, operation: &str) -> Result<StatisticValue, Box<
 
 async fn reduce(local: &State, plan: Plan, outputs: &[Output], config: QueryConfig) -> Result<Statistics, Box<Failure>> {
     let operation = "dokime.query.aggregate_samples";
-    let fields: BTreeMap<_, _> =
+    let mut fields: BTreeMap<_, _> =
         outputs.iter().filter(|output| !output.field.is_empty()).map(|output| (output.field.clone(), FieldState::default())).collect();
     config.bound(
         fields.len().saturating_mul(std::mem::size_of::<FieldState>() + 128),
@@ -218,83 +191,65 @@ async fn reduce(local: &State, plan: Plan, outputs: &[Output], config: QueryConf
         "working_bytes",
         operation,
     )?;
+    let spool_bytes = config.limits().working_bytes as usize / 8 / fields.len().max(1);
+    for output in outputs {
+        if let Some(rank @ 1..=99) = percentile(output.aggregate) {
+            let state = fields.get_mut(&output.field).expect("percentile field");
+            state.spool.get_or_insert_with(|| Quantiles::new(spool_bytes));
+            if !state.percentiles.contains(&rank) {
+                state.percentiles.push(rank);
+            }
+        }
+    }
     let selected = plan.selection.clone();
-    let (population, mut work, _) = local
-        .query_telemetry(
+    let (mut population, mut work) = local
+        .query_native_batches(
             plan.read.clone(),
             QueryWork::new(config.clone(), operation),
             Population { rows: 0, fields },
-            move |state, _, sample| {
-                if !samples::matches(&selected, &sample) {
-                    return Ok(None);
+            move |state, input, contract, work| {
+                let batch = Batch::new(&input, &contract, operation)?;
+                let columns = state.fields.keys().map(|field| batch.column(field)).collect::<Vec<_>>();
+                for row in 0..input.num_rows() {
+                    work.check()?;
+                    if !batch.matches(&selected, row)? {
+                        continue;
+                    }
+                    state.rows += 1;
+                    for (state, column) in state.fields.values_mut().zip(&columns) {
+                        state.push(column.cell(row), operation)?;
+                    }
                 }
-                state.rows += 1;
-                for (field, state) in &mut state.fields {
-                    state.push(sample.values.get(field), operation)?;
-                }
-                Ok(None)
+                Ok(())
             },
         )
         .await?;
-    let mut ranks = BTreeMap::new();
-    for output in outputs {
-        let Some(percentile) = percentile(output.aggregate) else {
-            continue;
-        };
-        let count = population.fields[&output.field].moments.count;
-        if count == 0 || percentile == 0 || percentile == 100 {
-            continue;
-        }
-        let numerator = u128::from(count - 1) * u128::from(percentile);
-        let lower = (numerator / 100) as u64;
-        let upper = lower + u64::from(numerator % 100 != 0);
-        for ordinal in [lower, upper] {
-            if !ranks.contains_key(&(output.field.clone(), ordinal)) {
-                config.bound(
-                    (ranks.len() + 1).saturating_mul(std::mem::size_of::<Rank>() + 128),
-                    config.limits().working_bytes as usize / 4,
-                    "working_bytes",
-                    operation,
-                )?;
-            }
-            ranks.entry((output.field.clone(), ordinal)).or_insert_with(|| Rank {
-                field: output.field.clone(),
-                ordinal,
-                prefix: 0,
-                bins: [0; 256],
-            });
-        }
+    // Preserve The Existing Nine-Scan Logical Charge For Nonempty Interior Percentiles.
+    if population.fields.values().any(|state| state.spool.is_some() && state.moments.count != 0) {
+        work.charge(work.rows.saturating_mul(8), work.bytes.saturating_mul(8))?;
     }
-    config.bound(
-        ranks.len().saturating_mul(std::mem::size_of::<Rank>() + 128),
-        config.limits().working_bytes as usize / 4,
-        "working_bytes",
-        operation,
-    )?;
-    if !ranks.is_empty() {
-        for depth in 0..8 {
-            let selected = plan.selection.clone();
-            let (next, next_work, _) = local
-                .query_telemetry(plan.read.clone(), work, ranks, move |ranks, _, sample| {
-                    if !samples::matches(&selected, &sample) {
-                        return Ok(None);
-                    }
-                    for rank in ranks.values_mut() {
-                        if let Some(value) = sample.values.get(&rank.field).and_then(numeric_value).filter(|value| value.is_finite()) {
-                            rank.push(value, depth);
-                        }
-                    }
-                    Ok(None)
-                })
-                .await?;
-            work = next_work;
-            ranks = next;
-            for rank in ranks.values_mut() {
-                rank.advance(operation)?;
+    let cancellation = work.cancellation();
+    let (population, work) = tokio::task::spawn_blocking(move || {
+        for state in population.fields.values_mut() {
+            if let Some(spool) = state.spool.take() {
+                let mut check = || {
+                    work.check().map_err(|_| harmos::storage::Error::InvalidInput {
+                        field: "query",
+                        reason: "query cancelled or expired",
+                    })
+                };
+                let result = spool.values(&state.percentiles, config.limits().working_bytes as usize / 8, &mut check);
+                work.check()?;
+                state.quantiles = result.map_err(|error| spool_error(error, operation))?;
             }
+            work.check()?;
         }
-    }
+        Ok::<_, Box<Failure>>((population, work))
+    })
+    .await
+    .map_err(|_| Failure::new(Reason::StorageUnavailable, operation, "Numeric selection worker failed"))??;
     work.check()?;
+    drop(cancellation);
     let mut schema = Schema {
         identity: plan.selection.schema().identity.clone(),
         versions: plan.selection.schema().versions.clone(),
@@ -315,17 +270,7 @@ async fn reduce(local: &State, plan: Plan, outputs: &[Output], config: QueryConf
                 let value = match percentile {
                     0 => state.moments.value(harmos::Aggregate::Min).unwrap(),
                     100 => state.moments.value(harmos::Aggregate::Max).unwrap(),
-                    rank => {
-                        let numerator = u128::from(state.moments.count - 1) * u128::from(rank);
-                        let lower = (numerator / 100) as u64;
-                        let remainder = numerator % 100;
-                        let upper = lower + u64::from(remainder != 0);
-                        interpolate(
-                            unordered(ranks[&(output.field.clone(), lower)].prefix),
-                            unordered(ranks[&(output.field.clone(), upper)].prefix),
-                            remainder as f64 / 100.0,
-                        )
-                    }
+                    rank => state.quantiles[&rank],
                 };
                 Some(finite(value, operation)?)
             } else {
@@ -371,21 +316,21 @@ async fn reduce(local: &State, plan: Plan, outputs: &[Output], config: QueryConf
     })
 }
 
+fn spool_error(error: harmos::storage::Error, operation: &str) -> Box<Failure> {
+    let reason = if matches!(error, harmos::storage::Error::InvalidInput { .. }) {
+        Reason::ResourceLimit
+    } else {
+        tracing::warn!(%error, operation, "Exact Numeric Spool Failed");
+        Reason::StorageUnavailable
+    };
+    Failure::new(reason, operation, "Exact numeric percentile storage could not satisfy the query")
+}
+
 fn percentile(aggregate: harmos::Aggregate) -> Option<u8> {
     match aggregate {
         harmos::Aggregate::Median => Some(50),
         harmos::Aggregate::Percentile(rank) => Some(rank),
         _ => None,
-    }
-}
-
-fn interpolate(low: f64, high: f64, fraction: f64) -> f64 {
-    if low == high {
-        low
-    } else if low.signum() == high.signum() {
-        low + (high - low) * fraction
-    } else {
-        low * (1.0 - fraction) + high * fraction
     }
 }
 
@@ -396,39 +341,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn query_ranks() {
-        let values = [-10.0f64, 0.0, f64::MAX, -0.0, 1e-200, -1e200, 3.0, 3.0, -f64::MAX];
-        let mut expected = values;
-        expected.sort_by(f64::total_cmp);
-        for (ordinal, expected) in expected.into_iter().enumerate() {
-            let mut rank = Rank {
-                field: "value".into(),
-                ordinal: ordinal as u64,
-                prefix: 0,
-                bins: [0; 256],
-            };
-            for depth in 0..8 {
-                for value in values {
-                    rank.push(value, depth);
-                }
-                rank.advance("test.query").unwrap();
-            }
-            assert_eq!(unordered(rank.prefix).to_bits(), expected.to_bits());
-        }
-    }
-
-    #[test]
     fn query_quality() {
         let mut field = FieldState::default();
-        for value in [
-            None,
-            Some(Value::Null),
-            Some(Value::Number(f64::NAN)),
-            Some(Value::Number(f64::INFINITY)),
-            Some(Value::Unsigned(u64::MAX)),
-            Some(Value::Number(5.0)),
-        ] {
-            field.push(value.as_ref(), "test.query").unwrap();
+        for value in [Cell::Missing, Cell::Null, Cell::NonFinite, Cell::NonFinite, Cell::Number(u64::MAX as f64), Cell::Number(5.0)] {
+            field.push(value, "test.query").unwrap();
         }
         assert_eq!((field.moments.count, field.missing, field.null, field.non_finite), (2, 1, 1, 2));
         assert!(finite(f64::INFINITY, "test.query").is_err());

@@ -9,6 +9,8 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "@/lib/notifications";
@@ -75,12 +77,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
       void unarchive
         .mutateAsync(entry)
         .then(() => toast.success("Unarchived"))
-        .catch((error: unknown) =>
-          toast.error("The Archive Mark Could Not Be Removed", {
-            error,
-            description: error instanceof Error ? error.message : String(error),
-          }),
-        ),
+        .catch((error: unknown) => toast.error(failureOf(error, "The Archive Mark Could Not Be Removed"))),
     [unarchive.mutateAsync],
   );
   const cycles = cyclesQuery.data ?? [];
@@ -94,7 +91,12 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
 
   return (
     <PageShell trail={comparing ? ["History", "Compare"] : ["History"]}>
-      {cyclesQuery.isError ? <PageNotice tone="alert">Unable to load execution history: {cyclesQuery.error?.message}</PageNotice> : null}
+      {cyclesQuery.isError ? (
+        <ErrorCard
+          failure={failureOf(cyclesQuery.error, "Cycles Unavailable")}
+          onRetry={() => void queryClient.invalidateQueries({ queryKey: exploreQueryKeys.all })}
+        />
+      ) : null}
       {cyclesQuery.coverage && !cyclesQuery.coverage.discovery_complete ? (
         <IncompleteHistoryNotice coverage={cyclesQuery.coverage} />
       ) : null}

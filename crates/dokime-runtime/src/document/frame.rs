@@ -31,7 +31,6 @@ use super::binding::{Evidence, Row};
 use super::context::Entry;
 use super::input::RecordView;
 use crate::expressions::{DataExpression, DataSource, DataTransform};
-use crate::telemetry::TelemetrySample;
 use dokime_domain::model::execution::EvidenceOrigin;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::values::Value;
@@ -97,12 +96,10 @@ struct Keys<'a> {
     time: Option<i128>,
 }
 
-// As-Of Correlation: Right Rows Grouped By (Execution, Attempt) Keys; A Left
-// Row Takes The Latest Eligible Right Row Before It In Time Or Capture Order.
+// Previous-Record Correlation: Right Rows Grouped By (Execution, Attempt) Keys;
+// A Left Row Takes The Latest Right Row Captured Before It.
 struct Correlation {
     rows: Vec<Projected>,
-    keys: usize,
-    strategy: Strategy,
 }
 
 pub(crate) struct Lookup<'a> {
@@ -132,7 +129,6 @@ enum Kind {
 enum Join<'a> {
     None,
     Previous(&'a str),
-    AtOrBefore { stream: &'a str, field: &'a str },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -157,12 +153,11 @@ enum Shape {
 enum Output {
     Value(Option<Value>),
     Left(Option<u64>),
-    Right(Option<u64>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Strategy {
-    AtOrBefore,
+    Latest,
     Previous,
 }
 
@@ -204,10 +199,6 @@ impl<'plan> Plan<'plan> {
             (DataSource::Record { .. }, Some(DataTransform::TimeBetween { previous_record_type })) => {
                 Join::Previous(previous_record_type.as_str())
             }
-            (DataSource::Record { .. }, Some(DataTransform::TelemetryAtOrBefore { stream, field })) => Join::AtOrBefore {
-                stream: stream.as_str(),
-                field: field.as_str(),
-            },
             _ => Join::None,
         };
         let occurrence = matches!(expression.source, DataSource::Record { .. } | DataSource::Artifact { .. })
@@ -241,15 +232,6 @@ impl<'plan> Plan<'plan> {
                 left.extend([Column::Execution, Column::Attempt, Column::Time]);
                 right.extend([Column::Execution, Column::Attempt, Column::Time]);
                 1
-            }
-            Join::AtOrBefore { .. } => {
-                left.extend([Column::Execution, Column::Attempt, Column::Time]);
-                right.push(Column::Value);
-                if kind == Kind::Numeric {
-                    right.extend([Column::Signed, Column::Float]);
-                }
-                right.extend([Column::Execution, Column::Attempt, Column::Time]);
-                numeric
             }
         };
         if cases.is_some() {
@@ -318,7 +300,7 @@ impl<'plan> Plan<'plan> {
                     }
                 }
             }
-            Join::Previous(_) | Join::AtOrBefore { .. } => {
+            Join::Previous(_) => {
                 let DataSource::Record { record_type } = &expression.source else {
                     return Err(failure("record correlations require a record source"));
                 };
@@ -336,7 +318,7 @@ impl<'plan> Plan<'plan> {
                         left.push(Selected::new(ordinal, None, Some(Keys::record(record)), case));
                     }
                 }
-                self.right_rows(expression, evidence, &mut right);
+                self.right_rows(evidence, &mut right);
             }
         }
         let collected = self.collect(left, right)?;
@@ -346,62 +328,34 @@ impl<'plan> Plan<'plan> {
                 let row = evidence.rows(expression).nth(ordinal as usize)?;
                 super::binding::row(row, expression, evidence).map(Cow::into_owned)
             }),
-            Output::Right(ordinal) => ordinal.and_then(|ordinal| {
-                let Join::AtOrBefore { field, .. } = &self.join else {
-                    return None;
-                };
-                let sample = evidence.telemetry.get(ordinal as usize)?;
-                detail(telemetry_field(sample, field)?, &expression.transforms[1..]).map(Cow::into_owned)
-            }),
         })
     }
 
-    pub(super) fn correlate<'a>(
-        &self, record: RecordView<'a>, expression: &DataExpression, evidence: Evidence<'a>,
-    ) -> Result<Option<Cow<'a, Value>>> {
-        // Elapsed Time Pairs By Capture Order Inside The Window; A Sample Lookup
-        // Needs Only The Record's Own Time And Scope.
-        let ordinal = match evidence.records.iter().position(|candidate| std::ptr::eq(candidate.entry, record.entry)) {
-            Some(ordinal) => ordinal,
-            None if matches!(self.join, Join::AtOrBefore { .. }) => 0,
-            None => return Ok(None),
+    pub(super) fn correlate<'a>(&self, record: RecordView<'a>, evidence: Evidence<'a>) -> Result<Option<Cow<'a, Value>>> {
+        // Elapsed Time Pairs By Capture Order Inside The Window.
+        let Some(ordinal) = evidence.records.iter().position(|candidate| std::ptr::eq(candidate.entry, record.entry)) else {
+            return Ok(None);
         };
         let left = vec![Selected::new(ordinal, None, Some(Keys::record(record)), None)];
         let mut right = Vec::with_capacity(evidence.upper_rows());
-        self.right_rows(expression, evidence, &mut right);
+        self.right_rows(evidence, &mut right);
         let collected = self.collect(left, right)?;
         Ok(match self.output(&collected)? {
             Output::Value(value) => value.map(Cow::Owned),
-            Output::Right(ordinal) => ordinal.and_then(|ordinal| {
-                let Join::AtOrBefore { field, .. } = &self.join else {
-                    return None;
-                };
-                telemetry_field(evidence.telemetry.get(ordinal as usize)?, field)
-            }),
             Output::Left(_) => None,
         })
     }
 
-    fn right_rows<'a>(&self, expression: &DataExpression, evidence: Evidence<'a>, right: &mut Vec<Selected<'a>>) {
-        match &self.join {
-            Join::Previous(previous) => {
-                for (ordinal, record) in evidence.records.iter().enumerate() {
-                    if record.entry.record_type.as_str() == *previous
-                        && evidence.selection.is_none_or(|selection| selection.matches_scope(record.scope))
-                    {
-                        right.push(Selected::new(ordinal, None, Some(Keys::record(record)), None));
-                    }
-                }
+    fn right_rows<'a>(&self, evidence: Evidence<'a>, right: &mut Vec<Selected<'a>>) {
+        let Join::Previous(previous) = self.join else {
+            return;
+        };
+        for (ordinal, record) in evidence.records.iter().enumerate() {
+            if record.entry.record_type.as_str() == previous
+                && evidence.selection.is_none_or(|selection| selection.matches_scope(record.scope))
+            {
+                right.push(Selected::new(ordinal, None, Some(Keys::record(record)), None));
             }
-            Join::AtOrBefore { stream, field } => {
-                for (ordinal, sample) in evidence.telemetry.iter().enumerate() {
-                    if evidence.selected(sample) && super::plot_inputs::stream_matches_alias(sample.stream.as_str(), stream) {
-                        let value = telemetry_field(sample, field).and_then(|value| detail(value, &expression.transforms[1..]));
-                        right.push(Selected::new(ordinal, value, Some(Keys::sample(sample)), None));
-                    }
-                }
-            }
-            Join::None => {}
         }
     }
 
@@ -475,11 +429,7 @@ impl<'plan> Plan<'plan> {
         // Each Left Row Measures Its Own Columns Or Its Correlated Right Row.
         let correlation = match &self.join {
             Join::None => None,
-            Join::Previous(_) => Some((Correlation::new(right, 0, Strategy::Previous), 0)),
-            Join::AtOrBefore { .. } => {
-                let keys = self.right.len() - 3;
-                Some((Correlation::new(right, keys, Strategy::AtOrBefore), keys))
-            }
+            Join::Previous(_) => Some(Correlation::new(right)),
         };
         let case = self.left.iter().position(|column| *column == Column::Case);
         let groups = self.cases.unwrap_or(1);
@@ -502,17 +452,10 @@ impl<'plan> Plan<'plan> {
             };
             let measured = match &correlation {
                 None => row.values[..self.measured].to_vec(),
-                Some((correlation, keys)) => {
-                    let matched = correlation.find(&row.values[..3], row.capture);
-                    match (&self.join, matched) {
-                        (Join::Previous(_), Some(matched)) => {
-                            vec![elapsed(&matched.values[2], &row.values[2])?]
-                        }
-                        (Join::Previous(_), None) => vec![ScalarValue::Missing],
-                        (_, Some(matched)) => matched.values[..*keys].to_vec(),
-                        (_, None) => vec![ScalarValue::Missing; *keys],
-                    }
-                }
+                Some(correlation) => match correlation.find(&row.values[..3], row.capture) {
+                    Some(matched) => vec![elapsed(&matched.values[2], &row.values[2])?],
+                    None => vec![ScalarValue::Missing],
+                },
             };
             for (accumulator, value) in folds[group].iter_mut().zip(&measured) {
                 accumulator.push(row.capture, value).map_err(reduction)?;
@@ -554,10 +497,9 @@ impl<'plan> Plan<'plan> {
             return Ok(Output::Value(None));
         }
         Ok(match self.shape {
-            Shape::Original => match (&self.join, first) {
-                (Join::AtOrBefore { .. }, ScalarValue::Unsigned(ordinal)) => Output::Right(Some(ordinal)),
-                (_, ScalarValue::Unsigned(ordinal)) => Output::Left(Some(ordinal)),
-                (_, ScalarValue::Null) => Output::Value(Some(Value::Null)),
+            Shape::Original => match first {
+                ScalarValue::Unsigned(ordinal) => Output::Left(Some(ordinal)),
+                ScalarValue::Null => Output::Value(Some(Value::Null)),
                 _ => return Err(failure("bounded frame ordinal is invalid")),
             },
             Shape::Count => match first {
@@ -624,50 +566,27 @@ impl<'a> Keys<'a> {
             time: nanos(&record.entry.timestamp),
         }
     }
-    fn sample(sample: &'a TelemetrySample) -> Self {
-        Self {
-            scope: sample.scope.as_ref(),
-            time: nanos(&sample.timestamp),
-        }
-    }
 }
 
 impl Correlation {
-    fn new(mut rows: Vec<Projected>, keys: usize, strategy: Strategy) -> Self {
-        // Backward Matches Need A Present Value; Previous Matches Any Keyed Row.
-        rows.retain(|row| {
-            matches!(row.values[keys + 2], ScalarValue::Datetime(_))
-                && !(strategy == Strategy::AtOrBefore && matches!(row.values[0], ScalarValue::Missing))
-        });
-        rows.sort_unstable_by(|left, right| order(left, right, keys, strategy));
-        Self { rows, keys, strategy }
+    fn new(mut rows: Vec<Projected>) -> Self {
+        rows.retain(|row| matches!(row.values[2], ScalarValue::Datetime(_)));
+        rows.sort_unstable_by(order);
+        Self { rows }
     }
 
-    // The Last Right Row Not After The Probe Among Rows With Equal Keys.
+    // The Last Right Row Captured Before The Probe Among Rows With Equal Keys.
     fn find(&self, probe: &[ScalarValue], capture: u64) -> Option<&Projected> {
-        let ScalarValue::Datetime(time) = probe[2] else {
-            return None;
-        };
-        let keys = self.keys;
-        let precedes = |row: &Projected| {
-            match text(&row.values[keys]).cmp(text(&probe[0])) {
-                Ordering::Equal => {}
-                order => return order.is_lt(),
-            }
-            match text(&row.values[keys + 1]).cmp(text(&probe[1])) {
-                Ordering::Equal => {}
-                order => return order.is_lt(),
-            }
-            match self.strategy {
-                Strategy::AtOrBefore => {
-                    matches!(row.values[keys + 2], ScalarValue::Datetime(at) if at <= time)
-                }
-                Strategy::Previous => row.capture < capture,
-            }
+        let precedes = |row: &Projected| match text(&row.values[0]).cmp(text(&probe[0])) {
+            Ordering::Equal => match text(&row.values[1]).cmp(text(&probe[1])) {
+                Ordering::Equal => row.capture < capture,
+                order => order.is_lt(),
+            },
+            order => order.is_lt(),
         };
         let end = self.rows.partition_point(precedes);
         let candidate = self.rows[..end].last()?;
-        (text(&candidate.values[keys]) == text(&probe[0]) && text(&candidate.values[keys + 1]) == text(&probe[1])).then_some(candidate)
+        (text(&candidate.values[0]) == text(&probe[0]) && text(&candidate.values[1]) == text(&probe[1])).then_some(candidate)
     }
 }
 
@@ -677,13 +596,13 @@ impl<'a> Lookup<'a> {
         I: IntoIterator<Item = Side<'a>>,
         I::IntoIter: Clone,
     {
-        let right = right.into_iter().filter(|side| side.time.is_some() && (strategy != Strategy::AtOrBefore || side.present));
+        let right = right.into_iter().filter(|side| side.time.is_some() && (strategy != Strategy::Latest || side.present));
         let mut rows = Vec::new();
         rows.try_reserve_exact(right.clone().count()).map_err(|_| harmos::Error::ResourceExhausted { resource: "correlation lookup" })?;
         rows.extend(right);
         rows.sort_unstable_by(|left, right| {
             lookup_keys(left).cmp(&lookup_keys(right)).then_with(|| match strategy {
-                Strategy::AtOrBefore => left.time.cmp(&right.time).then(left.ordinal.cmp(&right.ordinal)),
+                Strategy::Latest => left.time.cmp(&right.time).then(left.ordinal.cmp(&right.ordinal)),
                 Strategy::Previous => left.ordinal.cmp(&right.ordinal),
             })
         });
@@ -695,7 +614,7 @@ impl<'a> Lookup<'a> {
         let keys = lookup_keys(probe);
         let end = self.rows.partition_point(|row| match lookup_keys(row).cmp(&keys) {
             Ordering::Equal => match self.strategy {
-                Strategy::AtOrBefore => row.time.is_some_and(|at| at <= time),
+                Strategy::Latest => row.time.is_some_and(|at| at <= time),
                 Strategy::Previous => row.ordinal < probe.ordinal,
             },
             order => order.is_lt(),
@@ -740,29 +659,17 @@ fn flag(agg: Agg) -> Agg {
     }
 }
 
-fn order(left: &Projected, right: &Projected, keys: usize, strategy: Strategy) -> Ordering {
-    text(&left.values[keys])
-        .cmp(text(&right.values[keys]))
-        .then_with(|| text(&left.values[keys + 1]).cmp(text(&right.values[keys + 1])))
-        .then_with(|| match strategy {
-            Strategy::AtOrBefore => {
-                datetime(&left.values[keys + 2]).cmp(&datetime(&right.values[keys + 2])).then(left.capture.cmp(&right.capture))
-            }
-            Strategy::Previous => left.capture.cmp(&right.capture),
-        })
+fn order(left: &Projected, right: &Projected) -> Ordering {
+    text(&left.values[0])
+        .cmp(text(&right.values[0]))
+        .then_with(|| text(&left.values[1]).cmp(text(&right.values[1])))
+        .then_with(|| left.capture.cmp(&right.capture))
 }
 
 fn text(value: &ScalarValue) -> &str {
     match value {
         ScalarValue::Text(text) => text,
         _ => "",
-    }
-}
-
-fn datetime(value: &ScalarValue) -> Option<i128> {
-    match value {
-        ScalarValue::Datetime(at) => Some(*at),
-        _ => None,
     }
 }
 
@@ -782,30 +689,6 @@ fn elapsed(start: &ScalarValue, end: &ScalarValue) -> Result<ScalarValue> {
 
 fn case_of(cases: &[Entry<'_>], scope: Option<&RecordScope>) -> Option<usize> {
     cases.iter().position(|case| case.covers(scope))
-}
-
-fn telemetry_field<'a>(sample: &'a TelemetrySample, field: &str) -> Option<Cow<'a, Value>> {
-    if let Some(value) = sample.values.get(field) {
-        Some(Cow::Borrowed(value))
-    } else if field == "timestamp" {
-        Some(Cow::Owned(Value::Datetime(sample.timestamp.to_datetime().ok()?)))
-    } else {
-        sample.values.get(field.rsplit_once('.')?.1).map(Cow::Borrowed)
-    }
-}
-
-fn detail<'a>(mut value: Cow<'a, Value>, transforms: &[DataTransform]) -> Option<Cow<'a, Value>> {
-    for transform in transforms {
-        let DataTransform::Detail { name } = transform else {
-            break;
-        };
-        value = match value {
-            Cow::Borrowed(Value::Object(fields)) => Cow::Borrowed(fields.get(name)?),
-            Cow::Owned(Value::Object(mut fields)) => Cow::Owned(fields.remove(name)?),
-            _ => return None,
-        };
-    }
-    Some(value)
 }
 
 fn floating(value: &Value) -> Result<ScalarValue> {

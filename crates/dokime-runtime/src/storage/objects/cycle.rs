@@ -297,6 +297,7 @@ impl TryFrom<Cycle> for TestCycle {
             records: row.records.ok_or(Error::Invalid("cycle record ownership is missing"))?.restore_owned()?,
             continue_automatically: row.continue_automatically,
             result: row.result.map(TryInto::try_into).transpose()?,
+            seal_failure: None,
         };
         if let Some(saved) = &restored.saved {
             saved.validate(&restored)?;

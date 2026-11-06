@@ -44,7 +44,9 @@ use dokime_domain::model::identity::NodeId;
 
 /* === Public Functions === */
 
-pub(super) async fn read(storage: &Manager, session: &crate::storage::Manager, id: &CommandId) -> Result<Option<ReadBatch<RunReceipt>>> {
+pub(super) async fn read(
+    storage: &Manager, local: &crate::storage::sqlite::State, session: &crate::storage::Manager, id: &CommandId,
+) -> Result<Option<ReadBatch<RunReceipt>>> {
     let Some(parent) = session.read_object::<Request>(id.as_str(), ObjectVersion::Latest).await.map_err(receipt_error)? else {
         return Ok(None);
     };
@@ -52,30 +54,32 @@ pub(super) async fn read(storage: &Manager, session: &crate::storage::Manager, i
     if receipt.summary.request_id != *id {
         return Err(error("request key differs from payload identity"));
     }
-    let mut commands = session
-        .read_objects::<Command>(ObjectRead {
-            at: storage.cursor_saved(),
-            key: None,
-            versions: ObjectVersions::Latest,
-        })
-        .await?;
-    while let Some(page) = commands.next().await? {
-        let count = page.iter().filter(|row| row.value.request_id() == id.as_str()).count();
-        if count == 0 {
-            continue;
-        }
-        receipt = receipt.try_map_with(page, |mut receipt, commands| -> Result<_> {
-            for row in commands {
-                if row.value.request_id() != id.as_str() {
-                    continue;
-                }
-                let command = row.value.into_receipt(id)?;
-                if receipt.commands.insert(command.command_id.clone(), command).is_some() {
-                    return Err(error("duplicate stored command identity"));
-                }
+    let at = storage.cursor_saved();
+    let mut after = String::new();
+    loop {
+        let keys = local.object_keys(at.clone(), "dokime.object.command".into(), format!("{id}/"), after.clone()).await?;
+        let Some(last) = keys.last() else { break };
+        after = last.clone();
+        for key in keys {
+            let mut commands = session
+                .read_objects::<Command>(ObjectRead {
+                    at: at.clone(),
+                    key: Some(&key),
+                    versions: ObjectVersions::Latest,
+                })
+                .await?;
+            while let Some(page) = commands.next().await? {
+                receipt = receipt.try_map_with(page, |mut receipt, commands| -> Result<_> {
+                    for row in commands {
+                        let command = row.value.into_receipt(id)?;
+                        if receipt.commands.insert(command.command_id.clone(), command).is_some() {
+                            return Err(error("duplicate stored command identity"));
+                        }
+                    }
+                    Ok(receipt)
+                })?;
             }
-            Ok(receipt)
-        })?;
+        }
     }
     Ok(Some(receipt))
 }

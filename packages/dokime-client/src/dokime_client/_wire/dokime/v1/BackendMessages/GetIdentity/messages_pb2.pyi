@@ -10,12 +10,13 @@ class Row1(_message.Message):
     def __init__(self) -> None: ...
 
 class Row2(_message.Message):
-    __slots__ = ("backend_id", "epoch", "api", "product_version", "source_revision", "sdk_revision", "started_at", "display_name", "target")
+    __slots__ = ("backend_id", "epoch", "api", "product_version", "source_revision", "channel", "sdk_revision", "started_at", "display_name", "target")
     BACKEND_ID_FIELD_NUMBER: _ClassVar[int]
     EPOCH_FIELD_NUMBER: _ClassVar[int]
     API_FIELD_NUMBER: _ClassVar[int]
     PRODUCT_VERSION_FIELD_NUMBER: _ClassVar[int]
     SOURCE_REVISION_FIELD_NUMBER: _ClassVar[int]
+    CHANNEL_FIELD_NUMBER: _ClassVar[int]
     SDK_REVISION_FIELD_NUMBER: _ClassVar[int]
     STARTED_AT_FIELD_NUMBER: _ClassVar[int]
     DISPLAY_NAME_FIELD_NUMBER: _ClassVar[int]
@@ -25,11 +26,12 @@ class Row2(_message.Message):
     api: Row3
     product_version: str
     source_revision: str
+    channel: str
     sdk_revision: str
     started_at: Row4
     display_name: str
     target: str
-    def __init__(self, backend_id: _Optional[str] = ..., epoch: _Optional[str] = ..., api: _Optional[_Union[Row3, _Mapping]] = ..., product_version: _Optional[str] = ..., source_revision: _Optional[str] = ..., sdk_revision: _Optional[str] = ..., started_at: _Optional[_Union[Row4, _Mapping]] = ..., display_name: _Optional[str] = ..., target: _Optional[str] = ...) -> None: ...
+    def __init__(self, backend_id: _Optional[str] = ..., epoch: _Optional[str] = ..., api: _Optional[_Union[Row3, _Mapping]] = ..., product_version: _Optional[str] = ..., source_revision: _Optional[str] = ..., channel: _Optional[str] = ..., sdk_revision: _Optional[str] = ..., started_at: _Optional[_Union[Row4, _Mapping]] = ..., display_name: _Optional[str] = ..., target: _Optional[str] = ...) -> None: ...
 
 class Row3(_message.Message):
     __slots__ = ("package", "version", "descriptor_sha256")

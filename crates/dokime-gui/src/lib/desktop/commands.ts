@@ -21,6 +21,7 @@ import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
 import type { InstallPluginProgress } from "@/lib/api/native-plugins";
 import { isReportBuild } from "@/lib/ui-mode";
 import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
+import type { BuildIdentity } from "./connection";
 import type { OrganizationStatus } from "./organization";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./session";
 import type { ParameterOverrides } from "./settings";
@@ -53,6 +54,8 @@ export const commands = {
   desktopPairingCreate: () => invoke<string | null>("desktop_pairing_create"),
   /** Secret-free native launch preferences. */
   desktopSessionLaunch: () => invoke<DesktopLaunch>("desktop_session_launch"),
+  /** This desktop's own build. */
+  desktopBuild: () => invoke<BuildIdentity>("desktop_build"),
   /** Select the native desktop backend. */
   desktopSessionSelect: (selection: BackendSelection) => invoke<DesktopSessionSnapshot>("desktop_session_select", { selection }),
   desktopSessionDisconnect: () => invoke<DesktopSessionSnapshot>("desktop_session_disconnect"),

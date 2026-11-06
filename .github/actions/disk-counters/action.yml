@@ -1,0 +1,22 @@
+name: Disk Counters
+description: Sample physical disk latency, queue length and throughput in the background and upload them as a diagnostic artifact
+inputs:
+  mode:
+    description: start launches the background sampler; stop ends it, summarizes the samples and uploads them
+    required: true
+  name:
+    description: Artifact name for the stop mode
+    required: false
+    default: disk-counters
+runs:
+  using: composite
+  steps:
+  - shell: pwsh
+    run: '& "$env:GITHUB_ACTION_PATH/run.ps1" -Mode "${{ inputs.mode }}" -Output "$env:GITHUB_WORKSPACE/target/diagnostics/disk"'
+  - if: inputs.mode == 'stop'
+    uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+    with:
+      name: ${{ inputs.name }}
+      path: target/diagnostics/disk/
+      if-no-files-found: ignore
+      retention-days: 14

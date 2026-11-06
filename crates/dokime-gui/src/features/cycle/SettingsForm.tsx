@@ -22,9 +22,9 @@
 
 // Standard Library Imports
 
+import { failureOf } from "@/lib/notification-details";
 import { type FormEvent, useEffect, useId, useState } from "react";
 // Third Party Imports
-import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import type { TestCycle } from "@/lib/types";
 
 /* === Re-Exports === */
 
@@ -179,7 +180,7 @@ export function SettingsDialog({
             titleInvalid={error === EMPTY_SETTINGS_TITLE_ERROR}
             values={draft}
           />
-          {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
+          {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
           <DialogFooter>
             <Button disabled={saving} onClick={() => onOpenChange(false)} type="button" variant="outline">
               {editable ? "Cancel" : "Close"}
@@ -204,10 +205,10 @@ export function SettingsDialog({
  * What a cycle's Settings may change. Its description is written once, when
  * the cycle is created; everything is read-only once it seals or archives.
  */
-export function cycleSettingsReadOnly(phase: "active" | "sealing" | "sealed", archived: boolean): SettingsReadOnly {
+export function cycleSettingsReadOnly(phase: TestCycle["phase"], archived: boolean): SettingsReadOnly {
   const description = "Set when the cycle was created.";
   if (phase !== "active") {
-    const closed = "Sealed cycles keep the settings they ran with.";
+    const closed = "Closed cycles keep the settings they ran with.";
     return { continueAutomatically: closed, description, title: closed };
   }
   return archived ? { description, title: "Unarchive the cycle to rename it." } : { description };

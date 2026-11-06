@@ -19,7 +19,11 @@
 
 /* === External Imports === */
 
-import { useMemo, useState } from "react";
+import { useNativeSessionOptional } from "@/app/native-session/context";
+import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
+import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { NotificationMessage } from "@/components/NotificationMessage";
 
@@ -27,22 +31,21 @@ import { NotificationMessage } from "@/components/NotificationMessage";
 
 import { Button } from "@/components/ui/button";
 import { FailureConsequences } from "@/components/FailureConsequences";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import {
   useInstalledPluginDetailQuery,
   useInstalledPluginSettingsMutation,
+  usePluginRestartRefresh,
 } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
-import { usePluginsQuery, useRestartAppMutation } from "@/features/settings/plugins/plugin-queries";
-import { useBrand } from "@/lib/brand";
-import { isTauriDesktop } from "@/lib/desktop-open";
+import { usePluginsQuery, useRetryPluginMutation } from "@/features/settings/plugins/plugin-queries";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { SettingsAdvancedSwitch } from "@/features/settings/SettingsSurface";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { usePageChrome } from "@/shell/page-chrome";
+import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Types === */
 
@@ -54,6 +57,7 @@ type PluginSettingsSurfaceProps = {
 /* === Components === */
 
 export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSurfaceProps) {
+  const generation = useNativeSessionOptional()?.identity.generation ?? "";
   const settings = useSettingsSections();
   const pluginsQuery = usePluginsQuery();
   const section = settings.frame?.sections.find((entry) => entry.section_id === sectionId) ?? null;
@@ -61,6 +65,13 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
   const installation = !section
     ? pluginsQuery.data?.find((entry) => entry.install_id === sectionId && entry.state !== "removal_pending")
     : null;
+  /* The installation whose startup or restart this page reports: the bundle's own
+     page, or the installation that runs the contributed section's program. */
+  const owning =
+    installation ??
+    (pluginId
+      ? (pluginsQuery.data?.find((entry) => entry.state === "installed" && entry.metadata?.owners.includes(pluginId)) ?? null)
+      : null);
 
   const actions = useMemo(() => <SettingsAdvancedSwitch />, []);
   usePageChrome({
@@ -84,7 +95,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
         ) : settings.error ? (
           <SettingsCard title="Settings">
             <SettingsRow label="Status">
-              <NotificationMessage error={settings.failure}>{settings.error}</NotificationMessage>
+              <ErrorCard failure={failureOf(settings.failure, "Data Unavailable")} />
               <Button onClick={settings.retry} size="sm" variant="outline">
                 Try Again
               </Button>
@@ -93,20 +104,17 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
         ) : (
           <>
             {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
-            {installation?.boot_failed && installation.last_boot?.state === "failed" ? (
-              <SettingsCard title="Startup Failed">
-                <SettingsRow label={installation.last_boot.failure.plugin_name}>
-                  <p role="alert" className="text-sm text-destructive">
-                    {installation.last_boot.failure.message}
-                    {installation.last_boot.failure.code ? <code className="block">{installation.last_boot.failure.code}</code> : null}
-                  </p>
-                  <FailureConsequences items={installation.last_boot.failure.consequences} />
-                  {installation.last_boot.failure.missing_secret ? (
+            {owning?.last_boot?.state === "failed" && (owning.boot_failed || owning.active) ? (
+              <SettingsCard title={owning.boot_failed ? "Startup Failed" : "Restart Refused"}>
+                <SettingsRow label={owning.last_boot.failure.plugin_name}>
+                  <ErrorCard failure={pluginStartFailure(owning, generation)} />
+                  <FailureConsequences items={owning.last_boot.failure.consequences} />
+                  {owning.last_boot.failure.missing_secret ? (
                     <Link
                       className="text-sm underline"
                       to="/settings/$section"
                       params={{ section: "secrets" }}
-                      hash={`add-secret=${installation.last_boot.failure.missing_secret}`}
+                      hash={`add-secret=${owning.last_boot.failure.missing_secret}`}
                     >
                       Set Secret
                     </Link>
@@ -117,10 +125,8 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
             {installation?.metadata?.owners.map((owner) => (
               <PluginDetailCard key={owner} pluginId={owner} />
             ))}
-            {installation && !installation.active ? <PluginRestart /> : null}
-            {!section && pluginsQuery.isError ? (
-              <NotificationMessage error={pluginsQuery.error}>{pluginsQuery.error.message}</NotificationMessage>
-            ) : null}
+            {owning && retryable(owning) ? <PluginRetry installId={owning.install_id} /> : null}
+            {!section && pluginsQuery.isError ? <ErrorCard failure={failureOf(pluginsQuery.error, "Data Unavailable")} /> : null}
             {cards.length ? (
               <PluginSettingsCards cards={cards} />
             ) : pluginId || installation ? null : (
@@ -139,46 +145,34 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
 
 /* === Private Components === */
 
-function PluginRestart() {
-  const brand = useBrand();
-  const restart = useRestartAppMutation();
-  const [open, setOpen] = useState(false);
+/** Starts this one installation again with its saved settings and secrets; nothing else restarts. */
+function PluginRetry({ installId }: { installId: string }) {
+  const retry = useRetryPluginMutation();
   return (
-    <SettingsCard title="Restart Required" description="Saved settings and secrets apply on the next start.">
+    <SettingsCard title="Retry" description="Saved settings and secrets apply when the plugin starts again.">
       <SettingsRow label="Retry Startup">
-        {isTauriDesktop() ? (
-          <Button onClick={() => setOpen(true)} variant="outline">
-            Restart {brand.label}
-          </Button>
-        ) : (
-          <p>Restart dokime server to retry.</p>
-        )}
+        <Button disabled={retry.isPending} onClick={() => retry.mutate(installId)} variant="outline">
+          {retry.isPending ? "Retrying…" : "Retry"}
+        </Button>
+        {retry.isError ? <NotificationMessage error={retry.error}>{retry.error.message}</NotificationMessage> : null}
       </SettingsRow>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Restart {brand.label}?</DialogTitle>
-            <DialogDescription>Active work will stop and plugin resources will close before the application restarts.</DialogDescription>
-          </DialogHeader>
-          {restart.isError ? <NotificationMessage error={restart.error}>{restart.error.message}</NotificationMessage> : null}
-          <DialogFooter>
-            <Button onClick={() => setOpen(false)} variant="outline">
-              Later
-            </Button>
-            <Button disabled={restart.isPending} onClick={() => restart.mutate()}>
-              Restart Now
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </SettingsCard>
   );
+}
+
+/* === Private Functions === */
+
+/** An installed plugin that does not run, or kept its generation after a refused restart, can start again. */
+function retryable(installation: PluginEntry): boolean {
+  if (installation.state !== "installed" || installation.restart !== "idle") return false;
+  return !installation.active || installation.last_boot?.state === "failed";
 }
 
 /** The artifact's settings and read-only secret requirements. */
 function PluginDetailCard({ pluginId }: { pluginId: string }) {
   const detailQuery = useInstalledPluginDetailQuery(pluginId, pluginId);
   const settingsMutation = useInstalledPluginSettingsMutation();
+  usePluginRestartRefresh(detailQuery.data?.restart);
   if (detailQuery.isPending) {
     return (
       <SettingsCard title="Settings">
@@ -194,7 +188,7 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
     return (
       <SettingsCard title="Settings">
         <SettingsRow label="Status">
-          <NotificationMessage error={detailQuery.error}>{detailQuery.error.message}</NotificationMessage>
+          <ErrorCard failure={failureOf(detailQuery.error, "Data Unavailable")} />
         </SettingsRow>
       </SettingsCard>
     );

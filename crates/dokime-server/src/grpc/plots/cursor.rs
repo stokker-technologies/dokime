@@ -268,10 +268,6 @@ fn data_transform(transform: dokime::domain::model::plots::wire::DataTransform) 
         dokime::domain::model::plots::wire::DataTransformKind::TimeBetween(value) => DataTransform::TimeBetween {
             previous_record_type: value.previous_record_type,
         },
-        dokime::domain::model::plots::wire::DataTransformKind::TelemetryAtOrBefore(value) => DataTransform::TelemetryAtOrBefore {
-            stream: expression_stream(value.stream)?,
-            field: value.field,
-        },
         dokime::domain::model::plots::wire::DataTransformKind::Detail(value) => DataTransform::Detail { name: value.name },
         dokime::domain::model::plots::wire::DataTransformKind::PerCase(_) => DataTransform::PerCase,
     })

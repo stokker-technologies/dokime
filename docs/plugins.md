@@ -5,8 +5,9 @@ with the bundle's display name and the underlying cause. The verified ordinary
 settings remain editable even when the plugin could not start. Secret declarations
 show their shared Secret Storage identifiers and availability read-only. Use
 **Add In Secret Storage** to open Add Secret prefilled with a missing identifier,
-then restart Dokime or use the existing plugin Retry. There are no secret bindings
-or environment-variable sources. Notification history retains the settings link.
+then use **Retry** on the plugin page, which starts that plugin again while Dokime
+keeps running. There are no secret bindings or environment-variable sources.
+Notification history retains the settings link.
 
 A failed boot has one typed reason with the plugin identity, message and refusal
 code. Initialization failures also retain the encoded Harmos failure, including its kind,
@@ -218,7 +219,7 @@ Its bundle and release-feed name are `plugin-host`; the stored sidecar owner is
 `plugin_host`, using Harmos's portable owner spelling; `host` names application-owned operations
 in Harmos. The bundle is `plugin-host.dokime`, with `host.*` stream and operation IDs.
 The host sidecar declares no automatic restart: a process fault deactivates it
-until an explicit reload or the next startup.
+until an explicit reload, a settings save that changes a value, or the next startup.
 
 Host observers run only while their streams are leased. Execution subscriptions
 and live plot viewers hold those leases; releasing the last lease stops the
@@ -254,8 +255,15 @@ and do not run plugin lifecycle hooks.
 Installed packages with unavailable or circular contracts are refused while
 unrelated plugins start normally. Settings → Plugins retains the boot reason,
 and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
+A settings save that changes a value starts a new generation of that plugin and
+its dependents through the same reload, with a configuration built from the saved
+values, once no cycle is active. A restart refused before
+the program stops, for example because its saved values or a required secret do
+not resolve, keeps the running generation and records why; one whose new
+generation then fails to start is recorded like a failed boot.
 Unavailable-contract reasons identify the owner and required contract; cycle
 reasons identify every involved plugin.
+
 
 Cargo supplies package identity, version and description. Suite declarations
 produce their execution factories; authors do not maintain a second runtime
@@ -298,6 +306,15 @@ external bundle or sidecars archive inputs relative to the invocation directory.
 Names come from feed and product declarations; they do not depend on crate naming.
 See [Distribution From A Release](product-guide.md#distribution-from-a-release).
 
+Plugin upload and installation use `Install::POLICY.timeout` as the maximum
+silence between frames and while waiting for the final installation response.
+Each pulled upload frame rearms the deadline, so active uploads can exceed that
+budget in total duration. The server and desktop derive their waits from the
+same operation policy; desktop and Rust client uploads carry no total
+`grpc-timeout`. The existing
+installation policy permits one hour of silence, including staging and
+activation after upload. Bundle and frame size caps are unchanged.
+
 Operators install bundles through **Settings → Plugins**. Installation validates
 the complete bundle and frozen registrations without running author code, then
 atomically binds an installation UUID to its SHA-256 in `settings.json`; immutable bytes live at
@@ -324,3 +341,69 @@ A bundle that declares a Harmos guest is refused at admission.
 Catalog ownership is explicit. Host registrations survive plugin removal.
 Provider reconciliation rebuilds the catalogs owned by configured, embedded and
 installed plugins from their admitted registrations.
+
+## Plugin Startup And Stop Budgets
+
+Two host settings bound a sidecar program's lifecycle outside its own code.
+They live in `PluginPreferences` in
+`crates/dokime-domain/src/model/settings/application.rs`, are edited under
+**Settings › Plugins** and are read again at every start, restart and stop, so a
+saved change applies to the next one, including live installation changes and
+settings restarts.
+
+| Setting | Default | Range | Bounds |
+| --- | --- | --- | --- |
+| Plugin Startup Timeout [s] | 60 | 1–3,600 | Launch, handshake and endpoint staging of each start attempt |
+| Plugin Stop Timeout [s] | 10 | 1–3,600 | Settling of the executions a stopping or replaced plugin owns |
+
+The startup budget covers what happens before the plugin's lifecycle code runs:
+the process launch, including the operating system loading the libraries it links,
+its handshake and the staging of its native endpoint. A program that exceeds it
+fails to start with `Plugin <id> could not initialize` and a cause naming the
+budget and this setting. `prepare` and `initialize` themselves run afterwards,
+bounded by the plugin's declared lifecycle `INITIALIZATION_POLICY` (and
+`SHUTDOWN_POLICY` for stop), a Harmos operation policy the plugin authors with
+its other declarations. A plugin that opens a slow vendor client during
+`initialize` declares a longer initialization policy; the host setting is not a
+per-plugin declaration.
+
+## Live Installation Changes
+
+Installing, reinstalling or updating a bundle, and enabling, disabling or removing
+one, take effect in the running backend without restarting Dokime. The plugin
+store records the change first, and the backend's restarter
+(`crates/dokime-runtime/src/runtime/plugins/installs.rs`) then brings the running
+programs in line with it through the same reload as a settings restart: a new
+bundle starts, a changed bundle replaces the running generation, and a disabled or
+removed bundle stops. Each change is admitted like a startup. The desired catalog
+is validated as a whole before anything stops: conflicting catalogs, unavailable
+or circular contracts, and the packages that need a removed or refused provider.
+A package that loses a provider it requires stops with it and records why, so the
+running set matches what the next start would admit.
+
+While any cycle is active, every queued change, settings restarts included,
+waits: the plugin shows **Restart Pending** and the change applies automatically
+once no cycle is active. A cycle is active while it runs, is paused
+or stops, waits to continue automatically with its next case, finalizes its
+run's evidence, or seals. A cycle left open and idle is not active. Every
+execution runs in a cycle, so a change never applies while an execution runs or
+is prepared. Executions are never stopped or disturbed for a change, and further
+changes to the same package join the one that waits, applying the latest.
+**Retry** of a plugin that does not run starts it at once, even while a cycle is
+active, because nothing running stops; retrying a running plugin restarts it once
+no cycle is active.
+
+A replacement refused before anything stops, because its bundle, catalog,
+contracts, saved settings or secrets do not validate, leaves the previous
+generation running untouched. Harmos stops a generation before starting its
+replacement, so a replacement whose new program then fails to start brings the
+previous bundle back as a fresh generation. Either way the previous installation
+stays installed with its saved values, and the refused one is listed as
+**Refused** with its failure, reported like a failed startup, until the next start
+deletes its file. A first installation that fails stays installed with its
+failure; **Retry** starts it again once the cause is fixed. Removal stops the
+plugin live once no cycle is active, then discards its row and managed file.
+Successful replacements discard the old installation in the same way. If deletion
+fails, the row and its error stay visible until startup retries. Unreferenced
+files are swept only at startup, so live cleanup cannot race an installation
+publishing its bundle before its settings commit.

@@ -68,6 +68,11 @@ export async function setNativePluginEnabled(session: SessionIdentity, installId
   return mapPluginInstallation(await rpc.pluginsSetEnabled(session, { installId, enabled }));
 }
 
+/** Starts the installation again in the running backend, without restarting it. */
+export async function retryNativePlugin(session: SessionIdentity, installId: string): Promise<PluginEntry> {
+  return mapPluginInstallation(await rpc.pluginsRetry(session, { installId }));
+}
+
 /* === Plugin Installation === */
 
 /** Progress phases {@link installNativePlugin} reports through `onProgress`, in order. */
@@ -168,7 +173,7 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
       : null,
     error: installation.error ?? null,
     active: installation.active,
-    restart_required: installation.restartRequired,
+    restart: mapPluginRestart(installation.restart),
     boot_failed: installation.bootFailed,
   };
 }
@@ -183,6 +188,19 @@ function mapPluginState(state: PluginInstallationState): PluginEntry["state"] {
       return "removal_pending";
     default:
       throw new Error("Native plugin returned an unknown installation state.");
+  }
+}
+
+function mapPluginRestart(restart: PluginInstallation["restart"]): PluginEntry["restart"] {
+  switch (restart?.HarmosVariant.case) {
+    case "Idle":
+      return "idle";
+    case "Restarting":
+      return "restarting";
+    case "Pending":
+      return "pending";
+    default:
+      throw new Error("Native plugin returned an unknown restart state.");
   }
 }
 

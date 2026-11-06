@@ -18,8 +18,8 @@
 // Third Party Imports
 
 // Local Imports
+import { failureOf } from "@/lib/notification-details";
 import type { Wire } from "@/lib/rpc/canonical";
-import { normalizeRpcError } from "@/lib/rpc/errors";
 import type * as rpc from "@/lib/rpc/generated/client";
 
 /* === Re-Exports === */
@@ -61,7 +61,7 @@ export async function commitListener({ status, change, send, fail }: Commit): Pr
   try {
     return await send(listenerRequest(status, change));
   } catch (error) {
-    fail(listenerError(error), error);
+    fail(failureOf(error, "Remote Access Change Failed").message, error);
     return status;
   }
 }
@@ -70,11 +70,6 @@ export function certificateIssue(status: ListenerStatus): string | null {
   return appliedSettings(status).tlsEnabled && !status.certificatePem
     ? "TLS is on but this host has no certificate, so the listener cannot start. Generate one for this host's names."
     : null;
-}
-
-export function listenerError(error: unknown): string {
-  const normalized = normalizeRpcError(error);
-  return normalized instanceof Error && normalized.message.trim() ? normalized.message : "The host rejected the remote access change.";
 }
 
 /* === Private Functions === */

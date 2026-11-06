@@ -45,13 +45,13 @@ use dokime_domain::model::{
 /* === Structs === */
 
 pub struct Fixture {
-    _root: tempfile::TempDir,
     state: State,
     pub config: QueryConfig,
     pub execution: TestExecutionId,
     pub second: TestExecutionId,
     pub cycle: TestCycleId,
     pub epoch: SessionId,
+    _root: tempfile::TempDir,
 }
 
 /* === Enums === */
@@ -188,7 +188,7 @@ impl Fixture {
                 )?;
                 let scope = entry.scope.as_ref();
                 connection.execute(
-                    "INSERT INTO storage_record_visibility VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                    "INSERT INTO storage_record_visibility VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
                     params![
                         position,
                         entry.record_id.as_str(),
@@ -196,7 +196,8 @@ impl Fixture {
                         scope.and_then(|s| s.test_cycle_id.as_ref()).map(|id| id.as_str()),
                         scope.and_then(|s| s.test_execution_id.as_ref()).map(|id| id.as_str()),
                         format!("{:016x}", entry.sequence),
-                        epoch.as_str()
+                        epoch.as_str(),
+                        scope.map(serde_json::to_string).transpose().unwrap()
                     ],
                 )?;
                 for scope in &entry.captured_scopes {
@@ -287,3 +288,17 @@ impl Fixture {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[tokio::test]
+async fn temporary_fixture_cleanup() {
+    for failure in [false, true] {
+        let fixture = Fixture::new(2).await;
+        let path = fixture._root.path().to_owned();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            let _fixture = fixture;
+            assert!(!failure, "injected fixture failure");
+        }));
+        assert_eq!(outcome.is_err(), failure);
+        assert!(!path.exists(), "fixture storage survived teardown: {}", path.display());
+    }
+}

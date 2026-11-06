@@ -32,6 +32,7 @@ use serde::{Deserialize, Serialize};
 
 #[harmos::message(skip_default)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RemoteListenerSettings {
     pub enabled: bool,
     pub address: String,

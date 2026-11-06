@@ -11,6 +11,8 @@
 
 /* === Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import type { ApplicationSettings, SettingsScope, SettingsSnapshot } from "@generated/application-settings";
 import { useEffect, useRef, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
@@ -19,14 +21,14 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { formatUnitLabel } from "@/lib/format";
 import { toast } from "@/lib/notifications";
-import { preferencesError, usePreferences, useSavePreferences } from "./application-preferences";
+import { usePreferences, useSavePreferences } from "./application-preferences";
 import { SettingsCard } from "./SettingsCard";
 import { SettingsRow } from "./SettingsRow";
 import { createDebouncedWriter } from "./settings-autosave";
 
 /* === Types === */
 
-type PreferencesSection = "appearance" | "remote";
+type PreferencesSection = "appearance" | "plugins" | "remote";
 type PreferenceGroup = keyof ApplicationSettings;
 type PreferenceField = {
   group: PreferenceGroup;
@@ -134,6 +136,23 @@ const FIELDS: PreferenceField[] = [
     kind: "list",
     advanced: true,
   },
+  {
+    group: "plugins",
+    key: "startup_timeout_s",
+    label: "Plugin Startup Timeout",
+    help: "Time a plugin program has to launch and become ready. Applies to its next start or restart.",
+    unit: "s",
+    max: 3600,
+  },
+  {
+    group: "plugins",
+    key: "stop_timeout_s",
+    label: "Plugin Stop Timeout",
+    help: "Time a stopping plugin's executions have to settle. Applies to its next stop or restart.",
+    unit: "s",
+    max: 3600,
+    advanced: true,
+  },
 ];
 const SELECT_CLASS =
   "h-[var(--control-height)] w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring";
@@ -153,7 +172,7 @@ export function ApplicationPreferences({
 }) {
   return (
     <>
-      {section !== "remote" && <ScopedPreferences scope="local" advanced={advanced} section={section} />}
+      {section !== "remote" && section !== "plugins" && <ScopedPreferences scope="local" advanced={advanced} section={section} />}
       {!localOnly && <ScopedPreferences scope="backend" advanced={advanced} section={section} onPendingChange={onPendingChange} />}
     </>
   );
@@ -179,7 +198,7 @@ function ScopedPreferences({
         </p>
       ) : query.error ? (
         <div className="grid justify-items-start gap-3 p-4 text-sm">
-          <NotificationMessage error={query.error}>{preferencesError(query.error)}</NotificationMessage>
+          <ErrorCard failure={failureOf(query.error, "Data Unavailable")} />
           <Button variant="outline" onClick={() => void query.refetch()}>
             Retry
           </Button>
@@ -241,6 +260,7 @@ function PreferencesForm({
                   report: input.settings.report,
                   telemetry: input.settings.telemetry,
                   listener: input.settings.listener,
+                  plugins: input.settings.plugins,
                 };
           const saved = await saveRef.current({ previous, settings });
           baseline.current = saved;
@@ -273,18 +293,20 @@ function PreferencesForm({
     const local = field.group === "appearance" || field.group === "client";
     return (
       local === (scope === "local") &&
-      (section === "remote"
-        ? field.group === "listener"
+      (section === "remote" || section === "plugins"
+        ? field.group === (section === "remote" ? "listener" : "plugins")
         : section === "appearance"
           ? field.group === "appearance"
-          : field.group !== "listener")
+          : field.group !== "listener" && field.group !== "plugins")
     );
   });
   function row(field: PreferenceField) {
     const name = `${field.group}.${field.key}`;
     const label = formatUnitLabel(field.label, field.unit);
     const value = (draft[field.group] as unknown as Record<string, string | number | boolean | string[] | null>)[field.key];
-    const error = invalid[name] ?? (edited.has(name) && (failure || save.error) ? preferencesError(failure ?? save.error) : null);
+    const error =
+      invalid[name] ??
+      (edited.has(name) && (failure || save.error) ? failureOf(failure ?? save.error, "Settings Operation Failed").message : null);
     const change = (next: string | number | boolean | string[] | null) => {
       if (validationFailure(failure ?? save.error)) {
         writer.current?.reset();
@@ -389,7 +411,9 @@ function PreferencesForm({
       )}
       {(failure || save.error) && (
         <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <NotificationMessage error={failure ?? save.error}>{preferencesError(failure ?? save.error)}</NotificationMessage>
+          <NotificationMessage error={failure ?? save.error}>
+            {failureOf(failure ?? save.error, "Settings Operation Failed").message}
+          </NotificationMessage>
           <Button
             variant="outline"
             onClick={async () => {

@@ -33,7 +33,7 @@ pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_record_visibility (
     position TEXT PRIMARY KEY REFERENCES storage_data_entries(position) ON DELETE CASCADE,
     record_id TEXT NOT NULL UNIQUE, ordinal TEXT NOT NULL UNIQUE,
-    cycle TEXT, execution TEXT, sequence TEXT NOT NULL, epoch TEXT
+    cycle TEXT, execution TEXT, sequence TEXT NOT NULL, epoch TEXT, scope TEXT
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS storage_record_captures (
     execution TEXT NOT NULL, position TEXT NOT NULL REFERENCES storage_data_entries(position) ON DELETE CASCADE,
@@ -46,6 +46,18 @@ CREATE INDEX IF NOT EXISTS storage_capture_cycle ON storage_record_captures(cycl
 CREATE INDEX IF NOT EXISTS storage_record_cycle ON storage_record_visibility(cycle,position);
 CREATE INDEX IF NOT EXISTS storage_record_context ON storage_record_visibility(cycle,execution,position);
 CREATE INDEX IF NOT EXISTS storage_record_execution ON storage_record_visibility(execution,position);
+CREATE INDEX IF NOT EXISTS storage_record_case ON storage_record_visibility(json_extract(scope,'$.test_case_id'),position);
+CREATE INDEX IF NOT EXISTS storage_record_template ON storage_record_visibility(json_extract(scope,'$.template_id'),position);
+CREATE INDEX IF NOT EXISTS storage_record_suite ON storage_record_visibility(json_extract(scope,'$.suite_id'),position);
+CREATE INDEX IF NOT EXISTS storage_capture_case ON storage_record_captures(json_extract(scope,'$.test_case_id'),position);
+CREATE INDEX IF NOT EXISTS storage_capture_template ON storage_record_captures(json_extract(scope,'$.template_id'),position);
+CREATE INDEX IF NOT EXISTS storage_capture_suite ON storage_record_captures(json_extract(scope,'$.suite_id'),position);
+CREATE INDEX IF NOT EXISTS storage_record_case_sequence ON storage_record_visibility(json_extract(scope,'$.test_case_id'),epoch,sequence,position);
+CREATE INDEX IF NOT EXISTS storage_record_template_sequence ON storage_record_visibility(json_extract(scope,'$.template_id'),epoch,sequence,position);
+CREATE INDEX IF NOT EXISTS storage_record_suite_sequence ON storage_record_visibility(json_extract(scope,'$.suite_id'),epoch,sequence,position);
+CREATE INDEX IF NOT EXISTS storage_capture_case_sequence ON storage_record_captures(json_extract(scope,'$.test_case_id'),epoch,sequence,position);
+CREATE INDEX IF NOT EXISTS storage_capture_template_sequence ON storage_record_captures(json_extract(scope,'$.template_id'),epoch,sequence,position);
+CREATE INDEX IF NOT EXISTS storage_capture_suite_sequence ON storage_record_captures(json_extract(scope,'$.suite_id'),epoch,sequence,position);
 CREATE INDEX IF NOT EXISTS storage_record_execution_sequence ON storage_record_visibility(execution,epoch,sequence,position);
 CREATE INDEX IF NOT EXISTS storage_record_cycle_sequence ON storage_record_visibility(cycle,epoch,sequence,position);
 CREATE INDEX IF NOT EXISTS storage_capture_execution_sequence ON storage_record_captures(execution,epoch,sequence,position);
@@ -105,30 +117,35 @@ impl super::State {
                 saved(connection)?.history.check(&at.history)?;
                 let (sql, args) =
                     scoped_query(&scope, epoch.as_deref(), (after_position, at.sequence), (after_sequence, through_sequence), None)?;
-                let mut query = connection.prepare(&sql)?;
-                let mut rows = query.query(rusqlite::params_from_iter(args))?;
-                let mut output = Vec::new();
-                let mut bytes = 0usize;
-                while let Some(row) = rows.next()? {
-                    let body = blob(row, 1)?;
-                    if !output.is_empty() && bytes.saturating_add(body.len()) > 8 * 1024 * 1024 {
-                        break;
-                    }
-                    check_digest(body, blob(row, 2)?)?;
-                    let Entry::Record(record) = Entry::decode("record", body)? else { unreachable!() };
-                    let indexed = super::sequence(&row.get::<_, String>(0)?)?;
-                    if record.position.sequence != indexed {
-                        return Err(Error::Corrupt("record capture index position differs"));
-                    }
-                    let epoch = record.scope.as_ref().ok_or(Error::Corrupt("captured record has no process epoch"))?;
-                    output.push(ScopedRecord {
-                        position: indexed,
-                        epoch: dokime_domain::model::identity::SessionId::from_uuid(epoch.as_str())?,
-                        record: RecordRow::decode_entry(&record.payload)?,
-                    });
-                    bytes += body.len();
-                }
-                Ok(output)
+                record_page(connection, &at, &sql, args)
+            })())
+        })
+        .await?
+    }
+
+    pub(crate) async fn context_records(
+        &self, at: StorageCursor, execution: String, cycle: String, after: u64,
+    ) -> Result<Vec<ScopedRecord>, Error> {
+        self.read(move |connection| {
+            Ok((|| {
+                saved(connection)?.history.check(&at.history)?;
+                let sql = "SELECT e.position,e.body,e.digest FROM (
+                    SELECT position FROM (SELECT position FROM storage_record_visibility
+                    WHERE position>?1 AND position<=?2 AND (execution=?3
+                        OR (execution IS NULL AND (cycle=?4 OR (cycle IS NULL
+                            AND json_extract(scope,'$.test_case_id') IS NULL
+                            AND json_extract(scope,'$.template_id') IS NULL
+                            AND json_extract(scope,'$.suite_id') IS NULL
+                            AND json_extract(scope,'$.step_id') IS NULL
+                            AND json_extract(scope,'$.criterion_id') IS NULL))))
+                    ORDER BY position LIMIT 256)
+                    UNION SELECT position FROM (SELECT position FROM storage_record_captures
+                    WHERE position>?1 AND position<=?2 AND execution=?3
+                    ORDER BY position LIMIT 256)
+                ) selected JOIN storage_data_entries e ON e.position=selected.position
+                ORDER BY e.position LIMIT 256";
+                let args = vec![position(after).into(), position(at.sequence).into(), execution.into(), cycle.into()];
+                record_page(connection, &at, sql, args)
             })())
         })
         .await?
@@ -176,7 +193,7 @@ pub(super) fn index(connection: &Connection, row: &StoredRecord) -> Result<(), E
     super::super::RECORD_CAPTURE_ADMISSIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let scope = record.scope.as_ref();
     connection.execute(
-        "INSERT INTO storage_record_visibility VALUES (?1,?2,?3,?4,?5,?6,?7)",
+        "INSERT INTO storage_record_visibility VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
         params![
             position(row.position.sequence),
             record.record_id.as_str(),
@@ -184,7 +201,8 @@ pub(super) fn index(connection: &Connection, row: &StoredRecord) -> Result<(), E
             scope.and_then(|scope| scope.test_cycle_id.as_ref()).map(|id| id.as_str()),
             scope.and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str()),
             position(record.sequence),
-            row.scope.as_ref().map(|epoch| epoch.as_str())
+            row.scope.as_ref().map(|epoch| epoch.as_str()),
+            scope.map(serde_json::to_string).transpose()?
         ],
     )?;
     for scope in &record.captured_scopes {
@@ -208,6 +226,46 @@ pub(super) fn index(connection: &Connection, row: &StoredRecord) -> Result<(), E
 
 /* === Private Functions === */
 
+fn record_page(
+    connection: &Connection, at: &StorageCursor, sql: &str, args: Vec<rusqlite::types::Value>,
+) -> Result<Vec<ScopedRecord>, Error> {
+    let mut query = connection.prepare(sql)?;
+    let mut rows = query.query(rusqlite::params_from_iter(args))?;
+    let mut output = Vec::new();
+    let mut bytes = 0usize;
+    while let Some(row) = rows.next()? {
+        let body = blob(row, 1)?;
+        if !output.is_empty() && bytes.saturating_add(body.len()) > 8 * 1024 * 1024 {
+            break;
+        }
+        check_digest(body, blob(row, 2)?)?;
+        let Entry::Record(record) = Entry::decode("record", body)? else { unreachable!() };
+        at.history.check(&record.position.history)?;
+        if record.schema != crate::storage::records::schema() {
+            return Err(Error::Corrupt("record capture schema differs from its index"));
+        }
+        let indexed = super::sequence(&row.get::<_, String>(0)?)?;
+        if record.position.sequence != indexed {
+            return Err(Error::Corrupt("record capture index position differs"));
+        }
+        let epoch = record.scope.as_ref().ok_or(Error::Corrupt("captured record has no process epoch"))?;
+        if epoch.as_str().bytes().any(|byte| byte.is_ascii_uppercase()) || record.source.is_some() || record.source_time.is_some() {
+            return Err(Error::Corrupt("captured record envelope differs from its declared schema"));
+        }
+        let entry = RecordRow::decode_entry(&record.payload)?;
+        if record.item.as_str() != entry.record_id.as_str() {
+            return Err(Error::Corrupt("captured record key differs from payload identity"));
+        }
+        output.push(ScopedRecord {
+            position: indexed,
+            epoch: dokime_domain::model::identity::SessionId::from_uuid(epoch.as_str())?,
+            record: entry,
+        });
+        bytes += body.len();
+    }
+    Ok(output)
+}
+
 fn scoped_query(
     scope: &crate::evidence_runtime::ScopeSelection, epoch: Option<&str>, positions: (u64, u64), sequences: (u64, u64),
     query: Option<&query::Read>,
@@ -224,8 +282,18 @@ fn scoped_query(
             conditions.push(format!("{column}=?{}", args.len()));
         }
     }
+    for (field, value) in [
+        ("test_case_id", scope.test_case_id.as_ref().map(ToString::to_string)),
+        ("template_id", scope.template_id.as_ref().map(ToString::to_string)),
+        ("suite_id", scope.suite_id.as_ref().map(ToString::to_string)),
+    ] {
+        if let Some(value) = value {
+            args.push(Value::Text(value));
+            conditions.push(format!("json_extract(scope,'$.{field}')=?{}", args.len()));
+        }
+    }
     if conditions.len() == 1 {
-        return Err(Error::Invalid("indexed record read requires an execution or cycle"));
+        return Err(Error::Invalid("indexed record read requires a test owner"));
     }
     if let Some(read) = query {
         if let Some(journal) = read.cut.journal {
@@ -284,10 +352,13 @@ mod tests {
     #[test]
     fn scoped_pages_seek() {
         use crate::evidence_runtime::ScopeSelection;
-        use dokime_domain::model::identity::{TestCycleId, TestExecutionId};
+        use dokime_domain::model::identity::{CaseId, SuiteId, TemplateId, TestCycleId, TestExecutionId};
         let execution = TestExecutionId::from_seed("indexed-owner");
         let shared = TestExecutionId::from_seed("shared-owner");
         let cycle = TestCycleId::from_seed("indexed-cycle");
+        let case = CaseId::from_seed("indexed-case");
+        let template = TemplateId::from_seed("indexed-template");
+        let suite = SuiteId::from_seed("indexed-suite");
         for history in [4096_u64, 65536] {
             let connection = Connection::open_in_memory().unwrap();
             connection.execute_batch(super::super::SCHEMA).unwrap();
@@ -301,11 +372,12 @@ mod tests {
                 INSERT INTO storage_record_visibility
                 SELECT position,identity,position,'{cycle}',CASE WHEN row_number() OVER (ORDER BY position)%2=1
                     THEN '{execution}' ELSE 'other' END,
-                    printf('%016x',row_number() OVER (PARTITION BY scope ORDER BY position)),scope FROM storage_data_entries;
+                    printf('%016x',row_number() OVER (PARTITION BY scope ORDER BY position)),scope,
+                    '{{\"test_case_id\":\"{case}\",\"template_id\":\"{template}\",\"suite_id\":\"{suite}\"}}' FROM storage_data_entries;
                 INSERT INTO storage_record_captures
-                SELECT '{execution}',position,record_id,ordinal,'{{}}',cycle,sequence,epoch FROM storage_record_visibility;
+                SELECT '{execution}',position,record_id,ordinal,scope,cycle,sequence,epoch FROM storage_record_visibility;
                 INSERT INTO storage_record_captures
-                SELECT '{shared}',position,record_id,ordinal,'{{}}',cycle,sequence,epoch FROM storage_record_visibility;",
+                SELECT '{shared}',position,record_id,ordinal,scope,cycle,sequence,epoch FROM storage_record_visibility;",
                     history * 2,
                 ))
                 .unwrap();
@@ -320,6 +392,18 @@ mod tests {
                 },
                 ScopeSelection {
                     test_cycle_id: Some(cycle.clone()),
+                    ..Default::default()
+                },
+                ScopeSelection {
+                    test_case_id: Some(case.clone()),
+                    ..Default::default()
+                },
+                ScopeSelection {
+                    template_id: Some(template.clone()),
+                    ..Default::default()
+                },
+                ScopeSelection {
+                    suite_id: Some(suite.clone()),
                     ..Default::default()
                 },
             ] {

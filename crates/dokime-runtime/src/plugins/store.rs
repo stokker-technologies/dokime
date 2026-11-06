@@ -233,6 +233,45 @@ impl PluginStore {
             .await
     }
 
+    /// The Stored State Of One Installation, Without Reading Its Bundle.
+    pub(crate) async fn state(&self, id: Uuid) -> Result<Option<PluginState>, PluginError> {
+        Ok(self.settings.read(move |document| document.plugins.get(&id).map(|plugin| plugin.state)).await?)
+    }
+
+    /// One Installation's Bundle Input When It Is Installed.
+    pub(crate) async fn bundle(&self, id: Uuid) -> Result<Option<super::PluginBundle>, PluginError> {
+        Ok(self
+            .installed()
+            .await?
+            .into_iter()
+            .find(|bundle| matches!(bundle.provenance, super::PluginProvenance::Installed { install_id, .. } if install_id == id)))
+    }
+
+    /// A Refused Replacement Keeps The Running Installation: It Is Installed Again With Its
+    /// Program Values, And The Refused One Waits For Removal With Its Failure Recorded.
+    pub(crate) async fn restore(
+        &self, kept: Uuid, refused: Uuid, failure: dokime_domain::model::plugins::wire::PluginStartFailure,
+    ) -> Result<(), PluginError> {
+        self.settings
+            .edit(move |document| {
+                if !document.plugins.contains_key(&kept) {
+                    return Err(PluginError::Unknown(kept));
+                }
+                let refused = document.plugins.get_mut(&refused).ok_or(PluginError::Unknown(refused))?;
+                refused.state = PluginState::RemovalPending;
+                refused.last_boot = Some(PluginLastBoot::Failed {
+                    failure,
+                    at: crate::model::time::now_utc(),
+                });
+                let programs = std::mem::take(&mut refused.programs);
+                let kept = document.plugins.get_mut(&kept).expect("checked above");
+                kept.state = PluginState::Installed;
+                kept.programs.extend(programs);
+                Ok(())
+            })
+            .await
+    }
+
     pub async fn remove(&self, id: Uuid) -> Result<(), PluginError> {
         self.settings
             .edit(move |document| {
@@ -258,6 +297,16 @@ impl PluginStore {
                 Ok(())
             })
             .await
+    }
+
+    /// Discard Stopped Installations, Retaining Failed Boots Until Startup.
+    pub(crate) async fn discard_stopped(&self, stopped: &BTreeSet<Uuid>) -> Result<(), PluginError> {
+        self.discard(|id, plugin| {
+            stopped.contains(&id)
+                && plugin.state == PluginState::RemovalPending
+                && !matches!(plugin.last_boot, Some(PluginLastBoot::Failed { .. }))
+        })
+        .await
     }
 
     pub async fn sweep(&self) -> Result<(), PluginError> {
@@ -391,7 +440,7 @@ pub(crate) fn digest(bytes: &[u8]) -> String {
 
 fn entry(installation: Installation, metadata: Option<PluginMetadata>, error: Option<String>) -> PluginEntry {
     PluginEntry {
-        restart_required: installation.state == PluginState::Installed,
+        restart: Default::default(),
         installation,
         metadata,
         error,

@@ -161,13 +161,6 @@ pub struct TimeBetweenTransform {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct TelemetryAtOrBeforeTransform {
-    pub stream: String,
-    pub field: String,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotEnvelope {
     pub plot_id: String,
     pub revision: u64,
@@ -685,7 +678,6 @@ pub enum DataExpressionSource {
 pub enum DataTransformKind {
     Aggregate(AggregateTransform),
     TimeBetween(TimeBetweenTransform),
-    TelemetryAtOrBefore(TelemetryAtOrBeforeTransform),
     Detail(DetailTransform),
     PerCase(EmptyTransform),
 }

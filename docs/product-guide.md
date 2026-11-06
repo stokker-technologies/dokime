@@ -4,24 +4,27 @@ Detailed concepts, supported interfaces and existing authoring examples. For ins
 
 ## Install Tools With Mise
 
-Select matching CLI and authoring-tool release archives in your mise configuration. For Windows x86-64:
+Select the CLI and authoring tool from one release in your mise configuration,
+the same form generated plugin projects use:
 
 ```toml
 [tool_alias]
 dokime = "github:stokker-technologies/dokime"
-cargo-dokime = "github:stokker-technologies/dokime"
 
 [tools]
-dokime = { version = "0.1.0", asset_pattern = "dokime-cli-*-x86_64-pc-windows-msvc.zip" }
-cargo-dokime = { version = "0.1.0", asset_pattern = "cargo-dokime-*-x86_64-pc-windows-msvc.zip" }
+"github:stokker-technologies/dokime" = { version = "0.1.2", matching_regex = "^cargo-dokime-", bin = "cargo-dokime" }
+dokime = { version = "0.1.2", matching_regex = "^dokime-cli-", bin = "dokime" }
 ```
 
-For Linux x86-64, use `dokime-cli-*-x86_64-unknown-linux-gnu.tar.gz`
-and `cargo-dokime-*-x86_64-unknown-linux-gnu.tar.gz`. Each archive contains its command at the root,
-LICENSE, README and generated CHANGELOG; Unix commands retain executable modes.
-The [mise aliases](https://mise.jdx.dev/dev-tools/aliases.html) give each tool its
-own installation directory. Cargo-binstall metadata selects the same archive names, although this
-Cargo subcommand is distributed through release assets and mise.
+Set both versions to `nightly` to follow the nightly prerelease. The CLI asset is
+`dokime-cli-<version>-<Rust-target>` and the authoring tool
+`cargo-dokime-<version>-<Rust-target>`; mise picks the native target. Release
+v0.1.2 ships them as raw executables (`.exe` on Windows). Nightly ships ZIP
+(Windows) or tar.gz (Unix) archives containing the command at the root, LICENSE,
+README and generated CHANGELOG; Unix commands retain executable modes. The
+[mise alias](https://mise.jdx.dev/dev-tools/aliases.html) gives the CLI its own
+installation directory. Cargo-binstall metadata selects the same archive names,
+although this Cargo subcommand is distributed through release assets and mise.
 
 Release downloads include native installers, CLI and authoring-tool archives,
 `dokime-distribution-<version>-<Rust-target>.zip` distributor inputs and
@@ -32,8 +35,18 @@ members and member SHA-256 hashes. Future target-independent guests use
 `dokime-guests-<version>.zip`; guest execution is not currently admitted.
 `latest.json` is the signed desktop updater feed. CHANGELOG and SHA256SUMS also
 ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are not
-downloads. The `edge` release uses the same asset names and workspace version,
+downloads. The `nightly` prerelease uses the same asset names and workspace version,
 omits unsigned `latest.json`, and identifies its source commit in release notes.
+
+Every build also carries its source commit and, for published builds, its
+channel. `dokime --version` and `cargo dokime --version` print, for example,
+`dokime 0.1.2 (766330b7 nightly)`; `version --json` adds `revision` and `channel`.
+Backend `GetIdentity` returns them as `source_revision` and `channel`, and
+diagnostics bundles include them. The build script in `crates/dokime/build.rs`
+takes the commit from CI's `GITHUB_SHA`, otherwise from the Git checkout, marking
+uncommitted tracked changes `-dirty`; without either it reports `unknown`.
+Builds from `v*` tags are `release`, the nightly workflow's are `nightly`, and
+other builds name no channel.
 OBC and remote examples remain candidate/source fixtures. Python distributions
 publish to PyPI. CI's `upload.json` is not a release download.
 
@@ -94,10 +107,26 @@ Active. Select the destination cycle in the Library before adding attempts.
 
 **Seal Cycle** closes admission immediately, stops that cycle's running work,
 cancels unrun executions and waits for every execution and the cycle report to
-be durably saved. The phase advances through **Sealing** to **Sealed**. Other
-cycles continue. Shutdown stops running executions without regenerating cycle
-reports. Startup seals previous-session Active cycles without replaying device
-operations.
+be durably saved. Other cycles continue. Shutdown stops running executions
+without regenerating cycle reports. Startup marks unfinished executions
+Interrupted and seals previous-session Active and Sealing cycles without
+replaying device operations.
+
+A cycle is in one of four phases:
+
+| Phase | Meaning | Operator Actions |
+| --- | --- | --- |
+| **Active** | Admits cases and runs executions. | Start, Stop, Seal Cycle |
+| **Sealing** | Admission is closed while work stops and evidence is saved. Startup resumes an interrupted seal. | None; it settles on its own |
+| **Sealed** | Every execution and the cycle report are durably saved and immutable. | Archive, Export, Open Report |
+| **Seal Failed** | The seal could not complete, for example because stored evidence was written by an incompatible build. The cause is shown with the cycle and recorded as a cycle finalization failure. All evidence is kept unsealed. | Retry Seal, Archive |
+
+Seal Failed is settled: later startups do not seal it again and it does not
+hold plugin reloads. Retry Seal resumes from the saved evidence and returns to
+Seal Failed with the new cause if the seal still cannot complete. Archive hides
+the cycle without deleting its evidence; Unarchive restores it. A cycle whose
+seal kept failing in an earlier build settles as Seal Failed on the first
+startup of this build.
 
 The desktop reads a bounded record tail, then appends changes from its stream.
 Execution files refresh with runtime changes; an idle view does not poll the
@@ -122,7 +151,7 @@ mean three separate cases. Expansion is declared explicitly.
 
 ## Notifications
 
-Interface feedback appears in the bottom-right toast area. Errors remain until dismissed; informational feedback closes automatically. The sidebar's Notifications page shows unread counts and records each message's time, source and detail. Dismissing a toast keeps its history. Use Clear Notifications to remove the saved history.
+Unavailable views show an inline failure card with Try Again when available, collapsed Technical Details and Copy of the complete failure. These view failures do not create toasts. Failed actions and background failures appear in the bottom-right toast area. Errors remain until dismissed; informational feedback closes automatically. The sidebar's Notifications page shows unread counts and records each message's time, source and detail. Dismissing a toast keeps its history. Use Clear Notifications to remove the saved history.
 
 Routine background loading, page navigation and connection progress stay in the inline status indicators without toasts or history entries. Notifications record user-relevant outcomes and failures; backend failures identify the failed operation in their title.
 
@@ -130,7 +159,7 @@ The desktop's WebView stores notification history locally and reads it in bounde
 
 Each history entry shows a severity icon beside its primary title, with secondary message text and a muted source path below. Relative times align to the right; hover over a time to see its full local date and time. History and relative times update while the page is open. The toolbar keeps the count on the left and Clear Notifications on the right; Newer and Older navigate saved pages.
 
-Click a toast or history entry, or focus it and press Enter or Space, to open its details. The dialog shows the full message, source, severity, absolute and relative time, and available failure reason, operation and request/invocation identifiers. Validation failures list each affected field and its reason. Causes appear with the root first; dependent startup consequences remain collapsed. Expand Technical Details for backend diagnostics or backtraces. Copy includes all details, including collapsed sections. Press Esc or Close to return to the notification. Set Secret and Open Plugin Settings remain separate actions.
+Click a toast or history entry, or focus it and press Enter or Space, to open its details. The dialog shows the full message, source, severity, absolute and relative time, and available failure reason, operation and request/invocation identifiers. Validation failures list each affected field and its reason. Causes appear with the root first; dependent startup consequences remain collapsed. Expand Technical Details for causes, identifiers, backend diagnostics/backtrace and the available client stacks. Copy includes all details, including collapsed sections. Press Esc or Close to return to the notification. Set Secret and Open Plugin Settings remain separate actions.
 
 ## Native Remote Access
 
@@ -451,11 +480,11 @@ a running plugin remains its responsibility.
 
 A declared secret's identifier is its Secret Storage identifier. At plugin start,
 Dokime reads each declaration directly from the store. A missing required secret
-fails startup with ``secret `api_token` is not in Secret Storage; add it and restart``
+fails startup with ``secret `api_token` is not in Secret Storage; add it and retry the plugin``
 (the identifier varies). Optional secrets are absent when missing. Add the exact
-identifier in Secret Storage and restart Dokime, or use the existing plugin Retry
-to read the store again. There are no per-plugin bindings, environment-variable
-sources, automatic retries or fallback identifiers.
+identifier in Secret Storage, then use **Retry** on the plugin page to read the
+store again; only that plugin restarts. There are no per-plugin bindings,
+environment-variable sources, automatic retries or fallback identifiers.
 
 Open **Settings → Secret Storage** to see the owning host, add an identifier, edit
 its label or description, replace its value, or explicitly confirm deletion.
@@ -499,12 +528,63 @@ human display text. No `name` alias is accepted in secret contracts.
 
 ### Plugin Settings
 
+A program prepares with its saved settings when it starts. Saving a change in
+**Settings → Plugins** restarts that program, and the programs that depend on it,
+with the saved values; a save that changes nothing restarts nothing. The plugin
+page shows **Restarting…** while the new generation starts. While any cycle is
+active, including between the cases it continues with automatically and while it
+finalizes, the restart waits: the page shows **Restart Pending** and the restart
+follows once no cycle is active. A cycle left open and idle is not active.
+Running executions are never stopped for a restart, and saves made while one
+waits apply together. A restart refused before
+the program stops, such as saved values or a missing secret its preparation
+rejects, keeps the running generation: the plugin shows **Active · Restart
+Refused** with the reason, the saved values stay saved, and saving corrected
+values or **Retry** restarts it. A new generation that fails to start is reported
+like a failed startup. Programs that are not running apply saved settings when
+they start, including through **Retry**, which starts a plugin that does not run
+at once even while a cycle is active; retrying a running plugin restarts it once
+no cycle is active.
+
+### Plugin Startup And Stop Timeouts
+
+**Settings › Plugins** also holds the backend's **Plugin Startup Timeout [s]**
+(default 60 s), the time each plugin program has to launch and become ready, and,
+under Show Advanced, **Plugin Stop Timeout [s]** (default 10 s), the time a
+stopping plugin's executions have to settle. Both accept 1 to 3,600 seconds. A
+saved value applies to the next start, restart or stop; running programs are not
+restarted for it. A program that does not become ready in time fails to start with
+a cause naming the budget and this setting: raise the timeout and use **Retry**.
+Time spent in a plugin's own initialization is bounded by the plugin's declared
+initialization policy instead; see
+[Plugins](plugins.md#plugin-startup-and-stop-budgets).
+
+Saved preferences use the current defaults for absent sections or fields, so an
+existing backend data root starts with default plugin budgets until they are set.
+Explicit saved values remain in effect and must pass validation.
+
+### Installing And Removing Plugins
+
+Installing, reinstalling or updating a plugin in **Settings → Plugins**, and
+enabling, disabling or removing one, take effect in the running backend; nothing
+asks to restart Dokime. The plugin shows **Restarting…** while it starts, is
+replaced or stops. While any cycle is active, the change shows **Restart
+Pending** and applies once no cycle is active; running executions are never
+stopped for it. After a successful live stop, the removed or replaced
+installation's row and bundle are deleted. If deletion fails, its row retains
+the error until startup retries. If a reinstall or update is refused, the previous
+version keeps running and stays installed, and the refused bundle is listed as
+**Refused** with its reason until the next start deletes it. A plugin that did not
+start offers **Retry**, which starts only that plugin again, at once even while
+a cycle is active. See
+[Plugins](plugins.md#live-installation-changes) for the admission rules.
+
 #### Host Settings
 
 The host plugin declares its 20 settings in
 [`plugins/sidecars/host/src/settings.rs`](../plugins/sidecars/host/src/settings.rs).
-Edit the host plugin form in **Settings → Plugins**, then use the existing
-Retry workflow or restart Dokime. Each startup resolves one settings snapshot.
+Saving a changed value in **Settings → Plugins** restarts the host plugin with it.
+Each start resolves one settings snapshot.
 Collection selects the Wi-Fi/Bluetooth adapters, latency target (default
 `1.1.1.1`) and minimum active-scan interval (30 s). Empty adapter selectors use
 the native default.
@@ -1039,7 +1119,9 @@ below the title. Preserve unit symbols and case.
 Column handles keep plot expressions tied to the declared data shape, and they
 compare straight into filters: `voltage.only(column.gt(0.0))` narrows a plot,
 and `section.each(column, "Point {value}")` repeats a section once per distinct
-value, in ascending order. Templates can also add parameter-based reference
+value, in ascending order. A repeat selects row-local values: a value, order or
+filter that uses `time_between` is refused when the document is validated, naming
+the section. Templates can also add parameter-based reference
 bands; the
 [soak starter](../crates/cargo-dokime/templates/src/suites/soak/hold.rs) demonstrates
 a target-temperature band and event markers.
@@ -1116,7 +1198,8 @@ The `dokime-cli` package installs the `dokime` executable.
 `dokime` connects to a backend; `cargo dokime sidecar` authors plugin bundles
 and `cargo dokime installer` assembles native distributions. Every
 command prints its full flags with `--help`. Backend RPC commands accept
-`--endpoint` or `--backend` and `--timeout-seconds`; most accept `--json` for scripts.
+`--endpoint` or `--backend` and `--timeout-seconds` for unary waits; streaming
+transfers use their operation idle policy. Most accept `--json` for scripts.
 
 ### Connection And Backends
 
@@ -1219,7 +1302,7 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | --- | --- | --- |
 | `dokime operation list\|show` | Discover operations and their provider contracts. | `--json` |
 | `dokime operation call` | Call a provider and read its items and completion. | `--json`, `--input`, `--output` |
-| `dokime plugin install` | Verify and install a bundle directly for next-boot activation. | Bundle path and backend selection |
+| `dokime plugin install` | Verify and install a bundle; the running backend starts it once no cycle is active. | Bundle path and backend selection |
 
 ### Plugin Authoring
 
@@ -1232,7 +1315,25 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | `cargo dokime sidecar inspect` | Verify a bundle and print its manifest as JSON. | |
 
 Generated projects lock tools for Linux x64 and Windows x64, matching the
-published native authoring executables.
+published native authoring executables. Their `mise.toml` pins `cargo-dokime`
+and the `dokime` CLI, which `sidecar dev` uses to launch the host, at the release
+that generated them:
+
+```toml
+[tool_alias]
+dokime = "github:stokker-technologies/dokime"
+
+[tools]
+"github:stokker-technologies/dokime" = { version = "0.1.2", matching_regex = "^cargo-dokime-", bin = "cargo-dokime" }
+dokime = { version = "0.1.2", matching_regex = "^dokime-cli-", bin = "dokime" }
+```
+
+Set both versions to `nightly` to follow the nightly prerelease. To create a
+plugin before `cargo-dokime` is installed, run it once through mise:
+
+```sh
+mise x "github:stokker-technologies/dokime[matching_regex=^cargo-dokime-,bin=cargo-dokime]@v0.1.2" -- cargo dokime sidecar new my-plugin
+```
 
 Ordinary `sidecar build` compiles the selected plugin and produces its `.dokime`
 bundle. For a build system that already compiled the plugin, collect its Cargo
@@ -1361,6 +1462,14 @@ the configured release source. Ordinary restarts preserve removed plugins; a
 completed reconciliation is recorded against the installer's distribution digest.
 Only bundles in the installer's integrity index participate; leftover files from
 previous installers are ignored.
+Installer plugins are ordinary plugin installs that the installer pre-authorizes;
+there is no separate plugin kind. They are applied when a backend starts rather than
+when the installer runs, because every data folder needs them: Linux packages install
+system-wide without a user session, headless and service backends may use their own
+data folders, and `cargo dokime sidecar dev` starts with a fresh one. A development
+host therefore receives the installer's plugins, such as `plugin-host`, alongside the
+bundle under development, while plugins installed into your everyday data folder are
+not loaded there.
 Without bundled plugins, the runtime starts
 without host telemetry.
 
@@ -1370,10 +1479,48 @@ Product `mise run package:rust --profile dev` invokes the matching built
 preserves the distribution bytes and executable modes; downstream distributors can
 extract it and supply its directory through `--artifacts`.
 
+#### Installer License Terms
+
+Every installer ships Dokime's Apache-2.0 `LICENSE` unchanged. An organization
+pack may add its own terms with an optional `[license]` table in
+`installer.toml`; the pack's terms are added, never replacing Apache-2.0:
+
+```toml
+[license]
+spdx = "LicenseRef-Acme-Proprietary"
+file = "EULA.txt"
+```
+
+Set `spdx` and `file` together. `spdx` is an SPDX license expression such as
+`LicenseRef-Acme-Proprietary` or `MIT OR LicenseRef-Acme-Terms`; packaging checks
+its syntax (identifiers, `LicenseRef-`/`DocumentRef-` references, `AND`, `OR`,
+`WITH`, `+` and parentheses) but not membership in the SPDX license list. `file`
+resolves relative to `installer.toml` and must name an existing file inside that
+folder; absolute, `..`, backslash and symlink-escaped paths are rejected.
+
+The terms install beside `LICENSE` as `EULA` plus the source file's extension
+(`EULA.txt` here; an extensionless file installs as `EULA`) and are hashed in
+`installer.json` like `LICENSE`. The NSIS license page shows the pack's file.
+DEB and RPM payloads carry both files under `/usr/lib/<slug>/`, and the RPM
+`License` tag becomes `LicenseRef-Acme-Proprietary AND Apache-2.0`; a compound
+expression is parenthesized first, as in `(MIT OR LicenseRef-Acme-Terms) AND Apache-2.0`.
+Without `[license]`, packages declare `Apache-2.0` and the license page shows `LICENSE`.
+
+Linux packages also install `/usr/share/doc/<slug>/copyright` in the Debian
+machine-readable copyright format (DEP-5), hashed in `installer.json`. Its header
+names Dokime and its source repository; one `Files: *` paragraph lists Dokime's
+copyright holder plus the pack's `[app.organization] name` and declares the same
+expression as the RPM `License` tag. Standalone `License` paragraphs follow: the
+pack's `spdx` expression carrying the text of its `file`, then `Apache-2.0`
+pointing at `/usr/share/common-licenses/Apache-2.0` and carrying the full text.
+Because the text is copied verbatim, the pack's `file` must be UTF-8 on Linux.
+RPM packages carry the same file as documentation; their license metadata
+remains the `License` tag.
+
 #### Distribution From A Release
 
 Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.
-Use an exact semantic version such as `"0.1.3"`, `"edge"`, or omit the key
+Use an exact semantic version such as `"0.1.3"`, `"nightly"`, or omit the key
 to use the running `cargo-dokime` version. The target defaults to the native
 platform and can be set in the manifest or overridden by `--target`.
 
@@ -1385,7 +1532,7 @@ The tool downloads `SHA256SUMS`, the matching distribution ZIP, `plugins.json`
 and the archives needed by the selected plugin names. It verifies archive and
 feed hashes against SHA256SUMS, then each requested member against the feed and
 its bundle identity before validating distribution files and plugin compatibility.
-For `edge`, the distribution metadata supplies the actual Dokime version.
+For `nightly`, the distribution metadata supplies the actual Dokime version.
 
 Verified downloads are cached by SHA-256 under
 `%LOCALAPPDATA%/dokime/cache/releases/sha256` on Windows or
@@ -1757,7 +1904,7 @@ bundles. Publish the feed, archives and SHA256SUMS together. A direct source
 serves the archives and SHA256SUMS beside its plugins.json URL. Provider sources
 resolve asset URLs from one release snapshot. Settings → Plugins lists all
 compatible plugins, verifies archive and member hashes and inspected identity,
-and installs only the explicitly selected member. Restart the host to activate it.
+and installs only the explicitly selected member; the running host starts it.
 Picking or dropping a local bundle uses the ordinary installation path.
 Missing or incompatible entries fail without per-plugin asset fallback.
 
@@ -1773,7 +1920,7 @@ summary in the desktop to inspect each unavailable operation without mixing it i
 
 A missing secret retains its identifier. **Set Secret** opens Secret Storage’s
 **Add Secret** dialog with that identifier prefilled, including after a failed start.
-Save the correction, then use **Retry Startup** on the plugin page to restart Dokime.
+Save the correction, then use **Retry** on the plugin page to start that plugin again.
 All owners in an inactive bundle keep their ordinary settings editable; secret
 declarations show their identifiers read-only.
 
@@ -1820,6 +1967,43 @@ advertises. Endpoints and secrets stay in the shell. Artifact uploads and
 recordings keep a native file-backed adapter, because their bytes are hashed and
 patched in the shell rather than framed by the WebView.
 
+
+## Storage Read Isolation
+
+A cycle, execution, case or suite read selects its owners in storage before
+opening evidence values. Sealing and finalization, report and document reads,
+record and telemetry views and follows, artifact views and content, execution
+inspection, prompt condition checks, request-command recovery and evidence exports do not decode another
+cycle's evidence. Historical execution detail reads its cycle header and selected
+exact member while retaining its ordinal; full-cycle inspection still verifies
+every member. Case detail and parameter reads select only that case's attempts,
+using ownership metadata to retain its ordinal. Suite artifact reads use the
+frozen execution scope even after the suite is removed from the installed catalog.
+Execution exports also include the selected cycle's unowned
+records and application-wide records: those are shared context, so corruption in
+that context fails the export. Arrow files and batches shared by subscriptions
+are verified as complete immutable files; row decoding selects capture membership
+first. Corrupt bytes in a required shared batch still fail its consumers.
+
+Whole-root operations retain these explicit failure policies:
+
+| Operation | Corruption Policy | Reason |
+|---|---|---|
+| Execution browse | Return healthy entries, set `discovery_complete` false and identify each unreadable execution or cycle header in `issues` | Discovery remains useful without hiding missing evidence. |
+| Finite indexed history queries | Read saved catalog summaries without decoding historical evidence objects; fail on a corrupt required summary | A summary is independent of its evidence payload; its own identity and paging boundary must remain trustworthy. |
+| Cycle header lists and legacy cycle browse | Fail visibly on an unreadable required header | These contracts have no per-entry error representation; a partial list would imply complete discovery. |
+| Unscoped evidence, artifacts, overview totals and aggregates | Fail visibly | Counts and complete inventories must not silently omit corrupt evidence. Scoped requests select owners first. |
+| Shutdown's final whole-root overview | Fail visibly on an unreadable required inventory entry | Shutdown returns a complete final overview; it must not report incomplete totals as complete. Repair the entry before retrying shutdown. |
+| Startup state, settings, schema catalog, pending requests, record frontier and external-effect recovery | Fail startup on corrupt required data | Continuing could lose ownership, reuse identities or skip an outstanding device restoration. Terminal evidence objects are not decoded just to start another cycle. |
+| Storage and diagnostics archives | Fail the requested archive when required data cannot be read | These operations explicitly cover the whole root and promise a complete snapshot. |
+
+Corruption errors preserve the root for inspection. Development storage remains
+at v1: there are no migrations or automatic resets. Use a fresh storage root for
+incompatible earlier builds; isolation does not make their values compatible.
+Required ownership indexes and shared schema metadata still fail visibly when
+unreadable: a scoped request cannot safely infer membership from corrupt catalog data.
+Roots without indexed record producer scopes require a fresh root. This clean
+break retains the v1 baseline and does not upgrade or reset existing storage.
 
 ## Long-Running Evidence And Report Saves
 
@@ -1872,8 +2056,10 @@ Report presentation is built during ingestion. Each numeric field has adaptive
 time buckets containing first, last, minimum, maximum and count, committed with
 its raw samples. Plots render the resulting extrema envelope within their display
 budget; extending a run coarsens time resolution while retaining peaks and dips.
-Tables show bounded first/last rows. Each report identifies its execution and
-saved evidence frontier; evidence paging and exported bundles retain the full data.
+Table cards carry every row their author registered and page in the report
+exactly as in the live document; Dokime neither trims nor caps authored rows.
+Telemetry previews keep bounded first/last rows per stream. Each report identifies
+its execution and saved evidence frontier; evidence paging and exported bundles retain the full data.
 Numeric summaries, including percentiles and the built-in mean analysis,
 use all samples through the incremental numeric indexes. Within-cap plot
 summaries preserve typed integers until the final numeric result.
@@ -1899,8 +2085,11 @@ sample count. Group counters and numeric moments update incrementally, and
 record durations retain the preceding matching record and telemetry context.
 `groups` bounds series and correlation keys (256 by default). Plots with fewer
 than four points render normally. Analyses that need more exact history than the
-configured cap identify their specific limitation. History-dependent repeated
-sections remain unavailable. Full evidence remains available for external analysis.
+configured cap identify their specific limitation. Every repeated section
+resolves at seal over every distinct value in the complete evidence, read page by
+page from the stream it selects, so a report contains the full sealed document
+with the same sections the live document shows. Plots without a checkpoint share one evidence replay per document.
+Full evidence remains available for external analysis.
 Plot checkpoints commit with the telemetry batch that advances them. A historical
 cut whose plot checkpoint has advanced, and captures and plots without a
 plot-specific checkpoint, are reconstructed from bounded evidence pages through
@@ -1910,6 +2099,10 @@ first/last rows in one committed storage snapshot, shared across active cycle
 members. They show an **As Of** time and the saved evidence frontier for that cut;
 ingestion can continue while the report renders. Final reports retain their exact
 frozen cut.
+Live documents and HTML document replays read artifact owners and indexed records
+within their selected execution or cycle, including subscribed captures. Corrupt
+evidence outside that selection does not prevent the document from opening;
+corrupt evidence or inconsistent ownership within the selection still fails.
 Development roots without report previews require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 
@@ -1940,8 +2133,9 @@ Cancellation makes no report request. The native client streams to a unique
 adjacent temporary file, verifies length, contiguous frames and digest, syncs,
 and atomically publishes with overwrite consent. Failure, cancellation or a
 connection-generation change removes the temporary output and preserves an
-existing destination. Open uses the native cache. Report requests allow 300 s;
-ordinary requests keep their 30 s default. HTML bytes never cross the WebView.
+existing destination. Open uses the native cache. Report downloads permit 60 s
+of silence between frames under their transfer policy; ordinary requests keep
+their 30 s client default. HTML bytes never cross the WebView.
 Document bindings retain their 64 MiB bound; large raw evidence remains paged.
 
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
@@ -1973,3 +2167,14 @@ Sample and record listeners can reconnect once between successfully delivered
 pages, preserving stream/journal cursors and checking the backend epoch. Raw
 streams expose failures to their caller because arbitrary streams have no generic
 resume contract. Non-transient failures and exhausted retries remain visible.
+
+## Transfer Deadlines
+
+Artifact uploads, report and evidence downloads use their operation policy as an
+idle deadline. TRANSFER permits 60 seconds of silence between frames and while
+waiting for the final response. Each moving frame rearms the deadline; total
+transfer duration is unlimited while progress continues. Native client uploads
+send no total `grpc-timeout`; its request timeout preference does not replace
+stream policy.
+FOLLOW streams stay alive through heartbeats even when data is unchanged.
+Frame, artifact and bundle size caps are unchanged.

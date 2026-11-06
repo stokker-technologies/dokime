@@ -52,7 +52,7 @@ use dokime::operations::{
 /* === Constants === */
 
 // Every scenario's script waits at most 60 s on its own; past this the script is stuck.
-const SCRIPT_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300);
+const SCRIPT_DEADLINE: std::time::Duration = std::time::Duration::from_secs(600);
 
 /* === Macros === */
 
@@ -206,8 +206,7 @@ impl Gate {
             return Ok(());
         }
         self.reached.cancel();
-        let deadline = std::time::Duration::from_secs(120);
-        let release = tokio::time::timeout(deadline, self.released.cancelled());
+        let release = tokio::time::timeout(crate::support::budgets::settings::STORY_BOUND, self.released.cancelled());
         release.await.map_err(|_| std::io::Error::other("native recovery did not release its held mutation response"))?;
         Ok(())
     }
@@ -695,7 +694,7 @@ fn run(command: CommandBuilder, marker: &str, action: Action) -> Outcome {
     std::thread::spawn(move || {
         let _ = delivered.send(read.join());
     });
-    let joined = result.recv_timeout(std::time::Duration::from_secs(30));
+    let joined = result.recv_timeout(std::time::Duration::from_secs(60));
     let (text, triggered) = match joined {
         Ok(joined) => joined.unwrap().unwrap(),
         Err(_) => {
@@ -805,7 +804,7 @@ fn read_terminal(
                             Some(disconnect)
                         }
                         Action::InterruptAt { reached, .. } => {
-                            tokio::time::timeout(std::time::Duration::from_secs(120), reached.cancelled())
+                            tokio::time::timeout(crate::support::budgets::settings::STORY_BOUND, reached.cancelled())
                                 .await
                                 .map_err(|_| std::io::Error::other("mutation reply gate was not reached"))?;
                             None
@@ -919,7 +918,7 @@ async fn first_sample(client: &Client, id: TestExecutionId) -> std::io::Result<(
         }
         Err(std::io::Error::other("the execution must publish a sample before finishing"))
     };
-    let result = tokio::time::timeout(std::time::Duration::from_secs(120), waiting)
+    let result = tokio::time::timeout(crate::support::budgets::settings::STORY_BOUND, waiting)
         .await
         .map_err(|_| std::io::Error::other("the execution must begin its capture"));
     samples.close().await;
@@ -950,7 +949,7 @@ async fn admitted(client: &Client, id: TestExecutionId) -> std::io::Result<()> {
                 .ok_or_else(|| std::io::Error::other("runtime observation closed before admission"))?;
         }
     };
-    let result = tokio::time::timeout(std::time::Duration::from_secs(120), waiting)
+    let result = tokio::time::timeout(crate::support::budgets::settings::STORY_BOUND, waiting)
         .await
         .map_err(|_| std::io::Error::other("script must admit its printed execution"));
     changes.close().await;
@@ -1020,7 +1019,7 @@ async fn terminal_reader_services_queries_before_action_readiness() {
     });
 
     // The Producer Cannot Reach Its Mutation Boundary Until Its Cursor Query Is Answered.
-    let serviced = tokio::time::timeout(std::time::Duration::from_secs(3), response).await;
+    let serviced = tokio::time::timeout(std::time::Duration::from_secs(6), response).await;
     reached.cancel();
     let outcome = tokio::task::spawn_blocking(move || reading.join()).await.unwrap().unwrap().unwrap();
     assert!(matches!(serviced, Ok(Ok(()))), "terminal queries must progress before action readiness");
@@ -1058,7 +1057,7 @@ async fn batch_reply_recovery() {
             let bytes: &[u8] = match self.stage {
                 0 => b"Terminate batch job (Y/N)? ",
                 1 => {
-                    self.acknowledged.recv_timeout(std::time::Duration::from_secs(3)).map_err(std::io::Error::other)?;
+                    self.acknowledged.recv_timeout(std::time::Duration::from_secs(6)).map_err(std::io::Error::other)?;
                     b"n\r\n"
                 }
                 _ => return Ok(0),

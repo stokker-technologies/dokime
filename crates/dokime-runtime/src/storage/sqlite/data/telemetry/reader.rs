@@ -182,15 +182,15 @@ pub(super) fn query(
         .map_err(|e| storage_error(e, operation))?;
         for row in 0..batch.num_rows() {
             work.check()?;
+            if !ranges.iter().any(|(first, end)| *first <= row as u64 && (row as u64) < *end) {
+                continue;
+            }
             let (position, mut entry) = ipc::telemetry_entry(&batch, row, &contract).map_err(|e| storage_error(e, operation))?;
             if position <= read.after || position > read.cut.at.sequence {
                 continue;
             }
             if cutoff.is_some_and(|last| position > last) {
                 skipped = true;
-                continue;
-            }
-            if !ranges.iter().any(|(first, end)| *first <= row as u64 && (row as u64) < *end) {
                 continue;
             }
             // Arrow Nulls Do Not Recreate Fields Absent From This Contract Version.
@@ -305,7 +305,7 @@ fn projected<T>(
         let field = match *column {
             "schema_key" => "schema_key",
             "scope" => "execution",
-            "execution" | "cycle" => {
+            "execution" | "cycle" | "case" | "template" | "suite" => {
                 owner_clause(&mut sql, &mut args, column, value, false);
                 continue;
             }
@@ -332,7 +332,7 @@ fn projected<T>(
         );
         let mut args = vec![Value::Text(id.clone()), Value::Text(position(scan.page.after)), Value::Text(position(scan.at))];
         for (column, value) in &scan.filters {
-            if matches!(*column, "execution" | "cycle") {
+            if matches!(*column, "execution" | "cycle" | "case" | "template" | "suite") {
                 owner_clause(&mut sql, &mut args, column, value, true);
             }
         }
@@ -363,7 +363,11 @@ fn projected<T>(
             let (positions, times) = ipc::row_keys(&batch)?;
             let first = positions.values().partition_point(|position| *position <= scan.page.after);
             let last = positions.values().partition_point(|position| *position <= scan.at);
-            let owners = scan.filters.iter().filter(|(column, _)| matches!(*column, "execution" | "cycle")).collect::<Vec<_>>();
+            let owners = scan
+                .filters
+                .iter()
+                .filter(|(column, _)| matches!(*column, "execution" | "cycle" | "case" | "template" | "suite"))
+                .collect::<Vec<_>>();
             let mut ranges = if owners.is_empty() {
                 vec![(first, last)]
             } else {
@@ -371,10 +375,13 @@ fn projected<T>(
                     .iter()
                     .filter(|(_, _, scope)| {
                         owners.iter().all(|(column, value)| {
-                            let actual = if *column == "execution" {
-                                scope.test_execution_id.as_ref().map(|id| id.as_str())
-                            } else {
-                                scope.test_cycle_id.as_ref().map(|id| id.as_str())
+                            let actual = match *column {
+                                "execution" => scope.test_execution_id.as_ref().map(|id| id.as_str()),
+                                "cycle" => scope.test_cycle_id.as_ref().map(|id| id.as_str()),
+                                "case" => scope.test_case_id.as_ref().map(|id| id.as_str()),
+                                "template" => scope.template_id.as_ref().map(|id| id.as_str()),
+                                "suite" => scope.suite_id.as_ref().map(|id| id.as_str()),
+                                _ => unreachable!(),
                             };
                             actual.is_some_and(|actual| matches!(value, Value::Text(value) if value == actual))
                         })
@@ -560,6 +567,17 @@ pub(super) fn latest(
             }
             metrics.telemetry_anchor_rows.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             super::super::super::TELEMETRY_ANCHOR_ROWS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if (selection.scope.test_execution_id.is_some()
+                || selection.scope.test_cycle_id.is_some()
+                || selection.scope.test_case_id.is_some()
+                || selection.scope.template_id.is_some()
+                || selection.scope.suite_id.is_some())
+                && !captures
+                    .iter()
+                    .any(|(first, count, scope)| row >= *first && row - *first < *count && selection.scope.matches(Some(scope)))
+            {
+                continue;
+            }
             let (position, mut entry) = ipc::telemetry_entry(&batch, row, &contract)?;
             attach_captures(
                 &mut entry,
@@ -631,6 +649,17 @@ pub(super) fn predecessors(
             {
                 continue;
             }
+            if (selection.scope.test_execution_id.is_some()
+                || selection.scope.test_cycle_id.is_some()
+                || selection.scope.test_case_id.is_some()
+                || selection.scope.template_id.is_some()
+                || selection.scope.suite_id.is_some())
+                && !captures
+                    .iter()
+                    .any(|(first, count, scope)| row >= *first && row - *first < *count && selection.scope.matches(Some(scope)))
+            {
+                continue;
+            }
             let (_, mut entry) = ipc::telemetry_entry(&batch, row, &contract)?;
             attach_captures(
                 &mut entry,
@@ -689,10 +718,22 @@ fn batch_owners(sql: &mut String, args: &mut Vec<Value>, selection: &crate::evid
     if let Some(cycle) = &selection.scope.test_cycle_id {
         owner_clause(sql, args, "cycle", &Value::Text(cycle.to_string()), true);
     }
+    if let Some(case) = &selection.scope.test_case_id {
+        owner_clause(sql, args, "case", &Value::Text(case.to_string()), true);
+    }
+    if let Some(template) = &selection.scope.template_id {
+        owner_clause(sql, args, "template", &Value::Text(template.to_string()), true);
+    }
+    if let Some(suite) = &selection.scope.suite_id {
+        owner_clause(sql, args, "suite", &Value::Text(suite.to_string()), true);
+    }
     for (path, value) in terms {
         let column = match *path {
             "payload.metadata.scope.test_execution_id" if selection.scope.test_execution_id.is_none() => "execution",
             "payload.metadata.scope.test_cycle_id" if selection.scope.test_cycle_id.is_none() => "cycle",
+            "payload.metadata.scope.test_case_id" if selection.scope.test_case_id.is_none() => "case",
+            "payload.metadata.scope.template_id" if selection.scope.template_id.is_none() => "template",
+            "payload.metadata.scope.suite_id" if selection.scope.suite_id.is_none() => "suite",
             _ => continue,
         };
         owner_clause(sql, args, column, value, true);
@@ -700,6 +741,12 @@ fn batch_owners(sql: &mut String, args: &mut Vec<Value>, selection: &crate::evid
 }
 
 fn owner_clause(sql: &mut String, args: &mut Vec<Value>, column: &str, value: &Value, batch: bool) {
+    let column = match column {
+        "case" => "json_extract(scope,'$.test_case_id')",
+        "template" => "json_extract(scope,'$.template_id')",
+        "suite" => "json_extract(scope,'$.suite_id')",
+        column => column,
+    };
     if batch {
         sql.push_str(&format!(" AND (b.file_id,b.batch) IN (SELECT DISTINCT file_id,batch FROM stream_captures WHERE {column}=?)"));
     } else {
@@ -779,9 +826,19 @@ pub(super) fn matches(
     }
     let captures = selection.scope.test_execution_id.is_some()
         || selection.scope.test_cycle_id.is_some()
-        || terms
-            .iter()
-            .any(|(path, _)| matches!(*path, "payload.metadata.scope.test_execution_id" | "payload.metadata.scope.test_cycle_id"));
+        || selection.scope.test_case_id.is_some()
+        || selection.scope.template_id.is_some()
+        || selection.scope.suite_id.is_some()
+        || terms.iter().any(|(path, _)| {
+            matches!(
+                *path,
+                "payload.metadata.scope.test_execution_id"
+                    | "payload.metadata.scope.test_cycle_id"
+                    | "payload.metadata.scope.test_case_id"
+                    | "payload.metadata.scope.template_id"
+                    | "payload.metadata.scope.suite_id"
+            )
+        });
     for scope in std::iter::once(sample.scope.as_ref()).chain(sample.captured_scopes.iter().filter(|_| captures).map(Some)) {
         if !selection.scope.matches(scope) {
             continue;
@@ -819,7 +876,7 @@ fn scope_terms(scope: Option<&dokime_domain::model::execution::RecordScope>, ter
     Ok(true)
 }
 
-fn index(row: &rusqlite::Row<'_>) -> rusqlite::Result<ipc::BatchIndex> {
+pub(super) fn index(row: &rusqlite::Row<'_>) -> rusqlite::Result<ipc::BatchIndex> {
     Ok(ipc::BatchIndex {
         offset: catalog::unsigned(row, 0)?,
         metadata_bytes: row.get(1)?,

@@ -15,9 +15,10 @@
 
 // Standard Library Imports
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useId, useMemo, useState } from "react";
 // Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
 
@@ -53,7 +54,16 @@ export function AnalysisResult({ result, title, stateLabel, stateDetail }: Analy
     [result],
   );
   const entry = entries[selected] ?? entries[0];
-  if (!entry?.schema) return <NotificationMessage>Analysis output has no declared presentation.</NotificationMessage>;
+  if (!entry?.schema)
+    return (
+      <ErrorCard
+        failure={failureOf(
+          "Analysis output has no declared presentation.",
+          "Presentation Unavailable",
+          ["analysis-schema", title, inputId].join(":"),
+        )}
+      />
+    );
   const { series, output, schema } = entry;
   const displayIndices = output.displayIndices?.length ? output.displayIndices : output.axis.map((_, index) => index);
   const label = `${series.label} · ${schema.label}`;

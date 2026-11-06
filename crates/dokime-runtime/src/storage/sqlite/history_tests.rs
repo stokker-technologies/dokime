@@ -215,6 +215,7 @@ fn native_cycle_projection_and_membership_share_the_object_transaction() {
         records: Default::default(),
         continue_automatically: false,
         result: None,
+        seal_failure: None,
     };
     let native = crate::storage::objects::cycle::Cycle::try_from(&cycle).unwrap();
     let position = StorageCursor {

@@ -17,11 +17,13 @@
 use std::collections::BTreeSet;
 
 // Third Party Imports
+use uuid::Uuid;
 
 // Local Imports
 use super::store::read_bounded;
-use super::{PluginEntry, PluginError, PluginProvenance, PluginStore};
+use super::{PluginEntry, PluginError, PluginProvenance, PluginRestart, PluginState, PluginStore};
 use crate::RuntimeHandle;
+use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
 
@@ -39,9 +41,14 @@ use crate::RuntimeHandle;
 
 impl RuntimeHandle {
     pub fn plugin_process_state(&self, entry: &mut PluginEntry) {
-        let boot = self.plugin_boot.read().expect("plugin boot lock poisoned");
-        let attempted = boot.get(&entry.installation.install_id).copied();
+        let attempted = self.plugin_boot.read().expect("plugin boot lock poisoned").get(&entry.installation.install_id).copied();
         process_state(entry, attempted);
+        // Only An Installation That Runs Or Should Run Waits For The Backend To Apply It.
+        let concerned = entry.active || entry.installation.state == PluginState::Installed;
+        entry.restart = match package(entry) {
+            Some(package) if concerned => self.plugin_bundle_restart(package),
+            _ => PluginRestart::Idle,
+        };
     }
 
     pub fn plugin_store(&self) -> PluginStore {
@@ -79,7 +86,62 @@ impl RuntimeHandle {
         })
         .await
         .map_err(|error| PluginError::Io(std::io::Error::other(error.to_string())))??;
-        store.install_checked(&bytes, &configured, &host_sources, validate).await
+        let entry = store.install_checked(&bytes, &configured, &host_sources, validate).await?;
+        self.apply_plugin_change(&entry, false);
+        Ok(entry)
+    }
+
+    // Enable Or Disable An Installation; The Running Backend Starts Or Stops It Once No Cycle Is Active.
+    pub async fn set_plugin_enabled(&self, install: Uuid, enabled: bool) -> Result<PluginEntry, PluginError> {
+        let store = self.plugin_store();
+        store.set_enabled(install, enabled).await?;
+        let entry = store.get(install).await?;
+        self.apply_plugin_change(&entry, false);
+        Ok(entry)
+    }
+
+    // Queue An Installation For Removal; Live Apply Discards It After Its Programs Stop.
+    pub async fn remove_plugin(&self, install: Uuid) -> Result<Option<PluginEntry>, PluginError> {
+        let store = self.plugin_store();
+        store.remove(install).await?;
+        let entry = match store.get(install).await {
+            Ok(entry) => entry,
+            Err(PluginError::Unknown(_)) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        self.apply_plugin_change(&entry, false);
+        Ok(Some(entry))
+    }
+
+    // Start An Installation Again Through The Same Path: Its Bundle Starts At Once If It Does Not Run,
+    // And Programs That Run Restart With Their Saved Settings Once No Cycle Is Active.
+    pub async fn retry_plugin(&self, install: Uuid) -> Result<PluginEntry, PluginError> {
+        let entry = self.plugin_store().get(install).await?;
+        if entry.installation.state != PluginState::Installed {
+            return Err(PluginError::NotInstalled(install));
+        }
+        self.apply_plugin_change(&entry, true);
+        let running = package(&entry).and_then(|package| self.plugin_runs(package, install));
+        for program in running.into_iter().flatten() {
+            self.request_plugin_restart(&program);
+        }
+        Ok(entry)
+    }
+
+    // A Store Change Reaches The Running Backend: The Restarter Applies It Once No Cycle Is Active.
+    fn apply_plugin_change(&self, entry: &PluginEntry, retry: bool) {
+        let install = entry.installation.install_id;
+        let Some(package) = package(entry).map(str::to_owned).or_else(|| self.running_package(install)) else {
+            return;
+        };
+        // Saved Program Values Move With The Installation That Runs Next.
+        if entry.installation.state == PluginState::Installed {
+            let owners = entry.metadata.iter().flat_map(|metadata| &metadata.owners);
+            for owner in owners.filter_map(|owner| Identifier::new(owner).ok()) {
+                self.plugin_preferences().bind_install(&owner, install);
+            }
+        }
+        self.request_plugin_apply(&package, install, retry);
     }
 }
 
@@ -87,22 +149,22 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
+fn package(entry: &PluginEntry) -> Option<&str> {
+    entry.metadata.as_ref().map(|metadata| metadata.identity.name.as_str())
+}
+
 fn process_state(entry: &mut PluginEntry, attempted: Option<bool>) {
     entry.active = attempted == Some(true);
-    entry.restart_required = match entry.installation.state {
-        super::PluginState::Installed => attempted.is_none(),
-        super::PluginState::Disabled => entry.active,
-        super::PluginState::RemovalPending => true,
-    };
     // Only an attempt this process itself made and refused ever surfaces a
     // reason. No caller ever observes a `RuntimeHandle` until `install_plugins`
     // has returned `Ok` -- every early `Err` out of it instead shuts the
     // runtime back down (see `Runtime::start` and
     // `with_execution_fixtures_inner`) -- and every plugin still `false` in
     // `plugin_boot` when it returns `Ok` was already given its own
-    // `record_boot` call along the way. So whenever `attempted == Some(false)`
-    // is observable at all, `last_boot` necessarily holds *this* attempt's
-    // outcome, never a stale one from an earlier process.
+    // `record_boot` call along the way. A live change that marks a plugin
+    // `false` records its outcome the same way. So whenever
+    // `attempted == Some(false)` is observable at all, `last_boot` holds
+    // *this* process's latest attempt, never a stale one from an earlier one.
     entry.boot_failed = attempted == Some(false);
 }
 

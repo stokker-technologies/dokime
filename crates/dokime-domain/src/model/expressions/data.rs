@@ -37,7 +37,6 @@ const FN_DATA_ARTIFACT: &str = "data.artifact";
 // Harmos vocabulary's own wire name (`mean`, `p95`).
 const FN_TRANSFORM_PREFIX: &str = "data.transform.";
 const FN_TRANSFORM_TIME_BETWEEN: &str = "data.transform.time_between";
-const FN_TRANSFORM_TELEMETRY_AT_OR_BEFORE: &str = "data.transform.telemetry_at_or_before";
 const FN_TRANSFORM_DETAIL: &str = "data.transform.detail";
 const FN_TRANSFORM_PER_CASE: &str = "data.transform.per_case";
 
@@ -89,7 +88,6 @@ pub enum DataTransform {
     // "aggregate": "p95"}`.
     Aggregate(#[serde(serialize_with = "serialize_aggregate", deserialize_with = "deserialize_aggregate")] Aggregate),
     TimeBetween { previous_record_type: String },
-    TelemetryAtOrBefore { stream: String, field: String },
     Detail { name: String },
     PerCase,
 }
@@ -115,7 +113,6 @@ impl harmos::MemorySize for DataTransform {
         let heap = match self {
             Self::Aggregate(_) | Self::PerCase => 0,
             Self::TimeBetween { previous_record_type } => previous_record_type.capacity(),
-            Self::TelemetryAtOrBefore { stream, field } => stream.capacity().saturating_add(field.capacity()),
             Self::Detail { name } => name.capacity(),
         };
         std::mem::size_of::<Self>().saturating_add(heap)
@@ -222,14 +219,6 @@ impl DataExpression {
         self
     }
 
-    pub fn telemetry_at_or_before(mut self, stream: impl Into<String>, field: impl Into<String>) -> Self {
-        self.transforms.push(DataTransform::TelemetryAtOrBefore {
-            stream: stream.into(),
-            field: field.into(),
-        });
-        self
-    }
-
     pub fn detail(mut self, name: impl Into<String>) -> Self {
         self.transforms.push(DataTransform::Detail { name: name.into() });
         self
@@ -330,9 +319,6 @@ fn data_transform_expression(transform: DataTransform, expression: Expression) -
         DataTransform::TimeBetween { previous_record_type } => {
             Expression::call(FN_TRANSFORM_TIME_BETWEEN, vec![expression, Expression::literal(previous_record_type)])
         }
-        DataTransform::TelemetryAtOrBefore { stream, field } => {
-            Expression::call(FN_TRANSFORM_TELEMETRY_AT_OR_BEFORE, vec![expression, Expression::literal(stream), Expression::literal(field)])
-        }
         DataTransform::Detail { name } => Expression::call(FN_TRANSFORM_DETAIL, vec![expression, Expression::literal(name)]),
         DataTransform::PerCase => Expression::call(FN_TRANSFORM_PER_CASE, vec![expression]),
     }
@@ -392,18 +378,6 @@ fn parse_data_expression(expression: &Expression) -> Result<(DataSource, Vec<Dat
             let (source, mut transforms) = parse_data_expression(inner)?;
             transforms.push(DataTransform::TimeBetween {
                 previous_record_type: text_literal(previous_record_type)?,
-            });
-
-            Ok((source, transforms))
-        }
-        FN_TRANSFORM_TELEMETRY_AT_OR_BEFORE => {
-            let [inner, stream, field] = args.as_slice() else {
-                return Err(DataExpressionError::UnsupportedExpression);
-            };
-            let (source, mut transforms) = parse_data_expression(inner)?;
-            transforms.push(DataTransform::TelemetryAtOrBefore {
-                stream: text_literal(stream)?,
-                field: text_literal(field)?,
             });
 
             Ok((source, transforms))

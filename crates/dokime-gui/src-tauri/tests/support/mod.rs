@@ -26,6 +26,8 @@ pub mod wire;
 
 // Local Imports
 use dokime::RuntimeConfig;
+use dokime::harmos::operations::OperationPolicy;
+use dokime::harmos::operations::RetryPolicy;
 
 /* === Constants === */
 

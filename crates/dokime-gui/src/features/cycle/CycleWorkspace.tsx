@@ -30,8 +30,10 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
-import { LockKeyhole } from "lucide-react";
+import { Archive, LockKeyhole, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/lib/notifications";
 
@@ -63,7 +65,7 @@ import {
   finishedCaseCount,
   followSelection,
   isActiveExecutionStatus,
-  isCycleSealed,
+  isCycleArchivable,
   isTerminalExecutionStatus,
   selectedCycleRow,
 } from "./cycle-workspace-model";
@@ -89,7 +91,38 @@ export type CycleWorkspaceProps = {
   onSelectionChange: (next: CycleSelection) => void;
 };
 
-type PendingConfirm = { kind: "seal" } | null;
+type PendingConfirm = { kind: "seal" | "retry" | "archive" } | null;
+
+/* What each confirmed cycle action says before it runs, and what it reports after. */
+const CONFIRMS = {
+  archive: {
+    action: "Archive Cycle",
+    description:
+      "Archiving hides this cycle from the default lists. Its unsealed evidence and the recorded seal failure are kept, and Unarchive brings it back.",
+    done: "Archived",
+    failed: "The Archive Mark Could Not Be Set",
+    pending: "Archiving",
+    title: "Archive Cycle",
+  },
+  retry: {
+    action: "Retry Seal",
+    description:
+      "Retrying seals this cycle again from its saved evidence. If the evidence still cannot be read, the cycle returns to Seal Failed with the new cause.",
+    done: "Cycle Sealed",
+    failed: "Cycle Seal Failed Again",
+    pending: "Sealing — Saving Evidence",
+    title: "Retry Seal",
+  },
+  seal: {
+    action: "Seal Cycle",
+    description:
+      "Sealing closes this cycle permanently. Its running work stops, unstarted executions are cancelled, and all evidence is saved. Other cycles keep running. This can take time while evidence drains.",
+    done: "Cycle Sealed",
+    failed: "Cycle Seal Could Not Be Confirmed",
+    pending: "Sealing — Saving Evidence",
+    title: "Seal Cycle",
+  },
+} as const;
 
 /* === Components === */
 
@@ -174,12 +207,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           description: origin === "Current" ? "Generated from the run so far." : undefined,
         }),
       )
-      .catch((error: unknown) =>
-        toast.error("The Report Could Not Be Opened", {
-          error,
-          description: error instanceof Error ? error.message : String(error),
-        }),
-      );
+      .catch((error: unknown) => toast.error(failureOf(error, "The Report Could Not Be Opened")));
   };
   /* Archive and Unarchive say what they did; neither changes the lifecycle. */
   const archiveAction = (
@@ -201,32 +229,20 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const run = (report: { done: string; failed: string }, action: () => Promise<unknown>) => {
     action()
       .then(() => toast.success(report.done))
-      .catch((error: unknown) =>
-        toast.error(report.failed, {
-          error,
-          description: error instanceof Error ? error.message : String(error),
-        }),
-      );
+      .catch((error: unknown) => toast.error(failureOf(error, report.failed)));
   };
 
   if (detailQuery.isError && !plan) {
-    return (
-      <WorkspaceNotice
-        action={{ label: "Try Again", onClick: () => void detailQuery.refetch() }}
-        message={detailQuery.error instanceof Error ? detailQuery.error.message : "The cycle could not be read from the backend."}
-        title="Cycle Unavailable"
-      />
-    );
+    return <ErrorCard failure={failureOf(detailQuery.error, "Cycle Unavailable")} onRetry={() => void detailQuery.refetch?.()} />;
   }
 
   if (!plan) {
     return detailQuery.isPending ? (
       <WorkspaceNotice message="Reading this cycle from the backend." title="Loading" />
     ) : (
-      <WorkspaceNotice
-        action={{ label: "Go To Cycles", onClick: () => void navigate({ to: "/cycles" }) }}
-        message="This cycle could not be found on the connected backend. Return to Cycles or inspect its saved history."
-        title="Cycle Not Found"
+      <ErrorCard
+        failure={failureOf("This cycle could not be found on the connected backend.", "Cycle Not Found", `missing-cycle:${cycleId}`)}
+        onRetry={() => void detailQuery.refetch()}
       />
     );
   }
@@ -304,7 +320,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   }
 
   const cycleMenu: CycleMenu = {
-    archive: archiveAction(Boolean(plan.test_cycle.archived), isCycleSealed(phase), "cycle", (archived) =>
+    archive: archiveAction(Boolean(plan.test_cycle.archived), isCycleArchivable(phase), "cycle", (archived) =>
       commands.archiveCycle.mutateAsync(archived),
     ),
     followActive,
@@ -338,7 +354,22 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       <LockKeyhole data-icon="inline-start" />
       Seal Cycle
     </Button>
+  ) : control.actions.includes("Retry Seal") ? (
+    <>
+      <Button className="h-[var(--bar-control-height)] px-3" onClick={() => setConfirm({ kind: "retry" })} variant="outline">
+        <RotateCcw data-icon="inline-start" />
+        Retry Seal
+      </Button>
+      {control.actions.includes("Archive") && !plan.test_cycle.archived ? (
+        <Button className="h-[var(--bar-control-height)] px-3" onClick={() => setConfirm({ kind: "archive" })} variant="outline">
+          <Archive data-icon="inline-start" />
+          Archive
+        </Button>
+      ) : null}
+    </>
   ) : null;
+  const confirming = confirm ? CONFIRMS[confirm.kind] : null;
+  const confirmPending = commands.sealCycle.isPending || commands.archiveCycle.isPending;
   const waiting = inputNeededLabel(waitingRows.map((row) => row.ordinal));
   const state = cycleState(phase, status, prompts.length > 0);
 
@@ -380,6 +411,15 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
                 progress={runningRow && progress ? { completed: progress.completed, total: progress.total } : null}
                 state={control.line}
               >
+                {phase === "seal_failed" && plan.test_cycle.seal_failure ? (
+                  <ErrorCard
+                    failure={failureOf(
+                      plan.test_cycle.seal_failure,
+                      "Cycle Finalization Failed",
+                      [cycleId, "seal", plan.test_cycle.seal_failure].join(":"),
+                    )}
+                  />
+                ) : null}
                 {waiting ? (
                   <p className="grid auto-cols-max grid-flow-col items-baseline gap-x-2 text-sm" data-input-needed>
                     <span className="text-warning">{waiting}</span>
@@ -427,30 +467,31 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
         />
       ) : null}
 
-      <Dialog onOpenChange={(next) => !next && !commands.sealCycle.isPending && setConfirm(null)} open={live && confirm !== null}>
+      <Dialog onOpenChange={(next) => !next && !confirmPending && setConfirm(null)} open={live && confirming !== null}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Seal Cycle</DialogTitle>
-            <DialogDescription>
-              Sealing closes this cycle permanently. Its running work stops, unstarted executions are cancelled, and all evidence is saved.
-              Other cycles keep running. This can take time while evidence drains.
-            </DialogDescription>
+            <DialogTitle>{confirming?.title}</DialogTitle>
+            <DialogDescription>{confirming?.description}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button disabled={commands.sealCycle.isPending} onClick={() => setConfirm(null)} variant="outline">
+            <Button disabled={confirmPending} onClick={() => setConfirm(null)} variant="outline">
               Cancel
             </Button>
             <Button
-              disabled={commands.sealCycle.isPending}
+              disabled={confirmPending}
               onClick={() => {
-                run({ done: "Cycle Sealed", failed: "Cycle Seal Could Not Be Confirmed" }, async () => {
-                  await commands.sealCycle.mutateAsync();
-                  setConfirm(null);
+                if (!confirm || !confirming) return;
+                run({ done: confirming.done, failed: confirming.failed }, async () => {
+                  try {
+                    await (confirm.kind === "archive" ? commands.archiveCycle.mutateAsync(true) : commands.sealCycle.mutateAsync());
+                  } finally {
+                    setConfirm(null);
+                  }
                 });
               }}
               variant="danger"
             >
-              {commands.sealCycle.isPending ? "Sealing — Saving Evidence" : "Seal Cycle"}
+              {confirmPending ? confirming?.pending : confirming?.action}
             </Button>
           </DialogFooter>
         </DialogContent>

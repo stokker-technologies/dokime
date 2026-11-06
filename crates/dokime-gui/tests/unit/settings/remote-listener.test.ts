@@ -1,3 +1,4 @@
+import { failureOf } from "@/lib/notification-details";
 /* ***
  *
  * Dokime
@@ -25,7 +26,6 @@ import {
   commitListener,
   type ListenerSettings,
   type ListenerStatus,
-  listenerError,
   listenerRunning,
 } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
@@ -93,7 +93,7 @@ beforeEach(() => {
   fixture.updates = [];
 });
 
-test("Repeated Remote Settings Loads Stay Inline And Failures Still Notify", () => {
+test("Repeated Remote Settings Loads And Failures Stay Inline", () => {
   fixture.session = {
     identity: { generation: "fixture" },
     snapshot: { connection: { backend: { methods: ["/dokime.v1.Remote/ReadListener"] } } },
@@ -106,7 +106,7 @@ test("Repeated Remote Settings Loads Stay Inline And Failures Still Notify", () 
   fixture.query.isPending = false;
   fixture.query.error = new Error("fixture-failure");
   renderToStaticMarkup(createElement(RemoteSection, {}));
-  assert.equal(notice.mock.calls.length, 1);
+  assert.equal(notice.mock.calls.length, 0);
 });
 
 test("Unavailable Remote Settings Stay Inline Without Notifications", () => {
@@ -202,5 +202,5 @@ test("Export Has No WebView Credential Or Endpoint Arguments", async () => {
 test("Export Failure Retains The Native Reason", async () => {
   const reason = "fixture-export-rejection";
   fixture.invoke.mockRejectedValueOnce({ kind: "grpc", detail: { code: 3, message: reason, details: [] } });
-  await assert.rejects(commands.desktopPairingCreate(), (error: unknown) => listenerError(error) === reason);
+  await assert.rejects(commands.desktopPairingCreate(), (error: unknown) => failureOf(error, "fixture").message === reason);
 });

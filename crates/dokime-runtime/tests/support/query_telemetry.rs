@@ -42,11 +42,11 @@ pub struct Reading {
 }
 
 pub struct Fixture {
-    pub _root: tempfile::TempDir,
     pub owner: Owner,
     pub runtime: RuntimeHandle,
     pub execution: TestExecutionId,
     pub cycle: TestCycleId,
+    pub _root: tempfile::TempDir,
 }
 
 /* === Enums === */

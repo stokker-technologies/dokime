@@ -54,6 +54,12 @@ impl ResolvedPack {
         self.manifest.get("app").and_then(|app| app.get("label")).and_then(toml::Value::as_str).unwrap_or("")
     }
 
+    /// Returns The Pack's `[app.organization] name`, When It Names One.
+    pub fn organization_name(&self) -> Option<&str> {
+        let organization = self.manifest.get("app")?.get("organization")?;
+        organization.get("name")?.as_str()
+    }
+
     pub fn asset(&self, role: &str) -> Option<(&str, &[u8])> {
         let path = self.manifest.get("app")?.get("artwork")?.get(role)?.as_str()?;
         Some((path, self.files.get(path)?.as_slice()))

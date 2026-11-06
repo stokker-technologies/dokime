@@ -35,7 +35,7 @@ class Row3(_message.Message):
     def __init__(self, manifest_sha256: _Optional[str] = ..., after_install_id: _Optional[str] = ...) -> None: ...
 
 class Row4(_message.Message):
-    __slots__ = ("install_id", "sha256", "installed_at", "state", "last_boot", "metadata", "error", "active", "restart_required", "boot_failed")
+    __slots__ = ("install_id", "sha256", "installed_at", "state", "last_boot", "metadata", "error", "active", "restart", "boot_failed")
     INSTALL_ID_FIELD_NUMBER: _ClassVar[int]
     SHA256_FIELD_NUMBER: _ClassVar[int]
     INSTALLED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -44,7 +44,7 @@ class Row4(_message.Message):
     METADATA_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     ACTIVE_FIELD_NUMBER: _ClassVar[int]
-    RESTART_REQUIRED_FIELD_NUMBER: _ClassVar[int]
+    RESTART_FIELD_NUMBER: _ClassVar[int]
     BOOT_FAILED_FIELD_NUMBER: _ClassVar[int]
     install_id: str
     sha256: str
@@ -54,9 +54,9 @@ class Row4(_message.Message):
     metadata: Row8
     error: str
     active: bool
-    restart_required: bool
+    restart: Row9
     boot_failed: bool
-    def __init__(self, install_id: _Optional[str] = ..., sha256: _Optional[str] = ..., installed_at: _Optional[_Union[Row5, _Mapping]] = ..., state: _Optional[_Union[Row6, _Mapping]] = ..., last_boot: _Optional[_Union[Row7, _Mapping]] = ..., metadata: _Optional[_Union[Row8, _Mapping]] = ..., error: _Optional[str] = ..., active: _Optional[bool] = ..., restart_required: _Optional[bool] = ..., boot_failed: _Optional[bool] = ...) -> None: ...
+    def __init__(self, install_id: _Optional[str] = ..., sha256: _Optional[str] = ..., installed_at: _Optional[_Union[Row5, _Mapping]] = ..., state: _Optional[_Union[Row6, _Mapping]] = ..., last_boot: _Optional[_Union[Row7, _Mapping]] = ..., metadata: _Optional[_Union[Row8, _Mapping]] = ..., error: _Optional[str] = ..., active: _Optional[bool] = ..., restart: _Optional[_Union[Row9, _Mapping]] = ..., boot_failed: _Optional[bool] = ...) -> None: ...
 
 class Row5(_message.Message):
     __slots__ = ("seconds", "nanos")
@@ -72,33 +72,41 @@ class Row6(_message.Message):
     INSTALLED_FIELD_NUMBER: _ClassVar[int]
     DISABLED_FIELD_NUMBER: _ClassVar[int]
     REMOVALPENDING_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row9
-    Installed: Row10
-    Disabled: Row11
-    RemovalPending: Row12
-    def __init__(self, Unspecified: _Optional[_Union[Row9, _Mapping]] = ..., Installed: _Optional[_Union[Row10, _Mapping]] = ..., Disabled: _Optional[_Union[Row11, _Mapping]] = ..., RemovalPending: _Optional[_Union[Row12, _Mapping]] = ...) -> None: ...
+    Unspecified: Row10
+    Installed: Row11
+    Disabled: Row12
+    RemovalPending: Row13
+    def __init__(self, Unspecified: _Optional[_Union[Row10, _Mapping]] = ..., Installed: _Optional[_Union[Row11, _Mapping]] = ..., Disabled: _Optional[_Union[Row12, _Mapping]] = ..., RemovalPending: _Optional[_Union[Row13, _Mapping]] = ...) -> None: ...
 
 class Row7(_message.Message):
     __slots__ = ("at", "result")
     AT_FIELD_NUMBER: _ClassVar[int]
     RESULT_FIELD_NUMBER: _ClassVar[int]
     at: Row5
-    result: Row13
-    def __init__(self, at: _Optional[_Union[Row5, _Mapping]] = ..., result: _Optional[_Union[Row13, _Mapping]] = ...) -> None: ...
+    result: Row14
+    def __init__(self, at: _Optional[_Union[Row5, _Mapping]] = ..., result: _Optional[_Union[Row14, _Mapping]] = ...) -> None: ...
 
 class Row8(_message.Message):
     __slots__ = ("identity", "owners", "size_bytes")
     IDENTITY_FIELD_NUMBER: _ClassVar[int]
     OWNERS_FIELD_NUMBER: _ClassVar[int]
     SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
-    identity: Row14
+    identity: Row15
     owners: _containers.RepeatedScalarFieldContainer[str]
     size_bytes: int
-    def __init__(self, identity: _Optional[_Union[Row14, _Mapping]] = ..., owners: _Optional[_Iterable[str]] = ..., size_bytes: _Optional[int] = ...) -> None: ...
+    def __init__(self, identity: _Optional[_Union[Row15, _Mapping]] = ..., owners: _Optional[_Iterable[str]] = ..., size_bytes: _Optional[int] = ...) -> None: ...
 
 class Row9(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("Unspecified", "Idle", "Restarting", "Pending")
+    UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
+    IDLE_FIELD_NUMBER: _ClassVar[int]
+    RESTARTING_FIELD_NUMBER: _ClassVar[int]
+    PENDING_FIELD_NUMBER: _ClassVar[int]
+    Unspecified: Row16
+    Idle: Row17
+    Restarting: Row18
+    Pending: Row19
+    def __init__(self, Unspecified: _Optional[_Union[Row16, _Mapping]] = ..., Idle: _Optional[_Union[Row17, _Mapping]] = ..., Restarting: _Optional[_Union[Row18, _Mapping]] = ..., Pending: _Optional[_Union[Row19, _Mapping]] = ...) -> None: ...
 
 class Row10(_message.Message):
     __slots__ = ()
@@ -113,14 +121,18 @@ class Row12(_message.Message):
     def __init__(self) -> None: ...
 
 class Row13(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row14(_message.Message):
     __slots__ = ("Loaded", "Error")
     LOADED_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
-    Loaded: Row15
-    Error: Row16
-    def __init__(self, Loaded: _Optional[_Union[Row15, _Mapping]] = ..., Error: _Optional[_Union[Row16, _Mapping]] = ...) -> None: ...
+    Loaded: Row20
+    Error: Row21
+    def __init__(self, Loaded: _Optional[_Union[Row20, _Mapping]] = ..., Error: _Optional[_Union[Row21, _Mapping]] = ...) -> None: ...
 
-class Row14(_message.Message):
+class Row15(_message.Message):
     __slots__ = ("name", "version", "description")
     NAME_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -130,19 +142,35 @@ class Row14(_message.Message):
     description: str
     def __init__(self, name: _Optional[str] = ..., version: _Optional[str] = ..., description: _Optional[str] = ...) -> None: ...
 
-class Row15(_message.Message):
+class Row16(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row17(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row18(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row19(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row20(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
     field_0: bool
     def __init__(self, field_0: _Optional[bool] = ...) -> None: ...
 
-class Row16(_message.Message):
+class Row21(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row17
-    def __init__(self, field_0: _Optional[_Union[Row17, _Mapping]] = ...) -> None: ...
+    field_0: Row22
+    def __init__(self, field_0: _Optional[_Union[Row22, _Mapping]] = ...) -> None: ...
 
-class Row17(_message.Message):
+class Row22(_message.Message):
     __slots__ = ("plugin_id", "plugin_name", "message", "code", "missing_secret", "carrier", "consequences")
     PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
     PLUGIN_NAME_FIELD_NUMBER: _ClassVar[int]

@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { Braces, Copy, Download } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/lib/notifications";
@@ -58,10 +59,7 @@ export function TraceabilityJsonDialog({ exportName, traceability }: Traceabilit
     try {
       await saveTraceabilityJson(json, filename, session?.identity ?? null);
     } catch (error) {
-      toast.error("Could Not Download Traceability", {
-        error,
-        description: error instanceof Error ? error.message : String(error),
-      });
+      toast.error(failureOf(error, "Could Not Download Traceability"));
     } finally {
       setSaving(false);
     }

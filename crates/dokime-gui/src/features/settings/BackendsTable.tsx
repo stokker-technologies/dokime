@@ -13,6 +13,7 @@
 
 /* === Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import type { Document, Profile } from "@generated/application-settings";
 import { Plug } from "lucide-react";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -27,7 +28,6 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { commands } from "@/lib/desktop/commands";
 import { preferencesCommands } from "@/lib/desktop/settings";
-import { preferencesError } from "./application-preferences";
 import { SettingsCard } from "./SettingsCard";
 
 // Standard Library Imports
@@ -149,7 +149,7 @@ export function BackendsTable({
             title={connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed"}
             error={state.phase === "failed" ? state.error : error}
           >
-            {connectionFailure || preferencesError(error)}
+            {connectionFailure || failureOf(error, "Backend Operation Failed").message}
             {connectionFailure && (endpoint || failedProfile) && (
               <p className="mt-2 break-all font-mono text-xs">{endpoint || failedProfile?.endpoint}</p>
             )}
@@ -248,7 +248,7 @@ export function BackendsTable({
           </div>
           {Boolean(error) && (
             <NotificationMessage source="Backends" title="Backend Could Not Be Deleted" error={error}>
-              {preferencesError(error)}
+              {failureOf(error, "Backend Operation Failed").message}
             </NotificationMessage>
           )}
         </DialogContent>
@@ -417,7 +417,7 @@ function AddBackend({
           </fieldset>
           {Boolean(error) && (
             <NotificationMessage source="Backends" title="Backend Could Not Be Added" error={error}>
-              {preferencesError(error)}
+              {failureOf(error, "Backend Operation Failed").message}
             </NotificationMessage>
           )}
         </form>

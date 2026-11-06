@@ -9,6 +9,8 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
@@ -37,7 +39,7 @@ import {
 import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
-import { PageNotice, PageShell } from "@/shell/PageShell";
+import { PageShell } from "@/shell/PageShell";
 
 /* === Constants === */
 
@@ -114,9 +116,7 @@ export function CyclesHome() {
 
   return (
     <PageShell actions={actions} onPointerCancel={release} onPointerDown={freeze} onPointerUp={release} trail={["Cycles"]}>
-      {cycles.isError ? (
-        <PageNotice tone="alert">The cycle list could not be read. Check the backend connection in the status bar.</PageNotice>
-      ) : null}
+      {cycles.isError ? <ErrorCard failure={failureOf(cycles.error, "Cycles Unavailable")} onRetry={() => void cycles.refetch()} /> : null}
 
       {groups.map((group) => (
         <CycleGroupSection
@@ -136,12 +136,7 @@ export function CyclesHome() {
                   unarchive
                     .mutateAsync(cycleId)
                     .then(() => toast.success("Unarchived"))
-                    .catch((error: unknown) =>
-                      toast.error("The Archive Mark Could Not Be Removed", {
-                        error,
-                        description: error instanceof Error ? error.message : String(error),
-                      }),
-                    )
+                    .catch((error: unknown) => toast.error(failureOf(error, "The Archive Mark Could Not Be Removed")))
               : null
           }
         />

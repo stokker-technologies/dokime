@@ -14,9 +14,9 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { type FormEvent, useEffect, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
-import { notificationMessage } from "@/lib/notification-details";
 
 /* === Local Imports === */
 
@@ -84,7 +84,7 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
             titleInvalid={error !== null && !form.title.trim()}
             values={{ continueAutomatically: form.continueAutomatically, description: form.description, title: form.title }}
           />
-          {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
+          {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
           <DialogFooter>
             <Button disabled={create.isPending} onClick={() => onOpenChange(false)} type="button" variant="outline">
               Cancel

@@ -11,6 +11,7 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /* === Types === */
@@ -37,7 +38,10 @@ const SAVED_MS = GUI_SETTINGS_SAVED_MS;
 
 /* === Public Functions === */
 
-export function useAutosave<T>(save: (value: T) => Promise<unknown>, message: (error: unknown) => string = describeError): Autosave<T> {
+export function useAutosave<T>(
+  save: (value: T) => Promise<unknown>,
+  message: (error: unknown) => string = (error) => failureOf(error, "Settings Could Not Be Saved").message,
+): Autosave<T> {
   const [state, setState] = useState<AutosaveState>({ kind: "idle" });
   const last = useRef<{ value: T } | null>(null);
   const saveRef = useRef(save);
@@ -92,7 +96,7 @@ export function createDebouncedWriter<T>(write: (value: T) => Promise<void>, cha
     } catch (error) {
       pending ??= current;
       failed = true;
-      changed({ kind: "error", message: describeError(error), failure: error });
+      changed({ kind: "error", message: failureOf(error, "Operation Failed").message, failure: error });
     } finally {
       writing = false;
       if (pending && ready && !failed) void drain();
@@ -130,7 +134,3 @@ export function createDebouncedWriter<T>(write: (value: T) => Promise<void>, cha
 }
 
 /* === Private Functions === */
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

@@ -218,6 +218,7 @@ mod tests {
                 records: Default::default(),
                 continue_automatically: false,
                 result: None,
+                seal_failure: None,
             };
             state.cycles.insert(id.clone(), cycle);
         }

@@ -47,6 +47,7 @@ const BOTTOM = 2_000;
 const fixture = vi.hoisted(() => ({
   effects: [] as (() => (() => void) | undefined)[],
   open: vi.fn(),
+  notifyError: vi.fn(),
   current: true,
   session: { identity: { generation: "1", isCurrent: (): boolean => fixture.current } },
 }));
@@ -146,6 +147,7 @@ vi.mock("zustand", () => ({
 }));
 vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
 vi.mock("@/lib/api/native-logs", () => ({ openTraceStream: fixture.open }));
+vi.mock("@/lib/notifications", () => ({ toast: { error: fixture.notifyError } }));
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -153,6 +155,7 @@ beforeEach(() => {
   fixture.effects.length = 0;
   fixture.current = true;
   fixture.open.mockReset();
+  fixture.notifyError.mockReset();
   consoleRecordsStore.getState().bindSession(null);
 });
 
@@ -174,6 +177,7 @@ test("Stream Reconnect", async () => {
   await vi.advanceTimersByTimeAsync(0);
   const failed = buffer(consoleRecordsStore, CYCLE_PAGE);
   assert.deepEqual(ids(failed), ["trace-1", "trace-2"]);
+  assert.equal(fixture.notifyError.mock.calls[0][0].reason, "DEADLINE_EXCEEDED");
   assert.ok(failed.error?.includes("operation deadline"));
   await vi.advanceTimersToNextTimerAsync();
   assert.equal(fixture.open.mock.calls.length, 2);
