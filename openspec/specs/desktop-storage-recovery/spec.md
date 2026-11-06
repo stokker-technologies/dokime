@@ -1,4 +1,9 @@
-## ADDED Requirements
+# desktop-storage-recovery Specification
+
+## Purpose
+Recover failed desktop storage through a confirmed backup and reset while preserving installed plugins and credentials.
+
+## Requirements
 
 ### Requirement: Confirm Startup Recovery
 

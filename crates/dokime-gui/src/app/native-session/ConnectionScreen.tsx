@@ -239,9 +239,9 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
             <DialogHeader>
               <DialogTitle>Back Up And Reset</DialogTitle>
               <DialogDescription>
-                Back up the data folder to this archive, then remove the folder's contents and restart the local backend. Installed plugins
-                will be restored with their enabled state and valid settings. Secrets remain unchanged. If the backup fails, nothing is
-                removed.
+                Back up the data folder to this archive, then remove the folder's contents and restart the local backend. Installed bundles
+                will be restored with readable enabled states and valid settings. If saved plugin preferences cannot be recovered, bundles
+                are enabled with default settings. Credentials remain in secret storage. If the backup fails, nothing is removed.
               </DialogDescription>
             </DialogHeader>
             {backup && (
