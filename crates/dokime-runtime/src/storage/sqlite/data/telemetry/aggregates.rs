@@ -48,8 +48,12 @@ type Key = (String, String, String);
 
 #[derive(Default)]
 pub(in crate::storage::sqlite) struct Batch {
-    fields: BTreeMap<Key, Moments>,
-    ranks: BTreeMap<(Key, Vec<u8>, u8), u64>,
+    fields: BTreeMap<Key, Field>,
+}
+
+struct Field {
+    moments: Moments,
+    ranks: BTreeMap<([u8; 8], u8), u64>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -90,21 +94,27 @@ impl Batch {
         for (field, value) in crate::storage::telemetry::numeric_metadata(&row.record.payload)? {
             previews.push(connection, row, &field, value)?;
             let key = (execution.to_string(), row.stream.to_string(), field);
-            if let std::collections::btree_map::Entry::Vacant(entry) = self.fields.entry(key.clone()) {
-                let existing: Option<Vec<u8>> = connection
-                    .query_row(
-                        "SELECT moments FROM storage_numeric_summaries WHERE execution=?1 AND stream=?2 AND field=?3",
-                        params![key.0, key.1, key.2],
-                        |row| row.get(0),
-                    )
-                    .optional()?;
-                let moments = existing.as_deref().map(Moments::decode).transpose()?.unwrap_or_default();
-                entry.insert(moments);
-            }
-            self.fields.get_mut(&key).expect("loaded moments").push(value)?;
+            let field = match self.fields.entry(key) {
+                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    let key = entry.key();
+                    let existing: Option<Vec<u8>> = connection
+                        .query_row(
+                            "SELECT moments FROM storage_numeric_summaries WHERE execution=?1 AND stream=?2 AND field=?3",
+                            params![key.0, key.1, key.2],
+                            |row| row.get(0),
+                        )
+                        .optional()?;
+                    let moments = existing.as_deref().map(Moments::decode).transpose()?.unwrap_or_default();
+                    entry.insert(Field { moments, ranks: BTreeMap::new() })
+                }
+            };
+            field.moments.push(value)?;
             let ordered = ordered(value).to_be_bytes();
+            let mut prefix = [0; 8];
             for depth in 0..8 {
-                let count = self.ranks.entry((key.clone(), ordered[..depth].to_vec(), ordered[depth])).or_default();
+                prefix[depth] = ordered[depth];
+                let count = field.ranks.entry((prefix, depth as u8)).or_default();
                 *count = count.checked_add(1).ok_or(Error::Data("numeric rank count overflow"))?;
             }
         }
@@ -116,16 +126,17 @@ impl Batch {
             "INSERT INTO storage_numeric_summaries VALUES (?1,?2,?3,?4)
              ON CONFLICT(execution,stream,field) DO UPDATE SET moments=excluded.moments",
         )?;
-        for (key, moments) in self.fields {
-            fields.execute(params![key.0, key.1, key.2, moments.encode()])?;
-        }
         let mut ranks = connection.prepare_cached(
             "INSERT INTO storage_numeric_ranks VALUES (?1,?2,?3,?4,?5,?6)
              ON CONFLICT(execution,stream,field,parent,child) DO UPDATE SET count=count+excluded.count",
         )?;
-        for ((key, parent, child), count) in self.ranks {
-            let count = i64::try_from(count).map_err(|_| Error::Data("numeric rank count exceeds SQLite range"))?;
-            ranks.execute(params![key.0, key.1, key.2, parent, child, count])?;
+        for (key, field) in self.fields {
+            fields.execute(params![key.0, key.1, key.2, field.moments.encode()])?;
+            for ((prefix, depth), count) in field.ranks {
+                let depth = usize::from(depth);
+                let count = i64::try_from(count).map_err(|_| Error::Data("numeric rank count exceeds SQLite range"))?;
+                ranks.execute(params![key.0, key.1, key.2, &prefix[..depth], prefix[depth], count])?;
+            }
         }
         Ok(())
     }
