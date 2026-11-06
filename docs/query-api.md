@@ -165,10 +165,13 @@ and dimensionless; other outputs are nullable Float64 with their input unit.
 Aliases and output schema follow request order. Non-finite requested arithmetic
 fails explicitly.
 
-Filtered percentiles and medians use the existing ordered-f64 rank representation
-with bounded radix counters over repeated projected scans. Every pass uses the
-same captured contracts, predicates, window and physical frontier, and counts
-against the same scan/time budget. Interpolation uses exact integer rank positions
+Statistics and buckets fold borrowed projected Arrow columns in evidence order.
+Filtered percentiles and medians spool finite f64 projections once, then select
+exact ranks with bounded radix counters. Numeric payloads spill within their
+memory allocation, with separately bounded rank scratch and cooperative deadline
+checks. Interior percentiles retain the logical nine-pass scan charge against the
+same captured contracts, predicates, window and physical frontier.
+Interpolation uses exact integer rank positions
 and the fractional remainder of `(count - 1) * rank / 100`. Current mutable numeric
 indexes and report previews never answer a historical or filtered selection.
 Exhaustion returns a typed failure; statistics are never partial estimates.
