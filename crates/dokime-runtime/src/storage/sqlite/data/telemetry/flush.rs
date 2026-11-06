@@ -38,6 +38,7 @@ use crate::storage::{Error, Manager, Result, telemetry::TelemetryEntry};
 pub(crate) struct Tail {
     pub entries: BTreeMap<u64, (Instant, TelemetryEntry)>,
     streams: BTreeMap<String, u64>,
+    counts: BTreeMap<String, BTreeMap<String, usize>>,
     pub readable: tokio::sync::watch::Sender<u64>,
     pub running: bool,
     pub force: bool,
@@ -97,13 +98,37 @@ impl Tail {
             return;
         }
         self.streams.entry(entry.sample.stream.to_string()).and_modify(|latest| *latest = (*latest).max(position)).or_insert(position);
+        let owner = entry
+            .sample
+            .scope
+            .as_ref()
+            .and_then(|scope| scope.test_execution_id.as_ref())
+            .map(|id| id.as_str())
+            .unwrap_or_else(|| entry.epoch.as_str());
+        *self.counts.entry(entry.sample.stream.to_string()).or_default().entry(owner.to_owned()).or_default() += 1;
         self.entries.insert(position, (Instant::now(), entry));
     }
 
-    fn discard_saved(&mut self, through: u64) {
+    pub(in crate::storage::sqlite) fn discard_saved(&mut self, through: u64) {
         self.streams.retain(|_, latest| *latest > through);
         while self.entries.first_key_value().is_some_and(|(position, _)| *position <= through) {
-            self.entries.pop_first();
+            let (_, (_, entry)) = self.entries.pop_first().unwrap();
+            let owner = entry
+                .sample
+                .scope
+                .as_ref()
+                .and_then(|scope| scope.test_execution_id.as_ref())
+                .map(|id| id.as_str())
+                .unwrap_or_else(|| entry.epoch.as_str());
+            let counts = self.counts.get_mut(entry.sample.stream.as_str()).expect("counted tail stream");
+            let count = counts.get_mut(owner).expect("counted tail owner");
+            *count -= 1;
+            if *count == 0 {
+                counts.remove(owner);
+            }
+            if counts.is_empty() {
+                self.counts.remove(entry.sample.stream.as_str());
+            }
         }
     }
 
@@ -114,16 +139,10 @@ impl Tail {
             return Ok(None);
         };
         let deadline = started.checked_add(settings.telemetry_interval).ok_or(Error::Invalid("telemetry flush deadline overflows"))?;
-        let mut counts = BTreeMap::new();
-        for (_, entry) in self.entries.values() {
-            let owner = entry.sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref())
-                .map(ToString::to_string).unwrap_or_else(|| entry.epoch.to_string());
-            *counts.entry((owner, entry.sample.stream.as_str())).or_insert(0_usize) += 1;
-        }
         through.sequence = *self.entries.last_key_value().unwrap().0;
         Ok(Some(Flush {
             deadline,
-            full: self.force || counts.values().any(|rows| *rows >= settings.telemetry_rows.get()),
+            full: self.force || self.counts.values().flat_map(|owners| owners.values()).any(|rows| *rows >= settings.telemetry_rows.get()),
             changed: self.changed.clone(),
             through,
         }))
@@ -231,17 +250,17 @@ mod tests {
         for ordinal in 1..=3 {
             tail.insert(
                 ordinal,
-                    TelemetryEntry {
-                        epoch: epoch.clone(),
+                TelemetryEntry {
+                    epoch: epoch.clone(),
+                    ordinal,
+                    sample: crate::telemetry::TelemetrySample::new(
+                        TelemetrySampleId::from_seed(ordinal.to_string()),
+                        harmos::Identifier::new("flush.reading").unwrap(),
                         ordinal,
-                        sample: crate::telemetry::TelemetrySample::new(
-                            TelemetrySampleId::from_seed(ordinal.to_string()),
-                            harmos::Identifier::new("flush.reading").unwrap(),
-                            ordinal,
-                            dokime_domain::model::time::Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH),
-                            "observer",
-                        ),
-                    },
+                        dokime_domain::model::time::Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH),
+                        "observer",
+                    ),
+                },
             );
         }
         let fourth = tail.entries[&3].1.clone();
@@ -260,10 +279,16 @@ mod tests {
         assert!(!cut.full);
         assert_eq!(cut.through.sequence, 3);
         assert_eq!(tail.entries.keys().copied().collect::<Vec<_>>(), [3]);
-        tail.insert(4, fourth);
+        tail.insert(3, fourth.clone());
+        assert!(!tail.cut(saved.clone(), settings).unwrap().unwrap().full);
+        let mut other = fourth.clone();
+        other.epoch = SessionId::from_seed("other-session");
+        tail.insert(4, other);
+        assert!(!tail.cut(saved.clone(), settings).unwrap().unwrap().full);
+        tail.insert(5, fourth);
         let cut = tail.cut(saved, settings).unwrap().unwrap();
         assert!(cut.full);
-        assert_eq!(cut.through.sequence, 4);
+        assert_eq!(cut.through.sequence, 5);
         assert!(tail.cut(cut.through, settings).unwrap().is_none());
         assert!(!tail.running);
     }
