@@ -171,6 +171,14 @@ impl Service {
 }
 
 impl Server {
+    pub async fn create_pairing(&self, label: String) -> Result<dokime::domain::model::remote::CreatedPairing, Error> {
+        if self.attachment.is_none() {
+            return Err(Error::Configuration("listener is not accepting calls"));
+        }
+        let controller = self.remote.as_ref().ok_or(Error::Configuration("remote controller is not active"))?;
+        controller.export_pairing(label).await
+    }
+
     pub(super) fn reload_certificate(&self, identity: &super::TlsIdentity) -> Result<(), Error> {
         let certificate = self.certificate.as_ref().ok_or(Error::Configuration("listener has no reloadable TLS certificate"))?;
         certificate.reload(&identity.certificate, &identity.private_key)?;

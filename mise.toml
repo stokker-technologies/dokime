@@ -367,8 +367,9 @@ depends = ["prepare"]
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--artifacts <artifacts>" help="Use An Explicit Native Client Fixture Root"
+flag "--select <select>" help="Run Matching Installed-Wheel Stories"
 '''
-run = '{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category acceptance -- --build-profile {{usage.profile}} {% if usage.artifacts %}--artifacts "{{usage.artifacts}}"{% endif %}'
+run = '{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category acceptance -- --build-profile {{usage.profile}} {% if usage.artifacts %}--artifacts "{{usage.artifacts}}"{% endif %} {% if usage.select %}-k "{{usage.select}}"{% endif %}'
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:coverage"]

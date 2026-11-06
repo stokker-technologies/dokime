@@ -7,10 +7,13 @@
  * ***
  */
 
+#![recursion_limit = "256"]
+
 // Private Python Extension
 
 /* === Modules === */
 
+mod backend;
 mod client;
 
 /* === Re-Exports === */
@@ -23,7 +26,6 @@ mod client;
 use pyo3::prelude::*;
 
 // Local Imports
-use dokime_server as _;
 
 /* === Constants === */
 
@@ -46,6 +48,7 @@ use dokime_server as _;
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    backend::register(module)?;
     client::register(module)
 }
 

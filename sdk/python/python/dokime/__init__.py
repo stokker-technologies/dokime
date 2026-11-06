@@ -15,6 +15,13 @@
 # Third Party Imports
 # Local Imports
 from ._native import __version__ as __version__
+from .backend import Backend as Backend
+from .backend import BackendAddressUnavailable as BackendAddressUnavailable
+from .backend import BackendClosed as BackendClosed
+from .backend import BackendError as BackendError
+from .backend import BackendRunning as BackendRunning
+from .backend import PluginIdConflict as PluginIdConflict
+from .backend import StorageFormatMismatch as StorageFormatMismatch
 from .client._transport import DiscoveredOperation as DiscoveredOperation
 from .client.aggregate import Aggregate as Aggregate
 from .client.client import DokimeClient as DokimeClient

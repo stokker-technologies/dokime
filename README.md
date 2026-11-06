@@ -130,6 +130,9 @@ dokime operation list --backend lab
 
 ### Python
 
+Python can start a native backend with `async with Backend(port=0)` and export a
+GUI pairing file with `backend.export_pairing(path, label="Bench")`. The backend
+loads installed plugins and releases its data root when the context exits.
 The async Python client controls a running backend with owned cycle contexts,
 terminal evidence iterators and saved bundles with digest manifests. Lazy history
 and evidence queries read a fixed snapshot; optional Polars/Pandas helpers create

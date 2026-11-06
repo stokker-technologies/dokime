@@ -33,6 +33,7 @@ media-native = ["dokime-server/media-native"]
 # === Dependencies === #
 
 [dependencies]
+async-trait = { workspace = true }
 dokime = { workspace = true, features = ["client", "native"] }
 dokime-server = { workspace = true }
 pyo3 = { version = "0.29.3", features = ["abi3-py313"] }

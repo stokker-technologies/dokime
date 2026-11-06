@@ -1,64 +1,30 @@
 # Design
 
-Backend and authoring API shapes remain proposed. The foundation and client decisions below describe implemented source; their remaining wrappers stay open.
+Foundation, client and backend decisions describe implemented source. Authoring APIs and callbacks remain proposed under tasks 4.x, consuming the separate unified `ctx.operation` API.
 
 ## Flow
 
 ```python
 import asyncio, dokime
-from plugin import lab
 async def main():
-    async with dokime.Backend(port=50051, plugins=[lab]) as backend:
+    async with dokime.Backend(port=0) as backend:
         backend.export_pairing("lab.dokime-remote", label="Bench 3")
-        client = backend.client()
-        cycle = await client.start_cycle("lab.capture", parameters={"rows": 1000})
-        await cycle.wait()
 asyncio.run(main())
 ```
 
 ## Layout
 
-```text
-sdk/python/
-  Cargo.toml  pyproject.toml              # maturin, private _native, abi3
-  src/{client,authoring,domain,runtime}/    # PySomething, registration in mod.rs
-  python/dokime/                          # public modules, py.typed, hand-written .pyi
-  tests/{unit,integration,acceptance,system}/
-  examples/
-```
+`sdk/python/` holds Cargo/maturin manifests (private `_native`, abi3), native `src/{client,backend}/`, public `python/dokime/` with `py.typed` and hand-written stubs, `tests/{unit,integration,acceptance,system}/`, and `examples/`. Rust modules mirror public modules; stubs live at public paths, never private Rust paths.
 
-Rust modules mirror public Python modules; stubs live at public paths, never private Rust paths.
-
-## Reuse Of Landed Code
-
-| Need | Landed | Change |
-| --- | --- | --- |
-| Backend | `dokime_server::host::Session::start` | Accept embedded providers |
-| Pairing | `create_pairing` in the gRPC remote controller | Expose it; start listener |
-| Provider | `runtime/embedded.rs::EmbeddedProvider` | Add operations, observers, sections |
-| Client | `crates/dokime-client` | Wrap instead of Python wire code |
-| Exclusive root | `local.lock`, `storage::Error::Owned` | Map to a Python exception |
-
-Embedded templates already use host-level `dokime.template.*` operations. Extend this provider instead of adding another path.
+The backend reuses `dokime_server::host::Session`, the managed remote pairing controller, `local.lock` and the normal installed-plugin store. Embedded templates use host-level `dokime.template.*` operations; task 4.1 extends `runtime/embedded.rs::EmbeddedProvider` instead of adding another path.
 
 ## Rust To Python Calls
 
-Tokio owns the runtime; Rust releases the interpreter while waiting.
-
-- Async callbacks run on the loop that started the backend; synchronous callbacks run on worker threads.
-- Existing operation deadlines remain authoritative. Cancellation cancels the Python task; ignored cancellation is reported.
-- Exceptions become operation failures with tracebacks, never panics.
-- Callback failures during shutdown are logged and cannot start new work.
+Tokio owns the runtime; Rust releases the interpreter while waiting. Async callbacks run on the starting loop; synchronous callbacks run on workers. Operation deadlines remain authoritative; cancellation cancels the Python task and ignored cancellation is reported. Exceptions become operation failures with tracebacks. Shutdown failures are logged and cannot start new work.
 
 ## Fast Streams
 
-`push` serves low-rate data. One batch crossing accepts NumPy arrays or Arrow columns, read with the interpreter released:
-
-```python
-await ctx.stream(Measurement).into(Samples).push_columns({"timestamp": timestamps, "voltage_v": voltages})
-```
-
-Fast Stream Support owns and measures throughput targets separately.
+`push` serves low-rate data. `await ctx.stream(Measurement).into(Samples).push_columns({"timestamp": timestamps, "voltage_v": voltages})` accepts NumPy or Arrow columns in one crossing with the interpreter released. Fast Stream Support owns and measures throughput targets separately.
 
 ## Macro Mapping
 
@@ -101,7 +67,7 @@ The explicit inputs in `crates/dokime-runtime/build/mod.rs` and `crates/dokime-d
 
 - Rust `Client` owns the live connection, negotiation, identity checks, request deadlines and cancellation. PyO3 async futures release Python while waiting and propagate asyncio cancellation by dropping the Rust future. Closing the Python connection closes the shared Rust handle without stopping admitted backend work.
 - Python retains its language-specific owned async contexts, lazy finite readers, immutable value views and optional dataframe conversion. These compose Rust client operations and retain the existing lifecycle and bounded-materialization contracts; no Python gRPC transport remains.
-- The client identity snapshot stays at `dokime.client.Backend`; the root `dokime.Backend` name remains reserved for the backend async context in task 3.2.
+- The client identity snapshot stays at `dokime.client.Backend`; `dokime.Backend` owns the backend async context.
 - Private interpreter message classes are reflected from the Rust catalog through Harmos. No generated Python wire tree, descriptor asset, schema projection implementation or Python contract exporter remains. `dokime.client.contracts.operation(service, method)` replaces generated root operation constants; live plugin discovery still uses the authorized Rust catalog.
 - A connection reuses reflected message classes for identical complete contracts and provider generations in its current catalog. Rediscovery still fetches Rust's authorized entries and refreshes grants/availability, while retired contracts leave the cache. This preserves request-class identity across rediscovery and avoids reconstructing every descriptor pool for each newly used method; no historical or unbounded reflection cache is added.
 - Raw Rust client calls authorize external gRPC paths through that same live catalog; product methods retain the negotiated availability check. Streaming input uses a one-frame bounded channel, with explicit finish/cancel and final-status observation.
@@ -121,3 +87,13 @@ The explicit inputs in `crates/dokime-runtime/build/mod.rs` and `crates/dokime-d
 ## Inherited Mechanisms
 
 The gRPC service, Harmos sidecar lifecycle, `local.lock`, reports and Python-client behaviour remain. Client parity replaced `packages/dokime-client`, generated Python wire code and descriptors. Native platform wheels replace the pure `Build / Product / Python (any)` producer.
+
+## Backend Decisions
+
+- `Session::start` accepts native embedded providers; existing CLI/GUI callers pass an empty list. Python owns one session through an async mutex, released before Python exception construction. Shutdown closes pairing admission synchronously, then uses the server's retained drain; cancelled startup retains the existing rollback. Endpoint/root are immutable startup snapshots. The extension uses the product executable crates' recursion limit of 256: native code generation exceeded Rust's default while computing an inherited runtime-query future layout; check and Clippy did not evaluate that layout.
+- `Backend(port=None, root=None, application_root=None, plugins=())` uses the server resolver and default port; zero requests an available local port. `root` selects execution storage, `application_root` selects distribution settings. Installed plugins always load. `client()` returns an independent local client context.
+- Synchronous `export_pairing(path, label=...)` releases Python while awaiting the Rust controller and atomically publishing its pairing file. Enabled remote settings remain authoritative; a disabled listener is enabled with TLS and per-client keys at `127.0.0.1:0`, avoiding a second configured-port collision. No network scope is widened implicitly.
+- Startup preserves native cause chains and maps owned roots, address conflicts, format identities and installed-ID conflicts to structured Python errors. Classification explicitly unwraps transparent runtime variants and shared native error payloads rather than parsing messages. Installed IDs remain reserved while disabled; removal-pending entries do not reserve IDs. Refusal happens before installed admission can prune a conflicting bundle. The small runtime plugin-admission edit does not touch invocation dispatch.
+- Task 3 uses private `_native.EmbeddedProvider(id, version, description)` handles for real metadata-only catalogs with no templates or callbacks. This supports composition and collision proof without defining decorators or an invocation API. Task 4 owns executable authoring and callback support; this handle's `inner` already owns the native provider abstraction.
+- Windows dev backend wheel: 40,543,716 bytes (`cp313-abi3-win_amd64`), final task 50.03 s including Clippy, native compilation 25.03 s, three local cache hits and no misses. The preceding contended build took 462.79 s; the first attempt took 1,387.30 s and exposed the repaired native recursion limit. Focused CLI/host/OBC fixture production took 1,675.45 s including queueing; these are workstation measurements, not isolated build benchmarks.
+- Windows backend proof on CPython 3.15: nine installed-wheel cases in 57.89 s cover pairing/identity, ordered stop, port/root refusals and cleanup, three unchanged-root format refusals, installed-plugin loading and ephemeral catalog removal, and enabled/disabled installed-ID clashes. Built-wheel import and strict stubtest passed for all 40 shipped modules; Rust and repository checks passed. Later authoring/system proof remains open.

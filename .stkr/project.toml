@@ -665,4 +665,4 @@ rust = "sdk/python/src"
 stub = "sdk/python/python/dokime/_native.pyi"
 import = "dokime._native"
 root = true
-state_exceptions = { PyStream = "The Python stream coordinates one incoming Rust stream, a bounded input sender, opening task and cancellation; its Client is the existing cloneable handle." }
+state_exceptions = { PyStream = "The Python stream coordinates one incoming Rust stream, a bounded input sender, opening task and cancellation; its Client is the existing cloneable handle.", PyBackend = "The session is shared through one async mutex; an admission flag closes export synchronously before shutdown is awaited, and endpoint/root are immutable startup snapshots." }

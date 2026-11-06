@@ -1,4 +1,4 @@
-# Dokime Python Client
+# Dokime Python SDK
 
 Async remote control, live records and telemetry, finite snapshot queries, and saved execution evidence.
 The native package wraps Dokime's Rust client. Python supplies async contexts,
@@ -34,6 +34,40 @@ uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra pandas
 
 Only the selected conversion imports its library. A missing extra raises
 `QueryDependencyError` with installation guidance before any page is requested.
+
+## Start A Backend
+
+```python
+import asyncio, dokime
+
+
+async def main():
+    async with dokime.Backend(port=0) as backend:
+        backend.export_pairing("lab.dokime-remote", label="Bench 3")
+
+
+asyncio.run(main())
+```
+
+The context uses the GUI/server root resolver and always loads installed plugins.
+`root=` selects execution storage; `application_root=` selects distribution
+configuration and defaults storage to its `data/` folder. `port=None` uses the
+server's default local port; zero allocates an available port. `endpoint` and
+`root` expose the resolved values while running. `backend.client()` returns a
+`DokimeClient` context whose lifetime is independent of the backend.
+
+Pairing export reuses the managed remote listener. When disabled, it starts TLS
+and per-client authentication on an available loopback port; already enabled
+settings remain authoritative. The GUI can import the exported file while the
+context runs. Context exit stops listeners and plugins before releasing storage.
+Export after shutdown starts raises `BackendClosed` without writing a file.
+
+Startup raises `BackendRunning` for an owned root, `BackendAddressUnavailable`
+for an occupied address, `StorageFormatMismatch` for foreign or unmarked stored
+data, and `PluginIdConflict` for an embedded ID reserved by an installed plugin,
+including a disabled installation. These inherit `BackendError`; format refusal
+exposes `root`, both build identities and both formats and never resets data.
+Python decorators and execution callbacks remain under development.
 
 ## Named Backend Profiles
 

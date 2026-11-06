@@ -1,9 +1,11 @@
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Sequence
 from pathlib import Path
 from typing import final
 
 __all__ = [
+    "Backend",
     "Client",
+    "EmbeddedProvider",
     "Stream",
     "__version__",
     "contracts",
@@ -18,6 +20,23 @@ __all__ = [
 ]
 
 __version__: str
+
+@final
+class EmbeddedProvider:
+    def __new__(cls, id: str, version: str, description: str) -> EmbeddedProvider: ...
+
+@final
+class Backend:
+    @staticmethod
+    def start(
+        port: int | None, root: Path | None, application_root: Path | None, plugins: Sequence[EmbeddedProvider]
+    ) -> Awaitable[Backend]: ...
+    @property
+    def endpoint(self) -> str: ...
+    @property
+    def root(self) -> Path: ...
+    def export_pairing(self, path: Path, label: str) -> None: ...
+    def close(self) -> Awaitable[None]: ...
 
 @final
 class Client:

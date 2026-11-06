@@ -29,7 +29,7 @@ descendants are terminated even when their leader already exited.
 
 Each Python package carries its own `[tool.ty]` configuration. `lint:python`
 type-checks the repository tooling with `ty check --project tools/python`;
-`check:python:bindings` checks the hand-maintained client stubs against the built extension with mypy stubtest and type-checks the SDK.
+`check:python:bindings` checks the hand-maintained SDK stubs against the built extension with mypy stubtest and type-checks the SDK.
 
 `mise run build:rust:tests` packages the host and OBC fixture bundles from the
 Tests compiler output under `target/build/<profile>/<target>/fixtures/plugins/`.
@@ -99,6 +99,9 @@ native inputs and select their fixture root:
 mise run build:python:fixtures
 mise run test:python:acceptance --artifacts target/build/dev/windows-x86_64/fixtures/python-client
 ```
+
+Add `--select backend` to run only the installed-wheel backend startup, pairing,
+storage refusal and installed-plugin collision stories during backend work.
 
 Use the corresponding native target directory on Linux. The foreign-operation
 socket fixtures come from Rust contract construction; refresh their JSON with

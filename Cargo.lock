@@ -2591,6 +2591,7 @@ dependencies = [
 name = "dokime-python"
 version = "0.1.2"
 dependencies = [
+ "async-trait",
  "dokime",
  "dokime-server",
  "pyo3",
