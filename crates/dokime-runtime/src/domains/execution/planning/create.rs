@@ -48,7 +48,9 @@ impl RuntimeHandle {
             test_cycle_id: test_cycle_id.clone(),
             occurred_at: crate::model::time::now_utc(),
         };
+        let admission = self.plugin_admission.lock().await;
         self.commit_with_key(request_key.map(str::to_owned), transaction).await?;
+        drop(admission);
         self.execution_storage.save_cycle(test_cycle_id.clone()).await?;
         self.reconcile_sampling().await;
         Ok(test_cycle_id)

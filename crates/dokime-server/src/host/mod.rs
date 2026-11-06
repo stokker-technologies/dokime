@@ -252,7 +252,10 @@ impl Drop for Session {
 /* === Private Functions === */
 
 async fn rerun_latest_case(handle: &dokime::RuntimeHandle, owners: &[String]) -> String {
-    let cycles = handle.cycles().await;
+    let cycles = match handle.cycles().await {
+        Ok(cycles) => cycles,
+        Err(error) => return format!("Automatic re-run unavailable: {error}"),
+    };
     let latest = cycles
         .iter()
         .flat_map(|cycle| {

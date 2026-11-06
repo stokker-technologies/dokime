@@ -50,8 +50,16 @@ another cycle or restarting the desktop. Archive selection applies to both sourc
 
 `state.json` and `state.jsonl` under the data root recover current work. Sealed
 cycles are retired from that state to keep checkpoints bounded; their durable
-history remains the source for subsequent reads. Startup marks unfinished
-executions Interrupted, records the restart reason, and closes admission to their
+history remains the source for subsequent reads.
+
+Sealed executions retain their control summary and frozen plan in managed state;
+generated telemetry outputs and artifact inventories are read from their durable
+execution revisions. Completed request receipts and consumed case registrations
+leave managed state with their sealed cycle. Reusing a case reloads its saved
+definition and revision; retirement never permits reusing an execution identity.
+The final shutdown checkpoint also retires the latest sealed cycle.
+
+Startup marks unfinished executions Interrupted, records the restart reason, and closes admission to their
 cycles before accepting new work. Interrupted cycles report Stopped. Pending
 report finalization resumes from its frozen terminal header. A seal that cannot
 complete settles as Seal Failed: the Cycles home lists it under Needs Attention,

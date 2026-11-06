@@ -102,7 +102,7 @@ pub(crate) async fn inspection_separates_outputs() {
             code
         );
     }
-    let selected = owner.handle().cycles().await.remove(0).test_executions.remove(0).test_execution_id.to_string();
+    let selected = owner.handle().cycles().await.unwrap().remove(0).test_executions.remove(0).test_execution_id.to_string();
     for unknown_variant in [false, true] {
         let refused = client
             .invalid_enum::<contracts::execution::StartExecution, model::execution::wire::ExecutionMode>(
@@ -116,7 +116,7 @@ pub(crate) async fn inspection_separates_outputs() {
             .await
             .unwrap_err();
         assert_eq!(refused.code(), Code::InvalidArgument);
-        assert_eq!(owner.handle().cycles().await.remove(0).test_executions.remove(0).started_at, None);
+        assert_eq!(owner.handle().cycles().await.unwrap().remove(0).test_executions.remove(0).started_at, None);
     }
     client
         .unary::<contracts::execution::StartExecution>(authenticated(contracts::execution::StartExecution {
@@ -127,7 +127,7 @@ pub(crate) async fn inspection_separates_outputs() {
         .unwrap();
     gate.started.notified().await;
     let handle = owner.handle();
-    let native = handle.cycles().await.remove(0).test_executions.remove(0);
+    let native = handle.cycles().await.unwrap().remove(0).test_executions.remove(0);
     let execution_id = native.test_execution_id.to_string();
     assert_eq!(
         client

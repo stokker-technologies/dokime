@@ -101,11 +101,19 @@ impl RuntimeHandle {
         &self, id: &TestExecutionId,
     ) -> Result<Option<dokime_domain::model::execution::result::TestExecution>, Error> {
         let live = self.state_read().executions.get(id).cloned();
-        if live.is_some() {
+        if live.as_ref().is_some_and(|execution| execution.saved.is_none()) {
             return Ok(live);
         }
         let saved =
             crate::runtime::storage::execution::ExecutionView::open(self.storage(), id, harmos::storage::ObjectVersion::Latest).await?;
+        if let Some(projection) = &live {
+            let mut stored =
+                saved.as_ref().ok_or_else(|| Error::Operation("sealed execution revision is missing".into()))?.execution().clone();
+            crate::state::RuntimeState::sealed_projection(&mut stored);
+            if &stored != projection {
+                return Err(Error::Operation("sealed execution differs from its live projection".into()));
+            }
+        }
         Ok(saved.map(|view| view.execution().clone()))
     }
 

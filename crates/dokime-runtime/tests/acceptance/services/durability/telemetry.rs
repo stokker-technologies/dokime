@@ -80,7 +80,7 @@ async fn checkpointed_telemetry_kill() {
 
     let (mut rebooted, handle) = booted(root.path()).await;
     // Recovery Seals Every Previous-Session Container Before New Admission.
-    let resident = handle.cycles().await.into_iter().map(|cycle| (cycle.saved.is_some(), cycle.lifecycle)).collect::<Vec<_>>();
+    let resident = handle.cycles().await.unwrap().into_iter().map(|cycle| (cycle.saved.is_some(), cycle.lifecycle)).collect::<Vec<_>>();
     assert!(
         resident.iter().all(|(saved, lifecycle)| *saved && matches!(lifecycle, CycleStatus::Stopped | CycleStatus::Completed)),
         "recovered resident cycles are sealed and terminal: {resident:?}"

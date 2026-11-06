@@ -64,34 +64,52 @@ impl crate::RuntimeHandle {
         let runtime = self.clone();
         tokio::spawn(async move {
             let _permit = permit;
+            let _admission = runtime.plugin_admission.lock().await;
+            let registration = crate::storage::objects::case::Registration {
+                id: registration_id.to_string(),
+                cases: cases.iter().map(|case| case.test_case_id.to_string()).collect(),
+            };
+            if let Some(previous) = runtime
+                .storage()
+                .read_object::<crate::storage::objects::case::Registration>(&registration.id, harmos::storage::ObjectVersion::Latest)
+                .await?
+                && previous.value != registration
+            {
+                return Err(crate::runtime::Error::Operation("registration identity has conflicting case membership".into()));
+            }
+            let mut stored = Vec::new();
             for case in &cases {
-                prepare_case(case)?;
+                if runtime.state_read().suites.case(&case.test_case_id).is_none()
+                    && let Some(previous) = crate::storage::objects::case::read_registered(runtime.storage(), &case.test_case_id).await?
+                    && (previous.0 != *case || definition_revisions.get(&case.test_case_id) != Some(&previous.1))
+                {
+                    return Err(crate::runtime::Error::Operation("registered case definition is immutable".into()));
+                }
+                let revision = definition_revisions
+                    .get(&case.test_case_id)
+                    .cloned()
+                    .ok_or_else(|| crate::runtime::Error::Operation("registration requires one authoritative revision per case".into()))?;
+                stored.push(prepare_case(case)?.try_map(|mut case| {
+                    case.capture_revision(revision);
+                    Ok::<_, crate::runtime::Error>(case)
+                })?);
             }
-            let ids = cases.iter().map(|case| case.test_case_id.clone()).collect::<Vec<_>>();
-            runtime
-                .commit(crate::transactions::RegisterCases {
-                    registration_id,
-                    cases,
-                    definition_revisions,
-                    max_cases: 100_000,
-                })
-                .await
-                .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
+            let transaction = crate::transactions::RegisterCases {
+                registration_id,
+                cases,
+                definition_revisions,
+                max_cases: 100_000,
+            };
+            harmos::state::Transaction::check(&transaction, &runtime.state_read()).map_err(crate::runtime::Error::Operation)?;
 
-            for id in ids {
-                let stored = runtime
-                    .state_manager
-                    .state()
-                    .read(move |state| {
-                        let case =
-                            state.suites.case(&id).ok_or_else(|| crate::runtime::Error::Operation("registered case is absent".into()))?;
-                        prepare_case(case)
-                    })
-                    .await
-                    .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?
-                    .value?;
-                runtime.storage().write_object(&*stored).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
+            // Publish The Immutable Definition Before Its Disposable State Cache.
+            // A Failed Journal Admission Can Be Retried From This Durable Identity.
+            for case in stored {
+                runtime.storage().write_object(&*case).await?;
             }
+            let receipt = runtime.storage().write_object(&registration).await?;
+            runtime.storage().flush_until(&receipt.position).await?;
+            runtime.commit(transaction).await.map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
             Ok(())
         })
         .await

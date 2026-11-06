@@ -529,6 +529,7 @@ pub(crate) async fn historical_checkpoint_content() {
         .handle()
         .cycles()
         .await
+        .unwrap()
         .into_iter()
         .find(|cycle| cycle.test_cycle_id.as_str() == cycle_id)
         .unwrap()
