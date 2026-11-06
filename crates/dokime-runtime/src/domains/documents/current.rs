@@ -240,6 +240,7 @@ impl PreparedCurrentDocument {
                 .map_err(|_| crate::runtime::Error::cancelled("document_cancelled", "document receiver closed"))?;
         }
         let context = crate::document::query::Context::new(&self.runtime, &self.snapshot, &self.selection, &at);
+        context.validate_membership()?;
         let pending = FuturesUnordered::<LocalBoxFuture<'_, DocumentWork>>::new();
         for card in queries {
             if !requested(&card.metadata.identifier) {

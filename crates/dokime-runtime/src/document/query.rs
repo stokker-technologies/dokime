@@ -147,10 +147,26 @@ impl Context<'_> {
         self.artifacts.get().map(|input| input.sha256.as_str())
     }
 
+    pub(crate) fn validate_membership(&self) -> crate::runtime::Result<()> {
+        if self.selection.scope.test_execution_id.is_none()
+            && let Some(id) = &self.selection.scope.test_cycle_id
+        {
+            let captured = self.snapshot.state().cycles.get(id);
+            let current = self.runtime.watch_state().latest();
+            if captured
+                .is_none_or(|captured| current.state().cycles.get(id).is_none_or(|current| current.execution_ids != captured.execution_ids))
+            {
+                return Err(crate::runtime::Error::conflict("document_capture_incomplete", "cycle members changed"));
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) async fn artifacts(&self) -> crate::runtime::Result<&[crate::artifacts::ArtifactRecord]> {
         let input = self
             .artifacts
             .get_or_try_init(|| async {
+                self.validate_membership()?;
                 let executions = if let Some(id) = &self.selection.scope.test_execution_id {
                     vec![id.clone()]
                 } else {
@@ -166,10 +182,6 @@ impl Context<'_> {
                         .cycles
                         .get(id)
                         .ok_or_else(|| crate::runtime::Error::not_found("document_not_found", "document cycle was not found"))?;
-                    let current = self.runtime.watch_state().latest();
-                    if current.state().cycles.get(id).is_none_or(|current| current.execution_ids != cycle.execution_ids) {
-                        return Err(crate::runtime::Error::conflict("document_capture_incomplete", "cycle members changed"));
-                    }
                     cycle
                         .execution_ids
                         .iter()

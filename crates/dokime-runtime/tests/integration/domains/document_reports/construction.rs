@@ -488,7 +488,7 @@ pub(super) async fn summary_queries() {
         for (value, expected) in values.iter().zip(expected) {
             assert!((value - expected).abs() <= expected.abs().max(1.0) * 1e-10, "{value} != {expected}");
         }
-        assert_eq!(values.len(), expected.len());
+        assert_eq!(values.len(), expected.len(), "{} rows: {:?}", raw.len(), current.capture.cards);
         executor.release();
         wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
         drop(runtime);

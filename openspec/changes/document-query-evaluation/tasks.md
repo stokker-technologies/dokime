@@ -7,9 +7,9 @@
 
 ## Slice 2: Independent Cards
 
-- [x] 2.1 Domain/operations/runtime and server wire/value output contracts: independently query cards at a fixed cut, isolating slow/failed/oversized cards.
+- [ ] 2.1 Domain/operations/runtime and server wire/value output contracts: independently query cards at a fixed cut, isolating slow/failed/oversized cards.
 - [x] 2.2 GUI document API and viewer: immediate structure, per-card loading/retry/ErrorCard; update docs/gui.md and product guide.
-- [x] 2.3 Deterministic independent completion and budget isolation tests; focused Rust/GUI proof, check:rust, prepare:bindings and tracked outputs.
+- [ ] 2.3 Deterministic independent completion and budget isolation tests; focused Rust/GUI proof, check:rust, prepare:bindings and tracked outputs.
 
 ## Slice 3: Indexed Evaluation
 
