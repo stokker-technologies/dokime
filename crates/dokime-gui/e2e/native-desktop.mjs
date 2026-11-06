@@ -2523,10 +2523,8 @@ async function cycleJourney(session, cycleId) {
   await session.clickNamed("button", "Start");
   await until("the new attempt admission", async () => /Execution Started/.test(await toastText(session)), WAIT_MS);
   /* Plot Settings Persist In The Native Frozen Document. */
-  const plotId = await until(
-    "the plot identity to configure",
-    () =>
-      session.execute(`
+  const plotId = await until("the plot identity to configure", () =>
+    session.execute(`
     const viewport = document.querySelector('[data-plot-viewport]');
     viewport?.scrollIntoView({ block: "center", behavior: "instant" });
     return viewport?.querySelector('button[aria-label^="Plot Settings For "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
@@ -2563,19 +2561,17 @@ async function cycleJourney(session, cycleId) {
   }
   await session.goto("/cycles");
   await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`, { reload: true });
-  await until(
-    "the same plot frame after remounting",
-    () =>
-      session.execute(
-        `
+  await until("the same plot frame after remounting", () =>
+    session.execute(
+      `
     const viewport = document.querySelector('[data-plot-viewport=' + JSON.stringify(arguments[0]) + ']');
     viewport?.scrollIntoView({ block: "center", behavior: "instant" });
     const frame = [...document.querySelectorAll('[data-live-mounted="true"][data-plot-id]')]
       .find((node) => node.dataset.plotId === arguments[0]);
     return frame && !frame.innerText.includes('Loading Plot') && Boolean(frame.querySelector('button[aria-label^="Plot Settings For "]'));
   `,
-        [plotId],
-      ),
+      [plotId],
+    ),
   );
   await openPlotSettings(session, settingsSelector);
   const persistedPoints = await session.execute("return {value: document.querySelector('[role=dialog] input[type=number]').value}");
