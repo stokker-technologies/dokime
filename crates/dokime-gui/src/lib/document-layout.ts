@@ -99,6 +99,7 @@ function sectionsFromNodes(nodes: DocumentViewNode[], cardMap: Map<string, Docum
       {
         metadata: node.metadata,
         unavailable: node.unavailable,
+        loading: node.loading,
         cards: cardsFromNodes(node.children, cardMap),
       },
     ];
@@ -130,7 +131,7 @@ export function documentNodeHasCards(
   filter: (card: DocumentViewCard) => boolean,
 ): boolean {
   if (node.type === "section")
-    return Boolean(node.unavailable) || node.children.some((child) => documentNodeHasCards(child, cards, filter));
+    return Boolean(node.unavailable || node.loading) || node.children.some((child) => documentNodeHasCards(child, cards, filter));
   const card = documentCardForPlacement(cards, node);
   return card !== null && filter(card);
 }

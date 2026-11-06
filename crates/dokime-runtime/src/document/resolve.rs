@@ -252,24 +252,30 @@ impl DocumentMaterializer<'_> {
         }
         if let Some(capture) = self.capture.as_mut() {
             let card = self.card_definitions.get(card_id).expect("declared card exists");
-            super::bounded::card_size(card, self.limits.materialized_bytes, self.limits.depth, card_id.as_str())?;
-            let result = match &card.body {
-                DocumentCardBody::TelemetrySummary { summary } => {
-                    let groups = if let Some(queries) = self.summary_queries.as_mut() {
-                        queries.push(card.clone());
-                        Vec::new()
-                    } else {
-                        telemetry_summary_payload(summary, &card.filters, self.evidence, self.unavailable_reason_bytes)?
-                    };
-                    CardBindingResult::Summary { groups }
+            let sized = super::bounded::card_size(card, self.limits.materialized_bytes, self.limits.depth, card_id.as_str());
+            let result = if let Err(error) = sized {
+                CardBindingResult::Failed {
+                    failure: super::capture::CardFailure::document(error),
                 }
-                DocumentCardBody::Plot { plot } => {
-                    let input = plot_input_for_definition(plot, &[], self.markers_len, self.selection);
-                    CardBindingResult::Plot {
-                        descriptor: Box::new(plot_descriptor_for_definition(input, plot.metadata.clone())),
+            } else {
+                match &card.body {
+                    DocumentCardBody::TelemetrySummary { summary } => {
+                        if let Some(queries) = self.summary_queries.as_mut() {
+                            queries.push(card.clone());
+                            CardBindingResult::Pending
+                        } else {
+                            let groups = telemetry_summary_payload(summary, &card.filters, self.evidence, self.unavailable_reason_bytes)?;
+                            CardBindingResult::Summary { groups }
+                        }
                     }
+                    DocumentCardBody::Plot { plot } => {
+                        let input = plot_input_for_definition(plot, &[], self.markers_len, self.selection);
+                        CardBindingResult::Plot {
+                            descriptor: Box::new(plot_descriptor_for_definition(input, plot.metadata.clone())),
+                        }
+                    }
+                    _ => CardBindingResult::Static,
                 }
-                _ => CardBindingResult::Static,
             };
             let source_id = capture.source_ids.get(card_id).expect("captured card source exists").clone();
             let binding = CardBinding {

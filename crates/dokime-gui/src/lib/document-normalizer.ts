@@ -9,6 +9,7 @@
 
 import { serializedValueObjectToJson, serializedValueToJson } from "./api/native-values";
 /* === Local Imports === */
+import { failureOf } from "./notification-details";
 import { assembleCapture, type DeclaredNode } from "./document-assembly";
 
 import type {
@@ -49,6 +50,7 @@ export function mapDocumentCapture(document: DocumentCapturePayload): DocumentVi
         : {
             type: "section",
             node_id: node.data.node_id,
+            metadata: node.data.metadata,
             repeat: Boolean(node.data.repeat),
             children: nodes(node.data.children, depth + 1),
           };
@@ -77,6 +79,8 @@ export function mapDocumentCapture(document: DocumentCapturePayload): DocumentVi
 function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBinding): DocumentViewCard {
   const result = binding.result;
   const metadata = binding.metadata;
+  if (result.type === "pending") return documentCard(metadata, "overview", { loading: true });
+  if (result.type === "failed") return documentCard(metadata, "overview", { failure: failureOf(result.data.failure, metadata.label) });
   if (
     (card.type === "telemetry_summary" && result.type !== "summary") ||
     (card.type === "plot" && result.type !== "plot") ||

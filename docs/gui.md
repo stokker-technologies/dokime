@@ -118,6 +118,14 @@ and filter controls remain usable. Preserve the case of unit symbols.
 
 ## Document Summaries
 
+Document structure commits before the saved-evidence wait. Each pending binding
+uses an independent query through the existing document capture operation, with
+its own cancellation and retry lifetime. Runtime invalidation preserves in-flight
+card reads, so fast cards keep refreshing while an exact median is still loading.
+A completed card remains visible when another card or transfer fails. Failed
+bindings render the existing ErrorCard with their native diagnostic and budget
+fields. Repeated sections keep a loading identity until their expansion arrives.
+
 Live document summary tiles query one saved evidence cut using bounded folds and
 exact order statistics. They do not load the run's telemetry into a document input
 array or reject estimated definition-size-times-row work. Plots retain their

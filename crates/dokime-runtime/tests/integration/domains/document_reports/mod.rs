@@ -80,6 +80,7 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     };
     let mut group = TelemetrySummaryGroupDefinition::new("records", "Records");
     group.tile(TelemetrySummaryTileDefinition::new("Count", dokime_runtime::expressions::record("calibration.field.completed").count()));
+    group.tile(TelemetrySummaryTileDefinition::new("Files", dokime_runtime::expressions::artifact("selected.txt").count()));
     let mut summary = TelemetrySummaryDefinition::new();
     summary.group(group);
     let mut section = DocumentSection::new("Captured Records");
@@ -611,7 +612,10 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     assert_eq!(count, Some(Value::Unsigned(1)));
     assert!(captured.artifacts_sha256.is_some(), "document acquisition must read the stored artifact inventory");
     assert_eq!(captured.capture.selection.scope.test_execution_id.as_ref(), Some(execution_id));
-    assert!(runtime.prepare_current_document(&other_cycle_id, other_id, &document_id).unwrap().capture().await.is_err());
+    let refused = runtime.prepare_current_document(&other_cycle_id, other_id, &document_id).unwrap().capture().await.unwrap();
+    assert!(
+        refused.capture.cards.iter().any(|card| matches!(card.result, dokime_runtime::document::capture::CardBindingResult::Failed { .. }))
+    );
 
     // An Indexed Member With A Foreign Payload Still Refuses The Selected Capture.
     let database = dokime_runtime::storage::sqlite::rusqlite::Connection::open(runtime.storage_root().join("local.sqlite")).unwrap();
@@ -641,16 +645,23 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
             dokime_runtime::storage::sqlite::rusqlite::params![body, digest.as_slice(), position],
         )
         .unwrap();
-    let failure = runtime
+    let (events, mut received) = tokio::sync::mpsc::channel(8);
+    let structure = runtime
         .prepare_current_document(&cycle_id, execution_id, &document_id)
         .unwrap()
-        .capture()
+        .query_stream(dokime_runtime::CurrentDocumentQuery { structure_only: true, cards: Vec::new() }, events)
         .await
-        .err()
-        .expect("foreign selected record");
-    assert!(matches!(failure, dokime_runtime::runtime::Error::Admission(
-        dokime_domain::model::diagnostics::admission::AdmissionFailure::Conflict { ref code, .. }
-    ) if code == "document_capture_incomplete"));
+        .unwrap();
+    assert!(
+        structure.capture.cards.iter().any(|card| matches!(card.result, dokime_runtime::document::capture::CardBindingResult::Pending))
+    );
+    match received.recv().await.unwrap() {
+        dokime_runtime::CurrentDocumentEvent::Structure { document, .. } => assert!(document.evidence_cut.is_none()),
+        _ => panic!("structure precedes evidence"),
+    }
+    let refused = runtime.prepare_current_document(&cycle_id, execution_id, &document_id).unwrap().capture().await.unwrap();
+    assert!(refused.capture.cards.iter().any(|card| matches!(&card.result,
+        dokime_runtime::document::capture::CardBindingResult::Failed { failure } if failure.code == "document_capture_incomplete")));
 
     record.payload = vec![0xff; 3];
     let body = serde_json::to_vec(&record).unwrap();
@@ -661,7 +672,10 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
             dokime_runtime::storage::sqlite::rusqlite::params![body, digest.as_slice(), position],
         )
         .unwrap();
-    assert!(runtime.prepare_current_document(&cycle_id, execution_id, &document_id).unwrap().capture().await.is_err());
+    let refused = runtime.prepare_current_document(&cycle_id, execution_id, &document_id).unwrap().capture().await.unwrap();
+    assert!(
+        refused.capture.cards.iter().any(|card| matches!(card.result, dokime_runtime::document::capture::CardBindingResult::Failed { .. }))
+    );
     let digest = Sha256::digest(&original);
     database
         .execute(

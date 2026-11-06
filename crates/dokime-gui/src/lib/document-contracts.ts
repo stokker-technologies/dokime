@@ -336,6 +336,13 @@ export type CardBinding = {
   metadata: Metadata;
   result:
     | { type: "static" }
+    | { type: "pending" }
+    | {
+        type: "failed";
+        data: {
+          failure: { code: string; message: string; budget?: { name: string; limit: number; reached: number; card_id: string } | null };
+        };
+      }
     | { type: "summary"; data: { groups: TelemetrySummaryGroupPayload_Serialize[] } }
     | { type: "plot"; data: { descriptor: PlotDescriptor } };
 };

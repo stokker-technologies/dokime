@@ -169,6 +169,28 @@ scope. The document structure is authored metadata, with no row-based evaluation
 estimate or document source-row ceiling. Encoded output and actual expansion have
 presentation budgets independently of raw evidence retention.
 
+The capture operation supports metadata and selected-binding projections:
+
+```rust
+use dokime_operations::documents::CaptureCurrentDocument;
+
+let structure = CaptureCurrentDocument {
+    scope: Some(scope.clone()), document_id: document_id.clone(),
+    structure_only: true, card_ids: Vec::new(),
+};
+let card = CaptureCurrentDocument {
+    scope: Some(scope), document_id,
+    structure_only: false, card_ids: vec![card_id],
+};
+```
+
+StructureComplete commits declarations and pending identities before evidence is
+queried. EvidenceCut supplies the saved boundary; ArtifactCut supplies a separate
+artifact-input fingerprint when needed. CardComplete commits one complete binding.
+Completion and clean EOF validate the requested projection; a partial projection
+may leave unrequested bindings pending. Requests stay owned by their backend
+session, with cancellation releasing readers and exact-rank scratch.
+
 ## Exact Sample Statistics
 
 `runtime/query/statistics.rs` shares the durable numeric moments accumulator

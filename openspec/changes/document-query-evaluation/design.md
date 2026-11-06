@@ -24,8 +24,10 @@ indexed values through continuation pages instead of replaying raw rows.
 
 ## Card Delivery
 
-Reuse the existing document stream: publish structure first and commit each card
-only after its own complete result arrives. A later card or stream failure keeps
+Reuse the existing document stream operation for structure and selected-card
+queries. Each GUI binding has an independent query lifecycle, so live refreshes
+continue while another binding is still loading. Publish structure before the
+saved-evidence wait and commit each card after its complete result arrives. A later card or stream failure keeps
 already completed cards available. Avoid a persistent capture registry or a second
 query scheduler. Cancellation belongs to the existing request/session owner.
 Typed selector queries reuse bounded storage readers and scalar query accumulators

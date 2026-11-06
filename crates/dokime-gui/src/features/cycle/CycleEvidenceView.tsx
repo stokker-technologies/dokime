@@ -24,6 +24,7 @@
 
 /* === External Imports === */
 
+import { DocumentRetryContext } from "@/components/document/DocumentViewRenderer";
 import { ErrorCard } from "@/components/ErrorCard";
 import type { ComponentType, ReactNode } from "react";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
@@ -49,7 +50,7 @@ export type CycleEvidenceViewProps = {
   surface: DocumentSurface;
   pane: ReturnType<typeof evidencePaneState>;
   plotWindow: ReturnType<typeof usePlotWindow>;
-  onRetry?: () => void;
+  onRetry?: (cardId?: string) => void;
   documentView?: ComponentType<DocumentViewProps>;
   /** The header and Control card the viewer composes above the document. */
   lead?: ReactNode;
@@ -90,13 +91,15 @@ export function CycleEvidenceView({
         ) : (
           <div className="grid gap-6">
             {pane.failure ? <ErrorCard failure={pane.failure} onRetry={onRetry} /> : null}
-            <DocumentContent
-              cardFilter={isDocumentCard}
-              plotWindowControl={
-                <PlotWindowControl elapsedUnit={documentWindowElapsedUnit(surface.view.sections)} live={live} window={plotWindow} />
-              }
-              surface={surface}
-            />
+            <DocumentRetryContext.Provider value={onRetry}>
+              <DocumentContent
+                cardFilter={isDocumentCard}
+                plotWindowControl={
+                  <PlotWindowControl elapsedUnit={documentWindowElapsedUnit(surface.view.sections)} live={live} window={plotWindow} />
+                }
+                surface={surface}
+              />
+            </DocumentRetryContext.Provider>
             <RecordsSection live={live} records={surface.view.records} />
             <FrozenDocumentConsole surface={surface} />
           </div>

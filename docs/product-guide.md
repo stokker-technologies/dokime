@@ -1184,6 +1184,10 @@ verdicts stand and no partial report is kept. Retrying cycle sealing publishes
 from the same persisted boundary, including after a restart. Cycle Seal also
 finalizes an empty cycle with its report.
 
+The document page shows its authored structure immediately. Data cards load and
+refresh independently, so a slow median or a failing card leaves the others
+available. An error stays inside its affected card and can be retried there.
+
 Live summary tiles query saved evidence at a fixed capture boundary. Numeric folds
 retain bounded working state, and exact median/percentile values spill rank scratch
 instead of collecting a run's samples into the document. Record summaries seek

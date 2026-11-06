@@ -146,7 +146,7 @@ pub(super) async fn current_cycle_state(runtime: &RuntimeHandle) {
     );
     assert_eq!(captured.capture.cards.len(), 3);
     assert!(captured.telemetry_cut.is_none());
-    assert!(captured.artifacts_sha256.is_some());
+    assert!(captured.artifacts_sha256.is_none());
     assert!(runtime.prepare_current_cycle_document(&cycle_id, &dokime_runtime::DocumentId::from_identifier("unknown").unwrap()).is_err());
     assert!(
         runtime
@@ -176,7 +176,7 @@ pub(super) async fn current_cycle_state(runtime: &RuntimeHandle) {
         matches!(error, dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::Conflict{ ref code, .. }) if code == "document_capture_incomplete")
     );
     let current = runtime.prepare_current_cycle_document(&cycle_id, &document_id).unwrap().capture().await.unwrap();
-    assert!(current.artifacts_sha256.is_some());
+    assert!(current.artifacts_sha256.is_none());
 }
 
 pub(super) async fn cycle_report_executions(runtime: &RuntimeHandle) {

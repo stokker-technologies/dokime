@@ -13,6 +13,8 @@ import { createContext, type ReactNode, useContext } from "react";
 
 /* === Local Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { DocumentGrid } from "@/components/document/Document";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -26,10 +28,10 @@ import { cn } from "@/lib/utils";
 
 /* === Constants === */
 
-/**
- * A control a surface places in one section's header, by section id — the
- * live plot window beside the plots it scales. Absent, headers are plain.
- */
+/** Retry one failed card, or its enclosing structure when no card is selected. */
+export const DocumentRetryContext = createContext<((cardId?: string) => void) | undefined>(undefined);
+
+/** A control placed beside a section's title, keyed by section identity. */
 export const DocumentSectionActionContext = createContext<(sectionId: string) => ReactNode>(() => null);
 
 /* === Types === */
@@ -131,6 +133,7 @@ function DocumentLayoutNodeBlock({
   resolvedCardChrome: (card: DocumentViewCard) => DocumentBlockChrome;
   section: Metadata | null;
 }) {
+  const retry = useContext(DocumentRetryContext);
   if (node.type === "card") {
     const card = documentCardForPlacement(cardMap, node);
     if (!card || !cardFilter(card)) {
@@ -139,6 +142,11 @@ function DocumentLayoutNodeBlock({
 
     return (
       <DocumentViewBlock action={cardAction?.(card)} card={card} chrome={resolvedCardChrome(card)} key={card.card_id}>
+        {card.refreshing ? (
+          <p role="status" className="text-xs text-muted-foreground">
+            Refreshing…
+          </p>
+        ) : null}
         {renderCard(card, parent)}
       </DocumentViewBlock>
     );
@@ -157,6 +165,11 @@ function DocumentLayoutNodeBlock({
           chrome={resolvedCardChrome(card)}
           key={card.card_id}
         >
+          {card.refreshing ? (
+            <p role="status" className="text-xs text-muted-foreground">
+              Refreshing…
+            </p>
+          ) : null}
           {renderCard(card, node.metadata)}
         </DocumentViewBlock>
       ) : null;
@@ -178,7 +191,7 @@ function DocumentLayoutNodeBlock({
         section={node.metadata}
       />
     ));
-  if (!renderedChildren.length && !node.unavailable) {
+  if (!renderedChildren.length && !node.unavailable && !node.loading) {
     return null;
   }
 
@@ -189,11 +202,20 @@ function DocumentLayoutNodeBlock({
   return (
     <DocumentSectionBlock chrome={sectionChromeFor(section, chrome)} section={section}>
       {node.unavailable ? (
+        <ErrorCard failure={failureOf(node.unavailable, node.metadata.label)} onRetry={retry} />
+      ) : node.loading ? (
         <p role="status" className="text-sm text-muted-foreground">
-          <strong>Unavailable.</strong> {node.unavailable}
+          Loading…
         </p>
       ) : (
-        <DocumentGrid>{renderedChildren}</DocumentGrid>
+        <>
+          {node.refreshing ? (
+            <p role="status" className="text-xs text-muted-foreground">
+              Refreshing…
+            </p>
+          ) : null}
+          <DocumentGrid>{renderedChildren}</DocumentGrid>
+        </>
       )}
     </DocumentSectionBlock>
   );
