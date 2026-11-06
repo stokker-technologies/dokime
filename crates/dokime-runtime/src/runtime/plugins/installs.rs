@@ -134,6 +134,7 @@ impl PluginHost {
         let applied = self.apply(reload).await;
         let Err(error) = applied else {
             self.settle_change(store, package, Some(&input), &replaced, &dropped).await;
+            Self::discard_stopped(store, package, replaced).await;
             progress.finish();
             return Outcome::Settled;
         };
@@ -195,10 +196,22 @@ impl PluginHost {
         let replaced = self.replace(package, None, dropped.keys());
         let applied = self.apply(reload).await;
         self.settle_change(store, package, None, &replaced, &dropped).await;
+        if applied.is_ok() {
+            Self::discard_stopped(store, package, replaced).await;
+        }
         if let Err(error) = progress.track(applied) {
             tracing::error!(package, %error, "the plugin did not stop cleanly");
         }
         Outcome::Settled
+    }
+
+    // Successful Apply Released The Manager's Old Generations; Drop Our Preparation References Too.
+    async fn discard_stopped(store: &PluginStore, package: &str, replaced: Replaced) {
+        let stopped = replaced.0.iter().filter_map(|(_, active)| active.package.input.install_id()).collect();
+        drop(replaced);
+        if let Err(error) = store.discard_stopped(&stopped).await {
+            tracing::error!(package, %error, "stopped plugin installations could not be discarded");
+        }
     }
 
     // Admit The Running Set With `package` Replaced By `candidate`, Or Without It.

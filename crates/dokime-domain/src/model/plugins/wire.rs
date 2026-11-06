@@ -52,7 +52,7 @@ pub struct InstallationPage {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RemovePluginReply {
     #[row(
-        description = "RemovalPending persists until the next start deletes the file; the running backend stops the plugin once no cycle is active."
+        description = "RemovalPending is discarded with its bundle after the live stop once no cycle is active; failed boots remain visible until the next start."
     )]
     pub installation: Option<PluginInstallation>,
 }

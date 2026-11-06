@@ -198,7 +198,9 @@ the captured column schema to select this presentation.
   a plugin that does not run at once, even during a cycle; retrying a running one
   shows Restart Pending until no cycle is active.
 - Install, reinstall, update, enable, disable and remove apply in the running
-  backend; no plugin action prompts to restart the application.
+  backend; no plugin action prompts to restart the application. After a successful
+  live stop, removed or replaced installations disappear with their bundles.
+  A deletion failure keeps the row with its error until startup retries.
   `PluginInstallation.restart` drives the row badge (**Restarting…**, **Restart
   Pending** with its reason) and, while any row is not idle, Settings › Plugins
   re-reads the list on operation changes. A refused replacement is a

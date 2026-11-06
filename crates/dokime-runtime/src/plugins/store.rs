@@ -299,6 +299,16 @@ impl PluginStore {
             .await
     }
 
+    /// Discard Stopped Installations, Retaining Failed Boots Until Startup.
+    pub(crate) async fn discard_stopped(&self, stopped: &BTreeSet<Uuid>) -> Result<(), PluginError> {
+        self.discard(|id, plugin| {
+            stopped.contains(&id)
+                && plugin.state == PluginState::RemovalPending
+                && !matches!(plugin.last_boot, Some(PluginLastBoot::Failed { .. }))
+        })
+        .await
+    }
+
     pub async fn sweep(&self) -> Result<(), PluginError> {
         self.discard(|_, plugin| plugin.state == PluginState::RemovalPending).await?;
 
