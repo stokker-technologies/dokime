@@ -288,7 +288,7 @@ pub(super) fn index(connection: &Connection, row: &StoredRecord) -> Result<(), E
                 record: true,
                 scope,
             },
-            &record.details,
+            record.details.iter().map(|(name, value)| (name.as_str(), value)),
         )?;
     }
     Ok(())

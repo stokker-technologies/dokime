@@ -136,7 +136,7 @@ Live document summary tiles query one saved evidence cut using bounded folds and
 exact order statistics. They do not load the run's telemetry into a document input
 array. Count, min, max, mean and RMS reuse typed ingest checkpoints; a cut inside
 a saved batch reads only its bounded remainder. Median remains exact and loads in
-its own card. They do not
+an independently loading card. They do not
 reject estimated definition-size-times-row work. Plots retain their
 existing independent query path. Actual output and expansion limits report the
 budget, limit, amount reached and affected card.

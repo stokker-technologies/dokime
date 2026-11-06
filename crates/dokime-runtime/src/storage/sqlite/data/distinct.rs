@@ -16,7 +16,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
 
 // Third Party Imports
 use rusqlite::{Connection, params};
@@ -166,13 +165,15 @@ impl super::State {
 
 /* === Public Functions === */
 
-pub(super) fn insert(connection: &Connection, row: Row<'_>, fields: &BTreeMap<String, Value>) -> Result<(), Error> {
+pub(super) fn insert<'a>(
+    connection: &Connection, row: Row<'_>, fields: impl IntoIterator<Item = (&'a str, &'a Value)>,
+) -> Result<(), Error> {
     let Some(execution) = row.scope.test_execution_id.as_ref() else { return Ok(()) };
     let scope = serde_json::to_string(row.scope)?;
     let position = super::position(row.position);
     let mut dictionary = connection.prepare_cached("INSERT OR IGNORE INTO storage_distinct_values VALUES (?1,?2,?3,?4,?5,?6,?7)")?;
     let mut postings = connection.prepare_cached("INSERT OR IGNORE INTO storage_value_postings VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)")?;
-    let mut pending = fields.iter().map(|(name, value)| (vec![name.as_str()], value)).collect::<Vec<_>>();
+    let mut pending = fields.into_iter().map(|(name, value)| (vec![name], value)).collect::<Vec<_>>();
     while let Some((path, value)) = pending.pop() {
         if let Value::Object(fields) = value {
             pending.extend(fields.iter().map(|(name, value)| {
@@ -480,6 +481,7 @@ fn numeric_key(value: &Value) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     #[tokio::test]
     async fn distinct_pages_match_filtered_rows_at_old_cut() {
@@ -498,7 +500,7 @@ mod tests {
                     let transaction = connection.transaction()?;
                     transaction.execute("INSERT INTO files VALUES ('fixture','telemetry','fixture.arrow',0,zeroblob(32),'fixture')", [])?;
                     for (position, value, included) in admitted {
-                        let fields = BTreeMap::from([
+                        let fields: BTreeMap<String, Value> = BTreeMap::from([
                             ("metric.name".into(), Value::Object(BTreeMap::from([("group".into(), Value::Integer(value))]))),
                             ("include".into(), Value::Bool(included)),
                             ("order".into(), Value::Unsigned(1000 - position)),
@@ -513,7 +515,7 @@ mod tests {
                                 record: false,
                                 scope: &admitted_scope,
                             },
-                            &fields,
+                            fields.iter().map(|(name, value)| (name.as_str(), value)),
                         )?;
                     }
                     transaction.execute("UPDATE storage_data_head SET saved=?1", [super::super::position(247)])?;

@@ -97,26 +97,36 @@ impl Batch {
     #[tracing::instrument(level = "debug", name = "ingest.numeric", skip_all)]
     pub(in crate::storage::sqlite) fn push(
         &mut self, connection: &Connection, input: super::previews::Input<'_>, sample: &crate::telemetry::TelemetrySample,
-        contract: &crate::telemetry::TelemetryContract, previews: &mut super::previews::Batch,
+        previews: &mut super::previews::Batch,
     ) -> Result<(), Error> {
         let super::previews::Input { execution, stream, position, .. } = input;
-        let streams = self.fields.entry(execution.to_owned()).or_default();
-        let fields = streams.entry(stream.to_owned()).or_default();
-        let names = contract.columns.iter().map(|column| column.metadata.identifier.as_str())
-            .chain(sample.values.keys().map(String::as_str)).collect::<std::collections::BTreeSet<_>>();
-        for field in names {
+        if !self.fields.contains_key(execution) {
+            self.fields.insert(execution.to_owned(), BTreeMap::new());
+        }
+        let streams = self.fields.get_mut(execution).expect("loaded execution");
+        if !streams.contains_key(stream) {
+            streams.insert(stream.to_owned(), BTreeMap::new());
+        }
+        let fields = streams.get_mut(stream).expect("loaded stream");
+        for (field, typed) in &sample.values {
             if !fields.contains_key(field) {
                 let existing: Option<Vec<u8>> = connection.query_row(
                     "SELECT moments FROM storage_numeric_checkpoints WHERE execution=?1 AND stream=?2 AND field=?3 ORDER BY through DESC LIMIT 1",
                     params![execution, stream, field], |row| row.get(0),
                 ).optional()?;
                 let moments = existing.as_deref().map(Moments::decode).transpose()?.unwrap_or_default();
-                fields.insert(field.to_owned(), Prefix { moments, first: position, through: position });
+                fields.insert(
+                    field.to_owned(),
+                    Prefix {
+                        moments,
+                        first: position,
+                        through: position,
+                    },
+                );
             }
             let prefix = fields.get_mut(field).expect("loaded moments");
             prefix.first = prefix.first.min(position);
             prefix.through = prefix.through.max(position);
-            let Some(typed) = sample.values.get(field) else { continue };
             prefix.moments.push_value(typed)?;
             let numeric = dokime_domain::model::values::numeric_value(typed).filter(|value| value.is_finite());
             if numeric.is_some() || matches!(typed, Value::Null) {
@@ -137,9 +147,17 @@ impl Batch {
             for (stream, fields) in streams {
                 for (field, prefix) in fields {
                     let encoded = prefix.moments.encode();
-                    if prefix.moments.count != 0 { current.execute(params![execution, stream, field, encoded])?; }
-                    checkpoint.execute(params![execution, stream, field, super::super::position(prefix.first),
-                        super::super::position(prefix.through), encoded])?;
+                    if prefix.moments.count != 0 {
+                        current.execute(params![execution, stream, field, encoded])?;
+                    }
+                    checkpoint.execute(params![
+                        execution,
+                        stream,
+                        field,
+                        super::super::position(prefix.first),
+                        super::super::position(prefix.through),
+                        encoded
+                    ])?;
                 }
             }
         }
@@ -417,8 +435,12 @@ pub(crate) fn numeric_summaries(connection: &Connection, execution: String) -> R
 #[cfg(feature = "native")]
 fn document_value(moments: Moments, aggregate: harmos::Aggregate) -> Result<Option<Value>, Error> {
     use harmos::Aggregate;
-    if aggregate == Aggregate::Count { return Ok(Some(Value::Unsigned(moments.present))); }
-    if moments.count == 0 { return Ok((aggregate == Aggregate::Sum).then_some(Value::Unsigned(0))); }
+    if aggregate == Aggregate::Count {
+        return Ok(Some(Value::Unsigned(moments.present)));
+    }
+    if moments.count == 0 {
+        return Ok((aggregate == Aggregate::Sum).then_some(Value::Unsigned(0)));
+    }
     if !moments.floating {
         let exact = match aggregate {
             Aggregate::Min => Some((moments.integer_low < 0, moments.integer_low.unsigned_abs(), 1)),
@@ -427,7 +449,9 @@ fn document_value(moments: Moments, aggregate: harmos::Aggregate) -> Result<Opti
             Aggregate::Mean => Some((moments.negative, moments.integer_total, u128::from(moments.count))),
             _ => None,
         };
-        if let Some((negative, magnitude, denominator)) = exact { return exact_value(negative, magnitude, denominator, moments.signed).map(Some); }
+        if let Some((negative, magnitude, denominator)) = exact {
+            return exact_value(negative, magnitude, denominator, moments.signed).map(Some);
+        }
     }
     Ok(moments.value(aggregate).filter(|value| value.is_finite()).map(Value::Number))
 }
@@ -461,22 +485,26 @@ fn document_median(
 ) -> Result<Option<Value>, Error> {
     let expression = crate::expressions::telemetry(&key.1, &key.2).median();
     let mut fold = crate::document::frame::Fold::new(&expression).map_err(|_| Error::Invalid("median fold is invalid"))?;
-    let mut statement = connection.prepare("SELECT d.value,p.value_type FROM storage_distinct_values d INDEXED BY storage_distinct_order
+    let mut statement = connection.prepare(
+        "SELECT d.value,p.value_type FROM storage_distinct_values d INDEXED BY storage_distinct_order
         JOIN storage_value_postings p USING(execution,kind,source,path,value_key)
-        WHERE d.execution=?1 AND d.kind='telemetry' AND d.source=?2 AND d.path=?3 AND p.position<=?4 AND document_alive()
-        ORDER BY d.sort_key,d.value_key,p.position LIMIT 1 OFFSET ?5")?;
+        WHERE d.execution=?1 AND d.kind='telemetry' AND d.source=?2 AND d.path=?3 AND p.position<=?4
+        AND p.value_type IN (1,2,3) AND document_alive()
+        ORDER BY d.sort_key,d.value_key,p.position LIMIT 1 OFFSET ?5",
+    )?;
     let path = serde_json::to_string(&[&key.2])?;
     for (index, ordinal) in [(moments.count - 1) / 2, moments.count / 2].into_iter().enumerate() {
         let ordinal = i64::try_from(ordinal).map_err(|_| Error::Data("median rank exceeds SQLite range"))?;
-        let (bytes, kind): (Vec<u8>, u8) = statement.query_row(params![key.0, key.1, path, super::super::position(at.sequence), ordinal],
-            |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let (bytes, kind): (Vec<u8>, u8) = statement
+            .query_row(params![key.0, key.1, path, super::super::position(at.sequence), ordinal], |row| Ok((row.get(0)?, row.get(1)?)))?;
         let mut value = super::super::distinct::posted_value(&bytes, kind)?;
         if moments.floating {
-            value = Value::Number(dokime_domain::model::values::numeric_value(&value).ok_or(Error::Corrupt("median posting is not numeric"))?);
+            value =
+                Value::Number(dokime_domain::model::values::numeric_value(&value).ok_or(Error::Corrupt("median posting is not numeric"))?);
         }
         fold.push_at(index as u64, Some(&value)).map_err(|_| Error::Corrupt("median posting cannot be reduced"))?;
     }
-    let value = fold.finish().map_err(|_| Error::Data("median is outside its numeric range"))?;
+    let value = fold.finish_checked(&mut || Ok(())).map_err(|_| Error::Data("median is outside its numeric range"))?;
     Ok(match value {
         Some(Value::Unsigned(value)) if moments.signed && i64::try_from(value).is_ok() => Some(Value::Integer(value as i64)),
         value => value,
@@ -568,7 +596,7 @@ pub(super) fn exact_percentiles(
                         row.get(0)
                     })?;
                 let key = u64::from_be_bytes(bytes.try_into().map_err(|_| Error::Corrupt("numeric replay key width differs"))?);
-                Ok(unordered(key))
+                Ok(f64::from_bits(if key >> 63 != 0 { key ^ (1 << 63) } else { !key }))
             })?;
         }
     }
@@ -628,10 +656,6 @@ fn ordered(value: f64) -> u64 {
     if bits >> 63 != 0 { !bits } else { bits ^ (1 << 63) }
 }
 
-fn unordered(value: u64) -> f64 {
-    f64::from_bits(if value >> 63 != 0 { value ^ (1 << 63) } else { !value })
-}
-
 /* === Tests === */
 
 #[cfg(test)]
@@ -679,7 +703,7 @@ mod tests {
                                     record: false,
                                     scope: &scope,
                                 },
-                                &BTreeMap::from([("value".into(), value)]),
+                                [("value", &value)],
                             )?;
                         }
                         if position == 4 || position == 8 {
@@ -702,9 +726,12 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        let config = crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
+        let config =
+            crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
         for through in 0..=raw.len() {
-            for aggregate in [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Sum, Aggregate::Rms] {
+            for aggregate in
+                [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Sum, Aggregate::Rms, Aggregate::Median]
+            {
                 let expression = crate::expressions::telemetry("fixture", "value").aggregate(aggregate);
                 let mut reference = crate::document::frame::Fold::new(&expression).unwrap();
                 for (index, value) in raw[..through].iter().enumerate() {
@@ -716,8 +743,14 @@ mod tests {
                     sequence: through as u64,
                 };
                 let actual = state
-                    .document_statistic(execution.to_string(), "fixture".into(), "value".into(), cut, aggregate,
-                        crate::storage::sqlite::QueryWork::document(config.clone(), "fixture"))
+                    .document_statistic(
+                        execution.to_string(),
+                        "fixture".into(),
+                        "value".into(),
+                        cut,
+                        aggregate,
+                        crate::storage::sqlite::QueryWork::document(config.clone(), "fixture"),
+                    )
                     .await
                     .unwrap()
                     .expect("the maintained prefix covers the cut");

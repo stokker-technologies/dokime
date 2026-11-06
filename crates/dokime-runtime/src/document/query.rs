@@ -436,9 +436,17 @@ async fn telemetry(
                     ) || *aggregate == harmos::Aggregate::Count)
             })
         })
-        && let Some(value) =
-            runtime.local_storage.document_statistic(execution.to_string(), stream.clone(), field.clone(), at.clone(), *aggregate,
-                QueryWork::document(runtime.query_config().clone(), operation)).await?
+        && let Some(value) = runtime
+            .local_storage
+            .document_statistic(
+                execution.to_string(),
+                stream.clone(),
+                field.clone(),
+                at.clone(),
+                *aggregate,
+                QueryWork::document(runtime.query_config().clone(), operation),
+            )
+            .await?
     {
         return Ok(value);
     }
