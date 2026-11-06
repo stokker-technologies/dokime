@@ -69,6 +69,20 @@ async fn report_background() {
             assert!(intent.failure.is_none());
             assert!(snapshot.state().run_requests.values().all(|request| request.summary.phase.terminal()));
         }
+        let inspection_wait = dokime_runtime::testing::hold_report_wait(&execution);
+        let checkpoint = tokio::select! {
+            result = runtime.execution_saved_checkpoint(execution.clone()) => result,
+            _ = inspection_wait.entered() => {
+                inspection_wait.release();
+                gate.release();
+                panic!("checkpoint inspection waited for report publication");
+            }
+        };
+        inspection_wait.release();
+        assert!(matches!(
+            checkpoint,
+            Err(dokime_runtime::runtime::Error::Admission(dokime_domain::model::diagnostics::admission::AdmissionFailure::NotFound { .. }))
+        ));
         let selection = TelemetrySelection {
             scope: ScopeSelection {
                 test_execution_id: Some(execution.clone()),
@@ -93,6 +107,12 @@ async fn report_background() {
         gate.release();
         assert_eq!(stop.await.is_err(), fail);
         assert_eq!(runtime.wait_execution_report(&execution).await.is_err(), fail);
+        let checkpoint = runtime.execution_saved_checkpoint(execution.clone()).await;
+        if fail {
+            assert!(matches!(checkpoint, Err(dokime_runtime::runtime::Error::InvalidReportInputs(_))));
+        } else {
+            assert_eq!(checkpoint.unwrap().execution_id, execution);
+        }
         assert_eq!(download.await.is_err(), fail);
         // Repeating Stop Can Finish A Previously Failed Report.
         runtime.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();

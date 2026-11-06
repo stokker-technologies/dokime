@@ -254,9 +254,9 @@ impl RuntimeHandle {
     }
 
     pub async fn execution_saved_checkpoint(&self, id: TestExecutionId) -> Result<ExecutionCheckpoint> {
-        let pending = self.state_read().report_finalizations.contains_key(&id);
-        if pending {
-            self.wait_execution_report(&id).await?;
+        let failure = self.state_read().report_finalizations.get(&id).and_then(|intent| intent.failure.clone());
+        if let Some(cause) = failure {
+            return Err(Error::InvalidReportInputs(cause));
         }
         crate::runtime::storage::execution::ExecutionView::open(self.storage(), &id, harmos::storage::ObjectVersion::Latest)
             .await?

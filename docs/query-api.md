@@ -107,6 +107,10 @@ indexes are refused: select a fresh storage root explicitly, preserve the old
 root, and keep the development schema/evidence baseline at v1. No migration or
 automatic reset is performed.
 
+`History.GetExecutionCheckpoint` inspects the saved seal without waiting for HTML
+publication. It returns `NOT_FOUND` while no seal is saved and preserves recorded
+publication failures. A caller waiting for completion owns its polling and timeout.
+
 ## Fixed Query Cuts
 
 `runtime/query/snapshots.rs` drains the existing fixed publication-ingest frontier,
