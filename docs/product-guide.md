@@ -1089,7 +1089,11 @@ report saving. Storage failures outside artifact content capture still fail the 
 
 Use `instance.request_cancel().await?` to signal cancellation and retain the
 handle, or `instance.cancel().await?` to cancel and receive its final response.
-Processes return their exit status; file watches finish capturing before replying.
+Processes return their exit status; cancelling a file watch on its own waits for
+captured files to seal before replying.
+When stopping an execution, cancelled watch calls acknowledge cancellation while
+their registered captures finish sealing under that execution's capture barrier.
+Stop still waits for all captured files and the durable execution seal.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 

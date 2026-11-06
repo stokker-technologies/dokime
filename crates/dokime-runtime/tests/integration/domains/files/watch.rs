@@ -88,6 +88,59 @@ fn code(error: &Error) -> &str {
 /* === Tests === */
 
 #[dokime_tracing::trace_test]
+#[tokio::test]
+async fn many_file_stop() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    for index in 0..64 {
+        write(&tree.path().join(format!("nested/{index}.log")), b"baseline\n");
+    }
+    let (operations, ticket) = ticketed(&bench);
+    let watch = operations
+        .submit::<WatchFile>(WatchFile {
+            recursive: true,
+            rules: vec![include("**/*.log")],
+            maximum_files: Some(64),
+            execution_id: Some(bench.execution.clone()),
+            source: Some(FileWatchSource { payload: Some(local(tree.path())) }),
+            output: "many".into(),
+            artifact: None,
+            policy: FileWatchPolicy::Mirror,
+            selection: model::files::wire::FileWatchSelection::All,
+            wait_for_source_seconds: None,
+            poll_interval_ms: Some(60_000),
+            maximum_seconds: None,
+            maximum_bytes: None,
+            matchers: Vec::new(),
+            markers: Vec::new(),
+        })
+        .unwrap();
+    operations
+        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
+        .await
+        .unwrap();
+    for index in 0..64 {
+        append(&tree.path().join(format!("nested/{index}.log")), b"changed\n");
+    }
+    let started = std::time::Instant::now();
+    let outcome = watch.cancel().await.unwrap().into_owned();
+    eprintln!("many_file_stop: cancellation and sealing {:?}", started.elapsed());
+    assert_eq!(outcome.artifacts.len(), 64);
+    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    bench.handle.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+    let artifacts = bench.handle.artifacts().await.unwrap();
+    for index in 0..64 {
+        let filename = format!("many/nested/{index}.log");
+        let artifact = artifacts.iter().find(|record| record.filename == filename).unwrap();
+        assert_eq!(artifact.scope.test_execution_id.as_ref(), Some(&execution));
+        assert_eq!(artifact.status, ArtifactStatus::Complete);
+        let content = bench.handle.read_artifact_content(&artifact.artifact_id, 1024).await.unwrap().unwrap();
+        assert_eq!(content.bytes, b"baseline\nchanged\n");
+    }
+    bench.stop().await;
+}
+
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn failed_initial_admission_never_reports_armed() {
     let bench = Bench::start(|config, _| config).await;
