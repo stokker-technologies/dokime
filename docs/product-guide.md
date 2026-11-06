@@ -2029,9 +2029,13 @@ record and telemetry views and follows, artifact views and content, execution
 inspection, prompt condition checks, request-command recovery and evidence exports do not decode another
 cycle's evidence. Historical execution detail reads its cycle header and selected
 exact member while retaining its ordinal; full-cycle inspection still verifies
-every member. Case detail and parameter reads select only that case's attempts,
-using ownership metadata to retain its ordinal. Suite artifact reads use the
-frozen execution scope even after the suite is removed from the installed catalog.
+every member sequentially and retains compact control projections. Resident
+cycles reuse their published state, and historical cycles account for retained
+projections plus the full member currently being verified. Full saved payloads
+remain available through execution detail reads. Case detail and parameter reads
+select only that case's attempts, using ownership metadata to retain its ordinal.
+Suite artifact reads use the frozen execution scope even after the suite is
+removed from the installed catalog.
 Execution exports also include the selected cycle's unowned
 records and application-wide records: those are shared context, so corruption in
 that context fails the export. Arrow files and batches shared by subscriptions

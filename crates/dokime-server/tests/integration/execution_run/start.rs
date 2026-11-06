@@ -334,7 +334,11 @@ pub(crate) async fn start_identity_survives() {
         accepted(wire.unary::<contracts::execution::StartExecution>(authenticated(start(&cancelled))).await.unwrap().into_inner());
     assert!(resolved.job_id.is_none());
     assert_eq!(gate.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
-    assert_eq!(handle.watch_state().latest().state().run_requests.len(), 2);
+    let command = model::identity::CommandId::from_uuid(original.command_id.clone()).unwrap();
+    let retained = handle.run_request(&command).await.unwrap().unwrap();
+    assert_eq!(retained.summary.request_id, command);
+    assert!(retained.summary.phase.terminal());
+    assert!(!handle.watch_state().latest().state().run_requests.contains_key(&command));
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 
