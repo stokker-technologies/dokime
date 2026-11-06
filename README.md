@@ -35,6 +35,51 @@ operating conditions, and review the evidence behind each result.
 - **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.
 - **Native Media Capture** [`media-native`]: Attach screenshots, camera photos and audio where the platform supports them.
 
+### Why Dokime?
+
+Engineering tests need a procedure, an operator, high-rate data and evidence
+someone can trust. Existing tools cover parts of that, so teams glue together
+sequencers, scripts, data tools and report generators.
+
+Dokime keeps them together: publish your streams, and Dokime handles storage,
+live plots and the HTML report. Plugins are native processes with a clear
+structure, so you can use any instrument library.
+
+| Gate | Dokime | Manual Testing | Hand-Rolled Scripts | pytest Harness | OpenHTF | OpenTAP / PathWave | NI TestStand |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| **Getting Started** | | | | | | | |
+| Low Setup Effort | ✓ | ✓ | ✓ | ✓ | ◐ | ◐ | ✗ |
+| Open Source | ✓ | – | – | ✓ | ✓ | ◐ | ✗ |
+| Repeatable Procedures | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Pass/Fail Criteria | ✓ | ◐ | ◐ | ✓ | ✓ | ✓ | ✓ |
+| **Running It With People** | | | | | | | |
+| GUI & Operator Flow | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
+| Device & Bench Traceability | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
+| HTML Report Generation | ✓ | ✗ | ✗ | ◐ | ◐ | ◐ | ✓ |
+| **Scaling The Test** | | | | | | | |
+| Parameter Sweeps | ✓ | ✗ | ◐ | ✓ | ◐ | ✓ | ✓ |
+| Storage Layer Abstraction | ✓ | ✗ | ✗ | ✗ | ◐ | ◐ | ◐ |
+| Live Measurements | ✓ | ✗ | ◐ | ✗ | ◐ | ◐ | ◐ |
+| Remote Control | ✓ | ✗ | ◐ | ✗ | ◐ | ✓ | ✓ |
+| Long-Run Reliability | ✓ \* | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
+| **Extending And Pushing Limits** | | | | | | | |
+| Plugin Template | ✓ | ✗ | ✗ | ✗ | ◐ | ✓ | ✓ |
+| Sidecar Plugin System | ✓ | ✗ | ✗ | ✗ | ✗ | ◐ | ◐ |
+| Fast Stream Support | ✓ \* | ✗ | ◐ | ✗ | ✗ | ◐ | ◐ |
+
+✓ Built In · ◐ Partial Or Add-On · ✗ Build It Yourself · – Not Applicable · \* Target, Not Yet Proven
+
+| | Dokime | OpenHTF | OpenTAP / PathWave | NI TestStand |
+| --- | --- | --- | --- | --- |
+| **Authoring Language** | Rust; Python and C++ planned | Python | C#, Python | Several |
+| **Licence** | Apache-2.0 | Apache-2.0 | MPL-2.0, Keysight GUI bundle | Commercial |
+| **Ready-Made Instrument Drivers** | Plugin's choice | Some plugs | Vendor ecosystem | Extensive |
+| **End-Of-Line Readiness** | Planned | Yes | Yes | Yes |
+| **Maturity** | Young | Established | Established | Industry standard |
+
+Dokime is young. Choose an established test executive if you need mature
+production-line tooling or ready-made instrument drivers today.
+
 ## Interfaces
 
 ### GUI
