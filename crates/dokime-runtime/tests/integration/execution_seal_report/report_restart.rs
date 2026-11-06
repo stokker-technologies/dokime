@@ -78,7 +78,7 @@ pub(crate) async fn persisted_cycle_restart() {
     let boundary = runtime.storage().cursor_saved();
     let report = runtime
         .operations()
-        .call::<MaterializeReport>(MaterializeReport {
+        .operation::<MaterializeReport>(MaterializeReport {
             subject: ReportSubject::Cycle(cycle_id.to_string()),
             at: boundary.clone(),
         })

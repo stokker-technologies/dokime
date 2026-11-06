@@ -257,7 +257,7 @@ impl Startup {
         // so `ctx.call` selecting the explicit route type is the only road
         // to it — and the one that holds the answer to the timeout the route
         // declared, which is what a host call would get.
-        if ctx.call::<crate::domain::operations::AskReadiness>(crate::domain::operations::AskReadiness {}).await?.stopped {
+        if ctx.operation::<crate::domain::operations::AskReadiness>(crate::domain::operations::AskReadiness {}).await?.stopped {
             return Err(Error::Device(obc_runtime::Error::Stopped));
         }
         let mut device = Device::initialize(inputs.supply()).map_err(Error::Device)?;
@@ -289,7 +289,8 @@ impl Startup {
         if !ctx.parameters().await_connection {
             return Ok(());
         }
-        let connections = ctx.call::<crate::domain::operations::ListConnections>(crate::domain::operations::ListConnections {}).await?;
+        let connections =
+            ctx.operation::<crate::domain::operations::ListConnections>(crate::domain::operations::ListConnections {}).await?;
         ctx.info(format!("record=bench_connections count={}", connections.resources.len()));
         // The host's own record type, so the step names no id and reads no
         // detail map: the unit's identity is a field of the fact it waited for.
@@ -324,8 +325,7 @@ impl Startup {
     )]
     async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let watch = ctx
-            .host()
-            .submit(WatchFile {
+            .operation(WatchFile {
                 recursive: false,
                 rules: Vec::new(),
                 maximum_files: None,
@@ -348,6 +348,7 @@ impl Startup {
                 )],
                 markers: Vec::new(),
             })
+            .start()
             .await?;
         // The watch takes its baseline first; the charger then logs its
         // readings while it runs.

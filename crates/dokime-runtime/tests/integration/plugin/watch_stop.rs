@@ -101,8 +101,7 @@ impl Capture {
     #[dokime_runtime::step(label = "Capture Files")]
     async fn capture(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
         let watch = ctx
-            .host()
-            .submit::<WatchFile>(WatchFile {
+            .operation::<WatchFile>(WatchFile {
                 recursive: true,
                 rules: vec![FileRule {
                     glob: "**/*.log".into(),
@@ -124,15 +123,9 @@ impl Capture {
                 matchers: Vec::new(),
                 markers: Vec::new(),
             })
-            .await
-            .map_err(|error| dokime_runtime::Error::Call {
-                operation: "watch",
-                reason: error.to_string(),
-            })?;
-        watch.armed().await.map_err(|error| dokime_runtime::Error::Call {
-            operation: "watch",
-            reason: error.to_string(),
-        })?;
+            .start()
+            .await?;
+        watch.armed().await?;
         watch.detach();
         STEP_WAITING.notify_one();
         std::future::pending().await

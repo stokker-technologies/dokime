@@ -20,6 +20,18 @@ Name template identifiers `<suite>.<segment>`, with lowercase segments matching 
 
 A template declares operation requirements without naming a plugin. Its serving plugin provides or requires those contracts. Declare each prompt, record and stream once; catalogs refer to the declared types.
 
+## Operation Invocation
+
+Use `ctx.operation(request).await?` in initialize, steps, criteria, observers and
+cleanup. Declare ordinary calls in `requires`; existing built-in exemptions need
+no entry. The shared Harmos Invocation returns Response on await and a scoped
+instance from `.start().await?`. Read the response through Deref, or use
+`into_owned()` to move its value. `.retry(settings.retry)` overrides the macro's
+callee-owned default for one call. Retry choices come from configuration and must
+not be literals in templates; enabled overrides require declared replay safety.
+Attempts remain in evidence and deadlines remain bounded by the operation policy.
+Templates have no `.lane()` option or separate `ctx.host()` route.
+
 ## Lifecycle
 
 Use the vocabulary in this order: initialize, steps, criteria, observers, cleanup, document. Observers run concurrently with steps; this vocabulary order does not serialize them after criteria.
@@ -37,7 +49,7 @@ Keep handles used only by steps in template state. Return observer-shared handle
 
 ## File Capture Readiness
 
-After submitting `WatchFile`, await `watch.armed().await?` before starting the producer. Readiness means the baseline and capture were admitted; an accessible empty directory is a valid baseline for `All` and `New`. The streaming `FileWatch` API reports the same boundary through its `Armed` frame. Join or cancel the watcher within the owning step.
+After `ctx.operation(watch_request).start().await?` for `WatchFile`, await `watch.armed().await?` before starting the producer. Readiness means the baseline and capture were admitted; an accessible empty directory is a valid baseline for `All` and `New`. The streaming `FileWatch` API reports the same boundary through its `Armed` frame. Join or cancel the watcher within the owning step.
 
 Selection is independent of capture policy: `All` follows baseline files and arrivals, `Latest` selects the newest baseline file and follows its rotation, and `New` captures later discoveries from byte zero. Use `wait_for_source_seconds` only when an absent source is expected. Its deadline precedes the capture duration; cancellation, permission failures and invalid paths remain failures. An unavailable FTP root fails immediately because status 550 cannot distinguish absence from denied access.
 

@@ -7,7 +7,7 @@
  * ***
  */
 
-// What a step submits through `ctx.host()`: one handle over an instance the
+// What a step submits through `ctx.operation(request).start()`: one handle over an instance the
 // host runs or one this process serves, and the step's ledger of every
 // instance still running. A handle dropped unsettled cancels its instance; a
 // detached one, or one kept past its step, is cancelled by the step-end sweep
@@ -22,14 +22,14 @@
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 // Third Party Imports
 use harmos::Message;
 use harmos::operations::instance::{Id, Outcome, Phase, Status};
-use harmos::operations::{OperationHost, Instance, OperationDeclaration, Response};
+use harmos::operations::{Instance, OperationDeclaration, OperationHost, Response};
 use harmos::sidecar::{CallError, Supervisor};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -98,6 +98,7 @@ pub struct StepInstance<O: OperationDeclaration> {
 struct Slot<O: OperationDeclaration> {
     settlement: Duration,
     running: tokio::sync::Mutex<Option<Running<O>>>,
+    local_cancel: Option<(watch::Sender<bool>, tokio::task::AbortHandle)>,
     kind: &'static str,
     name: String,
 }
@@ -105,11 +106,21 @@ struct Slot<O: OperationDeclaration> {
 // An instance this process serves: its task, and the cancellation it heeds.
 pub(crate) struct LocalRun {
     cancel: watch::Sender<bool>,
-    task: JoinHandle<Result<Vec<u8>, String>>,
-    // A served built-in settles itself when cancelled; a harness answer that
-    // never looks at the signal is aborted instead.
-    cooperative: bool,
+    task: Option<JoinHandle<Result<Vec<u8>, CallError>>>,
+    id: Id,
+    attempt: Arc<AtomicUsize>,
+    outcome: Arc<Mutex<Option<Outcome>>>,
     readiness: watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>,
+}
+
+struct LocalAttempt {
+    journal: Option<Arc<dyn crate::transport::Journal>>,
+    operation: &'static str,
+    instance: u64,
+    stage: String,
+    attempt: usize,
+    outcome: Outcome,
+    observed: Arc<Mutex<Option<Outcome>>>,
 }
 
 /* === Enums === */
@@ -176,46 +187,162 @@ impl Handles {
 }
 
 impl LocalRun {
-    pub(crate) fn spawn<F>(
-        serve: impl FnOnce(watch::Receiver<bool>, watch::Sender<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>) -> F,
-        cooperative: bool,
-    ) -> Self
+    pub(crate) fn spawn<O: OperationDeclaration, F>(
+        mut serve: impl FnMut(watch::Receiver<bool>, super::builtins::Ready) -> F + Send + 'static, cooperative: bool,
+        retry: Option<harmos::RetryPolicy>, journal: Option<Arc<dyn crate::transport::Journal>>, stage: String,
+    ) -> Result<Self, CallError>
     where
         F: Future<Output = Result<Vec<u8>, String>> + Send + 'static,
     {
-        let (cancel, cancelled) = watch::channel(false);
-        let (ready, readiness) = watch::channel(None);
-        Self {
-            task: tokio::spawn(serve(cancelled, ready)),
-            cancel,
-            cooperative,
-            readiness,
+        use harmos::operations::FailureKind;
+        let mut policy = O::POLICY;
+        if let Some(retry) = retry {
+            policy.retries = retry;
         }
+        policy.validate().map_err(|error| refused(error.to_string()))?;
+        static NEXT: AtomicU64 = AtomicU64::new(LOCAL_IDS);
+        let id = Id::new(NEXT.fetch_sub(1, Ordering::Relaxed));
+        let (cancel, mut cancelled) = watch::channel(false);
+        let (ready, readiness) = watch::channel(None);
+        let attempt = Arc::new(AtomicUsize::new(0));
+        let outcome = Arc::new(Mutex::new(None));
+        let progress = attempt.clone();
+        let observed = outcome.clone();
+        let deadline = tokio::time::Instant::now() + policy.timeout;
+        let task = tokio::spawn(async move {
+            let mut attempt = 0;
+            loop {
+                if *cancelled.borrow() {
+                    return Err(refused("operation cancelled"));
+                }
+                let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+                if remaining.is_zero() {
+                    return Err(refused("operation deadline elapsed"));
+                }
+                progress.store(attempt, Ordering::Relaxed);
+                let mut evidence = LocalAttempt {
+                    journal: journal.clone(),
+                    operation: O::ID,
+                    instance: id.value(),
+                    stage: stage.clone(),
+                    attempt,
+                    outcome: Outcome::Cancelled,
+                    observed: observed.clone(),
+                };
+                let (interrupt, signal) = watch::channel(false);
+                let mut body = Box::pin(serve(signal, ready.clone()));
+                let answer = tokio::select! {
+                    biased;
+                    _ = cancelled.changed() => None,
+                    answer = tokio::time::timeout(policy.attempt_timeout.min(remaining), &mut body) => Some(answer),
+                };
+                let (error, classification) = match answer {
+                    Some(Ok(Ok(bytes))) => {
+                        evidence.outcome = Outcome::Succeeded;
+                        return Ok(bytes);
+                    }
+                    Some(Ok(Err(message))) => {
+                        evidence.outcome = Outcome::Failed;
+                        (refused(message), FailureKind::Permanent)
+                    }
+                    interruption => {
+                        interrupt.send_replace(true);
+                        let cleanup = if cooperative {
+                            tokio::time::timeout(
+                                policy.cancellation_timeout.min(deadline.saturating_duration_since(tokio::time::Instant::now())),
+                                &mut body,
+                            )
+                            .await
+                            .ok()
+                        } else {
+                            None
+                        };
+                        if interruption.is_none() {
+                            evidence.outcome = Outcome::Cancelled;
+                            return match cleanup {
+                                Some(answer) => answer.map_err(refused),
+                                None => Err(refused("operation cancelled")),
+                            };
+                        }
+                        evidence.outcome = Outcome::TimedOut;
+                        let failure =
+                            harmos::Failure::new(FailureKind::Ambiguous, "operation attempt deadline elapsed").in_operation(O::ID);
+                        (CallError::Refused { code: -32_607, failure }, FailureKind::Ambiguous)
+                    }
+                };
+                drop(body);
+                drop(evidence);
+                let Some(delay) = policy.retries.retry_after(attempt, classification, O::REPLAY, id.value()) else {
+                    return Err(error);
+                };
+                tokio::select! {
+                    biased;
+                    _ = cancelled.changed() => return Err(refused("operation cancelled")),
+                    waited = tokio::time::timeout_at(deadline, tokio::time::sleep(delay)) => {
+                        if waited.is_err() { return Err(error); }
+                    }
+                }
+                attempt += 1;
+            }
+        });
+        Ok(Self {
+            task: Some(task),
+            cancel,
+            readiness,
+            id,
+            attempt,
+            outcome,
+        })
     }
 
     fn request_cancel(&self) {
         self.cancel.send_replace(true);
-        if !self.cooperative {
-            self.task.abort();
-        }
     }
 
     fn status(&self) -> Status {
-        let finished = self.task.is_finished();
+        let finished = self.task.as_ref().is_none_or(JoinHandle::is_finished);
         Status {
             phase: if finished { Phase::Settled } else { Phase::Running },
-            outcome: None,
+            outcome: if finished { *self.outcome.lock().unwrap_or_else(PoisonError::into_inner) } else { None },
             cancellation_requested: *self.cancel.borrow(),
-            attempt: 1,
+            attempt: u32::try_from(self.attempt.load(Ordering::Relaxed)).unwrap_or(u32::MAX),
         }
     }
 
-    async fn join(self, method: &'static str) -> Result<Vec<u8>, CallError> {
-        match self.task.await {
-            Ok(Ok(bytes)) => Ok(bytes),
-            Ok(Err(message)) => Err(refused(message)),
+    async fn join(&mut self, method: &'static str) -> Result<Vec<u8>, CallError> {
+        let answer = self.task.as_mut().expect("owned local task").await;
+        self.task.take();
+        match answer {
+            Ok(answer) => answer.map_err(|error| match error {
+                CallError::Refused { code, failure } => CallError::Refused {
+                    code,
+                    failure: failure.in_operation(method),
+                },
+                error => error,
+            }),
             Err(error) if error.is_cancelled() => Err(refused(format!("`{method}` was cancelled"))),
             Err(error) => Err(refused(format!("`{method}` panicked: {error}"))),
+        }
+    }
+}
+
+impl Drop for LocalRun {
+    fn drop(&mut self) {
+        if self.task.is_some() {
+            self.request_cancel();
+        }
+    }
+}
+
+impl Drop for LocalAttempt {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            self.outcome = Outcome::Failed;
+        }
+        *self.observed.lock().unwrap_or_else(PoisonError::into_inner) = Some(self.outcome);
+        if let Some(journal) = &self.journal {
+            let entry = super::log::operation_attempt(self.operation, self.instance, None, &self.stage, self.attempt, self.outcome);
+            journal.log(super::log::Level::Info, entry.message);
         }
     }
 }
@@ -229,8 +356,7 @@ impl<O: OperationDeclaration> StepInstance<O> {
     }
 
     pub(crate) fn local(handles: &Handles, run: LocalRun, request: &[u8]) -> Self {
-        static NEXT: AtomicU64 = AtomicU64::new(LOCAL_IDS);
-        let id = Id::new(NEXT.fetch_sub(1, Ordering::Relaxed));
+        let id = run.id;
         let readiness = run.readiness.clone();
         let mut handle = Self::tracked(handles, id, Running::Local(run), request);
         handle.readiness = Some(Readiness::Local(readiness));
@@ -239,9 +365,14 @@ impl<O: OperationDeclaration> StepInstance<O> {
 
     fn tracked(handles: &Handles, id: Id, running: Running<O>, request: &[u8]) -> Self {
         let (kind, name) = label::<O>(request);
+        let local_cancel = match &running {
+            Running::Local(run) => Some((run.cancel.clone(), run.task.as_ref().expect("owned local task").abort_handle())),
+            Running::Host(_) => None,
+        };
         let slot = Arc::new(Slot {
             settlement: handles.settlement,
             running: tokio::sync::Mutex::new(Some(running)),
+            local_cancel,
             kind,
             name,
         });
@@ -258,17 +389,17 @@ impl<O: OperationDeclaration> StepInstance<O> {
         self.id
     }
 
-    pub async fn status(&self) -> Result<Status, CallError> {
+    pub async fn status(&self) -> Result<Status, crate::Error> {
         match self.slot.running.lock().await.as_ref() {
-            Some(Running::Host(instance)) => instance.status().await,
+            Some(Running::Host(instance)) => instance.status().await.map_err(crate::Error::from),
             Some(Running::Local(run)) => Ok(run.status()),
             None => Ok(swept()),
         }
     }
 
-    pub async fn request_cancel(&self) -> Result<(), CallError> {
+    pub async fn request_cancel(&self) -> Result<(), crate::Error> {
         match self.slot.running.lock().await.as_ref() {
-            Some(Running::Host(instance)) => instance.request_cancel().await,
+            Some(Running::Host(instance)) => instance.request_cancel().await.map_err(crate::Error::from),
             Some(Running::Local(run)) => {
                 run.request_cancel();
                 Ok(())
@@ -277,24 +408,31 @@ impl<O: OperationDeclaration> StepInstance<O> {
         }
     }
 
-    pub async fn join(mut self) -> Result<Response<O::Response>, CallError> {
+    pub async fn join(mut self) -> Result<Response<O::Response>, crate::Error> {
+        let slot = self.slot.clone();
+        let mut running = slot.running.lock().await;
+        if let Some(Running::Local(run)) = running.as_mut() {
+            // Keep The Local Task In The Stage Ledger While Its Join Is Borrowed.
+            let answer = run.join(O::ID).await;
+            running.take();
+            self.released = true;
+            let response = O::Response::decode(&answer?).map_err(|error| CallError::Malformed {
+                method: O::ID,
+                message: error.to_string(),
+            })?;
+            return Ok(Response::new(response));
+        }
+        let instance = running.take();
+        drop(running);
         self.released = true;
-        let running = self.slot.running.lock().await.take();
-        match running {
-            Some(Running::Host(instance)) => instance.join().await,
-            Some(Running::Local(run)) => {
-                let bytes = run.join(O::ID).await?;
-                let response = O::Response::decode(bytes.as_slice()).map_err(|error| CallError::Malformed {
-                    method: O::ID,
-                    message: error.to_string(),
-                })?;
-                Ok(Response::new(response))
-            }
-            None => Err(refused(format!("`{}` was cancelled when its step ended", O::ID))),
+        match instance {
+            Some(Running::Host(instance)) => instance.join().await.map_err(crate::Error::from),
+            Some(Running::Local(_)) => unreachable!("local tasks are joined in their stage slot"),
+            None => Err(refused(format!("`{}` was cancelled when its step ended", O::ID)).into()),
         }
     }
 
-    pub async fn cancel(self) -> Result<Response<O::Response>, CallError> {
+    pub async fn cancel(self) -> Result<Response<O::Response>, crate::Error> {
         self.request_cancel().await?;
         self.join().await
     }
@@ -308,12 +446,12 @@ impl<O: OperationDeclaration> StepInstance<O> {
 }
 
 impl StepInstance<WatchFile> {
-    pub async fn armed(&self) -> Result<dokime_domain::model::files::wire::FileWatchArmed, CallError> {
+    pub async fn armed(&self) -> Result<dokime_domain::model::files::wire::FileWatchArmed, crate::Error> {
         match self.readiness.as_ref() {
-            Some(Readiness::Host(_, None)) => Err(refused("file watch was submitted without a readiness ticket")),
+            Some(Readiness::Host(_, None)) => Err(refused("file watch was submitted without a readiness ticket").into()),
             Some(Readiness::Host(host, Some(ticket))) => {
                 let response = host
-                    .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed {
+                    .operation::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed {
                         instance_id: *ticket,
                     })
                     .await?;
@@ -324,12 +462,12 @@ impl StepInstance<WatchFile> {
                 loop {
                     let value = signal.borrow_and_update().clone();
                     if let Some(value) = value {
-                        return value.map_err(refused);
+                        return value.map_err(refused).map_err(crate::Error::from);
                     }
                     signal.changed().await.map_err(|_| refused("file watch stopped before capture was armed; inspect its outcome"))?;
                 }
             }
-            None => Err(refused("file watch has no readiness binding")),
+            None => Err(refused("file watch has no readiness binding").into()),
         }
     }
 }
@@ -339,13 +477,19 @@ impl<O: OperationDeclaration> Drop for StepInstance<O> {
         if self.released {
             return;
         }
+        if let Some((cancel, _)) = &self.slot.local_cancel {
+            cancel.send_replace(true);
+            return;
+        }
         // The sweep holding the slot is already settling it.
         let Ok(mut running) = self.slot.running.try_lock() else {
             return;
         };
-        match running.take() {
-            // The host's handle requests cancellation when it drops unsettled.
-            Some(Running::Host(instance)) => drop(instance),
+        match running.as_ref() {
+            // The Host's Handle Requests Cancellation When It Drops Unsettled.
+            Some(Running::Host(_)) => {
+                running.take();
+            }
             Some(Running::Local(run)) => run.request_cancel(),
             None => {}
         }
@@ -353,21 +497,21 @@ impl<O: OperationDeclaration> Drop for StepInstance<O> {
 }
 
 impl<O: OperationDeclaration> Instance<O> for StepInstance<O> {
-    type Error = CallError;
+    type Error = crate::Error;
 
     fn id(&self) -> Id {
         self.id
     }
 
-    fn status(&self) -> impl Future<Output = Result<Status, CallError>> + Send {
+    fn status(&self) -> impl Future<Output = Result<Status, crate::Error>> + Send {
         StepInstance::status(self)
     }
 
-    fn request_cancel(&self) -> impl Future<Output = Result<(), CallError>> + Send {
+    fn request_cancel(&self) -> impl Future<Output = Result<(), crate::Error>> + Send {
         StepInstance::request_cancel(self)
     }
 
-    fn join(self) -> impl Future<Output = Result<Response<O::Response>, CallError>> + Send {
+    fn join(self) -> impl Future<Output = Result<Response<O::Response>, crate::Error>> + Send {
         StepInstance::join(self)
     }
 
@@ -379,7 +523,17 @@ impl<O: OperationDeclaration> Instance<O> for StepInstance<O> {
 impl<O: OperationDeclaration> Sweep for Slot<O> {
     fn sweep(&self, step: String) -> Sweeping<'_> {
         Box::pin(async move {
-            let running = self.running.lock().await.take()?;
+            let local_unsettled = self.local_cancel.as_ref().is_some_and(|(_, task)| !task.is_finished());
+            if local_unsettled && let Some((cancel, _)) = &self.local_cancel {
+                cancel.send_replace(true);
+            }
+            let Some(running) = self.running.lock().await.take() else {
+                return local_unsettled.then(|| StepHandleCancelled {
+                    step,
+                    kind: self.kind.to_owned(),
+                    name: self.name.clone(),
+                });
+            };
             let settled = match running {
                 Running::Host(instance) => {
                     if instance.status().await.is_ok_and(|status| status.is_settled()) {
@@ -388,8 +542,8 @@ impl<O: OperationDeclaration> Sweep for Slot<O> {
                     }
                     tokio::time::timeout(self.settlement, instance.cancel()).await.is_ok()
                 }
-                Running::Local(run) => {
-                    if run.task.is_finished() {
+                Running::Local(mut run) => {
+                    if !local_unsettled {
                         return None;
                     }
                     run.request_cancel();
@@ -458,3 +612,169 @@ fn label<O: OperationDeclaration>(request: &[u8]) -> (&'static str, String) {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transport::Journal;
+    use std::sync::atomic::AtomicBool;
+
+    #[derive(Default)]
+    struct Evidence(Mutex<Vec<serde_json::Value>>);
+    impl Journal for Evidence {
+        fn log(&self, _: super::super::log::Level, message: String) {
+            self.0.lock().unwrap().push(serde_json::from_str(&message).unwrap());
+        }
+        fn record(&self, _: dokime_domain::model::records::publication::RecordPublishRequest) {}
+    }
+
+    #[crate::harmos::operation(harmos_path = crate::harmos, id = "invocation.local", response = u64,
+        replay = crate::harmos::operations::ReplaySafety::Idempotent,
+        policy = crate::harmos::OperationPolicy {
+            timeout: Duration::from_secs(5), attempt_timeout: Duration::from_millis(10),
+            cancellation_timeout: Duration::from_millis(100), retries: crate::harmos::RetryPolicy::Never,
+        })]
+    struct Read {}
+
+    #[crate::harmos::operation(harmos_path = crate::harmos, id = "invocation.unknown", response = u64, policy = Read::POLICY)]
+    struct Unknown {}
+
+    #[tokio::test(start_paused = true)]
+    async fn local_retry_retains_defaults_deadlines_and_attempt_evidence() {
+        let evidence = Arc::new(Evidence::default());
+        let mut default =
+            LocalRun::spawn::<Read, _>(|_, _| std::future::pending(), false, None, Some(evidence.clone()), "step/read".into()).unwrap();
+        assert!(default.join(Read::ID).await.is_err());
+        let calls = Arc::new(AtomicUsize::new(0));
+        let invoked = calls.clone();
+        let configured = harmos::RetryPolicy::OnTransient {
+            max_retries: 1,
+            backoff: harmos::Backoff::Fixed {
+                delay: Duration::from_millis(1),
+                jitter: harmos::Jitter::None,
+            },
+        };
+        let mut retrying = LocalRun::spawn::<Read, _>(
+            move |_, _| {
+                let first = invoked.fetch_add(1, Ordering::SeqCst) == 0;
+                Box::pin(async move { if first { std::future::pending().await } else { Ok(42_u64.encode()) } })
+            },
+            false,
+            Some(configured),
+            Some(evidence.clone()),
+            "step/read".into(),
+        )
+        .unwrap();
+        assert_eq!(u64::decode(&retrying.join(Read::ID).await.unwrap()).unwrap(), 42);
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        let mut later =
+            LocalRun::spawn::<Read, _>(|_, _| std::future::pending(), false, None, Some(evidence.clone()), "step/read".into()).unwrap();
+        assert!(later.join(Read::ID).await.is_err());
+        let entries = evidence.0.lock().unwrap();
+        let attempts =
+            entries.iter().map(|entry| (entry["attempt"].as_u64().unwrap(), entry["outcome"].as_str().unwrap())).collect::<Vec<_>>();
+        assert_eq!(attempts, [(0, "timed_out"), (0, "timed_out"), (1, "succeeded"), (0, "timed_out")]);
+        assert_eq!(entries[1]["instance"], entries[2]["instance"]);
+        assert_ne!(entries[0]["instance"], entries[1]["instance"]);
+        assert!(entries.iter().all(|entry| entry["operation"] == Read::ID && entry["stage"] == "step/read"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn abandoned_local_join_keeps_cancellation_in_the_stage_ledger() {
+        let evidence = Arc::new(Evidence::default());
+        let started = Arc::new(tokio::sync::Notify::new());
+        let completed = Arc::new(AtomicBool::new(false));
+        let entered = started.clone();
+        let settled = completed.clone();
+        let run = LocalRun::spawn::<Read, _>(
+            move |mut cancelled, _| {
+                let entered = entered.clone();
+                let settled = settled.clone();
+                async move {
+                    entered.notify_one();
+                    cancelled.changed().await.unwrap();
+                    settled.store(true, Ordering::SeqCst);
+                    Ok(0_u64.encode())
+                }
+            },
+            true,
+            None,
+            Some(evidence.clone()),
+            "step/wait".into(),
+        )
+        .unwrap();
+        let handles = Handles::new();
+        let instance = StepInstance::<Read>::local(&handles, run, &Read {}.encode());
+        let joining = tokio::spawn(instance.join());
+        started.notified().await;
+        joining.abort();
+        assert!(joining.await.unwrap_err().is_cancelled());
+        handles.sweep().await;
+        assert!(completed.load(Ordering::SeqCst));
+        assert!(handles.sweep().await.is_empty());
+        let entries = evidence.0.lock().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["outcome"], "cancelled");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stage_sweep_cancels_a_concurrent_local_join() {
+        let evidence = Arc::new(Evidence::default());
+        let started = Arc::new(tokio::sync::Notify::new());
+        let completed = Arc::new(AtomicBool::new(false));
+        let entered = started.clone();
+        let settled = completed.clone();
+        let run = LocalRun::spawn::<Read, _>(
+            move |mut cancelled, _| {
+                let entered = entered.clone();
+                let settled = settled.clone();
+                async move {
+                    entered.notify_one();
+                    cancelled.changed().await.unwrap();
+                    settled.store(true, Ordering::SeqCst);
+                    Ok(0_u64.encode())
+                }
+            },
+            true,
+            None,
+            Some(evidence.clone()),
+            "step/join".into(),
+        )
+        .unwrap();
+        let handles = Handles::new();
+        let instance = StepInstance::<Read>::local(&handles, run, &Read {}.encode());
+        let joining = tokio::spawn(instance.join());
+        started.notified().await;
+        let warnings = handles.sweep().await;
+        assert_eq!(*joining.await.unwrap().unwrap(), 0);
+        assert!(completed.load(Ordering::SeqCst));
+        assert_eq!(warnings.len(), 1);
+        assert!(handles.sweep().await.is_empty());
+        let entries = evidence.0.lock().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["outcome"], "cancelled");
+    }
+
+    #[tokio::test]
+    async fn unsafe_local_override_refuses_before_the_harness_action() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let invoked = calls.clone();
+        let answer: super::super::calls::Answering = Arc::new(move |_| {
+            invoked.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { Ok(7_u64.encode()) })
+        });
+        let caller = super::super::Caller::local([(Unknown::ID.to_owned(), answer)].into());
+        let host = caller.step_host("step/unknown", None);
+        let configured = harmos::RetryPolicy::OnTransient {
+            max_retries: 1,
+            backoff: harmos::Backoff::Fixed {
+                delay: Duration::from_millis(1),
+                jitter: harmos::Jitter::None,
+            },
+        };
+        assert!(host.operation(Unknown {}).retry(configured).await.is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert_eq!(*host.operation(Unknown {}).await.unwrap(), 7);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+}

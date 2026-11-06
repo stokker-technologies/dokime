@@ -363,13 +363,12 @@ impl Watch {
     }
 
     async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Publishing>) -> Result<(), WatchError> {
-        let host = ctx.host().supervisor();
-        let secrets = host.call::<GetProbe>(GetProbe {}).await.map(|response| response.into_owned())?.secrets;
+        let secrets = ctx.operation::<GetProbe>(GetProbe {}).await.map(|response| response.into_owned())?.secrets;
         self.0.secrets.store(secrets, Ordering::Release);
         self.0.bump(&self.0.secret_ticks);
         let index = ctx.tick().ordinal() - 1;
         ctx.publish_on::<ObservationRow>(&ObservationRow { index }).await?;
-        dokime_runtime::plugin::Publisher::new(host).publish(Observed { index }).await?;
+        dokime_runtime::plugin::Publisher::new(ctx.host().supervisor()).publish(Observed { index }).await?;
         self.0.samples.lock().unwrap().push(self.1);
         self.0.bump(&self.0.checks);
         Ok(())
@@ -440,7 +439,7 @@ impl AwaitEvent {
     async fn hear(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
         // An operation is the only road a step has to the plugin. Its type
         // belongs to the required catalog declared by this template.
-        let counted = ctx.call(GetCount {}).await?;
+        let counted = ctx.operation(GetCount {}).await?;
         let _ = counted.checks;
         ctx.publish(Observed { index: 999 }).await;
         ctx.resources().0.notify_one();
@@ -468,7 +467,7 @@ impl AwaitEvent {
         that hold handles."
     )]
     async fn observed(ctx: &CriterionContext<'_>) -> dokime_runtime::Result<bool> {
-        let counted = ctx.call(GetCount {}).await?;
+        let counted = ctx.operation(GetCount {}).await?;
         ctx.info(format!("the plugin has answered {} checks", counted.checks));
 
         Ok(ctx.records::<Observed>()?.iter().map(|record| record.index).collect::<Vec<_>>() == [999, 0, 777])
@@ -498,7 +497,7 @@ impl Drop for PendingGuard {
 )]
 impl Faults {
     async fn initialize(ctx: &mut InitializationContext<'_>) -> dokime_runtime::Result<(Self, Arc<Probe>)> {
-        let template = Self(probe(&ctx.call(GetProbe {}).await?.token));
+        let template = Self(probe(&ctx.operation(GetProbe {}).await?.token));
         let shared = Arc::clone(&template.0);
         Ok((template, shared))
     }
@@ -553,7 +552,7 @@ impl Faults {
 )]
 impl Pending {
     async fn initialize(ctx: &mut InitializationContext<'_>) -> dokime_runtime::Result<(Self, Arc<Probe>)> {
-        let template = Self(probe(&ctx.call(GetProbe {}).await?.token));
+        let template = Self(probe(&ctx.operation(GetProbe {}).await?.token));
         let shared = Arc::clone(&template.0);
         Ok((template, shared))
     }

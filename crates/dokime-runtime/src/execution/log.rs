@@ -72,6 +72,20 @@ macro_rules! error {
 
 /* === Public Functions === */
 
+#[cfg(feature = "native")]
+pub(crate) fn operation_attempt(
+    operation: &str, instance: u64, generation: Option<u64>, stage: &str, attempt: usize, outcome: harmos::operations::instance::Outcome,
+) -> Entry {
+    Entry::new(
+        Level::Info,
+        serde_json::json!({
+            "kind": "operation_attempt", "operation": operation, "instance": instance,
+            "generation": generation, "stage": stage, "attempt": attempt, "outcome": outcome,
+        })
+        .to_string(),
+    )
+}
+
 /* === Private Functions === */
 
 /* === Tests === */

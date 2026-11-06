@@ -218,11 +218,11 @@ impl Hold {
         let operation = OpenHeater {
             port: ctx.parameters().heater_port.clone(),
         };
-        let identity = ctx.call(operation).await?;
+        let identity = ctx.operation(operation).await?.into_owned();
 
         // Read Chamber Temperature
         let operation = ReadChamber {};
-        let reading = ctx.call(operation).await?;
+        let reading = ctx.operation(operation).await?.into_owned();
 
         // Device Under Test
         let mut dut = TraceabilitySection::new("dut", "Device under test");
@@ -258,7 +258,7 @@ impl Hold {
 
         // Set The Target
         let operation = SetTarget { celsius: target_c };
-        ctx.call(operation).await?;
+        ctx.operation(operation).await?;
         ctx.traceability().row("bench", TraceabilityRow::number("target_c", "Target", target_c).unit("°C"));
         dokime::info!(ctx, "heater set to {target_c:.1} °C");
 
@@ -314,7 +314,7 @@ impl Hold {
         let operation = EncodeSummary {
             summary: self.summary(ctx.parameters(), celsius),
         };
-        let summary = ctx.call(operation).await?;
+        let summary = ctx.operation(operation).await?.into_owned();
         ctx.artifacts().write("summary.json", summary.json)?;
         // One verb publishes both kinds of evidence, and the declaration decides
         // which this is: `HoldReached` is a record, `SoakRow` is a measurement,
@@ -354,7 +354,7 @@ impl Hold {
     async fn observe(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         // Read Chamber Temperature
         let operation = ReadChamber {};
-        let reading = ctx.call(operation).await?;
+        let reading = ctx.operation(operation).await?.into_owned();
 
         let row = SoakRow {
             celsius: reading.celsius,
@@ -409,7 +409,7 @@ impl Hold {
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
         // Release Chamber
         let operation = ReleaseChamber {};
-        ctx.call(operation).await?;
+        ctx.operation(operation).await?;
         dokime::info!(ctx, "chamber released after {:?}", ctx.reason());
 
         Ok(())

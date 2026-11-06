@@ -161,7 +161,7 @@ async fn save_cycle(runtime: &RuntimeHandle, request: &MaterializeReport) -> Dur
     let started = Instant::now();
     let report = runtime
         .operations()
-        .call::<MaterializeReport>(MaterializeReport {
+        .operation::<MaterializeReport>(MaterializeReport {
             subject: request.subject.clone(),
             at: request.at.clone(),
         })
@@ -228,7 +228,7 @@ async fn materialization(runtime: &RuntimeHandle, request: &MaterializeReport) -
         at: request.at.clone(),
     };
     let started = Instant::now();
-    let report = runtime.operations().call::<MaterializeReport>(materialize).await.unwrap();
+    let report = runtime.operations().operation::<MaterializeReport>(materialize).await.unwrap();
     let elapsed = started.elapsed();
     assert!(report.report.length > 0);
     let bytes = dokime_runtime::storage::read_file_bytes(runtime.storage(), &report.report).await.unwrap();

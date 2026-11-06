@@ -72,9 +72,9 @@ pub(crate) async fn saved_file_roundtrip() {
         value: Some("saved-value-λ".into()),
         generation: 0,
     };
-    handle.operations().call::<wire::Put>(request).await.unwrap();
+    handle.operations().operation::<wire::Put>(request).await.unwrap();
     let identifiers = vec!["roundtrip.token".into()];
-    let archive = handle.operations().call::<wire::Export>(wire::Export { identifiers, generation: 1 }).await.unwrap();
+    let archive = handle.operations().operation::<wire::Export>(wire::Export { identifiers, generation: 1 }).await.unwrap();
 
     let file = root.path().join("secrets.b64");
     std::fs::write(&file, &archive.data).unwrap();
@@ -96,7 +96,7 @@ pub(crate) async fn saved_file_roundtrip() {
     let destination = crate::service_support::budgets::runtime_config(root.path().join("destination"), metadata);
     let mut destination = Runtime::start(destination).await.unwrap();
     let handle = destination.handle();
-    let preview = handle.operations().call::<wire::Preview>(wire::Preview { data: data.clone() }).await.unwrap();
+    let preview = handle.operations().operation::<wire::Preview>(wire::Preview { data: data.clone() }).await.unwrap();
     assert_eq!(preview.generation, 0);
     assert_eq!(preview.entries.len(), 1);
     assert!(!preview.entries[0].exists);
@@ -107,14 +107,14 @@ pub(crate) async fn saved_file_roundtrip() {
     }];
     handle
         .operations()
-        .call::<wire::Import>(wire::Import {
+        .operation::<wire::Import>(wire::Import {
             data,
             choices,
             generation: preview.generation,
         })
         .await
         .unwrap();
-    let restored = handle.operations().call::<wire::Lookup>(wire::Lookup { identifier: "roundtrip.token".into() }).await.unwrap();
+    let restored = handle.operations().operation::<wire::Lookup>(wire::Lookup { identifier: "roundtrip.token".into() }).await.unwrap();
     assert_eq!(restored.value.as_deref(), Some("saved-value-λ"));
     destination.shutdown().await.unwrap();
 }

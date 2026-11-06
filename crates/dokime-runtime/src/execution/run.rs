@@ -555,12 +555,15 @@ async fn conclude<T: SidecarTemplate>(
         let identifier = criterion.metadata.identifier.to_string();
         let label = criterion.metadata.label.clone();
         let decided = if let Some(environment) = environment {
-            let ctx = environment.criterion(evidence).selecting(Arc::clone(&selected_attempts)).deciding(transport, &identifier);
+            let ctx = environment.criterion(evidence, transport).selecting(Arc::clone(&selected_attempts)).deciding(transport, &identifier);
             let work = caught(T::evaluate(&identifier, &ctx)).instrument(tracing::info_span!("criterion", criterion = %identifier));
             let result = match tokio::time::timeout(Duration::from_secs(1), work).await {
                 Ok(result) => result.transpose(),
                 Err(_) => Some(Err(Diagnostic::of("criterion evaluation exceeded one second"))),
             };
+            for warning in environment.handles().sweep().await {
+                transport.log(super::log::Level::Warn, format!("operation handle cancelled at criterion end: {}", warning.name));
+            }
             let callback_error = settle_callbacks(environment, transport).await;
 
             match (result, callback_error) {

@@ -382,6 +382,18 @@ Catalog ownership is explicit. Host registrations survive plugin removal.
 Provider reconciliation rebuilds the catalogs owned by configured, embedded and
 installed plugins from their admitted registrations.
 
+## Operation Invocation
+
+Use `ctx.operation(request).await?` in handlers, templates, criteria and observers.
+Await returns Harmos `Response<T>`, which dereferences to the value; use
+`into_owned()` when taking owned fields. `.start().await?` returns a scoped instance.
+The operation macro owns default timeouts, delays and retries. `.retry(settings.retry)`
+overrides one call, using settings, parameters or configuration. Enabled overrides
+require declared replay safety, preserve attempt deadlines and record every attempt.
+Template built-ins such as WatchFile and RunProcess use the same method without a
+`requires` entry. Import `OperationHost` for carrier hosts; SDK `Host` and Dokime
+`StepHost` are retired. Rebuild sidecars and guests together for child-call envelope v2.
+
 ## Operation Boundaries
 
 Templates and observers import only operations, `domain`, Dokime and the standard
@@ -414,7 +426,7 @@ a Hub rule or project check.
 ## Hand-Authored Steps
 
 A hand-authored step reads as a list of operations. Each action is a Title Case
-comment, a `let operation` binding and one `ctx.call`, with a blank line between
+comment, a `let operation` binding and one `ctx.operation`, with a blank line between
 actions:
 
 ```rust
@@ -422,19 +434,19 @@ actions:
 async fn preparation(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     // Enable Remote Control
     let operation = SetChamberSettings::from([("RemoteControl", "true")]);
-    ctx.call(operation).await?;
+    ctx.operation(operation).await?;
 
     // Start Chamber Service
     let operation = StartChamberService {};
-    ctx.call(operation).await?;
+    ctx.operation(operation).await?;
 
     // Wait Until Chamber Is Ready
     let operation = WaitUntilChamberReady {};
-    ctx.call(operation).await?;
+    ctx.operation(operation).await?;
 
     // Read Chamber Temperature
     let operation = ReadChamber {};
-    let reading = ctx.call(operation).await?;
+    let reading = ctx.operation(operation).await?;
 
     Ok(())
 }

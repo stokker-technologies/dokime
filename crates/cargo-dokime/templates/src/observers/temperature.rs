@@ -20,7 +20,7 @@
 // Local Imports
 use crate::domain::model::chamber::TemperatureRow;
 use crate::operations::ReadChamber;
-use dokime::harmos::operations::Host;
+use dokime::harmos::operations::OperationHost;
 use dokime::harmos::sidecar::{ObserverContext, Publisher};
 
 /* === Constants === */
@@ -45,7 +45,7 @@ impl Temperature {
     async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<crate::Plugin>>) -> Result<(), dokime::Refusal> {
         // Read Chamber Temperature
         let operation = ReadChamber {};
-        let reading = dokime::plugin::refusal(ctx.host().supervisor().call::<ReadChamber>(operation).await)?;
+        let reading = dokime::plugin::refusal(ctx.operation(operation).await)?;
         let row = TemperatureRow { celsius: reading.celsius };
         dokime::plugin::refusal(ctx.publish_on::<TemperatureRow>(&row).await)?;
         Ok(())

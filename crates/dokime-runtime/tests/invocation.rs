@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Prove Shared Template Operation Invocation
 
 /* === Modules === */
@@ -24,7 +23,6 @@
 use dokime_runtime::execution::{InitializationContext, StepContext};
 use dokime_runtime::plugin::testing::Harness;
 
-
 /* === Constants === */
 
 /* === Macros === */
@@ -37,7 +35,9 @@ struct Checks;
 struct Probe;
 
 #[dokime_runtime::harmos::message]
-struct Reading { value: u64 }
+struct Reading {
+    value: u64,
+}
 
 #[dokime_runtime::harmos::operation(harmos_path = dokime_runtime::harmos, id = "invocation.read", response = Reading,
     policy = dokime_runtime::harmos::OperationPolicy {
@@ -46,20 +46,26 @@ struct Reading { value: u64 }
         cancellation_timeout: std::time::Duration::ZERO,
         retries: dokime_runtime::harmos::RetryPolicy::Never,
     }, visibility = Public)]
-struct Read { value: u64 }
-
+struct Read {
+    value: u64,
+}
 
 /* === Enums === */
 
 #[dokime_runtime::catalog]
-enum Required { Read(Read) }
+enum Required {
+    Read(Read),
+}
 
 #[dokime_runtime::catalog]
-enum Templates { Probe(Probe) }
+enum Templates {
+    Probe(Probe),
+}
 
 #[dokime_runtime::catalog]
-enum Suites { Checks(Checks) }
-
+enum Suites {
+    Checks(Checks),
+}
 
 /* === Traits === */
 
@@ -70,7 +76,9 @@ impl Checks {}
 
 #[dokime_runtime::template(id = "invocation.checks.probe", label = "Probe", requires = Required)]
 impl Probe {
-    async fn initialize(_: &(), _: &mut InitializationContext<'_>) -> Result<Self, dokime_runtime::Error> { Ok(Self) }
+    async fn initialize(_: &(), _: &mut InitializationContext<'_>) -> Result<Self, dokime_runtime::Error> {
+        Ok(Self)
+    }
 
     #[dokime_runtime::step(label = "Read A Value")]
     async fn read(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
@@ -82,7 +90,6 @@ impl Probe {
     }
 }
 
-
 /* === Public Functions === */
 
 /* === Private Functions === */
@@ -93,7 +100,8 @@ impl Probe {
 async fn template_operation_preserves_harness_dispatch_and_response_ownership() {
     let report = Harness::template("invocation.checks.probe")
         .answering::<Read, _>(|request: Read| Reading { value: request.value + 1 })
-        .run::<Suites>().await.unwrap();
+        .run::<Suites>()
+        .await
+        .unwrap();
     assert!(report.passed(), "{}", report.diagnostics());
 }
-

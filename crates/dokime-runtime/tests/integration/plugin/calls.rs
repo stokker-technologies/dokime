@@ -310,19 +310,17 @@ impl Probe {
 
     #[dokime_runtime::step(label = "Call the operation", description = "The step asks the operation rather than the method beside it.")]
     async fn call(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
-        let reading = ctx.call::<GetReading>(GetReading {}).await?;
+        let reading = ctx.operation::<GetReading>(GetReading {}).await?;
         dokime_runtime::info!(ctx, "the operation answered {} reads", reading.reads);
         let echoed = ctx.operation(Echo { value: 7 }).await?;
         assert_eq!(echoed.value, 7, "the request reaches the operation it names");
-        let hosted = ctx.host().call::<Echo>(Echo { value: 9 }).await.expect("the host surface routes the same call");
-        assert_eq!(hosted.into_owned().value, 9, "the host surface reaches the operation it names");
 
         Ok(())
     }
 
     #[dokime_runtime::observer(interval_ms = 10)]
     async fn watch(ctx: &mut dokime_runtime::execution::ObserverContext<'_>) -> Result<(), dokime_runtime::Error> {
-        let reading = ctx.call::<GetReading>(GetReading {}).await?;
+        let reading = ctx.operation::<GetReading>(GetReading {}).await?;
         dokime_runtime::debug!(ctx, "the observer read {}", reading.reads);
 
         Ok(())
@@ -334,7 +332,7 @@ impl Probe {
         description = "A criterion may call too, which is why it is written `async fn` here."
     )]
     async fn read(ctx: &CriterionContext<'_>) -> Result<bool, dokime_runtime::Error> {
-        let reading = ctx.call::<GetReading>(GetReading {}).await?;
+        let reading = ctx.operation::<GetReading>(GetReading {}).await?;
         Ok(reading.reads >= 1)
     }
 }

@@ -204,7 +204,7 @@ impl Runnable for Probe {
                     ticket
                 } else {
                     caller
-                        .call::<PrepareEffect>(PrepareEffect {
+                        .operation::<PrepareEffect>(PrepareEffect {
                             resource: pending.resource,
                             inverse_operation: "effect_fixture.fixture.effect.restore".into(),
                             inverse: pending.inverse,
@@ -218,7 +218,7 @@ impl Runnable for Probe {
                 assert_eq!(runtime.watch_state().latest().state().pending_effects.len(), 1);
                 self.physical.on.store(on, Ordering::SeqCst);
                 caller
-                    .call::<ConfirmEffect>(ConfirmEffect {
+                    .operation::<ConfirmEffect>(ConfirmEffect {
                         ticket,
                         at: now().to_string(),
                         restored: false,
@@ -234,7 +234,7 @@ impl Runnable for Probe {
             self.physical.on.store(false, Ordering::SeqCst);
             self.physical.on.store(true, Ordering::SeqCst);
             caller
-                .call::<ConfirmEffect>(ConfirmEffect {
+                .operation::<ConfirmEffect>(ConfirmEffect {
                     ticket,
                     at: now().to_string(),
                     restored: true,
@@ -547,12 +547,12 @@ async fn effect_recovery() {
     let config = configured(root.path(), &physical, Mode::Pass);
     let mut runtime = Runtime::start(config.clone()).await.unwrap();
     let handle = runtime.handle();
-    let environment = handle.operations().call::<ReadEnvironment>(ReadEnvironment {}).await.unwrap();
+    let environment = handle.operations().operation::<ReadEnvironment>(ReadEnvironment {}).await.unwrap();
     assert_eq!(environment.backend_pid, std::process::id());
     assert!(!environment.in_step);
     let standalone = handle
         .operations()
-        .call::<PrepareEffect>(PrepareEffect {
+        .operation::<PrepareEffect>(PrepareEffect {
             resource: "fixture.radio".into(),
             inverse_operation: "host.fixture.effect.restore".into(),
             inverse: Inverse {
@@ -567,7 +567,7 @@ async fn effect_recovery() {
     assert!(standalone.id.is_empty());
     handle
         .operations()
-        .call::<ConfirmEffect>(ConfirmEffect {
+        .operation::<ConfirmEffect>(ConfirmEffect {
             ticket: standalone.id.clone(),
             at: now().to_string(),
             restored: false,

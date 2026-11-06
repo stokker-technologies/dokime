@@ -60,7 +60,7 @@ impl<P: plugin::Declared> Observer<Publisher<P>> for Bluetooth {
     }
 
     async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<P>>) -> Result<(), Error> {
-        let response = ctx.host().supervisor().call::<Self>(Self {}).await.map_err(|error| Error::Probe(error.to_string()))?;
+        let response = ctx.operation::<Self>(Self {}).await.map_err(|error| Error::Probe(error.to_string()))?;
         let mut batch = ctx.host().batch::<Self>();
         for sample in &response.rows {
             batch.push_at(sample.row.clone(), sample.timestamp_micros);

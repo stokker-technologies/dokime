@@ -123,7 +123,7 @@ impl State {
         if matches!(change, Change::Adapter(_)) {
             require_administrator()?;
         }
-        let environment = host.call::<ReadEnvironment>(ReadEnvironment {}).await.map_err(probe)?;
+        let environment = host.operation::<ReadEnvironment>(ReadEnvironment {}).await.map_err(probe)?;
         let reading = change.clone();
         let timing = self.timing.clone();
         let task = workers.0.spawn_blocking(move || match reading {
@@ -186,7 +186,7 @@ impl State {
             task.await.map_err(probe)??;
         }
         let ticket = host
-            .call::<PrepareEffect>(PrepareEffect {
+            .operation::<PrepareEffect>(PrepareEffect {
                 resource,
                 inverse_operation: format!("{}.{}", self.owner, <Restore as dokime::harmos::operations::OperationDeclaration>::ID),
                 inverse: inverse.encode(),
@@ -203,14 +203,14 @@ impl State {
             let task = workers.0.spawn_blocking(move || native::apply(&inverse.state, true, &timing));
             match task.await.map_err(probe)? {
                 Ok(()) => {
-                    host.call::<ConfirmEffect>(ConfirmEffect { ticket, at: now(), restored: true }).await.map_err(probe)?;
+                    host.operation::<ConfirmEffect>(ConfirmEffect { ticket, at: now(), restored: true }).await.map_err(probe)?;
                 }
                 Err(restore) => return Err(Error::Probe(format!("{error}; immediate inverse failed: {restore}"))),
             }
             return Err(error);
         }
         let at = now();
-        host.call::<ConfirmEffect>(ConfirmEffect { ticket, at: at.clone(), restored: false }).await.map_err(probe)?;
+        host.operation::<ConfirmEffect>(ConfirmEffect { ticket, at: at.clone(), restored: false }).await.map_err(probe)?;
         Ok(EffectResult { at })
     }
 }

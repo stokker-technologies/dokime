@@ -4,7 +4,7 @@
 
 Templates, criteria and observers SHALL expose `ctx.operation(request)` returning Harmos SDK Invocation, with Response on await and a host-owned instance on start. Called authorization and existing built-in exemptions SHALL be preserved. Request-taking call, template host and StepHost SHALL be retired without aliases; the host plugin remains.
 
-#### Scenario: Declared And Undeclared Calls
+#### Scenario: Declared and Undeclared Calls
 - **WHEN** a template invokes a declared operation or an existing exempt built-in
 - **THEN** the shared builder routes it with the stage's authority; an undeclared ordinary operation fails compilation.
 

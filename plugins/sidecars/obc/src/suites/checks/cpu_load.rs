@@ -71,11 +71,11 @@ impl CpuLoad {
     #[dokime::step(label = "Hold Host CPU Load")]
     async fn hold(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let load = ctx
-            .host()
-            .submit::<LoadHold>(LoadHold {
+            .operation::<LoadHold>(LoadHold {
                 target: LoadTarget::Percent(ctx.parameters().target_percent),
                 threads: None,
             })
+            .start()
             .await?;
         tokio::time::sleep(Duration::from_secs_f64(ctx.parameters().duration_s)).await;
         let summary = load.cancel().await?;

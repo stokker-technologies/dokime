@@ -81,7 +81,7 @@ impl<P: plugin::Declared> Observer<Publisher<P>> for NetworkObserver {
             state.lock().await.collector.invalidate_primary();
             self.refresh_primary = false;
         }
-        let response = ctx.host().supervisor().call::<Network>(Network {}).await.map_err(|error| Error::Probe(error.to_string()))?;
+        let response = ctx.operation::<Network>(Network {}).await.map_err(|error| Error::Probe(error.to_string()))?;
         let mut batch = ctx.host().batch::<Network>();
         for change in changes {
             batch.push_at(change.row(), change.timestamp_micros);

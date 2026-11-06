@@ -7,7 +7,7 @@
  * ***
  */
 
-// The file watch built-in through `ctx.host()` with no host behind it: a
+// The file watch built-in through `ctx.operation(request)` with no host behind it: a
 // watch a step leaves running for the step-end sweep.
 
 /* === Modules === */
@@ -142,8 +142,7 @@ impl LeaveWatch {
         };
         let markers = if mirror { Vec::new() } else { vec![LineMarker::new(r"FAULT (?P<code>\w+)", "steps.checks.fault")] };
         let watch = ctx
-            .host()
-            .submit(WatchFile {
+            .operation(WatchFile {
                 recursive: false,
                 rules: Vec::new(),
                 maximum_files: None,
@@ -162,6 +161,7 @@ impl LeaveWatch {
                 matchers,
                 markers,
             })
+            .start()
             .await?;
         // The device writes once the watch has taken its baseline.
         watch.armed().await?;
@@ -300,10 +300,10 @@ impl WatchTree {
             matchers: Vec::new(),
             markers: Vec::new(),
         };
-        let untouched = ctx.host().submit::<WatchFile>(request.clone()).await?;
+        let untouched = ctx.operation::<WatchFile>(request.clone()).start().await?;
         untouched.armed().await?;
         assert!(untouched.cancel().await?.artifacts.is_empty());
-        let stream = ctx.host().submit::<WatchFile>(request.clone()).await?;
+        let stream = ctx.operation::<WatchFile>(request.clone()).start().await?;
         stream.armed().await?;
         std::fs::OpenOptions::new().append(true).open(root.join("Logs/existing.log"))?.write_all(b"after\n")?;
         std::fs::create_dir_all(root.join("Logs/next-day"))?;
@@ -323,7 +323,7 @@ impl WatchTree {
             policy: FileWatchPolicy::Mirror,
             ..request.clone()
         };
-        let mirror = ctx.host().submit::<WatchFile>(mirror_request).await?;
+        let mirror = ctx.operation::<WatchFile>(mirror_request).start().await?;
         mirror.armed().await?;
         std::fs::write(root.join("bundle.zip"), b"updated archive")?;
         std::fs::create_dir_all(root.join("deep"))?;
@@ -346,13 +346,13 @@ impl WatchTree {
                 policy: FileWatchPolicy::SnapshotAtStart,
                 ..request.clone()
             };
-            ctx.host().submit::<WatchFile>(snapshot.clone()).await?.join().await?;
+            ctx.operation::<WatchFile>(snapshot.clone()).start().await?.join().await?;
             for unsafe_name in ["../escape.diag", "/absolute.hpl30", "C:/escape.diag", "logs/CON.diag", "NUL.hpl30"] {
                 let invalid = WatchFile {
                     artifact: Some(unsafe_name.into()),
                     ..snapshot.clone()
                 };
-                assert!(ctx.host().submit::<WatchFile>(invalid).await?.join().await.is_err(), "{unsafe_name}");
+                assert!(ctx.operation::<WatchFile>(invalid).start().await?.join().await.is_err(), "{unsafe_name}");
                 assert!(ctx.artifacts().write(unsafe_name, b"refused").is_err());
             }
         }
@@ -363,13 +363,13 @@ impl WatchTree {
             maximum_files: None,
             ..request.clone()
         };
-        ctx.host().submit::<WatchFile>(all).await?.join().await?;
+        ctx.operation::<WatchFile>(all).start().await?.join().await?;
         let capped = WatchFile {
             maximum_files: Some(1),
             output: "capped-files".into(),
             ..request.clone()
         };
-        assert!(ctx.host().submit::<WatchFile>(capped).await?.join().await.is_err());
+        assert!(ctx.operation::<WatchFile>(capped).start().await?.join().await.is_err());
         let capped = WatchFile {
             maximum_bytes: Some(20),
             output: "capped-bytes".into(),
@@ -380,7 +380,7 @@ impl WatchTree {
             policy: FileWatchPolicy::Mirror,
             ..request
         };
-        assert!(ctx.host().submit::<WatchFile>(capped).await?.join().await.is_err());
+        assert!(ctx.operation::<WatchFile>(capped).start().await?.join().await.is_err());
         Ok(())
     }
 }
@@ -494,7 +494,7 @@ async fn harness_live_capture() {
         matchers: Vec::new(),
         markers: Vec::new(),
     };
-    let watch = ctx.host().submit::<WatchFile>(request).await.unwrap();
+    let watch = ctx.operation::<WatchFile>(request).start().await.unwrap();
     watch.armed().await.unwrap();
     assert!(captured.sink.chunks().is_empty());
     std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(b"one").unwrap();

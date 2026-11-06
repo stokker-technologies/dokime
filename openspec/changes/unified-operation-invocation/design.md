@@ -7,3 +7,15 @@ The owner decisions recorded in Harmos's paired change apply unchanged. SDK `Inv
 Verified producer findings: transient failures historically retry with unknown replay safety; ambiguous failures require explicit replay safety. Preserve declaration semantics but refuse call-site overrides that enable retries with unknown safety. Host admission remains authoritative for deadline and attempt evidence. Local harness failures retain their classification and policy; cancellation remains scoped to the running stage.
 
 Harmos lands first. Pin the resulting full merged SHA, remove all local patches, resolve Cargo.lock against the published graph and remove gRPC config web/allowed_origins if the pin crosses Harmos #110. Refresh bindings if wire types affect generated artifacts. Never run stkr project update. Authoring references under .agents, .claude and .github remain identical, with only affected .claude/.github generated.lock digests updated.
+
+## Attempt Evidence Ownership
+
+Host execution dispatch attaches a process-local AttemptOwner beside the portable ExecutionScope. Carrier child routing retains local context while overlaying portable values. The middleware validates scope changes before execution and records attempts only under the retained owner. Child providers can keep the originating execution's metadata without being mistaken for its direct author; portable execution ids alone cannot append evidence. Local harness errors carry no retry classification, so their String errors remain permanent; replay-safe attempt timeouts are ambiguous and may retry under the declared or configured policy.
+
+## Surface Errors
+
+StepOperationHost and StepInstance use Dokime Error, converting the underlying sidecar CallError once inside the host/instance boundary. Template error enums retain their existing From<dokime::Error> conversion; await still returns the host-associated error directly, without another surface future or a transitive-conversion requirement.
+
+## Pending Authorization Decision
+
+The existing blanket `impl<T: Required, O> Called<T> for O where T::Operations: Contains<O>` overlaps unconditional implementations for exempt built-ins. Proposed, pending owner direction: add an inferred proof parameter `Called<C, Proof = Declared>` and keep `ctx.operation(request)` unchanged. Ordinary helpers retain the default proof; built-ins use a distinct proof. Reject a redundant built-in in requires to avoid inference ambiguity. The alternative is requiring built-ins in requires, which changes the existing exemption contract. Neither adjustment is implemented without the owner's decision.

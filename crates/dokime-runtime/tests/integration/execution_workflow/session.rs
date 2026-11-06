@@ -1177,7 +1177,7 @@ pub(crate) async fn reload_restarts_one_plugin() {
     let cycle_id = held_cycle(&handle, &probe, metadata("session.retry", "Retry During A Cycle")).await;
     handle
         .operations()
-        .call::<dokime_runtime::operations::secrets::Put>(dokime_runtime::operations::secrets::Put {
+        .operation::<dokime_runtime::operations::secrets::Put>(dokime_runtime::operations::secrets::Put {
             metadata: dokime_domain::model::secrets::catalog::Metadata {
                 identifier: "token".into(),
                 label: "Token".into(),

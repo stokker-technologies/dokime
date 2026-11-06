@@ -213,7 +213,7 @@ async fn faults_contained_ready() {
             |sample| matches!(sample.values.get("phase"), Some(dokime::Value::Text(phase)) if phase == "faulted" || phase == "power_loss")
         ));
         // The bench is untouched by a fault the Charger contained.
-        assert!(road(&resources).call::<AskReadiness>(AskReadiness {}).await.is_ok_and(|readiness| !readiness.stopped));
+        assert!(road(&resources).operation::<AskReadiness>(AskReadiness {}).await.is_ok_and(|readiness| !readiness.stopped));
     }
     protection.shutdown().await;
     recovery.shutdown().await;

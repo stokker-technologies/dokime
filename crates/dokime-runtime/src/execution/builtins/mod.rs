@@ -7,7 +7,7 @@
  * ***
  */
 
-// Operations this process serves for its own steps through `ctx.host()`.
+// Operations this process serves for its own steps through `ctx.operation(request)`.
 // `RunProcess` is always served here, so its child shares the execution's
 // artifact folder, log and records. Without a host, as under the harness,
 // `WatchFile` is served here too over a local file.

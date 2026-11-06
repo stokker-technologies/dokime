@@ -112,6 +112,9 @@ pub struct CriterionContext<'a, C = (), I = ()> {
     caller: crate::execution::Caller,
 
     #[cfg(feature = "native")]
+    operation_binding: Option<crate::execution::builtins::Binding>,
+
+    #[cfg(feature = "native")]
     binding: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
 
     parameters: &'a I,
@@ -212,19 +215,6 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
     where
         Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
     {
-        harmos::operations::Invocation::new(self.host(), request)
-    }
-
-    pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
-    where
-        Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
-    {
-        self.environment.caller().call_at(&self.call_stage, request).await
-    }
-
-    // The host surface for this stage: `call` and `submit` take the request,
-    // which is the operation declaration.
-    pub fn host(&self) -> crate::execution::StepOperationHost {
         let binding = crate::execution::builtins::Binding {
             artifacts: self.environment.artifacts().clone(),
             streams: self.environment.streams().clone(),
@@ -232,7 +222,7 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
             identity: self.environment.identity(),
             handles: self.environment.handles().clone(),
         };
-        self.environment.caller().step_host(&self.call_stage, binding)
+        harmos::operations::Invocation::new(self.environment.caller().step_host(&self.call_stage, Some(binding)), request)
     }
 }
 
@@ -340,6 +330,8 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
             #[cfg(feature = "native")]
             caller: crate::execution::Caller::default(),
             #[cfg(feature = "native")]
+            operation_binding: None,
+            #[cfg(feature = "native")]
             binding: None,
             parameters,
             raw,
@@ -376,12 +368,18 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     }
 
     #[cfg(feature = "native")]
-    pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
+    pub fn operation<Op>(&self, request: Op) -> harmos::operations::Invocation<crate::execution::StepOperationHost, Op>
     where
         Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
     {
         let stage = self.log.map_or_else(String::new, |(_, criterion)| format!("criterion/{criterion}"));
-        self.caller.call_at(&stage, request).await
+        harmos::operations::Invocation::new(self.caller.step_host(&stage, self.operation_binding.clone()), request)
+    }
+
+    #[cfg(feature = "native")]
+    pub(in crate::execution) fn with_operations(mut self, binding: crate::execution::builtins::Binding) -> Self {
+        self.operation_binding = Some(binding);
+        self
     }
 
     #[cfg(feature = "native")]
