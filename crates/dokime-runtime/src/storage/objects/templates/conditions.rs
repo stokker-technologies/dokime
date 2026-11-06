@@ -57,38 +57,12 @@ struct Node {
 /* === Traits === */
 
 /* === Implementations === */
-impl Condition {
-    pub(super) fn encoding_memory(value: &RuntimeCondition) -> Result<usize> {
-        let mut count = 0;
-        let memory = encoding_memory(value, 0, &mut count)?;
-        Ok(std::mem::size_of::<Self>().saturating_add(memory))
-    }
-
-    pub(super) fn projection_memory(&self) -> Result<usize> {
-        if self.nodes.is_empty() {
-            return Err(Error::Invalid("condition is empty"));
-        }
-        let mut at = 0;
-        let bound = condition_memory(&self.nodes, &mut at, 0)?;
-        if at != self.nodes.len() {
-            return Err(Error::Invalid("condition has trailing nodes"));
-        }
-        Ok(bound)
-    }
-}
-
 impl TryFrom<&RuntimeCondition> for Condition {
     type Error = Error;
 
     fn try_from(value: &RuntimeCondition) -> Result<Self> {
-        let mut count = 0;
-        let memory = encoding_memory(value, 0, &mut count)?;
-        if std::mem::size_of::<Self>().saturating_add(memory) == usize::MAX {
-            return Err(Error::Invalid("condition encoding memory overflows"));
-        }
         let mut nodes = Vec::new();
-        nodes.try_reserve_exact(count).map_err(|_| Error::Invalid("condition nodes allocation failed"))?;
-        append_condition(value, &mut nodes)?;
+        append_condition(value, &mut nodes, 0)?;
         Ok(Self { nodes })
     }
 }
@@ -97,11 +71,12 @@ impl TryFrom<Condition> for RuntimeCondition {
     type Error = Error;
 
     fn try_from(row: Condition) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("condition projection memory overflows"));
-        }
         let mut nodes = row.nodes.into_iter();
-        consume_condition(&mut nodes, 0)
+        let condition = consume_condition(&mut nodes, 0)?;
+        if nodes.next().is_some() {
+            return Err(Error::Invalid("condition has trailing nodes"));
+        }
+        Ok(condition)
     }
 }
 
@@ -121,50 +96,10 @@ impl<'de> Deserialize<'de> for Condition {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn encoding_memory(value: &RuntimeCondition, depth: usize, count: &mut usize) -> Result<usize> {
+fn append_condition(value: &RuntimeCondition, nodes: &mut Vec<Node>, depth: usize) -> Result<()> {
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("condition exceeds depth limit"));
     }
-    *count = (*count).checked_add(1).ok_or(Error::Invalid("condition node count overflows"))?;
-    let mut bytes = std::mem::size_of::<Node>();
-    match value {
-        RuntimeCondition::Record { condition } => {
-            let fields = Map::encoding_memory(&condition.match_fields)?;
-            if fields == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            bytes = bytes
-                .saturating_add("record".len())
-                .saturating_add(condition.record_type.as_str().len())
-                .saturating_add(fields.saturating_sub(std::mem::size_of::<Map>()));
-        }
-        RuntimeCondition::Telemetry { condition } => {
-            if condition.tolerance.is_some_and(|value| !value.is_finite()) {
-                return Err(Error::Invalid("condition tolerance is nonfinite"));
-            }
-            let target = condition.target.as_ref().map(Value::encoding_memory).transpose()?.unwrap_or(0);
-            if target == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            bytes = bytes
-                .saturating_add("telemetry".len())
-                .saturating_add(condition.stream.as_str().len())
-                .saturating_add(condition.field.len())
-                .saturating_add(operator_name(&condition.operator).len())
-                .saturating_add(target.saturating_sub(std::mem::size_of::<Value>()));
-        }
-        RuntimeCondition::All { conditions } | RuntimeCondition::Any { conditions } => {
-            u32::try_from(conditions.len()).map_err(|_| Error::Invalid("too many conditions"))?;
-            bytes = bytes.saturating_add(3);
-            for condition in conditions {
-                bytes = bytes.saturating_add(encoding_memory(condition, depth + 1, count)?);
-            }
-        }
-    }
-    Ok(bytes)
-}
-
-fn append_condition(value: &RuntimeCondition, nodes: &mut Vec<Node>) -> Result<()> {
     let mut node = Node::default();
     let kind = match value {
         RuntimeCondition::Record { condition } => {
@@ -177,15 +112,18 @@ fn append_condition(value: &RuntimeCondition, nodes: &mut Vec<Node>) -> Result<(
             node.field = Some(condition.field.as_str().to_owned());
             node.operator = Some(operator_name(&condition.operator).to_owned());
             node.target = condition.target.as_ref().map(Value::try_from).transpose()?;
+            if condition.tolerance.is_some_and(|value| !value.is_finite()) {
+                return Err(Error::Invalid("condition tolerance is nonfinite"));
+            }
             node.tolerance = condition.tolerance;
             "telemetry"
         }
         RuntimeCondition::All { conditions } => {
-            node.children = conditions.len() as u32;
+            node.children = u32::try_from(conditions.len()).map_err(|_| Error::Invalid("too many conditions"))?;
             "all"
         }
         RuntimeCondition::Any { conditions } => {
-            node.children = conditions.len() as u32;
+            node.children = u32::try_from(conditions.len()).map_err(|_| Error::Invalid("too many conditions"))?;
             "any"
         }
     };
@@ -193,7 +131,7 @@ fn append_condition(value: &RuntimeCondition, nodes: &mut Vec<Node>) -> Result<(
     nodes.push(node);
     if let RuntimeCondition::All { conditions } | RuntimeCondition::Any { conditions } = value {
         for condition in conditions {
-            append_condition(condition, nodes)?;
+            append_condition(condition, nodes, depth + 1)?;
         }
     }
     Ok(())
@@ -240,35 +178,15 @@ fn validate_node(node: &Node) -> Result<()> {
     Ok(())
 }
 
-fn condition_memory(nodes: &[Node], at: &mut usize, depth: usize) -> Result<usize> {
-    if depth > MAX_DEPTH {
-        return Err(Error::Invalid("condition exceeds depth limit"));
-    }
-    let node = nodes.get(*at).ok_or(Error::Invalid("condition child is missing"))?;
-    *at += 1;
-    validate_node(node)?;
-    if node.children as usize > nodes.len().saturating_sub(*at) {
-        return Err(Error::Invalid("condition children exceed remaining nodes"));
-    }
-    let fields = [
-        node.record_type.as_ref().map_or(0, String::capacity),
-        node.stream.as_ref().map_or(0, String::capacity),
-        node.field.as_ref().map_or(0, String::capacity),
-        node.match_fields.as_ref().map(Map::projection_memory).transpose()?.unwrap_or(0),
-        node.target.as_ref().map(Value::projection_memory).transpose()?.unwrap_or(0),
-    ];
-    let mut bytes = fields.into_iter().fold(std::mem::size_of::<RuntimeCondition>(), usize::saturating_add);
-    for _ in 0..node.children {
-        bytes = bytes.saturating_add(condition_memory(nodes, at, depth + 1)?);
-    }
-    Ok(bytes)
-}
-
 fn consume_condition(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result<RuntimeCondition> {
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("condition exceeds depth limit"));
     }
     let node = nodes.next().ok_or(Error::Invalid("condition child is missing"))?;
+    validate_node(&node)?;
+    if node.children as usize > nodes.len() {
+        return Err(Error::Invalid("condition children exceed remaining nodes"));
+    }
     match node.kind.as_str() {
         "record" => Ok(RuntimeCondition::Record {
             condition: RecordCondition {
@@ -334,9 +252,29 @@ mod tests {
         let source = RuntimeCondition::All { conditions };
         let row = Condition::try_from(&source).unwrap();
         assert_eq!(row.nodes.len(), 4097);
-        let projected_memory = row.projection_memory().unwrap();
-        assert!(projected_memory > std::mem::size_of::<RuntimeCondition>());
         let decoded = RuntimeCondition::try_from(row).unwrap();
         assert_eq!(decoded, source);
+    }
+
+    #[test]
+    fn rejects_trees_past_the_depth_limit_and_trailing_nodes() {
+        let nested = |depth| (0..depth).fold(leaf(), |inner, _| RuntimeCondition::All { conditions: vec![inner] });
+        assert!(Condition::try_from(&nested(MAX_DEPTH)).is_ok());
+        assert!(Condition::try_from(&nested(MAX_DEPTH + 1)).is_err());
+
+        let mut row = Condition::try_from(&nested(MAX_DEPTH)).unwrap();
+        row.nodes.insert(
+            0,
+            Node {
+                kind: "all".into(),
+                children: 1,
+                ..Default::default()
+            },
+        );
+        assert!(RuntimeCondition::try_from(row).is_err());
+
+        let mut trailing = Condition::try_from(&leaf()).unwrap();
+        trailing.nodes.push(trailing.nodes[0].clone());
+        assert!(RuntimeCondition::try_from(trailing).is_err());
     }
 }

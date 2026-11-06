@@ -16,7 +16,6 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::MemorySize;
 
 // Local Imports
 use crate::storage::{Error, Result, values};
@@ -104,46 +103,6 @@ impl TryFrom<Row> for Metadata {
             created_at: value.created_at.map(|at| Timestamp::new(at).to_datetime()).transpose()?,
             updated_at: value.updated_at.map(|at| Timestamp::new(at).to_datetime()).transpose()?,
         })
-    }
-}
-
-impl Row {
-    pub fn encoding_memory(value: &Metadata) -> Result<usize> {
-        let attributes = values::encoding_memory(&value.attributes)?;
-        if attributes == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            value.identifier.as_str().len(),
-            value.label.len(),
-            value.description.as_ref().map_or(0, String::len),
-            value.tags.len().saturating_mul(std::mem::size_of::<String>()),
-            value.tags.iter().fold(0usize, |bytes, tag| bytes.saturating_add(tag.len())),
-            value.tags.len().saturating_mul(std::mem::size_of::<&str>()),
-            attributes.saturating_sub(std::mem::size_of::<Vec<values::Cell>>()),
-            value.created_at.map(values::datetime_memory).transpose()?.unwrap_or(0),
-            value.updated_at.map(values::datetime_memory).transpose()?.unwrap_or(0),
-        ];
-        Ok(fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add))
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        for timestamp in [self.created_at.as_deref(), self.updated_at.as_deref()].into_iter().flatten() {
-            values::validate_datetime(timestamp)?;
-        }
-        let attributes = values::owned_memory(&self.attributes)?;
-        if attributes == usize::MAX {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            self.identifier.capacity(),
-            self.label.capacity(),
-            self.description.as_ref().map_or(0, String::capacity),
-            self.tags.memory_size().saturating_sub(std::mem::size_of_val(&self.tags)),
-            attributes.saturating_sub(std::mem::size_of::<std::collections::BTreeMap<String, dokime_domain::model::values::Value>>()),
-            self.tags.len().saturating_mul(std::mem::size_of::<&str>()),
-        ];
-        Ok(fields.into_iter().fold(std::mem::size_of::<Metadata>(), usize::saturating_add))
     }
 }
 

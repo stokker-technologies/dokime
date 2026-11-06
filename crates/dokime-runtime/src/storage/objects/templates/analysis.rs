@@ -42,28 +42,11 @@ pub struct Selection {
 /* === Traits === */
 
 /* === Implementations === */
-impl Selection {
-    pub fn encoding_memory(value: &crate::analysis::Selection) -> Result<usize> {
-        if value.id.is_empty() || value.version == 0 {
-            return Err(Error::Invalid("invalid analysis identity"));
-        }
-        let parameters = Map::encoding_memory(&value.parameters)?;
-        Ok(std::mem::size_of::<Self>().saturating_add(value.id.len()).saturating_add(parameters.saturating_sub(std::mem::size_of::<Map>())))
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        if self.id.is_empty() || self.version == 0 {
-            return Err(Error::Invalid("invalid analysis identity"));
-        }
-        let parameters = self.parameters.as_ref().ok_or(Error::Invalid("analysis parameters are missing"))?.projection_memory()?;
-        Ok(std::mem::size_of::<crate::analysis::Selection>().saturating_add(self.id.capacity()).saturating_add(parameters))
-    }
-}
 
 impl TryFrom<&crate::analysis::Selection> for Selection {
     type Error = Error;
     fn try_from(value: &crate::analysis::Selection) -> Result<Self> {
-        Self::encoding_memory(value)?;
+        valid_identity(&value.id, value.version)?;
         Ok(Self {
             id: value.id.clone(),
             version: value.version,
@@ -75,7 +58,7 @@ impl TryFrom<&crate::analysis::Selection> for Selection {
 impl TryFrom<Selection> for crate::analysis::Selection {
     type Error = Error;
     fn try_from(value: Selection) -> Result<Self> {
-        value.projection_memory()?;
+        valid_identity(&value.id, value.version)?;
         Ok(Self {
             id: value.id,
             version: value.version,
@@ -87,5 +70,11 @@ impl TryFrom<Selection> for crate::analysis::Selection {
 /* === Public Functions === */
 
 /* === Private Functions === */
+fn valid_identity(id: &str, version: u32) -> Result<()> {
+    if id.is_empty() || version == 0 {
+        return Err(Error::Invalid("invalid analysis identity"));
+    }
+    Ok(())
+}
 
 /* === Tests === */

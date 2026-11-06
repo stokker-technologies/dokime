@@ -84,38 +84,12 @@ struct Node {
 /* === Traits === */
 
 /* === Implementations === */
-impl Boolean {
-    pub(super) fn encoding_memory(value: &BooleanExpression) -> Result<usize> {
-        let mut count = 0;
-        let fields = boolean_encoding(&value.expression, 0, &mut count)?;
-        Ok(std::mem::size_of::<Self>().saturating_add(fields))
-    }
-
-    pub(super) fn projection_memory(&self) -> Result<usize> {
-        if self.nodes.is_empty() {
-            return Err(Error::Invalid("expression is empty"));
-        }
-        let mut at = 0;
-        let bound = boolean_memory(&self.nodes, &mut at, 0)?;
-        if at != self.nodes.len() {
-            return Err(Error::Invalid("expression has trailing nodes"));
-        }
-        Ok(bound)
-    }
-}
-
 impl TryFrom<&BooleanExpression> for Boolean {
     type Error = Error;
 
     fn try_from(value: &BooleanExpression) -> Result<Self> {
-        let mut count = 0;
-        let memory = boolean_encoding(&value.expression, 0, &mut count)?;
-        if std::mem::size_of::<Self>().saturating_add(memory) == usize::MAX {
-            return Err(Error::Invalid("expression encoding memory overflows"));
-        }
         let mut nodes = Vec::new();
-        nodes.try_reserve_exact(count).map_err(|_| Error::Invalid("expression nodes allocation failed"))?;
-        append_boolean(&value.expression, &mut nodes)?;
+        append_boolean(&value.expression, &mut nodes, 0)?;
         Ok(Self { nodes })
     }
 }
@@ -124,32 +98,10 @@ impl TryFrom<Boolean> for BooleanExpression {
     type Error = Error;
 
     fn try_from(row: Boolean) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("expression projection memory overflows"));
-        }
         let mut nodes = row.nodes.into_iter();
         let expression = consume_boolean(&mut nodes, 0)?;
+        no_trailing(&nodes)?;
         Ok(Self { expression })
-    }
-}
-
-impl Parameter {
-    pub(super) fn encoding_memory(value: &ParameterExpr) -> Result<usize> {
-        let mut count = 0;
-        let fields = parameter_encoding(value, 0, &mut count)?;
-        Ok(std::mem::size_of::<Self>().saturating_add(fields))
-    }
-
-    pub(super) fn projection_memory(&self) -> Result<usize> {
-        if self.nodes.is_empty() {
-            return Err(Error::Invalid("expression is empty"));
-        }
-        let mut at = 0;
-        let bound = parameter_memory(&self.nodes, &mut at, 0)?;
-        if at != self.nodes.len() {
-            return Err(Error::Invalid("expression has trailing nodes"));
-        }
-        Ok(bound)
     }
 }
 
@@ -157,14 +109,8 @@ impl TryFrom<&ParameterExpr> for Parameter {
     type Error = Error;
 
     fn try_from(value: &ParameterExpr) -> Result<Self> {
-        let mut count = 0;
-        let memory = parameter_encoding(value, 0, &mut count)?;
-        if std::mem::size_of::<Self>().saturating_add(memory) == usize::MAX {
-            return Err(Error::Invalid("expression encoding memory overflows"));
-        }
         let mut nodes = Vec::new();
-        nodes.try_reserve_exact(count).map_err(|_| Error::Invalid("expression nodes allocation failed"))?;
-        append_parameter(value, &mut nodes)?;
+        append_parameter(value, &mut nodes, 0)?;
         Ok(Self { nodes })
     }
 }
@@ -173,81 +119,43 @@ impl TryFrom<Parameter> for ParameterExpr {
     type Error = Error;
 
     fn try_from(row: Parameter) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("expression projection memory overflows"));
-        }
         let mut nodes = row.nodes.into_iter();
-        consume_parameter(&mut nodes, 0)
+        let expression = consume_parameter(&mut nodes, 0)?;
+        no_trailing(&nodes)?;
+        Ok(expression)
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn admit_node(depth: usize, count: &mut usize) -> Result<()> {
+fn admit_depth(depth: usize) -> Result<()> {
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("expression exceeds depth limit"));
     }
-    *count = (*count).checked_add(1).ok_or(Error::Invalid("expression node count overflows"))?;
     Ok(())
 }
 
-fn parameter_encoding(value: &ParameterExpr, depth: usize, count: &mut usize) -> Result<usize> {
-    admit_node(depth, count)?;
-    let mut bytes = std::mem::size_of::<Node>();
-    let fields = match value {
-        ParameterExpr::Literal { value } => {
-            let memory = Value::encoding_memory(value)?;
-            if memory == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            "literal".len().saturating_add(memory.saturating_sub(std::mem::size_of::<Value>()))
-        }
-        ParameterExpr::Array { values } => {
-            u32::try_from(values.len()).map_err(|_| Error::Invalid("too many expression children"))?;
-            for child in values {
-                bytes = bytes.saturating_add(parameter_encoding(child, depth + 1, count)?);
-            }
-            "array".len()
-        }
-        ParameterExpr::Range { .. } => "range".len(),
-        ParameterExpr::Arange { start, stop, step } => {
-            if ![start, stop, step].into_iter().all(|value| value.is_finite()) {
-                return Err(Error::Invalid("parameter expression number is nonfinite"));
-            }
-            "arange".len()
-        }
-        ParameterExpr::Linspace { start, stop, count: items } => {
-            if ![start, stop].into_iter().all(|value| value.is_finite()) {
-                return Err(Error::Invalid("parameter expression number is nonfinite"));
-            }
-            u64::try_from(*items).map_err(|_| Error::Invalid("expression count overflows"))?;
-            "linspace".len()
-        }
-        ParameterExpr::Reference { parameter } => "reference".len().saturating_add(parameter.len()),
-        ParameterExpr::DynamicDefault { key, fallback } => {
-            if let Some(child) = fallback {
-                bytes = bytes.saturating_add(parameter_encoding(child, depth + 1, count)?);
-            }
-            "dynamic_default".len().saturating_add(dynamic_key_name(key).len())
-        }
-        ParameterExpr::Unary { value, .. } => {
-            bytes = bytes.saturating_add(parameter_encoding(value, depth + 1, count)?);
-            "unary".len().saturating_add("negate".len())
-        }
-        ParameterExpr::Binary { op, left, right } => {
-            bytes = bytes.saturating_add(parameter_encoding(left, depth + 1, count)?).saturating_add(parameter_encoding(
-                right,
-                depth + 1,
-                count,
-            )?);
-            "binary".len().saturating_add(parameter_op_name(op).len())
-        }
-    };
-    Ok(bytes.saturating_add(fields))
+fn admit_children(node: &Node, remaining: &std::vec::IntoIter<Node>) -> Result<()> {
+    if node.children as usize > remaining.len() {
+        return Err(Error::Invalid("expression children exceed remaining nodes"));
+    }
+    Ok(())
 }
 
-fn append_parameter(value: &ParameterExpr, nodes: &mut Vec<Node>) -> Result<()> {
+fn no_trailing(remaining: &std::vec::IntoIter<Node>) -> Result<()> {
+    if remaining.len() > 0 {
+        return Err(Error::Invalid("expression has trailing nodes"));
+    }
+    Ok(())
+}
+
+fn child_count(len: usize) -> Result<u32> {
+    u32::try_from(len).map_err(|_| Error::Invalid("too many expression children"))
+}
+
+fn append_parameter(value: &ParameterExpr, nodes: &mut Vec<Node>, depth: usize) -> Result<()> {
+    admit_depth(depth)?;
     let mut node = Node::default();
     let kind = match value {
         ParameterExpr::Literal { value } => {
@@ -255,7 +163,7 @@ fn append_parameter(value: &ParameterExpr, nodes: &mut Vec<Node>) -> Result<()> 
             "literal"
         }
         ParameterExpr::Array { values } => {
-            node.children = values.len() as u32;
+            node.children = child_count(values.len())?;
             "array"
         }
         ParameterExpr::Range { start, stop, step } => {
@@ -265,12 +173,18 @@ fn append_parameter(value: &ParameterExpr, nodes: &mut Vec<Node>) -> Result<()> 
             "range"
         }
         ParameterExpr::Arange { start, stop, step } => {
+            if ![start, stop, step].into_iter().all(|value| value.is_finite()) {
+                return Err(Error::Invalid("parameter expression number is nonfinite"));
+            }
             node.number_start = Some(*start);
             node.number_stop = Some(*stop);
             node.number_step = Some(*step);
             "arange"
         }
         ParameterExpr::Linspace { start, stop, count } => {
+            if ![start, stop].into_iter().all(|value| value.is_finite()) {
+                return Err(Error::Invalid("parameter expression number is nonfinite"));
+            }
             node.number_start = Some(*start);
             node.number_stop = Some(*stop);
             node.count = Some(u64::try_from(*count).map_err(|_| Error::Invalid("expression count overflows"))?);
@@ -301,54 +215,23 @@ fn append_parameter(value: &ParameterExpr, nodes: &mut Vec<Node>) -> Result<()> 
     match value {
         ParameterExpr::Array { values } => {
             for child in values {
-                append_parameter(child, nodes)?;
+                append_parameter(child, nodes, depth + 1)?;
             }
         }
         ParameterExpr::DynamicDefault { fallback: Some(child), .. } | ParameterExpr::Unary { value: child, .. } => {
-            append_parameter(child, nodes)?
+            append_parameter(child, nodes, depth + 1)?
         }
         ParameterExpr::Binary { left, right, .. } => {
-            append_parameter(left, nodes)?;
-            append_parameter(right, nodes)?;
+            append_parameter(left, nodes, depth + 1)?;
+            append_parameter(right, nodes, depth + 1)?;
         }
         _ => {}
     }
     Ok(())
 }
 
-fn boolean_encoding(value: &Expression, depth: usize, count: &mut usize) -> Result<usize> {
-    admit_node(depth, count)?;
-    let mut bytes = std::mem::size_of::<Node>();
-    let fields = match &value.kind {
-        ExpressionKind::Literal { value } => {
-            let memory = Value::encoding_memory(value)?;
-            if memory == usize::MAX {
-                return Ok(usize::MAX);
-            }
-            "literal".len().saturating_add(memory.saturating_sub(std::mem::size_of::<Value>()))
-        }
-        ExpressionKind::Selector { path } => "selector".len().saturating_add(path.len()),
-        ExpressionKind::Unary { value, .. } => {
-            bytes = bytes.saturating_add(boolean_encoding(value, depth + 1, count)?);
-            "unary".len().saturating_add("not".len())
-        }
-        ExpressionKind::Binary { op, left, right } => {
-            bytes =
-                bytes.saturating_add(boolean_encoding(left, depth + 1, count)?).saturating_add(boolean_encoding(right, depth + 1, count)?);
-            "binary".len().saturating_add(boolean_op_name(op).len())
-        }
-        ExpressionKind::Call { function, args } => {
-            u32::try_from(args.len()).map_err(|_| Error::Invalid("too many expression children"))?;
-            for child in args {
-                bytes = bytes.saturating_add(boolean_encoding(child, depth + 1, count)?);
-            }
-            "call".len().saturating_add(function.len())
-        }
-    };
-    Ok(bytes.saturating_add(fields))
-}
-
-fn append_boolean(value: &Expression, nodes: &mut Vec<Node>) -> Result<()> {
+fn append_boolean(value: &Expression, nodes: &mut Vec<Node>, depth: usize) -> Result<()> {
+    admit_depth(depth)?;
     let mut node = Node::default();
     let kind = match &value.kind {
         ExpressionKind::Literal { value } => {
@@ -371,21 +254,21 @@ fn append_boolean(value: &Expression, nodes: &mut Vec<Node>) -> Result<()> {
         }
         ExpressionKind::Call { function, args } => {
             node.function = Some(function.as_str().to_owned());
-            node.children = args.len() as u32;
+            node.children = child_count(args.len())?;
             "call"
         }
     };
     node.kind = kind.to_owned();
     nodes.push(node);
     match &value.kind {
-        ExpressionKind::Unary { value, .. } => append_boolean(value, nodes)?,
+        ExpressionKind::Unary { value, .. } => append_boolean(value, nodes, depth + 1)?,
         ExpressionKind::Binary { left, right, .. } => {
-            append_boolean(left, nodes)?;
-            append_boolean(right, nodes)?;
+            append_boolean(left, nodes, depth + 1)?;
+            append_boolean(right, nodes, depth + 1)?;
         }
         ExpressionKind::Call { args, .. } => {
             for child in args {
-                append_boolean(child, nodes)?;
+                append_boolean(child, nodes, depth + 1)?;
             }
         }
         _ => {}
@@ -464,37 +347,11 @@ fn validate_boolean(node: &Node) -> Result<()> {
     Ok(())
 }
 
-fn boolean_memory(nodes: &[Node], at: &mut usize, depth: usize) -> Result<usize> {
-    if depth > MAX_DEPTH {
-        return Err(Error::Invalid("expression exceeds depth limit"));
-    }
-    let node = nodes.get(*at).ok_or(Error::Invalid("expression child is missing"))?;
-    *at += 1;
-    validate_boolean(node)?;
-    if node.children as usize > nodes.len().saturating_sub(*at) {
-        return Err(Error::Invalid("expression children exceed remaining nodes"));
-    }
-    let mut bytes = std::mem::size_of::<Expression>();
-    if let Some(literal) = &node.literal {
-        bytes = bytes.saturating_add(literal.projection_memory()?);
-    }
-    if let Some(path) = &node.path {
-        bytes = bytes.saturating_add(path.capacity());
-    }
-    if let Some(function) = &node.function {
-        bytes = bytes.saturating_add(function.capacity());
-    }
-    for _ in 0..node.children {
-        bytes = bytes.saturating_add(boolean_memory(nodes, at, depth + 1)?);
-    }
-    Ok(bytes)
-}
-
 fn consume_boolean(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result<Expression> {
-    if depth > MAX_DEPTH {
-        return Err(Error::Invalid("expression exceeds depth limit"));
-    }
+    admit_depth(depth)?;
     let node = nodes.next().ok_or(Error::Invalid("expression child is missing"))?;
+    validate_boolean(&node)?;
+    admit_children(&node, nodes)?;
     let kind = match node.kind.as_str() {
         "literal" => ExpressionKind::Literal { value: node.literal.unwrap().try_into()? },
         "selector" => ExpressionKind::Selector { path: node.path.unwrap() },
@@ -588,37 +445,11 @@ fn validate_parameter(node: &Node) -> Result<()> {
     Ok(())
 }
 
-fn parameter_memory(nodes: &[Node], at: &mut usize, depth: usize) -> Result<usize> {
-    if depth > MAX_DEPTH {
-        return Err(Error::Invalid("expression exceeds depth limit"));
-    }
-    let node = nodes.get(*at).ok_or(Error::Invalid("expression child is missing"))?;
-    *at += 1;
-    validate_parameter(node)?;
-    if node.children as usize > nodes.len().saturating_sub(*at) {
-        return Err(Error::Invalid("expression children exceed remaining nodes"));
-    }
-    let mut bytes = std::mem::size_of::<ParameterExpr>();
-    if let Some(literal) = &node.literal {
-        let bound = literal.projection_memory()?;
-        bytes = bytes.saturating_add(bound);
-    }
-    if let Some(reference) = &node.reference {
-        bytes = bytes.saturating_add(reference.capacity());
-    }
-    for _ in 0..node.children {
-        let child = parameter_memory(nodes, at, depth + 1)?;
-        bytes = bytes.saturating_add(child);
-    }
-    Ok(bytes)
-}
-
 fn consume_parameter(nodes: &mut std::vec::IntoIter<Node>, depth: usize) -> Result<ParameterExpr> {
-    if depth > MAX_DEPTH {
-        return Err(Error::Invalid("expression exceeds depth limit"));
-    }
+    admit_depth(depth)?;
     let node = nodes.next().ok_or(Error::Invalid("expression child is missing"))?;
-    // The Entire Tree Has Already Passed Borrowed Validation.
+    validate_parameter(&node)?;
+    admit_children(&node, nodes)?;
     Ok(match node.kind.as_str() {
         "literal" => ParameterExpr::Literal { value: node.literal.unwrap().try_into()? },
         "reference" => ParameterExpr::Reference { parameter: node.reference.unwrap() },
@@ -711,16 +542,12 @@ mod tests {
         let parameter = ParameterExpr::Array { values };
         let parameter_row = Parameter::try_from(&parameter).unwrap();
         assert_eq!(parameter_row.nodes.len(), 4097);
-        let parameter_memory = parameter_row.projection_memory().unwrap();
-        assert!(parameter_memory > std::mem::size_of::<ParameterExpr>());
         let decoded_parameter = ParameterExpr::try_from(parameter_row).unwrap();
         assert_eq!(decoded_parameter, parameter);
 
         let boolean = BooleanExpression { expression: boolean_tree(2049) };
         let boolean_row = Boolean::try_from(&boolean).unwrap();
         assert_eq!(boolean_row.nodes.len(), 4097);
-        let boolean_memory = boolean_row.projection_memory().unwrap();
-        assert!(boolean_memory > std::mem::size_of::<BooleanExpression>());
         let decoded_boolean = BooleanExpression::try_from(boolean_row).unwrap();
         assert_eq!(decoded_boolean, boolean);
     }
