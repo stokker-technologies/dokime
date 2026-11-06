@@ -92,17 +92,13 @@ pub(crate) async fn inspection_separates_outputs() {
         planned.parameters.iter().find(|item| item.name == "fixture.result").unwrap().value.as_ref().unwrap().to_core().unwrap(),
         Value::Text("passed".into())
     );
-    assert_eq!(
-        client
-            .unary::<contracts::execution::GetCase>(authenticated(contracts::execution::GetCase {
-                cycle_id: id.clone(),
-                case_id: "missing".into()
-            }))
+    for (case_id, expected) in [("missing".into(), Code::InvalidArgument), (uuid::Uuid::now_v7().to_string(), Code::NotFound)] {
+        let refused = client
+            .unary::<contracts::execution::GetCase>(authenticated(contracts::execution::GetCase { cycle_id: id.clone(), case_id }))
             .await
-            .unwrap_err()
-            .code(),
-        Code::NotFound
-    );
+            .unwrap_err();
+        assert_eq!(refused.code(), expected);
+    }
     let selected = owner.handle().cycles().await.remove(0).test_executions.remove(0).test_execution_id.to_string();
     for unknown_variant in [false, true] {
         let refused = client
