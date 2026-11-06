@@ -51,8 +51,8 @@ CREATE INDEX IF NOT EXISTS storage_value_field_position
 CREATE INDEX IF NOT EXISTS storage_value_numeric
     ON storage_value_postings(execution,kind,source,path,value_key,position,value_type)
     WHERE value_type IN (1,2,3);
-CREATE INDEX IF NOT EXISTS storage_value_file ON storage_value_postings(file_id);
-CREATE INDEX IF NOT EXISTS storage_value_record ON storage_value_postings(record_position);
+CREATE INDEX IF NOT EXISTS storage_value_file ON storage_value_postings(file_id) WHERE file_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS storage_value_record ON storage_value_postings(record_position) WHERE record_position IS NOT NULL;
 CREATE TRIGGER IF NOT EXISTS storage_distinct_retire AFTER DELETE ON storage_value_postings BEGIN
     DELETE FROM storage_distinct_values
     WHERE execution=old.execution AND kind=old.kind AND source=old.source AND path=old.path AND value_key=old.value_key
