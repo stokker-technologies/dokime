@@ -7,7 +7,7 @@
  * ***
  */
 
-// Reconstitute Harmos Envelopes From Typed Arrow Values
+// Reconstitute Harmos Envelopes from Typed Arrow Values
 
 /* === Modules === */
 

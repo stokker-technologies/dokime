@@ -7,7 +7,7 @@
  * ***
  */
 
-// Canonical Identities And Identifier Observation Patterns
+// Canonical Identities and Identifier Observation Patterns
 
 /* === Modules === */
 

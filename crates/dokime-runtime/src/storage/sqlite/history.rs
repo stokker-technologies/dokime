@@ -7,7 +7,7 @@
  * ***
  */
 
-// Versioned Local Catalog Projections At Durable Cuts
+// Versioned Local Catalog Projections at Durable Cuts
 
 /* === Modules === */
 

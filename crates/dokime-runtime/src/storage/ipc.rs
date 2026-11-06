@@ -7,7 +7,7 @@
  * ***
  */
 
-// Durable Arrow IPC Blocks And Metadata-Only Finalization
+// Durable Arrow IPC Blocks and Metadata-Only Finalization
 
 /* === Modules === */
 

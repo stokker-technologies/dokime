@@ -89,7 +89,7 @@ export function plotWaitingLabel(state: Pick<LivePlotState, "waitingSince" | "he
   const since = state.waitingSince ?? null;
   const heard = state.heardAt ?? null;
   const seconds = since !== null && heard !== null ? Math.max(0, Math.round((heard - since) / 1_000)) : 0;
-  return `Waiting For Data \u00b7 ${seconds} s`;
+  return `Waiting for Data \u00b7 ${seconds} s`;
 }
 
 /** One plot's state after a batch of its stream messages, in arrival order. */

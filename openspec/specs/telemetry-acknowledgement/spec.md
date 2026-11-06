@@ -20,7 +20,7 @@ with the Arrow batch catalog. Older roots without the index SHALL be refused int
 - **WHEN** a receiver acknowledges chunks from multi-hour saved telemetry
 - **THEN** acknowledgement performs bounded identity lookup work without decoding prior Arrow rows or acquiring the writer
 
-#### Scenario: Capture And Durability
+#### Scenario: Capture and Durability
 
 - **WHEN** an acknowledgement is outside an execution's captured rows or saved frontier, or its batch failed to commit
 - **THEN** it is refused, including after reopening storage

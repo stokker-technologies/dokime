@@ -47,7 +47,7 @@ async def run() -> int:
         operations = await client.operations()
         print("Operations:", operations, flush=True)
 
-        # Read The Manual Device Before Changing Its Power
+        # Read the Manual Device Before Changing Its Power
         reply = await client.call("obc.device.read", {})
         observed = MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
         print("Before:", json.dumps(observed), flush=True)
@@ -67,7 +67,7 @@ async def run() -> int:
         if observed.get("enabled") is not True or observed.get("voltage_rms_v") != 230.0:
             raise ValueError("manual device did not report the expected powered state")
 
-        # Disable The Manual Device
+        # Disable the Manual Device
         reply = await client.call("obc.device.set_power", {"enabled": False})
         observed = MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
         print("Power Off:", json.dumps(observed), flush=True)

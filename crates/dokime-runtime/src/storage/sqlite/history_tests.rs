@@ -7,7 +7,7 @@
  * ***
  */
 
-// History Revision, Recovery, Archive And Query Plan Proofs
+// History Revision, Recovery, Archive and Query Plan Proofs
 
 /* === Modules === */
 

@@ -252,7 +252,7 @@ impl ExecutionStorage {
         let Some(output) = acquisition.output(path) else {
             return Ok(None);
         };
-        // Reopen The Original Inode While Its Registered Owner Is Protected
+        // Reopen the Original Inode While Its Registered Owner Is Protected
         #[cfg(windows)]
         let _path_access = std::fs::File::open(output.file.path()).map_err(error)?;
         let file = output.file.reopen().map_err(error)?;
@@ -304,7 +304,7 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn finish_outputs(self: &Arc<Self>, execution: &TestExecutionId) -> Result<()> {
-        // Running Captures Seal Into The Execution While It Still Admits Artifacts
+        // Running Captures Seal into the Execution While It Still Admits Artifacts
         self.captures.close(execution).await;
         let storage = self.clone();
         let execution = execution.clone();

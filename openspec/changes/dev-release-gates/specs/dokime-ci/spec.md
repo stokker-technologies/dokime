@@ -5,7 +5,7 @@ Dokime SHALL own its workflows and select checks, Product, Tests compilation and
 packages on dev pushes, preserving native platform coverage and caches. PRs SHALL
 retain suites and nightly SHALL retain its full workload. Dev merges remain ungated.
 
-#### Scenario: Dev Push And Review
+#### Scenario: Dev Push and Review
 - WHEN a dev push is planned
 - THEN package dependency closure and Tests compilation run without suites, fixtures or release dry validation
 - AND ordinary PRs retain their selected suites without release pin rejection
@@ -15,7 +15,7 @@ Release reviews and publication SHALL reject git dependencies. Nightly SHALL war
 and continue workloads that can run with git dependencies. Release tagging and
 publication SHALL require successful required CI evidence for the target SHA.
 
-#### Scenario: Missing Or Red Commit Proof
+#### Scenario: Missing or Red Commit Proof
 - WHEN release target CI is missing, pending or failed
 - THEN no release tag, main fast-forward or publication is allowed until green evidence exists
 

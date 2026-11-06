@@ -43,7 +43,7 @@ Obsolete route redirects, selection-state helpers and legacy remembered-paramete
 - **WHEN** an obsolete bookmark is opened
 - **THEN** it receives the normal unmatched-route behavior without a compatibility redirect
 
-### Requirement: Minimal Dependency And Projection Surface
+### Requirement: Minimal Dependency and Projection Surface
 Unused GUI sample projections and proven unused dependencies SHALL be removed while live query, watch and server endpoint behavior remains. Dependency features SHALL match required functionality and a deliberate TLS-provider policy; enabling all defaults SHALL NOT substitute for that audit.
 
 #### Scenario: Dependency Audit
@@ -57,7 +57,7 @@ Dropping or selecting a plugin SHALL perform one complete installation without a
 - **WHEN** the user drops a valid nonconflicting plugin bundle
 - **THEN** installation completes directly and reports the existing restart requirement without prompting for consent
 
-#### Scenario: Invalid Or Conflicting Bundle
+#### Scenario: Invalid or Conflicting Bundle
 - **WHEN** installation receives invalid bytes, a mismatched digest or a conflicting plugin
 - **THEN** installation fails without publishing a partially installed or authorized plugin
 

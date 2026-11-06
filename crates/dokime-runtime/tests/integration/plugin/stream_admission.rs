@@ -32,7 +32,7 @@ macro_rules! refused_template {
                 Ok((Self, ()))
             }
 
-            #[dokime_runtime::step(label = "Publish A Row")]
+            #[dokime_runtime::step(label = "Publish a Row")]
             async fn publish(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
                 if $handle {
                     ctx.stream::<Reading>().open().push(Reading { value: 42.0 }).await;

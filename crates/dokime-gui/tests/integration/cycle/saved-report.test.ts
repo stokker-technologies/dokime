@@ -87,7 +87,7 @@ test("Saved Report Browser", async () => {
     const session = { generation: "generation-1", isCurrent: () => true } as never;
     const source = { kind: "cycle_report", cycleId: "cycle-1" } as const;
 
-    // The Saved Path Is The One The Browser Opens
+    // The Saved Path Is the One the Browser Opens
     assert.deepEqual(await downloadNativeReport(session, source, "bench.html"), { path: "/home/operator/bench.html", openFailure: null });
     assert.deepEqual(opened, ["/home/operator/bench.html"]);
 
@@ -95,7 +95,7 @@ test("Saved Report Browser", async () => {
     assert.equal(await downloadNativeReport(session, source, "cancelled.html"), null);
     assert.deepEqual(opened, ["/home/operator/bench.html"]);
 
-    // A Failed Open Keeps The Save Successful And Says Why
+    // A Failed Open Keeps the Save Successful and Says Why
     refuseOpen = true;
     const delivered = await downloadNativeReport(session, source, "night.html");
     assert.equal(delivered?.path, "/home/operator/night.html");
@@ -103,7 +103,7 @@ test("Saved Report Browser", async () => {
     assert.ok(delivered?.openFailure?.stack);
     assert.deepEqual(saved, ["bench.html", "cancelled.html", "night.html"]);
 
-    // Current Report Origin Survives The Native Pull Without An HTML Payload
+    // Current Report Origin Survives the Native Pull Without an HTML Payload
     assert.equal(await openNativeReport(session, source), "Current");
   } finally {
     vi.doUnmock("@/lib/desktop-open");

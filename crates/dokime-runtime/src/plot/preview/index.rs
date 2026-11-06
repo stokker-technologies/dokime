@@ -7,7 +7,7 @@
  * ***
  */
 
-// Durable Plot Preview Checkpoints At Evidence Commits
+// Durable Plot Preview Checkpoints at Evidence Commits
 
 /* === Modules === */
 

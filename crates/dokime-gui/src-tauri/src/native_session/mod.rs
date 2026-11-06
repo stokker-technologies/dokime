@@ -95,7 +95,7 @@ pub fn desktop_session_status(state: tauri::State<'_, DesktopSessionControl>) ->
 pub async fn desktop_reset_local_storage(
     window: tauri::WebviewWindow, state: tauri::State<'_, DesktopSessionControl>, directory: String,
 ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
-    // Development Builds And The Main Window Only
+    // Development Builds and the Main Window Only
     if !tauri::is_dev() {
         return Err(DesktopSessionError::StorageReset {
             reason: StorageResetReason::DevelopmentOnly,
@@ -181,13 +181,13 @@ pub async fn desktop_open_backend_log(
     use tauri::Manager;
     use tauri_plugin_opener::OpenerExt;
 
-    // Trust Only The Main Application Window
+    // Trust Only the Main Application Window
     let url = window.url().map_err(|error| error.to_string())?;
     if window.label() != "main" || !trusted_application_url(&url, window.app_handle().config()) {
         return Err("Only the main application window may open the backend log.".into());
     }
 
-    // Open The Recorded Log
+    // Open the Recorded Log
     let log = state.0.startup_log().ok_or("No failed backend start has a log file to open.")?;
     // The opener forks a launcher process; keep it off the async workers.
     tauri::async_runtime::spawn_blocking(move || {
@@ -202,7 +202,7 @@ pub async fn desktop_open_backend_log(
 fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageRoot, DesktopSessionError> {
     use tauri::Manager;
 
-    // Trust Only The Main Application Window
+    // Trust Only the Main Application Window
     let unavailable = |message: String| DesktopSessionError::StorageReset {
         reason: StorageResetReason::OutsideRoot,
         message,
@@ -212,7 +212,7 @@ fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageR
         return Err(unavailable("Only the main application window may manage local storage.".to_owned()));
     }
 
-    // Resolve The Data Root The Owned Backend Opens
+    // Resolve the Data Root the Owned Backend Opens
     let failed = |message: String| DesktopSessionError::StorageReset {
         reason: StorageResetReason::Failed,
         message,

@@ -31,7 +31,7 @@ release SHA256SUMS and feed member hashes and cache artifacts per user by digest
 It SHALL retain --artifacts build-tree assembly, organization defaults and native
 installer assembly without compilation.
 
-#### Scenario: Release And Cache
+#### Scenario: Release and Cache
 
 - **WHEN** an installer selects a release and named plugins
 - **THEN** verified distribution and plugin members are assembled, valid cached bytes are reused and corrupted cache bytes are refused or replaced.

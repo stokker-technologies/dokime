@@ -3,7 +3,7 @@
 ### Requirement: C++ Test Authoring
 Developers SHALL write Dokime suites in C++ using the shared concept names.
 
-#### Scenario: End To End
+#### Scenario: End to End
 - **WHEN** a C++ plugin is bundled, installed and run from the desktop
 - **THEN** its steps, streams, prompts, criteria and report behave like a Rust plugin's
 

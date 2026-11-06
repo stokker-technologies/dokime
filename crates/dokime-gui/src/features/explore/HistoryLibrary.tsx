@@ -153,7 +153,7 @@ export function HistoryLibrary({
       disabled={selectedIds.size < 2}
       onClick={onCompare}
       size="sm"
-      title={selectedIds.size < 2 ? "Select At Least Two Entries To Compare" : undefined}
+      title={selectedIds.size < 2 ? "Select at Least Two Entries to Compare" : undefined}
     >
       <GitCompare />
       {selectedIds.size < 2 ? `Compare (Select ${2 - selectedIds.size} More)` : `Compare Selected (${selectedIds.size})`}

@@ -840,7 +840,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         : plotPlaceholderText({ stateLabel, stateDetail })
       : null;
 
-  // Keep The Settings Action Mounted As Samples Arrive Or Disappear
+  // Keep the Settings Action Mounted as Samples Arrive or Disappear
   return (
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
       <div className="flex items-center justify-between gap-3">

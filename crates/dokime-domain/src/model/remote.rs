@@ -7,7 +7,7 @@
  * ***
  */
 
-// Portable Remote Listener Settings And One-Time Secrets
+// Portable Remote Listener Settings and One-Time Secrets
 
 /* === Modules === */
 

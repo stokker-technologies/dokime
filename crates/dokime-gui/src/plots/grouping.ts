@@ -9,6 +9,7 @@
 
 /* === Local Imports === */
 
+import { formatTitleWord } from "@/lib/format";
 import type { DocumentReferenceLine, DocumentViewPlot, PlotPayload, TelemetryStream, ValueFormat } from "@/lib/types";
 import { isRecord } from "@/lib/utils";
 import { elapsedColumnUnit } from "@/plots/axis";
@@ -358,7 +359,7 @@ function plotState({
     };
   }
   return {
-    label: series.some((item) => item.raw_points > 0) ? "Unavailable" : "Waiting For Samples",
+    label: series.some((item) => item.raw_points > 0) ? "Unavailable" : "Waiting for Samples",
     detail: note ?? "No numeric samples are available in the selected window.",
   };
 }
@@ -413,7 +414,7 @@ function titleCase(value: string): string {
     .replace(/\bmbps\b/gi, "Mb/s")
     .split(/[\s_.:-]+/)
     .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .map(formatTitleWord)
     .join(" ");
 }
 

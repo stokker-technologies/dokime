@@ -7,7 +7,7 @@
  * ***
  */
 
-// Validate Reflected Responses And Serialize Byte Fields Without JSON Value Expansion
+// Validate Reflected Responses and Serialize Byte Fields Without JSON Value Expansion
 
 /* === Modules === */
 

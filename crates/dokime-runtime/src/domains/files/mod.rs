@@ -176,7 +176,7 @@ impl RuntimeHandle {
     fn watch_settings(&self, request: &FileWatchRequest, context_execution: Option<&str>) -> Result<Settings> {
         let maximum_seconds = 86_400u64;
         let maximum_file_count = 256usize;
-        // Resolve The Execution And Its Cycle
+        // Resolve the Execution and Its Cycle
         let execution = match (request.execution_id.as_deref(), context_execution) {
             (Some(explicit), Some(context)) if explicit != context => {
                 return Err(invalid("the explicit execution differs from the calling step's execution"));
@@ -200,7 +200,7 @@ impl RuntimeHandle {
                 .with_test_execution(execution)
         };
 
-        // Validate The Output, Rules, Policy And Caps
+        // Validate the Output, Rules, Policy and Caps
         if !request.output.is_empty() && !name::is_relative_path(&request.output) {
             return Err(invalid("the output folder must be a relative path with forward slashes"));
         }

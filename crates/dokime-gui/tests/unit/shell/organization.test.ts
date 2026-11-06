@@ -68,7 +68,7 @@ test.each(["light", "dark"] as const)("Red Organization Palettes Keep %s Focus D
   }
 });
 
-test("Explicit Focus Colors Respect Shared And Mode Theme Precedence", () => {
+test("Explicit Focus Colors Respect Shared and Mode Theme Precedence", () => {
   const theme: RuntimeThemeFamily = {
     plugin_id: "organization",
     theme_id: "custom-focus",
@@ -99,13 +99,13 @@ test("Brand Favicon Replaces All Existing Tab Icons", () => {
   assert.deepEqual(head.querySelectorAll.mock.calls, [['link[rel~="icon"]']]);
 });
 
-test("Brand Favicon Follows The Viewer Color Scheme", () => {
+test("Brand Favicon Follows the Viewer Color Scheme", () => {
   const head = documentHead(true);
   applyBrandFavicon({ label: "Organization", logos: { contained_on_light: { src: LIGHT }, contained_on_dark: { src: DARK } } });
   assert.equal(head.icon.href, DARK);
 });
 
-test("Brand Favicon Falls Back To Transparent Or The Other Surface", () => {
+test("Brand Favicon Falls Back to Transparent or the Other Surface", () => {
   const head = documentHead(true);
   applyBrandFavicon({ label: "Organization", logos: { transparent_on_dark: { src: DARK }, contained_on_light: { src: LIGHT } } });
   assert.equal(head.icon.href, DARK);
@@ -114,7 +114,7 @@ test("Brand Favicon Falls Back To Transparent Or The Other Surface", () => {
   assert.equal(head.icon.href, LIGHT);
 });
 
-test("Missing Brand Logos Preserve The Default Favicon", () => {
+test("Missing Brand Logos Preserve the Default Favicon", () => {
   const head = documentHead();
   applyBrandFavicon({ label: "Organization", logos: {} });
   applyReportAppearance(null);

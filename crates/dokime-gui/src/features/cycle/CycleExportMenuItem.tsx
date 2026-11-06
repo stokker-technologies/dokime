@@ -38,9 +38,9 @@ type Props = {
 export function CycleExportMenuItem({ cycleId, executionId, sealed }: Props) {
   const { exportEvidence } = useCycleCommands(cycleId);
   const title = sealed
-    ? "Download SQLite, Files And Saved Reports"
+    ? "Download SQLite, Files and Saved Reports"
     : executionId
-      ? "Wait For This Execution To Seal"
+      ? "Wait for This Execution to Seal"
       : "Seal This Cycle Before Exporting";
   const save = () => {
     exportEvidence

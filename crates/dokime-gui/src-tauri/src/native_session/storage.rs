@@ -129,7 +129,7 @@ impl StorageRoot {
     }
 
     pub fn archive(&self, destination: &Path, progress: impl FnMut(u64)) -> Result<PathBuf, Error> {
-        // Refuse A Destination The Reset Would Delete Or Overwrite
+        // Refuse a Destination the Reset Would Delete or Overwrite
         let destination = std::path::absolute(destination).map_err(|error| archive_failure(destination, &error))?;
         if destination.starts_with(&self.data) {
             return Err(refusal(
@@ -141,10 +141,10 @@ impl StorageRoot {
             return Err(refusal(Reason::Failed, format!("{} already exists; choose another location.", destination.display())));
         }
 
-        // Prove No Backend Holds The Store
+        // Prove No Backend Holds the Store
         let _lease = self.lease("backing it up")?;
 
-        // Stream Into A Partial Archive, Then Move It Into Place
+        // Stream into a Partial Archive, Then Move It into Place
         let mut partial = destination.clone().into_os_string();
         partial.push(".partial");
         let partial = PathBuf::from(partial);
@@ -160,10 +160,10 @@ impl StorageRoot {
     }
 
     pub fn clear(&self) -> Result<(), Error> {
-        // Prove No Backend Holds The Store
+        // Prove No Backend Holds the Store
         let lease = self.lease("resetting")?;
 
-        // Delete The Contents
+        // Delete the Contents
         let entries = match std::fs::read_dir(&self.data) {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -180,7 +180,7 @@ impl StorageRoot {
             removed.map_err(|error| failure(&entry.path(), &error))?;
         }
 
-        // Release And Remove The Lease Last
+        // Release and Remove the Lease Last
         // An open file cannot be deleted on Windows.
         if lease.is_some() {
             drop(lease);
@@ -217,7 +217,7 @@ impl StorageRoot {
         });
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
 
-        // Walk The Root Depth First Without Following Links
+        // Walk the Root Depth First Without Following Links
         let mut pending = vec![(self.data.clone(), String::new())];
         while let Some((directory, prefix)) = pending.pop() {
             let entries = match std::fs::read_dir(&directory) {
@@ -251,7 +251,7 @@ impl StorageRoot {
             }
         }
 
-        // Finish The Central Directory And Reach The Disk
+        // Finish the Central Directory and Reach the Disk
         let mut counted = zip.finish().map_err(|error| zip_failure(&self.data, error))?;
         (counted.report)(counted.written);
         let file = counted.inner.into_inner().map_err(|error| archive_failure(&self.data, error.error()))?;

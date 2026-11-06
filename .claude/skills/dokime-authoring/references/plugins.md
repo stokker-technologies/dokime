@@ -217,7 +217,7 @@ Preparation registers mutable collector resources as `Arc<tokio::sync::Mutex<T>>
 operation policies own collection deadlines and configuration owns probe parameters.
 
 
-## Run Effects And Start Evidence
+## Run Effects and Start Evidence
 
 `dokime::RunStart<Capture>` registers a default-constructed Host operation returning `dokime::operations::effects::StartEvidence`. The backend calls each enabled provider synchronously before any execution step, qualifies the route with its provider owner, and records the structured JSON snapshot in that execution's evidence. A refused capture refuses execution start. Keep capture read-only.
 

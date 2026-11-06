@@ -19,6 +19,8 @@ import { test } from "vitest";
 
 // Local Imports
 import { type EditorParameterRow, editorProblems, editorRow } from "@/components/parameter-editor/model";
+import { titleCaseIdentifier } from "@/components/start-cycle-form-model";
+import { artifactLabel } from "@/lib/dashboard";
 import type { FileDefinition, ParameterDefinition } from "@/lib/types";
 import type { CycleRow } from "@/features/cycles-home/cycles-model";
 import { ActiveCycleInline, ActiveCyclePickerList, ActiveCycleSummary } from "@/features/library/ActiveCycle";
@@ -80,7 +82,7 @@ function preview(...cases: Record<string, unknown>[]): Preview {
 
 /* === Entry Point === */
 
-test("Template Problems Keep Each Field And Its Validation Cause", () => {
+test("Template Problems Keep Each Field and Its Validation Cause", () => {
   const definition = {
     parameter_id: "voltage",
     name: "voltage",
@@ -115,24 +117,24 @@ test("Template Problems Keep Each Field And Its Validation Cause", () => {
 });
 
 test("Summary Skip", () => {
-  // One Case At Its Registered Defaults Has Nothing To Review
+  // One Case at Its Registered Defaults Has Nothing to Review
   assert.equal(summaryNeeded(preview({ current: 16 }), ROWS), false);
 
-  // An Edited Value Keeps The Summary
+  // An Edited Value Keeps the Summary
   assert.equal(summaryNeeded(preview({ current: 32 }), ROWS), true);
 
-  // An Expansion Into Several Cases Keeps The Summary
+  // An Expansion into Several Cases Keeps the Summary
   assert.equal(summaryNeeded(preview({ current: 16 }, { current: 16 }), ROWS), true);
 });
 
 test("Append Requires Cycle", () => {
   const selections: TestCycleSelection[] = [{ parameters: { current: [16] }, suite_id: "suite.charger", template_id: "charge" }];
 
-  // Without An Active Cycle Nothing Is Added
+  // Without an Active Cycle Nothing Is Added
   assert.equal(caseAppend(undefined, selections), null);
   assert.equal(caseAppend("  ", selections), null);
 
-  // With One, The Cases Join That Cycle And No Other
+  // With One, the Cases Join That Cycle and No Other
   assert.deepEqual(caseAppend("cycle-1", selections), { cycleId: "cycle-1", selections });
 });
 
@@ -143,7 +145,7 @@ test("Active Cycle", () => {
     row("c40e8a57-aaaa-bbbb-cccc-000000000003", "Night Cycle", "Active"),
   ]);
 
-  // Only Open Cycles Can Be Active, Each With A Short Identifier
+  // Only Open Cycles Can Be Active, Each with a Short Identifier
   assert.deepEqual(
     cycles.map((cycle) => [cycle.label, cycle.shortId]),
     [
@@ -152,17 +154,17 @@ test("Active Cycle", () => {
     ],
   );
 
-  // A Stored Choice Stands While Its Cycle Is Open, And Falls Back Once It Sealed Or Vanished
+  // A Stored Choice Stands While Its Cycle Is Open, and Falls Back Once It Sealed or Vanished
   assert.equal(resolveActiveCycle("c40e8a57-aaaa-bbbb-cccc-000000000003", cycles)?.label, "Night Cycle");
   assert.equal(resolveActiveCycle("77d1e0b4-aaaa-bbbb-cccc-000000000002", cycles), null);
   assert.equal(resolveActiveCycle("missing", cycles), null);
   assert.equal(resolveActiveCycle(null, cycles), null);
 
-  // The Shell Element States Name, Short Identifier And State
+  // The Shell Element States Name, Short Identifier and State
   const element = text(renderToStaticMarkup(createElement(ActiveCycleSummary, { cycle: cycles[0] })));
   assert.match(element, /^Bench Cycle 0f3a91c2 .*Active · Running$/);
 
-  // The Picker Lists Every Open Cycle On One Grid, Marks The Active One, And Searches
+  // The Picker Lists Every Open Cycle on One Grid, Marks the Active One, and Searches
   const list = (search: string) =>
     renderToStaticMarkup(
       createElement(ActiveCyclePickerList, {
@@ -185,7 +187,7 @@ test("Active Cycle", () => {
   assert.ok(!text(list("c40e")).includes("Bench Cycle"), "search matches the identifier");
   assert.ok(text(list("nothing")).includes("No Open Cycle Matches This Search"));
 
-  // The Template Dialog Names The Active Cycle With Change
+  // The Template Dialog Names the Active Cycle with Change
   const inline = (cycle: (typeof cycles)[number] | null, hasOpenCycles: boolean) =>
     text(renderToStaticMarkup(createElement(ActiveCycleInline, { cycle, hasOpenCycles, onChange: () => {}, onNewCycle: () => {} })));
   assert.match(inline(cycles[1], true), /^Active Cycle Night Cycle c40e8a57 .*Change$/);
@@ -193,4 +195,21 @@ test("Active Cycle", () => {
   // Open Cycles Without A Choice Ask For One; Only No Open Cycle Blocks
   assert.equal(inline(null, true), `Active Cycle ${NO_CHOSEN_CYCLE} Choose`);
   assert.equal(inline(null, false), `Active Cycle ${NO_ACTIVE_CYCLE} New Cycle`);
+});
+
+test("Generated Identifier and Artifact Labels Respect Word Positions", () => {
+  for (const [identifier, label] of [
+    ["number_of_rows", "Number of Rows"],
+    ["pluginStartupAndStopBudgets", "Plugin Startup and Stop Budgets"],
+    ["wait_until_chamber_is_ready", "Wait Until Chamber Is Ready"],
+    ["in_the_box_and_off", "In the Box and Off"],
+    ["power_on", "Power On"],
+    ["log_in", "Log In"],
+    ["turn_off_the_heater", "Turn Off the Heater"],
+    ["api_for_usb", "API for USB"],
+    ["USB_IN_THE_box", "USB in the Box"],
+  ]) {
+    assert.equal(titleCaseIdentifier(identifier), label);
+    assert.equal(artifactLabel(identifier), label);
+  }
 });

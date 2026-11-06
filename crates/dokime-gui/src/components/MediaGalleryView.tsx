@@ -214,7 +214,7 @@ export function MediaGallerySurface({
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm text-muted-foreground">
-                  {selectedArtifact.group_label ? artifactLabel(selectedArtifact.group_label) : "Media artifact"}
+                  {selectedArtifact.group_label ? artifactLabel(selectedArtifact.group_label) : "Media Artifact"}
                   {selectedArtifact.size_bytes ? ` • ${formatArtifactSize(selectedArtifact.size_bytes)}` : ""}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -400,7 +400,7 @@ function MediaGalleryCard({
                   aria-label={nativeOpenError ? `Retry Open ${title}` : `Open ${title}`}
                   disabled={nativeOpenBusy || nativeDownloadBusy}
                   size="icon-xs"
-                  title={nativeOpenError ?? "Open artifact"}
+                  title={nativeOpenError ?? "Open Artifact"}
                   type="button"
                   variant="ghost"
                   onClick={onNativeOpen}
@@ -411,7 +411,7 @@ function MediaGalleryCard({
                   aria-label={nativeDownloadError ? `Retry Download ${title}` : `Download ${title}`}
                   disabled={nativeOpenBusy || nativeDownloadBusy}
                   size="icon-xs"
-                  title={nativeDownloadError ?? "Download artifact"}
+                  title={nativeDownloadError ?? "Download Artifact"}
                   type="button"
                   variant="ghost"
                   onClick={onNativeDownload}

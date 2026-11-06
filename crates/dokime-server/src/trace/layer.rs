@@ -7,7 +7,7 @@
  * ***
  */
 
-// The Subscriber Layer That Feeds The Journal
+// The Subscriber Layer That Feeds the Journal
 //
 // Scope ids come from the event's own fields first and then from the nearest
 // enclosing span that recorded them. Sidecar output already arrives as tracing
@@ -158,11 +158,11 @@ where
     }
 
     fn on_event(&self, event: &TracingEvent<'_>, context: Context<'_, S>) {
-        // Read The Event's Own Fields
+        // Read the Event's Own Fields
         let mut fields = Fields::new(self.limits);
         event.record(&mut fields);
 
-        // Fill Missing Scope Ids From The Enclosing Spans, Nearest First
+        // Fill Missing Scope Ids from the Enclosing Spans, Nearest First
         if let Some(spans) = context.event_scope(event) {
             for span in spans {
                 if span.name() == WATCH_SPAN {
@@ -174,7 +174,7 @@ where
             }
         }
 
-        // Shape The Captured Event
+        // Shape the Captured Event
         let metadata = event.metadata();
         let message = fields.line.or(fields.message).unwrap_or_default();
         self.journal.record(Event {

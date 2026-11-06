@@ -27,7 +27,7 @@ It is hashed in `installer.json`, the verified installed-file inventory used by 
 
 Linux installs binaries and resources together under `/usr/lib/<slug>/`, with identifier-derived `/usr/bin/<slug>` and `<slug>-gui` launchers; dots become hyphens in explicit identifiers. With no override, the payload slug stays `dokime`. NSIS uses the identifier for its install folder and registry keys. Its product name, installer pages, shortcuts and Add/Remove Programs display name use the resolved organization manifest's `[app] label`. Linux package descriptions and desktop entries use that label; package names keep the slug. NSIS output filenames are `<slug>-<version>-<Rust-target>-setup.exe`, preserving the release layout.
 
-## Resolution At Startup
+## Resolution at Startup
 
 The desktop reads the distribution file before the organization pack, logging, storage or any window, and derives every directory from it:
 
@@ -45,6 +45,6 @@ The desktop reads the distribution file before the organization pack, logging, s
 
 The NSIS install folder and uninstall registry key, and the DEB/RPM package names, use the distribution identifier, so a branded distribution installs beside plain Dokime.
 
-## Still Compiled (Out Of Scope)
+## Still Compiled (Out of Scope)
 
 Deep-link scheme, updater trust and code-signing identity remain per build. Two branded distributions of one build still share those compiled mechanisms; making them per-distribution is a separate decision. Every desktop launch opens its own window without a desktop lease or focus forwarding; only the backend exclusively leases its resolved data folder.

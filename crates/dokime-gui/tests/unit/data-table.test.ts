@@ -78,7 +78,7 @@ function table() {
   return view;
 }
 
-test("Sorting And Filtering Precede Pagination", () => {
+test("Sorting and Filtering Precede Pagination", () => {
   const view = table();
   view.setSorting([{ id: "value", desc: true }]);
   assert.deepEqual(
@@ -118,7 +118,7 @@ test("Unit Header Controls", () => {
   assert.doesNotMatch(html, /whitespace-normal|break-words|flex-wrap/);
 });
 
-test("Pagination And Page Size Keep All Rows Reachable", () => {
+test("Pagination and Page Size Keep All Rows Reachable", () => {
   const view = table();
   assert.equal(view.getCanPreviousPage(), false);
   view.nextPage();
@@ -131,7 +131,7 @@ test("Pagination And Page Size Keep All Rows Reachable", () => {
   assert.equal(view.getPageCount(), 1);
 });
 
-test("Empty Tables Keep Column Headers And An In Table Empty Row", () => {
+test("Empty Tables Keep Column Headers and an in Table Empty Row", () => {
   const html = renderToStaticMarkup(
     createElement(DataTable<{ id: string; value: string }>, {
       columns,
@@ -146,7 +146,7 @@ test("Empty Tables Keep Column Headers And An In Table Empty Row", () => {
   assert.match(html, /fixture-empty/);
 });
 
-test("Row Actions Are Named Icon Buttons With A Menu Only For The Rest", () => {
+test("Row Actions Are Named Icon Buttons with a Menu Only for the Rest", () => {
   const action = vi.fn();
   const primary = { label: "fixture-open", icon: Eye, onSelect: action };
   const alone = DataTableRowActions({ label: "fixture", primary });
@@ -165,6 +165,6 @@ test("Row Actions Are Named Icon Buttons With A Menu Only For The Rest", () => {
   });
   assert.match(
     renderToStaticMarkup(withMore),
-    /aria-haspopup="menu"[^>]*aria-label="Actions For fixture"|aria-label="Actions For fixture"[^>]*aria-haspopup="menu"/,
+    /aria-haspopup="menu"[^>]*aria-label="Actions for fixture"|aria-label="Actions for fixture"[^>]*aria-haspopup="menu"/,
   );
 });

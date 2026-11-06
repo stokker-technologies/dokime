@@ -54,7 +54,7 @@ def test_prompt_selection() -> None:
 def test_prompt_level() -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
-            # Declare A Warning Prompt
+            # Declare a Warning Prompt
             backend.pending.append(
                 {
                     "prompt_id": PROMPT_ID,

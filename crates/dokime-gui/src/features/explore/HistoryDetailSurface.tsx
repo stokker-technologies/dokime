@@ -117,7 +117,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
   return (
     <div aria-busy={query.isPending} className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
-        {query.isPending ? <p>Loading executions…</p> : null}
+        {query.isPending ? <p>Loading Executions…</p> : null}
         {query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
         {query.coverage && !query.coverage.discovery_complete ? (
           <NotificationMessage tone="info">History is incomplete. Some executions may be unavailable.</NotificationMessage>
@@ -131,7 +131,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
             </p>
             {unrunCycleId && onOpenCycle ? (
               <Button className="justify-self-start px-0" onClick={() => onOpenCycle(unrunCycleId)} variant="link">
-                Open The Cycle It Belongs To
+                Open the Cycle It Belongs To
               </Button>
             ) : null}
           </section>
@@ -140,7 +140,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
           aria-label="History Executions"
           data={entry?.executions ?? []}
           getRowId={(execution) => execution.metadata.execution_id}
-          emptyText="No Executions In The Loaded History"
+          emptyText="No Executions in the Loaded History"
           columns={dataTableColumns<ExecutionBrowseEntry>().columns([
             dataTableColumns<ExecutionBrowseEntry>().accessor((execution) => execution.metadata.title, {
               id: "title",
@@ -291,7 +291,7 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
       </p>
       <dl className="grid gap-2 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-muted-foreground">Recorded status</dt>
+          <dt className="text-muted-foreground">Recorded Status</dt>
           <dd>{executionStatusLabel(execution.status)}</dd>
         </div>
         <div>
@@ -300,11 +300,11 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
         </div>
         <div>
           <dt className="text-muted-foreground">Started</dt>
-          <dd>{timestampIso(execution.startedAt) ?? "Not recorded"}</dd>
+          <dd>{timestampIso(execution.startedAt) ?? "Not Recorded"}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Finished</dt>
-          <dd>{timestampIso(execution.finishedAt) ?? "Not recorded"}</dd>
+          <dd>{timestampIso(execution.finishedAt) ?? "Not Recorded"}</dd>
         </div>
       </dl>
       <h3 className="text-sm font-semibold">Recorded Steps</h3>

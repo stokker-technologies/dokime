@@ -435,7 +435,7 @@ pub(crate) async fn empty_cycles_retain_history() {
     use dokime::domain::model::execution::wire::{ArchiveScope, CycleFilter};
     use std::collections::BTreeSet;
 
-    // Read An Empty Catalog
+    // Read an Empty Catalog
     let root = tempfile::tempdir().unwrap();
     let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
     let mut owner = runtime(root.path(), &prepared_owner).await;
@@ -476,7 +476,7 @@ pub(crate) async fn empty_cycles_retain_history() {
     assert_eq!(page.entries.len(), 1);
     let snapshot = page.at.clone().unwrap();
 
-    // Intervening Writes Cannot Change The Selected Saved Image
+    // Intervening Writes Cannot Change the Selected Saved Image
     let definition = dokime::transactions::CycleDefinition {
         metadata: support::metadata("history.later", "Later Empty"),
         continue_automatically: false,
@@ -544,7 +544,7 @@ pub(crate) async fn empty_cycles_retain_history() {
     let refusal = handle.browse_cycles(oversized).await;
     assert!(matches!(refusal, Err(dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }))));
 
-    // Restart And Preserve Archive Visibility And Labels
+    // Restart and Preserve Archive Visibility and Labels
     drop(client);
     server.shutdown().await.unwrap();
     drop(handle);

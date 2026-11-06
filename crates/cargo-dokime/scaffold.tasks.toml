@@ -1,9 +1,9 @@
 [tasks.dev]
-description = "Rebuild And Reload The Plugin In A Development Host"
+description = "Rebuild and Reload the Plugin in a Development Host"
 run = "cargo dokime sidecar dev"
 
 [tasks.build]
-description = "Build The Plugin And Its Frozen Catalog"
+description = "Build the Plugin and Its Frozen Catalog"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "uv run --locked --project tools/python python -m project_tools.build.plugin --profile {{usage.profile}}"
 
@@ -13,7 +13,7 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = "uv run --locked --project tools/python python -m project_tools.package.plugin --profile {{usage.profile}}"
 
 [tasks."release:publish"]
-description = "Publish Through The Configured Native Release Policy"
+description = "Publish Through the Configured Native Release Policy"
 run = [
   "uv run --locked --project tools/python python -m project_tools.release.run stage",
   "uv run --locked --project tools/python python -m project_tools.release.run publish",

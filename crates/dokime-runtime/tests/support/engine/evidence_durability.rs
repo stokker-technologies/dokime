@@ -7,7 +7,7 @@
  * ***
  */
 
-// Evidence Transactions, Indexed Admissions And Reopen Fault Boundaries
+// Evidence Transactions, Indexed Admissions and Reopen Fault Boundaries
 
 /* === Modules === */
 

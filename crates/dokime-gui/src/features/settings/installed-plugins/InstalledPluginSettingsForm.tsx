@@ -186,7 +186,7 @@ function SettingField({
               className="border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300"
               data-setting-unapplied={field.id}
             >
-              Applied On Reload
+              Applied on Reload
             </Badge>
           ) : null}
           <SettingsFieldStatus onRetry={autosave.retry} state={autosave.state} />

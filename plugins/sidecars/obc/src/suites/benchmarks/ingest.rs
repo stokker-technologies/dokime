@@ -7,7 +7,7 @@
  * ***
  */
 
-// Scalar And Wide Ingest Fixture
+// Scalar and Wide Ingest Fixture
 
 /* === Modules === */
 

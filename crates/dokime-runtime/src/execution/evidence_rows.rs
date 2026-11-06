@@ -333,7 +333,7 @@ impl<T: Serialize + DeserializeOwned> Iterator for Rows<'_, T> {
 #[cfg(feature = "native")]
 impl Spool {
     fn new() -> std::io::Result<Self> {
-        // Windows Reports Access Denied When A Random File Name Matches An Existing
+        // Windows Reports Access Denied When a Random File Name Matches an Existing
         // Temp Directory Ignoring Case. Keep Files Inside An Owned Directory Instead.
         let directory = tempfile::Builder::new().prefix("dokime-evidence-").tempdir()?;
         let data = std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(directory.path().join("rows"))?;

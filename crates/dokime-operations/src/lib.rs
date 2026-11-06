@@ -57,7 +57,7 @@ use harmos::operations::RetryPolicy;
 // Bounds One Ordinary Request From Admission To Its Response.
 pub const ORDINARY: OperationPolicy = policy(Duration::from_secs(10));
 
-// Bounds A Mutation That Writes Many Rows Or Files, Such As Creating, Copying Or
+// Bounds a Mutation That Writes Many Rows or Files, Such as Creating, Copying Or
 // Deleting Whole Cycles And Executions, Materializing Cases Or Moving Storage.
 pub const MUTATION: OperationPolicy = policy(Duration::from_secs(120));
 
@@ -65,7 +65,7 @@ pub const MUTATION: OperationPolicy = policy(Duration::from_secs(120));
 pub const TRANSFER: OperationPolicy = policy(Duration::from_secs(60));
 
 // Bounds Silence During A Plugin Installation, Including Its Final Response Wait:
-// A Slow Machine May Take Minutes To Stage And Activate A Debug Plugin, So The
+// A Slow Machine May Take Minutes to Stage and Activate a Debug Plugin, So The
 // Hour Of Silence Is A Safety Net Rather Than A Total Duration Limit.
 pub const INSTALLATION: OperationPolicy = policy(Duration::from_secs(3_600));
 

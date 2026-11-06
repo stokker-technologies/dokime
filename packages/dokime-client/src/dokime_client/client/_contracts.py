@@ -65,7 +65,7 @@ def nested(service: str, method: str, path: str, *, direction: str = "request", 
 
 
 def construct(descriptor: Descriptor | UpbDescriptor, fields: Mapping[str, Any]) -> Message:
-    # Protobuf's Native Descriptor Implements The Same Factory Contract
+    # Protobuf's Native Descriptor Implements the Same Factory Contract
     result = GetMessageClass(cast(Descriptor, descriptor))()
     for name, value in fields.items():
         if value is None:

@@ -190,7 +190,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
                   disabled={!desktop || releaseMutation.isPending || installMutation.isPending}
                   onClick={() => releaseMutation.mutate()}
                 >
-                  Check For Updates
+                  Check for Updates
                 </Button>
               </>
             }

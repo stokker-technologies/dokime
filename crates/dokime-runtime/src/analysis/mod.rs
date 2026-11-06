@@ -279,7 +279,7 @@ mod tests {
             id: "analysis-fixture.scale".into(),
             version: 1,
             label: "Scale Signal".into(),
-            description: "Multiply Original Samples By A Typed Factor".into(),
+            description: "Multiply Original Samples by a Typed Factor".into(),
             parameters: Vec::new(),
             outputs: vec![Output {
                 key: "scaled".into(),

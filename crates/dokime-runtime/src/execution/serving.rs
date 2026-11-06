@@ -539,7 +539,7 @@ fn request_lease(
     });
 }
 
-// One Delivered Frame Serves Every Leaseholder, So Each Run Stamps Rows With The Scope Its Request
+// One Delivered Frame Serves Every Leaseholder, So Each Run Stamps Rows with the Scope Its Request
 // Names, Keeping The Producer's Own Scope Only For Rows That Execution Captured Itself.
 fn delivery_scope(
     source: Option<dokime_domain::model::execution::RecordScope>, holder: &dokime_domain::model::execution::RecordScope,

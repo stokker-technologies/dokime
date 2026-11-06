@@ -101,7 +101,7 @@ impl Analysis for Scale {
     const ID: &'static str = "analysis_fixture.scale";
     const VERSION: u32 = 1;
     const LABEL: &'static str = "Scale Signal";
-    const DESCRIPTION: &'static str = "Multiply Original Samples By A Typed Factor";
+    const DESCRIPTION: &'static str = "Multiply Original Samples by a Typed Factor";
     const TIMEOUT: Duration = crate::service_support::budgets::settings::STORY_BOUND;
     const LIMITS: Limits = Limits { max_samples: 64, max_output_values: 64 };
 

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Nondefault Fixture Surface For Canonical Integration And System Test Consumers
+// Nondefault Fixture Surface for Canonical Integration and System Test Consumers
 
 /* === Modules === */
 

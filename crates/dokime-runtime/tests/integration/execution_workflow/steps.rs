@@ -74,13 +74,13 @@ struct TailParameters {
     #[parameter(label = "Watched File", default = "")]
     path: String,
 
-    #[parameter(label = "Mirror And Rotate", default = false)]
+    #[parameter(label = "Mirror and Rotate", default = false)]
     mirror: bool,
 
     #[parameter(label = "Copy Truncate", default = false)]
     copy_truncate: bool,
 
-    #[parameter(label = "Cancel And Collect", default = false)]
+    #[parameter(label = "Cancel and Collect", default = false)]
     cancel: bool,
 }
 

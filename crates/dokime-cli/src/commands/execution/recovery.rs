@@ -7,7 +7,7 @@
  * ***
  */
 
-// Save Explicitly Owned Evidence After An Interrupt
+// Save Explicitly Owned Evidence After an Interrupt
 
 /* === Modules === */
 
@@ -153,7 +153,7 @@ impl Plan {
             };
             let result = async {
                 let saved = execution.export(output.clone(), false).await?;
-                eprintln!("Execution Evidence Saved To {} (SHA-256 {})", saved.path.display(), saved.sha256);
+                eprintln!("Execution Evidence Saved to {} (SHA-256 {})", saved.path.display(), saved.sha256);
                 Ok::<_, crate::Error>(())
             }
             .await;
@@ -165,7 +165,7 @@ impl Plan {
             failure.get_or_insert(error);
         }
         match cycle.export(self.cycle_output.clone(), false).await {
-            Ok(saved) => eprintln!("Cycle Evidence Saved To {} (SHA-256 {})", saved.path.display(), saved.sha256),
+            Ok(saved) => eprintln!("Cycle Evidence Saved to {} (SHA-256 {})", saved.path.display(), saved.sha256),
             Err(error) => {
                 failure.get_or_insert(error.into());
             }
@@ -213,7 +213,7 @@ pub(crate) async fn interrupted(identity: &str, subject: &str, recovery: bool) -
     poll_fn(|context| {
         let outcome = interrupt.as_mut().poll(context);
         if outcome.is_pending() && !announced {
-            let action = if recovery { "Stop It And Save Evidence" } else { "Stop Waiting" };
+            let action = if recovery { "Stop It and Save Evidence" } else { "Stop Waiting" };
             eprintln!("Waiting For {subject}: {identity}. Press Ctrl+C To {action}.");
             announced = true;
         }

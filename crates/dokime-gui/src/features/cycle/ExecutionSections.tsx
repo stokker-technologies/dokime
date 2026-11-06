@@ -94,7 +94,7 @@ export function ExecutionSections({
     [started, cycleId, row.case.caseId],
   );
 
-  // Read The Execution And Its Document
+  // Read the Execution and Its Document
   const detailQuery = useExecutionDetailQuery(started?.test_execution_id ?? null, Boolean(started));
   const execution: TestExecution | null = detailQuery.data ?? started ?? null;
   const documentQuery = useExecutionDocumentQuery({

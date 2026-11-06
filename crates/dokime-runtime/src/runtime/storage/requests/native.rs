@@ -144,7 +144,7 @@ pub(super) async fn save(storage: &Manager, pending: &mut Pending<Receipt>) -> R
         for (_, command) in pending.changed_commands() {
             objects.push(Command::new(&pending.receipt.summary.request_id, command)?);
         }
-        // Publish The Parent After Its Command Dependencies
+        // Publish the Parent After Its Command Dependencies
         // A physical prefix may survive a crash before the entire queue
         // group is saved. Keep the older recoverable parent until every
         // changed command precedes the new parent, especially terminal.
@@ -161,7 +161,7 @@ pub(super) async fn save(storage: &Manager, pending: &mut Pending<Receipt>) -> R
         pending.position = Some(receipts.into_iter().last().expect("nonempty admitted group").position);
     }
 
-    // Save Command Admission And Terminal Publication Before External Effects
+    // Save Command Admission and Terminal Publication Before External Effects
     if !pending.receipt.summary.phase.terminal() && pending.changed_commands().next().is_none() {
         return Ok(());
     }

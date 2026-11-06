@@ -38,7 +38,7 @@ PACKAGE = "{{package}}"
 
 
 def build(root: Path, profile: str) -> None:
-    # Compile Through The Shared Product Owner
+    # Compile Through the Shared Product Owner
     build_rust(root, profile)
     output = paths.output(root, "build", profile)
     messages = output / "product/compiler.json"
@@ -54,7 +54,7 @@ def build(root: Path, profile: str) -> None:
             stderr=sys.stderr,
         )
 
-    # Freeze The Catalog And Assets From Those Exact Compiler Outputs
+    # Freeze the Catalog and Assets from Those Exact Compiler Outputs
     with temporary.directory() as scratch:
         collected = scratch / "collected.json"
         command = [

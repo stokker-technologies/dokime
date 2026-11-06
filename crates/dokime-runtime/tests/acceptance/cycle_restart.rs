@@ -7,7 +7,7 @@
  * ***
  */
 
-// Cycle Finalization Crash And Restart Story
+// Cycle Finalization Crash and Restart Story
 
 /* === Modules === */
 

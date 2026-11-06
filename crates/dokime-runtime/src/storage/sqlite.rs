@@ -243,7 +243,7 @@ impl State {
                 PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-65536;",
             )?;
             connection.pragma_update(None, "wal_autocheckpoint", settings.checkpoint_pages.get())?;
-            // Idempotent DDL Over A Current Layout Dirties No Page, So Its Commit Writes And
+            // Idempotent DDL over a Current Layout Dirties No Page, So Its Commit Writes And
             // Syncs Nothing; Restamping The Version Would Rewrite The Header On Every Open.
             let transaction = connection.transaction()?;
             transaction.execute_batch(catalog::SCHEMA)?;
@@ -362,7 +362,7 @@ impl State {
         .await?
     }
 
-    // Runs On A Reader Connection Inside One Read Transaction, So It Observes A Single
+    // Runs on a Reader Connection Inside One Read Transaction, So It Observes a Single
     // Committed Snapshot And Never Waits For Or Delays The Writer.
     pub(crate) async fn read<T: Send + 'static>(
         &self, operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,

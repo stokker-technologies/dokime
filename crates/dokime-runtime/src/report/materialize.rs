@@ -138,7 +138,7 @@ async fn materialize_execution(
             health_item_id: crate::model::identity::new_id(),
             scope: execution.scope.clone(),
             severity: dokime_domain::model::execution::health::HealthSeverity::Info,
-            message: format!("Report As Of {}", captured.captured_at),
+            message: format!("Report as of {}", captured.captured_at),
             detail: Some(format!("Saved evidence through storage cursor {}.", captured.evidence_through.sequence)),
             observed_at: captured.captured_at.clone(),
         });

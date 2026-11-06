@@ -7,7 +7,7 @@
  * ***
  */
 
-// Materialize And Register Canonical Template Cases
+// Materialize and Register Canonical Template Cases
 
 /* === Modules === */
 

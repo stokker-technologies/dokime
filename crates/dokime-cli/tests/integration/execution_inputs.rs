@@ -7,7 +7,7 @@
  * ***
  */
 
-// Execution Input And Interrupt-Recovery Admission Story
+// Execution Input and Interrupt-Recovery Admission Story
 
 /* === Modules === */
 

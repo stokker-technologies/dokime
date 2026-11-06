@@ -787,7 +787,7 @@ export function nativeRecordText(record: CapturedRecord): {
   details: Record<string, unknown>;
 } {
   return {
-    timestamp: timestampIso(record.timestamp) ?? "Unknown time",
+    timestamp: timestampIso(record.timestamp) ?? "Unknown Time",
     severity: severityLabel(record.severity),
     details: nativeValueObjectToJson(record.details),
   };

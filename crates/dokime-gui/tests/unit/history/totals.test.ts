@@ -99,7 +99,7 @@ test("Historical Timestamps Remain Valid", () => {
 });
 
 test("Backend Cycle Totals", () => {
-  // Totals Cover The Whole Selection, Not The Loaded Entries
+  // Totals Cover the Whole Selection, Not the Loaded Entries
   const loaded = [entry("run-1", "running", "2026-10-16T08:00:00Z"), entry("run-2", "pending", null), entry("plan-1", "skipped", null)];
   const [cycle] = groupExecutions([page(loaded, [totals()])]);
   assert.equal(cycle.target.id, "cycle-a");
@@ -121,7 +121,7 @@ test("Backend Cycle Totals", () => {
     ["plan-1"],
   );
 
-  // A Later Page Carries The Latest Totals
+  // A Later Page Carries the Latest Totals
   const settled = totals({
     lifecycle: "completed",
     result_status: "passed",
@@ -140,7 +140,7 @@ test("Backend Cycle Totals", () => {
   const [sealed] = groupExecutions([page(loaded, [totals({ phase: "sealed", lifecycle: "completed" })])]);
   assert.equal(sealed.phase, "sealed");
 
-  // A Readable Cycle Is Titled By Its Own Label
+  // A Readable Cycle Is Titled by Its Own Label
   const [labelled] = groupExecutions([page(loaded, [totals({ label: "Charger Bench" })])]);
   assert.equal(labelled.title, "Charger Bench");
 

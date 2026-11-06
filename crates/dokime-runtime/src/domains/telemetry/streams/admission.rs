@@ -259,7 +259,7 @@ impl RuntimeHandle {
                 }
             }
         }
-        // Delivery Is Queued Per Leaseholder Before Admission Opens, So Each Run Sees Rows In
+        // Delivery Is Queued per Leaseholder Before Admission Opens, So Each Run Sees Rows In
         // Ordinal Order; Only This Publisher Then Waits For Its Own Rows To Be Taken.
         let delivered = self.queue_leased_rows(delivery, &accepted, &identities).await;
         drop(order);

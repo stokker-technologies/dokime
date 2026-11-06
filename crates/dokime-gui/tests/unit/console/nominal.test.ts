@@ -245,35 +245,35 @@ test("Scope Cancellation", async () => {
 });
 
 test("Tail Follow", () => {
-  // The List Is Pinned At The Bottom And Within One Row Of It
+  // The List Is Pinned at the Bottom and Within One Row of It
   assert.equal(consoleTailPinned(at(BOTTOM)), true);
   assert.equal(consoleTailPinned(at(BOTTOM - FOLLOW_SLACK_PX)), true);
   assert.equal(consoleTailPinned(at(BOTTOM - FOLLOW_SLACK_PX - 1)), false);
 
-  // Scrolling Up Releases The Tail
+  // Scrolling Up Releases the Tail
   assert.equal(consoleTailPinned(at(BOTTOM - 300)), false);
 
-  // A List Too Short To Scroll Is Always On Its Tail
+  // A List Too Short to Scroll Is Always on Its Tail
   assert.equal(consoleTailPinned({ clientHeight: 200, scrollHeight: 120, scrollTop: 0 }), true);
 
-  // A Row Landing Before The Release Reaches The Drawer Leaves The Operator Where They Scrolled
+  // A Row Landing Before the Release Reaches the Drawer Leaves the Operator Where They Scrolled
   assert.equal(consoleFollowsTail(true, consoleTailPinned(at(BOTTOM - 300))), false);
   assert.equal(consoleFollowsTail(true, consoleTailPinned(at(BOTTOM))), true);
   assert.equal(consoleFollowsTail(false, true), false);
 
-  // The First And Last Rows Sit Inside The Padding, Never Flush With The Frame
+  // The First and Last Rows Sit Inside the Padding, Never Flush with the Frame
   const list = { count: 100, height: 200, overscan: 0, rowHeight: 22 };
   const top = consoleWindow({ ...list, scrollTop: 0 });
   assert.equal(top.offset, CONSOLE_LIST_PADDING_PX);
   assert.equal(top.contentHeight, 100 * 22 + 2 * CONSOLE_LIST_PADDING_PX);
   assert.deepEqual([top.first, top.last], [0, 10]);
 
-  // Scrolled To The Bottom, The Last Row Is Drawn And Padding Follows It
+  // Scrolled to the Bottom, the Last Row Is Drawn and Padding Follows It
   const end = consoleWindow({ ...list, scrollTop: top.contentHeight - 200 });
   assert.equal(end.last, 100);
   assert.equal(end.offset + (end.last - end.first) * 22 + CONSOLE_LIST_PADDING_PX, end.contentHeight);
 
-  // An Empty List Draws Nothing And Keeps Its Padding
+  // An Empty List Draws Nothing and Keeps Its Padding
   assert.deepEqual(consoleWindow({ ...list, count: 0, scrollTop: 0 }), {
     first: 0,
     last: 0,
@@ -283,7 +283,7 @@ test("Tail Follow", () => {
 });
 
 test("Record Buffers", () => {
-  // Records Survive A Move To Another Route And Back
+  // Records Survive a Move to Another Route and Back
   const routes = sessionStore();
   routes.getState().receive(CYCLE_PAGE, page(1, 3), 0n);
   routes.getState().receive(EXECUTION_PAGE, page(1, 5), 0n);
@@ -292,7 +292,7 @@ test("Record Buffers", () => {
   assert.equal(back.afterSequence, 3n, "the cycle stream resumes where it stopped");
   assert.equal(buffer(routes, EXECUTION_PAGE).records.length, 5);
 
-  // The Filter And The Rows Outlive The Drawer's Subscription
+  // The Filter and the Rows Outlive the Drawer's Subscription
   const drawer = sessionStore();
   drawer.getState().setFilter("charger");
   drawer.getState().receive(CYCLE_PAGE, page(1, 2), 0n);
@@ -307,19 +307,19 @@ test("Record Buffers", () => {
   replay.getState().receive(CYCLE_PAGE, page(3, 6), 0n);
   assert.deepEqual(ids(buffer(replay, CYCLE_PAGE)), ["trace-1", "trace-2", "trace-3", "trace-4", "trace-5", "trace-6"]);
 
-  // A Page From Another Epoch Replaces The Rows
+  // A Page from Another Epoch Replaces the Rows
   const epochs = sessionStore();
   epochs.getState().receive(CYCLE_PAGE, page(1, 4), 0n);
   epochs.getState().receive(CYCLE_PAGE, page(1, 2, "epoch-2"), 0n);
   assert.deepEqual(ids(buffer(epochs, CYCLE_PAGE)), ["trace-1", "trace-2"]);
 
-  // A New Native Session Starts With No Rows
+  // A New Native Session Starts with No Rows
   const sessions = sessionStore();
   sessions.getState().receive(CYCLE_PAGE, page(1, 2), 0n);
   sessions.getState().bindSession("2");
   assert.equal(sessions.getState().buffers.size, 0);
 
-  // Clearing Empties The Rows And Keeps The Cursor
+  // Clearing Empties the Rows and Keeps the Cursor
   const clearing = sessionStore();
   clearing.getState().receive(CYCLE_PAGE, page(1, 3), 0n);
   clearing.getState().clear(CYCLE_PAGE);
@@ -336,7 +336,7 @@ test("Record Buffers", () => {
 });
 
 test("Buffer Retention", () => {
-  // Each Scope's Rows Stay Within The Ring Limit
+  // Each Scope's Rows Stay Within the Ring Limit
   const ring = sessionStore();
   ring.getState().receive(CYCLE_PAGE, page(1, RETAINED_RECORDS), 0n);
   ring.getState().receive(CYCLE_PAGE, page(RETAINED_RECORDS + 1, RETAINED_RECORDS + 10), 0n);
@@ -345,7 +345,7 @@ test("Buffer Retention", () => {
   assert.equal(held.records.at(-1)?.record_id, `trace-${RETAINED_RECORDS + 10}`);
   assert.equal(held.records[0].record_id, "trace-11");
 
-  // Only The Most Recently Read Scopes Are Kept
+  // Only the Most Recently Read Scopes Are Kept
   const scopes = sessionStore();
   for (let index = 0; index <= RETAINED_BUFFERS; index += 1) {
     const key = consoleBufferKey({ cycleId: `cycle-${index}`, executionId: null, level: "info" });

@@ -77,7 +77,7 @@ pub(crate) struct PublicationFailure {
 
 // Process-Local Provider Invocations Keyed By Request ID. `RunProviderCycle`
 // Carries Only The Portable Request ID; Its Attempt Starts The Registered Work
-// As A Task This Registry Owns, And Whoever Settles The Entry (Its Monitor, Or
+// As a Task This Registry Owns, and Whoever Settles the Entry (Its Monitor, Or
 // Runtime Shutdown For An Orphan) Awaits That Task And Finishes It Once.
 #[derive(Default)]
 pub(crate) struct ProviderInvocations {
@@ -156,7 +156,7 @@ impl ProviderInvocations {
         Ok(())
     }
 
-    // Removes The Invocation, Cancels Work No Attempt Awaits Any Longer, Awaits
+    // Removes the Invocation, Cancels Work No Attempt Awaits Any Longer, Awaits
     // Its Task And Finishes It. Returns `None` When Another Owner Settled It.
     async fn settle(&self, request_id: &str) -> Option<ProviderSettlement> {
         let mut invocation = self.entries.lock().expect("provider invocation registry is healthy").remove(request_id)?;

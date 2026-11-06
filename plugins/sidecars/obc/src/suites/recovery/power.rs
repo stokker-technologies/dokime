@@ -51,7 +51,7 @@ pub struct PowerLoss {
 
 #[dokime::record(
     id = "obc.charger.recovery.initialized",
-    label = "Charger initialized",
+    label = "Charger Initialized",
     description = "The Charger was initialized for this attempt."
 )]
 #[derive(Clone, Debug)]
@@ -59,7 +59,7 @@ pub struct Initialized {}
 
 #[dokime::record(
     id = "obc.charger.recovery.started",
-    label = "Charger energized",
+    label = "Charger Energized",
     description = "The supply was energized, once before the loss and once after it."
 )]
 #[derive(Clone, Debug)]
@@ -70,7 +70,7 @@ pub struct Started {
 
 #[dokime::record(
     id = "obc.charger.recovery.faulted",
-    label = "Charger power was removed; plugin and host remain alive",
+    label = "Charger Power Was Removed; Plugin and Host Remain Alive",
     description = "Power was removed from the Charger."
 )]
 #[derive(Clone, Debug)]
@@ -78,7 +78,7 @@ pub struct Faulted {}
 
 #[dokime::record(
     id = "obc.charger.recovery.cleared",
-    label = "Power restored and fault latch cleared",
+    label = "Power Restored and Fault Latch Cleared",
     description = "Power was restored and the latch cleared."
 )]
 #[derive(Clone, Debug)]
@@ -86,7 +86,7 @@ pub struct Cleared {}
 
 #[dokime::record(
     id = "obc.charger.recovery.stopped",
-    label = "Recovered Charger de-energized",
+    label = "Recovered Charger De-energized",
     description = "The recovered Charger was de-energized, and what the procedure decided."
 )]
 #[derive(Clone, Debug)]
@@ -278,7 +278,7 @@ impl PowerLoss {
 
     #[dokime::criterion(
         id = "obc.charger.recovery.restart",
-        label = "Power loss is contained and restart succeeds",
+        label = "Power Loss Is Contained and Restart Succeeds",
         description = "Passed once the loss was contained and the controlled restart recovered."
     )]
     fn recovered(ctx: &CriterionContext<'_>) -> Result<bool, Error> {

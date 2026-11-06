@@ -41,7 +41,7 @@ type SettingsPathFieldProps = {
 
 /* === Components === */
 
-export function SettingsPathField({ id, openable = false, placeholder = "Not set", value }: SettingsPathFieldProps) {
+export function SettingsPathField({ id, openable = false, placeholder = "Not Set", value }: SettingsPathFieldProps) {
   const [copied, setCopied] = useState(false);
 
   return (

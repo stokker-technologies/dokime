@@ -38,7 +38,7 @@ const STREAM: &str = "fixture.wide";
 /* === Type Aliases === */
 
 /* === Structs === */
-// Publishes Wide Telemetry And Artifacts Into Every Member
+// Publishes Wide Telemetry and Artifacts into Every Member
 struct WideTelemetryExecutor;
 
 /* === Enums === */
@@ -79,7 +79,7 @@ impl ExecutionFixture for WideTelemetryExecutor {
 /* === Public Functions === */
 
 /* === Private Functions === */
-// Run One Wide Cycle To Its Seal And Return Its Final Resident View
+// Run One Wide Cycle to Its Seal and Return Its Final Resident View
 async fn sealed_cycle(handle: &RuntimeHandle, suite: TestSuite) -> CycleView {
     let cycle_id = start_cycle(handle, suite).await;
     handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
@@ -95,7 +95,7 @@ async fn resident(handle: &RuntimeHandle, cycle_id: &TestCycleId) -> bool {
     handle.cycles().await.unwrap().iter().any(|cycle| &cycle.test_cycle_id == cycle_id)
 }
 
-// Every Sealed Member Reopens From Native History With Its Wide Aggregates
+// Every Sealed Member Reopens from Native History with Its Wide Aggregates
 async fn assert_history(handle: &RuntimeHandle, cycles: &[&CycleView], entries: usize) {
     let history = handle.browse_executions(Default::default()).await.unwrap();
     assert!(history.discovery_complete && history.conflicts.is_empty());
@@ -336,7 +336,7 @@ pub(crate) async fn bounded_snapshot_recovery() {
     assert!(after_bytes < before_bytes, "sealed state references durable evidence");
     let saved_position = shut_down(owner, handle).await;
 
-    // A Restart Retires It From Live State Without Touching Its History
+    // A Restart Retires It from Live State Without Touching Its History
     let (owner, handle) = reboot(root.path()).await;
     assert!(handle.watch_state().latest().revision() > saved_position, "restart restores the compacted snapshot frontier");
     assert!(!resident(&handle, &first.test_cycle_id).await);
@@ -349,7 +349,7 @@ pub(crate) async fn bounded_snapshot_recovery() {
     );
     assert_history(&handle, &[&first], MEMBERS).await;
 
-    // Starting Another Cycle Retires The Previous Sealed One In Session
+    // Starting Another Cycle Retires the Previous Sealed One in Session
     register_python_suite(&handle, suite.clone()).await;
     let second = sealed_cycle(&handle, suite.clone()).await;
     assert!(resident(&handle, &second.test_cycle_id).await);
@@ -393,7 +393,7 @@ pub(crate) async fn bounded_snapshot_recovery() {
     assert!(resident(&handle, &third).await);
     let saved_position = shut_down(owner, handle).await;
 
-    // The Next Boot Restores That Snapshot And Writes Its Own
+    // The Next Boot Restores That Snapshot and Writes Its Own
     let (owner, handle) = reboot(root.path()).await;
     assert!(handle.watch_state().latest().revision() > saved_position, "restart restores the compacted snapshot frontier");
     assert!(!resident(&handle, &second.test_cycle_id).await);

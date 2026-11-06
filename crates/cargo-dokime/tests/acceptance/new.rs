@@ -86,7 +86,7 @@ fn standalone_scaffold_offline() {
     assert!(fs::read_to_string(root.path().join("my-plugin/src/lib.rs")).unwrap().contains("id = \"my_plugin\""));
     assert!(fs::read_to_string(root.path().join("my-plugin/src/suites/soak/hold.rs")).unwrap().contains("id = \"my_plugin.soak.hold\""));
 
-    // The Shipped Starter Includes Its Own Native Workflow And Locked Tooling
+    // The Shipped Starter Includes Its Own Native Workflow and Locked Tooling
     let plugin = root.path().join("my-plugin");
     for file in [
         "mise.toml",
@@ -106,7 +106,7 @@ fn standalone_scaffold_offline() {
     let members = python["tool"]["uv"]["workspace"]["members"].as_array().unwrap();
     assert!(members.iter().any(|member| member.as_str() == Some("tools/python")));
 
-    // The Project Pins Its Authoring Tools Once, At The Generating Release
+    // The Project Pins Its Authoring Tools Once, at the Generating Release
     let tooling = fs::read_to_string(plugin.join("mise.toml")).unwrap();
     assert!(!tooling.contains("SPDX-License-Identifier"), "mise.toml has no embedded file header");
     let tooling = tooling.parse::<toml_edit::DocumentMut>().unwrap();

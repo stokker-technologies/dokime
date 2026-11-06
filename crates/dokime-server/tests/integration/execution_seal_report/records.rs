@@ -74,7 +74,7 @@ impl BenchSuite {}
 
 #[dokime::template(
     id = "fixture.bench.waiting",
-    label = "Wait For The Unit",
+    label = "Wait for the Unit",
     subscribes = Subscriptions
 )]
 impl Waiting {

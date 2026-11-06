@@ -107,7 +107,7 @@ Workspace backtraces retain source locations; type and variable inspection
 require rebuilding the affected crate with full debug information.
 Debug assertions and overflow checks remain enabled.
 
-## Tests And Checks
+## Tests and Checks
 
 Build matching artifacts, then run every test lane concurrently (the five-minute
 execution target is advisory and excludes compilation):

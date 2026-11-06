@@ -7,7 +7,7 @@
  * ***
  */
 
-// Discover A Pending Prompt For One Execution
+// Discover a Pending Prompt for One Execution
 
 /* === Modules === */
 

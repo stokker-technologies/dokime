@@ -131,7 +131,7 @@ pub async fn start(backend: &Backend, on_phase: impl FnMut(&str) + Send) -> Resu
 /* === Private Functions === */
 
 fn redact(line: &str) -> String {
-    // Locate The Secrets
+    // Locate the Secrets
     // ASCII lowercasing keeps byte offsets, and every boundary below sits next
     // to an ASCII byte, so the offsets stay valid on the original line.
     let lower = line.to_ascii_lowercase();
@@ -157,7 +157,7 @@ fn redact(line: &str) -> String {
         }
     }
 
-    // Rebuild The Line
+    // Rebuild the Line
     masks.retain(|(start, end)| start < end);
     masks.sort_unstable();
     let mut redacted = String::with_capacity(line.len());

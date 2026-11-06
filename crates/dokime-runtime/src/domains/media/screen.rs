@@ -60,7 +60,7 @@ pub(super) async fn capture_png(display: Option<u32>) -> Result<Vec<u8>> {
         .and_then(|uri| uri.to_file_path().ok())
         .ok_or_else(|| unavailable("display capture returned no local file"))?;
 
-    // Take The Portal's File, Leaving No Copy In The User's Pictures
+    // Take the Portal's File, Leaving No Copy in the User's Pictures
     let bytes = tokio::fs::read(&path).await.map_err(|source| unavailable(format!("display capture file is unreadable: {source}")))?;
     if let Err(source) = tokio::fs::remove_file(&path).await {
         tracing::warn!(error = %source, path = %path.display(), "portal screenshot was not removed");

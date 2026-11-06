@@ -610,7 +610,7 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
             request.failure = Some("runtime restarted before request completion".into());
         }
 
-        // Sealed Cycles Are Served From Native History After A Restart
+        // Sealed Cycles Are Served from Native History After a Restart
         state.retire_sealed_cycles();
         for (id, cycle) in &mut state.cycles {
             // Startup Finishes These Containers Before Exposing New Admission. A Failed

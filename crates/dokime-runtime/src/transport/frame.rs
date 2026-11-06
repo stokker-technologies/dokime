@@ -714,7 +714,7 @@ mod tests {
             scope: RecordScope::default(),
         };
 
-        // An Answer Wakes The Waiter Without Any Clock Advance
+        // An Answer Wakes the Waiter Without Any Clock Advance
         let waiting = tokio::spawn(async move {
             let answer = transport.prompt(question()).await;
             (transport, answer)
@@ -735,7 +735,7 @@ mod tests {
         assert_eq!(answer.unwrap(), response);
         assert_eq!(tokio::time::Instant::now(), before);
 
-        // Evicting The Run Cancels A Waiting Prompt At Once
+        // Evicting the Run Cancels a Waiting Prompt at Once
         let waiting = tokio::spawn(async move { transport.prompt(question()).await });
         raised(&executions, 2).await;
         lock(&executions).remove("fixture");

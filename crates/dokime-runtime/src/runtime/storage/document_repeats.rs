@@ -7,7 +7,7 @@
  * ***
  */
 
-// Repeated Sections Expand Over Every Distinct Value In The Execution's
+// Repeated Sections Expand over Every Distinct Value in the Execution's
 // Evidence, Not Over The Bounded Rows A Report Previews.
 
 /* === Modules === */

@@ -112,7 +112,7 @@ async fn crashed_run_replay() {
             .unwrap(),
     );
 
-    // The Child Reports Readiness On Stdout Once Its Run Is Saved
+    // The Child Reports Readiness on Stdout Once Its Run Is Saved
     let stdout = child.0.stdout.take().unwrap();
     let (request_id, cycle_id, execution_id): (String, String, String) = tokio::task::spawn_blocking(move || {
         use std::io::BufRead;

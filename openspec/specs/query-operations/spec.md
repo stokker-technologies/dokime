@@ -18,7 +18,7 @@ Dokime SHALL expose the five unary query operations in `design.md`, each with on
 - **THEN** each operation has a dotted ID, one request schema, response schema and declared Harmos policy
 - **AND** native, gRPC, generated clients and generic CLI calls use that same declaration
 
-### Requirement: Configuration-Owned Policies And Limits
+### Requirement: Configuration-Owned Policies and Limits
 A runtime-owned immutable query configuration SHALL compose canonical Harmos policies and storage/schema/message budgets. It SHALL own query defaults and ceilings, reject invalid settings at composition, and disallow request policy overrides. Page sizes SHALL clamp to effective ceilings; excessive complexity/work SHALL fail explicitly.
 
 #### Scenario: Configuration Composition
@@ -32,7 +32,7 @@ A runtime-owned immutable query configuration SHALL compose canonical Harmos pol
 - **THEN** page responses advertise effective limits and respect the smaller allocation/encoding budget
 - **AND** exceeding scan work produces a typed failure rather than a larger timeout or silent partial answer
 
-### Requirement: Authorization And Cancellation
+### Requirement: Authorization and Cancellation
 Queries SHALL use existing caller authorization, including request-dependent execution/cycle/stream read scopes. Each continuation SHALL recheck access; tokens grant no authority. Admission SHALL obey configured concurrency with bounded waiting/cancellation. Cancellation SHALL release query resources without changing execution or evidence.
 
 #### Scenario: Retried Request
@@ -57,7 +57,7 @@ Query failures SHALL use the existing Harmos failure path with stable typed deta
 - **AND** work/resources map to ResourceExhausted, deadlines to DeadlineExceeded, corruption to DataLoss and unavailable storage to Unavailable
 - **AND** remote details omit raw SQL, credentials and host storage paths
 
-#### Scenario: Invalid Field And Lost Storage
+#### Scenario: Invalid Field and Lost Storage
 - **WHEN** a request names an undeclared field, or a later page loses its backing evidence
 - **THEN** the first fails with the field and InvalidArgument and the second with an unavailable-snapshot or storage error
 - **AND** neither silently omits rows or substitutes a different snapshot
@@ -69,7 +69,7 @@ The existing `dokime operation call` command SHALL support the five canonical re
 - **WHEN** a caller invokes `dokime operation call dokime.query.list_records --input request.json --output page.json`
 - **THEN** the saved response contains the same typed rows and continuation metadata as the Python page interface
 
-### Requirement: Cycle Work At The Snapshot
+### Requirement: Cycle Work at the Snapshot
 Cycle query rows SHALL expose the declared cycle work status and running execution count from the query cut. Status SHALL be captured from the cycle revision; running count SHALL count only Running member executions at that same cut. Existing phase and paging semantics SHALL remain unchanged.
 
 #### Scenario: Work Changes After Capture
@@ -77,11 +77,11 @@ Cycle query rows SHALL expose the declared cycle work status and running executi
 - **THEN** continuation and snapshot reuse retain the captured status and running count
 - **AND** a fresh query observes the newer work state
 
-#### Scenario: Native And Remote Discovery
+#### Scenario: Native and Remote Discovery
 - **WHEN** native and remote callers query the same snapshot
 - **THEN** their cycle status and running count agree
 
-#### Scenario: Running Work Before A Checkpoint
+#### Scenario: Running Work Before a Checkpoint
 - **WHEN** an execution commits its Running transition before its next checkpoint
 - **THEN** a fresh query reports the Running execution and its cycle has a running count of one
 - **AND** lifecycle projections commit with the state transition; later transitions and checkpoints preserve earlier query cuts

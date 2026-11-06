@@ -98,7 +98,7 @@ def test_close_cancels_calls() -> None:
 def test_backend_negotiation(case: dict[str, Any]) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
-            # Apply The Declared Backend Shape
+            # Apply the Declared Backend Shape
             for field in (
                 "health_epoch",
                 "availability_epoch",
@@ -115,7 +115,7 @@ def test_backend_negotiation(case: dict[str, Any]) -> None:
             if missing := case.get("missing"):
                 server.methods["Backend"].remove(missing.rsplit("/", 1)[1])
 
-            # Connect And Classify
+            # Connect and Classify
             if case["accepted"]:
                 connected = await client.connect()
                 assert connected.api_version == server.version

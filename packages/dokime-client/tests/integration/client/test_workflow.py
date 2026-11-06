@@ -73,7 +73,7 @@ def test_cancel_keeps_execution() -> None:
             assert not backend.terminal.is_set()
             assert await execution.checkpoint() is None
 
-            # Rebinding And Stopping Keeps The Original Attempt And Saved Outcome
+            # Rebinding and Stopping Keeps the Original Attempt and Saved Outcome
             recovered = await client.execution(execution.id)
             await recovered.stop()
             outcome = await recovered.wait()

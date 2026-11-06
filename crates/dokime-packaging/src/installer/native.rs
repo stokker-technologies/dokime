@@ -175,7 +175,7 @@ pub fn assemble(
         mut files,
     } = staging;
 
-    // Stage Startup Identity In The Verified Inventory
+    // Stage Startup Identity in the Verified Inventory
     let installed_identity =
         dokime::paths::DistributionIdentity::new(identity.identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
     let identity_bytes = serde_json::to_vec_pretty(&installed_identity)?;

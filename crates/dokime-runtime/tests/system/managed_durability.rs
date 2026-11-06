@@ -7,7 +7,7 @@
  * ***
  */
 
-// Compact Checkpoints Through Publication And Reopen Fault Boundaries
+// Compact Checkpoints Through Publication and Reopen Fault Boundaries
 
 /* === Modules === */
 

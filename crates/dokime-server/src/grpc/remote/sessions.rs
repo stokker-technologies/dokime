@@ -7,7 +7,7 @@
  * ***
  */
 
-// Bounded Persistent Log Of Remote Sessions
+// Bounded Persistent Log of Remote Sessions
 
 /* === Modules === */
 

@@ -9,7 +9,7 @@ Define accessible inspection and copying of complete notification context, root 
 
 Every toast and retained notification SHALL open a themed details dialog by click or Enter/Space. Esc SHALL close it. Details SHALL include title, complete message, source/operation, absolute and relative time, severity, available typed reason, root-first causes, problems, operation/request/invocation identifiers and copyable diagnostics. Technical text SHALL be collapsed by default and SHALL NOT replace readable prose. Existing plugin remediation actions SHALL remain usable.
 
-#### Scenario: Inspect And Copy A Failure
+#### Scenario: Inspect and Copy a Failure
 
 - **WHEN** an operator activates a failure notification
 - **THEN** the dialog shows readable context with root causes before collapsed consequences, and Copy copies all details including collapsed diagnostics

@@ -46,7 +46,7 @@ pub(crate) async fn cancellation() {
     let backend = &store.backend;
     backend.write_schemas(store.batch(vec![store.schema()])).await.unwrap();
 
-    // Hold The Real SQLite Worker At A Deterministic Boundary
+    // Hold the Real SQLite Worker at a Deterministic Boundary
     let control = backend.local_state();
     let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
@@ -69,7 +69,7 @@ pub(crate) async fn cancellation() {
     release_tx.send(()).unwrap();
     blocker.await.unwrap();
 
-    // Cancellation Before Dispatch Leaves No Hidden Write To Overtake A Retry
+    // Cancellation Before Dispatch Leaves No Hidden Write to Overtake a Retry
     assert_eq!(backend.cursor_saved().await.unwrap(), store.at(1));
     assert!(store.records(1).await.is_empty());
     let saved = backend.write_records(batch).await.unwrap();

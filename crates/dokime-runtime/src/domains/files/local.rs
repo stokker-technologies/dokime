@@ -125,7 +125,7 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher, scan_entries: usize) -
         }
         let entry = match entry {
             Ok(entry) => entry,
-            // A Concurrently Removed Entry Is Simply Absent From This Pass
+            // A Concurrently Removed Entry Is Simply Absent from This Pass
             Err(source) if source.io_error().is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) => {
                 continue;
             }

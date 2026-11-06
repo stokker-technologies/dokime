@@ -42,7 +42,7 @@ use std::process::Command;
 fn isolate_mise(command: &mut Command, plugin: &Path) -> tempfile::NamedTempFile {
     let configuration = tempfile::Builder::new().prefix("dokime-mise-").suffix(".toml").tempfile().unwrap();
     let ceiling = plugin.parent().expect("the standalone plugin has a parent");
-    // Mise Compares The Boundary With Its Non-Verbatim Working Directory
+    // Mise Compares the Boundary with Its Non-Verbatim Working Directory
     #[cfg(windows)]
     let ceiling = {
         let path = ceiling.to_str().expect("mise requires a Unicode configuration path");

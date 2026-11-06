@@ -113,7 +113,7 @@ pub(super) fn project(
 
     for expression in expressions {
         let plan = plan(telemetry, records, request, expression, group, aggregate, &filters)?;
-        // Only Borrowed Descriptors And Their Numeric Group Labels Survive The
+        // Only Borrowed Descriptors and Their Numeric Group Labels Survive The
         // Lookup Pass. The Candidate And Correlation Claims End In That Pass.
         plans = plans.try_map(|mut plans| {
             plans.push(plan);

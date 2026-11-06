@@ -95,7 +95,7 @@ impl FtpSource {
             recursive: true,
         };
 
-        // Fail Fast On An Unreachable Server Or Refused Login
+        // Fail Fast on an Unreachable Server or Refused Login
         let connection = source.connection().await?;
         source.connection = Some(connection);
         Ok(source)
@@ -182,7 +182,7 @@ impl FtpSource {
             }
         }
 
-        // Copy At Most The Listed Length, Then Complete The Transfer
+        // Copy at Most the Listed Length, Then Complete the Transfer
         let mut stream = match tokio::time::timeout(COMMAND_TIMEOUT, connection.retr_as_stream(&remote)).await {
             Ok(Ok(stream)) => stream,
             Ok(Err(FtpError::UnexpectedResponse(response))) => {
@@ -199,7 +199,7 @@ impl FtpSource {
             .map_err(|source| unreachable_source(format!("{relative}: {source}")))?;
         match tokio::time::timeout(COMMAND_TIMEOUT, stream.finish()).await {
             Ok(Ok(())) => {}
-            // Closing Early After The Listed Length May Draw An Abort Reply
+            // Closing Early After the Listed Length May Draw an Abort Reply
             Ok(Err(FtpError::UnexpectedResponse(_))) if copied == length => {}
             Ok(Err(source)) => {
                 return Err(ReadFailure::Failed(unreachable_source(format!("{relative}: {source}"))));

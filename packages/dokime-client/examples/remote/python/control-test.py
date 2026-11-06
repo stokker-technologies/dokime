@@ -34,7 +34,7 @@ from dokime_client.client import Cycle, DokimeClient, DokimeError, Execution, Re
 # Connection Parameters
 PAIRING_FILE = Path("../lab.dokime-remote")
 
-# Case And Execution Parameters
+# Case and Execution Parameters
 TEMPLATE = "obc.checks.pulse"
 CYCLE_LABEL = "Remote Pulse Demonstration"
 SAMPLE_COUNT = 8
@@ -181,14 +181,14 @@ async def run() -> int:
                 exported.add(second.id)
                 print(f"Execution Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
 
-            # Seal The Container And Save Its Complete Bundle
+            # Seal the Container and Save Its Complete Bundle
             await cycle.seal()
             saved = await cycle.export(OUTPUT_DIRECTORY / "cycle.zip", overwrite=OVERWRITE)
             print(f"Cycle Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
             return max(item.outcome.exit_code for item in cycle.executions)
 
         except asyncio.CancelledError:
-            # Recover Only This Script's Execution And Cycle
+            # Recover Only This Script's Execution and Cycle
             print("Cancellation Requested; Waiting For Saved Evidence", file=sys.stderr, flush=True)
             if cycle is None:
                 print("Cycle Creation Was Not Confirmed; Inspect The Server Before Creating Another", file=sys.stderr, flush=True)

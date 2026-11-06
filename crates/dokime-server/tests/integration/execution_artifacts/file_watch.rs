@@ -88,7 +88,7 @@ pub(crate) async fn file_watch_artifacts() {
         maximum_bytes: None,
     };
 
-    // A Watch Without An Execution Is Refused Before Any Source Opens
+    // A Watch Without an Execution Is Refused Before Any Source Opens
     let unscoped = watch(
         &client,
         FileWatch {
@@ -198,7 +198,7 @@ pub(crate) async fn file_watch_artifacts() {
 async fn watch(client: &WireClient, request: FileWatch) -> Result<WireStream<FileWatchFrame>, tonic::Status> {
     let mut frames = client.download::<contracts::files::FileWatch>(authenticated(request)).await?.into_inner();
 
-    // A Refusal Before Watching Arrives As The First Frame
+    // A Refusal Before Watching Arrives as the First Frame
     use futures_util::StreamExt;
     let first = frames.message().await?;
     let frames = futures_util::stream::iter(first.map(Ok)).chain(frames.frames);

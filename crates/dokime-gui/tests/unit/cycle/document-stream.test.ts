@@ -112,7 +112,7 @@ async function* iterable(frames: ReturnType<typeof frame>[]) {
   yield* frames;
 }
 
-test("Completed Cards Survive An Interrupted Sibling", async () => {
+test("Completed Cards Survive an Interrupted Sibling", async () => {
   const updates: CompletedDocument[] = [];
   async function* frames() {
     yield* initial();
@@ -144,7 +144,7 @@ test("Completed Cards Survive An Interrupted Sibling", async () => {
   );
 });
 
-test("Structure Projection And Binding Identity", async () => {
+test("Structure Projection and Binding Identity", async () => {
   const frames = initial(true);
   frames.push(frame("Completion", counts(frames.length + 1, true)));
   const capture = await assembleDocument(iterable(frames), { ...expected, structureOnly: true }, () => true);
@@ -163,7 +163,7 @@ test("Structure Projection And Binding Identity", async () => {
   assert.notEqual(nativeDocumentCardKey(capture, "fast"), nativeDocumentCardKey(changed, "fast"));
 });
 
-test("A Budget Failure Keeps The Completed Sibling", async () => {
+test("A Budget Failure Keeps the Completed Sibling", async () => {
   const budget = { name: "frame_bytes", limit: 4096n, reached: 32768n, cardId: "slow" };
   const frames = initial();
   frames.push(

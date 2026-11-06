@@ -6,7 +6,7 @@
 
 Streamed plugin bundle installation SHALL complete under unchanged transfer limits by consuming the published Harmos transport-only backport.
 
-#### Scenario: Install The Matched Bundle
+#### Scenario: Install the Matched Bundle
 
 - **WHEN** the native desktop installs the matched 35,284,480-byte OBC bundle with unchanged 1 MiB message/stream and 4 MiB decoded-retention settings
 - **THEN** decoded-item retention does not reject the installation

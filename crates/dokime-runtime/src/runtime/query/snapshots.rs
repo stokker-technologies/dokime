@@ -7,7 +7,7 @@
  * ***
  */
 
-// Finite Capture, Token Reuse And Seek Continuation Lifecycle
+// Finite Capture, Token Reuse and Seek Continuation Lifecycle
 
 /* === Modules === */
 
@@ -140,7 +140,7 @@ impl RuntimeHandle {
                         .await
                         .map_err(storage_error)?
                 } else {
-                    // Drain The Existing Fixed Publication Frontier Before Taking
+                    // Drain the Existing Fixed Publication Frontier Before Taking
                     // Admission Gates; Ingest Uses The Telemetry Gate Itself.
                     self.flush_plugin_publications().await.map_err(|_| unavailable(operation))?;
                     let _evidence = self.evidence_admission.lock().await;

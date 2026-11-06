@@ -7,7 +7,7 @@
  * ***
  */
 
-// Derive Work Changes From The Checked Transition Without Reimplementing It
+// Derive Work Changes from the Checked Transition Without Reimplementing It
 
 /* === Modules === */
 

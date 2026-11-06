@@ -159,7 +159,7 @@ test("Advanced Reveals Additional Preference Fields", () => {
   for (const value of ["dark", "compact", "lttb"]) assert.ok(advanced.includes(`value="${value}" selected=""`), value);
 });
 
-test("Plugins Section Edits Only The Backend Plugin Budgets", () => {
+test("Plugins Section Edits Only the Backend Plugin Budgets", () => {
   const simple = renderToStaticMarkup(createElement(ApplicationPreferences, { section: "plugins" }));
   const advanced = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true, section: "plugins" }));
   const elsewhere = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true }));
@@ -174,7 +174,7 @@ test("Plugins Section Edits Only The Backend Plugin Budgets", () => {
     assert.ok(!elsewhere.includes(`id="${id}"`), id);
 });
 
-test("Scoped Saves Send All Fields And The Reviewed Revision", async () => {
+test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
   for (const scope of ["local", "backend"] as const) {
     renderToStaticMarkup(createElement(SavePreferencesProbe, { scope }));
     const mutation = fixture.mutations.at(-1);
@@ -286,7 +286,7 @@ test("Autosave Debounces Edits For 100ms And Serializes Pending Revisions", asyn
   }
 });
 
-test("Autosave Blocks After Failure And Can Cancel Invalid Edits Or Flush On Navigation", async () => {
+test("Autosave Blocks After Failure and Can Cancel Invalid Edits or Flush on Navigation", async () => {
   vi.useFakeTimers();
   try {
     const states: string[] = [];
@@ -321,7 +321,7 @@ test("Autosave Blocks After Failure And Can Cancel Invalid Edits Or Flush On Nav
   }
 });
 
-test("Advanced View Persists Per Viewer In Desktop And Browser Storage", async () => {
+test("Advanced View Persists per Viewer in Desktop and Browser Storage", async () => {
   const storage = new Map<string, string>();
   try {
     for (const desktop of [true, false]) {

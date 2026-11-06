@@ -1,4 +1,4 @@
-# Plot Marker Legend And Sparse Points
+# Plot Marker Legend and Sparse Points
 
 ## Why
 
@@ -20,7 +20,7 @@ window reduction; lone samples must remain visible. Update docs/gui.md and run
 only targeted TypeScript tests, GUI formatting, lint and type checks. Do not run
 a full simulation. Deliver one PR to dev and remove the owned worktree and branch.
 
-## Ownership And Impact
+## Ownership and Impact
 
 CartesianPlot owns visibility, viewport counts and canvas rendering.
 StatsSummaryTable owns legend glyph presentation; statistics types carry row

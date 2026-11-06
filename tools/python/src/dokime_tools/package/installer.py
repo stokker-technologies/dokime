@@ -96,7 +96,7 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
         for artifact in (scratch / "installers").iterdir():
             stage_file(artifact, installers / artifact.name)
 
-    # Preserve The Portable Release Distribution And Explicit Shipping Plugin
+    # Preserve the Portable Release Distribution and Explicit Shipping Plugin
     distribution.archive(source, destination)
     plugins.archive(root, build, destination, metadata["version"], metadata["target"])
     clear_output(destination / "plugins")

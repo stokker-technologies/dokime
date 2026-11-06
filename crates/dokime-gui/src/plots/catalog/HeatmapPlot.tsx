@@ -168,7 +168,7 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
                   const size = sparseCellSize(points.length);
                   return (
                     <rect
-                      aria-label={`Value ${formatScore(point.z)}${plot.unit ?? ""} At ${formatAxis(point.x)}, ${formatAxis(point.y)}`}
+                      aria-label={`Value ${formatScore(point.z)}${plot.unit ?? ""} at ${formatAxis(point.x)}, ${formatAxis(point.y)}`}
                       fill={colorScale(point.z)}
                       height={size}
                       key={`${point.x}-${point.y}-${point.z}`}
@@ -315,7 +315,7 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
         </div>
       ) : (
         <div className="grid min-h-56 place-content-center rounded-lg bg-background text-center text-sm text-muted-foreground">
-          {plot.stateLabel ?? "Waiting For Numeric Samples"}
+          {plot.stateLabel ?? "Waiting for Numeric Samples"}
         </div>
       )}
     </article>

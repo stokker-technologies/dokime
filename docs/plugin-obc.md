@@ -87,7 +87,7 @@ host identity are captured as traceability, not configured as template inputs.
 The steady-state start step records device and bench sections through
 `ctx.traceability()`, so identity discovery belongs to the procedure steps.
 
-## Build And Validate
+## Build and Validate
 
 ```sh
 mise run build:rust

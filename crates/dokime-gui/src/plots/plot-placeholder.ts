@@ -22,7 +22,7 @@ export type PlotPlaceholderText = {
 /* === Constants === */
 
 /** The label of every plot whose backend payload has no samples yet. */
-export const WAITING_FOR_SAMPLES = "Waiting For Samples";
+export const WAITING_FOR_SAMPLES = "Waiting for Samples";
 
 /** The label a plot shows when its stream reported an error and nothing is drawn. */
 export const STREAM_ERROR = "Stream Error";

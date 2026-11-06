@@ -51,19 +51,19 @@ pub struct Overcurrent {
 
 #[dokime::record(
     id = "obc.charger.protection.initialized",
-    label = "Charger initialized",
+    label = "Charger Initialized",
     description = "The Charger was initialized for this attempt."
 )]
 #[derive(Clone, Debug)]
 pub struct Initialized {}
 
-#[dokime::record(id = "obc.charger.protection.started", label = "Charger energized", description = "The supply was energized.")]
+#[dokime::record(id = "obc.charger.protection.started", label = "Charger Energized", description = "The supply was energized.")]
 #[derive(Clone, Debug)]
 pub struct Started {}
 
 #[dokime::record(
     id = "obc.charger.protection.faulted",
-    label = "Overcurrent latch opened the Charger supply",
+    label = "Overcurrent Latch Opened the Charger Supply",
     description = "The overcurrent latch opened the supply."
 )]
 #[derive(Clone, Debug)]
@@ -71,7 +71,7 @@ pub struct Faulted {}
 
 #[dokime::record(
     id = "obc.charger.protection.stopped",
-    label = "Charger supply de-energized; any fault latch remains set",
+    label = "Charger Supply De-energized; Any Fault Latch Remains Set",
     description = "The procedure left the Charger safely disconnected, and what it decided."
 )]
 #[derive(Clone, Debug)]
@@ -245,7 +245,7 @@ impl Overcurrent {
 
     #[dokime::criterion(
         id = "obc.charger.protection.latch",
-        label = "Overcurrent disconnects and prevents restart",
+        label = "Overcurrent Disconnects and Prevents Restart",
         description = "Passed once the overload latched a fault and blocked the restart."
     )]
     fn protected(ctx: &CriterionContext<'_>) -> Result<bool, Error> {

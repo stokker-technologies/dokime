@@ -155,7 +155,7 @@ pub(crate) async fn cycle_edits_state() {
     assert_eq!(retained[2].status, model::execution::wire::ExecutionStatus::Skipped);
     assert!(second.iter().all(|previous| previous.execution_id != retained[2].execution_id));
     assert_eq!(client.unary::<contracts::execution::DeleteCase>(authenticated(case)).await.unwrap_err().code(), Code::FailedPrecondition);
-    // A Re-Run Makes The Cycle Ready Again, Which Is Not Terminal
+    // A Re-Run Makes the Cycle Ready Again, Which Is Not Terminal
     assert_eq!(
         client.unary::<contracts::execution::SetCycleArchived>(authenticated(archive(&id, true))).await.unwrap_err().code(),
         Code::FailedPrecondition
@@ -236,7 +236,7 @@ pub(crate) async fn labels_rename_state() {
     };
     assert_eq!(client.unary::<contracts::execution::RenameCycle>(rename.clone()).await.unwrap_err().code(), Code::Unauthenticated);
 
-    // A Blank Or Oversized Label Is A Bad Argument
+    // A Blank or Oversized Label Is a Bad Argument
     for label in [String::from(" \t "), "x".repeat(4097)] {
         assert_eq!(
             client
@@ -248,7 +248,7 @@ pub(crate) async fn labels_rename_state() {
         );
     }
 
-    // Before The Run Seals, The Cycle And Its Execution Take Their New Labels
+    // Before the Run Seals, the Cycle and Its Execution Take Their New Labels
     let reply = client.unary::<contracts::execution::RenameCycle>(authenticated(rename)).await.unwrap().into_inner();
     assert_eq!(reply.label, "Charger Burn-In");
     let execution_id = attempts(&mut client, &id).await[0].execution_id.clone();

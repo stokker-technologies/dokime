@@ -7,7 +7,7 @@
  * ***
  */
 
-// Describe A Concluded Execution When Its Cycle Did Not Complete
+// Describe a Concluded Execution When Its Cycle Did Not Complete
 
 /* === Modules === */
 

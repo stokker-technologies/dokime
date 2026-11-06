@@ -7,7 +7,7 @@
  * ***
  */
 
-// Execution Telemetry Materialization And Its Portable Catalog
+// Execution Telemetry Materialization and Its Portable Catalog
 
 /* === Modules === */
 

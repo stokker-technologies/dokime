@@ -43,7 +43,7 @@ def package(root: Path, profile: str) -> None:
         raise ValueError("packaging requires the matching built plugin; run mise run build first")
     destination = paths.output(root, "package", profile) / "rust/plugins"
 
-    # Package Consumes The Built Bundle Without Cargo Compilation
+    # Package Consumes the Built Bundle Without Cargo Compilation
     with temporary.directory() as scratch:
         shutil.copy2(source, scratch / source.name)
         paths.replace(root, scratch, destination, origin=scratch)

@@ -547,7 +547,7 @@ impl Sampling {
             None
         };
 
-        // Admit The Whole Group
+        // Admit the Whole Group
         // Until this lock is acquired, no capture demand is visible. Cancelled
         // waits leave generation settlement with the original service manager.
         let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);

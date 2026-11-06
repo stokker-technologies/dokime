@@ -312,7 +312,7 @@ test("Declared Secret Add", () => {
   assert.ok(initial.includes("api_token"));
   assert.ok(initial.includes("Required · Missing"));
   assert.ok(initial.includes("Optional · Available"));
-  assert.equal((initial.match(/Add In Secret Storage/g) ?? []).length, 1);
+  assert.equal((initial.match(/Add in Secret Storage/g) ?? []).length, 1);
   assert.equal(initial.includes('type="password"'), false);
   assert.equal(fixture.buttons.length, 1);
   fixture.buttons[0]();
@@ -444,7 +444,7 @@ test("Installed Program Applying", async () => {
   }
 });
 
-test("Backend Field Marks Survive View Reads And Clear After Reload", async () => {
+test("Backend Field Marks Survive View Reads and Clear After Reload", async () => {
   fixture.admitted.mockResolvedValue([{ plugin_id: "equipment.main", label: "Equipment", status: "ready", error: null }]);
   const settings = {
     settings: { contributions: [{ kind: "text_area", id: "address", title: "Address", default: "", required: false }] },

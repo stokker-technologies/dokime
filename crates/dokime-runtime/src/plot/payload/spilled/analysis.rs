@@ -7,7 +7,7 @@
  * ***
  */
 
-// Exact Plot Statistics Over Paged Series
+// Exact Plot Statistics over Paged Series
 
 /* === Modules === */
 

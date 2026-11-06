@@ -7,7 +7,7 @@
  * ***
  */
 
-// Embed The Plugin Scaffold Assets
+// Embed the Plugin Scaffold Assets
 
 /* === Modules === */
 

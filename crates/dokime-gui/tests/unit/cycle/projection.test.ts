@@ -36,7 +36,7 @@ import { invalidateWorkflowDocuments, workflowQueryKeys } from "@/features/cycle
 
 /* === Entry Point === */
 
-test("Runtime Refresh Preserves A Trailing Observation", async () => {
+test("Runtime Refresh Preserves a Trailing Observation", async () => {
   let finish!: () => void;
   const gate = new Promise<void>((resolve) => {
     finish = resolve;
@@ -72,7 +72,7 @@ test("Runtime Refresh Can Retry After Failure", async () => {
   coordinator.dispose();
 });
 
-test("Document Refresh Is Demand Driven And Bounded", () => {
+test("Document Refresh Is Demand Driven and Bounded", () => {
   vi.useFakeTimers();
   const refresh = vi.fn();
   const coordinator = createThrottledRefresh(refresh, 5_000);

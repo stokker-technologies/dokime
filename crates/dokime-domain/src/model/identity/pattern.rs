@@ -7,7 +7,7 @@
  * ***
  */
 
-// Match Bounded Identifier Globs For Evidence Observation
+// Match Bounded Identifier Globs for Evidence Observation
 
 /* === Modules === */
 
