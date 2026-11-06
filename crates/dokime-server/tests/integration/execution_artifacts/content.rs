@@ -728,23 +728,23 @@ pub(crate) async fn artifact_upload_owned() {
 
 async fn completion_harness()
 -> (tempfile::TempDir, Runtime, Server, WireClient, WireClient, Arc<UploadGate>, String, model::content::wire::ArtifactScope) {
-    upload_harness(keyed().with_max_message_bytes(4096)).await
+    upload_harness(keyed().with_max_message_bytes(4096), tokio::runtime::Handle::current()).await
 }
 
 async fn upload_harness(
-    config: dokime_server::grpc::Config,
+    config: dokime_server::grpc::Config, storage_runtime: tokio::runtime::Handle,
 ) -> (tempfile::TempDir, Runtime, Server, WireClient, WireClient, Arc<UploadGate>, String, model::content::wire::ArtifactScope) {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
     let prepared_owner = dokime_server::grpc::Service::prepare(config).unwrap();
-    let owner = Runtime::with_execution_fixture(
-        prepared_owner
-            .configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.completion", "Content"))),
-        "fixture",
-        gate.clone(),
-    )
-    .boxed_local()
+    let config = prepared_owner
+        .configuration(crate::support::budgets::runtime_config(root.path(), support::metadata("grpc.content.completion", "Content")));
+    let fixture = gate.clone();
+    let owner = tokio::task::spawn_blocking(move || {
+        storage_runtime.block_on(Runtime::with_execution_fixture(config, "fixture", fixture).boxed_local())
+    })
     .await
+    .unwrap()
     .unwrap();
     support::register_fixture_execution(&owner.handle(), support::fixture_suite(&["passed"])).await;
     let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
@@ -819,7 +819,8 @@ async fn finish_completion_harness(execution: WireClient, cycle_id: String, gate
 
 // Full-Size Chunks At The Default Message Limit Stream Through The Native Client.
 pub(crate) async fn artifact_upload_large() {
-    let (root, owner, server, execution, _content, gate, cycle_id, scope) = upload_harness(keyed()).await;
+    let (root, owner, server, execution, _content, gate, cycle_id, scope) =
+        upload_harness(keyed(), tokio::runtime::Handle::current()).await;
     let bytes = (0..8 * 1024 * 1024 + 321).map(|index| (index % 251) as u8).collect::<Vec<_>>();
     let source = root.path().join("large-upload.bin");
     std::fs::write(&source, &bytes).unwrap();
@@ -1057,7 +1058,9 @@ async fn report_frames(mut stream: WireStream<model::reports::wire::ReportHtmlFr
 pub(crate) async fn artifact_upload_idle_deadlines() {
     use dokime::harmos::operations::OperationDeclaration;
     use model::content::wire::{ArtifactChunk, UploadArtifactFrame, UploadArtifactFramePayload as Payload, UploadArtifactHeader};
-    let (root, owner, server, execution, _content, gate, cycle_id, scope) = upload_harness(keyed()).await;
+    // Storage Keeps Its Real I/O Clock While Server And Client Transfer Time Advances.
+    let io = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let (root, owner, server, execution, _content, gate, cycle_id, scope) = upload_harness(keyed(), io.handle().clone()).await;
     let native =
         dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
     let idle = contracts::content::UploadArtifact::POLICY.timeout;
@@ -1091,9 +1094,6 @@ pub(crate) async fn artifact_upload_idle_deadlines() {
         }
     });
     for offset in 1..bytes.len() {
-        // Drain Real Storage Work Before Advancing Its Shared Tokio Clock.
-        owner.handle().storage().flush().await.unwrap();
-        owner.handle().storage().flush_recovery().await.unwrap();
         tokio::time::advance(idle * 3 / 4).await;
         upload
             .send(UploadArtifactFrame {
@@ -1142,8 +1142,6 @@ pub(crate) async fn artifact_upload_idle_deadlines() {
         .unwrap();
     // The Earlier Operation Is Complete At 1.0, So This Identifies The New Upload.
     support::operation_fraction(&mut progress, None, 0.25).await;
-    owner.handle().storage().flush().await.unwrap();
-    owner.handle().storage().flush_recovery().await.unwrap();
     tokio::time::advance(idle + Duration::from_secs(1)).await;
     assert!(matches!(stalled.response().await, Err(dokime::client::Error::Rpc(status))
         if status.code() == Code::DeadlineExceeded && status.message().contains(contracts::content::UploadArtifact::ID)));
@@ -1153,4 +1151,5 @@ pub(crate) async fn artifact_upload_idle_deadlines() {
     tokio::time::resume();
     native.close_and_wait().await;
     finish_completion_harness(execution, cycle_id, gate, owner, server).await;
+    io.shutdown_background();
 }
