@@ -62,13 +62,6 @@ pub(super) struct ResolvedPlan {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::MaterializeTemplate),
-    Operation1(wire::RegisterSelection),
-    Operation2(wire::PreviewSelection),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -171,7 +164,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::RegisterSelection>>(Host::<wire::RegisterSelection>::new(served.clone()));
     setup.resource::<Host<wire::PreviewSelection>>(Host::<wire::PreviewSelection>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

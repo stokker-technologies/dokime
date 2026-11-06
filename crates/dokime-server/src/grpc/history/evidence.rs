@@ -48,11 +48,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(contract::GetCheckpointEvidence),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -100,7 +95,6 @@ pub(super) fn prepare(
 
     setup.resource::<Host<contract::GetCheckpointEvidence>>(Host::<contract::GetCheckpointEvidence>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

@@ -34,6 +34,9 @@ use dokime_domain::model::telemetry::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(ListSamples, WatchSamples);
+
 /* === Type Aliases === */
 
 /* === Structs === */

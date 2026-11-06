@@ -47,12 +47,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(history::GetExecutionCheckpoint),
-    Operation1(history::DeleteExecution),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -113,7 +107,6 @@ pub(in crate::grpc) fn prepare(
     setup.resource::<Host<history::GetExecutionCheckpoint>>(Host::<history::GetExecutionCheckpoint>::new(served.clone()));
     setup.resource::<Host<history::DeleteExecution>>(Host::<history::DeleteExecution>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

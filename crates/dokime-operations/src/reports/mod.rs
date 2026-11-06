@@ -34,6 +34,9 @@ use dokime_domain::model::reports::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(DownloadCycleReport, DownloadExecutionReport, MaterializeReport);
+
 /* === Type Aliases === */
 
 /* === Structs === */

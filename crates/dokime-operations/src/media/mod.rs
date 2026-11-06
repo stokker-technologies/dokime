@@ -42,6 +42,9 @@ use dokime_domain::model::media::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(AudioRecording, CameraRecording, Photo, ScreenRecording, Screenshot);
+
 /* === Type Aliases === */
 
 /* === Structs === */

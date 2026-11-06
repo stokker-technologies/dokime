@@ -40,6 +40,9 @@ use dokime_domain::model::observation::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(GetRuntimeShell, GetTraceability, WatchExecutionProgress, WatchRuntime);
+
 /* === Type Aliases === */
 
 /* === Structs === */

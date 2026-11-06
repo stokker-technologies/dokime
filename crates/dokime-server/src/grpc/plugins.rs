@@ -57,17 +57,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(v1::ListInstallations),
-    Operation1(v1::GetInstallation),
-    Operation2(v1::Install),
-    Operation3(v1::SetEnabled),
-    Operation4(v1::Remove),
-    Operation5(v1::Reload),
-    Operation6(v1::ListAdmittedPlugins),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -344,7 +333,6 @@ pub(super) fn prepare(
     setup.resource::<Host<v1::Reload>>(Host::<v1::Reload>::new(served.clone()));
     setup.resource::<Host<v1::ListAdmittedPlugins>>(Host::<v1::ListAdmittedPlugins>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 
