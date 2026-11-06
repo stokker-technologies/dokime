@@ -724,7 +724,7 @@ async fn check_stopped_question(stop_cycle: bool) {
     if stop_cycle {
         runtime.seal_cycle(cycle.clone(), CommandContext::default()).await.unwrap();
     } else {
-        let execution = runtime.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap().test_executions[0]
+        let execution = runtime.cycles().await.unwrap().into_iter().find(|item| item.test_cycle_id == cycle).unwrap().test_executions[0]
             .test_execution_id
             .clone();
         runtime.stop_execution(execution, CommandContext::default()).await.unwrap();

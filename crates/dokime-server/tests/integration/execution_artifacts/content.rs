@@ -561,6 +561,19 @@ pub(crate) async fn artifact_upload_owned() {
         .into_inner();
     assert_eq!(foldered.filename, "upload/operator-notes.txt");
     assert_eq!(foldered.state, model::content::wire::ArtifactState::Complete);
+    let files = content
+        .unary::<contracts::content::ListExecutionFiles>(authenticated(contracts::content::ListExecutionFiles {
+            execution_id: execution_id.clone(),
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .files;
+    assert!(files.windows(2).all(|pair| pair[0].relative_path < pair[1].relative_path));
+    for artifact in [&uploaded, &foldered] {
+        assert!(files.iter().any(|file| file.relative_path == format!("artifacts/{}", artifact.filename)));
+    }
     for escaping in ["../escape.txt", "/absolute.txt", "upload//empty.txt"] {
         let refused = content.upload::<contracts::content::UploadArtifact>(authenticated(upload_named(escaping))).await.unwrap_err();
         assert_eq!(refused.code(), Code::InvalidArgument, "{escaping}");

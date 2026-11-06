@@ -281,17 +281,25 @@ pub fn materialized_case(identifier: &str, label: &str, result: &str) -> TestCas
 }
 
 pub async fn current_cycle_ids(runtime: &RuntimeHandle) -> BTreeSet<TestCycleId> {
-    runtime.cycles().await.into_iter().map(|cycle| cycle.test_cycle_id).collect()
+    runtime.cycles().await.unwrap().into_iter().map(|cycle| cycle.test_cycle_id).collect()
 }
 
 pub async fn newest_test_cycle_id(runtime: &RuntimeHandle, before: &BTreeSet<TestCycleId>) -> TestCycleId {
-    runtime.cycles().await.into_iter().map(|cycle| cycle.test_cycle_id).find(|test_cycle_id| !before.contains(test_cycle_id)).unwrap()
+    runtime
+        .cycles()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|cycle| cycle.test_cycle_id)
+        .find(|test_cycle_id| !before.contains(test_cycle_id))
+        .unwrap()
 }
 
 pub async fn test_case_id_for(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, test_case_id: &CaseId) -> CaseId {
     runtime
         .cycles()
         .await
+        .unwrap()
         .into_iter()
         .find(|cycle| &cycle.test_cycle_id == test_cycle_id)
         .unwrap()

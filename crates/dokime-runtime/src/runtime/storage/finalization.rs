@@ -355,7 +355,14 @@ impl RuntimeHandle {
         if self.execution_storage.acquisition(id).await.is_none() {
             self.execution_storage.acquire(cycle, execution).await?;
         }
-        self.capture_report_lifecycle(execution).await?;
+        {
+            let gate = self.execution_storage.materialization_gate(id).await?;
+            let _capture = gate.lock().await;
+            if self.adopt_saved_execution(id).await? {
+                return Ok(());
+            }
+            self.capture_report_lifecycle(execution).await?;
+        }
         crate::runtime::operations::reports::Resources::from_runtime(self)
             .materialize(crate::operations::reports::MaterializeReport {
                 subject: ReportSubject::Execution(id.to_string()),
@@ -386,7 +393,10 @@ impl RuntimeHandle {
     async fn commit_admitted_seal(
         &self, seal: harmos::storage::ReadBatch<dokime_domain::model::execution::saved::ExecutionSeal>,
     ) -> Result<()> {
-        let transaction = seal.try_map(|seal| {
+        // Native Publication Has Already Validated And Saved The Complete Inventory.
+        // The Journal Carries Its Durable References, Not Another Inventory Copy.
+        let transaction = seal.try_map(|mut seal| {
+            seal.source.outputs.clear();
             Ok::<_, crate::storage::Error>(crate::transactions::Transactions::from(crate::transactions::SealExecution { seal }))
         })?;
         let owner = transaction.owner();

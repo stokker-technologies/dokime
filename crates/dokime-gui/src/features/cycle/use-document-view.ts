@@ -6,9 +6,13 @@
 import { useMemo } from "react";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { orderedDocumentSections } from "@/lib/document-layout";
+import { scopeVisibleIn } from "@/lib/scope";
+import type { HubRecord } from "@/lib/types";
 import { type DocumentViewOptions, documentView } from "./document-view-model";
 import { useExecutionFilesQuery, useHealthQuery, useNotesQuery, useRecordsQuery, useTraceabilityQuery } from "./server-state";
 import { useFrozenPlotPayloads } from "./snapshot-source";
+
+const EMPTY_RECORDS: HubRecord[] = [];
 
 export function useDocumentView(options: DocumentViewOptions) {
   const { document, liveSnapshot, noteElapsedStart, execution, scope, live, parameters } = options;
@@ -29,7 +33,7 @@ export function useDocumentView(options: DocumentViewOptions) {
   const recordsQuery = useRecordsQuery(kinds.has("records") || kinds.has("plots") || !live, scope);
   const traceabilityQuery = useTraceabilityQuery(kinds.has("traceability"), scope);
   const reportPayloads = useFrozenPlotPayloads(scope.test_execution_id ?? null);
-  return useMemo(
+  const view = useMemo(
     () =>
       documentView(
         {
@@ -45,7 +49,7 @@ export function useDocumentView(options: DocumentViewOptions) {
           artifacts: filesQuery.data ?? [],
           notes: notesQuery.data ?? [],
           health: healthQuery.data ?? [],
-          records: recordsQuery.data ?? [],
+          records: EMPTY_RECORDS,
           traceability: traceabilityQuery.data ?? null,
           reportPayloads,
         },
@@ -62,9 +66,13 @@ export function useDocumentView(options: DocumentViewOptions) {
       filesQuery.data,
       notesQuery.data,
       healthQuery.data,
-      recordsQuery.data,
       traceabilityQuery.data,
       reportPayloads,
     ],
   );
+  const records = useMemo(
+    () => (recordsQuery.data ?? EMPTY_RECORDS).filter((record) => scopeVisibleIn(record.scope, scope)),
+    [recordsQuery.data, scope],
+  );
+  return useMemo(() => ({ ...view, records }), [view, records]);
 }

@@ -45,6 +45,7 @@ pub enum Objects {
     Command(super::requests::Command),
     Cycle(cycle::Cycle),
     Execution(execution::Execution),
+    Registration(case::Registration),
     Request(super::requests::Request),
     Suite(suite::Suite),
 }

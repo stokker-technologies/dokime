@@ -95,7 +95,7 @@ async fn empty_cycle(execution: &WireClient) -> String {
 }
 
 async fn assert_no_cases(owner: &Runtime) {
-    assert!(owner.handle().cycles().await.iter().all(|cycle| cycle.cases().next().is_none()));
+    assert!(owner.handle().cycles().await.unwrap().iter().all(|cycle| cycle.cases().next().is_none()));
 }
 
 fn error_code(status: &tonic::Status) -> String {
@@ -382,7 +382,7 @@ pub(crate) async fn template_conflicts_disambiguate() {
         .unwrap();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = support::planned_cycle(&execution, Request::new(create()), plan(vec![selection(&first)])).await.unwrap();
-    let cycles = owner.handle().cycles().await;
+    let cycles = owner.handle().cycles().await.unwrap();
     assert_eq!(cycles.len(), 1);
     assert_eq!(cycles[0].test_cycle_id.as_str(), cycle_id);
     assert!(cycles[0].cases().all(|case| case.suite_id == first.metadata.identifier.as_str()));

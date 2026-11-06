@@ -86,8 +86,14 @@ impl RuntimeHandle {
         if let Some(inspection) = ExecutionView::open(self.storage(), &execution.test_execution_id, ObjectVersion::Latest).await?
             && inspection.execution().saved.is_some()
         {
-            if execution.saved.is_some() && inspection.execution() != execution {
-                return Err(invalid("saved report member differs from frozen cycle"));
+            if execution.saved.is_some() {
+                let mut expected = inspection.execution().clone();
+                crate::state::RuntimeState::sealed_projection(&mut expected);
+                let mut actual = execution.clone();
+                crate::state::RuntimeState::sealed_projection(&mut actual);
+                if expected != actual {
+                    return Err(invalid("saved report member differs from frozen cycle"));
+                }
             }
             if execution.saved.is_none() {
                 let mut expected = inspection.revision()?.value.clone();
