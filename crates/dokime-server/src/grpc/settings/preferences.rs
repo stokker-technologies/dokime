@@ -43,12 +43,6 @@ pub(super) struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::ReadApplicationSettings),
-    Operation1(wire::UpdateApplicationSettings),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -109,7 +103,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::ReadApplicationSettings>>(Host::<wire::ReadApplicationSettings>::new(served.clone()));
     setup.resource::<Host<wire::UpdateApplicationSettings>>(Host::<wire::UpdateApplicationSettings>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

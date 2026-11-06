@@ -48,6 +48,7 @@ struct Resources {
 
 /* === Enums === */
 
+// The Runtime Registers The Other Query Operations; This Host Serves Only Aggregate.
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum PreparedOperations {
     Operation0(wire::Aggregate),

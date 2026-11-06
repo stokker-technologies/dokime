@@ -65,15 +65,6 @@ struct Unsealed(Option<Recording>);
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(contract::Screenshot),
-    Operation1(contract::Photo),
-    Operation2(contract::AudioRecording),
-    Operation3(contract::ScreenRecording),
-    Operation4(contract::CameraRecording),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -215,7 +206,6 @@ pub(super) fn prepare(
     setup.resource::<Host<contract::ScreenRecording>>(Host::<contract::ScreenRecording>::new(unsupported.clone()));
     setup.resource::<Host<contract::CameraRecording>>(Host::<contract::CameraRecording>::new(unsupported));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

@@ -68,13 +68,6 @@ struct FrameContext<'a> {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(contract::ListAnalyses),
-    Operation1(contract::QuerySnapshots),
-    Operation2(contract::Watch),
-}
-
 // One step of a watch's opening phase: a result, or a keepalive while none is ready.
 #[derive(Debug, PartialEq)]
 enum Opening<T> {
@@ -430,7 +423,6 @@ pub(super) fn prepare(
     setup.resource::<Host<contract::QuerySnapshots>>(Host::<contract::QuerySnapshots>::new(served.clone()));
     setup.resource::<Host<contract::Watch>>(Host::<contract::Watch>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

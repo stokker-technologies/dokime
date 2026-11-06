@@ -68,9 +68,3 @@ impl ListCycles {
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    use super::*;
-    crate::hosted!(ListCycles);
-}
