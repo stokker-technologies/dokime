@@ -37,6 +37,7 @@ use crate::storage::{Error, Manager, Result, telemetry::TelemetryEntry};
 #[derive(Default)]
 pub(crate) struct Tail {
     pub entries: BTreeMap<u64, (Instant, TelemetryEntry)>,
+    pub readable: tokio::sync::watch::Sender<u64>,
     pub running: bool,
     pub force: bool,
     pub changed: Arc<Notify>,
@@ -91,6 +92,10 @@ impl Tail {
 }
 
 impl State {
+    pub(crate) fn watch_telemetry(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.0.telemetry_tail.lock().unwrap().readable.subscribe()
+    }
+
     pub(crate) async fn stage_telemetry(&self, storage: Manager, through: StorageCursor, entries: Vec<TelemetryEntry>) -> Result<()> {
         let state = self.clone();
         let end = through.sequence;
@@ -111,6 +116,14 @@ impl State {
                             tail.entries.entry(position).or_insert((Instant::now(), entry));
                         }
                     }
+                    // Publish Read Progress Only After Every Row Is In The Tail Or Saved.
+                    tail.readable.send_if_modified(|position| {
+                        if end <= *position {
+                            return false;
+                        }
+                        *position = end;
+                        true
+                    });
                     tail.changed.notify_one();
                     let start = !tail.running && !tail.entries.is_empty();
                     if start {

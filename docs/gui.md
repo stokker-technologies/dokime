@@ -135,6 +135,14 @@ Ad hoc queries without a matching
 checkpoint, explicit unbounded queries and older historical frontiers still
 require raw evidence reads.
 
+Timed plot watches merge saved telemetry with the bounded, unflushed admission
+tail. They follow accepted publications independently of the disk save interval,
+coalescing updates with the existing 100 ms throttle rather than sending a frame
+per row. The admission tail covers every unsaved row, including rows older than a
+stream's declared window. A flush moves those rows into saved batches without a
+gap or duplicate. Tail rows shown live can be lost in a crash. Finite queries,
+All refreshes and frozen reports retain saved evidence cuts.
+
 Numeric time series and histograms show numeric statistics. XY scatter, XY line,
 XY interval, trajectory and heatmap plots omit the statistics block in both the
 desktop and report renderer. XY traces keep their ordinary legend.

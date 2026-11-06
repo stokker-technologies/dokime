@@ -2009,14 +2009,19 @@ break retains the v1 baseline and does not upgrade or reset existing storage.
 
 Telemetry admission retains a bounded in-memory tail. A flush writes a
 ZSTD-compressed Arrow batch and syncs it before committing SQLite catalog metadata
-and advancing saved progress. Live plots, queries and aggregate outputs merge indexed saved batches
-with the unflushed tail; historical reads retain their requested saved frontier.
+and advancing saved progress. Timed live plot watches merge indexed saved batches
+with the unflushed admission tail, independently of the save interval. This tail
+covers every unsaved row even when a stream's declared window is smaller;
+updates coalesce under the plot throttle. Finite queries, explicit All refreshes
+and frozen reports read saved data at their captured frontier.
 Changing a display window never deletes raw evidence. Only flushed batches are
 durable; accepted tail rows can be lost in a crash.
 
 `RuntimeConfig.local_storage.telemetry_rows` and `telemetry_interval` configure
 row and time thresholds; either triggers a flush. Defaults are 65,536 rows and
-five seconds. Explicit evidence barriers and shutdown also drain pending rows.
+five seconds. Harmos may save pending writes earlier through its periodic or
+batch-pressure policy. These save clocks do not set the cadence of timed live
+plot frames. Explicit evidence barriers and shutdown also drain pending rows.
 Runtime files live at `telemetry/<sha256(execution_id | stream)>.arrow`, with
 session-scoped files for telemetry outside executions. Finalize writes only the
 footer from the retained batch descriptors. Capture ranges link executions and

@@ -67,12 +67,18 @@ pub struct PlotWatchKeys {
 /* === Implementations === */
 
 impl RuntimeHandle {
-    /// Telemetry Streams With Newly Durable Rows Between Two Saved Frontiers.
-    pub async fn plot_streams_saved_between(
+    /// Coalescing progress after telemetry is readable from the admission tail.
+    /// Subscribing never requests persistence or retains another copy of the rows.
+    pub fn watch_plot_telemetry(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.local_storage.watch_telemetry()
+    }
+
+    /// Telemetry streams between two readable frontiers, including the unflushed tail.
+    pub async fn plot_streams_between(
         &self, after: &harmos::storage::StorageCursor, at: &harmos::storage::StorageCursor,
     ) -> crate::runtime::Result<std::collections::BTreeSet<String>> {
         if !at.covers(after)? {
-            return Err(crate::runtime::Error::Operation("plot saved frontier moved backwards".into()));
+            return Err(crate::runtime::Error::Operation("plot frontier moved backwards".into()));
         }
         let mut position = after.sequence;
         let mut streams = std::collections::BTreeSet::new();
@@ -98,7 +104,7 @@ impl PlotWatchKeys {
         }
     }
 
-    /// Whether a row committed on `stream` can change this plot.
+    /// Whether a row published on `stream` can change this plot.
     pub fn reads_stream(&self, stream: &str) -> bool {
         self.telemetry_streams
             .iter()
@@ -128,7 +134,7 @@ pub fn reduce_plot_payload(
 pub async fn query_plot_payloads(
     runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, mode: RuntimePlotQueryMode,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
-    let at = runtime.storage().cursor_accepted();
+    let at = runtime.storage().cursor_saved();
     let session = runtime.storage().clone();
     let context = RuntimePlotEnvelopeContext::load_at(runtime, &requests, &at, &session).await?;
     query_plot_payloads_with_context(&context, runtime, requests, mode, &at, &session, true).await

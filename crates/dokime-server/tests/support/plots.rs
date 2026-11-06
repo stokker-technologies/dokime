@@ -196,8 +196,14 @@ pub fn served_points(frame: &model::plots::wire::PlotStreamFrame) -> usize {
 }
 
 pub async fn publish(handle: &dokime::RuntimeHandle, id: &Identifier, start: u64, count: u64) {
+    publish_pending(handle, id, start, count).await;
+    handle.storage().flush().await.unwrap();
+}
+
+pub async fn publish_pending(handle: &dokime::RuntimeHandle, id: &Identifier, start: u64, count: u64) {
     let samples = (start..start + count).map(|index| sample(id, index, clock(index), None)).collect();
-    save(handle, id, samples).await;
+    let batch = TelemetryBatch::new(dokime::model::identity::new_id(), id.clone(), samples);
+    handle.publish_telemetry_batch(batch).await.unwrap();
 }
 
 pub async fn publish_scoped(
