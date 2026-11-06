@@ -334,13 +334,10 @@ pub(crate) async fn planned_params_limit() {
     )
     .await
     .to_string();
-    let other_cycle = support::cycle_with_cases(
-        &owner.handle(),
-        support::metadata("other.case", "Other case"),
-        support::materialize_cases("fixture.suite", &suite),
-    )
-    .await
-    .to_string();
+    let other_cases = support::materialize_cases("fixture.suite", &suite);
+    let other_case = other_cases[0].test_case_id.to_string();
+    let other_cycle =
+        support::cycle_with_cases(&owner.handle(), support::metadata("other.case", "Other case"), other_cases).await.to_string();
     let case_id = client
         .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
             cycle_id: cycle_id.clone(),
@@ -388,6 +385,8 @@ pub(crate) async fn planned_params_limit() {
             wrong.cycle_id = other_cycle.clone();
             wrong.cursor = cursor.clone();
             wrong.after_name = "p000".into();
+            assert_eq!(client.unary::<contracts::execution::ListCaseParameters>(wrong.clone()).await.unwrap_err().code(), Code::NotFound);
+            wrong.case_id = other_case.clone();
             assert_eq!(client.unary::<contracts::execution::ListCaseParameters>(wrong).await.unwrap_err().code(), Code::InvalidArgument);
             let mut wrong = request.clone();
             wrong.case_id = "another-case".into();
