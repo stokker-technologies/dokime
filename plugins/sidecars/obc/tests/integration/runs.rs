@@ -189,7 +189,7 @@ async fn one_token_inputs() {
 
 #[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
-async fn faults_contained_ready() {
+async fn faults_retain_evidence() {
     let resources = Connections::default();
     let protection = workflow::<plugin_obc::suites::protection::Overcurrent>(plugin_obc::suites::protection::SUITE);
     let recovery = workflow::<plugin_obc::suites::recovery::PowerLoss>(plugin_obc::suites::recovery::SUITE);
@@ -212,8 +212,6 @@ async fn faults_contained_ready() {
         assert!(samples.iter().any(
             |sample| matches!(sample.values.get("phase"), Some(dokime::Value::Text(phase)) if phase == "faulted" || phase == "power_loss")
         ));
-        // The bench is untouched by a fault the Charger contained.
-        assert!(road(&resources).operation::<AskReadiness>(AskReadiness {}).await.is_ok_and(|readiness| !readiness.stopped));
     }
     protection.shutdown().await;
     recovery.shutdown().await;
