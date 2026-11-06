@@ -404,7 +404,9 @@ pub(super) async fn summary_queries() {
     };
     use dokime_runtime::expressions::telemetry;
     use harmos::Message;
-    for (plot_count, total, text_bytes) in [(64, 301, 0), (0, 10_001, 32_768), (0, 3_001, 0), (0, 250_003, 0)] {
+    for (plot_count, total, text_bytes, distinct) in
+        [(64, 301, 0, 301), (0, 10_001, 32_768, 10_001), (0, 3_001, 0, 3_001), (0, 250_003, 0, 1_024)]
+    {
         let root = tempdir().unwrap();
         let executor = Arc::new(BlockingPublishingExecutor::new());
         let settings = config(root.path()).with_installed_plugins([dokime_runtime::InstalledPlugin {
@@ -458,7 +460,9 @@ pub(super) async fn summary_queries() {
             let count = (total - first).min(2_000);
             let samples = (first..first + count)
                 .map(|index| {
-                    let timestamp = Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(index as i64));
+                    let seconds = if distinct == total { index } else { first };
+                    let timestamp = Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(seconds as i64));
+                    let value = (index % distinct) as f64;
                     let mut sample = TelemetrySample::new(
                         dokime_runtime::model::identity::new_id(),
                         identifier("fixture.telemetry"),
@@ -467,11 +471,11 @@ pub(super) async fn summary_queries() {
                         "fixture_documents",
                     );
                     sample.scope = Some(execution.scope.clone());
-                    sample.values.insert("value".into(), Value::Number(index as f64));
+                    sample.values.insert("value".into(), Value::Number(value));
                     sample.storage_payload = Some(
                         crate::service_support::contracts::FixtureValueRow {
                             timestamp: sample.timestamp.as_str().to_owned(),
-                            value: Some(index as f64),
+                            value: Some(value),
                             sample_index: None,
                             ordinal: None,
                         }
@@ -510,12 +514,14 @@ pub(super) async fn summary_queries() {
             })
             .collect::<Vec<_>>();
         let count = raw.len() as f64;
+        let mut ordered = raw.clone();
+        ordered.sort_by(f64::total_cmp);
         let expected = [
             count,
             raw.iter().copied().fold(f64::INFINITY, f64::min),
             raw.iter().copied().fold(f64::NEG_INFINITY, f64::max),
             raw.iter().sum::<f64>() / count,
-            raw[raw.len() / 2],
+            ordered[ordered.len() / 2],
             (raw.iter().map(|value| value * value).sum::<f64>() / count).sqrt(),
         ];
         for (value, expected) in values.iter().zip(expected) {
