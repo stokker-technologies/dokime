@@ -11,7 +11,7 @@
 
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
-import { memo, type ReactNode, useId, useMemo } from "react";
+import { type ComponentProps, memo, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
@@ -77,7 +77,23 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   const plotPalette = usePlotPalette();
   const interaction = usePlotInteraction();
   const syncKey = useId();
-  const prompts = useMemo(() => promptMarkers(records), [records]);
+  const selectPrompts = useMemo(() => {
+    let previous: PromptMarker[] = [];
+    return (source: readonly HubRecord[]) => {
+      const next = promptMarkers(source);
+      if (
+        next.length === previous.length &&
+        next.every((marker, index) => {
+          const held = previous[index];
+          return marker.kind === held.kind && marker.x === held.x && marker.title === held.title;
+        })
+      )
+        return previous;
+      previous = next;
+      return next;
+    };
+  }, []);
+  const prompts = useMemo(() => selectPrompts(records), [records, selectPrompts]);
   // A lone plot titled like its group or section is already named above it.
   const titleRepeated = groupRepeatsPlotTitle(title, documentPlots);
   if (!documentPlots.length) {
@@ -90,7 +106,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   }
 
   const cards = documentPlots.map((descriptor, position) => (
-    <LivePlotCard
+    <VisiblePlotCard
       descriptor={descriptor}
       key={descriptor.plot_id}
       onPlotSettingsChange={onPlotSettingsChange}
@@ -131,6 +147,51 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
 const EMPTY_LIVE_PLOT_STATES: LivePlotStateMap = {};
 const EMPTY_RECORDS: readonly HubRecord[] = [];
 const EMPTY_LIVE_PLOT_STATE = emptyLivePlotState();
+
+const visibilityListeners = new WeakMap<Element, (visible: boolean) => void>();
+let visibilityObserver: IntersectionObserver | undefined;
+
+/** Keep Mounted Plots And Their Viewports While Pausing Off-Screen Payloads. */
+function VisiblePlotCard(props: ComponentProps<typeof LivePlotCard>) {
+  const eager = props.viewportMode !== "live" || typeof IntersectionObserver === "undefined";
+  const [visible, setVisible] = useState(eager);
+  const [mounted, setMounted] = useState(eager);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (eager || !root.current) return;
+    const element = root.current;
+    visibilityObserver ??= new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) visibilityListeners.get(entry.target)?.(entry.isIntersecting);
+      },
+      { rootMargin: "200px" },
+    );
+    visibilityListeners.set(element, (shown) => {
+      setVisible(shown);
+      if (shown) setMounted(true);
+    });
+    visibilityObserver.observe(element);
+    return () => {
+      visibilityObserver?.unobserve(element);
+      visibilityListeners.delete(element);
+    };
+  }, [eager]);
+  return (
+    <div ref={root} className="min-w-0" data-plot-viewport={props.descriptor.plot_id}>
+      {mounted || eager ? <VisiblePlotContent {...props} visible={visible || eager} /> : <div className="min-h-72" aria-hidden />}
+    </div>
+  );
+}
+
+const VisiblePlotContent = memo(
+  function VisiblePlotContent({ visible: _visible, ...props }: ComponentProps<typeof LivePlotCard> & { visible: boolean }) {
+    return <LivePlotCard {...props} />;
+  },
+  (previous, next) =>
+    (!previous.visible && !next.visible) ||
+    (Object.keys(previous).length === Object.keys(next).length &&
+      (Object.keys(next) as Array<keyof typeof next>).every((key) => Object.is(previous[key], next[key]))),
+);
 
 const LivePlotCard = memo(function LivePlotCard({
   descriptor,

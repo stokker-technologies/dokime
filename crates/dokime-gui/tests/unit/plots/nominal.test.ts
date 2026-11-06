@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { act, createElement } from "react";
+import { act, type ComponentProps, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
@@ -1470,6 +1470,7 @@ test("Stream Errors Replace Retained Charts", () => {
       documentPlots: [descriptor],
       liveStates: { pulse: failed },
       title: "Signals",
+      viewportMode: "fit",
     }),
   );
   assert.match(html, /role="alert"/);
@@ -1479,6 +1480,30 @@ test("Stream Errors Replace Retained Charts", () => {
 
 test("Plot Edits Survive Presentation Changes", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  let visibility: IntersectionObserverCallback;
+  let element: Element;
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        visibility = callback;
+      }
+      observe(target: Element) {
+        element = target;
+      }
+      unobserve() {}
+    },
+  );
+  const show = async (visible: boolean) => {
+    await act(async () =>
+      visibility([{ target: element, isIntersecting: visible } as IntersectionObserverEntry], {} as IntersectionObserver),
+    );
+  };
+  let renders = 0;
+  function Editor(props: ComponentProps<typeof PlotSettingsButton>) {
+    renders += 1;
+    return createElement(PlotSettingsButton, props);
+  }
   const descriptor: DocumentViewPlot = {
     plot_id: "pulse",
     title: "Pulse",
@@ -1504,7 +1529,7 @@ test("Plot Edits Survive Presentation Changes", async () => {
       root.render(
         createElement(
           PlotSettingsEditorContext.Provider,
-          { value: PlotSettingsButton },
+          { value: Editor },
           createElement(LivePlotGroupGrid, {
             documentPlots: [descriptor],
             liveStates: { pulse: state },
@@ -1516,6 +1541,8 @@ test("Plot Edits Survive Presentation Changes", async () => {
     );
   };
   await render();
+  assert.equal(renders, 0, "off-screen plots mount lazily");
+  await show(true);
   const trigger = host.querySelector<HTMLButtonElement>("button[aria-label^='Plot Settings For ']");
   assert.ok(trigger);
   await act(async () => trigger.click());
@@ -1528,12 +1555,17 @@ test("Plot Edits Survive Presentation Changes", async () => {
   const payload = hostFrame([0, 1], [[2, 3]]);
   const ready = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, payload)]);
   const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["fixture"] }]);
+  await show(false);
+  const pausedRenders = renders;
   for (const state of [ready, failed, ready]) {
     await render(state);
     const current = document.querySelector<HTMLInputElement>("[role=dialog] input[type=number]");
     assert.ok(current);
     assert.equal(current.value, "2500");
   }
+  assert.equal(renders, pausedRenders, "off-screen payloads do not render the plot subtree");
+  await show(true);
+  assert.ok(renders > pausedRenders, "returning applies the latest retained payload");
   const cancel = [...document.querySelectorAll<HTMLButtonElement>("[role=dialog] button")].find(
     (button) => button.textContent === "Cancel",
   );
