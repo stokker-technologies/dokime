@@ -101,7 +101,20 @@ impl<S: tracing::Subscriber + for<'a> LookupSpan<'a>> Layer<S> for Timings {
         if let Some(started) =
             extensions.get_mut::<Active>().and_then(|active| active.0.get_mut(&std::thread::current().id()).and_then(Vec::pop))
         {
-            *self.0.lock().unwrap().entry(span.name()).or_default() += started.elapsed().as_nanos();
+            let elapsed_ns = started.elapsed().as_nanos();
+            drop(extensions);
+            let mut timings = self.0.lock().unwrap();
+            *timings.entry(span.name()).or_default() += elapsed_ns;
+            if span.scope().any(|parent| parent.name() == "ingest.writer") {
+                let writer_stage = match span.name() {
+                    "ingest.catalog.commit" => Some("ingest.writer.catalog.commit"),
+                    "ingest.sqlite.sync" => Some("ingest.writer.sqlite.sync"),
+                    _ => None,
+                };
+                if let Some(name) = writer_stage {
+                    *timings.entry(name).or_default() += elapsed_ns;
+                }
+            }
         }
     }
 }
@@ -311,7 +324,8 @@ async fn measure(rows: usize, wide: bool, plots: u64, payload_bytes: usize) -> D
         "rows_s":rows as f64/elapsed.as_secs_f64(), "logical_mib_s":logical_bytes as f64/1048576.0/elapsed.as_secs_f64(),
         "cpu_ms_100k":after.iter().map(|(pid, (_, time))| time.saturating_sub(before.get(pid).map_or(0, |(_, time)| *time))).sum::<u64>() as f64*100000.0/rows as f64,
         "cpu_process_ms":after.iter().map(|(pid, (name, time))| (pid.to_string(), serde_json::json!({"name":name,"cpu_ms":time.saturating_sub(before.get(pid).map_or(0, |(_, time)| *time))}))).collect::<std::collections::BTreeMap<_,_>>(),
-        "catalog_commits":counts_after.committed_transactions-counts_before.committed_transactions,
+        "catalog_commits":syncs_after.2-syncs_before.2,
+        "explicit_catalog_commits":counts_after.committed_transactions-counts_before.committed_transactions,
         "flush_count":flush_count,"arrow_sync_count":arrow_sync_count,
         "fsync_count":arrow_sync_count+u128::from(syncs_after.0-syncs_before.0),
         "lock_wait_ns":locks,"profiled":std::env::var_os("DOKIME_INGEST_PROFILE").is_some(),

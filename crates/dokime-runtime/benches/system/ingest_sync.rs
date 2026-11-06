@@ -7,7 +7,7 @@
  * ***
  */
 
-// Benchmark-Only SQLite Sync Observation With Native VFS Delegation
+// Benchmark-Only SQLite Sync and Commit Observation with Native VFS Delegation
 
 /* === Modules === */
 
@@ -31,6 +31,7 @@ use rusqlite::ffi;
 static ORIGINAL: AtomicPtr<ffi::sqlite3_vfs> = AtomicPtr::new(std::ptr::null_mut());
 static OFFSET: OnceLock<usize> = OnceLock::new();
 static SYNCS: AtomicU64 = AtomicU64::new(0);
+static COMMITS: AtomicU64 = AtomicU64::new(0);
 static WAL_SYNCS: AtomicU64 = AtomicU64::new(0);
 
 /* === Macros === */
@@ -72,8 +73,8 @@ pub fn install() {
     }
 }
 
-pub fn counts() -> (u64, u64) {
-    (SYNCS.load(Ordering::Relaxed), WAL_SYNCS.load(Ordering::Relaxed))
+pub fn counts() -> (u64, u64, u64) {
+    (SYNCS.load(Ordering::Relaxed), WAL_SYNCS.load(Ordering::Relaxed), COMMITS.load(Ordering::Relaxed))
 }
 
 /* === Private Functions === */
@@ -97,6 +98,7 @@ unsafe extern "C" fn open(
             wal: flags & ffi::SQLITE_OPEN_WAL != 0,
         });
         (*observed).methods.xSync = Some(sync);
+        (*observed).methods.xFileControl = Some(control);
         (*file).pMethods = std::ptr::addr_of!((*observed).methods);
         result
     }
@@ -112,6 +114,18 @@ unsafe extern "C" fn sync(file: *mut ffi::sqlite3_file, flags: i32) -> i32 {
             if observed.wal {
                 WAL_SYNCS.fetch_add(1, Ordering::Relaxed);
             }
+        }
+        result
+    }
+}
+
+// SQLite Sends This Notification After The Commit, Including Autocommit Writes.
+unsafe extern "C" fn control(file: *mut ffi::sqlite3_file, operation: i32, argument: *mut std::ffi::c_void) -> i32 {
+    unsafe {
+        let observed = &*file.cast::<u8>().add(*OFFSET.get().unwrap()).cast::<Observed>();
+        let result = ((*observed.original).xFileControl.unwrap())(file, operation, argument);
+        if operation == ffi::SQLITE_FCNTL_COMMIT_PHASETWO && matches!(result, ffi::SQLITE_OK | ffi::SQLITE_NOTFOUND) {
+            COMMITS.fetch_add(1, Ordering::Relaxed);
         }
         result
     }

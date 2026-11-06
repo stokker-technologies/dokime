@@ -346,10 +346,10 @@ overhead and must be compared separately from ordinary throughput runs.
 Each measurement prints JSON containing elapsed time, rows/s, payload MiB/s,
 CPU milliseconds by live process/PID and per 100,000 rows, Arrow/catalog/WAL bytes
 and SQLite table allocation. It also records telemetry writer flush calls, Arrow
-sync calls, SQLite VFS sync calls (with a separate WAL count), explicit catalog
-commits and cumulative lock-wait nanoseconds for admission, the SQLite writer,
+sync calls, SQLite VFS sync calls (with a separate WAL count), SQLite VFS commit-phase-two notifications and explicit catalog
+commit calls and cumulative lock-wait nanoseconds for admission, the SQLite writer,
 the telemetry store and the tail. The benchmark-only VFS observer delegates each
-sync unchanged; these are successful native sync requests, not inferred counts
+sync and file-control call unchanged; these are successful native sync requests, not inferred counts
 from the commit cadence. Counts cover the host's SQLite and Arrow durability
 calls inside the measured interval; sidecar CPU is measured separately, while
 sidecar-internal sync calls are outside that observer. Scalar/wide payload rates
