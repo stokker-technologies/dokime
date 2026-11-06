@@ -99,6 +99,10 @@ pub enum Error {
     #[error("evidence file: {0}")]
     Artifact(#[source] std::io::Error),
 
+    #[cfg(feature = "native")]
+    #[error(transparent)]
+    Operation(#[from] harmos::sidecar::CallError),
+
     #[error("operation {operation:?} did not answer: {reason}")]
     Call { operation: &'static str, reason: String },
 }

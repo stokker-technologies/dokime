@@ -268,7 +268,7 @@ pub(crate) async fn shared_secret_identifiers() {
     let handle = runtime.handle();
     let snapshot = handle
         .operations()
-        .call::<secrets::Put>(secrets::Put {
+        .operation::<secrets::Put>(secrets::Put {
             metadata: catalog::Metadata {
                 identifier: "api_token".into(),
                 label: "API Token".into(),
@@ -281,7 +281,7 @@ pub(crate) async fn shared_secret_identifiers() {
         .unwrap();
     assert_eq!(snapshot.generation, 1);
     assert!(!serde_json::to_string(&*snapshot).unwrap().contains("secret-token"));
-    let value = handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.unwrap();
+    let value = handle.operations().operation::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.unwrap();
     assert_eq!(value.value.as_deref(), Some("secret-token"));
     let settings = handle.plugin_settings(&id).await.unwrap();
     assert!(settings.values.is_empty());
@@ -294,9 +294,9 @@ pub(crate) async fn shared_secret_identifiers() {
         value: Some("replacement-token".into()),
         generation: 1,
     };
-    handle.operations().call::<secrets::Put>(replacement.clone()).await.unwrap();
-    assert!(handle.operations().call::<secrets::Put>(replacement).await.is_err());
-    let fresh = handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.unwrap();
+    handle.operations().operation::<secrets::Put>(replacement.clone()).await.unwrap();
+    assert!(handle.operations().operation::<secrets::Put>(replacement).await.is_err());
+    let fresh = handle.operations().operation::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.unwrap();
     assert_eq!(fresh.value.as_deref(), Some("replacement-token"));
     assert_eq!(value.value.as_deref(), Some("secret-token"));
     drop(handle);
@@ -306,18 +306,24 @@ pub(crate) async fn shared_secret_identifiers() {
     let handle = reopened.handle();
     assert!(!saved_metadata(&handle).contains("secret-token"));
     assert_eq!(
-        handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.unwrap().value.as_deref(),
+        handle
+            .operations()
+            .operation::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() })
+            .await
+            .unwrap()
+            .value
+            .as_deref(),
         Some("replacement-token")
     );
     handle
         .operations()
-        .call::<secrets::Remove>(secrets::Remove {
+        .operation::<secrets::Remove>(secrets::Remove {
             identifiers: vec!["api_token".into()],
             generation: 2,
         })
         .await
         .unwrap();
-    assert!(handle.operations().call::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.is_err());
+    assert!(handle.operations().operation::<secrets::Lookup>(secrets::Lookup { identifier: "api_token".into() }).await.is_err());
     assert!(!handle.plugin_settings(&id).await.unwrap().secrets[0].available);
     drop(handle);
     reopened.shutdown().await.unwrap();

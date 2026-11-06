@@ -20,7 +20,8 @@ mod values;
 pub(crate) use projection::Projection;
 pub(crate) use schema::schema as contract_schema;
 pub(crate) use values::{
-    batch as record_batch, cell, entry as telemetry_entry, metadata_text, native_encoding, normalize_values, row_key, row_keys,
+    batch as record_batch, batch_at as record_batch_at, cell, entry as telemetry_entry, metadata_text, native_encoding, normalize_values,
+    row_key, row_keys,
 };
 
 /* === Imports === */

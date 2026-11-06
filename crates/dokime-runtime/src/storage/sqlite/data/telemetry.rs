@@ -90,17 +90,15 @@ impl State {
         let owner = self.0.clone();
         self.read(move |connection| {
             Ok((|| {
-                let tail = owner.telemetry_tail.lock().unwrap().entries.clone();
+                let tail = owner.telemetry_tail.lock().unwrap().select(page.after, at.sequence, |entry| {
+                    Ok(scope.matches_evidence(entry.sample.scope.as_ref(), &entry.sample.captured_scopes)
+                        && reader::selected(entry, &selection)?)
+                })?;
                 let head = saved(connection)?;
                 head.history.check(&at.history)?;
                 let mut rows = reader::numeric(connection, &root, &scan, &keys, &scope)?;
-                for (position, (_, entry)) in tail {
-                    if position <= head.sequence
-                        || position <= page.after
-                        || position > at.sequence
-                        || !scope.matches_evidence(entry.sample.scope.as_ref(), &entry.sample.captured_scopes)
-                        || !reader::selected(&entry, &selection)?
-                    {
+                for (position, entry) in tail {
+                    if position <= head.sequence {
                         continue;
                     }
                     rows.push((
@@ -118,6 +116,59 @@ impl State {
                 rows.sort_unstable_by_key(|(position, _)| *position);
                 rows.truncate(page.rows.get());
                 Ok(rows)
+            })())
+        })
+        .await?
+    }
+
+    pub(crate) async fn telemetry_streams_between(
+        &self, after: StorageCursor, at: StorageCursor,
+    ) -> Result<std::collections::BTreeSet<String>, Error> {
+        if !at.covers(&after)? {
+            return Err(Error::Invalid("telemetry frontier moved backwards"));
+        }
+        let owner = self.0.clone();
+        self.read(move |connection| {
+            Ok((|| {
+                let mut streams = owner.telemetry_tail.lock().unwrap().streams_between(after.sequence, at.sequence);
+                saved(connection)?.history.check(&at.history)?;
+                let mut query = connection.prepare(
+                    "SELECT DISTINCT s.stream FROM streams s WHERE s.last_position>?1 AND
+                     (s.last_position<=?2 OR EXISTS(SELECT 1 FROM stream_samples i
+                      WHERE i.file_id=s.file_id AND i.position>?1 AND i.position<=?2))",
+                )?;
+                let names = query.query_map(params![position(after.sequence), position(at.sequence)], |row| row.get::<_, String>(0))?;
+                for name in names {
+                    streams.insert(name?);
+                }
+                Ok(streams)
+            })())
+        })
+        .await?
+    }
+
+    pub(crate) async fn telemetry_schemas(
+        &self, at: StorageCursor, streams: Vec<dokime_domain::model::identity::IdentifierPattern>,
+    ) -> Result<Vec<(SchemaKey, Arc<harmos::schema::graph::Schema>)>, Error> {
+        let metrics = self.0.read_metrics.clone();
+        self.read(move |connection| {
+            Ok((|| {
+                saved(connection)?.history.check(&at.history)?;
+                let mut query = connection.prepare(
+                    "SELECT DISTINCT schema_key FROM storage_data_entries
+                     WHERE kind='schema' AND schema_id LIKE 'dokime.telemetry.%' AND position<=?1 ORDER BY schema_key",
+                )?;
+                let mut keys = Vec::new();
+                for key in query.query_map([position(at.sequence)], |row| row.get::<_, String>(0))? {
+                    let key: SchemaKey = serde_json::from_str(&key?)?;
+                    if crate::storage::telemetry::selected_schema(key.id.as_str(), &streams) {
+                        let schema = catalog::composed_at(connection, &key, at.sequence)?;
+                        metrics.data_scan_rows.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        super::super::DATA_SCAN_ROWS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        keys.push((key, schema.schema));
+                    }
+                }
+                Ok(keys)
             })())
         })
         .await?
@@ -179,19 +230,18 @@ impl State {
             Ok((|| {
                 // Capture The Tail Before Establishing SQLite's Snapshot; A Concurrent Commit
                 // Then Appears In The Catalog, The Tail, Or Both And Is Deduplicated By Position.
-                let tail = owner.telemetry_tail.lock().unwrap().entries.clone();
+                let tail = owner.telemetry_tail.lock().unwrap().select(page.after, at.sequence, |entry| {
+                    Ok(reader::selected(entry, &selection)?
+                        && scope.matches_evidence(entry.sample.scope.as_ref(), &entry.sample.captured_scopes))
+                })?;
                 let head = saved(connection)?;
                 head.history.check(&at.history)?;
                 let mut rows = reader::entries(connection, &root, &scan)?;
-                for (position, (_, entry)) in tail {
-                    if position <= head.sequence || position <= page.after || position > at.sequence {
+                for (position, entry) in tail {
+                    if position <= head.sequence {
                         continue;
                     }
-                    if reader::selected(&entry, &selection)?
-                        && scope.matches_evidence(entry.sample.scope.as_ref(), &entry.sample.captured_scopes)
-                    {
-                        rows.push((position, entry));
-                    }
+                    rows.push((position, entry));
                 }
                 rows.sort_unstable_by_key(|(position, _)| *position);
                 rows.truncate(page.rows.get());
@@ -221,24 +271,21 @@ impl State {
         let owner = self.0.clone();
         self.read(move |connection| {
             Ok((|| {
-                let tail = owner.telemetry_tail.lock().unwrap().entries.clone();
+                let tail = owner.telemetry_tail.lock().unwrap().select(after, at.sequence, |entry| {
+                    Ok(execution.as_deref().is_none_or(|id| {
+                        entry
+                            .sample
+                            .scope
+                            .iter()
+                            .chain(&entry.sample.captured_scopes)
+                            .any(|scope| scope.test_execution_id.as_ref().is_some_and(|owner| owner.as_str() == id))
+                    }) && stream.as_deref().is_none_or(|stream| entry.sample.stream.as_str() == stream))
+                })?;
                 let head = saved(connection)?;
                 head.history.check(&at.history)?;
                 let mut rows = reader::entries(connection, &root, &scan)?;
-                for (position, (_, entry)) in tail {
-                    if position <= head.sequence
-                        || position <= after
-                        || position > at.sequence
-                        || !execution.as_deref().is_none_or(|id| {
-                            entry
-                                .sample
-                                .scope
-                                .iter()
-                                .chain(&entry.sample.captured_scopes)
-                                .any(|scope| scope.test_execution_id.as_ref().is_some_and(|owner| owner.as_str() == id))
-                        })
-                        || !stream.as_deref().is_none_or(|stream| entry.sample.stream.as_str() == stream)
-                    {
+                for (position, entry) in tail {
+                    if position <= head.sequence {
                         continue;
                     }
                     rows.push((position, entry));
@@ -275,7 +322,11 @@ impl State {
         let owner = self.0.clone();
         self.read(move |connection| {
             Ok((|| {
-                let tail = owner.telemetry_tail.lock().unwrap().entries.clone();
+                let tail = owner
+                    .telemetry_tail
+                    .lock()
+                    .unwrap()
+                    .select(0, at.sequence, |entry| Ok(reader::key(entry)? == schema && reader::matches(entry, &terms, &selection)?))?;
                 let head = saved(connection)?;
                 head.history.check(&at.history)?;
                 let context = reader::Context {
@@ -283,12 +334,8 @@ impl State {
                     metrics: &owner.read_metrics,
                 };
                 let mut latest = reader::latest(connection, context, &at, &schema, &terms, &selection)?;
-                for (position, (_, entry)) in tail {
-                    if position <= head.sequence
-                        || position > at.sequence
-                        || reader::key(&entry)? != schema
-                        || !reader::matches(&entry, &terms, &selection)?
-                    {
+                for (position, entry) in tail {
+                    if position <= head.sequence {
                         continue;
                     }
                     let time: std::time::SystemTime = entry.sample.timestamp.to_datetime()?.into();
@@ -308,7 +355,13 @@ impl State {
         let owner = self.0.clone();
         self.read(move |connection| {
             Ok((|| {
-                let tail = owner.telemetry_tail.lock().unwrap().entries.clone();
+                let mut selected = selection.clone();
+                selected.start = None;
+                let tail = owner
+                    .telemetry_tail
+                    .lock()
+                    .unwrap()
+                    .select(0, at.sequence, |entry| Ok(reader::key(entry)? == schema && reader::matches(entry, &terms, &selected)?))?;
                 let head = saved(connection)?;
                 head.history.check(&at.history)?;
                 let (_, rows) = reader::predecessors(
@@ -324,12 +377,7 @@ impl State {
                     (start, &after),
                 )?;
                 let mut groups = std::collections::BTreeMap::new();
-                let mut selected = selection.clone();
-                selected.start = None;
-                let pending = tail
-                    .into_iter()
-                    .filter(|(position, _)| *position > head.sequence && *position <= at.sequence)
-                    .map(|(position, (_, entry))| (position, entry));
+                let pending = tail.into_iter().filter(|(position, _)| *position > head.sequence && *position <= at.sequence);
                 for (position, entry) in rows.into_iter().chain(pending) {
                     if reader::key(&entry)? != schema || !reader::matches(&entry, &terms, &selected)? {
                         continue;

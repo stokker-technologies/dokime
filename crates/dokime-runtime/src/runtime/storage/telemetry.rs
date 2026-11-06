@@ -151,13 +151,13 @@ impl ScopedTelemetry {
         self.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref())
     }
 
-    fn into_input(self) -> Result<StreamInput> {
+    fn input(&self) -> Result<StreamInput> {
         let mut captured;
         let sample = if self.captures.is_empty() {
             &*self.row.sample
         } else {
             captured = (*self.row.sample).clone();
-            captured.captured_scopes = self.captures.into_iter().map(|(_, scope)| scope).collect();
+            captured.captured_scopes = self.captures.iter().map(|(_, scope)| scope.clone()).collect();
             &captured
         };
         let prepared = prepare_staged(&self.row.epoch, sample, self.scope.as_ref(), self.ordinal, &self.row.codec, &self.row.signals)?;
@@ -205,17 +205,9 @@ impl TelemetryAdmission {
             // Materialize Only The Scope Being Committed, Releasing It Before The Next Scope.
             let mut inputs = crate::domains::telemetry::telemetry_slots(count)?;
             let mut staged = crate::domains::telemetry::telemetry_slots(count)?;
+            let encode_span = tracing::debug_span!("ingest.host.encode").entered();
             for row in writes {
-                let mut sample = (*row.row.sample).clone();
-                sample.scope = row.scope.clone();
-                sample.captured_scopes = row.captures.iter().map(|(_, scope)| scope.clone()).collect();
-                sample.storage_payload = None;
-                staged.push(TelemetryEntry {
-                    epoch: (*row.row.epoch).clone(),
-                    ordinal: row.ordinal,
-                    sample,
-                });
-                match row.into_input() {
+                match row.input() {
                     Ok(input) => inputs.push(input),
                     Err(source) if accepted.iter().any(|accepted| *accepted) => {
                         failure = Some(source);
@@ -223,7 +215,21 @@ impl TelemetryAdmission {
                     }
                     Err(source) => return Err(source),
                 }
+                let epoch = row.row.epoch.clone();
+                let mut sample = match Arc::try_unwrap(row.row) {
+                    Ok(shared) => Arc::unwrap_or_clone(shared.sample),
+                    Err(shared) => (*shared.sample).clone(),
+                };
+                sample.scope = row.scope;
+                sample.captured_scopes = row.captures.into_iter().map(|(_, scope)| scope).collect();
+                sample.storage_payload = None;
+                staged.push(TelemetryEntry {
+                    epoch: (*epoch).clone(),
+                    ordinal: row.ordinal,
+                    sample,
+                });
             }
+            drop(encode_span);
             let mut writes = inputs.into_iter();
             let mut staged = staged.into_iter();
             let mut offset = 0;

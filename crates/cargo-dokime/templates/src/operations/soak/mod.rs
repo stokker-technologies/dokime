@@ -9,7 +9,11 @@
 
 /* === Modules === */
 
+pub mod encode_summary;
+
 /* === Re-Exports === */
+
+pub use encode_summary::{EncodeSummary, EncodedSummary};
 
 /* === Imports === */
 
@@ -18,7 +22,6 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::prelude::StatusResponse;
 
 /* === Constants === */
 
@@ -27,18 +30,6 @@ use dokime::prelude::StatusResponse;
 /* === Type Aliases === */
 
 /* === Structs === */
-
-// Each request is its operation: the struct is what a caller sends, and the
-// attribute is everything the host reads about it before the plugin runs.
-#[dokime::operation(
-    id = "{{crate}}.get_status",
-    response = StatusResponse,
-    description = "Reports whether the bench is reachable.",
-    policy = super::POLICY,
-    resources = [crate::Bench]
-)]
-#[derive(Clone, PartialEq)]
-pub struct GetStatus {}
 
 /* === Enums === */
 

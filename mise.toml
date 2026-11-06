@@ -172,7 +172,7 @@ run = [
 
 [tasks."lint:rust"]
 description = "Lint Rust"
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}},dokime-runtime/testing"
 env = { CARGO_BUILD_WARNINGS = "deny" }
 
 [tasks."lint:typescript"]
@@ -260,7 +260,8 @@ run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build
 [tasks."build:rust:bench"]
 description = "Build Benchmarks And Their Matching Native Fixtures"
 depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.bench"
+usage = 'flag "--binary <binary>" help="Build One Benchmark Executable and Its Native Fixtures"'
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.bench {% if usage.binary %}--binary {{usage.binary}}{% endif %}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:compatibility"]

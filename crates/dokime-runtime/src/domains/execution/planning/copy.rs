@@ -42,7 +42,7 @@ impl RuntimeHandle {
         let _admission = self.plugin_admission.lock().await;
         let transaction = CopyCycle {
             max_executions: 10_000,
-            max_source_bytes: 16 * 1024 * 1024,
+            max_source_bytes: crate::execution::evidence_rows::MAX_ROW_BYTES,
             max_source_depth: 64,
             source_cycle_id,
             test_cycle_id: crate::model::identity::new_id::<TestCycleId>(),

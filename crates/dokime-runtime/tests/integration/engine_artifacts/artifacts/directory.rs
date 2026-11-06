@@ -203,6 +203,9 @@ async fn watching(token: &str) -> (DirectoryRun, Arc<RecordingSink>, PathBuf) {
     let workflow = Workflow::<Capture>::new(WORKFLOW, "fixture").bound(state.clone());
     workflow
         .start(RunExecution {
+            publication_rows: 1024,
+            publication_bytes: 1024 * 1024,
+            publication_delay_micros: 0,
             mode: "automatic".into(),
             execution_token: token.to_owned(),
             test_cycle_id: dokime_runtime::TestCycleId::from_seed(token).to_string(),

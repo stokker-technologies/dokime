@@ -17,22 +17,30 @@
 
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 // Third Party Imports
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::{Limits, Preview};
 use crate::plot::{PlotPayload, PlotPayloadContext, PlotPayloadRequest};
 use crate::storage::Error;
 use crate::storage::sqlite::State;
+use crate::storage::sqlite::data::telemetry::previews as checkpoint_state;
 use crate::telemetry::TelemetryContract;
 
 /* === Constants === */
 
 pub(crate) const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS report_plot_previews (
     execution TEXT NOT NULL, plot TEXT NOT NULL, through TEXT NOT NULL, state BLOB NOT NULL,
+    definition BLOB NOT NULL, shared INTEGER NOT NULL,
+    PRIMARY KEY(execution,plot)
+) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS report_plot_bindings (
+    execution TEXT NOT NULL, plot TEXT NOT NULL, projection TEXT NOT NULL,
     PRIMARY KEY(execution,plot)
 ) WITHOUT ROWID;";
 
@@ -48,16 +56,19 @@ struct Plan {
     contracts: Vec<TelemetryContract>,
     limits: Limits,
     context: BTreeMap<String, dokime_domain::model::values::Value>,
+    #[serde(skip)]
     preview: Preview,
 }
 
 // A Plot Preview Read In The Same Snapshot As The Rest Of A Report's Evidence.
-pub(crate) struct Checkpoint(Plan);
+#[derive(Clone)]
+pub(crate) struct Checkpoint(Arc<Plan>);
 
 #[derive(Default)]
 pub(crate) struct Batch {
     loaded: BTreeSet<String>,
     plans: BTreeMap<(String, String), (u64, Plan)>,
+    dirty: BTreeSet<(String, String)>,
 }
 
 /* === Enums === */
@@ -68,26 +79,36 @@ pub(crate) struct Batch {
 
 impl Batch {
     fn load(&mut self, connection: &Connection, execution: &str) -> Result<(), Error> {
-        if !self.loaded.insert(execution.to_owned()) {
+        if self.loaded.contains(execution) {
             return Ok(());
         }
-        let mut query = connection.prepare("SELECT execution,plot,through,state FROM report_plot_previews WHERE execution=?1")?;
+        self.loaded.insert(execution.to_owned());
+        let mut query = connection
+            .prepare("SELECT execution,plot,through,state,definition FROM report_plot_previews WHERE execution=?1 AND shared=0")?;
         let rows = query.query_map([execution], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Vec<u8>>(3)?))
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, Vec<u8>>(3)?,
+                row.get::<_, Vec<u8>>(4)?,
+            ))
         })?;
         for row in rows {
-            let (execution, plot, through, bytes) = row?;
+            let (execution, plot, through, bytes, definition) = row?;
             if let std::collections::btree_map::Entry::Vacant(entry) = self.plans.entry((execution, plot)) {
-                entry.insert((
-                    u64::from_str_radix(&through, 16).map_err(|_| Error::Corrupt("invalid plot preview frontier"))?,
-                    decode_plan(&bytes)?,
-                ));
+                entry.insert((u64::from_str_radix(&through, 16).map_err(|_| Error::Corrupt("invalid plot preview frontier"))?, {
+                    let mut plan = decode_plan(&definition)?;
+                    plan.preview = checkpoint_state::decode(&bytes)?;
+                    plan
+                }));
             }
         }
         Ok(())
     }
 
     // Telemetry Arrives Already Decoded And Normalized To Its Arrow Contract, Matching What Replay Reads Back.
+    #[tracing::instrument(level = "debug", name = "ingest.plot", skip_all)]
     pub(crate) fn sample(
         &mut self, connection: &Connection, row: &harmos::storage::StoredRow, sample: &crate::telemetry::TelemetrySample,
     ) -> Result<(), Error> {
@@ -99,7 +120,7 @@ impl Batch {
         for owner in owners {
             self.load(connection, owner.as_str())?;
         }
-        for ((owner, _), (through, plan)) in &mut self.plans {
+        for ((owner, projection), (through, plan)) in &mut self.plans {
             if row.record.position.sequence <= *through {
                 continue;
             }
@@ -122,6 +143,7 @@ impl Batch {
             }
             plan.preview.sample(sample, &plan.request, plan.limits).map_err(|error| Error::Catalog(error.to_string()))?;
             *through = row.record.position.sequence;
+            self.dirty.insert((owner.clone(), projection.clone()));
         }
         Ok(())
     }
@@ -136,7 +158,7 @@ impl Batch {
         for owner in owners {
             self.load(connection, owner.as_str())?;
         }
-        for ((owner, _), (through, plan)) in &mut self.plans {
+        for ((owner, projection), (through, plan)) in &mut self.plans {
             if row.position.sequence <= *through {
                 continue;
             }
@@ -158,6 +180,7 @@ impl Batch {
             }
             plan.preview.record(selected, &plan.request, plan.limits).map_err(|error| Error::Catalog(error.to_string()))?;
             *through = row.position.sequence;
+            self.dirty.insert((owner.clone(), projection.clone()));
         }
         Ok(())
     }
@@ -165,7 +188,9 @@ impl Batch {
     pub(crate) fn save(self, connection: &Connection) -> Result<(), Error> {
         let mut query = connection.prepare_cached("UPDATE report_plot_previews SET through=?3,state=?4 WHERE execution=?1 AND plot=?2")?;
         for ((execution, plot), (through, plan)) in self.plans {
-            query.execute(params![execution, plot, format!("{through:016x}"), serde_json::to_vec(&plan)?])?;
+            if self.dirty.contains(&(execution.clone(), plot.clone())) {
+                query.execute(params![execution, plot, format!("{through:016x}"), checkpoint_state::encode(&plan.preview)?])?;
+            }
         }
         Ok(())
     }
@@ -187,31 +212,38 @@ impl State {
                 } else {
                     at
                 };
-                let mut combined: Option<Checkpoint> = None;
+                let mut combined: Option<Plan> = None;
                 let Some(plot) = &request.plot_id else { return Ok(None) };
-                let mut query =
-                    connection.prepare_cached("SELECT state FROM report_plot_previews WHERE execution=?1 AND plot=?2 AND through<=?3")?;
+                let mut query = connection.prepare_cached(
+                    "SELECT p.definition,p.state,p.shared FROM report_plot_bindings v JOIN report_plot_previews p
+                     ON p.execution=v.execution AND p.plot=v.projection WHERE v.execution=?1 AND v.plot=?2 AND p.through<=?3",
+                )?;
                 for execution in executions {
-                    let bytes: Option<Vec<u8>> =
-                        query.query_row(params![execution, plot, format!("{:016x}", through.sequence)], |row| row.get(0)).optional()?;
-                    let Some(bytes) = bytes else { return Ok(None) };
-                    let checkpoint = Checkpoint(decode_plan(&bytes)?);
+                    let bytes: Option<(Vec<u8>, Vec<u8>, bool)> = query
+                        .query_row(params![execution, plot, format!("{:016x}", through.sequence)], |row| {
+                            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                        })
+                        .optional()?;
+                    let Some((definition, state, shared)) = bytes else { return Ok(None) };
+                    let Some(plan) = load_plan(connection, &execution, through.sequence, &definition, &state, shared)? else {
+                        return Ok(None);
+                    };
+                    let checkpoint = Checkpoint(Arc::new(plan));
                     if !checkpoint.matches(&request) {
                         return Ok(None);
                     }
                     if let Some(combined) = &mut combined {
                         combined
-                            .0
                             .preview
-                            .merge(checkpoint.0.preview, &request, combined.0.limits)
+                            .merge(Arc::try_unwrap(checkpoint.0).ok().expect("private live checkpoint").preview, &request, combined.limits)
                             .map_err(|error| Error::Catalog(error.to_string()))?;
                     } else {
-                        combined = Some(checkpoint);
+                        combined = Some(Arc::try_unwrap(checkpoint.0).ok().expect("private live checkpoint"));
                     }
                 }
                 combined
                     .map(|checkpoint| {
-                        checkpoint
+                        Checkpoint(Arc::new(checkpoint))
                             .payload(&request, crate::model::time::now_utc().as_str(), (None, None))
                             .map(|payload| (payload, through))
                             .map_err(|error| Error::Catalog(error.to_string()))
@@ -229,14 +261,18 @@ impl State {
         self.call(move |connection| {
             Ok((|| -> Result<(), Error> {
                 let transaction = connection.transaction()?;
-                for request in requests {
+                for mut request in requests {
                     let Some(plot) = request.plot_id.clone() else { continue };
+                    request.plot_id = None;
+                    let digest = Sha256::digest(serde_json::to_vec(&request)?);
+                    let projection = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
                     let streams = crate::plot::plot_streams(&request);
-                    let selected = contracts
+                    let selected: Vec<_> = contracts
                         .iter()
                         .filter(|contract| streams.iter().any(|stream| crate::plot::stream_matches_alias(contract.stream.as_str(), stream)))
                         .cloned()
                         .collect();
+                    let shared = uses_shared_fields(&request, &selected);
                     let plan = Plan {
                         request,
                         contracts: selected,
@@ -245,9 +281,11 @@ impl State {
                         preview: Preview::default(),
                     };
                     transaction.execute(
-                        "INSERT OR IGNORE INTO report_plot_previews VALUES (?1,?2,'0000000000000000',?3)",
-                        params![execution, plot, serde_json::to_vec(&plan)?],
+                        "INSERT OR IGNORE INTO report_plot_previews VALUES (?1,?2,'0000000000000000',?3,?4,?5)",
+                        params![execution, projection, checkpoint_state::encode(&plan.preview)?, serde_json::to_vec(&plan)?, shared],
                     )?;
+                    transaction
+                        .execute("INSERT OR IGNORE INTO report_plot_bindings VALUES (?1,?2,?3)", params![execution, plot, projection])?;
                 }
                 transaction.commit()?;
                 Ok(())
@@ -303,6 +341,46 @@ impl Checkpoint {
 }
 
 /* === Public Functions === */
+
+fn uses_shared_fields(request: &PlotPayloadRequest, contracts: &[TelemetryContract]) -> bool {
+    let numeric = |field: &str| {
+        !field.contains('.')
+            && contracts.iter().any(|contract| {
+                crate::plot::stream_matches_alias(contract.stream.as_str(), &request.stream)
+                    && contract.normalized().columns.iter().any(|column| {
+                        column.metadata.identifier.as_str() == field
+                            && matches!(
+                                column.value_type,
+                                dokime_domain::model::values::ValueType::Integer | dokime_domain::model::values::ValueType::Number
+                            )
+                    })
+            })
+    };
+    request.analysis.is_none()
+        && request.filters.is_empty()
+        && request.series_by.is_none()
+        && request.series_by_expression.is_none()
+        && request.z_expression.is_none()
+        && request.z_stream.is_none()
+        && request.z_field.is_none()
+        && request.x_expression.is_none()
+        && request.x_key.as_deref().is_none_or(|key| key == "timestamp")
+        && request.summary_window.is_none()
+        && request.marker_record_types.is_empty()
+        && request.scope.as_ref().is_none_or(|scope| scope.step_id.is_none() && scope.criterion_id.is_none())
+        && matches!(request.plot_type, None | Some(crate::document::PlotType::TimeSeries))
+        && request.y_expressions.iter().all(|expression| {
+            matches!(&expression.source, crate::expressions::DataSource::Telemetry { stream, .. }
+                if crate::plot::stream_matches_alias(&request.stream, stream))
+                && expression.transforms.is_empty()
+        })
+        && (!request.y_keys.is_empty() || !request.y_expressions.is_empty())
+        && request.y_keys.iter().all(|field| numeric(field))
+        && request
+            .y_expressions
+            .iter()
+            .all(|expression| matches!(&expression.source,crate::expressions::DataSource::Telemetry { field,.. } if numeric(field)))
+}
 
 pub(crate) fn uses_numeric_mean(request: &PlotPayloadRequest) -> bool {
     request
@@ -389,9 +467,13 @@ fn decode_plan(bytes: &[u8]) -> Result<Plan, Error> {
 
 // Checkpoints That Advanced Past The Cut Are Omitted So Their Plots Rebuild Through It.
 pub(crate) fn checkpoints(connection: &Connection, execution: &str, at: u64) -> Result<BTreeMap<String, Checkpoint>, Error> {
-    let mut query = connection.prepare("SELECT plot,through,state FROM report_plot_previews WHERE execution=?1")?;
+    let mut query = connection.prepare(
+        "SELECT v.plot,p.through,p.state,p.definition,p.shared,p.plot
+        FROM report_plot_bindings v JOIN report_plot_previews p ON p.execution=v.execution AND p.plot=v.projection WHERE v.execution=?1",
+    )?;
     let mut rows = query.query([execution])?;
     let mut checkpoints = BTreeMap::new();
+    let mut projections = BTreeMap::<String, Checkpoint>::new();
     while let Some(row) = rows.next()? {
         let through: String = row.get(1)?;
         let through = u64::from_str_radix(&through, 16).map_err(|_| Error::Corrupt("invalid plot preview frontier"))?;
@@ -399,9 +481,62 @@ pub(crate) fn checkpoints(connection: &Connection, execution: &str, at: u64) -> 
             continue;
         }
         let bytes: Vec<u8> = row.get(2)?;
-        checkpoints.insert(row.get(0)?, Checkpoint(decode_plan(&bytes)?));
+        let projection: String = row.get(5)?;
+        let checkpoint = if let Some(checkpoint) = projections.get(&projection) {
+            checkpoint.clone()
+        } else {
+            let definition: Vec<u8> = row.get(3)?;
+            let Some(plan) = load_plan(connection, execution, at, &definition, &bytes, row.get(4)?)? else { continue };
+            let checkpoint = Checkpoint(Arc::new(plan));
+            projections.insert(projection, checkpoint.clone());
+            checkpoint
+        };
+        checkpoints.insert(row.get(0)?, checkpoint);
     }
     Ok(checkpoints)
+}
+
+fn load_plan(
+    connection: &Connection, execution: &str, at: u64, definition: &[u8], state: &[u8], shared: bool,
+) -> Result<Option<Plan>, Error> {
+    let mut plan = decode_plan(definition)?;
+    if shared {
+        let advanced: bool = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM storage_report_previews WHERE execution=?1 AND through>?2)",
+            params![execution, format!("{at:016x}")],
+            |row| row.get(0),
+        )?;
+        if advanced {
+            return Ok(None);
+        }
+        let head = crate::storage::sqlite::data::saved(connection)?;
+        let cut = harmos::storage::StorageCursor { history: head.history, sequence: at };
+        let fields = checkpoint_state::report_previews(connection, execution.into(), cut)?;
+        let selected = |field: &str| {
+            plan.request.y_keys.iter().any(|key| key == field)
+                || plan.request.y_expressions.iter().any(
+                    |expression| matches!(&expression.source,crate::expressions::DataSource::Telemetry { field:key,.. } if key == field),
+                )
+        };
+        if fields.iter().any(|field| {
+            crate::plot::stream_matches_alias(&field.stream, &plan.request.stream)
+                && selected(&field.field)
+                && field.total <= plan.limits.exact_points as u64
+                && field.exact.len() as u64 != field.total
+        }) {
+            return Ok(None);
+        }
+        let summaries = crate::storage::sqlite::data::telemetry::aggregates::numeric_summaries(connection, execution.into())?;
+        plan.preview =
+            Preview::shared(&fields, &summaries, &plan.request, plan.limits).map_err(|error| Error::Catalog(error.to_string()))?;
+        plan.preview.context.extend(checkpoint_state::report_context(connection, execution, &plan.request.stream, at)?);
+        for (key, value) in &plan.context {
+            plan.preview.context.entry(key.clone()).or_insert_with(|| value.clone());
+        }
+    } else {
+        plan.preview = checkpoint_state::decode(state)?;
+    }
+    Ok(Some(plan))
 }
 
 /* === Tests === */
@@ -409,6 +544,61 @@ pub(crate) fn checkpoints(connection: &Connection, execution: &str, at: u64) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn duplicate_views_share_static_definition_and_clean_state() {
+        let root = tempfile::tempdir().unwrap();
+        let state = State::open(root.path()).await.unwrap();
+        state.call(|connection| connection.execute_batch(SCHEMA)).await.unwrap();
+        for (name, copies) in [("single", 1), ("many", 64)] {
+            let requests: Vec<_> = (0..copies)
+                .map(|index| PlotPayloadRequest {
+                    plot_id: Some(format!("plot.{index}")),
+                    stream: "stream".into(),
+                    x_key: Some("value".into()),
+                    y_keys: vec!["value".into()],
+                    plot_type: Some(crate::document::PlotType::XyScatter),
+                    ..Default::default()
+                })
+                .collect();
+            state
+                .register_plot_previews(
+                    name.into(),
+                    requests,
+                    Vec::new(),
+                    crate::config::local_storage_defaults().previews.into(),
+                    Default::default(),
+                )
+                .await
+                .unwrap();
+            let execution = name.to_owned();
+            let (plans, views, changed) = state
+                .call(move |connection| {
+                    Ok((|| -> Result<_, Error> {
+                        let plans: i64 =
+                            connection.query_row("SELECT count(*) FROM report_plot_previews WHERE execution=?1", [&execution], |row| {
+                                row.get(0)
+                            })?;
+                        let views: i64 =
+                            connection.query_row("SELECT count(*) FROM report_plot_bindings WHERE execution=?1", [&execution], |row| {
+                                row.get(0)
+                            })?;
+                        let before = connection.total_changes();
+                        let mut batch = Batch::default();
+                        batch.load(connection, &execution)?;
+                        batch.save(connection)?;
+                        Ok((plans, views, connection.total_changes() - before))
+                    })())
+                })
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(views, copies);
+            assert_eq!(plans, views.min(1));
+            assert_eq!(changed, 0);
+        }
+        state.close().await.unwrap();
+    }
 
     #[test]
     fn checkpoint_selection() {
@@ -421,13 +611,13 @@ mod tests {
             y_keys: vec!["value".into()],
             ..Default::default()
         };
-        let checkpoint = Checkpoint(Plan {
+        let checkpoint = Checkpoint(Arc::new(Plan {
             request: request.clone(),
             contracts: Vec::new(),
             limits: crate::config::local_storage_defaults().previews.into(),
             context: BTreeMap::new(),
             preview: Preview::default(),
-        });
+        }));
         let mut changed = request.clone();
         changed.max_points = Some(17);
         changed.summary_window = Some(crate::plot::PlotWindow { from: 1.0, to: 2.0 });
@@ -453,16 +643,20 @@ mod tests {
         plan.preview.context.insert("wifi_channel".into(), dokime_domain::model::values::Value::Integer(6));
         connection
             .execute(
-                "INSERT INTO report_plot_previews VALUES ('execution','plot','000000000000000a',?1)",
-                [serde_json::to_vec(&plan).unwrap()],
+                "INSERT INTO report_plot_previews VALUES ('execution','projection','000000000000000a',?1,?2,0)",
+                params![checkpoint_state::encode(&plan.preview).unwrap(), serde_json::to_vec(&plan).unwrap()],
             )
             .unwrap();
+        connection.execute("INSERT INTO report_plot_bindings VALUES ('execution','plot','projection')", []).unwrap();
         assert!(checkpoints(&connection, "execution", 9).unwrap().is_empty());
         let current = checkpoints(&connection, "execution", 10).unwrap().remove("plot").unwrap();
         assert_eq!(current.0.preview.context, plan.preview.context);
         assert!(checkpoints(&connection, "other", 10).unwrap().is_empty());
-        let mut legacy = serde_json::to_value(&plan).unwrap();
+        let mut legacy = serde_json::json!({"preview":&plan.preview});
         legacy["preview"].as_object_mut().unwrap().remove("marker_records");
-        assert!(matches!(decode_plan(&serde_json::to_vec(&legacy).unwrap()), Err(Error::Incompatible(_))));
+        assert!(matches!(
+            checkpoint_state::decode::<Preview>(&checkpoint_state::encode(&legacy["preview"]).unwrap()),
+            Err(Error::Incompatible(_))
+        ));
     }
 }

@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev&label=CI)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml)
-[![CI / Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=CI%20%2F%20Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
+[![CI / Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
 [![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
@@ -171,7 +171,7 @@ retains the complete setup and runnable lifecycle examples.
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `1d4f4bcdcc3301fa6c6f2086515a7edba710f514`)
+(currently pinned to revision `371108ecfca78d3fe2432f503dd3c355e140ad20`)
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -247,7 +247,7 @@ defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots without durable case registration revisions, or containing earlier telemetry layouts, plugin identities,
-or evidence indexes without incremental numeric summaries, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
+or evidence indexes without incremental numeric summaries, shared field projections and plot bindings, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
 token identities, indexed record producer scopes, or the indexed telemetry sample identities require a fresh storage root.
 Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 Each root records a derived storage format digest and its writer commit before evidence writes.
@@ -292,6 +292,8 @@ failure leaves the others available. Markers follow the display point budget.
 
 Live summary tiles fold finite saved-evidence queries with bounded memory. Document
 capture no longer rejects estimated work based on retained source-row count.
+The page shows its structure first, then each data card loads and refreshes
+independently. A failed card leaves the others available.
 
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.

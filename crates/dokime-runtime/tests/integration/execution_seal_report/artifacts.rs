@@ -366,7 +366,7 @@ pub(crate) async fn abandoned_transfer_slots() {
     let content = handle.read_artifact_content(&stored[0].artifact_id, SETTLED_CONTENT.len()).await.unwrap().unwrap();
     assert_eq!(content.bytes, SETTLED_CONTENT);
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+    let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 16_384).await.unwrap().unwrap();
     let log = std::str::from_utf8(&log.bytes).unwrap();
     let received = dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES;

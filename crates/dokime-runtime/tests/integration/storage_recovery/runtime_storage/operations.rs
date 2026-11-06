@@ -58,7 +58,7 @@ pub(crate) async fn storage_operations_view() {
     handle.storage().flush().await.unwrap();
     drop(suite);
 
-    let info = handle.operations().call::<StorageStatus>(StorageStatus {}).await.unwrap();
+    let info = handle.operations().operation::<StorageStatus>(StorageStatus {}).await.unwrap();
     assert_eq!(info.saved, handle.storage().cursor_saved());
     assert_eq!(info.accepted, handle.storage().cursor_accepted());
     assert!(info.saved.covers(&receipt.position).unwrap());

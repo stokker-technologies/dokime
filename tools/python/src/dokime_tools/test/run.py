@@ -211,6 +211,7 @@ def bench(
     refresh: bool,
     extra: Sequence[str],
     archive_arguments: Sequence[str] = (),
+    binary: str | None = None,
 ) -> int:
     """Measure one benchmark layer and compare it with the `dev` baseline."""
     rules = policy.load(directory)
@@ -231,7 +232,7 @@ def bench(
     }
     if language == "rust":
         identity["rustc"] = archive._toolchain(directory)
-        rows, status = _bench_rust(directory, category, refresh, measure, extra, archive_arguments, identity)
+        rows, status = _bench_rust(directory, category, refresh, measure, extra, archive_arguments, identity, binary)
     elif language == "python":
         identity["python"] = {
             "version": sys.version,
@@ -240,8 +241,10 @@ def bench(
         rows, status = _bench_python(directory, category, project, refresh, measure, extra, identity)
     else:
         raise policy.TestError("benchmarks run for rust and python")
-    if not rows:
+    if not rows and "--test" not in extra:
         raise policy.TestError(f"no {category} {language} benchmark produced results")
+    if "--test" in extra:
+        print("Benchmark Diagnostic Mode: No Criterion Regression Estimates")
 
     for name, median, baseline in rows:
         if baseline is None:
@@ -276,6 +279,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     bench_lane.add_argument("--language", choices=("rust", "python"), required=True)
     bench_lane.add_argument("--refresh-baseline", action="store_true")
     bench_lane.add_argument("--archive-argument", action="append", default=[])
+    bench_lane.add_argument("--binary", help="Measure One Native Benchmark Executable")
     measured = commands.add_parser("coverage", help="instrumented run of every layer")
     measured.add_argument("--language", choices=("rust", "python"), required=True)
     for command in (lane, bench_lane, measured):
@@ -324,6 +328,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 options.refresh_baseline,
                 extra,
                 options.archive_argument,
+                options.binary,
             )
         return 0
     except (policy.TestError, OSError, ValueError, KeyError) as error:
@@ -499,6 +504,7 @@ def _bench_rust(
     extra: Sequence[str],
     archive_arguments: Sequence[str],
     identity: dict,
+    binary: str | None = None,
 ) -> tuple[list[tuple[str, float, float | None]], int]:
     messages = paths.output(directory, "build", "bench") / "bench/compiler.json"
     if not messages.is_file():
@@ -507,13 +513,17 @@ def _bench_rust(
     compatibility = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     rows = []
     status = 0
+    executed = False
     for line in messages.read_text(encoding="utf-8").splitlines():
         message = json.loads(line) if line.startswith("{") else {}
         target = message.get("target", {})
         name = target.get("name", "")
+        if binary is not None and name != binary:
+            continue
         artifact = message.get("reason") == "compiler-artifact" and "bench" in target.get("kind", []) and message.get("executable")
         if not artifact or not (name == category or name.startswith(category + "-")):
             continue
+        executed = True
         manifest = Path(message["manifest_path"])
         owner = manifest.parent / name
         if manifest.is_absolute() or ".." in owner.parts:
@@ -544,6 +554,8 @@ def _bench_rust(
                 shutil.copytree(path.parent, key / BASELINE, dirs_exist_ok=True)
         if measure and peak is not None:
             print(f"benchmark peak memory: {owner.as_posix()}: {peak} bytes")
+    if not executed:
+        raise policy.TestError("no native benchmark executable matched the selection")
     return rows, status
 
 

@@ -60,6 +60,7 @@ pub struct Bench {
     pub sensor: bench::Sensor,
     pub upload_configured: bool,
     units: Mutex<Vec<String>>,
+    heater: tokio::sync::Mutex<Option<bench::Heater>>,
 }
 
 pub struct Plugin {
@@ -103,7 +104,7 @@ impl dokime::harmos::builtins::lifecycle::Policy for Plugin {
     observers = observers::Observers,
     restart = "never", description = "A thermal bench: one plugin, one suite, one template that holds a chamber at temperature and decides whether it stayed there.\nThe identity, the operations it serves and calls, and the contributions it makes to the host are literal data on the attribute: they are what the host reads *before* the plugin runs, out of a binary it never executes. A template calls `ReadChamber` through the host; the plugin serves it privately, so its own runs may call it without naming it in `requires(...)`, which lists only what other plugins or the host provide.")]
 impl dokime::Plugin for Plugin {
-    const CATALOGS: &'static [dokime::harmos::Catalog] = &[domain::operations::Operations::CATALOG];
+    const CATALOGS: &'static [dokime::harmos::Catalog] = &[operations::Operations::CATALOG];
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
         self.observers.as_ref().map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
     }
@@ -128,6 +129,7 @@ impl dokime::harmos::Lifecycle for Plugin {
                 bench: Arc::new(Bench {
                     sensor: bench::Sensor::open(port, AMBIENT_C),
                     units: Mutex::default(),
+                    heater: tokio::sync::Mutex::new(None),
                     // A missing optional store identifier decodes as `None`, which is how "not
                     // configured" is told apart from "configured and empty".
                     upload_configured: settings.chamber.cloud_token.is_some(),
@@ -148,7 +150,17 @@ impl dokime::harmos::Lifecycle for Plugin {
 
     async fn cleanup(&mut self) -> std::result::Result<(), Refusal> {
         self.observers.take();
+        let mut heater = self.bench.heater.lock().await;
+        let result = match heater.as_ref() {
+            Some(current) => current.off().await,
+            None => Ok(()),
+        };
+        if let Err(error) = &result {
+            tracing::warn!("could not turn off heater: {error}");
+        }
+        heater.take();
         self.bench.sensor.close();
+        dokime::plugin::refusal(result)?;
         Ok(())
     }
 }

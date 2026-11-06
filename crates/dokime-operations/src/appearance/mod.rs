@@ -29,6 +29,9 @@ use dokime_domain::model::appearance::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(GetAppearance);
+
 /* === Type Aliases === */
 
 /* === Structs === */

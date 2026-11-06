@@ -126,6 +126,118 @@ impl From<crate::storage::sqlite::PreviewSettings> for Limits {
 }
 
 impl Preview {
+    // Reconstruct Views From Field State Only When A Reader Requests Them.
+    pub(crate) fn shared(
+        fields: &[crate::storage::sqlite::data::telemetry::previews::FieldPreview],
+        summaries: &[crate::storage::sqlite::data::telemetry::aggregates::NumericSummary], request: &PlotPayloadRequest, limits: Limits,
+    ) -> Result<Self> {
+        let mut keys = request.y_keys.clone();
+        for expression in &request.y_expressions {
+            if let crate::expressions::DataSource::Telemetry { field, .. } = &expression.source {
+                keys.push(field.clone());
+            }
+        }
+        keys.sort();
+        keys.dedup();
+        let fields: Vec<_> = fields
+            .iter()
+            .filter(|field| super::stream_matches_alias(&field.stream, &request.stream) && keys.contains(&field.field))
+            .collect();
+        let count = |field: &&crate::storage::sqlite::data::telemetry::previews::FieldPreview| {
+            field.envelope.buckets.values().map(|bucket| bucket.count).sum::<u64>()
+        };
+        let exact = fields.iter().all(|field| field.total <= limits.exact_points as u64 && field.exact.len() as u64 == field.total);
+        let mut rows: BTreeMap<u64, TelemetrySample> = BTreeMap::new();
+        for field in &fields {
+            let retained: Vec<_> = if exact {
+                field.exact.clone()
+            } else {
+                field
+                    .envelope
+                    .buckets
+                    .values()
+                    .next_back()
+                    .map(|bucket| (bucket.last, Value::Number(bucket.last.value)))
+                    .or_else(|| field.last.map(|point| (point, Value::Null)))
+                    .into_iter()
+                    .collect()
+            };
+            for (point, value) in retained {
+                let sample = rows.entry(point.position).or_insert_with(|| {
+                    let at = time::OffsetDateTime::from_unix_timestamp_nanos(point.time).expect("saved preview time");
+                    let stamp = at.format(&time::format_description::well_known::Rfc3339).expect("saved preview timestamp");
+                    let mut sample = TelemetrySample::new(
+                        dokime_domain::model::identity::TelemetrySampleId::from_seed(format!(
+                            "preview:{}:{}",
+                            field.stream, point.position
+                        )),
+                        dokime_domain::model::identity::Identifier::new(&field.stream).expect("saved stream"),
+                        point.position,
+                        dokime_domain::model::time::Timestamp::new(stamp),
+                        "preview",
+                    );
+                    sample.scope = request.scope.clone();
+                    sample
+                });
+                sample.values.insert(field.field.clone(), value);
+            }
+        }
+        let mut preview = Self::default();
+        for sample in rows.into_values() {
+            preview.sample(sample, request, limits)?;
+        }
+        if exact {
+            return Ok(preview);
+        }
+        preview.reduced = true;
+        preview.samples.clear();
+        for (key, trace) in &mut preview.series {
+            let field = fields.iter().find(|field| {
+                field.field == *key
+                    || request.y_expressions.iter().any(|expression| {
+                        matches!(&expression.source, crate::expressions::DataSource::Telemetry { field: selected, .. }
+                    if selected == &field.field && expression.label.as_ref() == Some(key))
+                    })
+            });
+            let Some(field) = field else { continue };
+            trace.count = count(field) as usize;
+            trace.envelope = field.envelope.clone();
+            trace.exact = field
+                .exact
+                .iter()
+                .filter_map(|(point, value)| {
+                    let value = dokime_domain::model::values::numeric_value(value).filter(|value| value.is_finite())?;
+                    let stamp = time::OffsetDateTime::from_unix_timestamp_nanos(point.time)
+                        .expect("saved time")
+                        .format(&time::format_description::well_known::Rfc3339)
+                        .expect("saved timestamp");
+                    Some(PlotPoint {
+                        x: serde_json::Value::String(stamp),
+                        y: Some(value),
+                        z: None,
+                    })
+                })
+                .collect();
+            let summary = summaries.iter().find(|summary| summary.stream == field.stream && summary.field == field.field);
+            let stat = |name: &str| {
+                summary
+                    .and_then(|summary| summary.statistics.iter().find(|(key, _)| key == name).map(|(_, value)| *value))
+                    .unwrap_or_default()
+            };
+            let scale = stat("max_abs");
+            let normalize = |value: f64| if scale == 0.0 { 0.0 } else { value / scale };
+            trace.moments = Moments {
+                count: trace.count,
+                scale,
+                sum: normalize(stat("mean")) * trace.count as f64,
+                squares: normalize(stat("rms")).powi(2) * trace.count as f64,
+                min: stat("min"),
+                max: stat("max"),
+            };
+        }
+        Ok(preview)
+    }
+
     pub(crate) fn merge(&mut self, other: Self, request: &PlotPayloadRequest, limits: Limits) -> Result<()> {
         self.marker_records.extend(self.last_marker.take());
         self.marker_records.extend(other.marker_records);

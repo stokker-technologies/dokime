@@ -80,6 +80,7 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     };
     let mut group = TelemetrySummaryGroupDefinition::new("records", "Records");
     group.tile(TelemetrySummaryTileDefinition::new("Count", dokime_runtime::expressions::record("calibration.field.completed").count()));
+    group.tile(TelemetrySummaryTileDefinition::new("Files", dokime_runtime::expressions::artifact("selected.txt").count()));
     let mut summary = TelemetrySummaryDefinition::new();
     summary.group(group);
     let mut section = DocumentSection::new("Captured Records");
@@ -338,14 +339,11 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
         }
     }
     let plots = runtime
-        .query_plot_payloads(
-            vec![dokime_runtime::runtime::query::PlotPayloadRequest {
-                scope: Some(cycle.test_executions[0].scope.clone()),
-                marker_record_types: vec!["calibration.field.completed".into()],
-                ..Default::default()
-            }],
-            dokime_runtime::runtime::query::RuntimePlotQueryMode::Snapshot,
-        )
+        .query_plot_payloads(vec![dokime_runtime::runtime::query::PlotPayloadRequest {
+            scope: Some(cycle.test_executions[0].scope.clone()),
+            marker_record_types: vec!["calibration.field.completed".into()],
+            ..Default::default()
+        }])
         .await
         .unwrap();
     assert_eq!(plots[0].payload.markers.len(), 1);
@@ -614,7 +612,10 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     assert_eq!(count, Some(Value::Unsigned(1)));
     assert!(captured.artifacts_sha256.is_some(), "document acquisition must read the stored artifact inventory");
     assert_eq!(captured.capture.selection.scope.test_execution_id.as_ref(), Some(execution_id));
-    assert!(runtime.prepare_current_document(&other_cycle_id, other_id, &document_id).unwrap().capture().await.is_err());
+    let refused = runtime.prepare_current_document(&other_cycle_id, other_id, &document_id).unwrap().capture().await.unwrap();
+    assert!(
+        refused.capture.cards.iter().any(|card| matches!(card.result, dokime_runtime::document::capture::CardBindingResult::Failed { .. }))
+    );
 
     // An Indexed Member With A Foreign Payload Still Refuses The Selected Capture.
     let database = dokime_runtime::storage::sqlite::rusqlite::Connection::open(runtime.storage_root().join("local.sqlite")).unwrap();
@@ -644,16 +645,23 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
             dokime_runtime::storage::sqlite::rusqlite::params![body, digest.as_slice(), position],
         )
         .unwrap();
-    let failure = runtime
+    let (events, mut received) = tokio::sync::mpsc::channel(8);
+    let structure = runtime
         .prepare_current_document(&cycle_id, execution_id, &document_id)
         .unwrap()
-        .capture()
+        .query_stream(dokime_runtime::CurrentDocumentQuery { structure_only: true, cards: Vec::new() }, events)
         .await
-        .err()
-        .expect("foreign selected record");
-    assert!(matches!(failure, dokime_runtime::runtime::Error::Admission(
-        dokime_domain::model::diagnostics::admission::AdmissionFailure::Conflict { ref code, .. }
-    ) if code == "document_capture_incomplete"));
+        .unwrap();
+    assert!(
+        structure.capture.cards.iter().any(|card| matches!(card.result, dokime_runtime::document::capture::CardBindingResult::Pending))
+    );
+    match received.recv().await.unwrap() {
+        dokime_runtime::CurrentDocumentEvent::Structure { document, .. } => assert!(document.evidence_cut.is_none()),
+        _ => panic!("structure precedes evidence"),
+    }
+    let refused = runtime.prepare_current_document(&cycle_id, execution_id, &document_id).unwrap().capture().await.unwrap();
+    assert!(refused.capture.cards.iter().any(|card| matches!(&card.result,
+        dokime_runtime::document::capture::CardBindingResult::Failed { failure } if failure.code == "document_capture_incomplete")));
 
     record.payload = vec![0xff; 3];
     let body = serde_json::to_vec(&record).unwrap();
@@ -664,7 +672,10 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
             dokime_runtime::storage::sqlite::rusqlite::params![body, digest.as_slice(), position],
         )
         .unwrap();
-    assert!(runtime.prepare_current_document(&cycle_id, execution_id, &document_id).unwrap().capture().await.is_err());
+    let refused = runtime.prepare_current_document(&cycle_id, execution_id, &document_id).unwrap().capture().await.unwrap();
+    assert!(
+        refused.capture.cards.iter().any(|card| matches!(card.result, dokime_runtime::document::capture::CardBindingResult::Failed { .. }))
+    );
     let digest = Sha256::digest(&original);
     database
         .execute(
@@ -677,8 +688,8 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     runtime.storage().flush_until(&receipt.position).await.unwrap();
     crate::service_support::waits::wait_for_run_settled(&runtime, &request).await;
     runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
-    let sealed = cycle_snapshot(&runtime, &cycle_id).await;
-    assert!(sealed.saved.is_some());
+    let sealed = dokime_runtime::storage::objects::cycle::read(runtime.storage(), &cycle_id, ObjectVersion::Latest).await.unwrap().unwrap();
+    assert!(sealed.value.saved.is_some());
     runtime.open_cycle_report(&cycle_id).await.unwrap();
     let bundle = runtime.export_evidence(dokime_domain::model::exports::EvidenceSubject::Cycle(cycle_id.to_string())).await.unwrap();
     assert!(bundle.metadata().size_bytes > 0);
@@ -744,6 +755,44 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
             .unwrap();
     }
     drop(database);
+    owner.shutdown().await.unwrap();
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn cycle_inspection_retains_control_projections() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let suite = fixture_suite(&["passed", "passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let cycle_id = start_cycle(&runtime, suite.clone()).await;
+    let cycle = cycle_snapshot(&runtime, &cycle_id).await;
+    for execution in &cycle.test_executions {
+        let receipt = runtime.start_execution(execution.test_execution_id.clone(), Default::default(), CommandContext::default()).await;
+        crate::service_support::waits::wait_for_run_settled(&runtime, &receipt.command_id).await;
+        runtime.wait_execution_report(&execution.test_execution_id).await.unwrap();
+    }
+    let selected = &cycle.test_executions[0].test_execution_id;
+    let parameters = runtime.inspect_execution(selected).await.unwrap().execution.output_parameters.clone();
+    assert!(parameters.values().any(|parameter| parameter.source == dokime_runtime::definition::ParameterSource::Telemetry));
+    let published = runtime.watch_state().latest();
+    let inspected = runtime.inspect_cycle(&cycle_id).await.unwrap();
+    for execution in &cycle.test_executions {
+        let id = &execution.test_execution_id;
+        assert_eq!(inspected.state().executions[id], published.state().executions[id]);
+    }
+    drop(inspected);
+
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    start_cycle(&runtime, suite).await;
+    assert!(!runtime.watch_state().latest().state().cycles.contains_key(&cycle_id));
+    let inspected = runtime.inspect_cycle(&cycle_id).await.unwrap();
+    for execution in &cycle.test_executions {
+        let id = &execution.test_execution_id;
+        assert_eq!(inspected.state().executions[id], published.state().executions[id]);
+    }
+    assert_eq!(runtime.inspect_execution(selected).await.unwrap().execution.output_parameters, parameters);
+    drop(inspected);
     owner.shutdown().await.unwrap();
 }
 

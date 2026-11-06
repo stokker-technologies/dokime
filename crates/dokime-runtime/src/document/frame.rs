@@ -593,14 +593,19 @@ impl Fold {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn finish(self) -> Result<Option<Value>> {
+        self.finish_checked(&mut || Ok(()))
+    }
+
+    pub(crate) fn finish_checked(self, check: &mut impl FnMut() -> harmos::storage::Result<()>) -> Result<Option<Value>> {
         if self.plan.shape == Shape::Original {
             return Ok(self.original.map(|(_, value)| value));
         }
         let mut values =
-            self.values.into_iter().map(|accumulator| accumulator.finish(&mut || Ok(())).map_err(reduction)).collect::<Result<Vec<_>>>()?;
+            self.values.into_iter().map(|accumulator| accumulator.finish(check).map_err(reduction)).collect::<Result<Vec<_>>>()?;
         if self.has_float {
-            values[0] = self.floating.finish(&mut || Ok(())).map_err(reduction)?;
+            values[0] = self.floating.finish(check).map_err(reduction)?;
         }
         let outer = self
             .plan
@@ -612,7 +617,7 @@ impl Fold {
                     .map(|(column, value)| {
                         let mut accumulator = Accumulator::new(if column == 0 { outer } else { Agg::Of(Aggregate::Max) });
                         accumulator.push(0, value).map_err(reduction)?;
-                        accumulator.finish(&mut || Ok(())).map_err(reduction)
+                        accumulator.finish(check).map_err(reduction)
                     })
                     .collect::<Result<Vec<_>>>()
             })

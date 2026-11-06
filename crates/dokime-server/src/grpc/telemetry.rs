@@ -59,12 +59,6 @@ struct Selection {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::ListSamples),
-    Operation1(wire::WatchSamples),
-}
-
 enum ProjectionError {
     Status(Status),
     Storage(dokime::harmos::storage::Error),
@@ -266,7 +260,6 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::ListSamples>>(Host::<wire::ListSamples>::new(served.clone()));
     setup.resource::<Host<wire::WatchSamples>>(Host::<wire::WatchSamples>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

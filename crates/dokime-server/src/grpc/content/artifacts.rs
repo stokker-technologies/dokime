@@ -47,11 +47,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(content_wire::DownloadArtifact),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -105,7 +100,6 @@ pub(super) fn prepare(
 
     setup.resource::<Host<content_wire::DownloadArtifact>>(Host::<content_wire::DownloadArtifact>::new(served));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

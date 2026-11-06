@@ -117,7 +117,8 @@ impl RuntimeHandle {
             });
         };
         super::normalize_execution_selection(execution, &mut selection.scope);
-        let acquired = super::acquire::acquire(self, &selection, snapshot, true, true, true, Some(Default::default())).await?;
+        let at = self.saved_through(snapshot.revision()).await?;
+        let acquired = super::acquire::acquire(self, &selection, snapshot, true, true, true, at).await?;
         Ok(super::RuntimeDocumentData {
             records: acquired.records,
             telemetry: acquired.telemetry.expect("telemetry was requested"),

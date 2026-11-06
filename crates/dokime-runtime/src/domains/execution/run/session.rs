@@ -43,7 +43,6 @@ use dokime_domain::model::execution::result::TestExecution;
 pub(super) struct Opened {
     pub context: ExecutionFixtureContext,
     pub execution: TestExecution,
-    pub workflow: String,
     pub source: String,
     pub target: Target,
     pub prompts: PromptBridge,
@@ -53,7 +52,6 @@ pub(super) struct Opened {
 pub(crate) struct Session {
     context: ExecutionFixtureContext,
     execution: TestExecution,
-    workflow: String,
     source: String,
     pub(super) target: Target,
     pub(super) prompts: tokio::sync::Mutex<PromptBridge>,
@@ -88,7 +86,6 @@ impl Session {
         Self {
             context: opened.context,
             execution: opened.execution,
-            workflow: opened.workflow,
             source: opened.source,
             target: opened.target,
             prompts: tokio::sync::Mutex::new(opened.prompts),
@@ -261,6 +258,30 @@ impl Session {
         self.refusal.lock().await.take()
     }
 
+    pub(crate) async fn record_operation_attempt(
+        &self, stage: &str, call: &harmos::operations::middleware::Invocation,
+        observation: harmos::operations::middleware::AttemptObservation,
+    ) {
+        use harmos::operations::{OperationOutcome, instance::Outcome};
+        let outcome = match observation.outcome {
+            OperationOutcome::Succeeded => Outcome::Succeeded,
+            OperationOutcome::Failed => Outcome::Failed,
+            OperationOutcome::Cancelled => Outcome::Cancelled,
+            OperationOutcome::TimedOut => Outcome::TimedOut,
+            OperationOutcome::Unavailable => Outcome::Unavailable,
+        };
+        let entry = crate::execution::log::operation_attempt(
+            call.operation().id.as_str(),
+            call.id().value(),
+            Some(call.generation().value()),
+            stage,
+            observation.attempt,
+            outcome,
+        );
+        let mut pages = self.pages.lock().await;
+        pages.stream_log.append(&self.context, &self.execution, &self.source, &[entry]).await;
+    }
+
     pub(super) async fn narrate_refusal(&self, refusal: &ProviderExecutionFailure) {
         let mut pages = self.pages.lock().await;
         let stage = pages.phase.current.as_ref().map(|(id, _)| id.to_string()).unwrap_or_else(|| "initialization".to_owned());
@@ -269,7 +290,6 @@ impl Session {
             .append(
                 &self.context,
                 &self.execution,
-                &self.workflow,
                 &self.source,
                 &[crate::execution::log::Entry::new(
                     crate::execution::log::Level::Error,
@@ -293,16 +313,7 @@ impl Session {
         let mut pages = self.pages.lock().await;
         let pages = &mut *pages;
         let discarded = pages.artifacts.finish().await?;
-        report_dropped(
-            &self.context,
-            &self.execution,
-            &self.workflow,
-            &self.source,
-            &mut pages.stream_log,
-            &discarded,
-            DropReason::Incomplete,
-        )
-        .await;
+        report_dropped(&self.context, &self.execution, &self.source, &mut pages.stream_log, &discarded, DropReason::Incomplete).await;
         if let Some(message) = pages.stream_log.failure() {
             return Err(failure("execution_log_capture", message));
         }
@@ -349,12 +360,12 @@ impl Session {
         if !batch.capture_phases.is_empty() || !batch.step_begins.is_empty() || !batch.step_attempts.is_empty() {
             context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_samples", error.to_string()))?;
         }
-        pages.stream_log.append(context, execution, &self.workflow, &self.source, &batch.diagnostics).await;
+        pages.stream_log.append(context, execution, &self.source, &batch.diagnostics).await;
         if let Some(message) = pages.stream_log.failure() {
             return Err(failure("execution_log_capture", message));
         }
         let abandoned = pages.artifacts.accept(context, &execution.scope, std::mem::take(&mut batch.artifact_chunks)).await?;
-        report_dropped(context, execution, &self.workflow, &self.source, &mut pages.stream_log, &abandoned, DropReason::Abandoned).await;
+        report_dropped(context, execution, &self.source, &mut pages.stream_log, &abandoned, DropReason::Abandoned).await;
         // A cycle that is stopping admits no live phase transactions; the
         // final observations are kept for the provider completion fold. A stop
         // can land before this session learns of it, so a phase update the
@@ -383,7 +394,6 @@ impl Session {
                 .append(
                     context,
                     execution,
-                    &self.workflow,
                     &self.source,
                     &[crate::execution::log::Entry::new(crate::execution::log::Level::Error, refusal.message)],
                 )

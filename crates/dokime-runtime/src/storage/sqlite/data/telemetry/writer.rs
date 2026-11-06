@@ -33,6 +33,7 @@ use crate::storage::{
     telemetry::{Admitted, TypedCodec},
 };
 use dokime_domain::model::telemetry::TelemetryContract;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -56,6 +57,12 @@ struct Stream {
     codec: Arc<TypedCodec>,
     schema: arrow_schema::SchemaRef,
     writer: ipc::Writer,
+}
+
+#[derive(Default)]
+struct Context<'a> {
+    through: u64,
+    values: BTreeMap<&'a str, &'a Value>,
 }
 
 /* === Enums === */
@@ -93,13 +100,14 @@ impl Store {
         self.fail_sync = true;
     }
 
+    #[tracing::instrument(level = "debug", name = "ingest.writer", skip_all)]
     pub(super) fn write(&mut self, connection: &mut Connection, batch: StorageBatch<StoredRow>) -> Result<SavedData> {
         let rows = batch.as_slice();
         let mut head = saved(connection)?;
         let mut groups: BTreeMap<String, Vec<(u64, Admitted)>> = BTreeMap::new();
-        let mut admitted = Vec::new();
         // Plot Previews Fold The Normalized Admission; Their Checkpoints Commit With The Catalog Below.
         let mut plots = crate::plot::preview::index::Batch::default();
+        let decode_span = tracing::debug_span!("ingest.decode").entered();
         for row in rows {
             head.history.check(&row.record.position.history)?;
             if row.record.position.sequence <= head.sequence {
@@ -127,12 +135,14 @@ impl Store {
             ipc::normalize_values(stream.schema.field(1), &mut entry.entry.sample.values)?;
             plots.sample(connection, row, &entry.entry.sample)?;
             groups.entry(id).or_default().push((row.record.position.sequence, entry));
-            admitted.push(row);
             head.sequence = row.record.position.sequence;
         }
+        drop(decode_span);
         let checkpoints = groups.keys().map(|id| (id.clone(), self.open[id].writer.checkpoint())).collect::<Vec<_>>();
         let result = (|| {
             let transaction = connection.transaction()?;
+            let mut aggregates = super::aggregates::Batch::default();
+            let mut previews = super::previews::Batch::new(self.settings.previews);
             for (id, entries) in groups {
                 let stream = self.open.get_mut(&id).expect("telemetry writer was opened");
                 let first = &entries[0].1;
@@ -172,16 +182,25 @@ impl Store {
                 let batch_number =
                     last_batch.map_or(Ok(0), |last| last.checked_add(1).ok_or(Error::Invalid("telemetry batch number overflows")))?;
                 for (batch_number, chunk) in (batch_number..).zip(entries.chunks(self.settings.telemetry_rows.get())) {
-                    let batch = ipc::record_batch(stream.schema.clone(), chunk)?;
+                    let arrow_span = tracing::debug_span!("ingest.arrow").entered();
+                    let stamps = chunk
+                        .iter()
+                        .map(|(_, entry)| Ok(entry.sample.timestamp.to_datetime()?.unix_timestamp_nanos()))
+                        .collect::<Result<Vec<_>>>()?;
+                    let times = stamps
+                        .iter()
+                        .map(|stamp| {
+                            i64::try_from(stamp.div_euclid(1000)).map_err(|_| Error::Invalid("telemetry timestamp exceeds Arrow range"))
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+                    let batch = ipc::record_batch_at(stream.schema.clone(), chunk, &times)?;
                     #[cfg(test)]
                     if std::mem::take(&mut self.fail_sync) {
                         stream.writer.fail_next_sync();
                     }
                     let index = stream.writer.append(&batch)?;
-                    let times = chunk
-                        .iter()
-                        .map(|(_, entry)| catalog::micros(entry.sample.timestamp.to_datetime()?.into()))
-                        .collect::<Result<Vec<_>>>()?;
+                    drop(arrow_span);
+                    let catalog_span = tracing::debug_span!("ingest.catalog").entered();
                     let first_at = *times.iter().min().ok_or(Error::Invalid("empty telemetry batch"))?;
                     let last_at = *times.iter().max().unwrap();
                     let first_position = position(chunk.first().unwrap().0);
@@ -209,27 +228,27 @@ impl Store {
                         first_position=CASE WHEN rows=0 THEN ?5 ELSE first_position END,last_position=?6 WHERE file_id=?1",
                         params![id, catalog::integer(index.rows)?, first_at, last_at, first_position, last_position],
                     )?;
-                    let mut identities = transaction.prepare_cached("INSERT INTO stream_samples VALUES (?1,?2,?3,?4,?5)")?;
-                    for (row, (positioned, entry)) in chunk.iter().enumerate() {
-                        identities.execute(params![
-                            entry.sample.sample_id.as_str(),
-                            position(*positioned),
-                            id,
-                            catalog::integer(batch_number)?,
-                            row as i64,
-                        ])?;
-                    }
-                    drop(identities);
+                    let identity_span = tracing::debug_span!("ingest.identities").entered();
+                    identities(&transaction, &id, batch_number, chunk)?;
+                    drop(identity_span);
                     let mut scopes: BTreeMap<String, (i64, i64)> = BTreeMap::new();
-                    for ((_, entry), time) in chunk.iter().zip(times) {
-                        let scope = serde_json::to_string(&entry.sample.scope.as_ref().map(crate::storage::records::ScopeRow::from))?;
-                        scopes
-                            .entry(scope)
-                            .and_modify(|range| {
-                                range.0 = range.0.min(time);
-                                range.1 = range.1.max(time);
-                            })
-                            .or_insert((time, time));
+                    let mut current: Option<(&Option<dokime_domain::model::execution::RecordScope>, i64, i64)> = None;
+                    for ((_, entry), time) in chunk.iter().zip(&times) {
+                        match current.as_mut() {
+                            Some((scope, first, last)) if *scope == &entry.sample.scope => {
+                                *first = (*first).min(*time);
+                                *last = (*last).max(*time);
+                            }
+                            _ => {
+                                if let Some((scope, first, last)) = current.take() {
+                                    scope_range(&mut scopes, scope, first, last)?;
+                                }
+                                current = Some((&entry.sample.scope, *time, *time));
+                            }
+                        }
+                    }
+                    if let Some((scope, first, last)) = current {
+                        scope_range(&mut scopes, scope, first, last)?;
                     }
                     for (scope, (first, last)) in scopes {
                         transaction.execute(
@@ -238,12 +257,24 @@ impl Store {
                         )?;
                     }
                     let mut captures = BTreeMap::<String, Vec<(usize, usize)>>::new();
+                    let mut previous: Option<&crate::telemetry::TelemetrySample> = None;
+                    let mut encoded_scopes = Vec::new();
                     for (row, (_, entry)) in chunk.iter().enumerate() {
-                        for scope in entry.sample.scope.iter().chain(&entry.sample.captured_scopes) {
-                            if scope.test_execution_id.is_none() && scope.test_cycle_id.is_none() {
-                                continue;
+                        let sample = &entry.sample;
+                        if previous.is_none_or(|prior| prior.scope != sample.scope || prior.captured_scopes != sample.captured_scopes) {
+                            encoded_scopes.clear();
+                            for scope in sample.scope.iter().chain(&sample.captured_scopes) {
+                                if scope.test_execution_id.is_some() || scope.test_cycle_id.is_some() {
+                                    encoded_scopes.push(serde_json::to_string(scope)?);
+                                }
                             }
-                            let ranges = captures.entry(serde_json::to_string(scope)?).or_default();
+                            previous = Some(sample);
+                        }
+                        for encoded in &encoded_scopes {
+                            if !captures.contains_key(encoded) {
+                                captures.insert(encoded.clone(), Vec::new());
+                            }
+                            let ranges = captures.get_mut(encoded).expect("capture scope loaded");
                             if let Some((first, count)) = ranges.last_mut()
                                 && *first + *count == row
                             {
@@ -270,7 +301,36 @@ impl Store {
                             )?;
                         }
                     }
-                    summaries(&transaction, &id, chunk)?;
+                    drop(catalog_span);
+                    let mut contexts = BTreeMap::new();
+                    for ((position, entry), time) in chunk.iter().zip(&stamps) {
+                        let owners: std::collections::BTreeSet<_> = entry
+                            .sample
+                            .scope
+                            .iter()
+                            .chain(&entry.sample.captured_scopes)
+                            .filter_map(|scope| scope.test_execution_id.as_ref())
+                            .collect();
+                        for execution in owners {
+                            let context = contexts.entry(execution).or_insert_with(Context::default);
+                            context.through = *position;
+                            for (field, value) in &entry.sample.values {
+                                if !matches!(value, Value::Null) {
+                                    context.values.insert(field.as_str(), value);
+                                }
+                            }
+                            aggregates.push(&transaction, execution.as_str(), *position, *time, &entry.sample, &mut previews)?;
+                        }
+                    }
+                    for (execution, context) in contexts {
+                        previews.context(
+                            &transaction,
+                            execution.as_str(),
+                            context.through,
+                            first.sample.stream.as_str(),
+                            context.values,
+                        )?;
+                    }
                     stored_rows += index.rows;
                 }
                 let checkpoint = stream.writer.checkpoint();
@@ -284,20 +344,13 @@ impl Store {
                 )?;
             }
             // Report Aggregates, Preview Envelopes And Plot Previews Share The Catalog Commit That Publishes Their Batches.
-            let mut aggregates = super::aggregates::Batch::default();
-            let mut previews = super::previews::Batch::new(self.settings.previews);
-            for row in &admitted {
-                aggregates.push(&transaction, row, &mut previews)?;
-                for scope in crate::storage::telemetry::capture_scopes(&row.record.payload)? {
-                    let execution = scope.test_execution_id.as_ref().ok_or(Error::Invalid("sample capture has no execution"))?;
-                    let mut captured = (*row).clone();
-                    captured.record.scope = Some(harmos::Identifier::new(execution.as_str())?);
-                    aggregates.push(&transaction, &captured, &mut previews)?;
-                }
-            }
             aggregates.save(&transaction)?;
+            let preview_span = tracing::debug_span!("ingest.fields.save").entered();
             previews.save(&transaction)?;
+            drop(preview_span);
+            let plot_span = tracing::debug_span!("ingest.plot.save").entered();
             plots.save(&transaction)?;
+            drop(plot_span);
             transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
             super::super::super::commit(transaction)?;
             Ok(head)
@@ -443,6 +496,40 @@ pub(super) fn identity(row: &StoredRow) -> String {
 
 /* === Private Functions === */
 
+fn identities(connection: &Connection, file: &str, batch: u64, entries: &[(u64, Admitted)]) -> Result<()> {
+    use rusqlite::types::Value;
+    for (offset, rows) in entries.chunks(128).enumerate() {
+        let mut sql = String::from("INSERT INTO stream_samples VALUES ");
+        let mut values = vec![Value::Text(file.into()), Value::Integer(catalog::integer(batch)?)];
+        for (row, (positioned, entry)) in rows.iter().enumerate() {
+            if row > 0 {
+                sql.push(',');
+            }
+            let parameter = 3 + row * 3;
+            sql.push_str(&format!("(?{parameter},?{},?1,?2,?{})", parameter + 1, parameter + 2));
+            values.push(Value::Text(entry.sample.sample_id.to_string()));
+            values.push(Value::Text(position(*positioned)));
+            values.push(Value::Integer((offset * 128 + row) as i64));
+        }
+        connection.prepare_cached(&sql)?.execute(rusqlite::params_from_iter(values))?;
+    }
+    Ok(())
+}
+
+fn scope_range(
+    scopes: &mut BTreeMap<String, (i64, i64)>, scope: &Option<dokime_domain::model::execution::RecordScope>, first: i64, last: i64,
+) -> Result<()> {
+    let encoded = serde_json::to_string(&scope.as_ref().map(crate::storage::records::ScopeRow::from))?;
+    scopes
+        .entry(encoded)
+        .and_modify(|range| {
+            range.0 = range.0.min(first);
+            range.1 = range.1.max(last);
+        })
+        .or_insert((first, last));
+    Ok(())
+}
+
 fn payload_graph(graph: &harmos::schema::graph::Schema, root: usize) -> Result<harmos::schema::graph::Schema> {
     use harmos::schema::graph::{Kind, Schema};
     let mut indices = BTreeMap::from([(root, 0)]);
@@ -465,31 +552,6 @@ fn payload_graph(graph: &harmos::schema::graph::Schema, root: usize) -> Result<h
         next += 1;
     }
     Ok(Schema { root: 0, definitions })
-}
-
-fn summaries(connection: &Connection, file: &str, entries: &[(u64, Admitted)]) -> Result<()> {
-    let mut summaries: BTreeMap<&str, (u64, f64, f64, f64)> = BTreeMap::new();
-    for (_, entry) in entries {
-        for (signal, value) in &entry.sample.values {
-            let Some(value) = dokime_domain::model::values::numeric_value(value).filter(|value| value.is_finite()) else {
-                continue;
-            };
-            let summary = summaries.entry(signal).or_insert((0, value, value, 0.0));
-            summary.0 += 1;
-            summary.1 = summary.1.min(value);
-            summary.2 = summary.2.max(value);
-            summary.3 += value;
-        }
-    }
-    let mut statement = connection.prepare_cached(
-        "INSERT INTO stream_summaries VALUES (?1,?2,?3,?4,?5,?6)
-        ON CONFLICT(file_id,signal) DO UPDATE SET count=count+excluded.count,minimum=min(minimum,excluded.minimum),
-        maximum=max(maximum,excluded.maximum),sum=sum+excluded.sum",
-    )?;
-    for (signal, (count, min, max, sum)) in summaries {
-        statement.execute(params![file, signal, catalog::integer(count)?, min, max, sum])?;
-    }
-    Ok(())
 }
 
 /* === Tests === */

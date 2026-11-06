@@ -70,7 +70,8 @@ mod workflow;
 #[cfg(feature = "native")]
 pub use callbacks::{CallbackTask, Callbacks};
 pub use context::{
-    Called, Cleanup, CleanupContext, Context, CriterionContext, InitializationContext, Initialize, Required, Step, StepContext,
+    BuiltIn, Called, Cleanup, CleanupContext, Context, CriterionContext, Declared, InitializationContext, Initialize, Required, Step,
+    StepContext,
 };
 
 #[cfg(feature = "native")]
@@ -90,7 +91,7 @@ pub use listen::{Deadlined, Listenable, ListeningRecords, ListeningRows};
 pub(crate) use listen::{PublishedRow, rows as listening_rows};
 
 #[cfg(feature = "native")]
-pub use calls::{Answering, Caller, StepHost};
+pub use calls::{Answering, Caller, StepOperationHost};
 
 #[cfg(feature = "native")]
 pub use instances::{ExecutionIdentity, StepIdentity, StepInstance};

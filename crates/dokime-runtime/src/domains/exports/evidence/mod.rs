@@ -53,7 +53,7 @@ use dokime_domain::model::{
 /* === Constants === */
 
 const MAX_INVENTORY_ENTRIES: u64 = 65_536;
-const MAX_MANIFEST_BYTES: usize = 16 * 1024 * 1024;
+const MAX_MANIFEST_BYTES: usize = crate::execution::evidence_rows::MAX_ROW_BYTES as usize;
 const MAX_EXPORT_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 
 /* === Macros === */

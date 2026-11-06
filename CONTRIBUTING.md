@@ -318,6 +318,30 @@ The standard runner retains native Criterion results under `.stkr/benchmarks/`.
 Keep workload, settings, compiler profile and hardware consistent when comparing
 before and after results; these timings are not correctness-test deadlines.
 
+### Sidecar Stream Ingestion
+
+The `system-runtime` target includes `sidecar_ingest`: the real OBC plugin
+publishes scalar and 16-field rows through its sidecar into durable storage,
+with zero, one and 64 document plots. Each iteration uses a fresh root and
+checks the durable row count. Runtime startup and fixture registration are outside
+the interval; publication, preview checkpoints and the final storage flush are inside.
+
+```sh
+mise run build:rust:bench --binary system-runtime
+mise run bench:rust:system -- --binary system-runtime -- sidecar_ingest
+```
+
+For one diagnostic pass per case, append `--test` after `sidecar_ingest`.
+These passes retain explicit measurements without producing a Criterion estimate.
+`DOKIME_INGEST_ROWS` selects the row count (default 100,000, maximum 1,000,000);
+`DOKIME_INGEST_PROFILE=1` enables inclusive writer-stage spans. Profiling adds
+overhead and must be compared separately from ordinary throughput runs.
+Each measurement prints JSON containing elapsed time, rows/s, numeric-payload
+MiB/s, process-tree CPU per 100,000 rows, Arrow/catalog/WAL bytes and SQLite
+table allocation. Numeric payload excludes timestamps and framing. Repeat on a
+busy workstation and retain each result, rather than interpreting contention as
+a product regression. See [Measured Stream Performance](docs/product-guide.md#measured-stream-performance).
+
 ### Large-Cycle Report Saves
 
 Report-save timing belongs to the ordinary Criterion `system-runtime` target.

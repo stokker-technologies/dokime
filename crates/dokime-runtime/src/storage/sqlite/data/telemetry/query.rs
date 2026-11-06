@@ -110,8 +110,23 @@ impl QueryWork {
     }
 
     pub fn check(&self) -> Result<(), Box<Failure>> {
-        if self.cancelled.load(Ordering::Acquire) || std::time::Instant::now() >= self.deadline {
-            return Err(Failure::new(Reason::Deadline, self.operation, "Query exceeded its active-work deadline or was cancelled"));
+        if self.cancelled.load(Ordering::Acquire) {
+            return Err(Failure::new(Reason::Deadline, self.operation, "Query was cancelled"));
+        }
+        let now = std::time::Instant::now();
+        if now >= self.deadline {
+            let limit = self.config.limits().active_time.as_millis().min(u128::from(u64::MAX)) as u64;
+            let reached = limit.saturating_add(now.duration_since(self.deadline).as_millis().min(u128::from(u64::MAX)) as u64);
+            let mut failure = Failure::new(
+                Reason::Deadline,
+                self.operation,
+                format!("Query budget active_time_ms exceeded (limit {limit}, reached {reached})"),
+            );
+            failure.limit = Some(EffectiveLimit {
+                name: "active_time_ms".into(),
+                value: limit,
+            });
+            return Err(failure);
         }
         Ok(())
     }

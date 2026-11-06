@@ -116,7 +116,7 @@ async fn many_file_stop() {
         })
         .unwrap();
     operations
-        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
+        .operation::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
         .await
         .unwrap();
     for index in 0..64 {
@@ -890,7 +890,7 @@ async fn watch_file_matchers() {
     bench
         .handle
         .operations()
-        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
+        .operation::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
         .await
         .unwrap();
     let mut records = bench.handle.subscribe_records();
@@ -1499,8 +1499,16 @@ async fn capture_failure_isolated_during_stop() {
     let failed = records.iter().find(|record| record.filename == format!("{OUTPUT}/bad/app.log")).unwrap();
     assert_eq!(failed.status, ArtifactStatus::Failed);
     assert!(failed.error.is_some());
-    let saved = idle.test_executions[0].saved.as_ref().unwrap();
-    saved.validate(&idle.test_executions[0]).unwrap();
+    let durable = dokime_runtime::storage::objects::execution::read(
+        bench.handle.storage(),
+        &execution,
+        dokime_runtime::harmos::storage::ObjectVersion::Latest,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let saved = durable.value.saved.as_ref().unwrap();
+    saved.validate(&durable.value).unwrap();
     let failed_output = saved
         .source
         .outputs

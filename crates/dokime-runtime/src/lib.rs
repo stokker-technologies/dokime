@@ -214,7 +214,9 @@ pub use config::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler};
 pub use dokime_domain::model::plugins::InstalledPlugin;
 
 #[cfg(feature = "native")]
-pub use domains::documents::{CurrentDocumentCapture, ExecutionFileFollower, ExecutionFileStream, PreparedCurrentDocument};
+pub use domains::documents::{
+    CurrentDocumentCapture, CurrentDocumentEvent, CurrentDocumentQuery, ExecutionFileFollower, ExecutionFileStream, PreparedCurrentDocument,
+};
 
 #[cfg(feature = "native")]
 pub use domains::execution::outputs::{ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState};

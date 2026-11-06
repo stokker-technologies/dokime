@@ -9,9 +9,10 @@
 
 /* === Modules === */
 pub mod model;
-pub mod operations;
 
 /* === Re-Exports === */
+
+pub use crate::{Error, Result};
 
 /* === Imports === */
 // Standard Library Imports

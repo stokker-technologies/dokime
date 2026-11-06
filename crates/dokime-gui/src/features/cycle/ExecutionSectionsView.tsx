@@ -34,6 +34,7 @@
 
 /* === Local Imports === */
 
+import { DocumentRetryContext } from "@/components/document/DocumentViewRenderer";
 import { ErrorCard } from "@/components/ErrorCard";
 import type { ComponentType, ReactNode } from "react";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
@@ -85,7 +86,7 @@ export type ExecutionSectionsViewProps = {
   surface: DocumentSurface;
   pane: ReturnType<typeof evidencePaneState>;
   plotWindow: ReturnType<typeof usePlotWindow>;
-  onRetry?: () => void;
+  onRetry?: (cardId?: string) => void;
   control?: ReactNode;
   /** The execution's answerable prompts, queued directly under Control; none in a file. */
   promptQueue?: ReactNode;
@@ -126,6 +127,7 @@ export function ExecutionSectionsView({
   const { shared, view } = surface;
   const mainCards = view.sections.flatMap((section) => section.cards).filter(isDocumentSurfaceCard);
   const present = new Set(executionDocumentSections(mainCards));
+  if (view.sections.some((section) => section.loading || section.unavailable)) present.add("report");
   const reportSections = view.sections.map((section) => ({
     ...section,
     cards: section.cards.filter(isReportCard),
@@ -207,7 +209,9 @@ export function ExecutionSectionsView({
                 title="Report"
               >
                 {present.has("report") ? (
-                  <DocumentContent cardChrome={reportCardChrome} cardFilter={isReportCard} surface={surface} />
+                  <DocumentRetryContext.Provider value={onRetry}>
+                    <DocumentContent cardChrome={reportCardChrome} cardFilter={isReportCard} surface={surface} />
+                  </DocumentRetryContext.Provider>
                 ) : null}
               </ExecutionSectionCard>
             ) : null}

@@ -204,10 +204,21 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
         Context::new(self, transport, Cleanup { reason }).calling_stage("cleanup")
     }
 
-    pub fn criterion(&'a self, evidence: &'a ExecutionEvidence) -> CriterionContext<'a, C, I> {
+    pub fn criterion(&'a self, evidence: &'a ExecutionEvidence, transport: &'a dyn ExecutionTransport) -> CriterionContext<'a, C, I> {
         let context = CriterionContext::new(self.parameters, self.raw, evidence);
         #[cfg(feature = "native")]
-        let context = context.calling(self.caller.clone()).bound(self.binding.clone()).with_callbacks(self.callbacks.clone());
+        let context =
+            context.calling(self.caller.clone()).bound(self.binding.clone()).with_callbacks(self.callbacks.clone()).with_operations(
+                super::builtins::Binding {
+                    artifacts: self.artifacts.clone(),
+                    streams: self.streams.clone(),
+                    journal: transport.journal(),
+                    identity: self.identity(),
+                    handles: self.handles.clone(),
+                },
+            );
+        #[cfg(not(feature = "native"))]
+        let _ = transport;
 
         context
     }

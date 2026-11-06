@@ -271,7 +271,7 @@ async fn non_admitted_settings() {
     runtime.save_plugin_settings(&id, PluginSettingsUpdate { values }).await.unwrap();
     let snapshot = runtime
         .operations()
-        .call::<dokime_runtime::operations::secrets::Put>(dokime_runtime::operations::secrets::Put {
+        .operation::<dokime_runtime::operations::secrets::Put>(dokime_runtime::operations::secrets::Put {
             metadata: model::secrets::catalog::Metadata {
                 identifier: "token".into(),
                 label: "Token".into(),

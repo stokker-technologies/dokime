@@ -179,7 +179,7 @@ async fn serve() -> harmos::Runtime<Host> {
 }
 
 async fn call<A: Analysis>(operations: &harmos::operations::OperationManager<Lanes>, request: Request) -> harmos::Result<Response> {
-    operations.call::<Operation<A>>(Operation::new(request)).await.map(|response| response.into_owned())
+    operations.operation::<Operation<A>>(Operation::new(request)).await.map(|response| response.into_owned())
 }
 
 /* === Tests === */

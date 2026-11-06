@@ -59,6 +59,9 @@ fn start_request(token: &str, sample_count: u64) -> RunExecution {
     )
     .expect("the host resolves declared inputs before starting the sidecar");
     RunExecution {
+        publication_rows: 1024,
+        publication_bytes: 1024 * 1024,
+        publication_delay_micros: 0,
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: dokime::TestCycleId::from_seed("obc.fixture.cycle").to_string(),

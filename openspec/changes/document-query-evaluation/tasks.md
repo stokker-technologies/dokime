@@ -7,14 +7,14 @@
 
 ## Slice 2: Independent Cards
 
-- [ ] 2.1 Domain/operations/runtime contract: independently query cards at a fixed cut, isolating slow/failed/oversized cards.
-- [ ] 2.2 GUI document API and viewer: immediate structure, per-card loading/retry/ErrorCard; update docs/gui.md and product guide.
-- [ ] 2.3 Deterministic independent completion and budget isolation tests; focused Rust/GUI proof, check:rust, prepare:bindings and tracked outputs.
+- [x] 2.1 Domain/operations/runtime, storage numeric-index reads and server wire/value output contracts: independently query cards at a fixed cut, reuse lossless existing indexed statistics and isolate slow/failed/oversized cards.
+- [x] 2.2 GUI document API and viewer: immediate structure, per-card loading/retry/ErrorCard; update docs/gui.md and product guide.
+- [x] 2.3 Deterministic independent completion and budget isolation tests; focused Rust/GUI proof, check:rust, prepare:bindings and tracked outputs.
 
 ## Slice 3: Indexed Evaluation
 
 - [ ] 3.1 Record/query ownership: replace nested TimeBetween and PerCase scans with linear sorted merge/partition evaluation and deterministic tests.
-- [ ] 3.2 Storage ingest/query ownership: distinct-value index and paged repeat expansion; preserve complete distinct values and fixed cuts.
+- [ ] 3.2 Storage ingest/query and document runtime ownership: distinct-value index and paged repeat expansion, domain/operation/server continuations and GUI page controls; preserve complete distinct values and fixed cuts.
 - [ ] 3.3 Reuse/extend maintained count/min/max/mean/RMS at ingest; exact median query; prove raw-row equivalence and update affected guides.
 - [ ] 3.4 Focused tests, check:rust, GUI tests/bindings if touched and diff scan.
 
@@ -22,7 +22,7 @@
 
 - [ ] 4.1 Report materialization uses the same card queries at sealed cuts, retaining complete paged tables and repeated sections; remove old acquisition and superseded tests.
 - [ ] 4.2 Add deterministic sealed report parity proof and update product/GUI/query guides and affected README claims.
-- [ ] 4.3 Wire integration benchmark into existing bench inventory: three days, several million samples, 30 plots, structure/card latency and peak-memory scaling.
+- [ ] 4.3 Wire integration benchmark into existing bench inventory and native resource probe: three days, several million samples, 30 plots, structure/card latency and peak-memory scaling with Linux and Windows RSS support.
 - [ ] 4.4 Run focused proof, check:rust and applicable GUI/binding checks; run requested benchmark and scan diff.
 
 ## Workflow Follow-Up

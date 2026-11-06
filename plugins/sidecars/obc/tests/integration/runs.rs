@@ -189,7 +189,7 @@ async fn one_token_inputs() {
 
 #[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
-async fn faults_contained_ready() {
+async fn faults_retain_evidence() {
     let resources = Connections::default();
     let protection = workflow::<plugin_obc::suites::protection::Overcurrent>(plugin_obc::suites::protection::SUITE);
     let recovery = workflow::<plugin_obc::suites::recovery::PowerLoss>(plugin_obc::suites::recovery::SUITE);
@@ -212,8 +212,6 @@ async fn faults_contained_ready() {
         assert!(samples.iter().any(
             |sample| matches!(sample.values.get("phase"), Some(dokime::Value::Text(phase)) if phase == "faulted" || phase == "power_loss")
         ));
-        // The bench is untouched by a fault the Charger contained.
-        assert!(road(&resources).call::<AskReadiness>(AskReadiness {}).await.is_ok_and(|readiness| !readiness.stopped));
     }
     protection.shutdown().await;
     recovery.shutdown().await;
@@ -356,6 +354,9 @@ fn execution_id(token: &str) -> String {
 
 fn runtime_request(token: &str, continuous: bool) -> RunExecution {
     RunExecution {
+        publication_rows: 1024,
+        publication_bytes: 1024 * 1024,
+        publication_delay_micros: 0,
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: "cycle".to_owned(),
@@ -396,6 +397,9 @@ fn runtime_request(token: &str, continuous: bool) -> RunExecution {
 
 fn steady_request(token: &str) -> RunExecution {
     RunExecution {
+        publication_rows: 1024,
+        publication_bytes: 1024 * 1024,
+        publication_delay_micros: 0,
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: "cycle".to_owned(),

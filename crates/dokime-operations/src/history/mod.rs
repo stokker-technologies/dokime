@@ -57,6 +57,21 @@ use dokime_domain::model::history::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(
+    BrowseCycles,
+    BrowseExecutions,
+    DeleteExecution,
+    DownloadCheckpointArtifact,
+    GetCheckpointContext,
+    GetCheckpointDocument,
+    GetCheckpointEvidence,
+    GetExecutionCheckpoint,
+    ListCheckpointRecords,
+    ListCheckpointTelemetry,
+    ReadCheckpointOutput
+);
+
 /* === Type Aliases === */
 
 /* === Structs === */

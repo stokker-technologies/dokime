@@ -66,10 +66,13 @@ pub enum SampleOutput {
 /* === Traits === */
 
 pub trait EmbeddedPublisher: Send + Sync {
-    fn publish(
-        &self, execution: &str, stream: &dokime_domain::model::identity::Identifier, values: BTreeMap<String, Value>,
-        storage_payload: Vec<u8>,
-    ) -> Result<(), String>;
+    fn values_required(&self) -> bool {
+        true
+    }
+
+    fn publish<'a>(
+        &'a self, execution: &'a str, stream: &'a dokime_domain::model::identity::Identifier, rows: Vec<super::StampedRow>,
+    ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 }
 
 /* === Implementations === */
@@ -157,6 +160,9 @@ impl<T: SidecarTemplate> Workflow<T> {
     }
 
     pub fn start_on(&self, request: RunExecution, host: Option<SampleOutput>, caller: super::Caller) -> Result<(), Refusal> {
+        if request.publication_rows == 0 || request.publication_bytes == 0 {
+            return Err(Refusal::of("publication row and byte limits must be positive"));
+        }
         if request.execution_token.trim().is_empty() {
             return Err(Refusal::of("execution token must not be empty"));
         }

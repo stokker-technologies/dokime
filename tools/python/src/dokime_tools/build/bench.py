@@ -40,7 +40,7 @@ from . import cargo, paths
 # === Public Functions === #
 
 
-def build(directory: Path, extra: Sequence[str] = ()) -> Path:
+def build(directory: Path, extra: Sequence[str] = (), selection: Sequence[str] = ("--workspace", "--exclude", "dokime-python", "--bins", "--benches")) -> Path:
     output = paths.output(directory, "build", "bench")
     messages = output / "bench/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)
@@ -49,11 +49,7 @@ def build(directory: Path, extra: Sequence[str] = ()) -> Path:
         directory,
         [
             "--locked",
-            "--workspace",
-            "--exclude",
-            "dokime-python",
-            "--bins",
-            "--benches",
+            *selection,
             "--profile",
             "bench",
             *extra,
@@ -63,11 +59,7 @@ def build(directory: Path, extra: Sequence[str] = ()) -> Path:
         "cargo",
         "build",
         "--locked",
-        "--workspace",
-        "--exclude",
-        "dokime-python",
-        "--bins",
-        "--benches",
+        *selection,
         "--profile",
         "bench",
         "--message-format=json-render-diagnostics",

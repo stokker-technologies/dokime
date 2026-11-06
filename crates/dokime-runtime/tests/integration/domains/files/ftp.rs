@@ -109,7 +109,7 @@ async fn store_ftp_secret(bench: &Bench) {
         value: Some(PASSWORD.into()),
         generation: 0,
     };
-    bench.handle.operations().call::<dokime_operations::secrets::Put>(request).await.unwrap();
+    bench.handle.operations().operation::<dokime_operations::secrets::Put>(request).await.unwrap();
 }
 
 // Preserve The Real Server's Data Plane While Refusing REST On Its Control Plane

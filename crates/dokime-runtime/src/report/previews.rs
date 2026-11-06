@@ -406,6 +406,9 @@ mod tests {
         let fields = [FieldPreview {
             stream: "tracking".into(),
             field: "distance_m".into(),
+            total: envelope.buckets.values().map(|bucket| bucket.count).sum(),
+            exact: Vec::new(),
+            last: envelope.buckets.values().next_back().map(|bucket| bucket.last),
             envelope,
         }];
         let request = PlotPayloadRequest {

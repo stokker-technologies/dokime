@@ -22,7 +22,7 @@ use std::sync::{
 
 // Third Party Imports
 use dokime_runtime::harmos::catalog::Node;
-use dokime_runtime::harmos::operations::{Host, OperationDeclaration, WireDeclaration};
+use dokime_runtime::harmos::operations::{OperationDeclaration, WireDeclaration};
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{Attach, PluginNative};
 
@@ -234,16 +234,16 @@ impl Probe {
     async fn call(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
         let ProbeParameters { probe, public, wait } = ctx.parameters();
         let (probe, public, wait) = (probe.clone(), *public, *wait);
-        let (called, hosted) = if public {
-            let called = ctx.call(ReadPublic { probe: probe.clone(), value: 7, wait }).await?.value;
-            let hosted = ctx.host().call::<ReadPublic>(ReadPublic { probe, value: 9, wait }).await;
-            (called, hosted.expect("the host surface routes the same call").into_owned().value)
+        let (called, started) = if public {
+            let called = ctx.operation(ReadPublic { probe: probe.clone(), value: 7, wait }).await?.value;
+            let started = ctx.operation(ReadPublic { probe, value: 9, wait }).start().await?.join().await?;
+            (called, started.into_owned().value)
         } else {
-            let called = ctx.call(ReadPrivate { probe: probe.clone(), value: 7, wait }).await?.value;
-            let hosted = ctx.host().call::<ReadPrivate>(ReadPrivate { probe, value: 9, wait }).await;
-            (called, hosted.expect("the host surface routes the same call").into_owned().value)
+            let called = ctx.operation(ReadPrivate { probe: probe.clone(), value: 7, wait }).await?.value;
+            let started = ctx.operation(ReadPrivate { probe, value: 9, wait }).start().await?.join().await?;
+            (called, started.into_owned().value)
         };
-        assert_eq!((called, hosted), (14, 18), "the plugin's own handler answered each call");
+        assert_eq!((called, started), (14, 18), "the plugin's own handler answered each call");
 
         Ok(())
     }
@@ -260,7 +260,7 @@ impl ConsumerProbe {
 
     #[dokime_runtime::step(label = "Call The Provider's Public Operation")]
     async fn call(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
-        ctx.call(ReadPublic {
+        ctx.operation(ReadPublic {
             probe: String::new(),
             value: 1,
             wait: false,

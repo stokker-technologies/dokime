@@ -114,42 +114,80 @@ pub(crate) fn normalize_values(field: &arrow_schema::Field, values: &mut BTreeMa
 }
 
 pub(crate) fn batch(schema: SchemaRef, rows: &[(u64, crate::storage::telemetry::Admitted)]) -> Result<RecordBatch> {
-    let mut metadata = Vec::with_capacity(rows.len());
-    let mut values = Vec::with_capacity(rows.len());
-    for (position, entry) in rows {
-        let sample = &entry.sample;
-        metadata.push(Value::Object(BTreeMap::from([
-            ("position".into(), Value::Unsigned(*position)),
-            ("at".into(), Value::Datetime(sample.timestamp.to_datetime()?)),
-            ("epoch".into(), Value::Text(entry.epoch.to_string())),
-            ("ordinal".into(), Value::Unsigned(entry.ordinal)),
-            ("sample_id".into(), Value::Text(sample.sample_id.to_string())),
-            ("sequence".into(), Value::Unsigned(sample.sequence)),
-            ("timestamp".into(), Value::Text(sample.timestamp.to_string())),
-            ("received_at".into(), Value::Text(sample.received_at.to_string())),
-            ("source".into(), Value::Text(sample.source.clone())),
-            ("scope".into(), Value::Text(serde_json::to_string(&sample.scope)?)),
-            ("summary".into(), Value::Text(serde_json::to_string(&sample.summary)?)),
-            ("metadata".into(), Value::Text(serde_json::to_string(&sample.metadata)?)),
-            ("native_metadata".into(), Value::Text(entry.metadata.clone())),
-            (
-                "original_strings".into(),
-                Value::Text(serde_json::to_string(
-                    &entry
-                        .strings
-                        .iter()
-                        .filter(|(path, _)| path.as_slice() == ["timestamp"] || changes_text(schema.field(1).data_type(), path))
-                        .collect::<Vec<_>>(),
-                )?),
-            ),
-        ])));
-        values.push(Value::Object(sample.values.clone()));
+    let times = rows
+        .iter()
+        .map(|(_, entry)| {
+            i64::try_from(entry.sample.timestamp.to_datetime()?.unix_timestamp_nanos().div_euclid(1000))
+                .map_err(|_| Error::Invalid("telemetry timestamp exceeds Arrow range"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    batch_at(schema, rows, &times)
+}
+
+// Construct Columns Directly From Borrowed Admissions, Without Per-Row Metadata Or Value Maps.
+pub(crate) fn batch_at(schema: SchemaRef, rows: &[(u64, crate::storage::telemetry::Admitted)], times: &[i64]) -> Result<RecordBatch> {
+    if rows.len() != times.len() {
+        return Err(Error::Invalid("telemetry timestamp count differs"));
     }
-    let columns = vec![
-        array(schema.field(0).data_type(), &metadata.iter().collect::<Vec<_>>())?,
-        array(schema.field(1).data_type(), &values.iter().collect::<Vec<_>>())?,
-    ];
-    Ok(RecordBatch::try_new(schema, columns)?)
+    let DataType::Struct(metadata_fields) = schema.field(0).data_type() else {
+        return Err(Error::Invalid("telemetry metadata is not a struct"));
+    };
+    let DataType::Struct(value_fields) = schema.field(1).data_type() else {
+        return Err(Error::Invalid("telemetry values are not a struct"));
+    };
+    macro_rules! text {
+        ($value:expr) => {
+            Arc::new(StringArray::from_iter_values(rows.iter().map($value))) as ArrayRef
+        };
+    }
+    let mut metadata = Vec::<ArrayRef>::with_capacity(metadata_fields.len());
+    for field in metadata_fields {
+        let column: ArrayRef = match field.name().as_str() {
+            "position" => Arc::new(UInt64Array::from_iter_values(rows.iter().map(|(position, _)| *position))),
+            "at" => Arc::new(TimestampMicrosecondArray::from_iter_values(times.iter().copied()).with_timezone("UTC")),
+            "ordinal" => Arc::new(UInt64Array::from_iter_values(rows.iter().map(|(_, entry)| entry.ordinal))),
+            "sequence" => Arc::new(UInt64Array::from_iter_values(rows.iter().map(|(_, entry)| entry.sample.sequence))),
+            "epoch" => text!(|(_, entry)| entry.epoch.as_str()),
+            "sample_id" => text!(|(_, entry)| entry.sample.sample_id.as_str()),
+            "timestamp" => text!(|(_, entry)| entry.sample.timestamp.as_str()),
+            "received_at" => text!(|(_, entry)| entry.sample.received_at.as_str()),
+            "source" => text!(|(_, entry)| entry.sample.source.as_str()),
+            "native_metadata" => text!(|(_, entry)| entry.metadata.as_str()),
+            "scope" => json_column(rows.iter().map(|(_, entry)| &entry.sample.scope))?,
+            "summary" => json_column(rows.iter().map(|(_, entry)| &entry.sample.summary))?,
+            "metadata" => json_column(rows.iter().map(|(_, entry)| &entry.sample.metadata))?,
+            "original_strings" => {
+                let strings = rows
+                    .iter()
+                    .map(|(_, entry)| {
+                        serde_json::to_string(
+                            &entry
+                                .strings
+                                .iter()
+                                .filter(|(path, _)| path.as_slice() == ["timestamp"] || changes_text(schema.field(1).data_type(), path))
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                Arc::new(StringArray::from(strings))
+            }
+            _ => return Err(Error::Invalid("unknown telemetry metadata column")),
+        };
+        metadata.push(column);
+    }
+    let values = value_fields
+        .iter()
+        .map(|field| {
+            let values: Vec<_> = rows.iter().map(|(_, entry)| entry.sample.values.get(field.name()).unwrap_or(&Value::Null)).collect();
+            array(field.data_type(), &values)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let values = if value_fields.is_empty() {
+        StructArray::new_empty_fields(rows.len(), None)
+    } else {
+        StructArray::new(value_fields.clone(), values, None)
+    };
+    Ok(RecordBatch::try_new(schema.clone(), vec![Arc::new(StructArray::new(metadata_fields.clone(), metadata, None)), Arc::new(values)])?)
 }
 
 pub(crate) fn entry(
@@ -393,6 +431,20 @@ pub(crate) fn cell(array: &ArrayRef, row: usize) -> Result<Value> {
 }
 
 /* === Private Functions === */
+
+fn json_column<'a, T: serde::Serialize + PartialEq + 'a>(values: impl IntoIterator<Item = &'a T>) -> Result<ArrayRef> {
+    let mut column = arrow_array::builder::StringBuilder::new();
+    let mut previous = None;
+    let mut encoded = String::new();
+    for value in values {
+        if previous != Some(value) {
+            encoded = serde_json::to_string(value)?;
+            previous = Some(value);
+        }
+        column.append_value(&encoded);
+    }
+    Ok(Arc::new(column.finish()))
+}
 
 fn field_cell(field: &arrow_schema::Field, array: &ArrayRef, row: usize) -> Result<Value> {
     let mut value = cell(array, row)?;

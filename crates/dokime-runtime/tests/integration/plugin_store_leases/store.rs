@@ -421,13 +421,22 @@ pub(crate) async fn unavailable_bytes_metadata() {
     let entry = store.get(id).await.unwrap();
     assert!(entry.metadata.is_none());
     assert!(entry.error.is_some());
-    let before = saved_metadata(root.path());
-    assert!(matches!(store.install(&bundle("fixture", "fixture", "2.0.0"), &[], &BTreeSet::new()).await, Err(PluginError::Changed(_))));
-    assert_eq!(saved_metadata(root.path()), before);
+    let original = fs::read(store.path(id)).unwrap();
+    let replacement = bundle("fixture", "fixture", "2.0.0");
+    let installed = store.install(&replacement, &[], &BTreeSet::new()).await.unwrap();
+    let installed_id = installed.installation.install_id;
+    assert_ne!(installed_id, id);
+    assert!(installed.metadata.is_some());
+    assert!(installed.error.is_none());
+    assert_eq!(serde_json::to_value(store.get(id).await.unwrap()).unwrap(), serde_json::to_value(entry).unwrap());
+    assert_eq!(fs::read(store.path(id)).unwrap(), original);
     store.remove(id).await.unwrap();
     assert_eq!(store.get(id).await.unwrap().installation.state, PluginState::RemovalPending);
     store.sweep().await.unwrap();
-    assert!(store.list().await.unwrap().is_empty());
+    let remaining = store.list().await.unwrap();
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining[0].installation.install_id, installed_id);
+    assert_eq!(fs::read(store.path(installed_id)).unwrap(), replacement);
     store_database.close().await.unwrap();
 }
 

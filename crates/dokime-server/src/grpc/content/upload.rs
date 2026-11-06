@@ -56,11 +56,6 @@ struct Abandoning {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::UploadArtifact),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -167,7 +162,6 @@ pub(super) fn prepare(
 
     setup.resource::<Host<wire::UploadArtifact>>(Host::<wire::UploadArtifact>::new(served));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

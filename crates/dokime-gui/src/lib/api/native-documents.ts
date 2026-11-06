@@ -27,6 +27,7 @@ import {
   unavailableReason,
   validateSummaryResult,
 } from "@/lib/document-presentation";
+import { failureOf } from "@/lib/notification-details";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -43,40 +44,48 @@ const GUI_PLOT_TRANSFORMS = 32;
 
 type DocumentFrame = documentWire.Row3;
 const DocumentFrameSchema = documentWire.Row3Schema;
-type DocumentCard = Wire<documentWire.Row22>;
-type DocumentDensity = Wire<documentWire.Row113>;
-type DocumentHeader = Wire<documentWire.Row20>;
-type DocumentBinding = Wire<documentWire.Row30>;
-type DocumentLayoutNode = Wire<documentWire.Row21>;
-type DocumentSummaryGroupDefinition = Wire<documentWire.Row28>;
-type DocumentSummaryTileDefinition = Wire<documentWire.Row29>;
-type DocumentRepeatSelection = Wire<documentWire.Row31>;
-type DocumentRepeatInstance = Wire<documentWire.Row32>;
-type DocumentSectionIdentity = Wire<documentWire.Row33>;
-type DocumentRail = Wire<documentWire.Row114>;
-type DocumentScope = Wire<documentWire.Row4>;
-type DocumentSummaryGroup = Wire<documentWire.Row24>;
-type DocumentSummaryPresentation = Wire<documentWire.Row43>;
-type DocumentSummaryState = Wire<documentWire.Row44>;
-type DocumentSummaryTile = Wire<documentWire.Row25>;
-type DocumentTableRow = Wire<documentWire.Row23>;
-type DocumentWarning = Wire<documentWire.Row26>;
-type NativePlotAxisKind = Wire<documentWire.Row176>;
-type PlotStyle = Wire<documentWire.Row172>;
-type AxisScale = Wire<documentWire.Row165>;
-type DataExpression = Wire<documentWire.Row45>;
+type VariantValue<T, K extends string> =
+  Extract<NonNullable<NonNullable<T> extends { HarmosVariant: infer V } ? V : never>, { case: K }> extends { value: { field0?: infer F } }
+    ? NonNullable<F>
+    : never;
+type FrameValue<K extends string> = VariantValue<Wire<DocumentFrame>["frame"], K>;
+type DocumentCard = FrameValue<"Card">;
+type DocumentHeader = FrameValue<"Header">;
+type DocumentBinding = FrameValue<"Binding">;
+type DocumentLayoutNode = FrameValue<"LayoutNode">;
+type DocumentPlacement = VariantValue<DocumentLayoutNode["node"], "Placement">;
+type DocumentDensity = NonNullable<DocumentPlacement["density"]>;
+type DocumentRail = NonNullable<DocumentPlacement["rail"]>;
+type DocumentSummaryGroupDefinition = FrameValue<"GroupDefinition">;
+type DocumentSummaryTileDefinition = FrameValue<"TileDefinition">;
+type DocumentRepeatSelection = FrameValue<"RepeatSelection">;
+type DocumentRepeatInstance = FrameValue<"RepeatInstance">;
+type DocumentSectionIdentity = FrameValue<"SectionIdentity">;
+type DocumentScope = NonNullable<Wire<documentWire.Row1>["scope"]>;
+type DocumentSummaryGroup = FrameValue<"SummaryGroup">;
+type DocumentSummaryTile = FrameValue<"SummaryTile">;
+type DocumentSummaryPresentation = NonNullable<DocumentSummaryTile["presentation"]>;
+type DocumentSummaryState = NonNullable<DocumentSummaryTile["state"]>;
+type DocumentTableRow = FrameValue<"TableRow">;
+type DocumentWarning = FrameValue<"Warning">;
+type NativePlotDefinition = VariantValue<DocumentBinding["result"], "Plot">;
+type NativePlotPresentation = NonNullable<NativePlotDefinition["presentation"]>;
+type NativePlotAxisKind = NonNullable<NativePlotPresentation["xAxis"]>;
+type PlotStyle = NonNullable<NativePlotPresentation["style"]>;
+type DataExpression = NonNullable<DocumentSummaryTileDefinition["value"]>;
+type PlotRequest = NonNullable<NativePlotDefinition["request"]>;
+type AxisScale = NonNullable<PlotRequest["yScale"]>;
 type FftWindow = NonNullable<NonNullable<PlotRequest["fft"]>["window"]>;
 type FftDetrend = NonNullable<NonNullable<PlotRequest["fft"]>["detrend"]>;
 type FrequencyLevelUnit = NonNullable<NonNullable<PlotRequest["fft"]>["levelUnit"]>;
-type PlotRequest = Wire<documentWire.Row134>;
-type PlotType = Wire<documentWire.Row164>;
-type FilterOperator = Wire<documentWire.Row54>;
-type DocumentCardKind = Wire<documentWire.Row115>;
-type NativePlotDefinition = Wire<documentWire.Row106>;
+type PlotType = NonNullable<PlotRequest["plotType"]>;
+type FilterOperator = NonNullable<DocumentCard["filters"][number]["operator"]>;
+type DocumentCardKind = NonNullable<VariantValue<DocumentCard["body"], "Owner">["kind"]>;
 type NativeDownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 
 /** Indexes reference canonical protobuf messages; no alternate document DTO contract. */
 export interface CompletedDocument {
+  complete?: boolean;
   header: DocumentHeader;
   bindings: Map<string, DocumentBinding>;
   definitions: Map<string, DocumentSummaryGroupDefinition[]>;
@@ -95,6 +104,8 @@ export interface DocumentSelection {
   scope: DocumentScope;
   documentId: string;
   epoch: string;
+  structureOnly?: boolean;
+  cardIds?: string[];
 }
 
 export interface NativeDocumentRequest {
@@ -102,6 +113,8 @@ export interface NativeDocumentRequest {
   executionId: string;
   documentId: string;
   epoch: string;
+  structureOnly?: boolean;
+  cardIds?: string[];
 }
 
 export interface NativeDocumentSession extends SessionIdentity {
@@ -147,6 +160,7 @@ export async function fetchNativeDocument(
   request: NativeDocumentRequest,
   signal?: AbortSignal,
   previous?: CompletedDocument | null,
+  publish?: (document: CompletedDocument) => void,
 ): Promise<CompletedDocument> {
   const scope = createDocumentScope(request);
   let reader: Awaited<ReturnType<typeof rpc.documentsCaptureCurrentDocument>> | undefined;
@@ -159,6 +173,8 @@ export async function fetchNativeDocument(
     reader = await rpc.documentsCaptureCurrentDocument(session, {
       scope,
       documentId: request.documentId,
+      structureOnly: request.structureOnly ?? false,
+      cardIds: request.cardIds ?? [],
     });
     if (signal?.aborted || !session.isCurrent()) {
       await reader.cancel();
@@ -167,33 +183,47 @@ export async function fetchNativeDocument(
     dispose = session.own(() => {
       void reader?.cancel().catch(() => undefined);
     });
-    /* The header comes first and states the inputs' frontiers: the same
-       frontiers as the document already held mean the same document, so the
-       transfer stops there and the held document is answered. */
-    const frames = reader[Symbol.asyncIterator]();
-    const first = await frames.next();
-    const header = first.done ? undefined : first.value.frame?.HarmosVariant;
-    if (previous && header?.case === "Header" && sameFrontiers(header.value.field0?.frontiers, previous.header.frontiers)) {
-      await reader.cancel();
-      return previous;
-    }
-    const replay = (async function* () {
-      if (!first.done) yield first.value;
-      for (let next = await frames.next(); !next.done; next = await frames.next()) yield next.value;
-    })();
     return await assembleDocument(
-      replay,
-      {
-        scope,
-        documentId: request.documentId,
-        epoch: request.epoch,
-      },
+      reader,
+      { scope, documentId: request.documentId, epoch: request.epoch, structureOnly: request.structureOnly, cardIds: request.cardIds },
       () => !signal?.aborted && session.isCurrent(),
+      publish,
+      async (header) => {
+        if (
+          previous &&
+          previous.complete !== false &&
+          ![...previous.bindings].some(
+            ([id, binding]) =>
+              (!request.cardIds?.length || request.cardIds.includes(id)) && binding.result?.HarmosVariant.case === "Failure",
+          ) &&
+          sameFrontiers(header.frontiers, previous.header.frontiers)
+        ) {
+          await reader?.cancel();
+          return previous;
+        }
+        return undefined;
+      },
     );
   } finally {
     signal?.removeEventListener("abort", abort);
     dispose?.();
   }
+}
+
+export function mapNativeDocumentCard(document: CompletedDocument, id: string): DocumentViewCard {
+  const binding = document.bindings.get(id);
+  const source = binding && document.cards.get(binding.sourceId);
+  if (!binding || !source) invalid("requested card is missing");
+  return mapNativeCard(source, binding, document);
+}
+
+export function nativeDocumentCardKey(document: CompletedDocument, id: string): string {
+  const binding = document.bindings.get(id);
+  const source = binding && document.cards.get(binding.sourceId);
+  if (!binding || !source) invalid("requested card declaration is missing");
+  const groups = document.definitions.get(binding.sourceId);
+  const tiles = [...(document.definitionTiles.get(binding.sourceId) ?? [])];
+  return JSON.stringify([source, binding.metadata, groups, tiles], (_key, value) => (typeof value === "bigint" ? value.toString() : value));
 }
 
 /** Whether two captures read the same inputs: same state revision, telemetry cut and artifacts. */
@@ -220,6 +250,7 @@ export function mapNativeDocument(document: CompletedDocument): DocumentViewPayl
         instances.map((instance) => ({ suffix: instance.suffix, node_id: instance.nodeId })),
       ]),
     ),
+    pendingRepeats: new Set([...document.repeats].filter(([, repeat]) => repeat.pending).map(([id]) => id)),
     sections: new Map(
       [...document.sections].map(([id, section]) => [
         id,
@@ -239,6 +270,14 @@ function mapNativeCard(card: DocumentCard, binding: DocumentBinding, document: C
   const result = binding.result?.HarmosVariant;
   const body = card.body?.HarmosVariant;
   if (!result?.case || !body?.case) invalid("card body or binding result is missing");
+  if (result.case === "Pending" || result.case === "Failure") {
+    const kind =
+      body.case === "Table" ? "table" : body.case === "Owner" ? (mapCardKind(body.value.field0?.kind) ?? "overview") : "overview";
+    if (result.case === "Pending") return documentCard(metadata, kind, { loading: true });
+    const failure = result.value.field0;
+    if (!failure?.code || !failure.message.trim()) invalid("card failure is missing");
+    return documentCard(metadata, kind, { failure: failureOf(failure, metadata.label) });
+  }
   if (result.case === "Summary" && body.case === "Summary") {
     return documentCard(metadata, "overview", {
       groups: (document.groups.get(id) ?? []).map((group) => ({
@@ -305,6 +344,7 @@ function mapNativeLayout(nodes: readonly DocumentLayoutNode[]): DeclaredNode[] {
           if (!kind.value.field0) invalid("layout node payload is missing");
           return {
             type: "section",
+            metadata: metadataFromNative(kind.value.field0.metadata, kind.value.field0.nodeId),
             node_id: kind.value.field0.nodeId,
             repeat: Boolean(kind.value.field0.repeat),
             children: mapNodes(node.ordinal.toString()),
@@ -720,6 +760,8 @@ export async function assembleDocument(
   frames: AsyncIterable<DocumentFrame>,
   expected: DocumentSelection,
   active: () => boolean,
+  publish?: (document: CompletedDocument) => void,
+  reuse?: (header: DocumentHeader) => Promise<CompletedDocument | undefined>,
 ): Promise<CompletedDocument> {
   let header: DocumentHeader | undefined;
   const layout: DocumentLayoutNode[] = [];
@@ -736,18 +778,84 @@ export async function assembleDocument(
   const instances = new Map<string, DocumentRepeatInstance[]>();
   const sections = new Map<string, DocumentSectionIdentity>();
   const warnings: DocumentWarning[] = [];
-  let bytes = 0;
   let count = 0;
   let complete = false;
+  let structured = false;
+  let evidence = false;
+  const committed = new Map<string, DocumentBinding>();
+  const bytes = new Map<string, number>();
+  const progress = (): CompletedDocument => {
+    if (!header) invalid("header is missing");
+    return {
+      complete,
+      header,
+      layout: [...layout],
+      cards: new Map(cards),
+      bindings: new Map(committed),
+      rows: new Map([...rows].map(([id, items]) => [id, [...items]])),
+      groups: new Map([...groups].map(([id, items]) => [id, [...items]])),
+      tiles: new Map([...tiles].map(([id, groups]) => [id, new Map([...groups].map(([ordinal, items]) => [ordinal, [...items]]))])),
+      definitions: new Map(definitions),
+      definitionTiles: new Map(definitionTiles),
+      repeats: new Map(repeats),
+      instances: new Map([...instances].map(([id, items]) => [id, [...items]])),
+      sections: new Map(sections),
+      warnings: [...warnings],
+    };
+  };
+  const notify = () => {
+    if (!active()) invalid("selection changed or transfer cancelled");
+    publish?.(progress());
+  };
+  const validateStructure = () => {
+    for (const [id, card] of cards) {
+      if (card.body?.HarmosVariant.case === "Table" && card.body.HarmosVariant.value.field0?.rowCount !== BigInt(rows.get(id)?.length ?? 0))
+        invalid("table row count is incomplete");
+      if (card.body?.HarmosVariant.case === "Summary") {
+        const entries = definitions.get(id) ?? [];
+        if (card.body.HarmosVariant.value.field0?.groupCount !== BigInt(entries.length))
+          invalid("summary definition group count is incomplete");
+        for (const group of entries)
+          if (group.tileCount !== BigInt(definitionTiles.get(id)?.get(group.ordinal)?.length ?? 0))
+            invalid("summary definition tile count is incomplete");
+      }
+    }
+    for (const node of layout)
+      if (
+        node.node?.HarmosVariant.case === "Placement" &&
+        (!node.node.HarmosVariant.value.field0 || !cards.has(node.node.HarmosVariant.value.field0.cardId))
+      )
+        invalid("layout references a missing source card");
+  };
+  const validateBinding = (id: string) => {
+    const binding = bindings.get(id);
+    if (!binding || binding.result?.HarmosVariant.case === "Pending") invalid("card is incomplete");
+    if (binding.result?.HarmosVariant.case !== "Summary") return;
+    const entries = groups.get(id) ?? [];
+    if (binding.result.HarmosVariant.value.field0?.groupCount !== BigInt(entries.length)) invalid("summary group count is incomplete");
+    for (const group of entries)
+      if (group.tileCount !== BigInt(tiles.get(id)?.get(group.ordinal)?.length ?? 0)) invalid("summary tile count is incomplete");
+  };
   for await (const item of frames) {
     if (!active()) invalid("selection changed or transfer cancelled");
     if (complete) invalid("a frame followed completion");
     count++;
-    const length = toBinary(DocumentFrameSchema, item).byteLength;
-    if (length > DOCUMENTS_MATERIALIZED_BYTES - bytes) invalid("capture byte budget exceeded");
-    bytes += length;
     const frame = item.frame?.HarmosVariant;
     if (!frame?.case) invalid("frame payload is missing");
+    const payload = frame.value.field0;
+    const cardId =
+      payload && typeof payload === "object" && "cardId" in payload
+        ? String(payload.cardId)
+        : frame.case === "Binding"
+          ? frame.value.field0?.metadata?.identifier
+          : undefined;
+    const key = structured && cardId ? `card:${cardId}` : "structure";
+    const reached = (bytes.get(key) ?? 0) + toBinary(DocumentFrameSchema, item).byteLength;
+    if (reached > DOCUMENTS_MATERIALIZED_BYTES)
+      invalid(
+        `budget materialized_bytes exceeded (limit ${DOCUMENTS_MATERIALIZED_BYTES}, reached ${reached}, card ${cardId ?? "structure"})`,
+      );
+    bytes.set(key, reached);
     if (!header && frame.case !== "Header") invalid("header must be first");
     switch (frame.case) {
       case "Header": {
@@ -810,7 +918,13 @@ export async function assembleDocument(
         if (!binding) invalid("frame payload is missing");
         const id = binding.metadata?.identifier;
         const source = cards.get(binding.sourceId);
-        if (!id || bindings.has(id) || !source || !binding.result?.HarmosVariant.case) invalid("binding source or identity is invalid");
+        if (
+          !id ||
+          (bindings.has(id) && (!structured || bindings.get(id)?.result?.HarmosVariant.case !== "Pending")) ||
+          !source ||
+          !binding.result?.HarmosVariant.case
+        )
+          invalid("binding source or identity is invalid");
         const expectedResult =
           source.body?.HarmosVariant.case === "Summary"
             ? "Summary"
@@ -818,7 +932,8 @@ export async function assembleDocument(
               ? "Plot"
               : "Literal";
         if (
-          binding.result?.HarmosVariant.case !== expectedResult ||
+          (!["Pending", "Failure"].includes(binding.result?.HarmosVariant.case ?? "") &&
+            binding.result?.HarmosVariant.case !== expectedResult) ||
           (binding.result?.HarmosVariant.case === "Literal" && !binding.result.HarmosVariant.value.field0)
         )
           invalid("binding result differs from its declaration");
@@ -879,7 +994,8 @@ export async function assembleDocument(
       case "RepeatSelection": {
         const repeat = frame.value.field0;
         if (!repeat) invalid("frame payload is missing");
-        if (!repeat.nodeId || repeats.has(repeat.nodeId)) invalid("repeat selection identity is invalid");
+        if (!repeat.nodeId || (repeats.has(repeat.nodeId) && !repeats.get(repeat.nodeId)?.pending))
+          invalid("repeat selection identity is invalid");
         repeats.set(repeat.nodeId, repeat);
         instances.set(repeat.nodeId, []);
         break;
@@ -900,6 +1016,10 @@ export async function assembleDocument(
         target.push(instance);
         break;
       }
+      case "SectionRemoval": {
+        if (!structured || !frame.value.field0 || !sections.delete(frame.value.field0)) invalid("section removal is invalid");
+        break;
+      }
       case "SectionIdentity": {
         const section = frame.value.field0;
         if (!section) invalid("frame payload is missing");
@@ -912,6 +1032,74 @@ export async function assembleDocument(
         if (!frame.value.field0) invalid("warning payload is missing");
         warnings.push(frame.value.field0);
         break;
+      case "StructureComplete": {
+        if (structured) invalid("duplicate structure completion");
+        const value = frame.value.field0;
+        if (
+          !value ||
+          value.cardCount !== BigInt(cards.size) ||
+          value.layoutNodeCount !== BigInt(layout.length) ||
+          value.bindingCount !== BigInt(bindings.size) ||
+          value.repeatCount !== BigInt(repeats.size) ||
+          value.sectionCount !== BigInt(sections.size) ||
+          value.frameCount !== BigInt(count)
+        )
+          invalid("structure counts differ");
+        validateStructure();
+        for (const [id, binding] of bindings) {
+          if (binding.result?.HarmosVariant.case !== "Pending") validateBinding(id);
+          committed.set(id, binding);
+        }
+        structured = true;
+        notify();
+        break;
+      }
+      case "EvidenceCut": {
+        if (!structured || evidence || !header?.frontiers) invalid("evidence cut is misplaced");
+        const value = frame.value.field0;
+        if (!value?.cut?.store || !value.cut.epoch) invalid("evidence cut is incomplete");
+        header = { ...header, frontiers: { ...header.frontiers, evidence: value.cut, telemetry: value.telemetry ? value.cut : undefined } };
+        evidence = true;
+        const held = value.cacheable ? await reuse?.(header) : undefined;
+        if (held) return held;
+        break;
+      }
+      case "ArtifactCut": {
+        if (!structured || !evidence || !header?.frontiers || !frame.value.field0 || header.frontiers.artifactsSha256)
+          invalid("artifact frontier is misplaced");
+        header = { ...header, frontiers: { ...header.frontiers, artifactsSha256: frame.value.field0 } };
+        const held = await reuse?.(header);
+        if (held) return held;
+        break;
+      }
+      case "ExpansionComplete": {
+        if (!structured || frame.value.field0 === undefined) invalid("expansion completion is invalid");
+        for (const [id, repeat] of repeats)
+          if (!repeat.pending && repeat.instanceCount !== BigInt(instances.get(id)?.length ?? 0))
+            invalid("repeat instance count is incomplete");
+        if (frame.value.field0 && header) {
+          const held = await reuse?.(header);
+          if (held) return held;
+        }
+        for (const [id, binding] of bindings)
+          if (!committed.has(id)) {
+            if (binding.result?.HarmosVariant.case !== "Pending") validateBinding(id);
+            committed.set(id, binding);
+          }
+        notify();
+        break;
+      }
+      case "CardComplete": {
+        if (!structured || !evidence) invalid("card completed before evidence");
+        const id = frame.value.field0;
+        if (!id || committed.get(id)?.result?.HarmosVariant.case !== "Pending") invalid("card completion is duplicated");
+        validateBinding(id);
+        const binding = bindings.get(id);
+        if (!binding) invalid("completed card binding is missing");
+        committed.set(id, binding);
+        notify();
+        break;
+      }
       case "Completion": {
         const value = frame.value.field0;
         if (!value) invalid("frame payload is missing");
@@ -924,6 +1112,12 @@ export async function assembleDocument(
           value.sectionCount !== BigInt(sections.size)
         )
           invalid("completion counts do not match the received capture");
+        if (!structured || !evidence) invalid("completion preceded evidence");
+        const partial = Boolean(expected.structureOnly || expected.cardIds?.length);
+        if (value.partial !== partial) invalid("completion projection differs from the request");
+        if (!partial) for (const id of bindings.keys()) validateBinding(id);
+        for (const id of expected.cardIds ?? []) validateBinding(id);
+        if (!expected.cardIds?.length && [...repeats.values()].some((repeat) => repeat.pending)) invalid("repeat expansion is incomplete");
         complete = true;
         break;
       }
@@ -933,18 +1127,7 @@ export async function assembleDocument(
   }
   if (!active()) invalid("selection changed or transfer cancelled");
   if (!complete || !header) invalid("transfer ended before completion");
-  for (const [id, card] of cards) {
-    if (card.body?.HarmosVariant.case === "Table" && card.body.HarmosVariant.value.field0?.rowCount !== BigInt(rows.get(id)?.length ?? 0))
-      invalid("table row count is incomplete");
-    if (card.body?.HarmosVariant.case === "Summary") {
-      const entries = definitions.get(id) ?? [];
-      if (card.body.HarmosVariant.value.field0?.groupCount !== BigInt(entries.length))
-        invalid("summary definition group count is incomplete");
-      for (const group of entries)
-        if (group.tileCount !== BigInt(definitionTiles.get(id)?.get(group.ordinal)?.length ?? 0))
-          invalid("summary definition tile count is incomplete");
-    }
-  }
+  validateStructure();
   for (const [id, binding] of bindings) {
     if (binding.result?.HarmosVariant.case !== "Summary") continue;
     const entries = groups.get(id) ?? [];
@@ -953,28 +1136,9 @@ export async function assembleDocument(
       if (group.tileCount !== BigInt(tiles.get(id)?.get(group.ordinal)?.length ?? 0)) invalid("summary tile count is incomplete");
   }
   for (const [id, repeat] of repeats)
-    if (repeat.instanceCount !== BigInt(instances.get(id)?.length ?? 0)) invalid("repeat instance count is incomplete");
-  for (const node of layout)
-    if (
-      node.node?.HarmosVariant.case === "Placement" &&
-      (!node.node.HarmosVariant.value.field0 || !cards.has(node.node.HarmosVariant.value.field0.cardId))
-    )
-      invalid("layout references a missing source card");
-  return {
-    header,
-    layout,
-    cards,
-    bindings,
-    rows,
-    groups,
-    tiles,
-    definitions,
-    definitionTiles,
-    repeats,
-    instances,
-    sections,
-    warnings,
-  };
+    if (!repeat.pending && repeat.instanceCount !== BigInt(instances.get(id)?.length ?? 0)) invalid("repeat instance count is incomplete");
+  notify();
+  return progress();
 }
 
 function frontierKey(frontiers: NonNullable<DocumentHeader["frontiers"]>): string {

@@ -38,11 +38,14 @@ const POLICY: harmos::operations::OperationPolicy = harmos::operations::Operatio
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(RunProcess);
+
 /* === Type Aliases === */
 
 /* === Structs === */
 
-// Shared, so a template reaches it through `ctx.host()` without listing it.
+// Shared, so a template reaches it through `ctx.operation(request)` without listing it.
 #[harmos::operation(resources = [crate::hosting::Host<RunProcess>], response = ProcessExit, id = "dokime.process.run",
         policy = POLICY, visibility = harmos::operations::Visibility::Public)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -133,12 +136,3 @@ impl RunProcess {
 /* === Private Functions === */
 
 /* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    use super::*;
-
-    crate::hosted!(RunProcess);
-}

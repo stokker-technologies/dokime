@@ -7,6 +7,7 @@
  * ***
  */
 
+import type { NotificationFailure } from "../notification-details";
 import type { DocumentStatistic, JsonObject, Metadata, MetricPresentation, MetricState } from "../types";
 import type { ValueFormat } from "./format";
 import type {
@@ -130,6 +131,9 @@ export type DocumentViewTableRow = {
 };
 
 export type DocumentViewCard = {
+  loading?: boolean;
+  refreshing?: boolean;
+  failure?: NotificationFailure;
   card_id: string;
   kind:
     | "result"
@@ -176,6 +180,8 @@ export type DocumentViewSectionNode = {
   node_id: string;
   metadata: Metadata;
   unavailable?: string;
+  loading?: boolean;
+  refreshing?: boolean;
   children: DocumentViewNode[];
 };
 
@@ -186,6 +192,7 @@ export type DocumentViewLayout = {
 };
 
 export type DocumentViewSection = {
+  loading?: boolean;
   metadata: Metadata;
   unavailable?: string;
   cards: DocumentViewCard[];
