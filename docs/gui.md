@@ -181,6 +181,9 @@ the captured column schema to select this presentation.
   bodies so nested runtime futures stay off that thread's stack. Native and RPC
   command futures have a 16 KiB
   regression budget; the plugin install guard also constructs the mock-runtime future.
+  Client regression guards also cover ordinary and prepared upload futures.
+  [crates/dokime-client/src/transport.rs](../crates/dokime-client/src/transport.rs)
+  boxes the RPC executor before composing idle and cancellation guards.
 - Settings › Plugins keeps installed programs' ordinary settings editable after
   startup fails. Their declared schema comes from the verified bundle inventory.
   Secret declarations show identifiers and availability read-only; Add In Secret

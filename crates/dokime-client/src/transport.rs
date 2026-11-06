@@ -153,6 +153,8 @@ impl Client {
                 .await
                 .map(tonic::Response::into_inner)
         });
+        // Heap-Allocate The RPC Before Nesting Idle And Cancellation Guards.
+        let uploading = Box::pin(uploading);
         let reply = self.guard(upload_idle(O::POLICY.timeout, O::ID, progress, uploading)).await??;
         value(reply)
     }
@@ -345,3 +347,38 @@ fn status(error: Error) -> tonic::Status {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn size<Args, F: Future>(_: impl FnOnce(Args) -> F) -> usize {
+        std::mem::size_of::<F>()
+    }
+
+    #[test]
+    fn upload_future_sizes() {
+        let executed = size(|client: &Client| client.execute(std::future::pending::<std::result::Result<(), tonic::Status>>()));
+        let artifact = size(|client: &Client| client.content_upload_artifact(tokio_stream::empty()));
+        let plugin = size(|client: &Client| client.plugins_install(tokio_stream::empty()));
+        let prepared = size(|client: &Client| {
+            client.upload_prepared::<dokime_operations::content::UploadArtifact, _>(
+                dokime_operations::content::UploadArtifact {},
+                tokio_stream::empty(),
+            )
+        });
+        let prepared_plugin = size(|client: &Client| {
+            client.upload_prepared::<dokime_operations::plugins::Install, _>(dokime_operations::plugins::Install {}, tokio_stream::empty())
+        });
+        for (name, bytes) in [
+            ("executor", executed),
+            ("artifact upload", artifact),
+            ("plugin upload", plugin),
+            ("prepared artifact upload", prepared),
+            ("prepared plugin upload", prepared_plugin),
+        ] {
+            eprintln!("{name}: {bytes} bytes");
+            assert!(bytes <= 16 * 1024, "{name} future uses {bytes} bytes");
+        }
+    }
+}
