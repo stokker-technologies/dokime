@@ -57,7 +57,7 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
           <InstalledPluginStatusBadge status={detail.status} />
           {detail.restart === "pending" ? (
             <p role="status" className="text-sm text-muted-foreground">
-              Restart pending: applies when no cycle is active.
+              Restart pending: applies after execution cleanup and plugin streams finish. Report publication and sealing do not delay it.
             </p>
           ) : null}
         </SettingsRow>

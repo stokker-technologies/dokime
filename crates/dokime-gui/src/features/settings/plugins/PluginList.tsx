@@ -141,7 +141,7 @@ export function statusPresentation(entry: PluginEntry): StatusPresentation {
   if (entry.restart === "pending") {
     return {
       label: entry.active ? "Active · Restart Pending" : "Restart Pending",
-      reason: "Applies when no cycle is active.",
+      reason: "Applies after execution cleanup and plugin streams finish. Report publication and sealing do not delay it.",
       variant: "warning",
     };
   }

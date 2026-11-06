@@ -79,6 +79,7 @@ enum Settlement {
     LiveReplay,
     // Each Run Stays Active Until Released, Then Passes; The Next Run Waits For Its Own Release.
     Held,
+    HeldStreams,
     Ignored,
     IgnoredSignal,
     Failure,
@@ -159,8 +160,8 @@ impl Runnable for Probe {
             .await
             .map_err(Refusal::of)?;
             self.entered.notify_one();
-            if matches!(self.mode, Settlement::LiveReplay | Settlement::Held) {
-                if self.mode == Settlement::Held {
+            if matches!(self.mode, Settlement::LiveReplay | Settlement::Held | Settlement::HeldStreams) {
+                if matches!(self.mode, Settlement::Held | Settlement::HeldStreams) {
                     self.released.subscribe().wait_for(|released| *released).await.unwrap();
                     self.released.send_replace(false);
                 } else {
@@ -360,7 +361,7 @@ impl EmbeddedProvider for Provider {
         template.phases[0].step_id = dokime_runtime::StepId::from_seed(PHASE);
         // The failing provider samples host telemetry, so its run holds a stream
         // lease the failure cleanup has to close.
-        if matches!(self.0.mode, Settlement::Failure | Settlement::LiveReplay) {
+        if matches!(self.0.mode, Settlement::Failure | Settlement::LiveReplay | Settlement::HeldStreams) {
             template.subscriptions = vec![dokime_runtime::definition::Subscription::Stream(identifier("host.system"))];
         }
         let mut definition = TestSuiteDefinition::new(SOURCE, suite).unwrap();
@@ -934,10 +935,11 @@ pub(crate) async fn installs_apply_live() {
 // A Replacement While A Cycle Is Active Waits Across The Gap Between Its Cases, Then Applies.
 pub(crate) async fn replacement_waits_for_cycle() {
     let root = tempdir().unwrap();
-    let probe = Arc::new(Probe::new(Settlement::Held));
-    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let probe = Arc::new(Probe::new(Settlement::HeldStreams));
+    let (mut owner, handle) = started(config(root.path())).await;
     *probe.runtime.lock().unwrap() = Some(handle.clone());
     let first = installed(&handle, host_bundle()).await;
+    owner.register(Arc::new(Provider(probe.clone()))).await.unwrap();
     let generation = running_generation(&owner).await.expect("the installed program runs");
     let cycle_id = held_cycle(&handle, &probe, metadata("session.replace", "Pending Replacement")).await;
 
@@ -953,7 +955,22 @@ pub(crate) async fn replacement_waits_for_cycle() {
     assert!(installation(&handle, first.installation.install_id).await.active, "the previous version keeps running");
     assert_eq!(running_generation(&owner).await, Some(generation), "the cycle keeps its generation between cases");
 
+    #[cfg(feature = "testing")]
+    let drain = {
+        let cycle = cycle_snapshot(&handle, &cycle_id).await;
+        dokime_runtime::testing::hold_stream_drain(&cycle.test_executions[1].test_execution_id)
+    };
     probe.released.send_replace(true);
+    #[cfg(feature = "testing")]
+    {
+        drain.entered().await;
+        assert_eq!(installation(&handle, replacement.installation.install_id).await.restart, PluginRestart::Pending);
+        assert_eq!(running_generation(&owner).await, Some(generation));
+        let cycle = cycle_snapshot(&handle, &cycle_id).await;
+        let leases = handle.stream_leases_for(&cycle.test_executions[1].scope).await;
+        assert!(leases.iter().any(|lease| lease.closed_at.is_none()), "the plugin stream still belongs to this execution");
+        drain.release();
+    }
     let cycle = wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
     let applied = settled(&handle, &replacement).await;
     for execution in &cycle.test_executions {

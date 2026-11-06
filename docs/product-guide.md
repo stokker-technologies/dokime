@@ -121,8 +121,19 @@ A cycle is in one of four phases:
 | **Sealed** | Every execution and the cycle report are durably saved and immutable. | Archive, Export, Open Report |
 | **Seal Failed** | The seal could not complete, for example because stored evidence was written by an incompatible build. The cause is shown with the cycle and recorded as a cycle finalization failure. All evidence is kept unsealed. | Retry Seal, Archive |
 
-Seal Failed is settled: later startups do not seal it again and it does not
-hold plugin reloads. Retry Seal resumes from the saved evidence and returns to
+Completed work no longer depends on its plugin, even while unsealed. Completion
+means a terminal execution outcome, settled plugin cleanup and stream drain, and
+durably frozen report inputs. The provider task also protects the gap before
+automatic continuation starts the next case. Sealing and report publication after
+completion do not hold plugin reload, reinstall or removal. Reports, Retry Seal
+and history reads use frozen documents, appearance, schemas, plugin analysis
+results and stored evidence.
+Starting an unrun case in an open cycle after its plugin is removed fails clearly
+with `execution_plugin_unavailable`; install the original revision or add a case
+from an available plugin.
+
+Seal Failed is settled: later startups do not seal it again. Retry Seal resumes
+from the saved evidence, without requiring the plugin, and returns to
 Seal Failed with the new cause if the seal still cannot complete. Archive hides
 the cycle without deleting its evidence; Unarchive restores it. A cycle whose
 seal kept failing in an earlier build settles as Seal Failed on the first
@@ -531,10 +542,11 @@ human display text. No `name` alias is accepted in secret contracts.
 A program prepares with its saved settings when it starts. Saving a change in
 **Settings → Plugins** restarts that program, and the programs that depend on it,
 with the saved values; a save that changes nothing restarts nothing. The plugin
-page shows **Restarting…** while the new generation starts. While any cycle is
-active, including between the cases it continues with automatically and while it
-finalizes, the restart waits: the page shows **Restart Pending** and the restart
-follows once no cycle is active. A cycle left open and idle is not active.
+page shows **Restarting…** while the new generation starts. While work can still
+reach a plugin, including a paused or stopping run, the gap before automatic
+continuation and draining plugin streams, the page shows **Restart Pending**.
+The restart follows once that work completes. An idle open cycle, sealing and
+report publication after completion hold no plugin.
 Running executions are never stopped for a restart, and saves made while one
 waits apply together. A restart refused before
 the program stops, such as saved values or a missing secret its preparation
@@ -544,7 +556,7 @@ values or **Retry** restarts it. A new generation that fails to start is reporte
 like a failed startup. Programs that are not running apply saved settings when
 they start, including through **Retry**, which starts a plugin that does not run
 at once even while a cycle is active; retrying a running plugin restarts it once
-no cycle is active.
+no work can reach a plugin.
 
 ### Plugin Startup And Stop Timeouts
 

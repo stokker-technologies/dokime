@@ -215,14 +215,18 @@ Untouched baseline files do not clutter the tree; new empty files remain visible
   use the page's **Retry**, which calls `Plugins.Retry` for that installation only.
 - A saved settings change restarts its program. The plugin's status badge reads
   Restarting… while the new generation starts, and Restart Pending, explained as
-  applying when no cycle is active, while any cycle runs, pauses, continues to its
-  next case or finalizes. Both states come from `PluginRuntimeSettings.restart`;
+  applying after plugin work completes, while an execution runs, pauses or stops,
+  a prepared run waits, automatic continuation is between cases, or plugin streams
+  still drain. Completed means a terminal execution outcome, settled plugin cleanup
+  and stream drain, and durably frozen report inputs. Sealing and report publication
+  after that boundary do not keep Restart Pending, even if sealing fails or stalls.
+  Both states come from `PluginRuntimeSettings.restart`;
   while one holds, the page re-reads the plugin views whenever the backend's
   operations change, since the restart runs as one. A restart refused before the
   program stopped shows **Restart Refused** with **Retry** while the plugin stays
   active; a failed new generation surfaces like a failed startup. **Retry** starts
   a plugin that does not run at once, even during a cycle; retrying a running one
-  shows Restart Pending until no cycle is active.
+  shows Restart Pending until no work can reach a plugin.
 - Install, reinstall, update, enable, disable and remove apply in the running
   backend; no plugin action prompts to restart the application. After a successful
   live stop, removed or replaced installations disappear with their bundles.
@@ -237,6 +241,11 @@ Untouched baseline files do not clutter the tree; new empty files remain visible
   consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
   the identifier prefilled; notification history retains the same destination.
   Secret Storage References lists declaring plugins, including inactive programs.
+- Completed executions and cycles retain their evidence and reports after plugin
+  reload, reinstall or removal, even before sealing. Retry Seal and history reads
+  use frozen report inputs, including plugin analysis results. In an open cycle,
+  starting an unrun case whose plugin was removed reports that its plugin is no
+  longer available; install its original revision or add a case from an available plugin.
 - Toast content and history rows open the shared notification details dialog through
   native buttons (Enter/Space); the existing dialog handles Esc and focus return.
   History retains serializable failure context, including field problems, root-first

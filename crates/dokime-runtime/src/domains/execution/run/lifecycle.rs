@@ -130,6 +130,8 @@ impl ExecutionCleanup {
         }
         if self.stage == CleanupStage::Capture {
             #[cfg(feature = "testing")]
+            super::testing::before_stream_drain(&self.execution.test_execution_id).await;
+            #[cfg(feature = "testing")]
             super::testing::record(&self.execution.test_execution_id, "capture_leases");
             self.capture.release(context).await?;
             self.stage = CleanupStage::Complete;

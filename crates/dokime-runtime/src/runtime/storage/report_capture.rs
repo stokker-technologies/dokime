@@ -61,6 +61,12 @@ impl RuntimeHandle {
         tokio::spawn(async move {
             let _order = runtime.execution_storage.cycle_save.lock().await;
             let session = runtime.storage().clone();
+            // Sealed History Has Its Own Context And Does Not Require An Active Cycle Member.
+            if let Some(inspection) = ExecutionView::open(&session, &identity, ObjectVersion::Latest).await?
+                && inspection.execution().saved.is_some()
+            {
+                return inspection.into_snapshot().await;
+            }
             let source = runtime.snapshot_source(&session, &identity).await?;
             let execution = source
                 .test_executions
@@ -175,6 +181,24 @@ impl ExecutionStorage {
         if !self.storage.cursor_saved().covers(through)? {
             return Err(invalid("report evidence is not durable"));
         }
+        if let Some(lifecycle) = self.report_finalization(&inputs.execution.test_execution_id).await?.and_then(|intent| intent.lifecycle)
+            && let Some(context) = lifecycle.context
+        {
+            let captured = crate::execution::context::captured::read::read_file(&self.storage, &context).await?;
+            if captured.lifecycle_id != inputs.lifecycle_id
+                || captured.lifecycle != *inputs.execution
+                || captured.execution != inputs.anchor
+                || captured.evidence_through != *through
+            {
+                return Err(invalid("frozen report context differs from its lifecycle or evidence boundary"));
+            }
+            let owner = captured.owner_node_id.clone();
+            let captured = captured.try_map(|mut captured| {
+                captured.outputs = inputs.outputs.as_slice().to_vec();
+                Ok::<_, Error>(captured)
+            })?;
+            return ExecutionView::captured(&self.storage, captured.into(), &owner).await;
+        }
         let saved = self.storage.cursor_saved();
         for output in inputs.outputs.iter() {
             if let Some(file) = &output.file
@@ -258,6 +282,7 @@ impl ExecutionStorage {
                 context,
                 record_contracts,
                 telemetry_contracts,
+                frozen_plots: Default::default(),
             })
         })?;
         ExecutionView::captured(&self.storage, captured.into(), &owner_node_id).await

@@ -381,17 +381,30 @@ or circular contracts, and the packages that need a removed or refused provider.
 A package that loses a provider it requires stops with it and records why, so the
 running set matches what the next start would admit.
 
-While any cycle is active, every queued change, settings restarts included,
-waits: the plugin shows **Restart Pending** and the change applies automatically
-once no cycle is active. A cycle is active while it runs, is paused
-or stops, waits to continue automatically with its next case, finalizes its
-run's evidence, or seals. A cycle left open and idle is not active. Every
-execution runs in a cycle, so a change never applies while an execution runs or
-is prepared. Executions are never stopped or disturbed for a change, and further
+Every queued change, settings restarts included, waits while work can still reach
+a plugin: a running, paused or stopping execution, a prepared run, the gap before
+automatic continuation starts its next case, or plugin streams still draining.
+The plugin shows **Restart Pending** and the change applies automatically once
+that work completes. Completed means the execution outcome is terminal, plugin
+cleanup and stream drain have settled, and the report's catalog inputs have been
+frozen durably. The provider task protects that boundary and automatic continuation.
+A cycle left open and idle holds no plugin. Sealing and report publication after
+completion, including a failed or stuck seal, hold no plugin either. Executions
+are never stopped or disturbed for a change, and further
 changes to the same package join the one that waits, applying the latest.
 **Retry** of a plugin that does not run starts it at once, even while a cycle is
 active, because nothing running stops; retrying a running plugin restarts it once
-no cycle is active.
+no work can reach a plugin.
+
+Finalization, Retry Seal and history reads use the frozen documents, appearance,
+record and telemetry schemas, plugin analysis results, execution revision and
+stored evidence. They do not require the plugin, its current catalog entry or
+its contributions to remain installed. Starting another case in an open cycle after its plugin is removed
+fails with `execution_plugin_unavailable`; install its original revision or add a
+case from an available plugin. Replacing a plugin with another revision still
+requires newly materialized cases for that revision.
+Report processing limits remain editable: raising one can repair a failed report
+without changing its frozen evidence, presentation or plugin analysis results.
 
 A replacement refused before anything stops, because its bundle, catalog,
 contracts, saved settings or secrets do not validate, leaves the previous
@@ -402,7 +415,7 @@ stays installed with its saved values, and the refused one is listed as
 **Refused** with its failure, reported like a failed startup, until the next start
 deletes its file. A first installation that fails stays installed with its
 failure; **Retry** starts it again once the cause is fixed. Removal stops the
-plugin live once no cycle is active, then discards its row and managed file.
+plugin live once no work can reach a plugin, then discards its row and managed file.
 Successful replacements discard the old installation in the same way. If deletion
 fails, the row and its error stay visible until startup retries. Unreferenced
 files are swept only at startup, so live cleanup cannot race an installation

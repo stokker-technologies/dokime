@@ -81,7 +81,11 @@ impl Transaction<RuntimeState> for CompleteRun {
         } else if request.selected_execution_ids.iter().any(|id| {
             state.executions.get(id).is_none_or(|execution| {
                 execution.finished_at.is_none()
-                    || (execution.saved.is_none() && !state.report_finalizations.get(id).is_some_and(|intent| intent.lifecycle.is_some()))
+                    || (execution.saved.is_none()
+                        && !state
+                            .report_finalizations
+                            .get(id)
+                            .is_some_and(|intent| intent.lifecycle.as_ref().is_some_and(|lifecycle| lifecycle.context.is_some())))
             })
         }) {
             return Err("completed request requires drained execution evidence and a durable report intent".into());

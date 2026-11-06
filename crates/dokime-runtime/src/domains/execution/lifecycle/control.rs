@@ -55,6 +55,7 @@ impl RuntimeHandle {
             lifecycle: crate::transactions::ReportLifecycle {
                 id: uuid::Uuid::now_v7(),
                 execution: (*revision).clone(),
+                context: None,
             },
         })
         .await

@@ -52,6 +52,7 @@ pub(crate) struct CapturedSource {
     pub context: ExecutionContext,
     pub telemetry_contracts: BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>,
     pub record_contracts: BTreeMap<Identifier, BTreeMap<u32, RecordContract>>,
+    pub frozen_plots: BTreeMap<String, crate::report::value::Value>,
 }
 
 /* === Enums === */

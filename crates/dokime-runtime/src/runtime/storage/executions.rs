@@ -603,9 +603,16 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn materialize_final_report(
-        self: &Arc<Self>, inspection: super::execution::ExecutionView, prepared: PreparedExecutionReport, sealed_at: Timestamp,
+        self: &Arc<Self>, inspection: super::execution::ExecutionView, mut prepared: PreparedExecutionReport, sealed_at: Timestamp,
     ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
         inspection.captured_source().ok_or_else(|| invalid("report requires an original captured source"))?;
+        let context = self
+            .report_finalization(&prepared.captured_input().execution_id)
+            .await?
+            .and_then(|intent| intent.lifecycle)
+            .and_then(|lifecycle| lifecycle.context)
+            .ok_or_else(|| invalid("final report requires its durable completion context"))?;
+        prepared.reuse_context(context)?;
         let storage = self.clone();
         // Spooled Before The Owner Lock; A Failed Spool Only Costs A Later Cycle Report Its Reuse.
         let member = crate::report::cycle::CapturedMember::spool(prepared.captured_input())
@@ -743,17 +750,38 @@ impl ExecutionStorage {
             validate_existing(&*owner.lock().await, execution)?;
             return Ok(owner);
         }
-        let defaults = self.local.read_application_settings().await?.settings.report;
-        let (documents, contracts) = self
-            .state_manager
-            .state()
-            .read(|state| {
-                let brand = self.brand.read().expect("brand lock is healthy");
-                let captured = super::presentation::capture(state, cycle, execution, brand.as_ref())?;
-                Ok::<_, Error>((captured.context.execution_documents, state.telemetry_definitions.values().cloned().collect::<Vec<_>>()))
-            })
+        let frozen = self
+            .report_finalization(&execution.test_execution_id)
             .await?
-            .value?;
+            .and_then(|intent| intent.lifecycle)
+            .and_then(|lifecycle| lifecycle.context);
+        let (defaults, documents, contracts) = if let Some(context) = frozen {
+            let captured = crate::execution::context::captured::read::read_file(&self.storage, &context).await?;
+            if captured.execution_id != execution.test_execution_id {
+                return Err(invalid("acquisition context belongs to another execution"));
+            }
+            (
+                captured.report_defaults,
+                captured.context.execution_documents.clone(),
+                captured.telemetry_contracts.values().flat_map(|versions| versions.values().cloned()).collect::<Vec<_>>(),
+            )
+        } else {
+            let defaults = self.local.read_application_settings().await?.settings.report;
+            let (documents, contracts) = self
+                .state_manager
+                .state()
+                .read(|state| {
+                    let brand = self.brand.read().expect("brand lock is healthy");
+                    let captured = super::presentation::capture(state, cycle, execution, brand.as_ref())?;
+                    Ok::<_, Error>((
+                        captured.context.execution_documents,
+                        state.telemetry_definitions.values().cloned().collect::<Vec<_>>(),
+                    ))
+                })
+                .await?
+                .value?;
+            (defaults, documents, contracts)
+        };
         let selection = crate::document::DocumentSelection { scope: execution.scope.clone() };
         let mut requests = Vec::new();
         for mut document in documents.into_values() {
@@ -860,6 +888,10 @@ fn validate_report(
         || captured.context != source.context
         || captured.telemetry_contracts != source.telemetry_contracts
         || captured.record_contracts != source.record_contracts
+        || source
+            .frozen_plots
+            .iter()
+            .any(|(id, payload)| captured.input.case_documents.iter().find_map(|document| document.plots.get(id)) != Some(payload))
         || source.outputs.iter().any(|output| !outputs.contains(output))
         || prepared.settled_outputs() != source.outputs.as_slice()
         || captured.input.cycle.test_executions.as_slice() != std::slice::from_ref(&**terminal)
