@@ -12,14 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::fs;
+use std::{fs, path::Path};
 // Third Party Imports
 
 // Local Imports
 use dokime_gui::connection::ConnectionSession;
+use dokime_gui::native_session::backend::Backend;
 use dokime_gui::native_session::storage::StorageRoot;
-use dokime_gui::native_session::{DesktopSession, DesktopSessionError, StorageResetReason};
+use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSession, DesktopSessionError, StorageResetReason};
 
 /* === Constants === */
 
@@ -38,11 +40,32 @@ use dokime_gui::native_session::{DesktopSession, DesktopSessionError, StorageRes
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, DesktopSessionError>) -> Option<StorageResetReason> {
     match result {
         Err(DesktopSessionError::StorageReset { reason, .. }) => Some(reason),
         _ => None,
     }
+}
+
+fn recovery_owner(root: &Path) -> DesktopSession {
+    let arguments = dokime_server::host::Args {
+        shutdown_stdin: false,
+        dev_control: false,
+        network: dokime_server::host::NetworkArgs {
+            host: std::net::Ipv4Addr::LOCALHOST.into(),
+            port: Some(0),
+            message_limit_mib: Some(2),
+        },
+        title: None,
+        label: None,
+        output_root: Some(root.join("data")),
+        application_root: Some(root.to_owned()),
+        env_file: None,
+        plugins: Vec::new(),
+        plugins_root: None,
+    };
+    DesktopSession::with_local_backend(ConnectionSession::default(), Backend::new(arguments))
 }
 
 /* === Tests === */
@@ -144,4 +167,52 @@ fn backup_archives_store() {
     storage.clear().unwrap();
     assert_eq!(fs::read_dir(&store).unwrap().count(), 0);
     assert!(archive.exists());
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn backup_reset_backup_failure_leaves_storage_untouched_and_can_retry() {
+    let root = tempfile::tempdir().unwrap();
+    let data = root.path().join("data");
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::write(data.join("local.sqlite"), b"corrupt storage").unwrap();
+    std::fs::write(data.join("evidence"), b"retained evidence").unwrap();
+    let storage = StorageRoot::new(data.clone(), root.path().to_owned());
+    let owner = recovery_owner(root.path());
+    assert!(matches!(owner.select(BackendSelection::OwnedLocal).await, Err(DesktopSessionError::Startup { .. })));
+    let occupied = root.path().join("occupied.zip");
+    std::fs::write(&occupied, b"existing archive").unwrap();
+    assert!(owner.backup_and_reset_local_storage(storage.clone(), occupied.clone()).await.is_err());
+    assert_eq!(std::fs::read(data.join("local.sqlite")).unwrap(), b"corrupt storage");
+    assert_eq!(std::fs::read(data.join("evidence")).unwrap(), b"retained evidence");
+    assert_eq!(std::fs::read(occupied).unwrap(), b"existing archive");
+
+    let archive = root.path().join("saved.zip");
+    let recovered = owner.backup_and_reset_local_storage(storage, archive.clone()).await.unwrap();
+    assert_eq!(recovered.ownership, BackendOwnership::OwnedLocal);
+    assert_eq!(recovered.archive.as_deref(), Some(archive.to_str().unwrap()));
+    assert!(archive.is_file());
+    assert!(!data.join("evidence").exists());
+    owner.shutdown().await.unwrap();
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn backup_reset_refuses_idle_and_another_backends_storage() {
+    let root = tempfile::tempdir().unwrap();
+    let storage = StorageRoot::new(root.path().join("data"), root.path().to_owned());
+    let owner = recovery_owner(root.path());
+    assert!(matches!(
+        owner.backup_and_reset_local_storage(storage.clone(), root.path().join("idle.zip")).await,
+        Err(DesktopSessionError::StorageReset { reason: StorageResetReason::NotOwned, .. })
+    ));
+    owner.select(BackendSelection::OwnedLocal).await.unwrap();
+    let other = recovery_owner(root.path());
+    assert!(matches!(other.select(BackendSelection::OwnedLocal).await, Err(DesktopSessionError::BackendRunning { .. })));
+    assert!(matches!(
+        other.backup_and_reset_local_storage(storage, root.path().join("occupied.zip")).await,
+        Err(DesktopSessionError::StorageReset { reason: StorageResetReason::NotOwned, .. })
+    ));
+    assert!(!root.path().join("occupied.zip").exists());
+    owner.shutdown().await.unwrap();
 }

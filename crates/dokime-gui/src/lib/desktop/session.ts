@@ -36,8 +36,12 @@ export type DesktopSessionSnapshot = {
    * tolerates a name it does not recognize). `null` once connected or
    * disconnected, and throughout an attach selection. */
   phase: string | null;
+  archivedBytes: number | null;
+  archive: string | null;
   connection: ConnectionSnapshot;
 };
+
+export type StorageBackupDestination = { directory: string; archive: string };
 
 /** A failed embedded-server start and the shared application's diagnostic log. */
 export type BackendDiagnostics = {

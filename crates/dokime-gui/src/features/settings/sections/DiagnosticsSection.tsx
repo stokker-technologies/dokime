@@ -143,11 +143,11 @@ export function DiagnosticsBundleRow() {
 }
 
 /**
- * The only destructive action in the application, behind a typed confirmation.
+ * The development storage reset, behind a typed confirmation.
  *
  * The dialog names the directory and arms only on the exact confirmation word.
  * Confirming hands the session to the connection screen, which shows the
- * shell's Stopping, Deleting and Starting steps and reconnects with fresh
+ * shell's Stopping, Deleting, Reinstalling and Starting steps and reconnects with fresh
  * queries, exactly as after any restart; a backend that refuses the empty root
  * leaves its diagnostics there like any failed start.
  */
@@ -172,7 +172,7 @@ function StorageResetRow({ directory }: { directory: string }) {
 
   return (
     <SettingsRow
-      description="Deletes every cycle, execution, record and file in the current data directory, then restarts the backend on an empty root."
+      description="Deletes cycles, executions, records and evidence files, restores installed plugins and valid settings, then restarts the backend. Secrets are retained."
       label="Reset Local Storage"
     >
       <Button onClick={() => change(true)} size="sm" variant="destructive">
@@ -185,8 +185,8 @@ function StorageResetRow({ directory }: { directory: string }) {
             <DialogHeader>
               <DialogTitle>Reset Local Storage</DialogTitle>
               <DialogDescription>
-                Every cycle, execution, record and file in this directory is permanently deleted. The backend then restarts on the empty
-                directory. This cannot be undone.
+                Every cycle, execution, record and evidence file in this directory is permanently deleted. Installed plugins, valid plugin
+                settings and secrets are retained. The backend then restarts. Deleted evidence cannot be recovered without a backup.
               </DialogDescription>
             </DialogHeader>
             <code className="block rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-xs break-all text-destructive">
