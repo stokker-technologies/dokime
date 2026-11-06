@@ -289,6 +289,7 @@ impl ExecutionStorage {
         let Some(owner) = self.acquisition(id).await else { return Ok(None) };
         let acquisition = owner.lock().await;
         let Some(seal) = acquisition.execution.saved.as_ref() else { return Ok(None) };
+        final_revision(&acquisition)?;
         Ok(Some(retain_seal(seal)?))
     }
 
@@ -602,8 +603,7 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn materialize_final_report(
-        self: &Arc<Self>, ctx: &crate::report::Scope, inspection: super::execution::ExecutionView, prepared: PreparedExecutionReport,
-        sealed_at: Timestamp,
+        self: &Arc<Self>, inspection: super::execution::ExecutionView, prepared: PreparedExecutionReport, sealed_at: Timestamp,
     ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
         inspection.captured_source().ok_or_else(|| invalid("report requires an original captured source"))?;
         let storage = self.clone();
@@ -625,7 +625,7 @@ impl ExecutionStorage {
             if acquisition.published.is_some() {
                 return Err(invalid("final report is already published"));
             }
-            let published = publish_final(ctx, &mut acquisition, prepared, inspection, &sealed_at).await?;
+            let published = publish_final(&mut acquisition, prepared, inspection, &sealed_at).await?;
             acquisition.cycle_member = member.map(|member| (published.report.clone(), member));
             Ok(published)
         };
@@ -873,8 +873,8 @@ fn validate_report(
 
 #[tracing::instrument(name = "report.publish_final", skip_all)]
 async fn publish_final(
-    ctx: &crate::report::Scope, acquisition: &mut Acquisition, mut prepared: PreparedExecutionReport,
-    inspection: super::execution::ExecutionView, sealed_at: &Timestamp,
+    acquisition: &mut Acquisition, mut prepared: PreparedExecutionReport, inspection: super::execution::ExecutionView,
+    sealed_at: &Timestamp,
 ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
     let revision = acquisition.working.as_ref().ok_or_else(|| invalid("publication has no real native revision"))?;
     let seal = prepared.save_dependencies(&acquisition.storage, sealed_at, revision).await?;
@@ -900,7 +900,6 @@ async fn publish_final(
             inputs: std::slice::from_ref(&seal.source.context),
             file: &seal.report,
         },
-        &ctx.resources().schema_settings,
     )?
     .finish()
     .await?;

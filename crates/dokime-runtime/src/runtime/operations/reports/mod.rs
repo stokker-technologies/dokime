@@ -217,12 +217,12 @@ async fn execution(
     };
     progress.phase("Publishing Report");
     if final_report {
-        let report = resources.execution_storage.materialize_final_report(ctx, inspection, prepared, crate::model::time::now_utc()).await?;
+        let report = resources.execution_storage.materialize_final_report(inspection, prepared, crate::model::time::now_utc()).await?;
         resources.runtime.complete_report_publication(id).await?;
         Ok(report)
     } else {
         let revision = resources.execution_storage.publication_revision(inspection.execution()).await?;
-        prepared.publish_current(storage, &revision, &ctx.resources().schema_settings).await
+        prepared.publish_current(storage, &revision).await
     }
 }
 

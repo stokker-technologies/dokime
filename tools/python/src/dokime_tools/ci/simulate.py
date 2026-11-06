@@ -227,8 +227,11 @@ def main() -> int:
     parser.add_argument("--pipeline", choices=("pr", "dev", "release", "nightly"), default="pr")
     parser.add_argument("--platform", action="append", choices=("windows", "unix"))
     parser.add_argument("--executor", action="append", help="platform=native|docker")
+    parser.add_argument("--jobs", type=int, help="Maximum Concurrent Jobs; Defaults To The Whole Graph")
     parser.add_argument("--export", help=argparse.SUPPRESS)
     options = parser.parse_args()
+    if options.jobs is not None and options.jobs < 1:
+        parser.error("--jobs must be positive")
     if options.export:
         transfers.export(Path.cwd(), json.loads(options.export), Path("target/ci/simulation-output.tar"))
         return 0
@@ -333,7 +336,7 @@ def main() -> int:
             def execute(job):
                 return run_job(job, candidate, output, cache, identity, token, profile)
 
-            results = schedule(jobs, execute, results=results, output=output)
+            results = schedule(jobs, execute, results=results, output=output, workers=options.jobs)
         exit_code = 0 if all(result["state"] == "passed" for result in results.values()) else 1
         return exit_code
     except (OSError, ValueError, StopIteration, SimulationError, containers.Busy, subprocess.SubprocessError) as error:
@@ -393,7 +396,7 @@ def authorize_dispatch(root: Path) -> None:
         subprocess.run([sys.executable, str(script)], env=dict(os.environ, **guard), check=True, creationflags=spawn_flags())
 
 
-def schedule(jobs: list[dict], execute, *, results: dict | None = None, output: Path | None = None) -> dict:
+def schedule(jobs: list[dict], execute, *, results: dict | None = None, output: Path | None = None, workers: int | None = None) -> dict:
     pending = {job["key"]: job for job in jobs}
     results = {} if results is None else results
     queued = time.monotonic()
@@ -401,8 +404,8 @@ def schedule(jobs: list[dict], execute, *, results: dict | None = None, output: 
     running = {}
     started_jobs = {}
     unexpected = []
-    # The Whole Graph Can Run At Once; No Smaller Pool Or Resource Ceiling Is Imposed.
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(jobs)))
+    concurrency = max(1, len(jobs)) if workers is None else workers
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=concurrency)
     CANCEL.clear()
 
     def run(job, wait):
@@ -417,7 +420,9 @@ def schedule(jobs: list[dict], execute, *, results: dict | None = None, output: 
 
     try:
         while pending or running:
-            ready = [(key, job) for key, job in pending.items() if all(need in results for need in job["needs"])]
+            ready = [(key, job) for key, job in pending.items() if all(need in results for need in job["needs"])][
+                : max(0, concurrency - len(running))
+            ]
             for key, job in ready:
                 del pending[key]
                 wait = time.monotonic() - queued
@@ -535,7 +540,22 @@ def preflight(executors: dict) -> None:
 def stage(root: Path, destination: Path) -> None:
     git = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False)
     if git.returncode == 0:
-        subprocess.run(["git", "clone", "--quiet", "--no-checkout", "--no-hardlinks", "--local", str(root), str(destination)], check=True)
+        common = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        revision = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+        branch = subprocess.run(["git", "-C", str(root), "symbolic-ref", "--quiet", "HEAD"], capture_output=True, text=True, check=False)
+        if branch.returncode not in (0, 1):
+            raise SimulationError("could not read candidate Git branch")
+        # Cloning A Linked Worktree Uses Upload-Pack Instead Of Native Local Object Copying.
+        subprocess.run(["git", "clone", "--quiet", "--no-checkout", "--no-hardlinks", "--local", common, str(destination)], check=True)
+        if branch.returncode == 0:
+            subprocess.run(["git", "-C", str(destination), "symbolic-ref", "HEAD", branch.stdout.strip()], check=True)
+        flags = ["--no-deref"] if branch.returncode == 1 else []
+        subprocess.run(["git", "-C", str(destination), "update-ref", *flags, "HEAD", revision], check=True)
         for key, default in (("core.autocrlf", "false"), ("core.eol", "native")):
             setting = subprocess.run(["git", "-C", str(root), "config", "--get", key], capture_output=True, text=True, check=False)
             if setting.returncode not in (0, 1):

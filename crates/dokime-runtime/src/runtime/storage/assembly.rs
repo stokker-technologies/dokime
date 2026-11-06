@@ -56,6 +56,7 @@ pub(crate) async fn initialize(
     })?;
     parts.record_source.begin(state_manager.applied());
     parts.record_source.initialize().await?;
+    crate::storage::reports::declare(&parts.storage, &parts.config.schema).await?;
 
     let started = crate::transactions::MarkRuntimeStarted {
         session_id: parts.config.session_id.clone(),

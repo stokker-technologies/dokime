@@ -129,7 +129,8 @@ pub(crate) async fn report_publication_reopens() {
         inputs: &[],
         file: &file,
     };
-    let mut publication = reports::Prepared::new(&storage, &input, &Default::default()).unwrap();
+    reports::declare(&storage, &Default::default()).await.unwrap();
+    let mut publication = reports::Prepared::new(&storage, &input).unwrap();
     let receipt = publication.finish().await.unwrap();
     assert_eq!(publication.finish().await.unwrap(), receipt);
     assert_eq!(storage.status().accepted, receipt);

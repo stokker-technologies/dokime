@@ -253,6 +253,11 @@ impl RuntimeHandle {
         }
         let evidence_at = self.storage().flush().await?;
         for member in &frozen.execution_ids {
+            // Members Sealed Here Already Retain Their Exact Durable Revision And Dependencies.
+            // A Reopened Cycle Still Proves Its Members Against Native Storage Below.
+            if self.execution_storage.original_cycle_member(member, &evidence_at).await?.is_some() {
+                continue;
+            }
             let execution = ExecutionView::open(self.storage(), member, ObjectVersion::Latest)
                 .await?
                 .ok_or_else(|| invalid("cycle intent requires every persisted member"))?;
@@ -322,7 +327,6 @@ impl RuntimeHandle {
                 inputs: &inputs,
                 file: &seal.report,
             },
-            self.schema_settings(),
         )?
         .finish()
         .await?;

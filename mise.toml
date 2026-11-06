@@ -558,8 +558,9 @@ usage = '''
 flag "--pipeline <kind>" default=pr
 flag "--platform <platform>"
 flag "--executor <executor>"
+flag "--jobs <count>"
 '''
-run = "{{vars.tools}} dokime_tools.ci.simulate {% if usage.pipeline %}--pipeline {{usage.pipeline}}{% endif %} {% if usage.platform %}--platform {{usage.platform}}{% endif %} {% if usage.executor %}--executor {{usage.executor}}{% endif %}"
+run = "{{vars.tools}} dokime_tools.ci.simulate {% if usage.pipeline %}--pipeline {{usage.pipeline}}{% endif %} {% if usage.platform %}--platform {{usage.platform}}{% endif %} {% if usage.executor %}--executor {{usage.executor}}{% endif %} {% if usage.jobs %}--jobs {{usage.jobs}}{% endif %}"
 
 # === Release === #
 
