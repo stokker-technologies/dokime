@@ -89,30 +89,10 @@ impl RuntimeHandle {
             })
             .await;
     }
-
-    pub(crate) async fn wait_until_cycle_stopped(&self, test_cycle_id: Option<&TestCycleId>) {
-        let mut state = self.watch_state();
-        state
-            .wait_until(|snapshot| {
-                snapshot.state().shutting_down
-                    || test_cycle_id.is_some_and(|test_cycle_id| cycle_is_stopped(snapshot.state(), test_cycle_id))
-            })
-            .await;
-    }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-// A Step Waits Until Its Cycle Closes Or A Stop Reaches The Request That Runs It.
-fn cycle_is_stopped(state: &crate::state::RuntimeState, test_cycle_id: &TestCycleId) -> bool {
-    let closing =
-        state.cycles.get(test_cycle_id).is_none_or(|cycle| cycle.phase != dokime_domain::model::execution::result::CyclePhase::Active);
-    closing
-        || state.run_requests.values().any(|request| {
-            &request.summary.cycle_id == test_cycle_id && !request.summary.phase.terminal() && request.summary.stop_requested
-        })
-}
 
 /* === Tests === */
