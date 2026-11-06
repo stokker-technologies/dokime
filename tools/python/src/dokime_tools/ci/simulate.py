@@ -540,7 +540,22 @@ def preflight(executors: dict) -> None:
 def stage(root: Path, destination: Path) -> None:
     git = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False)
     if git.returncode == 0:
-        subprocess.run(["git", "clone", "--quiet", "--no-checkout", "--no-hardlinks", "--local", str(root), str(destination)], check=True)
+        common = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        revision = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+        branch = subprocess.run(["git", "-C", str(root), "symbolic-ref", "--quiet", "HEAD"], capture_output=True, text=True, check=False)
+        if branch.returncode not in (0, 1):
+            raise SimulationError("could not read candidate Git branch")
+        # Cloning A Linked Worktree Uses Upload-Pack Instead Of Native Local Object Copying.
+        subprocess.run(["git", "clone", "--quiet", "--no-checkout", "--no-hardlinks", "--local", common, str(destination)], check=True)
+        if branch.returncode == 0:
+            subprocess.run(["git", "-C", str(destination), "symbolic-ref", "HEAD", branch.stdout.strip()], check=True)
+        flags = ["--no-deref"] if branch.returncode == 1 else []
+        subprocess.run(["git", "-C", str(destination), "update-ref", *flags, "HEAD", revision], check=True)
         for key, default in (("core.autocrlf", "false"), ("core.eol", "native")):
             setting = subprocess.run(["git", "-C", str(root), "config", "--get", key], capture_output=True, text=True, check=False)
             if setting.returncode not in (0, 1):

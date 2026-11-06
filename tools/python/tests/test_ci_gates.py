@@ -17,6 +17,7 @@ import io
 import json
 import os
 import runpy
+import subprocess
 import tempfile
 import unittest
 import urllib.error
@@ -42,7 +43,43 @@ ROOT = Path(__file__).resolve().parents[3]
 # === Classes === #
 
 
-class ImpactTests(unittest.TestCase):
+class SimulationTests(unittest.TestCase):
+    def test_worktree_candidate(self):
+        with tempfile.TemporaryDirectory(prefix="dokime-candidate-test-") as temporary:
+            root = Path(temporary)
+            primary = root / "primary"
+            worktree = root / "worktree"
+            candidate = root / "candidate"
+
+            def git(directory, *arguments):
+                return subprocess.run(
+                    ["git", "-C", str(directory), *arguments], capture_output=True, text=True, check=True, timeout=30
+                ).stdout.strip()
+
+            primary.mkdir()
+            git(primary, "init", "--initial-branch=dev")
+            git(primary, "config", "user.name", "Candidate Fixture")
+            git(primary, "config", "user.email", "candidate@example.test")
+            git(primary, "config", "commit.gpgsign", "false")
+            (primary / "tracked").write_text("primary")
+            git(primary, "add", "tracked")
+            git(primary, "commit", "-m", "Initial Fixture")
+            git(primary, "worktree", "add", "-b", "fix/candidate", str(worktree))
+            (worktree / "tracked").write_text("committed")
+            git(worktree, "commit", "-am", "Candidate Fixture")
+            (worktree / "tracked").write_text("staged")
+            git(worktree, "add", "tracked")
+            (worktree / "tracked").write_text("working")
+            (worktree / "untracked").write_text("untracked")
+
+            simulate.stage(worktree, candidate)
+            self.assertEqual(git(candidate, "rev-parse", "HEAD"), git(worktree, "rev-parse", "HEAD"))
+            self.assertEqual(git(candidate, "symbolic-ref", "HEAD"), "refs/heads/fix/candidate")
+            self.assertEqual(git(candidate, "ls-files", "--stage"), git(worktree, "ls-files", "--stage"))
+            self.assertEqual((candidate / "tracked").read_text(), "working")
+            self.assertEqual((candidate / "untracked").read_text(), "untracked")
+            self.assertNotEqual(git(candidate, "rev-parse", "HEAD"), git(primary, "rev-parse", "HEAD"))
+
     def test_serial_simulation(self):
         jobs = [
             {"key": "first", "needs": []},
@@ -75,6 +112,8 @@ class ImpactTests(unittest.TestCase):
             ],
         )
 
+
+class ImpactTests(unittest.TestCase):
     def test_dev_and_review(self):
         plan = simulate.PLAN["impact"]
         full = impact.select(plan, {"Cargo.toml"})
