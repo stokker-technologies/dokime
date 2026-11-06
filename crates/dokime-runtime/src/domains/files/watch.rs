@@ -202,6 +202,10 @@ impl FileWatch {
         self.state().policy
     }
 
+    pub(super) fn execution(&self) -> &TestExecutionId {
+        &self.state().execution
+    }
+
     pub fn poll_interval(&self) -> Duration {
         let state = self.state();
         if state.baseline.is_none()
@@ -359,6 +363,8 @@ impl State {
 
     // Seals every tracked file, then answers the execution's seal request.
     async fn finish(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
+        #[cfg(feature = "testing")]
+        crate::domains::execution::run::testing::before_watch_seal(&self.execution).await;
         let mut outcome = Ok(());
         let paths = self.tracked.keys().cloned().collect::<Vec<_>>();
         for path in paths {

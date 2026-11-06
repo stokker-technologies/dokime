@@ -64,6 +64,7 @@ struct Probe {
     record_ordinal: std::sync::atomic::AtomicU64,
     // The Live Replay Story Reads Host Rows Through Its Runtime And Clears It Before Shutdown.
     runtime: Mutex<Option<RuntimeHandle>>,
+    hosts: Mutex<std::collections::BTreeMap<String, Arc<dyn ExecutionHost>>>,
 }
 
 struct Provider(Arc<Probe>);
@@ -103,6 +104,7 @@ impl Probe {
             settlement_signals: std::sync::atomic::AtomicUsize::new(0),
             record_ordinal: std::sync::atomic::AtomicU64::new(0),
             runtime: Mutex::new(None),
+            hosts: Mutex::new(std::collections::BTreeMap::new()),
         }
     }
 
@@ -145,6 +147,9 @@ impl Runnable for Probe {
         &self, request: RunExecution, host: Arc<dyn ExecutionHost>, _: Option<SampleOutput>, _: Caller,
     ) -> TransportFuture<'_, Result<SidecarExecutionOutcome, Refusal>> {
         Box::pin(async move {
+            if self.mode == Settlement::Ignored {
+                self.hosts.lock().unwrap().insert(request.execution_token.clone(), host.clone());
+            }
             *self.token.lock().unwrap() = request.execution_token;
             let start = StepAttemptStart {
                 attempt_id: dokime_runtime::model::identity::new_id::<dokime_runtime::StepAttemptId>(),
@@ -448,6 +453,75 @@ fn without_timestamps(log: &str) -> String {
 }
 
 /* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn settled_run_fenced() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::Ignored));
+    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let first = start_cases(&handle, metadata("session.old", "Old Run"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(first.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    let old_token = probe.token.lock().unwrap().clone();
+    let old_host = probe.hosts.lock().unwrap()[&old_token].clone();
+
+    tokio::time::pause();
+    let stop = {
+        let handle = handle.clone();
+        let first = first.clone();
+        tokio::spawn(async move { handle.seal_cycle(first, CommandContext::default()).await.unwrap() })
+    };
+    probe.cancelled.notified().await;
+    // Auto-Advance Only While Idle, So In-Flight Storage Keeps Its Own Deadlines.
+    tokio::time::sleep(dokime_runtime::operations::STOP_SETTLEMENT.timeout + Duration::from_secs(1)).await;
+    tokio::time::resume();
+    stop.await.unwrap();
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    let closed_id = TestExecutionId::from_uuid(old_token.clone()).unwrap();
+    let checkpoint = handle.execution_saved_checkpoint(closed_id.clone()).await.unwrap();
+    let closed = crate::service_support::native::open(&handle, &checkpoint).await;
+    assert_eq!(closed.execution().status, ExecutionStatus::Cancelled);
+    drop(closed);
+    probe.cancellation.send_replace(false);
+
+    let following = start_cases(&handle, metadata("session.next", "Following Run"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(following.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    let following_token = probe.token.lock().unwrap().clone();
+    assert_ne!(following_token, old_token);
+    let following_host = probe.hosts.lock().unwrap()[&following_token].clone();
+    let late = EvidenceBatch {
+        cursor: 2,
+        phase: PHASE.into(),
+        diagnostics: vec![Entry::new(Level::Info, "late old run")],
+        ..Default::default()
+    };
+    assert!(
+        following_host
+            .push(EvidenceBatch {
+                cursor: 2,
+                diagnostics: vec![Entry::new(Level::Info, "following run remains active")],
+                ..Default::default()
+            })
+            .await
+            .is_ok()
+    );
+    let before = cycle_snapshot(&handle, &following).await;
+    assert!(old_host.push(late).await.is_err());
+    assert_eq!(cycle_snapshot(&handle, &following).await, before);
+    assert_eq!(handle.execution_saved_checkpoint(closed_id).await.unwrap(), checkpoint);
+    assert!(!execution_log(&handle, &before.test_executions[0].test_execution_id).await.contains("late old run"));
+    probe.released.send_replace(true);
+    probe.cancellation.send_replace(true);
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    probe.hosts.lock().unwrap().clear();
+    owner.shutdown().await.unwrap();
+}
+
 // The Host Preserves Cancellation Verdicts And All Diagnostic Levels From Its Provider.
 pub(crate) async fn cancellation_retains_verdict() {
     for mode in [Settlement::Complete, Settlement::Deferred, Settlement::Refused] {
