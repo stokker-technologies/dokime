@@ -44,7 +44,7 @@ macro_rules! suites {
 }
 
 #[cfg(feature = "benchmarks")]
-suites!(SteadySuite(steady::SteadySuite), BenchmarkSuite(benchmarks::Suite),);
+suites!(SteadySuite(steady::SteadySuite), RecoverySuite(recovery::Suite), BenchmarkSuite(benchmarks::Suite),);
 
 #[cfg(not(feature = "benchmarks"))]
 suites!(
