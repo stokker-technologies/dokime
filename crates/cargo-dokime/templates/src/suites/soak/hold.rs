@@ -152,12 +152,19 @@ impl Template {
         let mut temperature = Plot::time_series("Temperature");
         temperature.id("{{crate}}.soak.temperature");
         temperature.unit("°C");
-        temperature.y(Row::column_temperature_c());
-        temperature.x_format(format::elapsed_seconds());
-        temperature.y_format(format::fixed(1));
-        let band = Band::around(Parameters::target_c(), Parameters::band_c());
-        temperature.reference_band("Target ± Band", Row::column_temperature_c(), band);
-        temperature.marker_records([HoldReached::marker()]);
+        let temperature_c = Row::column_temperature_c();
+        temperature.y(temperature_c);
+        let elapsed_seconds = format::elapsed_seconds();
+        temperature.x_format(elapsed_seconds);
+        let fixed = format::fixed(1);
+        temperature.y_format(fixed);
+        let target_c = Parameters::target_c();
+        let band_c = Parameters::band_c();
+        let band = Band::around(target_c, band_c);
+        let temperature_c = Row::column_temperature_c();
+        temperature.reference_band("Target ± Band", temperature_c, band);
+        let marker = HoldReached::marker();
+        temperature.marker_records([marker]);
 
         let mut signals = Section::new("Soak");
         signals.id("{{crate}}.soak.signals");
