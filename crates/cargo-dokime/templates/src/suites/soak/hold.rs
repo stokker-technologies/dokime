@@ -300,7 +300,7 @@ impl Template {
 
         // Encode Summary
         let operation = EncodeSummary { summary };
-        let summary = ctx.operation(operation).await?;
+        let summary = ctx.operation(operation).await?.into_owned();
         ctx.artifacts().write("summary.json", summary.json)?;
         let record = HoldReached {
             samples: wanted,

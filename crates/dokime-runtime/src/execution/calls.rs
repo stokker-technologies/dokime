@@ -141,7 +141,7 @@ impl OperationHost for StepOperationHost {
                     let answer = operations
                         .get(O::ID)
                         .cloned()
-                        .ok_or_else(|| step_refusal("the harness registered no answer for this operation"))?;
+                        .ok_or_else(|| step_refusal(format!("the harness registered no answer for operation `{}`", O::ID)))?;
                     let payload = encoded.clone();
                     let run = LocalRun::spawn::<O, _>(
                         move |_, _| answer(payload.clone()),

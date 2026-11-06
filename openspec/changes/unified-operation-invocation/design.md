@@ -19,3 +19,7 @@ StepOperationHost and StepInstance use Dokime Error, converting the underlying s
 ## Approved Authorization
 
 Use `pub trait Called<C, Proof = Declared> {}` with an inferred proof parameter on `operation`. Declared operations use the default proof and unconditional WatchFile/RunProcess built-ins use BuiltIn. Keep `ctx.operation(request)` unchanged. Reject unconditional built-ins in a template requires catalog with a compile-time diagnostic, including nested catalogs.
+
+## Delivery and Retirement
+
+Archive this change with `stkr specification finish unified-operation-invocation` before the final candidate commit so its contracts travel in the feature PR. After the requested focused proofs, starter task, Rust checks and repository checks, push the complete candidate, verify its remote SHA, create one ready PR into `dev` and squash immediately without waiting for CI. Use `gh pr merge --squash --subject "refactor!: unify operation invocation (#N)"` with the actual PR number. No full simulation is requested. Preserve the validation results in the review description, clean the owned Cargo outputs and retire the exact integrated `dokime.wt/invocation` and `harmos.wt/invocation` worktrees and their task branches. Do not modify the private plugin repository.

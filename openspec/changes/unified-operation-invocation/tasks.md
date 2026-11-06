@@ -10,11 +10,10 @@
 - [x] 1.6 Migrate docs/plugins.md reference steps, product docs and guest/starter guidance; synchronize authoring references and affected generated.lock digests without project update.
 - [x] 1.7 Pin merged Harmos, remove local override, resolve lockfiles, adapt grpc config across #110 and refresh bindings if affected.
 - [x] 1.9 Persist each Harmos operation attempt in the execution log through the awaited middleware callback, with stage, instance, attempt and outcome.
-- [ ] 1.8 Focused proof: declared/undeclared template operations, redundant built-in requirements, built-ins, stage routing, cancellation, configured retry/defaults and attempt evidence.
+- [x] 1.8 Focused proof: declared/undeclared template operations, redundant built-in requirements, built-ins, stage routing, cancellation, configured retry/defaults and attempt evidence.
 
 ## Final Validation and Delivery
 
 - [ ] 2.1 Merge fresh origin/dev again, migrate newly landed calls and close the full consumer source inventory.
 - [ ] 2.2 Run focused sidecar/guest proof, starter test, check:rust, lint and repository checks; inspect final diffs and scan prohibited names.
-- [ ] 2.3 Push and verify remote SHA, open ready PR and squash immediately without waiting for CI.
-- [ ] 2.4 Finish OpenSpec, preserve evidence, cargo clean and retire the exact integrated worktree and branch.
+- [ ] 2.3 Validate OpenSpec and prepare the final authorized ready-PR candidate and review description.
