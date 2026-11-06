@@ -161,6 +161,19 @@ test("Live Document Responsiveness", async () => {
     await evaluate(
       `new Promise(resolve => { const ready = () => window.responsiveness && document.querySelector("input") ? resolve(true) : requestAnimationFrame(ready); ready(); })`,
     );
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+    const motion = (await evaluate(`(() => {
+      const spinner = document.querySelector('.animate-spin');
+      if (!spinner) throw new Error('Running step spinner is missing');
+      const reduced = getComputedStyle(spinner).animationName;
+      spinner.classList.remove('motion-reduce:animate-none');
+      const original = getComputedStyle(spinner).animationName;
+      spinner.classList.add('motion-reduce:animate-none');
+      return { original, reduced };
+    })()`)) as { original: string; reduced: string };
+    assert.notEqual(motion.original, "none");
+    assert.equal(motion.reduced, "none", "reduced motion stops the running step animation");
+    await command("Emulation.setEmulatedMedia", { features: [] });
     const modes = process.env.DOKIME_GUI_PERF_MODES?.split(",") ?? ["idle", "search", "modal", "ticks"];
     for (const mode of modes) {
       const result = await evaluate(`window.responsiveness.run(${JSON.stringify(mode)})`);
@@ -187,6 +200,21 @@ test("Live Document Responsiveness", async () => {
     );
     assert.deepEqual(burst.actual, burst.expected, "every page in the burst is retained");
     assert.ok(burst.stableProjection, "record appends preserve other document projections");
+    if (process.env.DOKIME_GUI_PERF_SYNC_RECORDS !== "1") {
+      const overflow = (await evaluate(`window.responsiveness.burst(1200)`)) as {
+        updates: number;
+        expected: string[];
+        actual: string[];
+        through: string;
+      };
+      assert.equal(overflow.updates, 1, "a large burst still publishes once");
+      assert.deepEqual(
+        overflow.actual,
+        overflow.expected.slice(-overflow.actual.length),
+        "the bounded tail retains the latest queued records",
+      );
+      assert.equal(overflow.through, overflow.expected.at(-1)?.slice("record-".length), "the cursor advances through the last page");
+    }
     const scroll = (await evaluate(`window.responsiveness.scroll()`)) as {
       mounted: boolean;
       top: number;

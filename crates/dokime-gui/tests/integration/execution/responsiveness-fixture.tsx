@@ -97,7 +97,7 @@ declare global {
   interface Window {
     responsiveness: {
       run: (mode: string) => Promise<Record<string, unknown>>;
-      burst: () => Promise<Record<string, unknown>>;
+      burst: (pages?: number) => Promise<Record<string, unknown>>;
       cancelPending: () => Promise<boolean>;
       scroll: () => Promise<Record<string, unknown>>;
     };
@@ -217,7 +217,7 @@ async function settled() {
   for (let index = 0; index < 8; index += 1) await new Promise(requestAnimationFrame);
 }
 
-async function burst() {
+async function burst(pages = 20) {
   setTicks(false);
   await settled();
   const previous = latestView;
@@ -225,7 +225,7 @@ async function burst() {
   const unsubscribe = client.getQueryCache().subscribe((event) => {
     if (event.type === "updated" && event.action.type === "success" && event.query.queryKey.includes("records")) updates += 1;
   });
-  const expected = Array.from({ length: 20 }, appendPage);
+  const expected = Array.from({ length: pages }, appendPage);
   await settled();
   unsubscribe();
   const tail = client
@@ -236,6 +236,7 @@ async function burst() {
     updates,
     expected,
     actual: tail.records.slice(-expected.length).map((record) => record.record_id),
+    through: tail.cursor?.position.toString(),
     stableProjection:
       previous.sections === latestView.sections &&
       previous.notes === latestView.notes &&
@@ -276,7 +277,7 @@ async function run(mode: string) {
   setModal(mode.endsWith("modal"));
   await settled();
   const overlay = document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]');
-  if (overlay) overlay.style.backdropFilter = mode === "blur-modal" ? "blur(var(--blur-xs))" : "";
+  if (overlay) overlay.style.backdropFilter = mode === "blur-modal" ? "blur(4px)" : "";
   const controls = document.querySelectorAll<HTMLElement>(
     '[data-slot="button"], [data-slot="badge"], [data-slot="switch"], [data-slot="dropdown-menu-item"]',
   );

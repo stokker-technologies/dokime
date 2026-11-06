@@ -44,7 +44,7 @@ export function record(): HubRecord {
     timestamp: new Date(1_800_000_000_000 + sequence).toISOString(),
     sequence,
     scope: { test_cycle_id: "cycle" },
-    display: { title: "Measurement", message: `Sample ${sequence}`, tone: "info" },
+    display: { icon: "clock", tone: "info" },
     message: `Sample ${sequence}`,
     details: {
       sample: sequence,
