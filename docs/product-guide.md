@@ -1207,9 +1207,10 @@ Live summary tiles query saved evidence at a fixed capture boundary. Numeric fol
 use ingest-maintained count, min, max, mean and RMS checkpoints where applicable.
 A boundary inside a saved batch folds only its bounded remainder. Integer extrema
 and totals retain their exact representation, including values above f64 precision.
-Other numeric folds
-retain bounded working state, and exact median/percentile values spill rank scratch
-instead of collecting a run's samples into the document. Record summaries seek
+Median selects exact ranks from the ordered distinct-value dictionary and its
+occurrence index. Other numeric folds retain bounded working state, and exact
+order statistics spill scratch where required instead of collecting a run's
+samples into the document. Record summaries seek
 indexed record pages. Building a document no longer estimates evaluation cost from
 its definition size multiplied by source rows, and there is no document source-row
 ceiling. Limits apply to actual encoded output and expanded nodes; an exceeded

@@ -166,9 +166,9 @@ Live document summaries use finite storage queries at their captured saved bound
 Compatible unfiltered telemetry statistics reuse typed numeric prefix checkpoints.
 Count, min, max, mean and RMS are maintained during ingest; a cut within a saved
 batch reads only the bounded remainder after its checkpoint. Integer extrema and
-totals remain lossless. Median uses an exact rank query when its index covers the
-cut losslessly; otherwise
-folds consume bounded typed pages and exact order statistics spill scratch.
+totals remain lossless. Median selects exact ranks from the ordered distinct-value
+dictionary and its occurrence index at the same cut. Other folds consume bounded
+typed pages, with exact order statistics spilling scratch where required.
 Record bindings seek execution-owned record pages and preserve subscribed capture
 scope. The document structure is authored metadata, with no row-based evaluation
 estimate or document source-row ceiling. Encoded output and actual expansion have

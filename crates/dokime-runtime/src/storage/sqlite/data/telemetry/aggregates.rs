@@ -485,12 +485,14 @@ fn document_median(
 ) -> Result<Option<Value>, Error> {
     let expression = crate::expressions::telemetry(&key.1, &key.2).median();
     let mut fold = crate::document::frame::Fold::new(&expression).map_err(|_| Error::Invalid("median fold is invalid"))?;
+    // Keep The Ordered Dictionary Outer: Reversing This Join Scans Every Value For Each Posting.
+    // Equal Numeric Values Need No Position Tie-Breaker, Which Would Sort Large Duplicate Groups.
     let mut statement = connection.prepare(
         "SELECT d.value,p.value_type FROM storage_distinct_values d INDEXED BY storage_distinct_order
-        JOIN storage_value_postings p USING(execution,kind,source,path,value_key)
+        CROSS JOIN storage_value_postings p USING(execution,kind,source,path,value_key)
         WHERE d.execution=?1 AND d.kind='telemetry' AND d.source=?2 AND d.path=?3 AND p.position<=?4
         AND p.value_type IN (1,2,3) AND document_alive()
-        ORDER BY d.sort_key,d.value_key,p.position LIMIT 1 OFFSET ?5",
+        ORDER BY d.sort_key,d.value_key LIMIT 1 OFFSET ?5",
     )?;
     let path = serde_json::to_string(&[&key.2])?;
     for (index, ordinal) in [(moments.count - 1) / 2, moments.count / 2].into_iter().enumerate() {
@@ -677,7 +679,7 @@ mod tests {
             Some(Value::Integer(-4)),
             Some(Value::Unsigned(7)),
             None,
-            Some(Value::Integer(13)),
+            Some(Value::Integer(7)),
             Some(Value::Unsigned(9_007_199_254_740_995)),
             Some(Value::Null),
         ];

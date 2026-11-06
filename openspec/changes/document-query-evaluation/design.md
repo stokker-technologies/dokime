@@ -33,6 +33,9 @@ field at saved batch frontiers. A query selects the prefix at its cut; a partial
 batch uses the exact bounded reader. Checkpoints include nullable fields and
 retain integer extrema and totals without f64 rounding. Stored-format replacement
 retains v1 and requires a fresh root rather than a migration or reset.
+Exact document median walks the ordered distinct dictionary with occurrence-index
+lookups; the dictionary owns the outer join order, avoiding a dictionary scan per
+occurrence and sorting of duplicate-value groups.
 
 Repeat continuations reuse the persisted finite-query cut/context and authenticated
 cursor ownership. Their context contains authored definitions and selected scalar
