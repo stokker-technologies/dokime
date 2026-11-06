@@ -92,12 +92,15 @@ pub(crate) async fn inspection_separates_outputs() {
         planned.parameters.iter().find(|item| item.name == "fixture.result").unwrap().value.as_ref().unwrap().to_core().unwrap(),
         Value::Text("passed".into())
     );
-    for (case_id, expected) in [("missing".into(), Code::InvalidArgument), (uuid::Uuid::now_v7().to_string(), Code::NotFound)] {
-        let refused = client
-            .unary::<contracts::execution::GetCase>(authenticated(contracts::execution::GetCase { cycle_id: id.clone(), case_id }))
-            .await
-            .unwrap_err();
-        assert_eq!(refused.code(), expected);
+    for (case_id, code) in [("missing".into(), Code::InvalidArgument), (uuid::Uuid::now_v7().to_string(), Code::NotFound)] {
+        assert_eq!(
+            client
+                .unary::<contracts::execution::GetCase>(authenticated(contracts::execution::GetCase { cycle_id: id.clone(), case_id }))
+                .await
+                .unwrap_err()
+                .code(),
+            code
+        );
     }
     let selected = owner.handle().cycles().await.remove(0).test_executions.remove(0).test_execution_id.to_string();
     for unknown_variant in [false, true] {
@@ -334,13 +337,27 @@ pub(crate) async fn planned_params_limit() {
     )
     .await
     .to_string();
-    let other_cases = support::materialize_cases("fixture.suite", &suite);
-    let other_case = other_cases[0].test_case_id.to_string();
-    let other_cycle =
-        support::cycle_with_cases(&owner.handle(), support::metadata("other.case", "Other case"), other_cases).await.to_string();
+    let other_cycle = support::cycle_with_cases(
+        &owner.handle(),
+        support::metadata("other.case", "Other case"),
+        support::materialize_cases("fixture.suite", &suite),
+    )
+    .await
+    .to_string();
     let case_id = client
         .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
             cycle_id: cycle_id.clone(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner()
+        .cases
+        .remove(0)
+        .case_id;
+    let other_case_id = client
+        .unary::<contracts::execution::ListCases>(contracts::execution::ListCases {
+            cycle_id: other_cycle.clone(),
             ..Default::default()
         })
         .await
@@ -386,7 +403,7 @@ pub(crate) async fn planned_params_limit() {
             wrong.cursor = cursor.clone();
             wrong.after_name = "p000".into();
             assert_eq!(client.unary::<contracts::execution::ListCaseParameters>(wrong.clone()).await.unwrap_err().code(), Code::NotFound);
-            wrong.case_id = other_case.clone();
+            wrong.case_id = other_case_id.clone();
             assert_eq!(client.unary::<contracts::execution::ListCaseParameters>(wrong).await.unwrap_err().code(), Code::InvalidArgument);
             let mut wrong = request.clone();
             wrong.case_id = "another-case".into();

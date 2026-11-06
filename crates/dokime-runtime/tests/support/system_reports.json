@@ -18,7 +18,7 @@
     "active-cycle": "Checks active navigation before the execution story runs.",
     "idle": "Measures idle shell behavior without creating an execution.",
     "settings": "Edits preferences without creating an execution.",
-    "failure-presentation": "Inspects an unavailable cycle without creating an execution.",
+    "failure-presentation": "Exercises unavailable-cycle failure handling without creating an execution.",
     "plugin-install": "Installs and restarts plugins without creating an execution.",
     "organization": "Imports organization configuration without creating an execution.",
     "attachment": "Proves attachment ownership with an empty container.",
