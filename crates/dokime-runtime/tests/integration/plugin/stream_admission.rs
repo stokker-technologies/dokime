@@ -108,6 +108,9 @@ async fn run<T: SidecarTemplate + dokime_runtime::definition::DeclaredTemplate>(
     let token = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>().to_string();
     engine
         .start(RunExecution {
+            publication_rows: 1024,
+            publication_bytes: 1024 * 1024,
+            publication_delay_micros: 0,
             mode: "automatic".into(),
             execution_token: token.clone(),
             test_cycle_id: dokime_runtime::model::identity::new_id::<dokime_runtime::TestCycleId>().to_string(),

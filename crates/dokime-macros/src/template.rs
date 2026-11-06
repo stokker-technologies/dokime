@@ -993,7 +993,7 @@ fn engine(
                 host: &'a #sdk::__harmos::sidecar::Supervisor,
                 token: &'a str,
                 stream: &'a #sdk::Identifier,
-                rows: &'a [#sdk::execution::StampedRow],
+                rows: ::std::vec::Vec<#sdk::execution::StampedRow>,
             ) -> #sdk::transport::TransportFuture<'a, ::core::result::Result<(), ::std::string::String>> {
                 ::std::boxed::Box::pin(async move {
                     #(#publications)*

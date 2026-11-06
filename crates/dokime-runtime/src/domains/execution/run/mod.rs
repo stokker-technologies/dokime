@@ -402,6 +402,16 @@ async fn execute_case(
         None => BTreeMap::new(),
     };
     let request = RunExecution {
+        publication_rows: context.runtime.config().stream_publication.batch_rows.get(),
+        publication_bytes: u64::from(context.runtime.config().stream_publication.batch_bytes.get()),
+        publication_delay_micros: context
+            .runtime
+            .config()
+            .stream_publication
+            .flush_delay
+            .as_micros()
+            .try_into()
+            .map_err(|_| failure("sidecar_start", "stream publication delay exceeds wire range"))?,
         mode: execution.mode.as_str().into(),
         execution_token: execution_token.clone(),
         test_cycle_id: cycle.test_cycle_id.to_string(),

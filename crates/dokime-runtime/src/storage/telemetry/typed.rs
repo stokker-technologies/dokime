@@ -522,22 +522,6 @@ pub fn decode_values(validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<Str
     projection.map_err(|_| invalid_projection)
 }
 
-pub(crate) fn numeric_metadata(bytes: &[u8]) -> Result<Vec<(String, f64)>> {
-    let mut reader = Reader::new(bytes);
-    let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
-    let length = bytes.len() - reader.remaining().len();
-    if metadata.encode() != bytes[..length] {
-        return Err(Error::Invalid("stored telemetry metadata is not canonical"));
-    }
-    Ok(metadata.signals.into_iter().filter_map(|signal| signal.numeric_bits.map(|bits| (signal.name, f64::from_bits(bits)))).collect())
-}
-
-pub(crate) fn capture_scopes(bytes: &[u8]) -> Result<Vec<RecordScope>> {
-    let mut reader = Reader::new(bytes);
-    let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
-    metadata.captured_scopes.into_iter().map(TryInto::try_into).collect()
-}
-
 pub(crate) fn signals(values: &BTreeMap<String, Value>) -> Vec<Signal> {
     values
         .iter()
@@ -813,7 +797,6 @@ mod tests {
             sample,
         };
         let bytes = codec.encode(&entry, usize::MAX).unwrap();
-        assert_eq!(numeric_metadata(&bytes).unwrap(), [("value".to_owned(), 7.0)]);
         assert_eq!(codec.decode(&bytes, usize::MAX).unwrap().sample.values, values);
         let mut reader = Reader::new(&bytes);
         let mut metadata = <Metadata as PostcardValue>::read(&mut reader).unwrap();

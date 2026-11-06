@@ -1372,6 +1372,9 @@ mod tests {
     #[test]
     fn local_sample_replay_keeps_automatic_timestamp() {
         let request = crate::transport::protocol::RunExecution {
+            publication_rows: 1024,
+            publication_bytes: 1024 * 1024,
+            publication_delay_micros: 0,
             execution_token: "fixture".into(),
             test_cycle_id: crate::model::identity::new_id::<dokime_domain::model::identity::TestCycleId>().to_string(),
             test_execution_id: crate::model::identity::new_id::<TestExecutionId>().to_string(),

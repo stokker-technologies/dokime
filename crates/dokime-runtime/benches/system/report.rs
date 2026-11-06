@@ -99,14 +99,18 @@ pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     large_cycle_saves(criterion, &executor);
     fresh_materialization(criterion, &executor);
-    let root = tempfile::tempdir().unwrap();
-    let (mut owner, runtime, executions) = executor.block_on(sealed_cycle(root.path()));
+    let mut saved = None;
     let mut group = criterion.benchmark_group("report_renders_saved");
-    group.throughput(Throughput::Elements(executions.len() as u64));
-    group.bench_function(BenchmarkId::from_parameter(executions.len()), |bencher| {
+    group.throughput(Throughput::Elements(1));
+    group.bench_function("cycle", |bencher| {
+        let (_, _, runtime, executions) = saved.get_or_insert_with(|| {
+            let root = tempfile::tempdir().unwrap();
+            let (owner, runtime, executions) = executor.block_on(sealed_cycle(root.path()));
+            (root, owner, runtime, executions)
+        });
         bencher.iter(|| {
             executor.block_on(async {
-                for execution in &executions {
+                for execution in executions.iter() {
                     let mut report = runtime.open_execution_report(execution).await.unwrap();
                     while let Some(batch) = report.reader.next().await.unwrap() {
                         black_box(batch.bytes());
@@ -117,8 +121,11 @@ pub fn benchmark(criterion: &mut Criterion) {
         });
     });
     group.finish();
-    drop(runtime);
-    executor.block_on(owner.shutdown()).unwrap();
+    if let Some((root, mut owner, runtime, _)) = saved {
+        drop(runtime);
+        executor.block_on(owner.shutdown()).unwrap();
+        drop(root);
+    }
 }
 
 /* === Private Functions === */

@@ -168,6 +168,9 @@ fn refusal(answer: harmos::Result<Vec<u8>>) -> i64 {
 
 fn run_request(token: &str) -> dokime_runtime::transport::RunExecution {
     dokime_runtime::transport::RunExecution {
+        publication_rows: 1024,
+        publication_bytes: 1024 * 1024,
+        publication_delay_micros: 0,
         execution_token: token.into(),
         template_identifier: TEMPLATE.into(),
         ..Default::default()
