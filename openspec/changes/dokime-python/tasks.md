@@ -3,7 +3,7 @@
 ## 1. Foundations
 
 - [ ] 1.1 Derive the storage format identity, verify it covers every stored encoding, and refuse mismatched roots in every backend.
-- [ ] 1.2 Create `crates/dokime-python` with maturin, abi3, `_native`, `py.typed` and declared layout exceptions, outside default builds.
+- [ ] 1.2 Create `sdk/python` with maturin, abi3, `_native`, `py.typed` and declared layout exceptions, outside default builds.
 - [ ] 1.3 Build one wheel per platform after the product build under the machine lock; measure build reuse and wheel size.
 - [ ] 1.4 Replace the pure-wheel CI, package and release steps with per-platform wheels.
 
@@ -33,17 +33,17 @@
 ## 5. Tests And Documentation
 
 - [ ] 5.1 Add focused unit, integration and acceptance tests for conversions, ownership, shutdown and errors.
-- [ ] 5.2 Add `test:python:system` with the end-to-end story on Windows and Linux.
+- [ ] 5.2 Add `test:python:system` with the end-to-end story on Windows and Linux, wired into Nightly only.
 - [ ] 5.3 Add Python examples, and update the README, the comparison table and the remote and plugin guides.
 - [ ] 5.4 Update `AGENTS.md` and `docs/tooling.md` where the package changes project structure or tasks.
 
 ## 6. Final Validation
 
 - [ ] 6.1 Run the targeted checks and review the full diff, including required-term scans.
-- [ ] 6.2 Run one full `mise run ci:simulate` on the combined candidate and report the result.
 
 ## Workflow Follow-Up
 
+- Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - The owner decides the PyPI and import name before any publication; a final `dokime-client` release then points to the new package.
 - Depends on the separate rule that completed executions and cycles do not depend on their plugins.
 - Packaging Python plugins as distributable bundles stays out of this change.
