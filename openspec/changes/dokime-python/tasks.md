@@ -2,7 +2,7 @@
 
 ## 1. Foundations
 
-- [ ] 1.1 Derive the storage format identity, verify it covers every stored encoding, and refuse mismatched roots in every backend.
+- [x] 1.1 Derive the storage format identity, verify it covers every stored encoding, and refuse mismatched roots in every backend.
 - [x] 1.2 Create `sdk/python` with maturin, abi3, `_native`, `py.typed` and declared layout exceptions, outside default builds.
 - [x] 1.3 Build one wheel per platform after the product build through the machine wrapper; measure build reuse and wheel size.
 - [x] 1.4 Replace the pure-wheel CI, package and release steps with per-platform wheels.
@@ -44,8 +44,11 @@
 
 ## Workflow Follow-Up
 
-- This slice owns 1.1–1.4 only: runtime storage identity and refusal tests; `sdk/python`; Cargo/maturin manifests and locks; build, package, release and native CI wiring; affected tooling documentation. One writer owns the combined `feat/dokime-python` tree. Storage and package foundations precede targeted proof and branch delivery; later tasks remain open.
+- Task 1.1 storage slice owns runtime build identity inputs and marker preflight, domain stored-type input declarations, server refusal classification, storage integration tests and superseded refusal stories, and the storage identity documentation. The separate Python worker owns client parity. Proof is limited to storage format tests, `check:rust`, repository checks and the required diff scan; push `feat/dokime-python-format` without a PR, then clean its target and retire its worktree.
+
+- The foundation inventory covers 1.1–1.4: runtime storage identity and refusal tests; `sdk/python`; Cargo/maturin manifests and locks; build, package, release and native CI wiring; affected tooling documentation. The Python worker owns the combined `feat/dokime-python` tree and merges the isolated storage slice. Storage and package foundations precede targeted proof and branch delivery; later tasks remain open.
 - Slice proof: focused storage refusal tests, built-wheel import on Windows, `check:rust`, repository checks and the required diff scan. Record measurements and implementation decisions in `design.md`. Push the branch without a PR, merge or full simulation.
+- Task 6.1 retains the native source-policy repairs reported across existing files, including skeleton drift and unit-test I/O boundaries; this slice does not waive those findings.
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - The owner decides the PyPI and import name before any publication; a final `dokime-client` release then points to the new package.
 - Depends on the separate rule that completed executions and cycles do not depend on their plugins.

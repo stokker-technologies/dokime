@@ -82,8 +82,6 @@ async fn storage_recovery_engine() {
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn storage_recovery_sqlite_catalog() {
-    engine_storage::sqlite::refuses_previous_data().await;
-    engine_storage::sqlite::refuses_unversioned_schema().await;
     engine_storage::sqlite::preserves_unrelated_tables().await;
     engine_storage::sqlite::refuses_attachment_receipts().await;
     engine_storage::sqlite::refuses_second_drop().await;

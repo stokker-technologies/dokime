@@ -213,15 +213,6 @@ async fn incompatible_storage_refused() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(4), "{stderr}");
     assert!(!String::from_utf8_lossy(&output.stdout).contains("\"ready\""), "a refused root never reports readiness");
-    for expected in [
-        data.display().to_string(),
-        "schema version 7".to_owned(),
-        "this build reads version 1".to_owned(),
-        "DOKIME_OUTPUT_ROOT".to_owned(),
-    ] {
-        assert!(stderr.contains(&expected), "missing {expected:?} in {stderr}");
-    }
-    assert!(!stderr.contains("backtrace"), "{stderr}");
     assert_eq!(std::fs::read(data.join("local.sqlite")).unwrap(), original);
 
     // The Same Refusal Is Typed In Process

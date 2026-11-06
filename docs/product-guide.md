@@ -483,6 +483,10 @@ file; contention refuses the edit for retry. Tokens stay outside JSON.
 Development contracts remain v1. Use fresh storage when a schema or evidence
 format becomes incompatible. There are no migrations, compatibility aliases or
 automatic root resets; existing files and evidence are never silently deleted.
+Before evidence writes, each root records a digest derived from stored schemas and
+normalized codec source, plus its writer commit. A different digest or a populated
+root without that record refuses with `StorageFormatMismatch`, naming the root and
+writer and running builds without changing files. Choose a fresh root to continue.
 
 ## Shared Plugin Secrets
 

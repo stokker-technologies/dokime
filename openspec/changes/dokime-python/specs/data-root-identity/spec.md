@@ -29,5 +29,13 @@ The format identity SHALL be derived from the declared stored schemas at build t
 - **THEN** the identity changes with no manual step
 
 #### Scenario: Unrelated Change
-- **WHEN** a build changes no stored layout
+- **WHEN** a build changes neither stored schema graphs nor normalized codec inputs
 - **THEN** the identity is unchanged and its roots keep opening
+
+#### Scenario: Codec Source Trivia
+- **WHEN** only comments or whitespace between tokens change in a declared codec input
+- **THEN** the identity is unchanged
+
+#### Scenario: Codec Source Changes
+- **WHEN** normalized source of a declared stored-data codec changes
+- **THEN** the identity changes automatically, even if the edit leaves encoded bytes unchanged

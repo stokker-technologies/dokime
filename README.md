@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev&label=CI)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml)
-[![Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
+[![CI / Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=CI%20%2F%20Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
 [![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
 [![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
@@ -248,6 +248,8 @@ Development roots containing earlier telemetry layouts, plugin identities,
 or evidence indexes without incremental numeric summaries, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
 token identities, indexed record producer scopes, or the indexed telemetry sample identities require a fresh storage root.
 Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
+Each root records a derived storage format digest and its writer commit before evidence writes.
+A mismatched or populated unmarked root refuses with `StorageFormatMismatch`, preserving its contents; choose a fresh root.
 Scoped evidence reads isolate other cycles; see the
 [storage read policies](docs/product-guide.md#storage-read-isolation)
 for corruption reporting and whole-root failures.
