@@ -71,6 +71,10 @@ the plugin. A bare `Secret` field is required and refuses startup when
 missing; `Option<Secret>` permits absence. Secret fields have no saved bindings,
 environment sources or defaults.
 
+Workspace Clippy lints deny `todo!` and `unimplemented!`. When generated inside an
+existing Cargo workspace, the starter inherits its lints and adds these defaults
+where they are missing.
+
 The SDK and `plugin-host` definitions use the same Dokime release tag. Install the host telemetry bundle before loading this template, which subscribes to `plugin_host::System`; missing publishers are refused per stream.
 
 Run `mise install`, then run from this directory:
@@ -80,7 +84,7 @@ cargo dokime sidecar dev{{selection}}
 ```
 
 Select **Thermal Soak → Hold at Temperature** in the development host and
-execute the case. Turn the **Ask the operator to sign off** parameter on to see
+execute the case. Turn the **Ask the Operator to Sign Off** parameter on to see
 the checkpoint prompt. Keep dev running while editing: successful builds cancel
 active plugin work and reload the plugin while the browser stays connected.
 Click **Re-run**, or start dev with `--rerun` to repeat your latest case after

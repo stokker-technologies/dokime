@@ -42,8 +42,8 @@ const POLICY: OperationPolicy = OperationPolicy {
 #[dokime::message]
 #[derive(Clone, PartialEq)]
 pub struct HeaterIdentity {
-    pub serial: String,
-    pub firmware: String,
+    pub serial_number: String,
+    pub firmware_version: String,
 }
 
 #[dokime::operation(
@@ -76,8 +76,8 @@ impl Operation for OpenHeater {
         let identity = dokime::plugin::refusal(heater.identity().await)?;
         *current = Some(heater);
         Ok(Response::new(HeaterIdentity {
-            serial: identity.serial,
-            firmware: identity.firmware,
+            serial_number: identity.serial_number,
+            firmware_version: identity.firmware_version,
         }))
     }
 }

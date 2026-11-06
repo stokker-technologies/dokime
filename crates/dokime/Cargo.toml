@@ -134,6 +134,9 @@ indicatif = { workspace = true, optional = true }
 
 # === Lints === #
 
+[lints]
+workspace = true
+
 # === Profiles === #
 
 # === Patches === #

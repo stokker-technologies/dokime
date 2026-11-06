@@ -185,6 +185,10 @@ criterion = { version = "0.8.2", default-features = false, features = ["cargo_be
 
 # === Workspace Lints === #
 
+[workspace.lints.clippy]
+todo = "deny"
+unimplemented = "deny"
+
 # === Lints === #
 
 # === Profiles === #
