@@ -20,9 +20,9 @@ use futures_util::{FutureExt, StreamExt, future::LocalBoxFuture, stream::Futures
 use tokio::sync::mpsc;
 
 // Local Imports
-use super::acquire::{DocumentAcquisitionFailure, acquire};
+use super::acquire::DocumentAcquisitionFailure;
 use crate::document::{
-    DocumentCardDefinition, DocumentDefinition, DocumentResolveInput, DocumentSelection,
+    DocumentCardDefinition, DocumentDefinition, DocumentSelection,
     bounded::{DocumentLimits, document_size},
     capture::{Capture, CardBinding, CardBindingResult, CardFailure, SectionBinding},
 };
@@ -44,6 +44,7 @@ use dokime_domain::model::identity::TestExecutionId;
 pub struct CurrentDocumentQuery {
     pub structure_only: bool,
     pub cards: Vec<dokime_domain::model::identity::Identifier>,
+    pub page: Option<String>,
 }
 
 pub struct PreparedCurrentDocument {
@@ -51,6 +52,7 @@ pub struct PreparedCurrentDocument {
     snapshot: RuntimeStateSnapshot,
     definition: DocumentDefinition,
     selection: DocumentSelection,
+    continuation: Option<crate::document::page::Resume>,
 }
 
 #[derive(Clone)]
@@ -71,11 +73,12 @@ pub enum CurrentDocumentEvent {
     Artifacts(String),
     Expansion { capture: Capture, cacheable: bool },
     Card(CardBinding),
+    Page { current: String, next: Option<String> },
 }
 
 enum DocumentWork {
     Card { binding: CardBinding, result: crate::runtime::Result<CardBinding> },
-    Expansion(crate::runtime::Result<(Capture, Vec<DocumentCardDefinition>)>),
+    Expansion(crate::runtime::Result<crate::document::page::Expansion>),
 }
 
 /* === Traits === */
@@ -113,6 +116,7 @@ impl RuntimeHandle {
             snapshot,
             definition,
             selection,
+            continuation: None,
         })
     }
 
@@ -163,6 +167,7 @@ impl RuntimeHandle {
             snapshot,
             definition,
             selection,
+            continuation: None,
         })
     }
 }
@@ -183,8 +188,13 @@ impl PreparedCurrentDocument {
     }
 
     async fn capture_inner(
-        self, sender: Option<mpsc::Sender<CurrentDocumentEvent>>, query: CurrentDocumentQuery,
+        mut self, sender: Option<mpsc::Sender<CurrentDocumentEvent>>, query: CurrentDocumentQuery,
     ) -> crate::runtime::Result<CurrentDocumentCapture> {
+        if let Some(token) = &query.page {
+            let resumed = crate::document::page::resume(&self.runtime, token, &self.selection, &self.definition.document_id).await?;
+            self.definition = resumed.saved.definition.clone();
+            self.continuation = Some(resumed);
+        }
         if query.structure_only && !query.cards.is_empty() {
             return Err(crate::runtime::Error::conflict("document_query_mode", "structure requests cannot select card results"));
         }
@@ -210,8 +220,11 @@ impl PreparedCurrentDocument {
                 || (expand && crate::document::binding::repeat_artifacts_needed(&self.definition));
         let mut document = CurrentDocumentCapture {
             capture,
-            process_epoch: self.snapshot.state().process_epoch().to_string(),
-            state_revision: self.snapshot.revision(),
+            process_epoch: self
+                .continuation
+                .as_ref()
+                .map_or_else(|| self.snapshot.state().process_epoch().to_string(), |resume| resume.saved.process_epoch.clone()),
+            state_revision: self.continuation.as_ref().map_or(self.snapshot.revision(), |resume| resume.saved.state_revision),
             telemetry_cut: None,
             evidence_cut: None,
             artifacts_sha256: None,
@@ -226,7 +239,10 @@ impl PreparedCurrentDocument {
                 .await
                 .map_err(|_| crate::runtime::Error::cancelled("document_cancelled", "document receiver closed"))?;
         }
-        let at = self.runtime.saved_through(self.snapshot.revision()).await?;
+        let at = match &self.continuation {
+            Some(resumed) => resumed.cut.at.clone(),
+            None => self.runtime.saved_through(self.snapshot.revision()).await?,
+        };
         document.evidence_cut = Some(at.clone());
         document.telemetry_cut = telemetry.then(|| at.clone());
         if let Some(sender) = &sender {
@@ -256,7 +272,7 @@ impl PreparedCurrentDocument {
             pending.push(self.card_work(card, binding, &context));
         }
         if expand {
-            pending.push(async { DocumentWork::Expansion(self.expand(&context, limits).await) }.boxed_local());
+            pending.push(async { DocumentWork::Expansion(self.expand(&context).await) }.boxed_local());
         }
         let mut pending = pending;
         while let Some(work) = pending.next().await {
@@ -289,8 +305,8 @@ impl PreparedCurrentDocument {
                     }
                 }
                 DocumentWork::Expansion(result) => {
-                    let (mut expanded, queries) = match result {
-                        Ok(value) => value,
+                    let (mut expanded, mut queries, next) = match result {
+                        Ok(value) => (value.capture, value.queries, value.next),
                         Err(error) => {
                             let mut failed = document.capture.clone();
                             fail_repeat_sections(
@@ -299,9 +315,49 @@ impl PreparedCurrentDocument {
                                 &mut failed.sections,
                                 &error.to_string(),
                             );
-                            (failed, Vec::new())
+                            (failed, Vec::new(), None)
                         }
                     };
+                    let mut saved = crate::document::page::Saved {
+                        definition: self.definition.clone(),
+                        selection: self.selection.clone(),
+                        context: self.query_data()?.context.capture(),
+                        cursor: self.continuation.as_ref().map_or_else(Default::default, |resume| resume.saved.cursor.clone()),
+                        process_epoch: document.process_epoch.clone(),
+                        state_revision: document.state_revision,
+                    };
+                    let cut = self.continuation.as_ref().map(|resume| &resume.cut);
+                    let tokens = async {
+                        let current = crate::document::page::token(&self.runtime, &saved, &at, cut).await?;
+                        let next = if let Some(cursor) = next {
+                            saved.cursor = cursor;
+                            Some(crate::document::page::token(&self.runtime, &saved, &at, cut).await?)
+                        } else {
+                            None
+                        };
+                        Ok::<_, crate::runtime::Error>((current, next))
+                    }
+                    .await;
+                    match tokens {
+                        Ok((current, next)) => {
+                            if let Some(sender) = &sender {
+                                sender
+                                    .send(CurrentDocumentEvent::Page { current, next })
+                                    .await
+                                    .map_err(|_| crate::runtime::Error::cancelled("document_cancelled", "document receiver closed"))?;
+                            }
+                        }
+                        Err(error) => {
+                            expanded = document.capture.clone();
+                            fail_repeat_sections(
+                                &expanded.definition.layout.nodes,
+                                &expanded.repeats,
+                                &mut expanded.sections,
+                                &error.to_string(),
+                            );
+                            queries.clear();
+                        }
+                    }
                     expanded
                         .cards
                         .retain(|card| !document.capture.cards.iter().any(|old| old.metadata.identifier == card.metadata.identifier));
@@ -341,7 +397,10 @@ impl PreparedCurrentDocument {
 
     fn query_data(&self) -> crate::runtime::Result<crate::document::input::BorrowedData<'_>> {
         Ok(crate::document::input::BorrowedData {
-            context: binding_context(&self.snapshot, &self.definition, &self.selection, DocumentLimits::default().source_bytes)?,
+            context: match &self.continuation {
+                Some(resume) => crate::document::input::Context::captured(&resume.saved.context, &self.selection.scope),
+                None => binding_context(&self.snapshot, &self.definition, &self.selection, DocumentLimits::default().source_bytes)?,
+            },
             records: Default::default(),
             telemetry: &[],
             artifacts: crate::document::input::Artifacts::Native(&[]),
@@ -361,34 +420,18 @@ impl PreparedCurrentDocument {
         .boxed_local()
     }
 
-    async fn expand(
-        &self, context: &crate::document::query::Context<'_>, limits: DocumentLimits,
-    ) -> crate::runtime::Result<(Capture, Vec<DocumentCardDefinition>)> {
+    async fn expand(&self, context: &crate::document::query::Context<'_>) -> crate::runtime::Result<crate::document::page::Expansion> {
         let at = context.at;
-        let telemetry = crate::document::binding::repeat_telemetry_needed(&self.definition, self.query_data()?.context);
-        let records = crate::document::binding::repeat_records_needed(&self.definition);
         let artifacts = crate::document::binding::repeat_artifacts_needed(&self.definition);
-        let acquired = acquire(&self.runtime, &self.selection, &self.snapshot, records, telemetry, false, at.clone()).await?;
-        let rows: crate::storage::ReadRows<_> = acquired.records.into();
-        let input = DocumentResolveInput {
-            definition: self.definition.clone(),
-            selection: self.selection.clone(),
-            data: acquired.data,
+        let mut data = self.query_data()?;
+        data.artifacts = crate::document::input::Artifacts::Native(if artifacts { context.artifacts().await? } else { &[] });
+        let input = crate::document::input::BorrowedInput {
+            definition: &self.definition,
+            selection: &self.selection,
+            data,
         };
-        let mut borrowed = input.borrowed();
-        borrowed.data.context = self.query_data()?.context;
-        if let Some(id) = &self.selection.scope.test_execution_id {
-            let execution = self.snapshot.state().executions.get(id).ok_or(DocumentAcquisitionFailure::Missing)?;
-            borrowed.data.records = crate::document::input::Records::Subscribed {
-                rows: (&rows).into(),
-                captures: &execution.records,
-            };
-        }
-        borrowed.data.telemetry = acquired.telemetry.as_deref().map_or(&[], Vec::as_slice);
-        borrowed.data.artifacts = crate::document::input::Artifacts::Native(if artifacts { context.artifacts().await? } else { &[] });
-        let mut queries = Vec::new();
-        let capture = crate::document::resolve::capture_with_queries(borrowed, limits, None, Some(&mut queries))?;
-        Ok((capture, queries))
+        let cursor = self.continuation.as_ref().map_or_else(Default::default, |resume| resume.saved.cursor.clone());
+        crate::document::page::expand(&self.runtime, input, at, cursor).await
     }
 }
 

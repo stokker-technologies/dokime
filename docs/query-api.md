@@ -163,13 +163,27 @@ Captured contracts include retained Arrow versions from the selected execution o
 ## Document Bindings
 
 Live document summaries use finite storage queries at their captured saved boundary.
-Compatible unfiltered telemetry statistics reuse the numeric index, including an
-exact median rank query. Integer index answers require lossless bounds; otherwise
+Compatible unfiltered telemetry statistics reuse typed numeric prefix checkpoints.
+Count, min, max, mean and RMS are maintained during ingest; a cut within a saved
+batch reads only the bounded remainder after its checkpoint. Integer extrema and
+totals remain lossless. Median uses an exact rank query when its index covers the
+cut losslessly; otherwise
 folds consume bounded typed pages and exact order statistics spill scratch.
 Record bindings seek execution-owned record pages and preserve subscribed capture
 scope. The document structure is authored metadata, with no row-based evaluation
 estimate or document source-row ceiling. Encoded output and actual expansion have
 presentation budgets independently of raw evidence retention.
+
+Repeated sections enumerate indexed distinct values, including row-local filters
+and ordering, through authenticated pages at one saved cut. Their persisted
+continuation context contains the authored definition, scalar execution context
+and traversal position. It contains no raw evidence or in-memory capture registry.
+The capture stream emits a Page frame with current and optional next tokens;
+selected-card requests carry the current page token. A continuation is bound to
+its document and scope. Numeric values order exactly across signed integers,
+unsigned integers and floats; other values use a deterministic typed order.
+The current development storage layout remains v1 and requires a fresh root;
+existing roots are neither migrated nor reset.
 
 The capture operation supports metadata and selected-binding projections:
 

@@ -176,4 +176,74 @@ test("Card Queries Refresh Independently", async () => {
   }
 });
 
+test("Repeat Pages Query Their Own Cards and Return to Live", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  notifyManager.setScheduler(queueMicrotask);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRoot(document.createElement("div"));
+  const first = deferred<void>();
+  const second = deferred<void>();
+  const requests: { id: string; page?: string }[] = [];
+  let refreshed: ReturnType<typeof deferred<void>> | undefined;
+  let latest: ReturnType<typeof useExecutionDocumentQuery> | undefined;
+  backend.fetch.mockImplementation(async (_session, input, _signal, _previous, publish) => {
+    const request = input as { structureOnly?: boolean; cardIds?: string[]; page?: string };
+    const later = request.page === "fixture.second";
+    const id = later ? "fixture.second.card" : "fixture.first.card";
+    if (request.structureOnly) {
+      const pending = card(id);
+      const view = documentView("default", { identifier: "default", label: "Fixture" }, [pending], {
+        nodes: [{ type: "card", card_id: id, layout: pending.layout }],
+      });
+      const capture = {
+        view,
+        page: { current: later ? "fixture.second" : "fixture.first", next: later ? undefined : "fixture.second" },
+        bindings: new Map([[id, { result: { HarmosVariant: { case: "Pending" } } }]]),
+      };
+      (publish as ((value: unknown) => void) | undefined)?.(capture);
+      return capture;
+    }
+    requests.push({ id: request.cardIds?.[0] ?? "", page: request.page });
+    (later ? second : first).resolve();
+    refreshed?.resolve();
+    return { card: card(id, requests.length) };
+  });
+  function Probe() {
+    latest = useExecutionDocumentQuery({ cycleId: "fixture.paging", executionId: "fixture.execution" });
+    return null;
+  }
+  try {
+    await act(async () => root.render(createElement(QueryClientProvider, { client }, createElement(Probe))));
+    await act(async () => first.promise);
+    await act(async () => latest?.navigation.next());
+    await act(async () => second.promise);
+    assert.deepEqual(requests.slice(0, 2), [
+      { id: "fixture.first.card", page: "fixture.first" },
+      { id: "fixture.second.card", page: "fixture.second" },
+    ]);
+    assert.deepEqual(
+      latest?.data?.cards.map((card) => card.card_id),
+      ["fixture.second.card"],
+    );
+    await act(async () => latest?.navigation.previous());
+    assert.deepEqual(
+      latest?.data?.cards.map((card) => card.card_id),
+      ["fixture.first.card"],
+    );
+    const before = requests.length;
+    refreshed = deferred<void>();
+    await act(async () => latest?.navigation.latest());
+    await act(async () => refreshed?.promise);
+    assert.ok(requests.length > before);
+    assert.equal(requests.at(-1)?.page, "fixture.first");
+    assert.equal(latest?.navigation.fixed, false);
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
+    notifyManager.setScheduler((callback) => setTimeout(callback, 0));
+    backend.fetch.mockReset();
+    vi.unstubAllGlobals();
+  }
+});
+
 /* === Entry Point === */

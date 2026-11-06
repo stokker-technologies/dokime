@@ -126,9 +126,18 @@ A completed card remains visible when another card or transfer fails. Failed
 bindings render the existing ErrorCard with their native diagnostic and budget
 fields. Repeated sections keep a loading identity until their expansion arrives.
 
+Repeated sections use distinct-value index pages. Previous Page and Next Page
+replace the visible page at the same saved cut, including its captured definition
+and scalar context. Latest resumes live refresh. Card query identities remain
+stable across page and evidence frontier changes; each repeated card requests the
+page that declared it. A page retains only its actual expanded output.
+
 Live document summary tiles query one saved evidence cut using bounded folds and
 exact order statistics. They do not load the run's telemetry into a document input
-array or reject estimated definition-size-times-row work. Plots retain their
+array. Count, min, max, mean and RMS reuse typed ingest checkpoints; a cut inside
+a saved batch reads only its bounded remainder. Median remains exact and loads in
+its own card. They do not
+reject estimated definition-size-times-row work. Plots retain their
 existing independent query path. Actual output and expansion limits report the
 budget, limit, amount reached and affected card.
 

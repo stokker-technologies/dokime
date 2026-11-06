@@ -86,6 +86,7 @@ type NativeDownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 /** Indexes reference canonical protobuf messages; no alternate document DTO contract. */
 export interface CompletedDocument {
   complete?: boolean;
+  page?: { current: string; next?: string };
   header: DocumentHeader;
   bindings: Map<string, DocumentBinding>;
   definitions: Map<string, DocumentSummaryGroupDefinition[]>;
@@ -115,6 +116,7 @@ export interface NativeDocumentRequest {
   epoch: string;
   structureOnly?: boolean;
   cardIds?: string[];
+  page?: string;
 }
 
 export interface NativeDocumentSession extends SessionIdentity {
@@ -175,6 +177,7 @@ export async function fetchNativeDocument(
       documentId: request.documentId,
       structureOnly: request.structureOnly ?? false,
       cardIds: request.cardIds ?? [],
+      page: request.page,
     });
     if (signal?.aborted || !session.isCurrent()) {
       await reader.cancel();
@@ -782,12 +785,14 @@ export async function assembleDocument(
   let complete = false;
   let structured = false;
   let evidence = false;
+  let page: CompletedDocument["page"];
   const committed = new Map<string, DocumentBinding>();
   const bytes = new Map<string, number>();
   const progress = (): CompletedDocument => {
     if (!header) invalid("header is missing");
     return {
       complete,
+      page,
       header,
       layout: [...layout],
       cards: new Map(cards),
@@ -1070,6 +1075,12 @@ export async function assembleDocument(
         header = { ...header, frontiers: { ...header.frontiers, artifactsSha256: frame.value.field0 } };
         const held = await reuse?.(header);
         if (held) return held;
+        break;
+      }
+      case "Page": {
+        const value = frame.value.field0;
+        if (!structured || !evidence || !value?.current || page) invalid("document page is misplaced");
+        page = { current: value.current, next: value.next };
         break;
       }
       case "ExpansionComplete": {

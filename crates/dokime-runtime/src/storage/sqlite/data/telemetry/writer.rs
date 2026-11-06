@@ -319,7 +319,15 @@ impl Store {
                                     context.values.insert(field.as_str(), value);
                                 }
                             }
-                            aggregates.push(&transaction, execution.as_str(), *position, *time, &entry.sample, &mut previews)?;
+                            let input = super::previews::Input { execution: execution.as_str(), stream: entry.sample.stream.as_str(), position: *position, time: *time };
+                            aggregates.push(&transaction, input, &entry.sample, &stream.contract, &mut previews)?;
+                            let mut values = entry.sample.values.clone();
+                            values.entry("timestamp".into()).or_insert(Value::Datetime(entry.sample.timestamp.to_datetime()?));
+                            let scope = entry.sample.captured_scopes.iter().find(|scope| scope.test_execution_id.as_ref() == Some(execution))
+                                .or(entry.sample.scope.as_ref()).ok_or(Error::Invalid("captured sample scope is absent"))?;
+                            super::super::distinct::insert(&transaction, super::super::distinct::Row {
+                                kind: "telemetry", source: entry.sample.stream.as_str(), position: *position, file: Some(&id), record: false, scope,
+                            }, &values)?;
                         }
                     }
                     for (execution, context) in contexts {

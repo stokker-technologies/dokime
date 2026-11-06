@@ -16,6 +16,7 @@
 // Standard Library Imports
 use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::num::NonZeroU128;
 
 // Third Party Imports
@@ -277,20 +278,83 @@ impl<'plan> Plan<'plan> {
     pub(super) fn evaluate<'a>(
         &self, expression: &DataExpression, evidence: Evidence<'a>, cases: &[Entry<'a>], selected: impl Fn(Row<'a>) -> bool,
     ) -> Result<Option<Value>> {
-        let capacity = evidence.upper_rows().saturating_mul(cases.len().max(1));
+        let cases_by_execution = cases
+            .iter()
+            .enumerate()
+            .filter_map(|(index, case)| Some((case.scope.test_execution_id.as_ref()?, index)))
+            .collect::<HashMap<_, _>>();
+        let capacity = evidence.upper_rows();
         let mut left = Vec::with_capacity(capacity);
         let mut right = Vec::with_capacity(capacity);
         match &self.join {
             Join::None if self.cases.is_some() => {
-                // A Case's Own Context Decides Whether Samples Or Context Supply It.
-                let mut ordinal = 0usize;
-                for (case, entry) in cases.iter().enumerate() {
-                    for row in evidence.rows_for_case(expression, Some(*entry)) {
-                        if selected(row) {
-                            let value = super::binding::row(row, expression, evidence);
-                            left.push(Selected::new(ordinal, value, None, Some(case)));
+                let by_execution = cases
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, entry)| Some((entry.scope.test_execution_id.as_ref()?.as_str(), index)))
+                    .collect::<HashMap<_, _>>();
+                let contextual = cases
+                    .iter()
+                    .map(|entry| {
+                        matches!(expression.source, DataSource::Parameter { .. })
+                            || (matches!(expression.source, DataSource::Dimension { .. }) && entry.value(&expression.source).is_some())
+                    })
+                    .collect::<Vec<_>>();
+                let mut ordinal = 0;
+                let mut push = |row: Row<'a>, case| {
+                    if selected(row) {
+                        let value = super::binding::row(row, expression, evidence);
+                        left.push(Selected::new(ordinal, value, None, Some(case)));
+                    }
+                    ordinal += 1;
+                };
+                for (case, entry) in cases.iter().copied().enumerate() {
+                    if contextual[case] {
+                        push(Row::Context(entry), case);
+                    }
+                }
+                let case_of = |scope: Option<&RecordScope>| {
+                    let scope = scope?;
+                    let case = *by_execution.get(scope.test_execution_id.as_ref()?.as_str())?;
+                    cases[case].covers(Some(scope)).then_some(case)
+                };
+                match &expression.source {
+                    DataSource::Parameter { .. } => {}
+                    DataSource::Record { record_type } => {
+                        for record in evidence.records.iter() {
+                            if record.entry.record_type.as_str() != record_type
+                                || evidence.selection.is_some_and(|selection| !selection.matches_scope(record.scope))
+                            {
+                                continue;
+                            }
+                            if let Some(case) = case_of(record.scope) {
+                                push(Row::Record { record, context: Some(cases[case]) }, case);
+                            }
                         }
-                        ordinal += 1;
+                    }
+                    DataSource::Artifact { artifact: filename } => {
+                        for artifact in evidence.artifacts.iter() {
+                            if artifact.filename != *filename
+                                || evidence.selection.is_some_and(|selection| !selection.matches_scope(Some(&artifact.scope)))
+                            {
+                                continue;
+                            }
+                            if let Some(case) = case_of(Some(&artifact.scope)) {
+                                push(Row::Artifact { artifact, context: Some(cases[case]) }, case);
+                            }
+                        }
+                    }
+                    _ => {
+                        for sample in evidence.telemetry {
+                            if !evidence.selected(sample) {
+                                continue;
+                            }
+                            if let Some(case) = case_of(sample.scope.as_ref())
+                                && !contextual[case]
+                            {
+                                push(Row::Sample { sample, context: Some(cases[case]) }, case);
+                            }
+                        }
                     }
                 }
             }
@@ -307,7 +371,15 @@ impl<'plan> Plan<'plan> {
                     return Err(failure("record correlations require a record source"));
                 };
                 for (ordinal, record) in evidence.records.iter().enumerate() {
-                    let case = case_of(cases, record.scope);
+                    let case = record
+                        .scope
+                        .and_then(|scope| scope.test_execution_id.as_ref())
+                        .and_then(|id| cases_by_execution.get(id))
+                        .copied()
+                        .filter(|&case| cases[case].covers(record.scope));
+                    if self.cases.is_some() && case.is_none() {
+                        continue;
+                    }
                     let row = Row::Record {
                         record,
                         context: case.map(|case| cases[case]).or_else(|| evidence.context.for_scope(record.scope)),
@@ -428,10 +500,14 @@ impl<'plan> Plan<'plan> {
         let right = project(&right, &self.right, right_float)?;
         left.sort_unstable_by_key(|row| row.capture);
 
-        // Each Left Row Measures Its Own Columns Or Its Correlated Right Row.
+        // Merge Equal Scope Partitions In Capture Order, Then Fold In Original Order.
         let correlation = match &self.join {
             Join::None => None,
-            Join::Previous(_) => Some(Correlation::new(right)),
+            Join::Previous(_) => {
+                let correlation = Correlation::new(right);
+                let matched = correlation.merge(&left);
+                Some((correlation, matched))
+            }
         };
         let case = self.left.iter().position(|column| *column == Column::Case);
         let groups = self.cases.unwrap_or(1);
@@ -444,7 +520,7 @@ impl<'plan> Plan<'plan> {
             }
             folds.push(group);
         }
-        for row in &left {
+        for (index, row) in left.iter().enumerate() {
             let group = match case {
                 Some(column) => match row.values[column] {
                     ScalarValue::Unsigned(case) if (case as usize) < groups => case as usize,
@@ -454,7 +530,7 @@ impl<'plan> Plan<'plan> {
             };
             let measured = match &correlation {
                 None => row.values[..self.measured].to_vec(),
-                Some(correlation) => match correlation.find(&row.values[..3], row.capture) {
+                Some((correlation, matched)) => match matched[index].map(|index| &correlation.rows[index]) {
                     Some(matched) => vec![elapsed(&matched.values[2], &row.values[2])?],
                     None => vec![ScalarValue::Missing],
                 },
@@ -682,18 +758,27 @@ impl Correlation {
         Self { rows }
     }
 
-    // The Last Right Row Captured Before The Probe Among Rows With Equal Keys.
-    fn find(&self, probe: &[ScalarValue], capture: u64) -> Option<&Projected> {
-        let precedes = |row: &Projected| match text(&row.values[0]).cmp(text(&probe[0])) {
-            Ordering::Equal => match text(&row.values[1]).cmp(text(&probe[1])) {
-                Ordering::Equal => row.capture < capture,
-                order => order.is_lt(),
-            },
-            order => order.is_lt(),
-        };
-        let end = self.rows.partition_point(precedes);
-        let candidate = self.rows[..end].last()?;
-        (text(&candidate.values[0]) == text(&probe[0]) && text(&candidate.values[1]) == text(&probe[1])).then_some(candidate)
+    // The Sorted Merge Advances Through Each Side Once.
+    fn merge(&self, left: &[Projected]) -> Vec<Option<usize>> {
+        let mut probes = left.iter().enumerate().collect::<Vec<_>>();
+        probes.sort_unstable_by(|(_, left), (_, right)| order(left, right));
+        let mut matches = vec![None; left.len()];
+        let mut next = 0;
+        let mut previous = None;
+        for (index, probe) in probes {
+            while let Some(candidate) = self.rows.get(next) {
+                if !order(candidate, probe).is_lt() {
+                    break;
+                }
+                previous = Some(next);
+                next += 1;
+            }
+            matches[index] = previous.filter(|&index| {
+                let candidate = &self.rows[index];
+                text(&candidate.values[0]) == text(&probe.values[0]) && text(&candidate.values[1]) == text(&probe.values[1])
+            });
+        }
+        matches
     }
 }
 
@@ -794,10 +879,6 @@ fn elapsed(start: &ScalarValue, end: &ScalarValue) -> Result<ScalarValue> {
     })
 }
 
-fn case_of(cases: &[Entry<'_>], scope: Option<&RecordScope>) -> Option<usize> {
-    cases.iter().position(|case| case.covers(scope))
-}
-
 fn floating(value: &Value) -> Result<ScalarValue> {
     Ok(ScalarValue::Float(match value {
         Value::Integer(value) => *value as f64,
@@ -895,5 +976,86 @@ mod streaming_tests {
         fold.push_at(2, Some(&Value::Number(0.5))).unwrap();
         fold.push_at(4, Some(&Value::Unsigned(1))).unwrap();
         assert_eq!(fold.finish().unwrap(), Some(Value::Number(0.75)));
+    }
+
+    #[test]
+    fn sorted_record_merge_matches_capture_reference() {
+        let row = |capture: u64| Projected {
+            capture,
+            values: vec![
+                ScalarValue::Text(format!("execution.{}", capture % 3)),
+                ScalarValue::Text(format!("attempt.{}", capture % 5)),
+                ScalarValue::Datetime(i128::from(capture) * 1_000_000_000),
+            ],
+        };
+        let right = (0..257).filter(|capture| capture % 4 != 0).rev().map(row).collect::<Vec<_>>();
+        let probes = (0..307).rev().map(row).collect::<Vec<_>>();
+        let expected = probes
+            .iter()
+            .map(|probe| {
+                right
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.capture < probe.capture
+                            && text(&candidate.values[0]) == text(&probe.values[0])
+                            && text(&candidate.values[1]) == text(&probe.values[1])
+                    })
+                    .max_by_key(|candidate| candidate.capture)
+                    .map(|candidate| candidate.capture)
+            })
+            .collect::<Vec<_>>();
+        let correlation = Correlation::new(right);
+        let actual =
+            correlation.merge(&probes).into_iter().map(|index| index.map(|index| correlation.rows[index].capture)).collect::<Vec<_>>();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn partitioned_cases_match_individual_folds() {
+        use std::collections::BTreeMap;
+        let scopes = (0..7)
+            .map(|index| {
+                RecordScope::default()
+                    .with_test_execution(dokime_domain::model::identity::TestExecutionId::from_seed(format!("execution-{index}")))
+                    .with_test_case(dokime_domain::model::identity::CaseId::from_seed(format!("case-{index}")))
+            })
+            .collect::<Vec<_>>();
+        let dimensions = BTreeMap::new();
+        let parameters = BTreeMap::new();
+        let cases = scopes
+            .iter()
+            .map(|scope| Entry {
+                scope,
+                dimensions: &dimensions,
+                inputs: &parameters,
+                outputs: &parameters,
+            })
+            .collect::<Vec<_>>();
+        let samples = (0..137)
+            .map(|index| {
+                let mut sample = crate::telemetry::TelemetrySample::new(
+                    dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("sample-{index}")),
+                    dokime_domain::model::identity::Identifier::new("fixture").unwrap(),
+                    index,
+                    dokime_domain::model::time::Timestamp::new("2026-01-01T00:00:00Z"),
+                    "fixture",
+                );
+                sample.scope = Some(scopes[index as usize % (scopes.len() - 1)].clone());
+                sample.values.insert("value".into(), Value::Integer(index as i64 - 37));
+                sample
+            })
+            .collect::<Vec<_>>();
+        let inner = crate::expressions::telemetry("fixture", "value").min();
+        let mut expression = inner.clone();
+        expression.transforms.extend([DataTransform::PerCase, DataTransform::Aggregate(Aggregate::Mean)]);
+        let evidence = Evidence::from(samples.as_slice());
+        let mut reference = Fold::new(&crate::expressions::telemetry("fixture", "value").mean()).unwrap();
+        for (index, case) in cases.iter().enumerate() {
+            let selected = samples.iter().filter(|sample| case.covers(sample.scope.as_ref())).cloned().collect::<Vec<_>>();
+            let value = Plan::compile(&inner, None).unwrap().evaluate(&inner, Evidence::from(selected.as_slice()), &[], |_| true).unwrap();
+            reference.push_at(index as u64, value.as_ref()).unwrap();
+        }
+        let actual = Plan::compile(&expression, Some(cases.len())).unwrap().evaluate(&expression, evidence, &cases, |_| true).unwrap();
+        assert_eq!(actual, reference.finish().unwrap());
     }
 }

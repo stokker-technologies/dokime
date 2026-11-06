@@ -138,6 +138,11 @@ impl Stream {
                 frames.frames
             }
             CurrentDocumentEvent::Expansion { capture, cacheable } => self.expansion(capture, cacheable)?,
+            CurrentDocumentEvent::Page { current, next } => {
+                let mut frames = Frames::new(self.limit);
+                frames.push(Frame::Page(contract::DocumentPage { current, next }))?;
+                frames.frames
+            }
             CurrentDocumentEvent::Card(binding) => {
                 if self.failed.contains_key(binding.source_id.as_str()) {
                     VecDeque::new()

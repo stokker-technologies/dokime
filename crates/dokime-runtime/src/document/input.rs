@@ -84,7 +84,6 @@ pub(super) struct RecordView<'a> {
 pub(crate) enum Records<'a> {
     Native(crate::records::view::View<'a>),
     Pages(&'a [harmos::storage::ReadBatch<Vec<RecordEntry>>]),
-    Subscribed { rows: crate::records::view::View<'a>, captures: &'a dokime_domain::state::records::set::TestRecordSet },
 }
 
 #[derive(Clone, Copy)]
@@ -117,22 +116,17 @@ impl Records<'_> {
         match self {
             Self::Native(rows) => rows.len(),
             Self::Pages(pages) => pages.iter().map(|page| page.len()).sum(),
-            Self::Subscribed { rows, .. } => rows.len(),
         }
     }
 }
 
 impl<'a> Records<'a> {
     pub(super) fn iter(self) -> impl DoubleEndedIterator<Item = RecordView<'a>> + Clone {
-        let (native, pages, scopes) = match self {
-            Self::Native(rows) => (rows, &[][..], None),
-            Self::Pages(pages) => (crate::records::view::View::default(), pages, None),
-            Self::Subscribed { rows, captures } => (rows, &[][..], Some(captures)),
+        let (native, pages) = match self {
+            Self::Native(rows) => (rows, &[][..]),
+            Self::Pages(pages) => (crate::records::view::View::default(), pages),
         };
-        native.iter().chain(pages.iter().flat_map(|page| page.iter())).map(move |entry| RecordView {
-            entry,
-            scope: scopes.and_then(|captures| captures.captured_scope(entry)).or(entry.scope.as_ref()),
-        })
+        native.iter().chain(pages.iter().flat_map(|page| page.iter())).map(move |entry| RecordView { entry, scope: entry.scope.as_ref() })
     }
 }
 

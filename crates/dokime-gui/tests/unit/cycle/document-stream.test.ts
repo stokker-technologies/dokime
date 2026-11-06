@@ -163,6 +163,18 @@ test("Structure Projection and Binding Identity", async () => {
   assert.notEqual(nativeDocumentCardKey(capture, "fast"), nativeDocumentCardKey(changed, "fast"));
 });
 
+test("Page Tokens Preserve Binding Identity", async () => {
+  const frames = initial(true);
+  const page = { current: "fixture.first", next: "fixture.second" };
+  frames.push(frame("Page", page));
+  frames.push(frame("ExpansionComplete", false));
+  frames.push(frame("Completion", counts(frames.length + 1, true)));
+  const captured = await assembleDocument(iterable(frames), { ...expected, structureOnly: true }, () => true);
+  assert.deepEqual(captured.page, page);
+  const following = { ...captured, page: { current: page.next } };
+  assert.equal(nativeDocumentCardKey(captured, "fast"), nativeDocumentCardKey(following, "fast"));
+});
+
 test("A Budget Failure Keeps the Completed Sibling", async () => {
   const budget = { name: "frame_bytes", limit: 4096n, reached: 32768n, cardId: "slow" };
   const frames = initial();

@@ -69,6 +69,7 @@ impl Serve<contract::CaptureCurrentDocument> for Resources {
                 .map_err(super::execution::status)?;
                 let query = dokime::CurrentDocumentQuery {
                     structure_only: request.structure_only,
+                    page: request.page,
                     cards: request
                         .card_ids
                         .iter()

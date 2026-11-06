@@ -19,7 +19,7 @@
 use harmos::MemorySize;
 
 // Local Imports
-use crate::document::{DocumentDataInput, DocumentSelection, bounded::document_size};
+use crate::document::{DocumentSelection, bounded::document_size};
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */
@@ -31,7 +31,6 @@ use crate::telemetry::TelemetrySample;
 /* === Structs === */
 
 pub(super) struct Acquired {
-    pub data: DocumentDataInput,
     pub records: crate::storage::projection::Pages<dokime_domain::model::records::evidence::RecordEntry>,
     pub artifacts: Option<harmos::storage::ReadBatch<Vec<crate::artifacts::ArtifactRecord>>>,
     pub telemetry: Option<harmos::storage::ReadBatch<Vec<TelemetrySample>>>,
@@ -84,7 +83,6 @@ pub(super) async fn acquire(
     let limits = crate::document::bounded::DocumentLimits::default();
     let (source_bytes, source_depth) = (limits.source_bytes, limits.depth);
     let mut captured = Acquired {
-        data: DocumentDataInput::default(),
         records: harmos::storage::ReadBatch::new(Vec::new()),
         artifacts: None,
         telemetry: None,

@@ -40,6 +40,19 @@ document. Repeated sections SHALL page an index of every distinct selected value
 - **WHEN** a repeat value occurs only within interior retained evidence
 - **THEN** indexed paging includes it once without loading raw history
 
+#### Scenario: Nested Pages During Ingest
+
+- **WHEN** nested repeated sections span pages and later samples arrive
+- **THEN** every continuation and its card queries use the original evidence cut and scalar context
+- **AND** every selected distinct value and authored child appears across those pages
+- **AND** later values are excluded
+
+#### Scenario: Nullable Typed Prefix Within a Saved Batch
+
+- **WHEN** a summary cut lies between aggregate checkpoints
+- **THEN** the maintained prefix and bounded remaining values match raw-row statistics
+- **AND** nulls, missing fields and integers beyond f64 precision preserve their semantics
+
 ### Requirement: Linear Record Evaluation
 
 TimeBetween and PerCase SHALL use sorted merge or single partition passes rather
