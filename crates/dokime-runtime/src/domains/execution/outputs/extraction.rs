@@ -17,16 +17,13 @@
 use std::path::Path;
 
 // Third Party Imports
-use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use crate::{execution_runtime::authoring::FileRegexMatch, runtime::Error, runtime::Result};
+use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
-
-const REGEX_SCAN_LIMIT_BYTES: usize = 2 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -124,42 +121,6 @@ impl harmos::MemorySize for ExecutionFileContent {
 }
 
 /* === Public Functions === */
-
-pub(crate) fn regex_matches(content: &ExecutionFileContent, pattern: &str, first_only: bool) -> Result<Vec<FileRegexMatch>> {
-    if content.offset != 0 || content.bytes.len() > REGEX_SCAN_LIMIT_BYTES {
-        return Err(Error::Operation("execution output regex reads must start at zero and stay within 2 MiB".to_owned()));
-    }
-    if pattern.len() as u64 > 1024 {
-        return Err(Error::Operation("regex pattern exceeds configured byte limit".into()));
-    }
-    let regex = RegexBuilder::new(pattern)
-        .size_limit(1 << 20)
-        .build()
-        .map_err(|error| Error::Operation(format!("invalid regex pattern: {error}")))?;
-    let text = std::str::from_utf8(&content.bytes)
-        .map_err(|error| Error::Operation(format!("execution output {} is not valid UTF-8: {error}", content.relative_path)))?;
-    let mut matches = Vec::new();
-    for captures in regex.captures_iter(text) {
-        let Some(full_match) = captures.get(0) else {
-            continue;
-        };
-        matches.push(FileRegexMatch {
-            full_match: full_match.as_str().to_owned(),
-            captures: (1..captures.len()).map(|index| captures.get(index).map(|capture| capture.as_str().to_owned())).collect(),
-            named_captures: regex
-                .capture_names()
-                .flatten()
-                .filter_map(|name| captures.name(name).map(|capture| (name.to_owned(), capture.as_str().to_owned())))
-                .collect(),
-            byte_offset: full_match.start() as u64,
-            line_number: Some(text[..full_match.start()].bytes().filter(|byte| *byte == b'\n').count() as u64 + 1),
-        });
-        if first_only {
-            break;
-        }
-    }
-    Ok(matches)
-}
 
 pub(crate) fn validate_producer_path(relative_path: &str) -> Result<()> {
     dokime_domain::model::execution::saved::validate_output_path(relative_path).map_err(|error| Error::Operation(error.to_string()))

@@ -15,16 +15,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-use tempfile::tempdir;
 // Local Imports
-use super::*;
+use dokime_runtime::Value;
 use dokime_runtime::definition::{
     Parameter, ParameterDefault, RustTemplate, Step, TemplateContext, authored_criterion as criterion, authored_metadata as metadata,
     authored_unit as unit,
 };
-use dokime_runtime::domains::evidence::RecordSelection;
-use dokime_runtime::domains::execution::authoring::{RuntimeResource, SidecarStepContext, StepContextError};
-use dokime_runtime::{RecordScope, Value};
 
 /* === Constants === */
 
@@ -37,10 +33,6 @@ use dokime_runtime::{RecordScope, Value};
 
 // --8<-- [start:template]
 struct TrackingTestTemplate;
-
-struct ToolSession {
-    connected: bool,
-}
 
 /* === Doc Example: Parameter Spaces And Case Expansion === */
 
@@ -73,23 +65,6 @@ impl RustTemplate for TrackingTestTemplate {
 
 // --8<-- [end:template]
 
-/* === Doc Example: Runtime Step Bodies === */
-
-// --8<-- [start:steps]
-impl TrackingTestTemplate {
-    async fn setup(&self, ctx: &mut SidecarStepContext) -> Result<(), StepContextError> {
-        let session = open_tool_session(ctx).await?;
-        ctx.resources().set_async(RuntimeResource::new("tooling.session", "tooling", "Tooling Session", session)).await?;
-        ctx.resources().mark_opened_async("tooling.session", Default::default()).await?;
-        Ok(())
-    }
-
-    async fn collect_tracking(&self, ctx: &mut SidecarStepContext) -> Result<(), StepContextError> {
-        ctx.wait_until_stopped_async().await?;
-        Ok(())
-    }
-}
-
 impl RustTemplate for MatrixTemplate {
     fn define(&self, ctx: &mut TemplateContext) {
         ctx.set_metadata(metadata("stokker.matrix", "Stokker Technologies Matrix", None));
@@ -115,12 +90,7 @@ impl RustTemplate for MatrixTemplate {
 /* === Public Functions === */
 
 /* === Private Functions === */
-// --8<-- [end:steps]
-async fn open_tool_session(_ctx: &SidecarStepContext) -> Result<ToolSession, StepContextError> {
-    Ok(ToolSession { connected: true })
-}
-
-pub(crate) async fn doc_example_contract() -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) fn doc_example_contract() -> Result<(), Box<dyn std::error::Error>> {
     // --8<-- [start:compile]
     let template = TrackingTestTemplate.to_test_case_template()?;
     // --8<-- [end:compile]
@@ -129,39 +99,6 @@ pub(crate) async fn doc_example_contract() -> Result<(), Box<dyn std::error::Err
     assert_eq!(template.phases.len(), 2);
     assert_eq!(template.criteria.len(), 1);
     assert_eq!(template.parameters.len(), 4);
-
-    Ok(())
-}
-
-pub(crate) async fn doc_example_context() -> Result<(), Box<dyn std::error::Error>> {
-    let root = tempdir()?;
-    let (mut runtime, handle) = booted(root.path()).await;
-    let scope = RecordScope::default();
-    let template = TrackingTestTemplate;
-
-    // --8<-- [start:execution]
-    // An execution adapter (a `ExecutionFixture` implementation) receives
-    // a runtime handle plus the scope of the scheduled execution, builds the
-    // step context, and drives the async step bodies in declaration order.
-    let mut ctx = SidecarStepContext::with_source(handle.clone(), scope, "example.tracking");
-    template.setup(&mut ctx).await?;
-    // --8<-- [end:execution]
-
-    assert!(ctx.resources().get::<ToolSession>("tooling.session").is_some_and(|session| session.connected));
-    let records = handle.selected_records(RecordSelection::default()).await.unwrap();
-    let record_types = records.iter().map(|record| record.record_type.as_str()).collect::<Vec<_>>();
-    assert!(record_types.contains(&"resource.registered"));
-    assert!(record_types.contains(&"resource.opened"));
-
-    // --8<-- [start:stop]
-    // Stopping the cycle (here: shutting the whole runtime down) makes the
-    // cancellation-aware waits return, so `collect_tracking` completes.
-    let shutdown = tokio::spawn(async move { runtime.shutdown().await });
-    template.collect_tracking(&mut ctx).await?;
-    drop(ctx);
-    drop(handle);
-    shutdown.await??;
-    // --8<-- [end:stop]
 
     Ok(())
 }
