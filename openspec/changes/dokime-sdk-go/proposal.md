@@ -16,3 +16,7 @@ Test engineers should write Dokime suites in Go, on top of Harmos's Go SDK.
 - A thin layer over Harmos's SDK, pinned to a Harmos revision.
 - Depends on `harmos-sdk-go`.
 - Sidecars only.
+
+## Distribution
+
+A Go module under `sdk/go`, installed with `go get` and released with subfolder tags. mise pins Go.

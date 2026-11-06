@@ -36,6 +36,7 @@
 - [ ] 5.2 Add `test:python:system` with the end-to-end story on Windows and Linux, wired into Nightly only.
 - [ ] 5.3 Add Python examples, and update the README, the comparison table and the remote and plugin guides.
 - [ ] 5.4 Update `AGENTS.md` and `docs/tooling.md` where the package changes project structure or tasks.
+- [ ] 5.5 Add the `dokime new --lang python` template with `main.py` and `plugin/`.
 
 ## 6. Final Validation
 

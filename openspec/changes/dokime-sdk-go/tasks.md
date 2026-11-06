@@ -6,6 +6,7 @@
 - [ ] 1.2 Add `cargo dokime` support for building and bundling a Go plugin.
 - [ ] 1.3 Add a sample plugin, a starter template and documentation.
 - [ ] 1.4 Add the Nightly system test and update the README comparison table.
+- [ ] 1.5 Add the `dokime new --lang go` template, and teach `sidecar dev` and `sidecar package` the Go build through its collected-build file.
 
 ## 2. Final Validation
 
