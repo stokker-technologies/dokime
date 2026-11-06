@@ -117,15 +117,15 @@ function startCanvasFixture() {
             timeAxis: !faceted,
             markers: withMarkers
               ? [
-                  { x: x[4], label: "Event One", record_type: "event-one", color: "" },
+                  { x: x[4], label: "fixture ".repeat(40), record_type: "event-one", color: "" },
                   { x: x[8], label: "Event Two", record_type: "event-two", color: "" },
-                  { x: x[14], label: "Event One Again", record_type: "event-one", color: "" },
+                  { x: x[14], label: "fixture".repeat(40), record_type: "event-one", color: "" },
                 ]
               : [],
             promptMarkers: withMarkers
               ? [
-                  { x: x[6], title: "Fixture", kind: "asked" },
-                  { x: x[12], title: "Fixture", kind: "answered" },
+                  { x: x[6], title: "fixture ".repeat(40), kind: "asked" },
+                  { x: x[12], title: "fixture".repeat(40), kind: "answered" },
                 ]
               : [],
             legend: { summaries: series.map((item) => ({ series_id: item.key, count: 10 })), pending: false },
