@@ -89,6 +89,10 @@ impl StorageRoot {
         &self.data
     }
 
+    pub fn application(&self) -> &Path {
+        &self.application
+    }
+
     pub fn verify(&self, confirmed: &Path) -> Result<(), Error> {
         if confirmed != self.data {
             return Err(refusal(

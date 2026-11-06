@@ -350,8 +350,13 @@ async fn settle(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, request: &
                 .boxed_local()
                 .await;
         }
-        let cycle =
-            runtime.cycles().await.into_iter().find(|cycle| &cycle.test_cycle_id == test_cycle_id).expect("the steady cycle exists");
+        let cycle = runtime
+            .cycles()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|cycle| &cycle.test_cycle_id == test_cycle_id)
+            .expect("the steady cycle exists");
         let settled = runtime.run_request(request).await.unwrap().is_some_and(|receipt| receipt.summary.phase.terminal());
         if settled && cycle.test_executions.iter().all(|execution| execution.saved.is_some()) {
             runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();

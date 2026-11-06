@@ -105,6 +105,14 @@ natural completion and evidence drain; it defaults to false. Stop durably disabl
 continuation policy. Each execution saves and seals its evidence while its cycle stays
 Active. Select the destination cycle in the Library before adding attempts.
 
+After an execution seals, managed recovery state keeps its control summary and
+frozen plan. Generated telemetry outputs and artifact inventories remain in native
+execution storage. Complete inspection reads that durable revision. Retiring a
+sealed cycle also releases its completed requests and consumed case registrations;
+saved cases can be reused without retaining every earlier cycle in recovery state.
+Development roots without durable case registration revisions require a fresh
+storage root. Existing roots are never reset automatically; storage remains v1.
+
 **Seal Cycle** closes admission immediately, stops that cycle's running work,
 cancels unrun executions and waits for every execution and the cycle report to
 be durably saved. Other cycles continue. Shutdown stops running executions

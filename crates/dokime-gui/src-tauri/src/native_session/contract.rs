@@ -36,6 +36,7 @@ pub struct DesktopSessionSnapshot {
     pub ownership: BackendOwnership,
     pub phase: Option<String>,
     pub archived_bytes: Option<u64>,
+    pub archive: Option<String>,
     pub connection: ConnectionSnapshot,
 }
 
@@ -44,6 +45,13 @@ pub struct DesktopSessionSnapshot {
 pub struct BackendDiagnostics {
     pub cause: String,
     pub log: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageBackupDestination {
+    pub directory: String,
+    pub archive: String,
 }
 
 /* === Enums === */

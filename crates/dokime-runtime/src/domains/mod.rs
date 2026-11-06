@@ -37,9 +37,6 @@ pub mod installed_plugins;
 pub mod media;
 
 #[cfg(feature = "native")]
-pub mod parameters;
-
-#[cfg(feature = "native")]
 pub mod prompts;
 
 #[cfg(feature = "native")]

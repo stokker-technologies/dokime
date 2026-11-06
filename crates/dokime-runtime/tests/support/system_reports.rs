@@ -142,7 +142,7 @@ pub fn reopen(path: &Path, id: &str, expected_artifacts: &BTreeMap<String, Artif
 
 pub async fn finalize(handle: &RuntimeHandle) {
     let root = tempfile::tempdir().unwrap();
-    let cycles = handle.cycles().await;
+    let cycles = handle.cycles().await.unwrap();
     let mut saved = 0;
     let mut artifacts_saved = 0;
     for cycle in cycles {

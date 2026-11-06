@@ -147,6 +147,7 @@ impl ExportFixture {
                     .runtime
                     .cycles()
                     .await
+                    .unwrap()
                     .into_iter()
                     .find(|stored| stored.test_cycle_id == cycle)
                     .is_some_and(|stored| stored.test_executions.first().is_some_and(|execution| execution.saved.is_some()));
@@ -158,7 +159,7 @@ impl ExportFixture {
         };
         let deadline = <dokime_runtime::operations::reports::MaterializeReport as harmos::OperationDeclaration>::POLICY.timeout;
         tokio::time::timeout(deadline, settle).await.expect("benchmark execution finalizes");
-        let cycles = fixture.runtime.cycles().await;
+        let cycles = fixture.runtime.cycles().await.unwrap();
         let execution = &cycles.iter().find(|stored| stored.test_cycle_id == cycle).unwrap().test_executions[0];
         assert_eq!(execution.status, dokime_runtime::ExecutionStatus::Passed);
         let subject = EvidenceSubject::Execution(execution.test_execution_id.to_string());

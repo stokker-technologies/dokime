@@ -118,7 +118,7 @@ function startCanvasFixture() {
             markers: withMarkers
               ? [
                   { x: x[4], label: "fixture ".repeat(40), record_type: "event-one", color: "" },
-                  { x: x[8], label: "Event Two", record_type: "event-two", color: "" },
+                  { x: x[6], label: "Event Two", record_type: "event-two", color: "" },
                   { x: x[14], label: "fixture".repeat(40), record_type: "event-one", color: "" },
                 ]
               : [],

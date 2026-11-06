@@ -56,6 +56,14 @@ pub struct Case {
 
     generation_index: u64,
     label_number: u64,
+    definition_revision: String,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+pub struct Registration {
+    pub(crate) id: String,
+    pub(crate) cases: Vec<String>,
 }
 
 /* === Enums === */
@@ -79,6 +87,21 @@ impl StoredObject for Case {
     }
 }
 
+impl Identified for Registration {
+    fn definition() -> (DefinitionId, u32) {
+        (DefinitionId::new("dokime.object.case_registration"), 1)
+    }
+}
+
+impl StoredObject for Registration {
+    type Key = str;
+    const RETENTION: ObjectRetention = ObjectRetention::Latest;
+
+    fn key(&self) -> &str {
+        &self.id
+    }
+}
+
 impl TryFrom<&TestCase> for Case {
     type Error = Error;
 
@@ -96,6 +119,7 @@ impl TryFrom<&TestCase> for Case {
             parameters: values::encode(&case.parameters)?,
             generation_index: case.generation_index,
             label_number: case.label_number,
+            definition_revision: String::new(),
         })
     }
 }
@@ -122,6 +146,10 @@ impl TryFrom<Case> for TestCase {
 }
 
 impl Case {
+    #[cfg(feature = "native")]
+    pub(crate) fn capture_revision(&mut self, revision: String) {
+        self.definition_revision = revision;
+    }
     pub fn encoding_memory(case: &TestCase) -> Result<usize> {
         if case.suite_id.trim().is_empty() {
             return Err(Error::Invalid("case requires its owning suite registration"));
@@ -173,6 +201,19 @@ pub async fn read(storage: &crate::storage::Manager, id: &CaseId) -> Result<Opti
         return Err(Error::Invalid("case projection memory overflows"));
     }
     Ok(Some(stored.try_map(|stored| stored.value.try_into())?))
+}
+
+#[cfg(feature = "native")]
+pub(crate) async fn read_registered(
+    storage: &crate::storage::Manager, id: &CaseId,
+) -> Result<Option<harmos::storage::ReadBatch<(TestCase, String)>>> {
+    let Some(stored) = storage.read_object::<Case>(id.as_str(), ObjectVersion::Latest).await? else {
+        return Ok(None);
+    };
+    Ok(Some(stored.try_map(|stored| {
+        let revision = stored.value.definition_revision.clone();
+        Ok::<_, Error>((stored.value.try_into()?, revision))
+    })?))
 }
 
 /* === Private Functions === */

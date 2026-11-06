@@ -132,13 +132,13 @@ native_commands! {
     // where the operator picks; `None` when the operator cancels.
     async desktop_storage_backup_destination
         [window: tauri::WebviewWindow, app: tauri::AppHandle]
-        (choose: bool) -> Result<Option<String>, crate::native_session::DesktopSessionError>
+        (choose: bool) -> Result<Option<crate::native_session::StorageBackupDestination>, crate::native_session::DesktopSessionError>
         => crate::native_session::desktop_storage_backup_destination;
 
     // After a failed owned start: archive the data root, reset it and restart.
     async desktop_backup_reset_local_storage
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::native_session::DesktopSessionControl>]
-        (archive: String) -> Result<crate::native_session::DesktopSessionSnapshot, crate::native_session::DesktopSessionError>
+        (directory: String, archive: String) -> Result<crate::native_session::DesktopSessionSnapshot, crate::native_session::DesktopSessionError>
         => crate::native_session::desktop_backup_reset_local_storage;
 
     async desktop_open_path

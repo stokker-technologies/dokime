@@ -226,6 +226,7 @@ impl ExecutionStorage {
                     updated_at: output.created_at.clone(),
                 });
             }
+            entries.sort_unstable_by(|left, right| left.relative_path.cmp(&right.relative_path));
             Ok(entries)
         })
         .await

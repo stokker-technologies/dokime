@@ -94,8 +94,6 @@ impl Fixture {
         assert_eq!(receipt.status, CommandStatus::Accepted);
         executor.wait_until_entered().await;
         let scope = runtime.watch_state().latest().state().executions[&execution].capture_scope();
-        let context = dokime_runtime::domains::execution::authoring::SidecarStepContext::new(runtime.clone(), scope.clone());
-        context.set_traceability_parameter_async("device.serial", "deterministic-obc-001").await.unwrap();
 
         let mut rows = 0;
         for contract in support::contracts::suite_telemetry_contracts() {

@@ -14,6 +14,31 @@ Contributions name only populated catalogs: `Suites`, `Records`, `Evidence`, `Ru
 
 The plugin declaration implements `dokime::Plugin`; resource ownership implements the shared `dokime::harmos::Lifecycle` separately. Its async `prepare(config, &mut Setup<Self>)` registers shared resources and prepares suites with `dokime::execution::prepare::<Self, Suites>(setup)`. `initialize` activates those resources, followed by serving, `stop` and `cleanup`. Mutable resources use `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Observers receive an execution context and read named resources through `context.resource::<T>()`. Process observers require `#[dokime::observer(interval_ms = …)]` (a constant expression of at least 1 ms). They may implement `fn interval(resources: &ExecutionContext) -> Result<Duration, Error>` beside `observe` to override the declared initial interval; otherwise the declaration applies. Harmos resolves the interval once at activation before initialization and sampling. Manual generic observers declare `Observer::INTERVAL` and inherit the same fallback. Host observer defaults and settings defaults share constants in `settings.rs`. Cadence is absent from static observer inventories. Template-local observer functions keep their separate `interval_ms` declaration.
 
+## Hand-Authored Steps
+
+A hand-authored step reads as a list of operations. Each action is a Title Case
+comment, a `let operation` binding and one `ctx.call`, with a blank line between
+actions:
+
+```rust
+#[dokime::step(label = "Prepare")]
+async fn preparation(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
+    // Enable Remote Control
+    let operation = SetChamberSettings::from([("RemoteControl", "true")]);
+    ctx.call(operation).await?;
+
+    // Start Chamber Service
+    let operation = StartChamberService {};
+    ctx.call(operation).await?;
+
+    // Wait Until Chamber Is Ready
+    let operation = WaitUntilChamberReady {};
+    ctx.call(operation).await?;
+
+    Ok(())
+}
+```
+
 ## Layout
 
 ```text

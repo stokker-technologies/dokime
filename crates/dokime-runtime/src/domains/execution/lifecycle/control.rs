@@ -43,6 +43,8 @@ impl RuntimeHandle {
     pub(crate) async fn capture_report_lifecycle(
         &self, execution: &dokime_domain::model::execution::result::TestExecution,
     ) -> crate::runtime::Result<crate::transactions::ReportLifecycle> {
+        let gate = self.execution_storage.lifecycle_gate(&execution.test_execution_id).await?;
+        let _capture = gate.lock().await;
         let captured = |runtime: &Self| {
             runtime.state_read().report_finalizations.get(&execution.test_execution_id).and_then(|intent| intent.lifecycle.clone())
         };
@@ -486,9 +488,24 @@ impl RuntimeHandle {
             })
             .await
             .map_err(|error| Error::Operation(error.to_string()))?;
-            let summary = self.state_read().run_requests[&request_id].summary.clone();
-
-            self.request_storage.update(&request_id, |receipt| receipt.summary = summary).await?;
+        }
+        // Sealed Cycles May Retire Their State Receipts. Publish Every Terminal
+        // Receipt First, Including A Completion Whose Earlier Save Was Interrupted.
+        let completed = self
+            .state_read()
+            .run_requests
+            .values()
+            .filter(|request| request.summary.cycle_id == test_cycle_id)
+            .map(|request| (request.summary.clone(), request.interruption()))
+            .collect::<Vec<_>>();
+        for (summary, interruption) in completed {
+            let request = summary.request_id.clone();
+            self.request_storage
+                .update(&request, |receipt| {
+                    receipt.summary = summary;
+                    receipt.interruption = interruption;
+                })
+                .await?;
         }
         self.dispatch_next_request().await;
         let sealed = self.seal_settled_cycle(&test_cycle_id).await;

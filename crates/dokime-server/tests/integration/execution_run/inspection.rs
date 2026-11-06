@@ -19,8 +19,8 @@
 
 // Local Imports
 use super::*;
+use dokime::Value;
 use dokime::domain::model;
-use {dokime::Value, dokime::domains::execution::authoring::SidecarStepContext};
 
 /* === Constants === */
 
@@ -102,7 +102,7 @@ pub(crate) async fn inspection_separates_outputs() {
             code
         );
     }
-    let selected = owner.handle().cycles().await.remove(0).test_executions.remove(0).test_execution_id.to_string();
+    let selected = owner.handle().cycles().await.unwrap().remove(0).test_executions.remove(0).test_execution_id.to_string();
     for unknown_variant in [false, true] {
         let refused = client
             .invalid_enum::<contracts::execution::StartExecution, model::execution::wire::ExecutionMode>(
@@ -116,7 +116,7 @@ pub(crate) async fn inspection_separates_outputs() {
             .await
             .unwrap_err();
         assert_eq!(refused.code(), Code::InvalidArgument);
-        assert_eq!(owner.handle().cycles().await.remove(0).test_executions.remove(0).started_at, None);
+        assert_eq!(owner.handle().cycles().await.unwrap().remove(0).test_executions.remove(0).started_at, None);
     }
     client
         .unary::<contracts::execution::StartExecution>(authenticated(contracts::execution::StartExecution {
@@ -127,7 +127,7 @@ pub(crate) async fn inspection_separates_outputs() {
         .unwrap();
     gate.started.notified().await;
     let handle = owner.handle();
-    let native = handle.cycles().await.remove(0).test_executions.remove(0);
+    let native = handle.cycles().await.unwrap().remove(0).test_executions.remove(0);
     let execution_id = native.test_execution_id.to_string();
     assert_eq!(
         client
@@ -151,10 +151,18 @@ pub(crate) async fn inspection_separates_outputs() {
         .await
         .unwrap()
         .into_inner();
-    let context = SidecarStepContext::new(handle.clone(), native.scope.clone());
-    assert!(context.set_runtime_parameter_async("fixture.result", "changed output").await.unwrap());
-    assert!(context.set_runtime_parameter_async("counter", i64::MAX).await.unwrap());
-    assert!(context.set_runtime_parameter_async("nullable", Value::Null).await.unwrap());
+    let output_parameter = |key: &str, value: Value| dokime::transactions::UpsertScopedParameter {
+        scope: native.scope.clone(),
+        key: key.into(),
+        value,
+        source: dokime::definition::ParameterSource::Runtime,
+        metadata: None,
+        group_id: None,
+        unit: None,
+    };
+    dokime_runtime::testing::commit(&handle, output_parameter("fixture.result", "changed output".into())).await.unwrap();
+    dokime_runtime::testing::commit(&handle, output_parameter("counter", i64::MAX.into())).await.unwrap();
+    dokime_runtime::testing::commit(&handle, output_parameter("nullable", Value::Null)).await.unwrap();
     let after = client
         .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
             model::execution::wire::ExecutionParameterSet::Inputs,
@@ -203,7 +211,7 @@ pub(crate) async fn inspection_separates_outputs() {
     );
     output_request.after_name = first.next_after_name.unwrap();
     output_request.cursor = first.cursor;
-    assert!(context.set_runtime_parameter_async("counter", i64::MIN).await.unwrap());
+    dokime_runtime::testing::commit(&handle, output_parameter("counter", i64::MIN.into())).await.unwrap();
     assert_eq!(
         client.unary::<contracts::execution::ListExecutionParameters>(authenticated(output_request)).await.unwrap_err().code(),
         Code::Aborted
@@ -303,7 +311,6 @@ pub(crate) async fn inspection_separates_outputs() {
         None
     })
     .await;
-    drop(context);
     drop(handle);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();

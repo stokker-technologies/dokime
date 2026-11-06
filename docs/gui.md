@@ -40,6 +40,27 @@ remote backend, or close the other instance and retry. An attached connection us
 its existing client preferences when the occupied Local backend cannot supply them.
 Storage reset and backup still refuse an occupied folder with `BackendRunning`.
 
+After Start Local Backend fails, including corrupt data, decode errors or an
+incompatible storage format, the connection screen offers **Back Up And Reset**.
+It is absent for `BackendRunning`. The confirmation names the data folder and
+timestamped ZIP destination beside it, and explains that the folder's contents
+will be removed after backup. Cancelling changes nothing. A failed backup never
+deletes data. The existing reset steps report stopping, archiving (with bytes),
+deleting, reinstalling plugins and starting. Success shows the archive path in
+Notifications; a later restart failure retains it on the connection screen.
+
+Recovery copies installed bundles before clearing execution storage and restores
+their readable enabled state and settings that the current declarations accept.
+It reads plugin metadata independently of execution schema validation; when that
+metadata is unreadable, bundle files are recovered with default enabled state and
+settings. Readable metadata limits restoration to recorded installations; removed
+installations and orphan bundle files stay uninstalled. Bundled plugins use normal startup
+installation. Each restored bundle passes ordinary verification and admission:
+a refused bundle stays visible with its failure in Settings › Plugins and does
+not prevent recovery or startup. Credentials are untouched; readable node identity
+and the secret catalog survive so existing secrets remain addressable. The ZIP
+retains the original files even when their metadata cannot be decoded.
+
 ## Cycle Lists And Restart Recovery
 
 The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
@@ -50,8 +71,16 @@ another cycle or restarting the desktop. Archive selection applies to both sourc
 
 `state.json` and `state.jsonl` under the data root recover current work. Sealed
 cycles are retired from that state to keep checkpoints bounded; their durable
-history remains the source for subsequent reads. Startup marks unfinished
-executions Interrupted, records the restart reason, and closes admission to their
+history remains the source for subsequent reads.
+
+Sealed executions retain their control summary and frozen plan in managed state;
+generated telemetry outputs and artifact inventories are read from their durable
+execution revisions. Completed request receipts and consumed case registrations
+leave managed state with their sealed cycle. Reusing a case reloads its saved
+definition and revision; retirement never permits reusing an execution identity.
+The final shutdown checkpoint also retires the latest sealed cycle.
+
+Startup marks unfinished executions Interrupted, records the restart reason, and closes admission to their
 cycles before accepting new work. Interrupted cycles report Stopped. Pending
 report finalization resumes from its frozen terminal header. A seal that cannot
 complete settles as Seal Failed: the Cycles home lists it under Needs Attention,
@@ -164,6 +193,7 @@ the plot card, like trace visibility. Frozen HTML reports retain these toggles.
 Marker colors come from the theme's plot palette, and hovering a visible marker
 shows its recorded label through the same tooltip for events and prompts; markers
 never draw permanent canvas labels. The tooltip stays inside the plot card,
+and prompt labels take precedence over event labels at the same position. It
 wraps long labels and ellipsizes after three lines while retaining the start.
 Live plots and frozen HTML reports share this behavior. There is no separate
 prompt-marker control.
