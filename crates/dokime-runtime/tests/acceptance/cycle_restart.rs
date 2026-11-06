@@ -163,6 +163,11 @@ async fn cycle_restart_child() {
     // The Start Receipt Covers One Execution; Ordered Continuation Finishes The Cycle.
     let completed = crate::service_support::waits::wait_for_cycle_outcome(&runtime, &id, ResultStatus::Passed).await;
     assert_eq!(completed.test_executions.len(), 2);
+    // Natural Completion Publishes Member Reports In The Background.
+    for execution in &completed.test_executions {
+        runtime.wait_execution_report(&execution.test_execution_id).await.unwrap();
+    }
+    let completed = crate::service_support::waits::cycle_snapshot(&runtime, &id).await;
     assert!(completed.test_executions.iter().all(|execution| execution.saved.is_some()));
     runtime.seal_cycle(id, CommandContext::default()).await.unwrap();
     tokio::time::timeout(Duration::from_secs(180), std::future::pending::<()>())
