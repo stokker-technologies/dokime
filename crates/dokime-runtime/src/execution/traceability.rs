@@ -88,7 +88,7 @@ impl<'a> TraceabilityHandle<'a> {
 
 /* === Tests === */
 
-#[cfg(test)]
+#[cfg(all(test, feature = "testing"))]
 mod tests {
     use super::*;
     use crate::transport::recording::RecordingTransport;

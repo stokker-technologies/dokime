@@ -332,7 +332,7 @@ xcap = { workspace = true, optional = true }
 [[test]]
 name = "integration"
 path = "tests/integration/main.rs"
-required-features = ["native"]
+required-features = ["testing"]
 
 [[test]]
 name = "acceptance"

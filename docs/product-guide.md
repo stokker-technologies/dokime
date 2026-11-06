@@ -199,8 +199,7 @@ Remote files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
 `endpoints` (an ordered nonempty list), `backend_identifier`, `label`,
 `ca_certificate_pem` and `access_key`. CA/key values may be null for explicitly
 unsecured lab listeners. Unknown fields, invalid identities or PEM, wildcard
-origins and inconsistent TLS/CA combinations are rejected. `.dokime-pair` files
-and the old single `endpoint` format are unsupported. The remote security store
+origins and inconsistent TLS/CA combinations are rejected. The remote security store
 also keeps format v1; old stores require a fresh application root and are never
 silently reset.
 
