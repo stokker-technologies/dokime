@@ -491,7 +491,7 @@ impl PluginHost {
             return restarts::Outcome::Deferred(settling);
         }
 
-        // Values Saved From Here On Ask For One More Restart.
+        // Reload Requests From Here On Ask For One More Restart.
         self.handle.plugin_restarts.begin(&restarts::Target::Program(plugin.to_owned()));
         let planned = match self.plan_reinitialization(plugin).await {
             Ok(planned) => planned,

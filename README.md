@@ -283,6 +283,9 @@ once and refreshes only when Refresh is pressed. Reports always cover all captur
 All delivers each plot independently from bounded report previews, so one plot's
 failure leaves the others available. Markers follow the display point budget.
 
+Live summary tiles fold finite saved-evidence queries with bounded memory. Document
+capture no longer rejects estimated work based on retained source-row count.
+
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.
 

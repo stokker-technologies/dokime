@@ -1,4 +1,4 @@
-# host-telemetry Specification
+# Host Telemetry Specification
 
 ## Purpose
 Defines the host telemetry streams, including separate Wi-Fi streams and internet connectivity observation.
@@ -81,7 +81,7 @@ The host plugin SHALL answer `host.network.adapters` with every adapter's identi
 
 ### Requirement: Host Native Probe Settings
 
-Host native probe tunables SHALL be declared through plugin settings in `settings.rs`, with validated bounds and defaults preserving current behavior. Settings SHALL resolve at plugin startup and apply on restart or Retry. Compile-time SDK declarations SHALL retain explicit centralized defaults until the SDK supports runtime configuration; unused editable settings SHALL NOT imply unsupported behavior.
+Host native probe tunables SHALL be declared through plugin settings in `settings.rs`, with validated bounds and defaults preserving current behavior. Settings SHALL resolve at plugin startup and apply on explicit Reload or backend startup. Each observer SHALL resolve its collection interval from the prepared settings snapshot on activation, including activation after Reload.
 
 #### Scenario: Configured Bluetooth Cache Refresh
 

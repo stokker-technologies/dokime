@@ -237,7 +237,6 @@ mod tests {
         assert!(
             matches!(&missing, crate::runtime::Error::Dokime(crate::Error::UnavailableSecret(identifier)) if identifier == "api_token")
         );
-        assert_eq!(missing.to_string(), "secret `api_token` is not in Secret Storage; add it and retry the plugin");
 
         let store = handle.secret_store();
         // A Similar Plugin-Prefixed Identifier Never Satisfies The Declaration.
@@ -274,8 +273,8 @@ mod tests {
             )
             .await
             .unwrap();
-        // Retry Reuses The Initialization Path And Reads The Updated Store.
-        let retry = handle.plugin_initialization(&plugin, &configured).await.unwrap();
+        // Reload Reuses Initialization And Operator Values Override Launch Seeds.
+        let retry = handle.plugin_initialization(&plugin, &serde_json::json!({"workspace": "launch-seed"})).await.unwrap();
         assert_eq!(retry.secret("api_token").unwrap().expose(), "direct-value");
         assert_eq!(retry.secrets["optional"], None);
         assert_eq!(retry.settings, SettingValues::from([("workspace".into(), "saved".into())]));

@@ -85,7 +85,7 @@ impl Projection {
             }
             offset += count;
         }
-        let mut used = buffer.len() as u64 + index.rows.saturating_mul(64);
+        let mut used = buffer.len() as u64;
         for buffer_index in selected {
             if buffer_index >= buffers.len() {
                 return Err(Error::Corrupt("query buffer layout differs"));
@@ -110,7 +110,11 @@ impl Projection {
             used = used.saturating_add(decoded.saturating_mul(2));
         }
         if used > maximum as u64 {
-            return Err(Error::Data("decoded query batch exceeds working budget"));
+            return Err(Error::Budget {
+                budget: "decoded_bytes",
+                limit: maximum as u64,
+                reached: used,
+            });
         }
         Ok(())
     }
@@ -325,7 +329,14 @@ mod tests {
     fn query_decoded_budget() {
         let (batch, buffer, index) = fixture();
         let projection = Projection::new(batch.schema(), &["position"], &["unsigned".into()]).unwrap();
-        assert!(projection.check_budget(&buffer, &index, buffer.len()).is_err());
+        match projection.check_budget(&buffer, &index, buffer.len()).unwrap_err() {
+            Error::Budget { budget, limit, reached } => {
+                assert_eq!(budget, "decoded_bytes");
+                assert_eq!(limit, buffer.len() as u64);
+                assert!(reached > limit);
+            }
+            error => panic!("unexpected decode failure {error}"),
+        }
         assert!(projection.check_budget(&buffer, &index, buffer.len() + 1024).is_ok());
     }
 

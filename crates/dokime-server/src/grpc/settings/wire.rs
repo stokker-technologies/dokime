@@ -96,6 +96,7 @@ pub(super) fn encode_plugin_settings(
     let response = dokime::domain::model::settings::wire::PluginRuntimeSettings {
         settings: Some(encode_settings(settings.settings)?),
         values: Some(values),
+        unapplied: settings.unapplied,
         discovered: Some(discovered),
         secrets: settings
             .secrets

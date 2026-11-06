@@ -37,13 +37,14 @@ use dokime_domain::model::secrets::SecretAvailability;
 pub struct RuntimePluginSettings {
     pub settings: Settings,
     pub values: SettingValues,
+    pub unapplied: Vec<String>,
 
     #[serde(default)]
     pub discovered: SettingValues,
 
     pub secrets: Vec<SecretAvailability>,
 
-    // Whether saved values are waiting to reach the running program.
+    // Whether an explicitly requested reload is waiting or starting.
     #[serde(default)]
     pub restart: PluginRestart,
 }

@@ -5,7 +5,7 @@ with the bundle's display name and the underlying cause. The verified ordinary
 settings remain editable even when the plugin could not start. Secret declarations
 show their shared Secret Storage identifiers and availability read-only. Use
 **Add In Secret Storage** to open Add Secret prefilled with a missing identifier,
-then use **Retry** on the plugin page, which starts that plugin again while Dokime
+then use **Reload** on the plugin page, which starts that plugin again while Dokime
 keeps running. There are no secret bindings or environment-variable sources.
 Notification history retains the settings link.
 
@@ -219,7 +219,7 @@ Its bundle and release-feed name are `plugin-host`; the stored sidecar owner is
 `plugin_host`, using Harmos's portable owner spelling; `host` names application-owned operations
 in Harmos. The bundle is `plugin-host.dokime`, with `host.*` stream and operation IDs.
 The host sidecar declares no automatic restart: a process fault deactivates it
-until an explicit reload, a settings save that changes a value, or the next startup.
+until an explicit reload or the next startup.
 
 Host observers run only while their streams are leased. Execution subscriptions
 and live plot viewers hold those leases; releasing the last lease stops the
@@ -255,12 +255,14 @@ and do not run plugin lifecycle hooks.
 Installed packages with unavailable or circular contracts are refused while
 unrelated plugins start normally. Settings → Plugins retains the boot reason,
 and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
-A settings save that changes a value starts a new generation of that plugin and
-its dependents through the same reload, with a configuration built from the saved
-values, once no cycle is active. A restart refused before
-the program stops, for example because its saved values or a required secret do
-not resolve, keeps the running generation and records why; one whose new
-generation then fails to start is recorded like a failed boot.
+Launch configuration seeds unsaved fields; explicitly saved values take precedence.
+Saving settings preserves the running generation and its settings snapshot in execution evidence. The backend compares saved
+values with that generation's startup values and reports differing setting IDs.
+The GUI marks these **Applied On Reload**. **Reload** reads saved settings and
+restarts the program, its dependents and all their observers, including
+`activation = "plugin"` observers, which resolve their new collection intervals.
+A reload refused before the program stops keeps the running generation and its
+pending setting marks; a generation that fails to start is recorded like a failed boot.
 Unavailable-contract reasons identify the owner and required contract; cycle
 reasons identify every involved plugin.
 
@@ -349,7 +351,7 @@ They live in `PluginPreferences` in
 `crates/dokime-domain/src/model/settings/application.rs`, are edited under
 **Settings › Plugins** and are read again at every start, restart and stop, so a
 saved change applies to the next one, including live installation changes and
-settings restarts.
+explicit plugin reloads.
 
 | Setting | Default | Range | Bounds |
 | --- | --- | --- | --- |
@@ -373,7 +375,7 @@ Installing, reinstalling or updating a bundle, and enabling, disabling or removi
 one, take effect in the running backend without restarting Dokime. The plugin
 store records the change first, and the backend's restarter
 (`crates/dokime-runtime/src/runtime/plugins/installs.rs`) then brings the running
-programs in line with it through the same reload as a settings restart: a new
+programs in line with it through the same reload as an explicit Reload: a new
 bundle starts, a changed bundle replaces the running generation, and a disabled or
 removed bundle stops. Each change is admitted like a startup. The desired catalog
 is validated as a whole before anything stops: conflicting catalogs, unavailable
@@ -381,7 +383,7 @@ or circular contracts, and the packages that need a removed or refused provider.
 A package that loses a provider it requires stops with it and records why, so the
 running set matches what the next start would admit.
 
-Every queued change, settings restarts included, waits while work can still reach
+Every queued installation change or explicit reload waits while work can still reach
 a plugin: a running, paused or stopping execution, a prepared run, the gap before
 automatic continuation starts its next case, or plugin streams still draining.
 The plugin shows **Restart Pending** and the change applies automatically once
@@ -392,8 +394,8 @@ A cycle left open and idle holds no plugin. Sealing and report publication after
 completion, including a failed or stuck seal, hold no plugin either. Executions
 are never stopped or disturbed for a change, and further
 changes to the same package join the one that waits, applying the latest.
-**Retry** of a plugin that does not run starts it at once, even while a cycle is
-active, because nothing running stops; retrying a running plugin restarts it once
+**Reload** of a plugin that does not run starts it at once, even while a cycle is
+active, because nothing running stops; reloading a running plugin restarts it once
 no work can reach a plugin.
 
 Finalization, Retry Seal and history reads use the frozen documents, appearance,
@@ -414,7 +416,7 @@ previous bundle back as a fresh generation. Either way the previous installation
 stays installed with its saved values, and the refused one is listed as
 **Refused** with its failure, reported like a failed startup, until the next start
 deletes its file. A first installation that fails stays installed with its
-failure; **Retry** starts it again once the cause is fixed. Removal stops the
+failure; **Reload** starts it again once the cause is fixed. Removal stops the
 plugin live once no work can reach a plugin, then discards its row and managed file.
 Successful replacements discard the old installation in the same way. If deletion
 fails, the row and its error stay visible until startup retries. Unreferenced

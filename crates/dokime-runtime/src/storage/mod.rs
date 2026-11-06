@@ -82,6 +82,9 @@ pub enum Error {
     #[error("invalid storage catalog operation: {0}")]
     Catalog(String),
 
+    #[error("storage budget {budget} exceeded (limit {limit}, reached {reached})")]
+    Budget { budget: &'static str, limit: u64, reached: u64 },
+
     #[error("SQLite data: {0}")]
     Data(&'static str),
 

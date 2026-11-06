@@ -51,6 +51,7 @@ pub(in crate::runtime) struct Adapter<'a> {
 
 pub(in crate::runtime) struct Sidecar {
     services: crate::app::OperationManager,
+    settings: Arc<super::restarts::Restarts>,
     publications: PublicationIngest,
     program: Program,
     package: String,
@@ -260,6 +261,7 @@ impl Adapter<'_> {
 
         Ok(Backend::Sidecar(Sidecar {
             services: self.handle.operations.clone(),
+            settings: Arc::clone(&self.handle.plugin_restarts),
             publications: self.publications.clone(),
             program: program.clone(),
             package: name.clone(),
@@ -290,7 +292,17 @@ impl Adapter<'_> {
         };
         let program = &sidecar.program;
         let bindings = program.bindings.clone();
+        let configuration: crate::plugin::Configuration = serde_json::from_slice(&artifact.configuration).map_err(operation)?;
+        let configured = program
+            .configured
+            .as_object()
+            .into_iter()
+            .flatten()
+            .map(|(id, value)| crate::Value::from_plain_json(value.clone()).map(|value| (id.clone(), value)))
+            .collect::<std::result::Result<_, _>>()
+            .map_err(operation)?;
         sidecar.start(self.handle, router, authority).await?;
+        self.handle.record_plugin_settings(&artifact.id, configuration.settings, configured);
         self.packages.get_mut(&sidecar.package).expect("the prepared package is retained").running.push(Running {
             source: artifact.id.clone(),
             exposed: false,
@@ -437,6 +449,7 @@ impl Sidecar {
         }
         self.sdk.take();
         self.scope = None;
+        self.settings.forget_settings(self.program.executable.id());
 
         // Replaced packages release their preparation reference. The last old
         // generation owns deletion and keeps its receipt when deletion fails.

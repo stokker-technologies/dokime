@@ -160,6 +160,15 @@ rechecks the cut and releases its reader transaction. Later arrivals are exclude
 by the physical frontier even when their timestamps fall inside the window.
 Captured contracts include retained Arrow versions from the selected execution or cycle, within the schema budget. For streams already present in that scope, persisted Arrow contracts take precedence over the mutable active catalog; a newer plugin version in another scope cannot enlarge an older execution’s schema. Conflicting contracts that reuse one version fail explicitly. Sparse raw scans advance through bounded durable-position spans and can return empty continuation pages after excluded rows.
 
+## Document Bindings
+
+Live document summaries use finite storage queries at their captured saved boundary.
+Telemetry folds consume bounded typed pages; exact order statistics spill scratch.
+Record bindings seek execution-owned record pages and preserve subscribed capture
+scope. The document structure is authored metadata, with no row-based evaluation
+estimate or document source-row ceiling. Encoded output and actual expansion have
+presentation budgets independently of raw evidence retention.
+
 ## Exact Sample Statistics
 
 `runtime/query/statistics.rs` shares the durable numeric moments accumulator

@@ -847,6 +847,12 @@ async fn document_report_payloads() {
     report_payloads::telemetry_index_endpoints().await;
 }
 
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn document_query_scale() {
+    construction::summary_queries().await;
+}
+
 // Each of these needs its own executor, configuration or cycle held open, so each boots its own runtime.
 #[dokime_tracing::trace_test]
 #[tokio::test]

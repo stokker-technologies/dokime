@@ -397,6 +397,105 @@ pub(super) async fn current_fact_frontiers() {
     owner.shutdown().await.unwrap();
 }
 
+pub(super) async fn summary_queries() {
+    use dokime_runtime::document::{
+        DocumentCard, Plot, TelemetrySummaryDefinition, TelemetrySummaryGroupDefinition, TelemetrySummaryTileDefinition,
+        capture::CardBindingResult,
+    };
+    use dokime_runtime::expressions::telemetry;
+    for (plot_count, total, text_bytes) in [(64, 301, 0), (0, 10_001, 32_768), (0, 3_001, 0), (0, 250_003, 0)] {
+        let root = tempdir().unwrap();
+        let executor = Arc::new(BlockingPublishingExecutor::new());
+        let (mut owner, runtime) = started_with_fixture(wifi_config(root.path()), executor.clone()).await;
+        let mut suite = fixture_suite(&["passed"]);
+        let field = telemetry("host.wifi.scan", "sample_index");
+        let mut group = TelemetrySummaryGroupDefinition::new("values", "Values");
+        for (label, expression) in [
+            ("Count", field.clone().count()),
+            ("Min", field.clone().min()),
+            ("Max", field.clone().max()),
+            ("Mean", field.clone().mean()),
+            ("Median", field.clone().median()),
+            ("RMS", field.clone().rms()),
+        ] {
+            group.tile(TelemetrySummaryTileDefinition::new(label, expression));
+        }
+        let mut summary = TelemetrySummaryDefinition::new();
+        summary.group(group);
+        let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Queries");
+        let mut section = dokime_runtime::document::DocumentSection::new("Measurements");
+        section.card(DocumentCard::telemetry_summary(summary));
+        if text_bytes != 0 {
+            section.card(DocumentCard::text("fixture.context", "Context", "x".repeat(text_bytes)));
+        }
+        for index in 0..plot_count {
+            let mut plot = Plot::time_series(format!("Signal {index}"));
+            plot.id(format!("signal.{index}"));
+            plot.y(field.clone());
+            section.plot(plot);
+        }
+        document.section(section);
+        suite.test_case_templates[0].document = Some(document);
+        register_python_suite(&runtime, suite.clone()).await;
+        let cycle_id = start_cycle(&runtime, suite).await;
+        runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+        executor.wait_until_entered().await;
+        let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
+        let execution = &cycle.test_executions[0];
+        let document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
+        let mut raw = Vec::<f64>::new();
+        while raw.len() < total {
+            let first = raw.len();
+            let count = (total - first).min(2_000);
+            let batch = crate::service_support::evidence::samples_from("host.wifi.scan", first, count, Some(execution.scope.clone()));
+            raw.extend(batch.samples.iter().map(|sample| match sample.values["sample_index"] {
+                Value::Integer(value) => value as f64,
+                _ => panic!("integer fixture column"),
+            }));
+            runtime.publish_telemetry_batch(batch).await.unwrap();
+        }
+        let current =
+            runtime.prepare_current_document(&cycle_id, &execution.test_execution_id, &document_id).unwrap().capture().await.unwrap();
+        assert_eq!(current.capture.cards.iter().filter(|card| matches!(card.result, CardBindingResult::Plot { .. })).count(), plot_count);
+        let values = current
+            .capture
+            .cards
+            .iter()
+            .filter_map(|card| match &card.result {
+                CardBindingResult::Summary { groups } => Some(groups),
+                _ => None,
+            })
+            .flat_map(|groups| groups.iter().flat_map(|group| &group.tiles))
+            .map(|tile| {
+                assert!(tile.unavailable.is_none(), "{:?}", tile.unavailable);
+                match tile.value.as_ref().unwrap() {
+                    Value::Unsigned(value) => *value as f64,
+                    Value::Integer(value) => *value as f64,
+                    Value::Number(value) => *value,
+                    value => panic!("unexpected numeric value {value:?}"),
+                }
+            })
+            .collect::<Vec<_>>();
+        let count = raw.len() as f64;
+        let expected = [
+            count,
+            raw.iter().copied().fold(f64::INFINITY, f64::min),
+            raw.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            raw.iter().sum::<f64>() / count,
+            raw[raw.len() / 2],
+            (raw.iter().map(|value| value * value).sum::<f64>() / count).sqrt(),
+        ];
+        for (value, expected) in values.iter().zip(expected) {
+            assert!((value - expected).abs() <= expected.abs().max(1.0) * 1e-10, "{value} != {expected}");
+        }
+        assert_eq!(values.len(), expected.len());
+        executor.release();
+        wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
+        drop(runtime);
+        owner.shutdown().await.unwrap();
+    }
+}
+
 pub(super) async fn document_routes_samples() {
     use dokime_runtime::document::{
         DocumentCard, DocumentCardBodyPayload, DocumentPayload, DocumentSelection, TelemetrySummaryDefinition,

@@ -12,7 +12,7 @@
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { Loader2, RotateCw } from "lucide-react";
 import { useCallback, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
@@ -32,6 +32,7 @@ import {
   usePluginReleaseMutation,
   usePluginsQuery,
   useRemovePluginMutation,
+  useReloadPluginMutation,
   useSetPluginEnabledMutation,
 } from "@/features/settings/plugins/plugin-queries";
 import { SettingsCard } from "@/features/settings/SettingsCard";
@@ -53,6 +54,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
   const programsQuery = useInstalledPluginsQuery();
   const installMutation = useInstallPluginMutation();
   const releaseMutation = usePluginReleaseMutation();
+  const reloadMutation = useReloadPluginMutation();
   const removeMutation = useRemovePluginMutation();
   const enabledMutation = useSetPluginEnabledMutation();
   const [installOpen, setInstallOpen] = useState(false);
@@ -65,6 +67,19 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
     key,
     name: program.owner?.kind === "host" ? `${brand.label} Built-in` : program.label,
     source: programSource(program, brand.label),
+    trailing:
+      program.owner?.kind !== "host" ? (
+        <Button
+          aria-label={`Reload ${program.label}`}
+          title="Reload"
+          size="icon-sm"
+          variant="ghost"
+          disabled={reloadMutation.isPending}
+          onClick={() => reloadMutation.mutate({ pluginId: program.plugin_id })}
+        >
+          <RotateCw />
+        </Button>
+      ) : undefined,
     enabled: { checked: true, disabled: true, onChange: () => {} },
     onOpenSettings: settingsSection
       ? () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: settingsSection } })

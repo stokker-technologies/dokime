@@ -33,6 +33,7 @@ use crate::telemetry::TelemetrySample;
 /* === Structs === */
 
 pub(super) struct Acquired {
+    pub at: harmos::storage::StorageCursor,
     pub data: DocumentDataInput,
     pub records: crate::storage::projection::Pages<dokime_domain::model::records::evidence::RecordEntry>,
     pub artifacts: Option<harmos::storage::ReadBatch<Vec<crate::artifacts::ArtifactRecord>>>,
@@ -47,6 +48,9 @@ pub(super) struct Acquired {
 pub(super) enum DocumentAcquisitionFailure {
     #[error("document source or materialization budget exceeded")]
     Limit,
+
+    #[error("{0}")]
+    Budget(String),
 
     #[error("document selection not found")]
     Missing,
@@ -71,7 +75,9 @@ impl From<harmos::storage::Error> for DocumentAcquisitionFailure {
 impl From<DocumentAcquisitionFailure> for crate::runtime::Error {
     fn from(error: DocumentAcquisitionFailure) -> Self {
         match error {
-            DocumentAcquisitionFailure::Limit => Self::overload("document_limit", error.to_string()),
+            DocumentAcquisitionFailure::Budget(_) | DocumentAcquisitionFailure::Limit => {
+                Self::overload("document_limit", error.to_string())
+            }
             DocumentAcquisitionFailure::Missing => Self::not_found("document_not_found", error.to_string()),
             DocumentAcquisitionFailure::IncompleteCapture => Self::conflict("document_capture_incomplete", error.to_string()),
             DocumentAcquisitionFailure::Source(_) => Self::unavailable("document_source_unavailable", error.to_string()),
@@ -85,11 +91,13 @@ pub(super) async fn acquire(
     runtime: &crate::RuntimeHandle, selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records_needed: bool,
     telemetry_needed: bool, artifacts_needed: bool, limits: Option<crate::document::bounded::DocumentLimits>,
 ) -> Result<Acquired, DocumentAcquisitionFailure> {
-    let (source_bytes, source_rows, source_depth, evaluation_work) = match limits {
-        Some(limits) => (limits.source_bytes, usize::MAX, limits.depth, limits.evaluation_work),
-        None => (16 * 1024 * 1024, 100_000, 32, 256_000_000),
+    let (source_bytes, source_depth) = match limits {
+        Some(limits) => (limits.source_bytes, limits.depth),
+        None => (16 * 1024 * 1024, 32),
     };
+    let at = runtime.saved_through(snapshot.revision()).await.map_err(source)?;
     let mut captured = Acquired {
+        at: at.clone(),
         data: DocumentDataInput::default(),
         records: harmos::storage::ReadBatch::new(Vec::new()),
         artifacts: None,
@@ -98,7 +106,6 @@ pub(super) async fn acquire(
         artifacts_sha256: None,
     };
     let session = runtime.storage().clone();
-    let at = runtime.saved_through(snapshot.revision()).await.map_err(source)?;
     let mut bytes = 0usize;
     let mut charge = |value: usize| {
         bytes = bytes.checked_add(value).filter(|bytes| *bytes <= source_bytes).ok_or(DocumentAcquisitionFailure::Limit)?;
@@ -117,7 +124,6 @@ pub(super) async fn acquire(
         };
         let mut after = 0;
         let mut pages = harmos::storage::ReadBatch::new(Vec::new());
-        let mut count = 0usize;
         loop {
             let rows = runtime.local_storage.scoped_records(at.clone(), scope.clone(), None, after, 0, u64::MAX).await.map_err(source)?;
             let Some(last) = rows.last() else { break };
@@ -136,7 +142,6 @@ pub(super) async fn acquire(
                     }
                     let scope = scope.cloned();
                     record.scope = scope;
-                    count = count.checked_add(1).filter(|count| *count <= source_rows).ok_or(DocumentAcquisitionFailure::Limit)?;
                     let encoded = document_size(&record, source_bytes, source_depth).map_err(|_| DocumentAcquisitionFailure::Limit)?;
                     charge(encoded.max(record.memory_size()))?;
                     selected.try_reserve(1).map_err(|_| DocumentAcquisitionFailure::Limit)?;
@@ -157,7 +162,7 @@ pub(super) async fn acquire(
                     scope: selection.evidence_scope(),
                     ..Default::default()
                 },
-                limits.is_none().then_some(source_rows),
+                None,
                 None,
                 &at,
             )
@@ -218,7 +223,7 @@ pub(super) async fn acquire(
         captured.artifacts = Some(
             records
                 .try_map(|mut records| -> harmos::Result<_> {
-                    validate_cycle_artifacts(selection, snapshot, &records, evaluation_work)?;
+                    validate_cycle_artifacts(selection, snapshot, &records)?;
                     if records.iter().any(|record| selection.foreign_execution_scope(Some(&record.scope))) {
                         return Err(harmos::Error::InvalidInput {
                             field: "document artifact scope",
@@ -251,7 +256,6 @@ pub(super) async fn acquire(
 
 fn validate_cycle_artifacts(
     selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records: &[crate::artifacts::ArtifactRecord],
-    evaluation_work: usize,
 ) -> harmos::Result<()> {
     if selection.scope.test_execution_id.is_some() {
         return Ok(());
@@ -260,7 +264,7 @@ fn validate_cycle_artifacts(
         return Ok(());
     };
     let cycle = snapshot.state().cycles.get(id).ok_or_else(cycle_artifact_scope)?;
-    let mut work = 0usize;
+    let members = cycle.execution_ids.iter().collect::<std::collections::BTreeSet<_>>();
     for record in records {
         let Some(execution_id) = &record.scope.test_execution_id else {
             continue;
@@ -269,13 +273,9 @@ fn validate_cycle_artifacts(
         if record.scope.test_cycle_id.as_ref() != Some(id) && owner.is_none_or(|owner| &owner.test_cycle_id != id) {
             continue;
         }
-        work = work
-            .checked_add(cycle.execution_ids.len())
-            .filter(|work| *work <= evaluation_work)
-            .ok_or_else(|| artifact_limit("cycle artifact ownership work"))?;
         let owner = owner.ok_or_else(cycle_artifact_scope)?;
         if &owner.test_cycle_id != id
-            || !cycle.execution_ids.contains(execution_id)
+            || !members.contains(execution_id)
             || !crate::evidence_runtime::scopes_correlate(Some(&record.scope), Some(&owner.scope))
         {
             return Err(cycle_artifact_scope());

@@ -380,6 +380,7 @@ export type RuntimeAppearanceFrame = {
 };
 
 export type RuntimePluginSettings = {
+  unapplied: string[];
   settings: Settings;
   values: { [key in string]: Value };
   /**
@@ -391,8 +392,7 @@ export type RuntimePluginSettings = {
   discovered?: { [key in string]: Value };
   secrets: SecretAvailability[];
   /**
-   * Whether saved values wait to reach the running program: a save that
-   * changes one restarts it now, or once the executions using it finish.
+   * Whether an explicit reload is restarting or waiting for active work.
    */
   restart: PluginRestart;
 };

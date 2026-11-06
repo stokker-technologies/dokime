@@ -13,18 +13,20 @@ class Row1(_message.Message):
     def __init__(self, plugin_id: _Optional[str] = ...) -> None: ...
 
 class Row2(_message.Message):
-    __slots__ = ("settings", "values", "secrets", "discovered", "restart")
+    __slots__ = ("settings", "values", "secrets", "discovered", "unapplied", "restart")
     SETTINGS_FIELD_NUMBER: _ClassVar[int]
     VALUES_FIELD_NUMBER: _ClassVar[int]
     SECRETS_FIELD_NUMBER: _ClassVar[int]
     DISCOVERED_FIELD_NUMBER: _ClassVar[int]
+    UNAPPLIED_FIELD_NUMBER: _ClassVar[int]
     RESTART_FIELD_NUMBER: _ClassVar[int]
     settings: Row3
     values: Row4
     secrets: _containers.RepeatedCompositeFieldContainer[Row5]
     discovered: Row4
+    unapplied: _containers.RepeatedScalarFieldContainer[str]
     restart: Row6
-    def __init__(self, settings: _Optional[_Union[Row3, _Mapping]] = ..., values: _Optional[_Union[Row4, _Mapping]] = ..., secrets: _Optional[_Iterable[_Union[Row5, _Mapping]]] = ..., discovered: _Optional[_Union[Row4, _Mapping]] = ..., restart: _Optional[_Union[Row6, _Mapping]] = ...) -> None: ...
+    def __init__(self, settings: _Optional[_Union[Row3, _Mapping]] = ..., values: _Optional[_Union[Row4, _Mapping]] = ..., secrets: _Optional[_Iterable[_Union[Row5, _Mapping]]] = ..., discovered: _Optional[_Union[Row4, _Mapping]] = ..., unapplied: _Optional[_Iterable[str]] = ..., restart: _Optional[_Union[Row6, _Mapping]] = ...) -> None: ...
 
 class Row3(_message.Message):
     __slots__ = ("contributions",)

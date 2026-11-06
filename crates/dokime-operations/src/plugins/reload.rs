@@ -30,12 +30,13 @@ use super::*;
 
 /* === Structs === */
 
-#[harmos::operation(resources = [crate::hosting::Host<Retry>], response = PluginInstallation, id = "dokime.plugins.retry",
+#[harmos::operation(resources = [crate::hosting::Host<Reload>], response = (), id = "dokime.plugins.reload",
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
-        grpc(package = "dokime.v1", service = "Plugins", method = "Retry"))]
+        grpc(package = "dokime.v1", service = "Plugins", method = "Reload"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct Retry {
-    pub install_id: String,
+pub struct Reload {
+    pub install_id: Option<String>,
+    pub plugin_id: Option<String>,
 }
 
 /* === Enums === */
@@ -56,5 +57,5 @@ pub struct Retry {
 mod runtime {
     use super::*;
 
-    crate::hosted!(Retry);
+    crate::hosted!(Reload);
 }

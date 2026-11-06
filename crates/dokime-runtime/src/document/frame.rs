@@ -60,6 +60,14 @@ pub(super) struct Plan<'a> {
     outer: Option<Agg>,
 }
 
+pub(crate) struct Fold {
+    plan: Plan<'static>,
+    values: Vec<Accumulator>,
+    original: Option<(u64, Value)>,
+    floating: Accumulator,
+    has_float: bool,
+}
+
 struct Columns {
     values: [Column; 7],
     len: usize,
@@ -266,12 +274,6 @@ impl<'plan> Plan<'plan> {
             outer,
         })
     }
-    pub(super) fn work(&self, rows: usize) -> usize {
-        let scans = 1 + usize::from(!self.right.is_empty());
-        let sort = if self.right.is_empty() { 1 } else { rows.max(2).ilog2() as usize + 1 };
-        rows.saturating_mul(scans).saturating_mul(sort)
-    }
-
     pub(super) fn evaluate<'a>(
         &self, expression: &DataExpression, evidence: Evidence<'a>, cases: &[Entry<'a>], selected: impl Fn(Row<'a>) -> bool,
     ) -> Result<Option<Value>> {
@@ -522,6 +524,106 @@ impl<'plan> Plan<'plan> {
     }
 }
 
+impl Fold {
+    pub(crate) fn new(expression: &DataExpression) -> Result<Self> {
+        let per_case = expression.transforms.contains(&DataTransform::PerCase);
+        let mut compiled = Plan::compile(expression, per_case.then_some(1))?;
+        if !matches!(compiled.join, Join::None) {
+            // Record Queries Supply Correlated Scalar Seconds.
+            compiled.left = Columns::new();
+            compiled.left.push(Column::Value);
+            if compiled.kind == Kind::Numeric {
+                compiled.left.extend([Column::Signed, Column::Float]);
+            }
+            compiled.measured = compiled.left.len();
+            if compiled.shape == Shape::Elapsed {
+                compiled.shape = match compiled.kind {
+                    Kind::Ordinal => Shape::Original,
+                    _ => Shape::Numeric { flags: true },
+                };
+            }
+        }
+        let values =
+            (0..compiled.measured).map(|index| Accumulator::new(if index == 0 { compiled.inner } else { flag(compiled.inner) })).collect();
+        let plan = Plan {
+            left: compiled.left,
+            right: compiled.right,
+            join: Join::None,
+            kind: compiled.kind,
+            shape: compiled.shape,
+            cases: compiled.cases,
+            inner: compiled.inner,
+            measured: compiled.measured,
+            outer: compiled.outer,
+        };
+        let floating = Accumulator::new(plan.inner);
+        Ok(Self {
+            plan,
+            values,
+            original: None,
+            floating,
+            has_float: false,
+        })
+    }
+
+    pub(crate) fn push_at(&mut self, capture: u64, value: Option<&Value>) -> Result<()> {
+        let row = Selected::new(capture as usize, value.map(Cow::Borrowed), None, self.plan.cases.map(|_| 0));
+        let float = matches!(value, Some(Value::Number(_)));
+        let mut projected = self.plan.project(&self.plan.left, &row, float)?;
+        if self.plan.kind == Kind::Numeric {
+            let scalar = match value {
+                Some(Value::Null) => ScalarValue::Null,
+                Some(value) => floating(value)?,
+                None => ScalarValue::Missing,
+            };
+            self.floating.push(capture, &scalar).map_err(reduction)?;
+            self.has_float |= float;
+            if float {
+                projected.values[0] = ScalarValue::Missing;
+            }
+        }
+        for (accumulator, value) in self.values.iter_mut().zip(&projected.values) {
+            accumulator.push(capture, value).map_err(reduction)?;
+        }
+        if let Some(value) = value
+            && self.original.as_ref().is_none_or(|(last, _)| capture > *last)
+        {
+            self.original = Some((capture, value.clone()));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn finish(self) -> Result<Option<Value>> {
+        if self.plan.shape == Shape::Original {
+            return Ok(self.original.map(|(_, value)| value));
+        }
+        let mut values =
+            self.values.into_iter().map(|accumulator| accumulator.finish(&mut || Ok(())).map_err(reduction)).collect::<Result<Vec<_>>>()?;
+        if self.has_float {
+            values[0] = self.floating.finish(&mut || Ok(())).map_err(reduction)?;
+        }
+        let outer = self
+            .plan
+            .outer
+            .map(|outer| {
+                values
+                    .iter()
+                    .enumerate()
+                    .map(|(column, value)| {
+                        let mut accumulator = Accumulator::new(if column == 0 { outer } else { Agg::Of(Aggregate::Max) });
+                        accumulator.push(0, value).map_err(reduction)?;
+                        accumulator.finish(&mut || Ok(())).map_err(reduction)
+                    })
+                    .collect::<Result<Vec<_>>>()
+            })
+            .transpose()?;
+        match self.plan.output(&Collected { groups: vec![values], outer })? {
+            Output::Value(value) => Ok(value),
+            Output::Left(_) => unreachable!("ordinal folds finish directly"),
+        }
+    }
+}
+
 impl Numeric {
     fn value(self) -> Result<Option<Value>> {
         let exact = match self.value {
@@ -747,3 +849,46 @@ fn reduction(error: harmos::storage::Error) -> crate::Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod streaming_tests {
+    use super::*;
+
+    #[test]
+    fn streaming_statistics() {
+        let values = [Value::Unsigned(9_007_199_254_740_993), Value::Unsigned(9_007_199_254_740_995)];
+        for (aggregate, expected) in [
+            (Aggregate::Min, Value::Unsigned(9_007_199_254_740_993)),
+            (Aggregate::Max, Value::Unsigned(9_007_199_254_740_995)),
+            (Aggregate::Mean, Value::Unsigned(9_007_199_254_740_994)),
+            (Aggregate::Median, Value::Unsigned(9_007_199_254_740_994)),
+        ] {
+            let expression = crate::expressions::telemetry("fixture", "value").aggregate(aggregate);
+            let mut fold = Fold::new(&expression).unwrap();
+            for (position, value) in values.iter().enumerate() {
+                fold.push_at(position as u64, Some(value)).unwrap();
+            }
+            assert_eq!(fold.finish().unwrap(), Some(expected));
+        }
+        let expression = crate::expressions::telemetry("fixture", "value").mean();
+        let mut fold = Fold::new(&expression).unwrap();
+        for (position, value) in [Value::Integer(-2), Value::Null, Value::Number(5.0), Value::Unsigned(3)].iter().enumerate() {
+            fold.push_at(position as u64, Some(value)).unwrap();
+        }
+        assert_eq!(fold.finish().unwrap(), Some(Value::Number(2.0)));
+
+        let mut per_case = crate::expressions::telemetry("fixture", "value").mean();
+        per_case.transforms.extend([DataTransform::PerCase, DataTransform::Aggregate(Aggregate::Count)]);
+        assert_eq!(Fold::new(&per_case).unwrap().finish().unwrap(), Some(Value::Unsigned(0)));
+        let mut fold = Fold::new(&per_case).unwrap();
+        fold.push_at(3, Some(&Value::Integer(7))).unwrap();
+        fold.push_at(8, Some(&Value::Integer(9))).unwrap();
+        assert_eq!(fold.finish().unwrap(), Some(Value::Unsigned(1)));
+
+        let expression = crate::expressions::record("end").time_between("start").mean();
+        let mut fold = Fold::new(&expression).unwrap();
+        fold.push_at(2, Some(&Value::Number(0.5))).unwrap();
+        fold.push_at(4, Some(&Value::Unsigned(1))).unwrap();
+        assert_eq!(fold.finish().unwrap(), Some(Value::Number(0.75)));
+    }
+}
