@@ -39,6 +39,7 @@ use dokime_domain::model::identity::TestCycleId;
 
 impl RuntimeHandle {
     pub async fn copy_cycle(&self, source_cycle_id: TestCycleId, context: CommandContext) -> Result<TestCycleId, Error> {
+        let _admission = self.plugin_admission.lock().await;
         let transaction = CopyCycle {
             max_executions: 10_000,
             max_source_bytes: 16 * 1024 * 1024,

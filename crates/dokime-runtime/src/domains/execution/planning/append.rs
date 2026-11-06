@@ -43,6 +43,22 @@ impl RuntimeHandle {
         if executions.is_empty() {
             return Err(Error::conflict("invalid_append", "append requires at least one execution"));
         }
+        // Retired Cycles Leave Their Immutable Cases In Native Storage.
+        let mut restored = std::collections::BTreeMap::new();
+        let mut revisions = std::collections::BTreeMap::new();
+        for (_, id) in &executions {
+            if self.state_read().suites.case(id).is_some() || restored.contains_key(id) {
+                continue;
+            }
+            let stored = crate::storage::objects::case::read_registered(self.storage(), id)
+                .await?
+                .ok_or_else(|| Error::not_found("case_not_found", "registered case not found"))?;
+            revisions.insert(id.clone(), stored.1.clone());
+            restored.insert(id.clone(), stored.0.clone());
+        }
+        if !restored.is_empty() {
+            self.register_cases_at(crate::model::identity::new_id(), restored.into_values().collect(), revisions).await?;
+        }
         let sources = {
             let state = self.state_read();
             executions

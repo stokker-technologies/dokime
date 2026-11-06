@@ -1109,11 +1109,13 @@ pub(crate) fn terminal_traceability_history() {
     // Aggregate values still arrive after the terminal transaction. Their
     // finalization must preserve the already-terminal traceability fields.
     let aggregates = vec![dokime_runtime::streams::AggregateOutput {
-        key: "telemetry.voltage.mean".into(),
-        metadata: metadata("voltage.mean"),
+        stream: "voltage".into(),
+        field: "voltage".into(),
+        statistic: "mean".into(),
+        created_at: None,
         value: Value::from(12_i64),
     }];
-    assert!(!completed.output_parameters.contains_key("telemetry.voltage.mean"));
+    assert!(!completed.output_parameters.contains_key("telemetry.voltage.values.voltage.mean"));
     dokime_runtime::transactions::outputs::FinalizeExecutionOutputs {
         test_execution_id: completed.test_execution_id.clone(),
         outputs: aggregates.clone(),
@@ -1121,7 +1123,7 @@ pub(crate) fn terminal_traceability_history() {
     .apply(&mut state);
     let completed = state.cycle_view(&cycle_id).unwrap().test_executions[0].clone();
     assert_eq!(projected_status(&state, &cycle_id, &completed), Value::from("Passed"));
-    assert_eq!(completed.output_parameters["telemetry.voltage.mean"].value, Value::from(12_i64));
+    assert_eq!(completed.output_parameters["telemetry.voltage.values.voltage.mean"].value, Value::from(12_i64));
 
     dokime_runtime::transactions::AppendExecutions {
         max_executions: 1_000,

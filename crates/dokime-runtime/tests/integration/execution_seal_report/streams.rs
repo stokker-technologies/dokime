@@ -207,7 +207,7 @@ pub(crate) async fn live_rows_paths() {
     )
     .await;
     let admitted_owner = handle.watch_state().latest().state().plugin_owners["fixture_embedded"].clone();
-    let admitted_identity = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap().test_executions[0]
+    let admitted_identity = handle.cycles().await.unwrap().into_iter().find(|item| item.test_cycle_id == cycle).unwrap().test_executions[0]
         .snapshot
         .plugin()
         .unwrap()
@@ -250,7 +250,7 @@ pub(crate) async fn live_rows_paths() {
     signals.release.notify_one();
     (&mut replacement).await.unwrap();
     drop(replacement);
-    let ended = handle.cycles().await.into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
+    let ended = handle.cycles().await.unwrap().into_iter().find(|item| item.test_cycle_id == cycle).unwrap();
     assert_eq!(ended.test_executions[0].snapshot.plugin(), Some(&admitted_identity));
     let replacement_owner = handle.watch_state().latest().state().plugin_owners["fixture_embedded"].clone();
     assert_ne!(admitted_owner, replacement_owner);

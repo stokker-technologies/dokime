@@ -77,7 +77,7 @@ pub(crate) async fn cycle_container_lifecycle() {
     register_python_suite(&runtime, suite.clone()).await;
     let first = start_cycle(&runtime, suite.clone()).await;
     let second = start_cycle(&runtime, suite).await;
-    assert_eq!(runtime.cycles().await.len(), 2);
+    assert_eq!(runtime.cycles().await.unwrap().len(), 2);
 
     let run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &run.command_id).await;

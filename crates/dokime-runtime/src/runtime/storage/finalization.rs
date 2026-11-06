@@ -386,7 +386,10 @@ impl RuntimeHandle {
     async fn commit_admitted_seal(
         &self, seal: harmos::storage::ReadBatch<dokime_domain::model::execution::saved::ExecutionSeal>,
     ) -> Result<()> {
-        let transaction = seal.try_map(|seal| {
+        // Native Publication Has Already Validated And Saved The Complete Inventory.
+        // The Journal Carries Its Durable References, Not Another Inventory Copy.
+        let transaction = seal.try_map(|mut seal| {
+            seal.source.outputs.clear();
             Ok::<_, crate::storage::Error>(crate::transactions::Transactions::from(crate::transactions::SealExecution { seal }))
         })?;
         let owner = transaction.owner();

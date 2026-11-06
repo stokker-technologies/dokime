@@ -178,8 +178,19 @@ impl RuntimeHandle {
         self.projected_evidence_snapshot(&snapshot).await
     }
 
-    pub async fn cycles(&self) -> Vec<dokime_domain::model::execution::result::CycleView> {
-        self.state_read().cycle_views().collect()
+    pub async fn cycles(&self) -> crate::runtime::Result<Vec<dokime_domain::model::execution::result::CycleView>> {
+        let mut cycles: Vec<_> = self.state_read().cycle_views().collect();
+        for cycle in &mut cycles {
+            for execution in &mut cycle.test_executions {
+                if execution.saved.is_some() {
+                    *execution = self
+                        .known_execution(&execution.test_execution_id)
+                        .await?
+                        .ok_or_else(|| crate::runtime::Error::Operation("sealed execution revision is missing".into()))?;
+                }
+            }
+        }
+        Ok(cycles)
     }
 
     pub async fn record_contracts(&self) -> Vec<crate::records::RecordContract> {
