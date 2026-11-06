@@ -19,6 +19,7 @@ pub(crate) mod module_preferences;
 
 pub(crate) use crate::config::organization as brand;
 
+pub use crate::plugins::PluginRestart;
 pub use appearance::{
     AppearanceLimitExceeded, CapturedAppearance, RuntimeAppLogo, RuntimeAppearanceFrame, RuntimeInstalledPluginAsset, RuntimeThemeFamily,
 };

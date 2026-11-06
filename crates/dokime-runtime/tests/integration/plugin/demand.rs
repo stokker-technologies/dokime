@@ -594,7 +594,7 @@ async fn listener_publishes_asked() {
     assert_eq!(filed[0].1.record_type.as_str(), "owned.unit.noted");
 
     // TODO(source-hook): a wait for a published row to reach its stream window without engaging demand.
-    tokio::time::timeout(Duration::from_secs(120), async {
+    tokio::time::timeout(crate::service_support::budgets::settings::STORY_BOUND, async {
         loop {
             let stream = runtime.streams.publication("owned_stream.measurement", 1);
             if let Some(stream) = stream {

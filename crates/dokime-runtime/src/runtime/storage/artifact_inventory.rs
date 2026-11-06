@@ -113,13 +113,17 @@ pub(super) async fn records(storage: &ExecutionStorage) -> Result<Vec<ArtifactRe
 
 pub(super) async fn records_at_in(
     storage: &ExecutionStorage, session: &crate::storage::Manager, at: &harmos::storage::StorageCursor,
+    executions: Option<&[TestExecutionId]>,
 ) -> Result<harmos::storage::ReadBatch<Vec<ArtifactRecord>>> {
     let active = storage.active.lock().await;
-    let count = active.len();
+    let count = executions.map_or(active.len(), <[TestExecutionId]>::len);
     let owners = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {
         let mut owners = Vec::new();
         owners.try_reserve_exact(count).map_err(|_| invalid("artifact owner allocation refused"))?;
-        owners.extend(active.values().cloned());
+        match executions {
+            Some(ids) => owners.extend(ids.iter().filter_map(|id| active.get(id).cloned())),
+            None => owners.extend(active.values().cloned()),
+        }
         Ok(owners)
     })?;
     drop(active);
@@ -141,7 +145,18 @@ pub(super) async fn records_at_in(
     }
     drop(owners);
     let saved = at.clone();
-    let history = super::history::executions(session, saved.clone()).await?;
+    let history = if let Some(ids) = executions {
+        let mut pages = harmos::storage::ReadBatch::new(Vec::new());
+        for id in ids {
+            let selected = super::history::selected_executions(session, saved.clone(), Some(id.as_str())).await?;
+            for page in selected.iter() {
+                pages = crate::storage::projection::push(pages, page.clone())?;
+            }
+        }
+        pages
+    } else {
+        super::history::executions(session, saved.clone()).await?
+    };
     let mut records = harmos::storage::ReadBatch::new(()).try_map(|_| -> Result<_> {
         Ok(RetainedRecords {
             records: Vec::new(),
@@ -236,11 +251,7 @@ fn validate_record(owner: &TestExecutionId, record: &ArtifactRecord) -> harmos::
 }
 
 fn invalid(reason: &'static str) -> harmos::Error {
-    codec_error(crate::storage::Error::Invalid(reason))
-}
-
-fn codec_error(source: crate::storage::Error) -> harmos::Error {
-    harmos::Error::backend("inspect native artifact inventory", harmos::BackendFailure::Corrupt, source)
+    harmos::Error::backend("inspect native artifact inventory", harmos::BackendFailure::Corrupt, crate::storage::Error::Invalid(reason))
 }
 
 /* === Tests === */

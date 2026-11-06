@@ -21,13 +21,16 @@ use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
 use crate::service_support::prelude::*;
+use dokime_runtime::domains::installed_plugins::{PluginRestart, PluginSettingsUpdate};
 use dokime_runtime::execution::log::{Entry, Level};
+use dokime_runtime::harmos::plugin::PluginGeneration;
+use dokime_runtime::plugins::{PluginEntry, PluginLastBoot, PluginState};
 use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::transport::{
     EvidenceBatch, ExecutionSignal, RunExecution, SidecarCriterionOutcome, SidecarCriterionStatus, SidecarExecutionOutcome, SignalReply,
     TransportFuture,
 };
-use dokime_runtime::{InstalledPlugin, Refusal};
+use dokime_runtime::{InstalledPlugin, Refusal, Value};
 use {
     dokime_domain::model::execution::result::StepAttemptStart, dokime_domain::model::execution::result::TestStepAttempt,
     dokime_domain::model::execution::termination::TerminationReason, dokime_runtime::execution::Caller,
@@ -38,6 +41,8 @@ use {
 const SOURCE: &str = "fixture_sessions";
 const TEMPLATE: &str = "fixture.sessions.cancel";
 const PHASE: &str = "fixture.sessions.stream";
+const HOST: &str = "plugin_host";
+const SCAN_INTERVAL: &str = "minimum_scan_interval_s";
 
 /* === Macros === */
 
@@ -72,6 +77,8 @@ enum Settlement {
     RefusedPage,
     AbandonedAdmission,
     LiveReplay,
+    // Each Run Stays Active Until Released, Then Passes; The Next Run Waits For Its Own Release.
+    Held,
     Ignored,
     IgnoredSignal,
     Failure,
@@ -152,8 +159,13 @@ impl Runnable for Probe {
             .await
             .map_err(Refusal::of)?;
             self.entered.notify_one();
-            if self.mode == Settlement::LiveReplay {
-                self.row_received.notified().await;
+            if matches!(self.mode, Settlement::LiveReplay | Settlement::Held) {
+                if self.mode == Settlement::Held {
+                    self.released.subscribe().wait_for(|released| *released).await.unwrap();
+                    self.released.send_replace(false);
+                } else {
+                    self.row_received.notified().await;
+                }
                 let ended = TestStepAttempt {
                     attempt_id: start.attempt_id,
                     step_id: start.step_id,
@@ -376,6 +388,29 @@ impl EmbeddedProvider for Provider {
 /* === Public Functions === */
 
 /* === Private Functions === */
+async fn save_scan_interval(runtime: &RuntimeHandle, seconds: u32) -> PluginRestart {
+    let host = identifier(HOST);
+    let mut values = runtime.plugin_settings(&host).await.unwrap().values;
+    values.insert(SCAN_INTERVAL.into(), dokime_runtime::Value::from(seconds));
+    runtime.save_plugin_settings(&host, PluginSettingsUpdate { values }).await.unwrap().restart
+}
+
+// What The Running Host Generation Was Prepared With, And What Is Saved.
+async fn prepared_scan_interval(owner: &dokime_runtime::Runtime) -> (Option<PluginGeneration>, Value, Value) {
+    let status = owner.fixture_plugin_status(HOST).await.expect("the host plugin is admitted");
+    let definition = status.active_definition.expect("the host plugin runs a generation");
+    let configuration: dokime_runtime::plugin::Configuration = serde_json::from_slice(&definition.configuration).unwrap();
+    let saved = owner.handle().plugin_settings(&identifier(HOST)).await.unwrap().values[SCAN_INTERVAL].clone();
+    (status.generation, configuration.settings[SCAN_INTERVAL].clone(), saved)
+}
+
+async fn execution_log(runtime: &RuntimeHandle, execution: &dokime_domain::model::identity::TestExecutionId) -> String {
+    let files = runtime.execution_files(execution).await.unwrap();
+    let Some(file) = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")) else { return String::new() };
+    let content = runtime.execution_file_content(execution, file.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
+    String::from_utf8_lossy(&content.bytes).into_owned()
+}
+
 async fn host_rows(runtime: &RuntimeHandle) -> usize {
     let selection = dokime_runtime::domains::evidence::TelemetrySelection {
         streams: vec![identifier("host.system").into()],
@@ -688,6 +723,357 @@ pub(crate) async fn provider_failure_releases() {
             .iter()
             .any(|error| error.code.as_deref() == Some("provider_execution_run"))
     );
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Saved Change Restarts The Idle Host Plugin With It; Saving It Again Restarts Nothing.
+pub(crate) async fn saved_change_restarts() {
+    let root = tempdir().unwrap();
+    let (mut owner, handle) = started(config(root.path()).with_plugins([crate::service_support::bundles::host_plugin()])).await;
+    let (generation, prepared, _) = prepared_scan_interval(&owner).await;
+
+    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Restarting);
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    let (restarted, applied, saved) = prepared_scan_interval(&owner).await;
+    assert_ne!(restarted, generation, "the save started a new generation");
+    assert_ne!(applied, prepared);
+    assert_eq!(applied, saved, "the new generation prepared with the saved value");
+
+    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Idle);
+    assert_eq!(prepared_scan_interval(&owner).await.0, restarted, "an unchanged save keeps the running generation");
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Save While A Cycle Is Active Waits Across The Gap Between Its Cases, Then Restarts Once With
+// The Latest Value; With The Cycle Idle Again, A Save Restarts At Once.
+pub(crate) async fn saved_change_waits_for_cycle() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::Held));
+    let configuration =
+        config(root.path()).with_plugins([crate::service_support::bundles::host_plugin()]).register(Arc::new(Provider(probe.clone())));
+    let (mut owner, handle) = started(configuration).await;
+    *probe.runtime.lock().unwrap() = Some(handle.clone());
+    let (generation, prepared, _) = prepared_scan_interval(&owner).await;
+    let cycle_id = held_cycle(&handle, &probe, metadata("session.restart", "Pending Restart")).await;
+
+    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Pending);
+    assert_eq!(save_scan_interval(&handle, 48).await, PluginRestart::Pending);
+    assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
+    next_case(&probe).await;
+    assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
+    assert_eq!(prepared_scan_interval(&owner).await.0, generation, "the cycle keeps its host generation between cases");
+
+    probe.released.send_replace(true);
+    let cycle = wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    for execution in &cycle.test_executions {
+        let log = execution_log(&handle, &execution.test_execution_id).await;
+        assert_eq!(execution.status, ExecutionStatus::Passed, "the restart never touched the cycle: {log}");
+    }
+    let (restarted, applied, saved) = prepared_scan_interval(&owner).await;
+    assert_ne!(restarted, generation);
+    assert_ne!(applied, prepared);
+    assert_eq!(applied, saved, "the restart prepared with the latest saved value");
+
+    // The Idle Cycle Stays Open, Yet Nothing Is Active.
+    assert_eq!(save_scan_interval(&handle, 49).await, PluginRestart::Restarting);
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    assert_ne!(prepared_scan_interval(&owner).await.0, restarted, "a save with no active cycle restarts at once");
+    probe.runtime.lock().unwrap().take();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Cycle That Runs Its Case Twice, Continuing Automatically, Held In Its First Execution.
+async fn held_cycle(runtime: &RuntimeHandle, probe: &Probe, metadata: Metadata) -> TestCycleId {
+    let suite = runtime.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let case = materialize_cases(SOURCE, &suite).remove(0);
+    let cycle_id = start_cases(runtime, metadata, vec![case.clone(), case]).await;
+    let receipt = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    cycle_id
+}
+
+// Release The Held Execution; The Cycle Continues With Its Next Case, Which Holds In Turn.
+async fn next_case(probe: &Probe) {
+    probe.released.send_replace(true);
+    probe.entered.notified().await;
+}
+
+// What The Store Says About One Installation, With What The Running Backend Does With It.
+async fn installation(runtime: &RuntimeHandle, install: uuid::Uuid) -> PluginEntry {
+    let mut entry = runtime.plugin_store().get(install).await.unwrap();
+    runtime.plugin_process_state(&mut entry);
+    entry
+}
+
+// Install `bytes` Into The Running Backend And Wait Until It Applied Them.
+async fn installed(runtime: &RuntimeHandle, bytes: Vec<u8>) -> PluginEntry {
+    let entry = runtime.install_plugin(bytes, |_| Ok(())).await.unwrap();
+    runtime.plugin_bundle_settled(&entry.metadata.as_ref().unwrap().identity.name).await;
+    installation(runtime, entry.installation.install_id).await
+}
+
+async fn settled(runtime: &RuntimeHandle, entry: &PluginEntry) -> PluginEntry {
+    runtime.plugin_bundle_settled(&entry.metadata.as_ref().unwrap().identity.name).await;
+    installation(runtime, entry.installation.install_id).await
+}
+
+// The Ready Generation Of The Host Program, If It Runs.
+async fn running_generation(owner: &dokime_runtime::Runtime) -> Option<PluginGeneration> {
+    let status = owner.fixture_plugin_status(HOST).await?;
+    (status.state == dokime_runtime::harmos::plugin::PluginState::Ready).then_some(status.generation).flatten()
+}
+
+// Whether The Admitted Catalog Lists The Host Program.
+async fn admits_host(runtime: &RuntimeHandle) -> bool {
+    let view = runtime
+        .query_runtime_view(RuntimeViewQuery {
+            topic: RuntimeViewTopic::InstalledPlugins,
+            scope: None,
+            window: RuntimeWindow::Full,
+            resolution: RuntimeResolution::Raw,
+            cursor: None,
+        })
+        .await
+        .unwrap();
+    let RuntimeViewPayload::InstalledPlugins { frame } = view.payload else { panic!("unexpected payload") };
+    frame.installed_plugins.iter().any(|plugin| plugin.plugin_id.as_str() == HOST)
+}
+
+fn host_bundle() -> Vec<u8> {
+    std::fs::read(crate::service_support::bundles::host_plugin_bundle()).unwrap()
+}
+
+// A Bundle Whose Program Requires A Secret Nobody Stored.
+fn secret_bundle(package: &str, owner: &str) -> Vec<u8> {
+    use dokime_domain::model::settings::{SecretSetting, Settings, SettingsEntry};
+    let token = SecretSetting {
+        id: "token".into(),
+        title: "Access Token".into(),
+        description: None,
+        required: true,
+    };
+    let settings = Settings {
+        contributions: vec![SettingsEntry::Secret(token)],
+    };
+    crate::service_support::bundles::bundle_with_settings(package, owner, settings)
+}
+
+// Saved Values The Program's Catalog Refuses, So Reading Its Settings Fails.
+async fn save_unresolvable(runtime: &RuntimeHandle, install: uuid::Uuid, refused: bool) {
+    let values = refused.then(|| dokime_runtime::plugins::ProgramValues {
+        values: [("undeclared".to_owned(), Value::Bool(true))].into_iter().collect(),
+        saved: ["undeclared".to_owned()].into_iter().collect(),
+    });
+    runtime
+        .settings()
+        .edit(move |document| {
+            let programs = &mut document.plugins.get_mut(&install).expect("the installation is stored").programs;
+            match values {
+                Some(values) => programs.insert(HOST.to_owned(), values),
+                None => programs.remove(HOST),
+            };
+            Ok::<_, dokime_runtime::plugins::PluginError>(())
+        })
+        .await
+        .unwrap();
+}
+
+// Installing, Replacing, Retrying, Disabling And Removing A Bundle Apply In The Running Backend.
+pub(crate) async fn installs_apply_live() {
+    let root = tempdir().unwrap();
+    let (mut owner, handle) = started(config(root.path())).await;
+    assert!(running_generation(&owner).await.is_none());
+
+    let first = installed(&handle, host_bundle()).await;
+    assert!(first.active && !first.boot_failed, "{:?}", first.installation.last_boot);
+    assert_eq!(first.restart, PluginRestart::Idle);
+    assert!(admits_host(&handle).await, "the installed catalog is admitted without a restart");
+    let started = running_generation(&owner).await.expect("the installed program runs");
+
+    // A Changed Version Becomes The Running Generation.
+    let publishing = handle.plugin_store().root().join("publishing.dokime");
+    std::fs::write(&publishing, b"an install has published its file before committing settings").unwrap();
+    let second = installed(&handle, crate::service_support::bundles::host_plugin_version("99.0.0")).await;
+    assert!(second.active, "{:?}", second.installation.last_boot);
+    let store = handle.plugin_store();
+    assert!(store.list().await.unwrap().iter().all(|entry| entry.installation.install_id != first.installation.install_id));
+    assert!(!store.path(first.installation.install_id).exists());
+    assert!(publishing.is_file(), "live apply never sweeps unreferenced files");
+    let replaced = running_generation(&owner).await.expect("the new version runs");
+    assert_ne!(replaced, started);
+
+    // A Retry Starts Only This Plugin Again.
+    let retried = handle.retry_plugin(second.installation.install_id).await.unwrap();
+    settled(&handle, &retried).await;
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    let restarted = running_generation(&owner).await.expect("the retried program runs");
+    assert_ne!(restarted, replaced);
+
+    // Disabling Stops It, Enabling Starts It, And Removing Stops It Again.
+    let disabled = handle.set_plugin_enabled(second.installation.install_id, false).await.unwrap();
+    let disabled = settled(&handle, &disabled).await;
+    assert!(!disabled.active);
+    assert!(running_generation(&owner).await.is_none() && !admits_host(&handle).await);
+    let enabled = handle.set_plugin_enabled(second.installation.install_id, true).await.unwrap();
+    assert!(settled(&handle, &enabled).await.active);
+    assert!(running_generation(&owner).await.is_some() && admits_host(&handle).await);
+    handle.remove_plugin(second.installation.install_id).await.unwrap();
+    handle.plugin_bundle_settled(&second.metadata.as_ref().unwrap().identity.name).await;
+    assert!(store.list().await.unwrap().is_empty());
+    assert!(!store.path(second.installation.install_id).exists());
+    assert!(running_generation(&owner).await.is_none() && !admits_host(&handle).await);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Replacement While A Cycle Is Active Waits Across The Gap Between Its Cases, Then Applies.
+pub(crate) async fn replacement_waits_for_cycle() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::Held));
+    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    *probe.runtime.lock().unwrap() = Some(handle.clone());
+    let first = installed(&handle, host_bundle()).await;
+    let generation = running_generation(&owner).await.expect("the installed program runs");
+    let cycle_id = held_cycle(&handle, &probe, metadata("session.replace", "Pending Replacement")).await;
+
+    let replacement = handle.install_plugin(crate::service_support::bundles::host_plugin_version("99.0.0"), |_| Ok(())).await.unwrap();
+    let pending = installation(&handle, replacement.installation.install_id).await;
+    assert_eq!(pending.restart, PluginRestart::Pending);
+    assert!(!pending.active);
+    assert_eq!(installation(&handle, first.installation.install_id).await.installation.state, PluginState::RemovalPending);
+    assert!(handle.plugin_store().path(first.installation.install_id).is_file());
+    assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
+    next_case(&probe).await;
+    assert_eq!(installation(&handle, replacement.installation.install_id).await.restart, PluginRestart::Pending);
+    assert!(installation(&handle, first.installation.install_id).await.active, "the previous version keeps running");
+    assert_eq!(running_generation(&owner).await, Some(generation), "the cycle keeps its generation between cases");
+
+    probe.released.send_replace(true);
+    let cycle = wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
+    let applied = settled(&handle, &replacement).await;
+    for execution in &cycle.test_executions {
+        let log = execution_log(&handle, &execution.test_execution_id).await;
+        assert_eq!(execution.status, ExecutionStatus::Passed, "the replacement never touched the cycle: {log}");
+    }
+    assert!(applied.active && applied.restart == PluginRestart::Idle);
+    let store = handle.plugin_store();
+    assert!(store.list().await.unwrap().iter().all(|entry| entry.installation.install_id != first.installation.install_id));
+    assert!(!store.path(first.installation.install_id).exists());
+    assert_ne!(running_generation(&owner).await.expect("the new version runs"), generation);
+    probe.runtime.lock().unwrap().take();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Refused Replacement Keeps The Previous Installation Running And Installed.
+pub(crate) async fn refused_replacement_keeps_running() {
+    let root = tempdir().unwrap();
+    let (mut owner, handle) = started(config(root.path())).await;
+    let first = installed(&handle, host_bundle()).await;
+    let package = first.metadata.as_ref().unwrap().identity.name.clone();
+    let generation = running_generation(&owner).await.expect("the installed program runs");
+
+    // Refused Before Anything Stops: The Running Generation Is Untouched.
+    let unprepared = installed(&handle, secret_bundle(&package, HOST)).await;
+    assert_eq!(unprepared.installation.state, PluginState::RemovalPending);
+    assert!(unprepared.boot_failed && !unprepared.active);
+    let Some(PluginLastBoot::Failed { failure, .. }) = &unprepared.installation.last_boot else { panic!("the refusal is recorded") };
+    assert_eq!(failure.missing_secret.as_deref(), Some("token"));
+    let kept = installation(&handle, first.installation.install_id).await;
+    assert_eq!(kept.installation.state, PluginState::Installed);
+    assert!(kept.active);
+    assert_eq!(running_generation(&owner).await, Some(generation));
+
+    // Refused When It Starts: The Previous Version Runs Again.
+    let unstarted = installed(&handle, crate::service_support::bundles::bundle(&package, HOST, "3.0.0")).await;
+    assert_eq!(unstarted.installation.state, PluginState::RemovalPending);
+    assert!(unstarted.boot_failed && !unstarted.active);
+    let kept = installation(&handle, first.installation.install_id).await;
+    assert_eq!(kept.installation.state, PluginState::Installed);
+    assert!(kept.active, "{:?}", kept.installation.last_boot);
+    assert!(running_generation(&owner).await.is_some() && admits_host(&handle).await);
+    let runnable: Vec<_> = handle.plugin_store().installed().await.unwrap();
+    assert_eq!(runnable.len(), 1, "a restart runs the kept installation alone");
+    // A Later Successful Apply Still Leaves Both Refusal Diagnostics Visible.
+    let replacement = installed(&handle, crate::service_support::bundles::host_plugin_version("99.0.0")).await;
+    assert!(replacement.active);
+    for refused in [&unprepared, &unstarted] {
+        let row = installation(&handle, refused.installation.install_id).await;
+        assert_eq!(row.installation.state, PluginState::RemovalPending);
+        assert_eq!(row.installation.last_boot, refused.installation.last_boot);
+        assert!(handle.plugin_store().path(refused.installation.install_id).is_file());
+    }
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Refused Restart Keeps The Running Generation; Retry Starts One Plugin Again Once The Cause Is Fixed.
+// While A Cycle Is Active, Retry Starts A Plugin That Did Not Start At Once, And Restarting One That Runs Waits.
+pub(crate) async fn retry_restarts_one_plugin() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::Held));
+    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    *probe.runtime.lock().unwrap() = Some(handle.clone());
+
+    // A Restart That Cannot Read Its Settings Is Refused While The Program Keeps Running.
+    let host = installed(&handle, host_bundle()).await;
+    let install = host.installation.install_id;
+    let generation = running_generation(&owner).await.expect("the installed program runs");
+    save_unresolvable(&handle, install, true).await;
+    handle.retry_plugin(install).await.unwrap();
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    let refused = installation(&handle, install).await;
+    assert!(refused.active && !refused.boot_failed, "the previous generation still runs");
+    assert!(matches!(refused.installation.last_boot, Some(PluginLastBoot::Failed { .. })));
+    assert_eq!(running_generation(&owner).await, Some(generation));
+    save_unresolvable(&handle, install, false).await;
+    handle.retry_plugin(install).await.unwrap();
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    let retried = installation(&handle, install).await;
+    assert!(retried.active && matches!(retried.installation.last_boot, Some(PluginLastBoot::Loaded { .. })));
+    let generation = running_generation(&owner).await.expect("the retried program runs");
+
+    // A Plugin That Did Not Start Is Retried In Place While A Cycle Runs: It Reads The Secret Stored Since.
+    let failed = installed(&handle, secret_bundle("secret-fixture", "secret_fixture")).await;
+    assert!(failed.boot_failed && !failed.active);
+    let Some(PluginLastBoot::Failed { failure, .. }) = &failed.installation.last_boot else { panic!("the failed start is recorded") };
+    assert_eq!(failure.missing_secret.as_deref(), Some("token"));
+    let cycle_id = held_cycle(&handle, &probe, metadata("session.retry", "Retry During A Cycle")).await;
+    handle
+        .operations()
+        .call::<dokime_runtime::operations::secrets::Put>(dokime_runtime::operations::secrets::Put {
+            metadata: dokime_domain::model::secrets::catalog::Metadata {
+                identifier: "token".into(),
+                label: "Token".into(),
+                description: None,
+            },
+            value: Some("stored".into()),
+            generation: 0,
+        })
+        .await
+        .unwrap();
+    let retried = handle.retry_plugin(failed.installation.install_id).await.unwrap();
+    assert_ne!(installation(&handle, retried.installation.install_id).await.restart, PluginRestart::Pending);
+    let retried = settled(&handle, &retried).await;
+    let Some(PluginLastBoot::Failed { failure, .. }) = &retried.installation.last_boot else { panic!("the inert program cannot start") };
+    assert_eq!(failure.missing_secret, None, "the retry prepared with the stored secret");
+    assert!(installation(&handle, install).await.active, "retrying one plugin leaves the others running");
+
+    // Retrying A Running Plugin Restarts It Once The Cycle Ends.
+    handle.retry_plugin(install).await.unwrap();
+    assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
+    next_case(&probe).await;
+    assert_eq!(running_generation(&owner).await, Some(generation), "the running plugin keeps its generation during the cycle");
+    probe.released.send_replace(true);
+    wait_for_cycle_outcome(&handle, &cycle_id, ResultStatus::Passed).await;
+    handle.plugin_restart_settled(&identifier(HOST)).await;
+    assert_ne!(running_generation(&owner).await.expect("the retried program runs"), generation);
+    probe.runtime.lock().unwrap().take();
     drop(handle);
     owner.shutdown().await.unwrap();
 }

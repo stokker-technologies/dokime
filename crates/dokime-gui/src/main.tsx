@@ -1,3 +1,4 @@
+import { failureOf } from "@/lib/notification-details";
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
 import { createRoot, type Root } from "react-dom/client";
@@ -22,8 +23,8 @@ void (async () => {
   root.render(
     <>
       <DokimeToaster />
-      <NotificationMessage source="Startup" title="Application Could Not Start">
-        {error instanceof Error ? error.message : String(error)}
+      <NotificationMessage context="background" source="Startup" title="Application Could Not Start" error={error}>
+        {failureOf(error, "Operation Failed").message}
       </NotificationMessage>
     </>,
   );

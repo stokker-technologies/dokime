@@ -22,6 +22,7 @@ import type { PromptRequest } from "@/lib/types";
 
 const STATE_TONES: Record<CycleState["variant"], CycleRow["statusTone"]> = {
   default: "good",
+  destructive: "bad",
   outline: "neutral",
   secondary: "neutral",
   warning: "warn",
@@ -43,7 +44,7 @@ export type CycleRow = {
   cycleId: string;
   executionCount: number;
   label: string;
-  phase: "Active" | "Sealing" | "Sealed" | "Unknown";
+  phase: "Active" | "Sealing" | "SealFailed" | "Sealed" | "Unknown";
   status: NonNullable<NonNullable<CycleSummary["status"]>["HarmosVariant"]["case"]>;
   statusLabel: string;
   statusTone: "neutral" | "good" | "warn" | "bad";
@@ -104,7 +105,7 @@ export function promptCountsByCycle(prompts: readonly PromptRequest[]): Map<stri
  * has been loaded" or "nothing matched", and those are different sentences.
  */
 export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[] {
-  const attention = rows.filter((row) => row.attentionCount > 0 || row.status === "Blocked");
+  const attention = rows.filter((row) => row.attentionCount > 0 || row.status === "Blocked" || row.phase === "SealFailed");
   const attentionIds = new Set(attention.map((row) => row.cycleId));
   const active = rows.filter((row) => !attentionIds.has(row.cycleId) && row.phase !== "Sealed");
   const activeIds = new Set(active.map((row) => row.cycleId));
@@ -162,6 +163,8 @@ function statePhase(cycle: CycleSummary): Parameters<typeof cycleState>[0] {
   switch (cycle.phase?.HarmosVariant.case) {
     case "Sealing":
       return "sealing";
+    case "SealFailed":
+      return "seal_failed";
     case "Sealed":
       return "sealed";
     default:

@@ -1,3 +1,4 @@
+import { failureOf } from "@/lib/notification-details";
 /* ***
  *
  * Dokime
@@ -27,6 +28,7 @@ import {
   cycleRowSelection,
   cycleState,
   followSelection,
+  isCycleArchivable,
   isCycleTerminal,
   isFollowing,
   isUnstartedExecution,
@@ -38,7 +40,6 @@ import {
 } from "@/features/cycle/cycle-workspace-model";
 import {
   RECONNECT_MAX_MS,
-  DOCUMENT_FAILED_FALLBACK,
   documentRetry,
   documentRetryDelay,
   evidencePaneState,
@@ -99,11 +100,17 @@ test("Active Containers Persist", () => {
     { cycleId: "finished-run", phase: "Active", status: "Completed", attentionCount: 0 },
     { cycleId: "saving-evidence", phase: "Sealing", status: "Stopped", attentionCount: 0 },
     { cycleId: "history", phase: "Sealed", status: "Completed", attentionCount: 0 },
+    { cycleId: "unreadable", phase: "SealFailed", status: "Stopped", attentionCount: 0 },
   ] as CycleRow[];
   const groups = groupCycleRows(rows);
   assert.deepEqual(
     groups.find((group) => group.id === "active")?.rows.map((row) => row.cycleId),
     ["finished-run", "saving-evidence"],
+  );
+  // A Failed Seal Waits On The Operator: Retry Or Archive
+  assert.deepEqual(
+    groups.find((group) => group.id === "attention")?.rows.map((row) => row.cycleId),
+    ["unreadable"],
   );
   assert.deepEqual(
     groups.find((group) => group.id === "recent")?.rows.map((row) => row.cycleId),
@@ -128,6 +135,10 @@ test("Cycle State", () => {
   // The Closing Phases Name Only Themselves
   assert.equal(cycleState("sealing", "stopping", true).label, "Sealing");
   assert.equal(cycleState("sealed", "failed", false).label, "Sealed");
+  assert.deepEqual(cycleState("seal_failed", "stopped", true), { label: "Seal Failed", variant: "destructive" });
+
+  // Only A Settled Seal, Sealed Or Failed, Archives
+  assert.deepEqual((["active", "sealing", "seal_failed", "sealed"] as const).filter(isCycleArchivable), ["seal_failed", "sealed"]);
 });
 
 test("Status Pill", () => {
@@ -198,7 +209,6 @@ test("Settings Dialogs", () => {
   const sealed = render({ onChange: () => undefined, readOnly: cycleSettingsReadOnly("sealed", false), values: cycle });
   assert.ok((sealed.match(/ disabled=""/g) ?? []).length >= 3, "title, description and continuation are all read-only");
   assert.match(sealed, /role="switch"[^>]* disabled=""/);
-  assert.match(sealed, /Sealed cycles keep the settings they ran with/);
 
   // An Execution's Settings Are Its Title Alone, The Same Form
   const execution = render({ onChange: () => undefined, values: { title: "Charger Start-Up" } });
@@ -575,10 +585,12 @@ test("Evidence Pane", () => {
   assert.deepEqual(pane({ hasDocument: true, failureReason: busy }), {
     kind: "document",
     staleReason: null,
+    failure: undefined,
   });
   assert.deepEqual(pane({ hasDocument: true, error: failed }), {
     kind: "document",
-    staleReason: "document scope is unknown",
+    staleReason: failed.message,
+    failure: failureOf(failed, "fixture"),
   });
 
   // Without A Document, Busy Is Pending And Only A Real Failure Is A Notice
@@ -587,11 +599,8 @@ test("Evidence Pane", () => {
   assert.deepEqual(pane({ pending: true }), { kind: "loading" });
   assert.deepEqual(pane({ error: failed }), {
     kind: "failed",
-    message: "document scope is unknown",
-  });
-  assert.deepEqual(pane({ error: new Error(" ") }), {
-    kind: "failed",
-    message: DOCUMENT_FAILED_FALLBACK,
+    message: failed.message,
+    failure: failureOf(failed, "fixture"),
   });
 });
 

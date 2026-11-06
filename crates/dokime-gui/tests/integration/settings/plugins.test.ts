@@ -50,7 +50,7 @@ function installation(installId: string) {
     installedAt: { seconds: 1_760_000_000n, nanos: 0 },
     state: { HarmosVariant: { case: "Installed", value: {} } },
     active: false,
-    restartRequired: true,
+    restart: { HarmosVariant: { case: "Restarting", value: {} } },
   };
 }
 
@@ -178,7 +178,7 @@ test("Dropped Bundle Installs From The Shell's Recorded Drop", async () => {
 test("Failed Plugin Settings Retain Owner And Secret", async () => {
   const failed = {
     ...installation("install-1"),
-    restartRequired: false,
+    restart: { HarmosVariant: { case: "Idle", value: {} } },
     bootFailed: true,
     metadata: { identity: { name: "Example Plugin", version: "1.0.0", description: "" }, owners: ["example"], sizeBytes: 1n },
     lastBoot: {
@@ -207,6 +207,7 @@ test("Failed Plugin Settings Retain Owner And Secret", async () => {
     secrets: [{ identifier: "api_token", available: false }],
     values: {},
     discovered: {},
+    restart: { HarmosVariant: { case: "Idle", value: {} } },
   });
   fixture.getInstallation.mockResolvedValueOnce(failed);
   const projected = await getNativePlugin(session, "install-1");

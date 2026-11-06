@@ -24,7 +24,7 @@ and read only the requested unique regular member. Multiple plugins SHALL be dis
 
 ### Requirement: Versioned Distribution Assembly
 
-Installer packaging SHALL resolve an exact release version or edge, default
+Installer packaging SHALL resolve an exact release version or nightly, default
 an omitted version to the running authoring tool version, and acquire the native
 distribution ZIP and selected plugin archives from that release. It SHALL verify
 release SHA256SUMS and feed member hashes and cache artifacts per user by digest.

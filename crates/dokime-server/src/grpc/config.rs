@@ -32,6 +32,7 @@ const SERVER_CALLS_PER_CONNECTION: u64 = 32;
 const SERVER_CONNECTIONS: u64 = 64;
 const SERVER_DECODE_RETAINED_BYTES: u64 = 4_194_304;
 const SERVER_ENCODE_BUFFER_BYTES: u64 = 8_192;
+const SERVER_INPUT_ITEM_MESSAGES: u64 = 3;
 const SERVER_MAXIMUM_MESSAGE_BYTES: u64 = 16_777_216;
 const SERVER_MESSAGE_BYTES: u64 = 1_048_576;
 const SERVER_OPENING_TIMEOUT_MS: u64 = 5_000;
@@ -139,11 +140,13 @@ impl Config {
     pub(crate) fn into_listener_settings(self) -> Result<dokime::harmos::grpc::Settings, Error> {
         self.validate()?;
         let bytes = NonZeroUsize::new(self.max_message_bytes).ok_or(Error::Configuration("message limit must be positive"))?;
+        let item_messages = NonZeroUsize::new(SERVER_INPUT_ITEM_MESSAGES as usize).unwrap();
         let stream = dokime::harmos::operations::StreamSettings {
             items: NonZeroUsize::new(SERVER_STREAM_ITEMS as usize).unwrap(),
-            // One Decoded Input Item Is A Whole Message Plus Its Native Envelope, So The
-            // Single-Item Budget Holds Twice The Message Limit Rather Than Exactly One.
-            bytes: bytes.saturating_mul(NonZeroUsize::new(2).unwrap()),
+            // Admitting One Decoded Input Item Charges Its Canonical Buffer And Its Decoded Value,
+            // Each Nearly A Whole Message, Plus The Value's Native Layout. Two Messages Fall Short
+            // By That Layout For A Full Upload Chunk, So The Single-Item Budget Holds Three.
+            bytes: bytes.saturating_mul(item_messages),
         };
         let output = dokime::harmos::operations::StreamSettings {
             items: stream.items,
@@ -207,3 +210,41 @@ impl Default for Config {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime::domain::model::{content::wire as content, plugins::wire as plugins};
+
+    // The Largest Chunk Either Upload Frame Admits Decodes Within The Input Item Budget At Every Message Limit.
+    #[test]
+    fn input_budget_admits_full_chunks() {
+        for message_bytes in [4_096, SERVER_MESSAGE_BYTES as usize, SERVER_MAXIMUM_MESSAGE_BYTES as usize] {
+            let config = Config::local().with_max_message_bytes(message_bytes);
+            let budget = config.into_listener_settings().unwrap().operations.input.bytes.get();
+            let artifact = |data| content::UploadArtifactFrame {
+                payload: Some(content::UploadArtifactFramePayload::Chunk(content::ArtifactChunk { offset: u64::MAX, data })),
+            };
+            let plugin = |data| plugins::InstallPluginFrame {
+                frame: Some(plugins::InstallPluginFrameFrame::Chunk(plugins::InstallPluginChunk { offset: u64::MAX, data })),
+            };
+            let artifact =
+                charge::<dokime::operations::content::UploadArtifact>(artifact, &["payload", "Chunk", "field_0", "data"], message_bytes);
+            let plugin = charge::<dokime::operations::plugins::Install>(plugin, &["frame", "Chunk", "field_0", "data"], message_bytes);
+            assert!(artifact.max(plugin) <= budget, "{message_bytes}-byte messages charge {artifact} and {plugin} of {budget}");
+        }
+    }
+
+    // Charges The Decode Of The Largest Chunk A Frame Of `message_bytes` Carries.
+    fn charge<O: dokime::harmos::operations::OperationDeclaration>(
+        frame: impl Fn(Vec<u8>) -> <O::Input as dokime::harmos::operations::Direction>::Item, path: &[&str], message_bytes: usize,
+    ) -> usize {
+        let limit = dokime::harmos::grpc::input_payload_limit::<O>(&frame(Vec::new()), path, message_bytes, message_bytes).unwrap();
+        let mut encoded = Vec::new();
+        harmos_sdk::grpc::encode(&frame(vec![0xA5; limit]), &mut encoded).unwrap();
+        let prepared = harmos_sdk::grpc::prepare::<<O::Input as dokime::harmos::operations::Direction>::Item>(
+            harmos_sdk::grpc::DecodeInput::new(&encoded),
+        );
+        prepared.unwrap().memory()
+    }
+}

@@ -12,6 +12,16 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
+## About And Build Versions
+
+Settings › About shows **Desktop Version** from the native `desktop_build` command
+and, while connected, **Backend Version** from the backend identity, since a remote
+backend may run another build. Each reads `v0.1.2 · 766330b7 · nightly`: the short
+commit, `-dirty` for uncommitted local changes or `unknown`, then the channel when
+one is known. Clicking the short commit copies the full commit. Formatting lives in
+`src/features/settings/sections/build-version.ts`. A browser build without the
+native shell shows only the bundled frontend version.
+
 ## Desktop Launches And Storage Ownership
 
 Every launch opens its own desktop window. Launch arguments and deep links belong
@@ -43,8 +53,10 @@ cycles are retired from that state to keep checkpoints bounded; their durable
 history remains the source for subsequent reads. Startup marks unfinished
 executions Interrupted, records the restart reason, and closes admission to their
 cycles before accepting new work. Interrupted cycles report Stopped. Pending
-report finalization resumes from its frozen terminal header; a failed seal stays
-retryable without reporting Running.
+report finalization resumes from its frozen terminal header. A seal that cannot
+complete settles as Seal Failed: the Cycles home lists it under Needs Attention,
+and the cycle's control card shows the cause with Retry Seal and Archive, each
+behind a confirmation. Startup does not retry a Seal Failed cycle.
 
 ## Keyboard Focus And Theme Colors
 
@@ -169,12 +181,35 @@ the captured column schema to select this presentation.
   bodies so nested runtime futures stay off that thread's stack. Native and RPC
   command futures have a 16 KiB
   regression budget; the plugin install guard also constructs the mock-runtime future.
+  Client regression guards also cover ordinary and prepared upload futures.
+  [crates/dokime-client/src/transport.rs](../crates/dokime-client/src/transport.rs)
+  boxes the RPC executor before composing idle and cancellation guards.
 - Settings › Plugins keeps installed programs' ordinary settings editable after
   startup fails. Their declared schema comes from the verified bundle inventory.
   Secret declarations show identifiers and availability read-only; Add In Secret
   Storage opens the shared Add Secret dialog prefilled with the identifier.
-  Every owner in an inactive bundle remains visible. Add missing identifiers and
-  restart Dokime, or use the existing plugin Retry to read the store again.
+  Every owner in an inactive bundle remains visible. Add missing identifiers, then
+  use the page's **Retry**, which calls `Plugins.Retry` for that installation only.
+- A saved settings change restarts its program. The plugin's status badge reads
+  Restarting… while the new generation starts, and Restart Pending, explained as
+  applying when no cycle is active, while any cycle runs, pauses, continues to its
+  next case or finalizes. Both states come from `PluginRuntimeSettings.restart`;
+  while one holds, the page re-reads the plugin views whenever the backend's
+  operations change, since the restart runs as one. A restart refused before the
+  program stopped shows **Restart Refused** with **Retry** while the plugin stays
+  active; a failed new generation surfaces like a failed startup. **Retry** starts
+  a plugin that does not run at once, even during a cycle; retrying a running one
+  shows Restart Pending until no cycle is active.
+- Install, reinstall, update, enable, disable and remove apply in the running
+  backend; no plugin action prompts to restart the application. After a successful
+  live stop, removed or replaced installations disappear with their bundles.
+  A deletion failure keeps the row with its error until startup retries.
+  `PluginInstallation.restart` drives the row badge (**Restarting…**, **Restart
+  Pending** with its reason) and, while any row is not idle, Settings › Plugins
+  re-reads the list on operation changes. A refused replacement is a
+  `removal_pending` row reported as **Refused**; the previous installation stays
+  **Active**. `startNotification` in `src/features/settings/plugins/plugin-queries.ts`
+  raises one toast per recorded failed startup or refused restart.
   Startup notifications and plugin views keep root prose separate from collapsed
   consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
   the identifier prefilled; notification history retains the same destination.
@@ -200,6 +235,37 @@ the captured column schema to select this presentation.
 - Streams read one bounded frame at a time, require final OK status, and cancel
   with their session or subscription owner. Canceling a subscription does not stop
   the backend producer. WebView TLS requires platform-trusted certificates.
+
+## Failure Presentation
+
+Every GUI failure enters `failureOf(error, title)` in
+`src/lib/notification-details.ts`. Its serializable `NotificationFailure` carries
+a title, root message, root-first causes, field problems, operation/request/invocation
+identifiers, the backend's redacted diagnostics and available client `Error.stack`.
+Canonical native/RPC adapters decode backend contracts; presentation leaves retain
+the stem record unchanged. Do not extract an error message in a component or add
+another failure formatter.
+
+`src/lib/failure-routing.ts` owns the routing rule:
+
+| Failure Origin | Destinations |
+|---|---|
+| A view cannot load its data | ErrorCard and console |
+| A user action fails | Toast, notification history and console |
+| Startup, plugin or stream background work fails | Notification history, toast and console |
+
+ErrorCard uses the destructive border and icon, independently of focus colors. It
+shows the record title/message, optional Try Again, collapsed Technical Details
+and Copy of the complete record. Loading and empty states retain ordinary notices.
+Toast/history details expose the same technical record and client stack. Existing
+remediation controls remain independent of opening details.
+
+`reportFailure(failure, context)` emits a collapsed console group containing the
+complete record through `console.error`. Console and notification delivery deduplicate
+by failure identity across rerenders and repeated leaves. Keep the originating Error
+or normalized record through state updates; a new failed retry creates a new
+occurrence. Replayed backend outcomes use an explicit event key. History-storage
+failures report to console and the history view without recursively writing history.
 
 ## Console Traces
 

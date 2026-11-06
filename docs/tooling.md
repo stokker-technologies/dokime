@@ -37,9 +37,94 @@ Tests compiler output under `target/build/<profile>/<target>/fixtures/plugins/`.
 Rust stories resolve those fixtures from the Tests export, so the archive owns
 the bundles its integration lane requires.
 
+## CI Compiler Caches
+
+Compiler caches are separated by OS, architecture, build profile and producer.
+All use `SCCACHE_CACHE_SIZE=8G`; archive-only test consumers need no compiler cache.
+The existing Product identities remain unchanged:
+
+```text
+Product: ci-v5-sccache-<os>-<arch>-<profile>-<hash(mise.lock)>-<hash(Cargo.lock)>
+Tests:   ci-v5-sccache-<os>-<arch>-<profile>-tests-<hash(mise.lock)>-<hash(Cargo.lock)>
+Bench:   ci-v5-sccache-<os>-<arch>-bench-bench-<hash(mise.lock)>-<hash(Cargo.lock)>
+```
+
+Each identity first restores its exact key, then its prefix ending before
+`hash(Cargo.lock)`. Tests and Bench then fall back to the matching Product exact
+key and prefix; Bench uses the release Product cache. This seeds new identities
+while preserving test-only and benchmark-only compilation units in later runs.
+
+Only the corresponding Build / Product, Build / Tests or Build / Bench job saves
+its cache, after a successful build and only on an exact-key miss. PRs restore
+only. Dev pushes save the dev Product and Tests caches; Nightly on dev runs in
+`READ_WRITE` mode and saves release Product, release Tests and bench Bench caches.
+`.github/actions/setup/run.py` resolves `CACHE_PLAN` using the build job's
+`COMPILER_CACHE_KIND`; `.github/actions/save-caches` enforces the Tests and Bench
+save policy. The workflows own producer selection.
+
 ## Focused Python Client Checks
 
 `mise run test:python:unit --select <expression>` checks current client source in
 the root environment without a staged wheel. A focused integration selection uses
 `mise run test:python:integration --select <expression>` and also checks source.
 Full Python unit and integration tasks retain their built-wheel input.
+
+## Hosted-Runner Test Budgets
+
+Test-time budgets are doubled so hosted runners, whose disks can stall for over a
+minute, finish stories reliably on Linux and Windows. `[conventions.testing.deadlines]`
+in `tools/project.toml` sets each lane's per-story deadline, which the test runner
+passes to nextest, pytest and Vitest. Rust fixture operations and in-story waits
+share `STORY_BOUND` and `FIXTURE_POLICY` in
+`crates/dokime-runtime/tests/support/settings.rs`; the desktop stories size their
+waits with the constants at the top of `crates/dokime-gui/e2e/native-desktop.mjs`.
+Product operation policies keep their own deadlines.
+
+## Workstation Builds
+
+Compiling task wrappers in `tools/python/src/dokime_tools/build/machine.py`
+share `native-build.lock` directly under the OS user cache directory:
+`%LOCALAPPDATA%` on Windows, `$XDG_CACHE_HOME` (or `~/.cache`) on Unix.
+Dokime and Harmos use the same path. Windows `LockFileEx` and Unix `flock`
+serialize native compilation across repositories and worktrees. Waiting tasks
+print the holder PID, project and task. The lock spans the child command;
+nested commands inherit ownership. Process exit releases the OS lock,
+including crashes; stale holder metadata is replaced after acquisition.
+Never delete the lock file. The lock also remains enabled in CI, where hosted
+jobs have separate machines; local CI simulations therefore share the lock.
+No worker or compiler thread limits are added.
+
+For non-CI runs, `mise.toml` selects `RUSTC_WRAPPER=sccache`,
+`SCCACHE_DIR=<OS user cache>/sccache`, `SCCACHE_CACHE_SIZE=20G` and disables
+incremental compilation. Each worktree keeps its own `target/`; matching
+cacheable crate compilations can reuse results across worktrees. CI retains
+its existing per-profile cache settings. sccache is already a pinned mise tool.
+Local wrappers reuse the existing `ci/compiler.py` foreground-server helper with
+an owned endpoint, so an older daemon cannot silently select another store.
+Only that owned server is stopped after the command; each task prints its cache
+hit and miss counts.
+If allocation failures recur, disable it for one run by setting
+`RUSTC_WRAPPER` to an empty value:
+
+```sh
+RUSTC_WRAPPER= mise run build:rust
+```
+
+In PowerShell use `$env:RUSTC_WRAPPER = ''; mise run build:rust`, then remove
+the override with `Remove-Item Env:RUSTC_WRAPPER`. The build lock remains active.
+`mise run test:tooling` proves serialization and OS release after a holder dies.
+
+## Simulation Scratch Recovery
+
+Simulation scratch stays in the system temporary directory. Each workspace is
+published with a self-contained ownership marker before it receives source or
+build outputs. A native lease outside the disposable directory protects the
+owner through cleanup. Normal completion and failures preserve diagnostics in
+`target/ci/simulation/` and remove owned scratch. The next simulation recovers
+unlocked scratch after a crash, even when the original checkout's records are gone.
+
+Legacy, unmarked, linked, malformed or live scratch is retained with its path and
+an explanation. Inspect those paths and establish that their owner has stopped
+before removing them manually. New versioned stable paths allow simulations to
+start while unverifiable legacy directories remain. Never delete a native lease
+file or redirect TEMP into the checkout.

@@ -18,10 +18,10 @@
 
 /* === External Imports === */
 
+import { failureOf } from "@/lib/notification-details";
 import { Settings2 } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
-import { notificationMessage } from "@/lib/notification-details";
 
 /* === Local Imports === */
 
@@ -152,7 +152,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
             ? `Enter between 1 and ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} points, use 0 for every sample, or leave empty for the default.`
             : `Leave the points empty for the host default, or use 0 for every sample; a long live run is compacted near ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} samples per trace.`}
         </p>
-        {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
+        {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
 
         <DialogFooter>
           <DialogClose asChild>

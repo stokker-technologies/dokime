@@ -19,7 +19,6 @@ import { ChevronLeft, MoreHorizontal } from "lucide-react";
 // Third Party Imports
 import { type ComponentProps, type ReactNode, useEffect } from "react";
 // Local Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -42,8 +41,6 @@ type PageShellProps = Omit<ComponentProps<"div">, "children" | "className" | "ti
 
 type PageNoticeProps = {
   children: ReactNode;
-  /** `alert` for failures the page cannot hide, `status` for quiet notes. */
-  tone?: "alert" | "status";
 };
 
 /* === Components === */
@@ -62,8 +59,7 @@ export function PageShell({ actions, children, className, trail, ...props }: Pag
 }
 
 /** One line about the page's data, at the page's own text inset. */
-export function PageNotice({ children, tone = "status" }: PageNoticeProps) {
-  if (tone === "alert") return <NotificationMessage>{children}</NotificationMessage>;
+export function PageNotice({ children }: PageNoticeProps) {
   return (
     <p role="status" className="text-sm text-muted-foreground">
       {children}

@@ -199,6 +199,9 @@ test("Container Seal Controls", () => {
     line: "Sealing · saving evidence",
   });
   assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], detail: null, line: "Sealed · evidence saved" });
+
+  // A Failed Seal Offers Retry And Archive, Never A Running Control
+  assert.deepEqual(cycleControlState({ phase: "seal_failed", running: null }).actions, ["Retry Seal", "Archive"]);
 });
 
 test("Stream Refreshes Files And Preserves Sealed Detail", async () => {

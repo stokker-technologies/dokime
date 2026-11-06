@@ -554,6 +554,7 @@ pub(crate) async fn native_entry_independent() {
         records: Default::default(),
         continue_automatically: false,
         result: None,
+        seal_failure: None,
     };
     let native = Cycle::try_from(&cycle).unwrap();
     assert!(harmos::Message::encoded_size(&native) < 1024 * 1024);

@@ -15,6 +15,8 @@
 
 // Standard Library Imports
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
@@ -25,7 +27,6 @@ import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
 // Third Party Imports
-import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -169,9 +170,11 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
         <p className="text-sm text-muted-foreground">
           All plugins on this host can look up these identifiers. Values stay in its OS keyring.
         </p>
-        {Boolean(error || query.error) && (
-          <NotificationMessage error={error ?? query.error}>{notificationMessage(error ?? query.error)}</NotificationMessage>
-        )}
+        {error ? (
+          <NotificationMessage error={error}>{failureOf(error, "Secret Change Failed").message}</NotificationMessage>
+        ) : query.error ? (
+          <ErrorCard failure={failureOf(query.error, "Secrets Unavailable")} onRetry={() => void query.refetch()} />
+        ) : null}
         {snapshot?.cleanupPending && (
           <NotificationMessage source="Secrets" title="Keyring Cleanup Pending" tone="info">
             The change is active, but an obsolete keyring slot could not be removed.
@@ -327,7 +330,7 @@ function SecretEditor({
           <DialogTitle>{editor.kind === "new" ? "Add Secret" : "Edit Secret"}</DialogTitle>
           <DialogDescription>Values stay in the host’s OS keyring.</DialogDescription>
         </DialogHeader>
-        {error ? <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage> : null}
+        {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
         <form
           className="grid gap-3"
           onSubmit={(event) => {

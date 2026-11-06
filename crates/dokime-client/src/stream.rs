@@ -26,7 +26,7 @@ use std::{
 
 // Third Party Imports
 use tokio::{
-    sync::{Mutex, Notify, mpsc},
+    sync::{Mutex, Notify, mpsc, watch},
     task::JoinHandle,
 };
 use tokio_stream::{Stream, StreamExt};
@@ -74,6 +74,7 @@ struct Upload<T, R> {
 }
 
 pub(super) struct Input<S> {
+    progress: watch::Sender<tokio::time::Instant>,
     inner: Pin<Box<S>>,
     cancellation: Pin<Box<dyn Future<Output = ()> + Send>>,
 }
@@ -359,9 +360,13 @@ impl<T, R> Drop for Upload<T, R> {
 impl<S> Input<S> {
     pub(super) fn new(inner: S, cancellation: CancellationToken) -> Self {
         Self {
+            progress: watch::channel(tokio::time::Instant::now()).0,
             inner: Box::pin(inner),
             cancellation: Box::pin(cancellation.cancelled_owned()),
         }
+    }
+    pub(super) fn progress(&self) -> watch::Receiver<tokio::time::Instant> {
+        self.progress.subscribe()
     }
 }
 
@@ -373,7 +378,12 @@ impl<S: Stream> Stream for Input<S> {
             return Poll::Ready(None);
         }
 
-        self.inner.as_mut().poll_next(context)
+        let next = self.inner.as_mut().poll_next(context);
+        if next.is_ready() {
+            // EOF Starts The Final Response Wait With A Fresh Idle Budget.
+            self.progress.send_replace(tokio::time::Instant::now());
+        }
+        next
     }
 }
 

@@ -23,7 +23,6 @@ use std::collections::BTreeMap;
 // Local Imports
 use super::*;
 use dokime::definition::{MaterializedParameter, ParameterSource};
-use dokime::domain::model::execution::result::TestExecution;
 use dokime::domain::model::execution::wire as execution_model;
 use dokime::domain::model::identity::TestExecutionId;
 use dokime::domain::model::identity::wire::Diagnostic;
@@ -49,20 +48,6 @@ const DIAGNOSTIC_TRUNCATED: &str = "\n… truncated";
 
 /* === Public Functions === */
 
-pub(super) fn execution<'a>(
-    state: &'a dokime::state::RuntimeState, id: &str,
-) -> Result<(&'a dokime::domain::model::execution::result::TestCycle, usize, &'a TestExecution), Status> {
-    let id = TestExecutionId::from_uuid(id.to_owned()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
-    let execution = state.executions.get(&id).ok_or_else(|| Status::not_found("execution not found in current runtime"))?;
-    let cycle = state.cycles.get(&execution.test_cycle_id).ok_or_else(|| Status::failed_precondition("execution owner is unavailable"))?;
-    let ordinal = cycle
-        .execution_ids
-        .iter()
-        .position(|item| item == &id)
-        .ok_or_else(|| Status::failed_precondition("execution owner membership is unavailable"))?;
-    Ok((cycle, ordinal, execution))
-}
-
 pub(crate) fn result(
     value: &dokime::domain::model::execution::result::ResultSummary,
 ) -> dokime::domain::model::execution::wire::ResultSummary {
@@ -84,22 +69,17 @@ pub(crate) fn result(
 
 pub(super) async fn get_case(service: &Resources, request: &wire::GetCase) -> Result<execution_model::CaseDetail, Status> {
     let id = cycle_id(&request.cycle_id)?;
-    let snapshot = dokime::app::live_runtime(&service.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
-    let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
-    let (ordinal, case) = cycle
-        .cases()
-        .enumerate()
-        .find(|(_, case)| case.test_case_id.as_str() == request.case_id)
-        .ok_or_else(|| Status::not_found("case not found in requested cycle"))?;
+    let case_id = dokime::domain::model::identity::CaseId::from_uuid(request.case_id.clone())
+        .map_err(|_| Status::invalid_argument("invalid case UUID"))?;
+    let inspection = dokime::app::live_runtime(&service.runtime).await?.inspect_case(&id, &case_id).await.map_err(status)?;
+    let snapshot = inspection.snapshot;
+    let case = &inspection.case;
+    let ordinal = inspection.ordinal;
 
     reply(
         service,
         execution_model::CaseDetail {
-            summary: Some(super::case_summary(
-                case,
-                ordinal,
-                dokime::runtime::query::case_projection(snapshot.state(), &cycle, &case.test_case_id),
-            )?),
+            summary: Some(super::case_summary(case, ordinal, inspection.projection)?),
             suite: case.suite.as_ref().map(metadata).transpose()?,
             parameter_count: case.parameters.len() as u64,
             generation_index: case.generation_index,
@@ -110,8 +90,11 @@ pub(super) async fn get_case(service: &Resources, request: &wire::GetCase) -> Re
 
 pub(super) async fn get_execution(service: &Resources, request: &wire::GetExecution) -> Result<execution_model::ExecutionDetail, Status> {
     let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
-    let snapshot = dokime::app::live_runtime(&service.runtime).await?.inspect_execution(&id).await.map_err(status)?;
-    let (cycle, ordinal, execution) = execution(snapshot.state(), &request.execution_id)?;
+    let inspection = dokime::app::live_runtime(&service.runtime).await?.inspect_execution(&id).await.map_err(status)?;
+    let snapshot = inspection.snapshot;
+    let cycle = &inspection.cycle;
+    let execution = &*inspection.execution;
+    let ordinal = inspection.ordinal;
 
     let summary = Some(execution_summary(snapshot.state(), execution, ordinal));
     reply(
@@ -174,8 +157,9 @@ pub(super) async fn list_execution_parameters(
     service: &Resources, request: &wire::ListExecutionParameters,
 ) -> Result<execution_model::ListMaterializedParametersReply, Status> {
     let id = TestExecutionId::from_uuid(request.execution_id.clone()).map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
-    let snapshot = dokime::app::live_runtime(&service.runtime).await?.inspect_execution(&id).await.map_err(status)?;
-    let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
+    let inspection = dokime::app::live_runtime(&service.runtime).await?.inspect_execution(&id).await.map_err(status)?;
+    let snapshot = inspection.snapshot;
+    let execution = &*inspection.execution;
     let selected = match request.set {
         execution_model::ExecutionParameterSet::Inputs => execution.snapshot.parameters(),
         execution_model::ExecutionParameterSet::Outputs => &execution.output_parameters,
@@ -222,17 +206,16 @@ pub(super) async fn list_case_parameters(
     service: &Resources, request: &wire::ListCaseParameters,
 ) -> Result<execution_model::ListCaseParametersReply, Status> {
     let id = cycle_id(&request.cycle_id)?;
-    let snapshot = dokime::app::live_runtime(&service.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
+    let case_id = dokime::domain::model::identity::CaseId::from_uuid(request.case_id.clone())
+        .map_err(|_| Status::invalid_argument("invalid case UUID"))?;
+    let inspection = dokime::app::live_runtime(&service.runtime).await?.inspect_case(&id, &case_id).await.map_err(status)?;
+    let snapshot = inspection.snapshot;
     let selection = execution_model::ParameterCursorSelection::PlannedCase(execution_model::PlannedCaseParameters {
         cycle_id: request.cycle_id.clone(),
         case_id: request.case_id.clone(),
     });
     let limit = parameter_page(request.limit, &request.after_name, request.cursor.as_ref(), &snapshot, &selection)?;
-    let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
-    let case = cycle
-        .cases()
-        .find(|case| case.test_case_id.as_str() == request.case_id)
-        .ok_or_else(|| Status::not_found("case not found in requested cycle"))?;
+    let case = &inspection.case;
     case_parameters(service, &case.parameters, &request.after_name, limit, parameter_cursor(&snapshot, selection))
 }
 

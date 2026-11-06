@@ -154,6 +154,7 @@ class Backend:
     methods: frozenset[str]
     product_version: str = ""
     source_revision: str | None = None
+    channel: str | None = None
     sdk_revision: str | None = None
     descriptor_sha256: bytes = b""
     max_evidence_bytes: int | None = None

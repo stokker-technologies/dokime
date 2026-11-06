@@ -18,13 +18,14 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
 import { operationIds } from "@/lib/rpc/generated/operations";
-import { notificationFailure } from "@/lib/notification-details";
 
 /* === Local Imports === */
 
@@ -121,15 +122,21 @@ export function TemplateDialog({
   const { mutateAsync: uploadArtifact } = useOperatorArtifactUploadMutation();
 
   const validation = useMemo(
-    () => ({
-      reason: "validation",
-      operation: "Planning.PreviewSelection",
-      operationId: operationIds["/dokime.v1.Planning/PreviewSelection"],
-      problems: editorProblems(rows, fileRows, template.file_definitions),
-    }),
+    () =>
+      failureOf(
+        {
+          notificationFailure: {
+            reason: "validation",
+            operation: "Planning.PreviewSelection",
+            operationId: operationIds["/dokime.v1.Planning/PreviewSelection"],
+            problems: editorProblems(rows, fileRows, template.file_definitions),
+          },
+        },
+        "Template Inputs Need Attention",
+      ),
     [rows, fileRows, template.file_definitions],
   );
-  const problems = validation.problems.length;
+  const problems = validation.problems?.length ?? 0;
 
   const payload = useMemo(
     () =>
@@ -208,7 +215,12 @@ export function TemplateDialog({
       setFileRows((current) =>
         current.map((row) =>
           row.name === definition.name
-            ? { ...row, error: messageOf(failure), failure: notificationFailure(failure), uploading: false }
+            ? {
+                ...row,
+                error: failureOf(failure, "Operation Failed").message,
+                failure: failureOf(failure, "Operation Failed"),
+                uploading: false,
+              }
             : row,
         ),
       );
@@ -277,9 +289,7 @@ export function TemplateDialog({
           {!parametersReady ? (
             <div role="status">
               {parametersError ? (
-                <NotificationMessage source="Parameters" title="Remembered Parameters Could Not Load">
-                  {parametersError}
-                </NotificationMessage>
+                <ErrorCard failure={parametersError} />
               ) : (
                 <p className="text-sm text-muted-foreground">Loading remembered parameters…</p>
               )}
@@ -326,7 +336,7 @@ export function TemplateDialog({
       </div>
       {error ? (
         <NotificationMessage source="Template" error={error}>
-          {messageOf(error)}
+          {failureOf(error, "Operation Failed").message}
         </NotificationMessage>
       ) : null}
     </div>
@@ -565,8 +575,4 @@ function readTouchDensity(): boolean {
 function focusContent(event: Event) {
   event.preventDefault();
   (event.currentTarget as HTMLElement).focus();
-}
-
-function messageOf(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
 }

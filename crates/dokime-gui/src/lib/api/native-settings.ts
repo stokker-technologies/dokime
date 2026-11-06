@@ -64,6 +64,7 @@ export function mapNativePluginRuntimeSettings(settings: NativePluginRuntimeSett
     values: nativeValueObjectToJson(settings.values) as SettingValues,
     discovered: nativeValueObjectToJson(settings.discovered) as SettingValues,
     secrets: settings.secrets.map((secret) => ({ identifier: secret.identifier, available: secret.available })),
+    restart: mapPluginRestart(settings.restart),
   };
 }
 
@@ -275,6 +276,19 @@ function mapHostCardTone(tone: HostCardTone): "neutral" | "info" | "success" | "
       return "danger";
     default:
       return "neutral";
+  }
+}
+
+function mapPluginRestart(restart: PluginRuntimeSettings["restart"]): LegacyPluginRuntimeSettings["restart"] {
+  switch (restart?.HarmosVariant.case) {
+    case "Idle":
+      return "idle";
+    case "Restarting":
+      return "restarting";
+    case "Pending":
+      return "pending";
+    default:
+      throw new Error("Native plugin settings returned an unknown restart state.");
   }
 }
 

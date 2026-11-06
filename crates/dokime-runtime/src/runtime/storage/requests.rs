@@ -77,6 +77,7 @@ pub(crate) struct Pending<R> {
 pub(crate) struct RequestStorage {
     storage: crate::storage::Manager,
     reads: crate::storage::Manager,
+    local: crate::storage::sqlite::State,
     node: NodeId,
     now: fn() -> Timestamp,
     active: Mutex<ActiveRequests>,
@@ -169,11 +170,12 @@ impl ActiveRequests {
 }
 
 impl RequestStorage {
-    pub(crate) fn new(storage: crate::storage::Manager, node: &NodeId) -> Result<Self> {
+    pub(crate) fn new(storage: crate::storage::Manager, local: crate::storage::sqlite::State, node: &NodeId) -> Result<Self> {
         let reads = storage.clone();
         Ok(Self {
             storage,
             reads,
+            local,
             node: node.clone(),
             now: crate::model::time::now_utc,
             active: Mutex::new(ActiveRequests::new()),
@@ -356,7 +358,7 @@ impl RequestStorage {
     }
 
     async fn read(&self, session: &crate::storage::Manager, id: &CommandId) -> Result<Option<Receipt>> {
-        let receipt = native::read(&self.storage, session, id).await?.map(|value| Receipt { value });
+        let receipt = native::read(&self.storage, &self.local, session, id).await?.map(|value| Receipt { value });
         if let Some(receipt) = &receipt
             && (receipt.summary.request_id != *id || receipt.node_id != self.node)
         {

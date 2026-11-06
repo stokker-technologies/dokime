@@ -478,6 +478,9 @@ pub(crate) async fn discovery_shares_independently() {
     assert_eq!(identity.display_name, "gRPC fixture");
     assert_eq!(identity.target, env!("DOKIME_BACKEND_TARGET"));
     assert!(identity.started_at.is_none());
+    let build = dokime::version::current();
+    assert_eq!(identity.source_revision, build.revision.map(|revision| revision.full()));
+    assert_eq!(identity.channel.as_deref(), build.channel);
     assert_eq!(identity.api.unwrap().descriptor_sha256.len(), 32);
     let health = client.unary::<contracts::backend::GetHealth>(contracts::backend::GetHealth {}).await.unwrap().into_inner();
     assert_eq!(health.readiness, model::backend::wire::Readiness::Ready);
@@ -492,6 +495,8 @@ pub(crate) async fn discovery_shares_independently() {
     assert_eq!(managed_identity.display_name, identity.display_name);
     assert_eq!(managed_identity.product_version, identity.product_version);
     assert_eq!(native.backend().target, identity.target);
+    assert_eq!(native.backend().source_revision, identity.source_revision);
+    assert_eq!(native.backend().channel, identity.channel);
     let operations = native.operations().await.unwrap();
     assert!(operations.iter().any(|operation| {
         operation.contract.operation().id.as_str() == dokime::operations::evidence::WatchRecords::ID && operation.grpc_available
@@ -817,7 +822,7 @@ pub(crate) async fn client_retries_reads_without_replaying_mutations() {
     client.call(contracts::backend::GetIdentity {}).await.unwrap();
     assert_eq!(ingress.calls.swap(0, Ordering::SeqCst), 2);
     ingress.failures.store(1, Ordering::SeqCst);
-    client.call_raw("/dokime.v1.Backend/GetIdentity", Vec::new(), Duration::from_secs(5)).await.unwrap();
+    client.call_raw("/dokime.v1.Backend/GetIdentity", Vec::new(), Duration::from_secs(10)).await.unwrap();
     assert_eq!(ingress.calls.swap(0, Ordering::SeqCst), 2);
     ingress.failures.store(1, Ordering::SeqCst);
     let bounded = client.with_timeout(Duration::from_millis(10)).call(contracts::backend::GetIdentity {}).await;

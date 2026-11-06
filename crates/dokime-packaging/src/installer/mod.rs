@@ -11,6 +11,7 @@
 
 mod artwork;
 mod distribution;
+mod license;
 mod manifest;
 mod native;
 mod plugins;

@@ -98,6 +98,13 @@ import { traceSpan } from "./test-trace.mjs";
 
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
+// Story Waits Are Sized For Hosted-Runner Disk Stalls. One Wait Bounds A Condition, Native
+// Process, Socket Or Report Browser Request; Startup Covers A Cold Backend; A Run Covers A
+// Whole Execution Or Plugin Installation.
+const WAIT_MS = 240000;
+const STARTUP_WAIT_MS = 360000;
+const RUN_WAIT_MS = 600000;
+
 const { values: options } = parseArgs({
   options: {
     junit: { type: "string" },
@@ -185,7 +192,7 @@ const workflows = {
   },
   configuration: {
     title: "Desktop Plugin Installation And Settings",
-    journeys: new Set(["startup", "plugin-install", "idle", "settings"]),
+    journeys: new Set(["startup", "plugin-install", "idle", "settings", "failure-presentation"]),
   },
   appearance: {
     title: "Desktop Distribution And Organization",
@@ -284,7 +291,7 @@ function listening(endpoint) {
       done(true);
     });
     socket.once("error", () => done(false));
-    socket.setTimeout(120000, () => {
+    socket.setTimeout(WAIT_MS, () => {
       socket.destroy();
       done(false);
     });
@@ -306,7 +313,7 @@ async function measured(category, name, run) {
   }
 }
 
-function until(description, check, timeout = 120000, interval = 25) {
+function until(description, check, timeout = WAIT_MS, interval = 25) {
   return traceSpan(description, "step", () => waitUntil(description, check, timeout, interval));
 }
 
@@ -538,7 +545,7 @@ async function startBackendMeasured(
         readiness.ready = await listening(backend.endpoint);
         return readiness.ready;
       },
-      180000,
+      STARTUP_WAIT_MS,
     );
   } finally {
     await writeFile(join(evidence, `${label}-readiness.json`), JSON.stringify({ ...readiness, elapsedMs: Date.now() - readyStarted }));
@@ -628,7 +635,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       method,
       headers: { "content-type": "application/json" },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: AbortSignal.timeout(120000),
+      signal: AbortSignal.timeout(WAIT_MS),
     }).catch((cause) => {
       throw new Error(`WebDriver ${method} ${path} failed: ${cause.message}`, { cause });
     });
@@ -967,7 +974,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     until(
       "connected shell",
       () => session.waitForDom("connected navigation", "return Boolean(document.querySelector('nav[aria-label=Navigation]'));", [], 1000),
-      180000,
+      STARTUP_WAIT_MS,
     );
   session.load = async (url) => {
     const previousOrigin = await session.execute("return performance.timeOrigin;");
@@ -981,7 +988,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
             && (document.body?.innerText.length ?? 0) > 20;`,
           [previousOrigin],
         ),
-      120000,
+      WAIT_MS,
     );
   };
   /** Navigate Through Application Controls; Reload Only For Explicit Persistence Checks. */
@@ -1036,7 +1043,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       if (!endpoint && startLocal) await session.clickNamed("button", "Start Local Backend");
     }
     await session.connected();
-    await until(`route ${path}`, async () => (await session.location()).pathname === target.pathname, 120000);
+    await until(`route ${path}`, async () => (await session.location()).pathname === target.pathname, WAIT_MS);
     await installSaveTap(session);
   };
   session.close = async () => {
@@ -1094,7 +1101,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
           }
           return true;
         },
-        40000,
+        80000,
       );
     } catch (failure) {
       const label = `failure-native-close-${Date.now()}`;
@@ -1168,7 +1175,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
               ],
               {
                 windowsHide: true,
-                timeout: 120000,
+                timeout: WAIT_MS,
                 env: { ...process.env, DOKIME_CLOSE_DRIVER: String(webdriver.pid), DOKIME_CLOSE_SHELL: resolve(shellBinary) },
               },
             ).then((result) => JSON.parse(result.stdout))
@@ -1275,7 +1282,7 @@ async function sizeViewport(session, target) {
  * answers with the path, so the gate lets it run and reads the folder.
  */
 async function installSaveTap(session) {
-  await until("Tauri IPC bridge", () => session.execute("return typeof globalThis.__TAURI_INTERNALS__?.invoke === 'function'"), 120000);
+  await until("Tauri IPC bridge", () => session.execute("return typeof globalThis.__TAURI_INTERNALS__?.invoke === 'function'"), WAIT_MS);
   const state = await session.execute(`
     globalThis.__dokimeSavedDocuments = globalThis.__dokimeSavedDocuments ?? [];
     globalThis.__dokimeInvokes = globalThis.__dokimeInvokes ?? [];
@@ -1504,12 +1511,12 @@ async function startupPromptOpen(session) {
 /** Set the density through Appearance, which is the only honest switch. */
 async function setDensity(session, variant) {
   await session.goto("/settings/appearance");
-  await until("appearance section", async () => hasText(await session.text(), "Density"), 120000);
+  await until("appearance section", async () => hasText(await session.text(), "Density"), WAIT_MS);
   await selectDensity(session, variant.density);
   await until(
     `density ${variant.density}`,
     async () => (await session.execute("return document.documentElement.dataset.density")) === variant.density,
-    120000,
+    WAIT_MS,
   );
   await sizeViewport(session, variant);
 }
@@ -1540,7 +1547,7 @@ async function settle(session) {
         return toasts.every(toast =>
           toast.dataset.visible === 'false' || getComputedStyle(toast).pointerEvents === 'none' || !toast.getClientRects().length);
       `),
-    30000,
+    60000,
   );
 }
 
@@ -1755,7 +1762,7 @@ async function startCaseFromItsRow(session, fragment) {
      };`,
         [fragment],
       ),
-    120000,
+    WAIT_MS,
   );
   /* A row menu is a modal layer: the next row is unreachable until it is gone. */
   await closeAnyMenu(session);
@@ -1787,10 +1794,10 @@ async function startCaseFromItsRow(session, fragment) {
         throw failure;
       }
     },
-    120000,
+    WAIT_MS,
   );
   await closeAnyMenu(session);
-  return until(`the ${fragment} case to start`, started, 120000).catch(() => false);
+  return until(`the ${fragment} case to start`, started, WAIT_MS).catch(() => false);
 }
 
 /** Press a menu trigger until its menu is up, and answer with the menu. */
@@ -1798,7 +1805,7 @@ async function openMenu(session, name, attempts = 2) {
   let last;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     await session.clickNamed("button", name);
-    const menu = await until(`the ${name} menu`, () => session.find("css selector", "[role=menu]"), 120000).catch((failure) => {
+    const menu = await until(`the ${name} menu`, () => session.find("css selector", "[role=menu]"), WAIT_MS).catch((failure) => {
       last = failure;
       return null;
     });
@@ -1865,14 +1872,14 @@ async function startupJourney(session, notes) {
     notes.push("startup: the attach completed before the phase list could be sampled");
   }
 
-  await until("cycles home", async () => (await session.location()).pathname === "/cycles", 120000);
+  await until("cycles home", async () => (await session.location()).pathname === "/cycles", WAIT_MS);
   const body = await until(
     "loaded cycle groups",
     async () => {
       const text = await session.text();
       return hasText(text, "Recent") && !hasText(text, "Loading cycles") ? text : null;
     },
-    120000,
+    WAIT_MS,
   );
   for (const heading of ["Cycles", "Needs Attention", "Active", "Recent"]) {
     assert.ok(hasText(body, heading), `Cycles home must render "${heading}"`);
@@ -1918,7 +1925,7 @@ async function activeCycleJourney(session, otherTitle) {
     session.execute("return document.querySelector('[data-testid=status-active-cycle]')?.innerText.replace(/\\s+/g, ' ').trim() ?? null;");
   const openPicker = async () => {
     await session.clickCss("[data-testid=status-active-cycle]");
-    await until("active cycle picker", () => session.find("css selector", "[role=dialog] [data-testid=open-cycles]"), 120000);
+    await until("active cycle picker", () => session.find("css selector", "[role=dialog] [data-testid=open-cycles]"), WAIT_MS);
   };
   const clickInDialog = (label) =>
     until(`${label} in the open dialog`, () =>
@@ -1932,10 +1939,10 @@ async function activeCycleJourney(session, otherTitle) {
       ),
     );
   const dialogsClosed = () =>
-    until("dialogs closed", async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0, 120000);
+    until("dialogs closed", async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0, WAIT_MS);
 
   await session.goto("/library");
-  await until("suite rows", async () => hasText(await session.text(), STARTUP_SUITE), 120000);
+  await until("suite rows", async () => hasText(await session.text(), STARTUP_SUITE), WAIT_MS);
   assert.equal(
     await session.execute("return document.querySelector('select[aria-label=\"Destination Cycle\"]');"),
     null,
@@ -1945,45 +1952,45 @@ async function activeCycleJourney(session, otherTitle) {
   /* New Cycle in the picker creates a cycle and makes it active at once. */
   await openPicker();
   await clickInDialog("New Cycle");
-  const titleField = await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 120000);
+  const titleField = await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), WAIT_MS);
   /* A title of its own, so no row or toast can match the library journey's cycle. */
   const title = `Active Cycle Journey ${Date.now()}`;
   await session.type(titleField, title);
   await session.clickNamed("button", "Create Cycle");
   await dialogsClosed();
-  await until("the created cycle active", async () => hasText((await element()) ?? "", title), 120000);
+  await until("the created cycle active", async () => hasText((await element()) ?? "", title), WAIT_MS);
 
   /* Choosing a row makes that cycle active; choosing the new one again restores it. */
   if (otherTitle) {
     await openPicker();
     await clickInDialog(otherTitle);
     await dialogsClosed();
-    await until("the chosen cycle active", async () => hasText((await element()) ?? "", otherTitle), 120000);
+    await until("the chosen cycle active", async () => hasText((await element()) ?? "", otherTitle), WAIT_MS);
   }
   await openPicker();
   await clickInDialog(title);
   await dialogsClosed();
-  await until("the new cycle active again", async () => hasText((await element()) ?? "", title), 120000);
+  await until("the new cycle active again", async () => hasText((await element()) ?? "", title), WAIT_MS);
   assert.match((await element()) ?? "", /Active · Idle/, "The element states the cycle's own state");
 
   /* The template dialog names the active cycle with Change, and the case joins it. */
-  await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), 120000);
+  await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), WAIT_MS);
   await session.clickNamed("button", STARTUP_TEMPLATE);
   const inline = () =>
     session.execute("return document.querySelector('[role=dialog] [data-testid=template-active-cycle]')?.innerText ?? null;");
-  const named = (expected) => until(`the dialog naming ${expected}`, async () => hasText((await inline()) ?? "", expected), 120000);
+  const named = (expected) => until(`the dialog naming ${expected}`, async () => hasText((await inline()) ?? "", expected), WAIT_MS);
   await named(title);
   assert.ok(hasText((await inline()) ?? "", "Change"), "The template dialog must offer Change");
 
   /* Change opens the same picker over the dialog, and the choice applies in place. */
   for (const chosen of otherTitle ? [otherTitle, title] : [title]) {
     await clickInDialog("Change");
-    await until("picker over the dialog", () => session.find("css selector", "[role=dialog] [data-testid=open-cycles]"), 120000);
+    await until("picker over the dialog", () => session.find("css selector", "[role=dialog] [data-testid=open-cycles]"), WAIT_MS);
     await clickInDialog(chosen);
     await until(
       "picker closed",
       async () => (await session.execute("return document.querySelectorAll('[data-testid=open-cycles]').length")) === 0,
-      120000,
+      WAIT_MS,
     );
     await named(chosen);
   }
@@ -2065,7 +2072,7 @@ async function cycleExecutionIds(session) {
 
 async function libraryJourney(session) {
   await session.goto("/library");
-  await until("suite rows", async () => hasText(await session.text(), PROTECTION_SUITE), 120000);
+  await until("suite rows", async () => hasText(await session.text(), PROTECTION_SUITE), WAIT_MS);
   assert.equal(
     await session.execute("return document.querySelector('select[aria-label=\"Destination Cycle\"]');"),
     null,
@@ -2074,7 +2081,7 @@ async function libraryJourney(session) {
 
   /* New Cycle opens a dialog titled by the moment it opened. */
   await session.clickNamed("button", "New Cycle");
-  await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 120000);
+  await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), WAIT_MS);
   const title = await session.execute("return document.querySelector('#new-cycle-title').value");
   assert.ok(title.trim().length > 0, "New Cycle must prefill its title");
   assert.ok(hasText(await session.text(), "Continue Automatically"), "New Cycle must state its continuation policy");
@@ -2086,12 +2093,12 @@ async function libraryJourney(session) {
       const id = location.searchParams.get("appendTo");
       return location.pathname === "/library" && id ? id : null;
     },
-    120000,
+    WAIT_MS,
   );
   await until(
     "new cycle dialog closed",
     async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
-    120000,
+    WAIT_MS,
   );
   await until("the created cycle active in the shell", async () =>
     hasText((await session.execute("return document.querySelector('[data-testid=status-active-cycle]')?.innerText ?? '';")) ?? "", title),
@@ -2101,7 +2108,7 @@ async function libraryJourney(session) {
   /* The Library lists every template beside its suite; a template's row opens its dialog. */
   assert.ok(hasText(await session.text(), PROTECTION_TEMPLATE), "The Library must list the suite's templates");
   await session.clickNamed("button", PROTECTION_TEMPLATE);
-  await until("template dialog", () => session.find("css selector", "[role=dialog]"), 120000);
+  await until("template dialog", () => session.find("css selector", "[role=dialog]"), WAIT_MS);
   const step1 = await session.text();
   assert.ok(hasText(step1, "Parameters"), "Step 1 must be Parameters");
   assert.ok(hasText(step1, "Summary"), "The step indicator must name Summary");
@@ -2143,7 +2150,7 @@ async function libraryJourney(session) {
   const before = await until("list chips", chips);
   assert.ok(before.length >= 1, "A list parameter must render its values as chips");
   await session.clickCss(`[data-testid="parameter-chips-${LIST_PARAMETER}"] button[aria-label^="Add "]`);
-  await until("added chip", async () => ((await chips()) ?? []).length === before.length + 1, 120000);
+  await until("added chip", async () => ((await chips()) ?? []).length === before.length + 1, WAIT_MS);
   await session.execute(
     `const cell = document.querySelector('[data-testid="parameter-chips-' + arguments[0] + '"]');
      const input = [...cell.querySelectorAll('input')].at(-1);
@@ -2160,7 +2167,7 @@ async function libraryJourney(session) {
       const values = (await chips()) ?? [];
       return values.length >= before.length + 2 ? values : null;
     },
-    120000,
+    WAIT_MS,
   );
   assert.ok(
     expandedChips.join(",").includes("1,2,3") || expandedChips.length >= before.length + 3,
@@ -2179,7 +2186,7 @@ async function libraryJourney(session) {
 
   /* Step 2 reads the preview back: the deltas, the count, and the target. */
   await session.clickNamed("button", "Next");
-  await until("summary step", async () => hasText(await session.text(), "Finish And Add"), 120000);
+  await until("summary step", async () => hasText(await session.text(), "Finish And Add"), WAIT_MS);
   const summary = await session.text();
   assert.ok(hasText(summary, "Target Cycle"), "The summary must name the active cycle");
   assert.ok(hasText(summary, title.trim()) || hasText(summary, appendTo), "The summary target must be the cycle New Cycle created");
@@ -2197,27 +2204,27 @@ async function libraryJourney(session) {
   await until(
     "first add finished",
     async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
-    120000,
+    WAIT_MS,
   );
   assert.equal((await session.location()).searchParams.get("appendTo"), appendTo, "Adding cases must keep the active cycle");
 
   /* A second template joins the same cycle, so the run has a prompt in it. */
   await settle(session);
-  await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), 120000);
+  await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), WAIT_MS);
   await session.clickNamed("button", STARTUP_TEMPLATE);
-  await until("second dialog", () => session.find("css selector", "[role=dialog]"), 120000);
+  await until("second dialog", () => session.find("css selector", "[role=dialog]"), WAIT_MS);
   /* One case at its registered values has nothing to review: Next adds it at
      once and closes the dialog, without a summary step. */
   await session.clickNamed("button", "Next");
   await until(
     "second add finished",
     async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
-    120000,
+    WAIT_MS,
   );
   assert.equal((await session.location()).searchParams.get("appendTo"), appendTo, "Adding cases must keep the active cycle");
 
   await session.clickNamed("button", "Open Cycle");
-  await until("cycle workspace", async () => (await session.location()).pathname === `/cycles/${appendTo}`, 120000);
+  await until("cycle workspace", async () => (await session.location()).pathname === `/cycles/${appendTo}`, WAIT_MS);
   const startupExecutionId = await until("the appended startup execution", () =>
     session.execute(
       `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
@@ -2233,7 +2240,7 @@ async function libraryJourney(session) {
       .find((row) => row.innerText.includes(arguments[0]))?.dataset.executionId ?? null;`,
         [PROTECTION_TEMPLATE],
       ),
-    120000,
+    WAIT_MS,
   );
   return { id: appendTo, title: title.trim(), measuringExecutionId, startupExecutionId, executionIds: await cycleExecutionIds(session) };
 }
@@ -2259,7 +2266,7 @@ async function openPlotSettings(session, selector) {
       if (focused) await session.key("Enter");
       return null;
     },
-    120000,
+    WAIT_MS,
   );
 }
 
@@ -2275,7 +2282,7 @@ async function cycleJourney(session, cycleId) {
       );
       return hasText(text, PROTECTION_TEMPLATE) && hasText(text, STARTUP_TEMPLATE) ? text : null;
     },
-    120000,
+    WAIT_MS,
   );
   assert.ok(hasText(sidebar, "Cycles"), "The sidebar must keep its destinations");
   /* `CaseSummary.status` is the row's word now, and for a cycle nobody has
@@ -2304,7 +2311,7 @@ async function cycleJourney(session, cycleId) {
   /* The cycle page carries the cycle's progress, status and run controls:
      select the cycle node, then come back to the measuring case. */
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
-  await until("the cycle page", async () => (await session.location()).searchParams.get("view") === "cycle", 120000);
+  await until("the cycle page", async () => (await session.location()).searchParams.get("view") === "cycle", WAIT_MS);
   const header = await session.text();
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
   assert.ok(hasText(header, "Active · Idle"), "A materialized cycle that runs nothing must render its Active · Idle state");
@@ -2340,16 +2347,17 @@ async function cycleJourney(session, cycleId) {
   await until(
     "the cycle selection for operator prompts",
     async () => (await session.location()).searchParams.get("view") === "cycle",
-    120000,
+    WAIT_MS,
   );
 
   /* Open Report while the cycle is in flight: no seal yet, so the runtime
      renders one from the run so far and the shell hands it to the opener
-     (`xdg-open` is a no-op here). It is never disabled and never refused. */
+     (`xdg-open` is a no-op here). It is never disabled and never refused.
+     A cycle whose prompting member already waits reads Waiting, not Running. */
   const inFlight = await until(
     "the cycle header to show an in-flight lifecycle",
-    async () => /\b(Running|Paused|Stopping)\b/.test(normalize(await session.text())),
-    120000,
+    async () => /\b(Running|Waiting|Paused|Stopping)\b/.test(normalize(await session.text())),
+    WAIT_MS,
   ).catch(() => false);
   if (inFlight) {
     await openMenu(session, "Cycle Actions");
@@ -2366,7 +2374,7 @@ async function cycleJourney(session, cycleId) {
     const opened = await until(
       "the in-flight report to open",
       async () => /Report Opened/.test(await toastText(session).catch(() => "")),
-      120000,
+      WAIT_MS,
     ).catch(() => false);
     if (!opened) {
       defect("cycle/open-report", `Open Report did not open a report while the cycle ran: ${await toastText(session).catch(() => "")}`);
@@ -2380,7 +2388,7 @@ async function cycleJourney(session, cycleId) {
   } else {
     defect(
       "cycle/open-report",
-      "The admitted cycle never showed Running, Paused or Stopping, so Open Report could not be checked while it was in flight.",
+      "The admitted cycle never showed Running, Waiting, Paused or Stopping, so Open Report could not be checked while it was in flight.",
     );
   }
 
@@ -2401,7 +2409,7 @@ async function cycleJourney(session, cycleId) {
       }
       return /\b(Passed|Failed|Blocked)\b/.test(await caseRowText(session, STARTUP_TEMPLATE));
     },
-    300000,
+    RUN_WAIT_MS,
   );
 
   /* The Startup Prompt Was Queued On Its Execution, Under Control, At Warning. */
@@ -2466,7 +2474,7 @@ async function cycleJourney(session, cycleId) {
       `,
         [STARTUP_TEMPLATE],
       ),
-    120000,
+    WAIT_MS,
   );
   const selection = await until(
     "execution selected in the URL",
@@ -2475,7 +2483,7 @@ async function cycleJourney(session, cycleId) {
       const executionId = location.searchParams.get("executionId");
       return executionId ? { executionId, caseId: location.searchParams.get("caseId") } : null;
     },
-    120000,
+    WAIT_MS,
   );
   assert.equal(selection.caseId, null, "Execution rows must select solely by executionId");
   const evidence = await until(
@@ -2484,7 +2492,7 @@ async function cycleJourney(session, cycleId) {
       const text = await session.text();
       return /Execution \d+/i.test(normalize(text)) ? text : null;
     },
-    120000,
+    WAIT_MS,
   );
   assert.match(normalize(evidence), /Execution \d+/i);
   await checkParameterGeometry(session);
@@ -2501,13 +2509,13 @@ async function cycleJourney(session, cycleId) {
       const count = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
       return id && id !== selection.executionId && count === executionRowsBefore.count + 1 ? id : null;
     },
-    120000,
+    WAIT_MS,
   );
   assert.notEqual(rerunId, selection.executionId, "Re-Run must create a distinct execution");
   assert.match(await sidebarText(session), /Re-Run Of #\d+/, "The new row must name its previous execution");
-  await until("Start on the fresh attempt", () => session.exists("button", "Start"), 120000);
+  await until("Start on the fresh attempt", () => session.exists("button", "Start"), WAIT_MS);
   await session.clickNamed("button", "Start");
-  await until("the new attempt admission", async () => /Execution Started/.test(await toastText(session)), 120000);
+  await until("the new attempt admission", async () => /Execution Started/.test(await toastText(session)), WAIT_MS);
   /* Plot Settings Persist In The Native Frozen Document. */
   const plotId = await until(
     "the plot identity to configure",
@@ -2515,7 +2523,7 @@ async function cycleJourney(session, cycleId) {
       session.execute(`
     return document.querySelector('button[aria-label^="Plot Settings For "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
   `),
-    120000,
+    WAIT_MS,
   );
   const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot Settings For ']`;
   const settingsText = await openPlotSettings(session, settingsSelector);
@@ -2541,7 +2549,7 @@ async function cycleJourney(session, cycleId) {
         openDialog = (await session.execute("return document.querySelector('[role=dialog][data-state=open]')?.innerText ?? ''")) ?? "";
         return openDialog === "";
       },
-      120000,
+      WAIT_MS,
     );
   } catch (error) {
     throw new Error(`${error.message}; the open dialog reads: ${normalize(openDialog)}`);
@@ -2559,7 +2567,7 @@ async function cycleJourney(session, cycleId) {
   `,
         [plotId],
       ),
-    120000,
+    WAIT_MS,
   );
   await openPlotSettings(session, settingsSelector);
   const persistedPoints = await session.execute("return {value: document.querySelector('[role=dialog] input[type=number]').value}");
@@ -2574,7 +2582,7 @@ async function cycleJourney(session, cycleId) {
       const text = await sidebarText(session);
       return !/\b(Running|Waiting|Finalizing|Queued)\b/.test(text);
     },
-    300000,
+    RUN_WAIT_MS,
   );
   const rerunOutcome = await session.execute(
     `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
@@ -2633,7 +2641,7 @@ async function cycleJourney(session, cycleId) {
           };
         }));
       `),
-    120000,
+    WAIT_MS,
   );
   assert.ok(
     statisticsHeaders.some((header) => /Y Cursor/.test(header.text)),
@@ -2658,17 +2666,17 @@ async function cycleJourney(session, cycleId) {
   await until(
     "original execution remains selectable",
     async () => (await session.location()).searchParams.get("executionId") === selection.executionId,
-    120000,
+    WAIT_MS,
   );
 
   /* Focus is a URL flag, so it survives a reload and can be linked. The router
      serializes the flag as `focus=true`; `focusSearchSchema` also accepts the
      `focus=1` a person would type, so both spellings are the flag. */
   await session.clickNamed("button", "Focus");
-  await until("focus flag set", async () => ["1", "true"].includes((await session.location()).searchParams.get("focus")), 120000);
+  await until("focus flag set", async () => ["1", "true"].includes((await session.location()).searchParams.get("focus")), WAIT_MS);
   assert.ok(await session.exists("button", "Leave Focus"), "Focus view must say how to leave it");
   await session.clickNamed("button", "Leave Focus");
-  await until("focus flag cleared", async () => (await session.location()).searchParams.get("focus") !== "1", 120000);
+  await until("focus flag cleared", async () => (await session.location()).searchParams.get("focus") !== "1", WAIT_MS);
 
   /* The console: scopes follow the route, Escape closes the drawer. */
   await session.clickNamed("button", "Open Console");
@@ -2739,7 +2747,7 @@ async function cycleJourney(session, cycleId) {
   await until(
     "console closed by Escape",
     async () => (await session.execute("return document.querySelectorAll('section[aria-label=Console]').length")) === 0,
-    120000,
+    WAIT_MS,
   );
   /* A modal layer that closed must give the page back. Stating it here names
      the cause; without it the next control simply never responds. */
@@ -2754,7 +2762,7 @@ async function cycleJourney(session, cycleId) {
      WebView occasionally drops the pointer sequence a dropdown opens on, and
      one silent miss is not a product defect. A second miss is, and fails. */
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
-  await until("the cycle page", () => session.exists("button", "Cycle Actions"), 120000);
+  await until("the cycle page", () => session.exists("button", "Cycle Actions"), WAIT_MS);
   const menu = await openMenu(session, "Cycle Actions");
   const items = await session.textOf(menu);
   for (const item of ["Copy Cycle", "Add Cases", "Follow Active", "Open Report", "Settings", "Archive"]) {
@@ -2798,7 +2806,7 @@ async function executionStopJourney(session, cycleId) {
       );
       return ready ? match[1] : null;
     },
-    120000,
+    WAIT_MS,
   );
   const executionIds = await cycleExecutionIds(session);
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "Explicit Start admits the selected execution");
@@ -2825,7 +2833,7 @@ async function executionStopJourney(session, cycleId) {
       );
       return running !== null;
     },
-    300000,
+    RUN_WAIT_MS,
   );
 
   // === An Explicit Selection Beats Follow Active === //
@@ -2856,10 +2864,10 @@ async function executionStopJourney(session, cycleId) {
   await checkParameterGeometry(session);
   /* An attempt that has not started is cancelled, not stopped: Stop belongs
      to a running attempt alone. */
-  await until("Cancel Execution on the unstarted attempt", () => session.exists("button", "Cancel Execution"), 120000);
+  await until("Cancel Execution on the unstarted attempt", () => session.exists("button", "Cancel Execution"), WAIT_MS);
   assert.ok(!(await session.exists("button", "Stop Execution")), "An unstarted execution must not offer Stop");
   await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
-  await until("the cycle selection", async () => (await session.location()).searchParams.get("view") === "cycle", 120000);
+  await until("the cycle selection", async () => (await session.location()).searchParams.get("view") === "cycle", WAIT_MS);
   await session.execute(
     `
     const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
@@ -2870,12 +2878,12 @@ async function executionStopJourney(session, cycleId) {
   );
   assert.ok(!(await session.exists("button", "Stop Cycle")), "The execution page carries the execution's controls, not the cycle's");
   assert.ok(!(await session.exists("button", "Stop")), "No unscoped Stop may sit beside a selected execution");
-  await until("Stop Execution", () => session.exists("button", "Stop Execution"), 120000);
+  await until("Stop Execution", () => session.exists("button", "Stop Execution"), WAIT_MS);
 
   // === Stop Only That Execution === //
 
   await session.clickNamed("button", "Stop Execution");
-  await until("the stop acknowledgement", async () => /Execution Stopped And Evidence Saved/.test(await toastText(session)), 120000);
+  await until("the stop acknowledgement", async () => /Execution Stopped And Evidence Saved/.test(await toastText(session)), WAIT_MS);
   await writeFile(join(evidence, "invokes-execution-stop.json"), JSON.stringify(await drainInvokeLedger(session), null, 2));
   const header = normalize(await session.text());
   assert.ok(!/Stopping Cycle|\bStopping\b/.test(header), "Stopping one execution must not put the cycle into Stopping");
@@ -2901,9 +2909,9 @@ async function executionStopJourney(session, cycleId) {
     return row.dataset.executionId ?? null;
   `);
   assert.ok(cancelled, "An unstarted sibling must remain to cancel");
-  await until("Cancel Execution", () => session.exists("button", "Cancel Execution"), 120000);
+  await until("Cancel Execution", () => session.exists("button", "Cancel Execution"), WAIT_MS);
   await session.clickNamed("button", "Cancel Execution");
-  await until("the cancel acknowledgement", async () => /Execution Cancelled/.test(await toastText(session)), 120000);
+  await until("the cancel acknowledgement", async () => /Execution Cancelled/.test(await toastText(session)), WAIT_MS);
   const cancelledRow = await until("the cancelled row", () =>
     session.execute(
       `const text = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
@@ -3045,7 +3053,7 @@ async function cyclesHomeJourney(session, cycleTitle) {
          status selects (a stopped execution leaves it needing attention). */
       return hasText(text, cycleTitle) && /Active · (Idle|Running|Waiting)|Sealing|Sealed/.test(text) ? text : null;
     },
-    120000,
+    WAIT_MS,
   );
   assert.ok(hasText(body, "Attention"), "The group must render its column headings");
   await checkStatusBounds(session);
@@ -3075,13 +3083,13 @@ async function cyclesHomeJourney(session, cycleTitle) {
     "The Archived view must say when nothing is archived",
   );
   await session.clickNamed("button", "Archived");
-  await until("default view", async () => !hasText(await session.text(), "No Archived Cycles"), 120000);
+  await until("default view", async () => !hasText(await session.text(), "No Archived Cycles"), WAIT_MS);
 
   const filter = await session.find("css selector", "input[aria-label='Filter Cycles']");
   await session.type(filter, "zzz-no-such-cycle");
-  await until("filter excludes every row", async () => hasText(await session.text(), "No Cycles Match This Filter"), 120000);
+  await until("filter excludes every row", async () => hasText(await session.text(), "No Cycles Match This Filter"), WAIT_MS);
   await session.type(filter, "");
-  await until("filter cleared", async () => !hasText(await session.text(), "No Cycles Match This Filter"), 120000);
+  await until("filter cleared", async () => !hasText(await session.text(), "No Cycles Match This Filter"), WAIT_MS);
   assert.ok(
     await session.execute(
       `return [...document.querySelectorAll('button')].some((button) =>
@@ -3111,12 +3119,12 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
     `,
         [cycleTitle],
       ),
-    120000,
+    WAIT_MS,
   );
   assert.ok(hasText(await session.text(), "History"), "The page bar must name History");
   await checkStatusBounds(session);
   await session.click(opener);
-  await until("history detail", async () => (await session.location()).pathname === `/history/${cycleId}`, 120000);
+  await until("history detail", async () => (await session.location()).pathname === `/history/${cycleId}`, WAIT_MS);
   const checkpoint = await until(
     "the executed measuring checkpoint",
     () =>
@@ -3130,10 +3138,10 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
   `,
         [executionId],
       ),
-    120000,
+    WAIT_MS,
   );
   await session.click(checkpoint);
-  await until("captured execution", async () => hasText(await session.text(), "Recorded Steps"), 120000);
+  await until("captured execution", async () => hasText(await session.text(), "Recorded Steps"), WAIT_MS);
   const captured = await session.text();
   assert.ok(hasText(captured, "Recorded status"), "The checkpoint must state its recorded status");
   for (const view of ["Records", "Telemetry", "Files", "Context"]) {
@@ -3147,13 +3155,13 @@ async function historyJourney(session, cycleId, cycleTitle, executionId) {
       if (!section) return false;
       return !hasText(await session.textOf(section), "No execution records at this checkpoint.");
     },
-    120000,
+    WAIT_MS,
   );
   await session.clickNamed("button", "Context");
   await until("captured context", async () => hasText(await session.text(), "Notes At Capture"));
 
   await session.clickNamed("button", "Back");
-  await until("back to history", async () => (await session.location()).pathname === "/history", 120000);
+  await until("back to history", async () => (await session.location()).pathname === "/history", WAIT_MS);
 }
 
 /** Remote Access Uses Mounted Controls And Real TLS CLI Calls. */
@@ -3195,7 +3203,7 @@ async function remoteAccessJourney(recoveredReports) {
   /* A notice still on screen from an earlier change cannot stand in for this one. */
   const notice = async (text, action) => {
     await settle(session);
-    await until(`no earlier ${text}`, async () => !hasText(await toastText(session), text), 120000);
+    await until(`no earlier ${text}`, async () => !hasText(await toastText(session), text), WAIT_MS);
     await action();
     const shown = await until(text, async () => {
       const shown = await toastText(session);
@@ -3237,7 +3245,7 @@ async function remoteAccessJourney(recoveredReports) {
       windowsHide: true,
       cwd: work,
       env: { ...env, DOKIME_APPLICATION_ROOT: applicationRoot },
-      timeout: 120000,
+      timeout: WAIT_MS,
     });
   const connect = async (identifier, accepted, applicationRoot, profilesPath = profiles) => {
     let result;
@@ -3258,7 +3266,7 @@ async function remoteAccessJourney(recoveredReports) {
     const saved = await notice("Remote Access File Saved", async () => {
       await session.openPicker(await session.named("button", "Export Remote Access"));
       const picker = { window: null };
-      await until("native pairing save", () => chooseNativeFile(picker, path, "Save"), 120000);
+      await until("native pairing save", () => chooseNativeFile(picker, path, "Save"), WAIT_MS);
     });
     /* The notice names the file the product wrote; it must be the one the operator chose. */
     assert.ok(hasText(saved, path), `The pairing file is saved where the operator chose: ${normalize(saved)}`);
@@ -3313,7 +3321,7 @@ async function remoteAccessJourney(recoveredReports) {
   await session.type(identifier, "desktop-pairing");
   await session.openPicker(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Import Remote']"));
   const importPicker = { window: null };
-  await until("native pairing import", () => chooseNativeFile(importPicker, first), 120000);
+  await until("native pairing import", () => chooseNativeFile(importPicker, first), WAIT_MS);
   await until("imported backend", async () => hasText(await session.text(), "desktop-pairing"));
 
   // A Failed Bind Preserves The Existing Listener.
@@ -3347,7 +3355,7 @@ async function remoteAccessJourney(recoveredReports) {
   const remoteCycle = await prepareCycle(session, "Revocation Campaign", [[STARTUP_SUITE, STARTUP_TEMPLATE]]);
   const activeCycle = remoteCycle.id;
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE));
-  await until("operator prompt before revocation", () => startupPromptOpen(session), 120000);
+  await until("operator prompt before revocation", () => startupPromptOpen(session), WAIT_MS);
   await session.goto("/settings/remote");
 
   // Revoking One Client Leaves The Other Client And Local Desktop Connected.
@@ -3379,7 +3387,7 @@ async function remoteAccessJourney(recoveredReports) {
      row.querySelector('button[data-tree-select]').click();`,
     [STARTUP_TEMPLATE],
   );
-  await until("the surviving prompt on its execution", () => startupPromptOpen(session), 120000);
+  await until("the surviving prompt on its execution", () => startupPromptOpen(session), WAIT_MS);
   const decision = await session.execute(`
     const panel = document.querySelector('[aria-labelledby="active-prompt-title"]');
     return {actions: [...panel.querySelectorAll('button')].map(button => button.innerText.trim()),
@@ -3468,6 +3476,23 @@ async function remoteAccessJourney(recoveredReports) {
 }
 
 /** Settings: every section, and the rows the redesign promises in each. */
+async function failurePresentationJourney(session) {
+  await session.goto("/cycles/00000000-0000-0000-0000-000000000000");
+  const card = await until("unavailable cycle card", () => session.find("css selector", 'main section[role="alert"]'));
+  const before = await session.execute("return document.querySelectorAll('[data-sonner-toast][data-type=error]').length;");
+  const details = await session.find("css selector", 'main section[role="alert"] details');
+  assert.equal(await session.execute("return arguments[0].open;", [details]), false);
+  const record = await session.execute("return JSON.parse(arguments[0].querySelector('pre').textContent);", [card]);
+  assert.ok(record.id && record.title && record.message);
+  const buttons = await session.execute("return Array.from(arguments[0].querySelectorAll('button'));", [card]);
+  assert.equal(buttons.length, 2);
+  await session.click(buttons[0]);
+  await until("unavailable cycle retry", () => session.find("css selector", 'main section[role="alert"]'));
+  assert.equal(await session.execute("return document.querySelectorAll('[data-sonner-toast][data-type=error]').length;"), before);
+  await session.screenshot("gui-failure-presentation");
+  await session.goto("/cycles");
+}
+
 async function settingsJourney(session, notes) {
   const sections = [
     ["backends", "Backends"],
@@ -3487,7 +3512,7 @@ async function settingsJourney(session, notes) {
         const text = await session.text();
         return hasText(text, heading) ? text : null;
       },
-      120000,
+      WAIT_MS,
     );
     assert.ok(hasText(body, "Settings"), `The ${id} page bar must name Settings`);
     const rows = await session.execute("return document.querySelectorAll('main section, main dl > div').length");
@@ -3496,19 +3521,19 @@ async function settingsJourney(session, notes) {
 
   /* Appearance: the local density preference autosaves, with no Save button anywhere. */
   await session.goto("/settings/appearance");
-  await until("appearance", async () => hasText(await session.text(), "Density"), 120000);
+  await until("appearance", async () => hasText(await session.text(), "Density"), WAIT_MS);
   assert.ok(!(await session.exists("button", "Save")), "Settings autosave; no section may carry a Save button");
   await selectDensity(session, "touch");
   await until(
     "touch density applied",
     async () => (await session.execute("return document.documentElement.dataset.density")) === "touch",
-    120000,
+    WAIT_MS,
   );
   await selectDensity(session, "comfortable");
   await until(
     "comfortable density applied",
     async () => (await session.execute("return document.documentElement.dataset.density")) === "comfortable",
-    120000,
+    WAIT_MS,
   );
 
   /* Storage sources: one row per configured source. */
@@ -3523,7 +3548,7 @@ async function settingsJourney(session, notes) {
       `);
       return state.rows >= 1 || hasText(state.text, "No storage sources are configured") ? state : null;
     },
-    120000,
+    WAIT_MS,
   );
   assert.ok(
     storage.rows >= 1 || hasText(storage.text, "No storage sources are configured"),
@@ -3545,7 +3570,7 @@ async function settingsJourney(session, notes) {
         ? state
         : null;
     },
-    120000,
+    WAIT_MS,
   );
   if (!plugins.rows) {
     /* Nothing is in the installation store: this backend was launched with
@@ -3562,10 +3587,10 @@ async function settingsJourney(session, notes) {
   if (plugins.configurable) {
     await session.click(await session.find("xpath", "//table[@aria-label='Plugins']//button[@aria-label='Settings' and not(@disabled)]"));
     /* Every row, the host's included, opens its plugin's own page. */
-    await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), 120000);
+    await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), WAIT_MS);
     assert.ok(hasText(await session.text(), "Settings"), "The plugin page must carry its settings breadcrumb");
     await session.goto("/settings/plugins");
-    await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", 120000);
+    await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", WAIT_MS);
   } else {
     notes.push("settings: no installed plugin declares settings, so the plugin page stayed shut");
   }
@@ -3638,7 +3663,7 @@ async function settingsJourney(session, notes) {
       );
       await session.openPicker(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Import Remote']"));
       const picker = { window: null };
-      await until("native identity pairing import", () => chooseNativeFile(picker, pairing), 120000);
+      await until("native identity pairing import", () => chooseNativeFile(picker, pairing), WAIT_MS);
       await until("native identity import completes", () =>
         session.execute(`
         return globalThis.__dokimeInvokes.some(entry => entry.command === 'desktop_backend_import_pairing' && entry.state !== 'pending');
@@ -3720,7 +3745,7 @@ async function settingsJourney(session, notes) {
       const text = await session.text();
       return hasText(text, "Data Directory") ? text : null;
     },
-    120000,
+    WAIT_MS,
   );
   assert.ok(hasText(diagnostics, "Diagnostics Bundle"), "Diagnostics must offer the bundle row");
   assert.ok(await session.exists("button", "Copy Path"), "A path row must offer Copy");
@@ -3739,7 +3764,7 @@ async function settingsJourney(session, notes) {
       const path = await session.execute("return globalThis.__dokimeDiagnosticsPath ?? null");
       return path && existsSync(path) ? path : null;
     },
-    120000,
+    WAIT_MS,
   ).catch((failure) => {
     throw new Error(`${failure.message}. The application said: ${announcement || "nothing at all"}`);
   });
@@ -3784,7 +3809,7 @@ async function finalizeStoryReports(name, executionIds) {
         pending.finally(() => {
           settled = true;
         }),
-        until("native artifact save", () => settled || chooseNativeFile(picker, destination, "Save"), 120000, 25),
+        until("native artifact save", () => settled || chooseNativeFile(picker, destination, "Save"), WAIT_MS, 25),
       ]);
       if (delivery.status === "rejected") throw delivery.reason;
       if (selection.status === "rejected") throw selection.reason;
@@ -3881,17 +3906,17 @@ async function touchJourney(session, cycleId) {
       const text = await session.text();
       return hasText(text, "Recent") ? text : null;
     },
-    120000,
+    WAIT_MS,
   );
   assert.ok(hasText(home, "Needs Attention"), "The groups keep their order at touch");
 
   await session.goto(`/cycles/${cycleId}?view=cycle`);
-  await until("touch workspace", () => session.exists("button", "Cycle Actions"), 120000);
+  await until("touch workspace", () => session.exists("button", "Cycle Actions"), WAIT_MS);
   /* The rail: collapsed at touch, with the children behind it. */
   if (await session.exists("button", "Collapse Sidebar")) {
     await session.clickNamed("button", "Collapse Sidebar");
   }
-  await until("collapsed rail", () => session.exists("button", "Expand Sidebar"), 120000);
+  await until("collapsed rail", () => session.exists("button", "Expand Sidebar"), WAIT_MS);
   const railChildren = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
   assert.equal(railChildren, 0, "A collapsed rail must hide its children");
 
@@ -3910,7 +3935,7 @@ async function touchJourney(session, cycleId) {
   );
 
   await session.goto("/library");
-  await until("touch library", async () => hasText(await session.text(), PROTECTION_SUITE), 120000);
+  await until("touch library", async () => hasText(await session.text(), PROTECTION_SUITE), WAIT_MS);
   await session.clickNamed("button", PROTECTION_TEMPLATE);
   const share = await until("touch dialog", () =>
     session.execute(`
@@ -4056,7 +4081,7 @@ async function installWindowsCandidate() {
   await executeFile(resolve(installer), ["/S", `/D=${installation}`], {
     windowsHide: true,
     windowsVerbatimArguments: true,
-    timeout: 120000,
+    timeout: WAIT_MS,
   });
   const hashes = {};
   for (const [label, path, expected] of checks.slice(1)) {
@@ -4116,8 +4141,8 @@ async function stopBackendMeasured() {
   try {
     const [code, signal] = await Promise.race([
       exited,
-      delay(120000, undefined, { signal: timer.signal }).then(() => {
-        throw new Error("Native backend did not drain within its 120 second deadline");
+      delay(WAIT_MS, undefined, { signal: timer.signal }).then(() => {
+        throw new Error(`Native backend did not drain within its ${WAIT_MS / 1000} second deadline`);
       }),
     ]);
     assert.equal(signal, null, "native backend drains without a forced signal");
@@ -4165,14 +4190,14 @@ async function ownedStartupJourney() {
   assert.ok(await listening(closing.connection.endpoint), "the current owned listener is live immediately before window close");
   const idleStarted = performance.now();
   await closeSession();
-  await until("owned backend drains on window close", async () => !(await listening(closing.connection.endpoint)), 120000);
+  await until("owned backend drains on window close", async () => !(await listening(closing.connection.endpoint)), WAIT_MS);
   const idleMs = performance.now() - idleStarted;
   session = await startSession(work, undefined, evidence);
   await session.connected();
   await emptyCycleHistory(session, cycleId, "Managed Shutdown Evidence", "owned_local");
   const runningCycle = await prepareCycle(session, "Owned Shutdown Campaign", [[STARTUP_SUITE, STARTUP_TEMPLATE]]);
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE), "The owned backend starts its installed plugin");
-  await until("owned execution awaits its operator", () => startupPromptOpen(session), 120000);
+  await until("owned execution awaits its operator", () => startupPromptOpen(session), WAIT_MS);
   const running = await session.executeAsync(`
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
@@ -4180,7 +4205,7 @@ async function ownedStartupJourney() {
   assert.equal(running.ownership, "owned_local");
   const runningStarted = performance.now();
   await closeSession();
-  await until("running owned backend drains on close", async () => !(await listening(running.connection.endpoint)), 120000);
+  await until("running owned backend drains on close", async () => !(await listening(running.connection.endpoint)), WAIT_MS);
   const runningMs = performance.now() - runningStarted;
   session = await startSession(work, undefined, evidence);
   await session.connected();
@@ -4304,7 +4329,7 @@ async function emptyCycleHistory(session, cycleId, title, ownership) {
   const result = await executeFile(cliBinary, ["cycle", "export", cycleId, "--endpoint", endpoint, "--output", archive, "--json"], {
     windowsHide: true,
     cwd: work,
-    timeout: 120000,
+    timeout: WAIT_MS,
   });
   const receipt = JSON.parse(result.stdout);
   const bytes = await readFile(archive);
@@ -4341,7 +4366,11 @@ async function restartJourney(recoveredReports) {
   assert.equal(current.ownership, "attached");
   await emptyCycleHistory(session, activeCycleId, "Server Restart Evidence", "attached");
   await session.goto("/history");
-  await until("saved evidence survives native restart", async () => (await session.findAll("css selector", "tbody tr")).length > 0, 120000);
+  await until(
+    "saved evidence survives native restart",
+    async () => (await session.findAll("css selector", "tbody tr")).length > 0,
+    WAIT_MS,
+  );
   await setDensity(session, densities.desktop);
   const cycle = await prepareCycle(session, "Restart Campaign", [
     [PROTECTION_SUITE, PROTECTION_TEMPLATE],
@@ -4371,10 +4400,10 @@ async function pluginInstallJourney() {
       .find(row => row.innerText.includes('plugin-obc'));
     return Boolean(row && [...row.querySelectorAll('[data-slot="badge"]')].some(badge => badge.innerText === 'Active'));
   `),
-    120000,
+    WAIT_MS,
   );
   await session.goto("/library");
-  await until("installed bundle contributes its catalog", async () => hasText(await session.text(), PROTECTION_SUITE), 120000);
+  await until("installed bundle contributes its catalog", async () => hasText(await session.text(), PROTECTION_SUITE), WAIT_MS);
   await session.screenshot("plugin-activation");
 }
 
@@ -4384,7 +4413,7 @@ async function installPluginThroughPicker(session, bundle = pluginBundle) {
   await session.execute("globalThis.__dokimeInvokes.length = 0;");
   await session.openPicker(await session.named("button", "Choose File"));
   const picker = { window: null };
-  await until("native plugin file picker", () => chooseNativeFile(picker, bundle), 120000);
+  await until("native plugin file picker", () => chooseNativeFile(picker, bundle), WAIT_MS);
   const installed = await until(
     "native plugin installation completes",
     () =>
@@ -4392,14 +4421,13 @@ async function installPluginThroughPicker(session, bundle = pluginBundle) {
     const entry = globalThis.__dokimeInvokes.find(entry => entry.command === 'desktop_plugin_install_file');
     return entry && entry.state !== 'pending' ? {entry} : null;
   `),
-    300000,
+    RUN_WAIT_MS,
   );
   assert.equal(
     installed.entry.state,
     "settled",
     `Native plugin installation failed: ${installed.entry.error ?? installed.entry.nativeResponse}`,
   );
-  await until("saved plugin installation", () => session.exists("button", "Later"), 300000);
   const invokes = await session.execute(
     "return globalThis.__dokimeInvokes.filter(entry => entry.command === 'desktop_plugin_install_file');",
   );
@@ -4410,8 +4438,17 @@ async function installPluginThroughPicker(session, bundle = pluginBundle) {
     "Installation passes control arguments without bundle bytes",
   );
   assert.ok(invokes[0].size < 1024, "The installation invocation stays bounded independently of bundle size");
-  await session.clickNamed("button", "Later");
-  await until("plugin restart requirement", async () => hasText(await session.text(), "Restart Required"), 120000);
+  const name = basename(bundle, ".dokime");
+  await until(
+    "installed plugin starts without a restart",
+    () =>
+      session.execute(`
+    return [...document.querySelectorAll('table[aria-label="Plugins"] tbody tr')]
+      .filter(row => row.innerText.includes(${JSON.stringify(name)}))
+      .some(row => [...row.querySelectorAll('[data-slot="badge"]')].some(badge => badge.innerText === 'Active'));
+  `),
+    RUN_WAIT_MS,
+  );
   await session.screenshot("plugin-install");
 }
 
@@ -4463,7 +4500,7 @@ async function windowsPicker(script, environment) {
     const line = await Promise.race([
       worker.responses.next(),
       worker.closed,
-      delay(120000, undefined, { signal: timer.signal }).then(() => {
+      delay(WAIT_MS, undefined, { signal: timer.signal }).then(() => {
         throw new Error("Native picker host did not answer");
       }),
     ]);
@@ -4502,7 +4539,7 @@ async function chooseNativeFileMeasured(picker, file, operation = "Open", owner 
     const executable = await realpath(shellBinary);
     for (const pid of children.trim().split(/\s+/)) {
       if (!pid || (await realpath(`/proc/${pid}/exe`)) !== executable) continue;
-      const run = (args) => executeFile("xdotool", args, { windowsHide: true, timeout: 120000 });
+      const run = (args) => executeFile("xdotool", args, { windowsHide: true, timeout: WAIT_MS });
       const found = await run([
         "search",
         "--all",
@@ -4583,7 +4620,7 @@ for index in range(desktop.get_child_count()):
 `;
       const result = await executeFile("/usr/bin/python3", ["-c", script, pid, action, resolve(file), operation], {
         windowsHide: true,
-        timeout: 120000,
+        timeout: WAIT_MS,
       });
       if (result.stdout.trim() !== action) return false;
       await appendFile(join(evidence, "native-picker.log"), `picker window=${ids[0]} action=${action} file=${resolve(file)}\n`);
@@ -4795,13 +4832,13 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
       archive,
       manifest,
     ],
-    { windowsHide: true, timeout: 120000 },
+    { windowsHide: true, timeout: WAIT_MS },
   );
   const choose = async () => {
     await session.goto("/settings/organization");
     await session.openPicker(await session.named("button", "Choose File…"));
     const picker = { window: null };
-    await until("native organization file picker", () => chooseNativeFile(picker, archive), 120000);
+    await until("native organization file picker", () => chooseNativeFile(picker, archive), WAIT_MS);
     await until("pending organization pack", async () => hasText(await session.text(), "Applies on next start."));
   };
   const restart = async () => {
@@ -4975,7 +5012,7 @@ async function startSecretService() {
   const accessibility = await executeFile(
     "dbus-send",
     ["--session", "--print-reply", "--dest=org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus.GetAddress"],
-    { windowsHide: true, timeout: 120000 },
+    { windowsHide: true, timeout: WAIT_MS },
   );
   const accessibilityAddress = accessibility.stdout.match(/\bstring "([^"]+)"/);
   assert.ok(accessibilityAddress, "The private session owns an accessibility bus");
@@ -4984,7 +5021,7 @@ async function startSecretService() {
   await executeFile("dbus-update-activation-environment", ["AT_SPI_BUS_ADDRESS"], {
     env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: process.env.AT_SPI_BUS_ADDRESS },
     windowsHide: true,
-    timeout: 120000,
+    timeout: WAIT_MS,
   });
   await executeFile(
     "dbus-send",
@@ -4997,7 +5034,7 @@ async function startSecretService() {
       "string:org.a11y.atspi.Registry",
       "uint32:0",
     ],
-    { windowsHide: true, timeout: 120000 },
+    { windowsHide: true, timeout: WAIT_MS },
   );
   secretKeyring = spawn("gnome-keyring-daemon", ["--foreground", "--components=secrets", "--unlock", "--control-directory", home], {
     env: { ...process.env, HOME: home, XDG_DATA_HOME: home, XDG_RUNTIME_DIR: home },
@@ -5022,7 +5059,7 @@ async function startSecretService() {
         "org.freedesktop.DBus.NameHasOwner",
         "string:org.freedesktop.secrets",
       ],
-      { windowsHide: true, timeout: 120000 },
+      { windowsHide: true, timeout: WAIT_MS },
     );
     return result.stdout.includes("boolean true");
   });
@@ -5065,7 +5102,7 @@ async function main() {
         ? preparedChrome
         : "google-chrome");
   process.env.DOKIME_E2E_CHROME = chrome;
-  reportBrowser = await ReportBrowser.start(work, chrome);
+  reportBrowser = await ReportBrowser.start(work, chrome, WAIT_MS);
   await startSecretService();
   const owned = await journey("owned-startup", ownedStartupJourney, (scene) => scene.reports);
   if (!owned.ok) throw new Error("Native ownership acceptance failed");
@@ -5118,6 +5155,7 @@ async function main() {
 
   await journey("idle", idleJourney);
   await journey("settings", () => settingsJourney(session, notes));
+  await journey("failure-presentation", () => failurePresentationJourney(session));
   await journey("distribution-identity", distributionIdentityJourney);
   await journey("organization", organizationJourney);
   await journey(
@@ -5188,7 +5226,7 @@ export async function prepareNativeFixture(root, output) {
       : existsSync(prepared)
         ? prepared
         : "google-chrome");
-  reportBrowser = await ReportBrowser.start(work, chrome);
+  reportBrowser = await ReportBrowser.start(work, chrome, WAIT_MS);
   await startSecretService();
   return async () => {
     await reportBrowser.close();
@@ -5249,7 +5287,7 @@ async function runDesktopWalkthrough() {
       if (!child) continue;
       try {
         await terminate(child);
-        await until("secret service stopped", () => child.exitCode !== null || child.signalCode !== null, 120000);
+        await until("secret service stopped", () => child.exitCode !== null || child.signalCode !== null, WAIT_MS);
       } catch (error) {
         failures.push({ kind: "failure", name: "secret service cleanup", reason: error.message });
       }
@@ -5261,7 +5299,7 @@ async function runDesktopWalkthrough() {
         await executeFile(join(installation, uninstallers[0]), ["/S", `_?=${installation}`], {
           windowsHide: true,
           windowsVerbatimArguments: true,
-          timeout: 120000,
+          timeout: WAIT_MS,
         });
       } catch (error) {
         failures.push({ kind: "failure", name: "installer cleanup", reason: error.message });

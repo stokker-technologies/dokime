@@ -112,6 +112,17 @@ impl Selection {
     // The Reader Supplies Declared Values And Reserved Envelope Values Separately.
     // Absent Values Stay Absent; No Ingestion Defaults Are Applied Here.
     pub fn matches<'a>(&self, timestamp: Option<Timestamp>, mut value: impl FnMut(&FieldRef) -> Option<&'a Value>) -> bool {
+        if !self.in_window(timestamp) {
+            return false;
+        }
+        self.predicates.iter().all(|predicate| predicate.matches(value(&predicate.field)))
+    }
+
+    pub(super) fn matches_owned(&self, timestamp: Option<Timestamp>, mut value: impl FnMut(&FieldRef) -> Option<Value>) -> bool {
+        self.in_window(timestamp) && self.predicates.iter().all(|predicate| predicate.matches(value(&predicate.field).as_ref()))
+    }
+
+    fn in_window(&self, timestamp: Option<Timestamp>) -> bool {
         if let Some(window) = &self.window {
             let bounded = window.start.is_some() || window.end.is_some();
             if bounded {
@@ -125,7 +136,7 @@ impl Selection {
                 }
             }
         }
-        self.predicates.iter().all(|predicate| predicate.matches(value(&predicate.field)))
+        true
     }
 
     fn prepare(mut schema: Schema, request: SelectionRequest<'_>, config: &QueryConfig, records: bool) -> Result<Self, Box<Failure>> {

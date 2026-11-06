@@ -75,6 +75,15 @@ pub struct ArtifactDeliveryRequest {
     pub action: DeliveryAction,
 }
 
+// This desktop's own build, which a remote backend's identity may not share.
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopBuild {
+    pub product_version: &'static str,
+    pub source_revision: Option<String>,
+    pub channel: Option<&'static str>,
+}
+
 /* === Enums === */
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
@@ -131,6 +140,16 @@ impl std::fmt::Debug for DesktopSaveDocument {
 }
 
 /* === Public Functions === */
+
+pub fn desktop_build() -> DesktopBuild {
+    let build = dokime::version::current();
+    let source_revision = build.revision.map(|revision| revision.full());
+    DesktopBuild {
+        product_version: build.version,
+        source_revision,
+        channel: build.channel,
+    }
+}
 
 pub async fn desktop_open_path(app: AppHandle, path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || app.opener().open_path(path, None::<&str>).map_err(|error| error.to_string()))

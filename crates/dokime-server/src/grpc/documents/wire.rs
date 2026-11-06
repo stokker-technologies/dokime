@@ -281,16 +281,11 @@ pub(super) fn frames(
 /* === Private Functions === */
 
 fn single_stream(plot: &native::PlotDefinition) -> Option<&str> {
-    use dokime::expressions::{DataSource, DataTransform};
+    use dokime::expressions::DataSource;
     let mut streams = std::collections::BTreeSet::new();
     for expression in plot.y_expressions.iter().chain(&plot.x_expression).chain(&plot.series_by_expression).chain(&plot.z_expression) {
         if let DataSource::Telemetry { stream, .. } = &expression.source {
             streams.insert(stream.as_str());
-        }
-        for transform in &expression.transforms {
-            if let DataTransform::TelemetryAtOrBefore { stream, .. } = transform {
-                streams.insert(stream.as_str());
-            }
         }
     }
     let mut streams = streams.into_iter();

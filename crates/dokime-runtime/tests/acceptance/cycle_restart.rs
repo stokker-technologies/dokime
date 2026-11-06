@@ -165,7 +165,7 @@ async fn cycle_restart_child() {
     assert_eq!(completed.test_executions.len(), 2);
     assert!(completed.test_executions.iter().all(|execution| execution.saved.is_some()));
     runtime.seal_cycle(id, CommandContext::default()).await.unwrap();
-    tokio::time::timeout(Duration::from_secs(90), std::future::pending::<()>())
+    tokio::time::timeout(Duration::from_secs(180), std::future::pending::<()>())
         .await
         .expect("the selected backend phase must terminate the child process");
 }

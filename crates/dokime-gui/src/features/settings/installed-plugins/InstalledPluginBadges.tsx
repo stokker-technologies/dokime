@@ -28,7 +28,9 @@ const STATUS_DISPLAY: Record<string, { className: string; label: string }> = {
   },
   disabled: { className: "text-muted-foreground", label: "Disabled" },
   failed: { className: "text-destructive", label: "Failed" },
-  pending: { className: "text-muted-foreground", label: "Pending Restart" },
+  not_running: { className: "text-muted-foreground", label: "Not Running" },
+  restarting: { className: "border-info/30 bg-info/10 text-info", label: "Restarting…" },
+  restart_pending: { className: "text-muted-foreground", label: "Restart Pending" },
 };
 
 /* === Components === */

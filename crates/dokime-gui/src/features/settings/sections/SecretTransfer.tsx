@@ -16,10 +16,10 @@
 // Standard Library Imports
 
 // Local Imports
+import { failureOf } from "@/lib/notification-details";
 import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 // Third Party Imports
-import { notificationMessage } from "@/lib/notification-details";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -144,7 +144,7 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
           <DialogHeader>
             <DialogTitle>{mode === "export" ? "Export Secrets" : "Import Secrets"}</DialogTitle>
           </DialogHeader>
-          {Boolean(error) && <NotificationMessage error={error}>{notificationMessage(error)}</NotificationMessage>}
+          {Boolean(error) && <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage>}
 
           {mode === "export" && (
             <form

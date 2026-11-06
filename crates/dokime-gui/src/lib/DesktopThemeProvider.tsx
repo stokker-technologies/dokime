@@ -16,10 +16,11 @@
 // Standard Library Imports
 
 // Third Party Imports
+import { failureOf } from "@/lib/notification-details";
 import { type ReactNode, useEffect, useState } from "react";
 // Local Imports
 import { useAppearance } from "@/lib/appearance";
-import { applicationSettingsError, useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
+import { useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
 import { toast } from "@/lib/notifications";
 import type { ResolvedTheme, ThemeModePreference } from "@/lib/theme";
 import { useUiStore } from "@/stores/ui-store";
@@ -74,11 +75,7 @@ export function DesktopThemeProvider({ children }: { children: ReactNode }) {
           save.mutate(
             { themeMode: value as ThemeModePreference },
             {
-              onError: (error) =>
-                toast.error("Appearance Could Not Be Saved", {
-                  error,
-                  description: applicationSettingsError(error),
-                }),
+              onError: (error) => toast.error(failureOf(error, "Appearance Could Not Be Saved")),
             },
           );
         },

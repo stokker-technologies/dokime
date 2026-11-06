@@ -57,12 +57,7 @@ fn bundle_with_registrations(package: &str, owner: &str, version: &str, registra
     };
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
-    let policy = harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(120),
-        attempt_timeout: std::time::Duration::from_secs(120),
-        cancellation_timeout: std::time::Duration::ZERO,
-        retries: harmos::operations::RetryPolicy::Never,
-    };
+    let policy = super::budgets::settings::FIXTURE_POLICY;
     // Inert artifact metadata names each lifecycle action's identity scheme rather than its fingerprint.
     let lifecycle = serde_json::json!([
         {"action": "initialize", "identity": "harmos.operation.v1", "policy": policy},
@@ -104,6 +99,24 @@ pub fn plugin_obc_bundle() -> std::path::PathBuf {
 
 pub fn host_plugin_bundle() -> std::path::PathBuf {
     built_bundle("fixtures/plugins/plugin-host.dokime")
+}
+
+// The Host Plugin Bundle Under Another Package Version: The Same Programs In Changed Bytes.
+pub fn host_plugin_version(version: &str) -> Vec<u8> {
+    let bytes = std::fs::read(host_plugin_bundle()).unwrap();
+    let bundle = Bundle::inspect(&bytes, Limits::default()).unwrap();
+    let mut identity = bundle.manifest().identity.clone();
+    identity.version = version.parse().unwrap();
+    let mut sources = Vec::new();
+    for file in &bundle.manifest().files {
+        let bytes = bundle.file(&file.path).expect("the manifest names its files");
+        sources.push(Source {
+            path: &file.path,
+            bytes,
+            executable: file.executable.clone(),
+        });
+    }
+    Bundle::build(identity, &sources, Limits::default()).unwrap().bytes().to_vec()
 }
 
 pub fn host_plugin() -> dokime_runtime::plugins::PluginBundle {

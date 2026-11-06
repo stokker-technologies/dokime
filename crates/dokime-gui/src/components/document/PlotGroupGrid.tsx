@@ -9,8 +9,9 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { memo, type ReactNode, useId, useMemo } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -198,6 +199,13 @@ function plotCardClassName(plot: PlotCardSpec): string {
 }
 
 function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotViewportMode = "fit", actions?: ReactNode) {
+  if (plot.failure && !plot.cartesian && !plot.series.some((series) => series.points.length))
+    return (
+      <div className="grid gap-2">
+        {actions}
+        <ErrorCard failure={plot.failure} />
+      </div>
+    );
   if (plot.stateLabel === STREAM_ERROR) {
     return <PlotPlaceholder title={plot.title} actions={actions} {...plotPlaceholderText(plot)} />;
   }
@@ -246,7 +254,15 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   }
   if (plot.plotType === "time_series")
     return <TimeSeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
-  return <NotificationMessage>Unsupported document plot type: {plot.plotType}</NotificationMessage>;
+  return (
+    <ErrorCard
+      failure={failureOf(
+        `Unsupported document plot type: ${plot.plotType}`,
+        "Presentation Unavailable",
+        ["unsupported-plot", plot.key, plot.plotType].join(":"),
+      )}
+    />
+  );
 }
 
 function livePlotSpec({
@@ -303,6 +319,7 @@ function livePlotSpec({
   // context; they stay out of what an operator reads under a title.
   return {
     ...spec,
+    failure: state.failure,
     stateLabel: label,
     stateDetail: detail,
     // A window or zoom change reopens the stream: until its first frame the

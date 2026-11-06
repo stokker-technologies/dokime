@@ -81,7 +81,11 @@ impl State {
     ) -> Result<Vec<(u64, NumericRow)>, Error> {
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
         let mut scan = selection_scan(at.sequence, &selection, page)?;
-        scan = scan.filter("cycle", scope.test_cycle_id.as_ref().map(ToString::to_string));
+        scan = scan
+            .filter("cycle", scope.test_cycle_id.as_ref().map(ToString::to_string))
+            .filter("case", scope.test_case_id.as_ref().map(ToString::to_string))
+            .filter("template", scope.template_id.as_ref().map(ToString::to_string))
+            .filter("suite", scope.suite_id.as_ref().map(ToString::to_string));
         scan.metrics = Some(self.0.read_metrics.clone());
         let owner = self.0.clone();
         self.read(move |connection| {
@@ -164,7 +168,11 @@ impl State {
     ) -> Result<Vec<(u64, TelemetryEntry)>, Error> {
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
         let mut scan = selection_scan(at.sequence, &selection, page)?;
-        scan = scan.filter("cycle", scope.test_cycle_id.as_ref().map(ToString::to_string));
+        scan = scan
+            .filter("cycle", scope.test_cycle_id.as_ref().map(ToString::to_string))
+            .filter("case", scope.test_case_id.as_ref().map(ToString::to_string))
+            .filter("template", scope.template_id.as_ref().map(ToString::to_string))
+            .filter("suite", scope.suite_id.as_ref().map(ToString::to_string));
         scan.metrics = Some(self.0.read_metrics.clone());
         let owner = self.0.clone();
         self.read(move |connection| {

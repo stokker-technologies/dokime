@@ -17,6 +17,10 @@
 
 /* === External Imports === */
 
+import { useNativeSessionOptional } from "@/app/native-session/context";
+import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -27,7 +31,6 @@ import { FailureConsequences } from "@/components/FailureConsequences";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { formatArtifactSize } from "@/lib/artifact-tree";
-import { useBrand } from "@/lib/brand";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Types === */
@@ -65,9 +68,9 @@ export function PluginList({
   changingEnabled,
   settingsSectionOf,
 }: PluginListProps) {
-  const brand = useBrand();
+  const generation = useNativeSessionOptional()?.identity.generation ?? "";
   const rows = entries.map((entry): PluginTableRow => {
-    const status = statusPresentation(entry, brand.label);
+    const status = statusPresentation(entry);
     const removalPending = entry.state === "removal_pending";
     const configurable = settingsSectionOf(entry) !== null;
     const name = entry.metadata?.identity.name ?? entry.install_id;
@@ -76,9 +79,17 @@ export function PluginList({
     return {
       alert: status.reason ? (
         <div>
-          <p role="alert" className="text-sm text-destructive">
-            {status.reason}
-          </p>
+          {entry.restart === "pending" ? (
+            <p className="text-sm text-muted-foreground">{status.reason}</p>
+          ) : (
+            <ErrorCard
+              failure={
+                entry.last_boot?.state === "failed"
+                  ? pluginStartFailure(entry, generation)
+                  : failureOf({ message: status.reason }, "Plugin Unavailable", [generation, entry.install_id, status.reason].join(":"))
+              }
+            />
+          )}
           {entry.last_boot?.state === "failed" ? <FailureConsequences items={entry.last_boot.failure.consequences} /> : null}
         </div>
       ) : null,
@@ -102,7 +113,7 @@ export function PluginList({
           variant="destructive"
         >
           <Trash2 />
-          {removalPending ? "Removal Queued" : removingId === entry.install_id ? "Removing…" : "Remove"}
+          {removalPending ? "Removed" : removingId === entry.install_id ? "Removing…" : "Remove"}
         </DropdownMenuItem>
       ),
     };
@@ -113,7 +124,12 @@ export function PluginList({
 
 /* === Public Functions === */
 
-export function statusPresentation(entry: PluginEntry, brandLabel: string): StatusPresentation {
+/**
+ * The running backend applies every change live: an installation shows what it
+ * is doing now, and a refused change names what keeps running.
+ */
+export function statusPresentation(entry: PluginEntry): StatusPresentation {
+  const failure = entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : null;
   if (entry.error) {
     return {
       label: entry.active ? "Active · Bundle Unavailable" : "Unavailable",
@@ -121,31 +137,23 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
       variant: "destructive",
     };
   }
+  if (entry.restart === "restarting") return { label: "Restarting…", reason: null, variant: "outline" };
+  if (entry.restart === "pending") {
+    return {
+      label: entry.active ? "Active · Restart Pending" : "Restart Pending",
+      reason: "Applies when no cycle is active.",
+      variant: "warning",
+    };
+  }
   if (entry.state === "removal_pending") {
-    return {
-      label: "Removal Pending",
-      reason: entry.active
-        ? `Active until ${brandLabel} restarts.`
-        : entry.last_boot?.state === "failed"
-          ? entry.last_boot.failure.message
-          : null,
-      variant: "warning",
-    };
+    return entry.boot_failed
+      ? { label: "Refused", reason: failure, variant: "destructive" }
+      : { label: "Removed", reason: null, variant: "outline" };
   }
-  if (entry.restart_required) {
-    return {
-      label: entry.active ? "Active · Pending Restart" : "Pending Restart",
-      reason: null,
-      variant: "warning",
-    };
-  }
+  if (entry.active && failure) return { label: "Active · Restart Refused", reason: failure, variant: "warning" };
   if (entry.active) return { label: "Active", reason: null, variant: "success" };
-  if (entry.boot_failed)
-    return {
-      label: "Failed",
-      reason: entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : null,
-      variant: "destructive",
-    };
+  if (entry.boot_failed) return { label: "Failed", reason: failure, variant: "destructive" };
+  if (entry.state === "installed") return { label: "Not Running", reason: null, variant: "outline" };
   return { label: "Disabled", reason: null, variant: "outline" };
 }
 

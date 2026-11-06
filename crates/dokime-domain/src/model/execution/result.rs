@@ -72,6 +72,10 @@ pub struct TestCycle {
     pub continue_automatically: bool,
 
     pub result: Option<ResultSummary>,
+
+    // Why The Last Seal Failed; Present Only While The Phase Is `SealFailed`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seal_failure: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -245,6 +249,10 @@ pub enum CyclePhase {
 
     Sealing,
     Sealed,
+
+    // A Seal That Could Not Complete: Admission Stays Closed, Evidence Is Kept,
+    // And Only An Explicit Retry Or Archive Changes It.
+    SealFailed,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -468,6 +476,7 @@ impl harmos::MemorySize for TestCycle {
             (harmos::MemorySize::memory_size(&self.updated_at), std::mem::size_of_val(&self.updated_at)),
             (harmos::MemorySize::memory_size(&self.execution_ids), std::mem::size_of_val(&self.execution_ids)),
             (harmos::MemorySize::memory_size(&self.records), std::mem::size_of_val(&self.records)),
+            (harmos::MemorySize::memory_size(&self.seal_failure), std::mem::size_of_val(&self.seal_failure)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -531,6 +540,7 @@ impl CyclePhase {
             Self::Active => Ok(()),
             Self::Sealing => Err("cycle is sealing; admission is closed"),
             Self::Sealed => Err("cycle is sealed and immutable"),
+            Self::SealFailed => Err("cycle seal failed; admission is closed"),
         }
     }
 }

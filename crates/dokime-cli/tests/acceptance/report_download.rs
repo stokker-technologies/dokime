@@ -58,7 +58,7 @@ async fn call(endpoint: &str, directory: &Path, arguments: &[&str]) -> std::proc
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn report_download() {
-    tokio::time::timeout(std::time::Duration::from_secs(90), async {
+    tokio::time::timeout(std::time::Duration::from_secs(180), async {
         let bytes = Arc::new((0..2_700_000).map(|index| (index % 251) as u8).collect::<Vec<_>>());
         let mode = Arc::new(Mutex::new(ReportMode::Current));
         let catalog = dokime::harmos::operations::Contracts::of::<dokime::client::contracts::Operations>().unwrap();

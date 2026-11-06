@@ -9,8 +9,10 @@
 
 /* === External Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, RotateCcw } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
@@ -19,7 +21,8 @@ import { toast } from "@/lib/notifications";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
+import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
+import { useInstalledPluginsQuery, usePluginRestartRefresh } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
 import { bundleSettingsPage, programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
@@ -29,7 +32,6 @@ import {
   usePluginReleaseMutation,
   usePluginsQuery,
   useRemovePluginMutation,
-  useRestartAppMutation,
   useSetPluginEnabledMutation,
 } from "@/features/settings/plugins/plugin-queries";
 import { SettingsCard } from "@/features/settings/SettingsCard";
@@ -42,7 +44,7 @@ import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Components === */
 
-export function PluginsSection() {
+export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
   const brand = useBrand();
   const desktop = isTauriDesktop();
   const navigate = useNavigate();
@@ -52,10 +54,8 @@ export function PluginsSection() {
   const installMutation = useInstallPluginMutation();
   const releaseMutation = usePluginReleaseMutation();
   const removeMutation = useRemovePluginMutation();
-  const restartMutation = useRestartAppMutation();
   const enabledMutation = useSetPluginEnabledMutation();
   const [installOpen, setInstallOpen] = useState(false);
-  const [restartPrompt, setRestartPrompt] = useState(false);
   const [uploadingFilename, setUploadingFilename] = useState<string | null>(null);
   const [removeCandidate, setRemoveCandidate] = useState<PluginEntry | null>(null);
   const entries = pluginsQuery.data ?? [];
@@ -70,7 +70,8 @@ export function PluginsSection() {
       ? () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: settingsSection } })
       : undefined,
   }));
-  const restartPending = entries.some((entry) => entry.restart_required);
+  // Changes apply in the running backend; re-read the list until each one has.
+  usePluginRestartRefresh(entries.find((entry) => entry.restart !== "idle")?.restart);
 
   /* A plugin's settings page is its contributed section. The frame keys those
      by installed plugin, and an artifact names the installation it came
@@ -87,13 +88,9 @@ export function PluginsSection() {
       const entry = await installMutation.mutateAsync(source);
       if (entry) {
         setInstallOpen(false);
-        setRestartPrompt(true);
       }
     } catch (error) {
-      toast.error("Plugin Installation Failed", {
-        error,
-        description: errorMessage(error, "The plugin could not be installed.") ?? undefined,
-      });
+      toast.error(failureOf(error, "Plugin Installation Failed"));
     } finally {
       setUploadingFilename(null);
     }
@@ -106,7 +103,6 @@ export function PluginsSection() {
     try {
       await removeMutation.mutateAsync(removeCandidate.install_id);
       setRemoveCandidate(null);
-      setRestartPrompt(true);
     } catch {
       // Keep explicit confirmation open with the error visible.
     }
@@ -119,7 +115,13 @@ export function PluginsSection() {
           label="Organization Release Source"
           failure={releaseMutation.error}
           description="Discover compatible plugins from the source selected under Updates."
-          error={releaseMutation.isError ? errorMessage(releaseMutation.error, "The release feed could not be checked.") : null}
+          error={
+            releaseMutation.isError
+              ? releaseMutation.error
+                ? failureOf(releaseMutation.error, "Plugin Operation Failed").message
+                : null
+              : null
+          }
         />
         {releaseMutation.data?.map((release) => (
           <SettingsRow
@@ -138,25 +140,6 @@ export function PluginsSection() {
             </Button>
           </SettingsRow>
         ))}
-        {restartPending ? (
-          <SettingsRow
-            label="Restart Required"
-            failure={restartMutation.error}
-            description={`Restart ${brand.label} to apply pending plugin changes.`}
-            error={restartMutation.isError ? errorMessage(restartMutation.error, `${brand.label} could not be restarted.`) : null}
-          >
-            {desktop ? (
-              <Button disabled={restartMutation.isPending} onClick={() => setRestartPrompt(true)} size="sm" variant="outline">
-                <RotateCcw className={restartMutation.isPending ? "animate-spin" : undefined} />
-                {restartMutation.isPending ? "Restarting…" : `Restart ${brand.label}`}
-              </Button>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Restart <code className="font-mono text-foreground">dokime server</code> to apply.
-              </p>
-            )}
-          </SettingsRow>
-        ) : null}
         <div className="px-4 py-3">
           {pluginsQuery.isPending || programsQuery.isPending ? (
             <div className="grid min-h-44 place-items-center text-sm text-muted-foreground">
@@ -167,12 +150,7 @@ export function PluginsSection() {
             </div>
           ) : pluginsQuery.isError || programsQuery.isError ? (
             <div className="grid min-h-44 place-items-center gap-3 p-6 text-center">
-              <div>
-                <p className="font-medium">Plugins could not be loaded</p>
-                <NotificationMessage>
-                  {errorMessage(pluginsQuery.error ?? programsQuery.error, "Try loading the plugin registry again.")}
-                </NotificationMessage>
-              </div>
+              <ErrorCard failure={failureOf(pluginsQuery.error ?? programsQuery.error, "Plugins Unavailable")} />
               <Button
                 onClick={() => {
                   void pluginsQuery.refetch();
@@ -208,12 +186,7 @@ export function PluginsSection() {
               enabledMutation.mutate(
                 { installId: entry.install_id, enabled },
                 {
-                  onSuccess: () => setRestartPrompt(true),
-                  onError: (error) =>
-                    toast.error("Plugin Change Failed", {
-                      error,
-                      description: errorMessage(error, "The plugin change could not be saved.") ?? undefined,
-                    }),
+                  onError: (error) => toast.error(failureOf(error, "Plugin Change Failed")),
                 },
               )
             }
@@ -227,6 +200,7 @@ export function PluginsSection() {
           />
         </div>
       </SettingsCard>
+      <ApplicationPreferences section="plugins" advanced={advanced} />
       <Dialog open={installOpen} onOpenChange={setInstallOpen}>
         <DialogContent>
           <DialogHeader>
@@ -236,7 +210,7 @@ export function PluginsSection() {
           <PluginDropZone
             failure={installMutation.error}
             disabled={installMutation.isPending}
-            error={errorMessage(installMutation.error, "The plugin could not be installed.")}
+            error={installMutation.error ? failureOf(installMutation.error, "Plugin Operation Failed").message : null}
             filename={uploadingFilename}
             onDrop={(filename) => void handleInstall("drop", filename)}
             onPick={() => void handleInstall("pick", null)}
@@ -244,35 +218,6 @@ export function PluginsSection() {
           />
         </DialogContent>
       </Dialog>
-      <Dialog open={restartPrompt} onOpenChange={setRestartPrompt}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Restart {brand.label}?</DialogTitle>
-            <DialogDescription>
-              Plugin changes are saved. Restart {brand.label} to apply them. Active work will stop and plugin resources will close before
-              the application restarts.
-            </DialogDescription>
-          </DialogHeader>
-          {restartMutation.isError ? (
-            <NotificationMessage error={restartMutation.error}>
-              {errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}
-            </NotificationMessage>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRestartPrompt(false)}>
-              Later
-            </Button>
-            {desktop ? (
-              <Button disabled={restartMutation.isPending} onClick={() => restartMutation.mutate()}>
-                Restart Now
-              </Button>
-            ) : (
-              <p>Restart dokime server to apply these changes.</p>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog
         onOpenChange={(open) => {
           if (!open && !removeMutation.isPending) {
@@ -285,12 +230,12 @@ export function PluginsSection() {
           <DialogHeader>
             <DialogTitle>Remove Plugin?</DialogTitle>
             <DialogDescription>
-              {`The plugin will stop loading and its managed file will be deleted at the next ${brand.label} restart.`}
+              {`The plugin stops once no cycle is active. Its managed file is deleted when ${brand.label} next starts.`}
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (
             <NotificationMessage error={removeMutation.error}>
-              {errorMessage(removeMutation.error, "The plugin could not be removed.")}
+              {removeMutation.error ? failureOf(removeMutation.error, "Plugin Operation Failed").message : null}
             </NotificationMessage>
           ) : null}
           <DialogFooter>
@@ -308,11 +253,3 @@ export function PluginsSection() {
 }
 
 /* === Private Functions === */
-
-function errorMessage(error: unknown, fallback: string): string | null {
-  if (!error) {
-    return null;
-  }
-  if (typeof error === "string" && error.trim()) return error;
-  return error instanceof Error && error.message.trim() ? error.message : fallback;
-}

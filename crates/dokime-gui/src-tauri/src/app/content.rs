@@ -217,18 +217,6 @@ pub(crate) async fn fetch_verified(
     result.map_err(DeliveryError::from)
 }
 
-pub(crate) async fn push_verified(
-    lease: &SessionLease, source: &Path, header: dokime::domain::model::content::wire::UploadArtifactHeader, frame_bytes: usize,
-) -> Result<dokime::domain::model::content::wire::ArtifactMetadata, String> {
-    let frame_limit = std::num::NonZeroUsize::new(frame_bytes).expect("desktop frame limit");
-    let client = lease.client().with_frame_limit(frame_limit);
-    let result = client.upload_artifact_file(source, header).await;
-    match result {
-        Ok(metadata) => Ok(metadata),
-        Err(error) => Err(error.to_string()),
-    }
-}
-
 /* === Private Functions === */
 
 /* === Tests === */

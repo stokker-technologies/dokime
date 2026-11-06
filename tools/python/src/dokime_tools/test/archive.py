@@ -35,6 +35,8 @@ from . import policy
 
 ARCHIVE = "archive.tar.zst"
 MESSAGES = "compiler.json"
+LAYERS = ("unit", "integration", "acceptance", "system")
+UNIT_KINDS = ("lib", "bin", "proc-macro")
 
 # === Types === #
 
@@ -86,8 +88,8 @@ def extract(directory: Path, profile: str, destination: Path, *, category: str |
     """Extract Once For Read-Only Reuse By Listing And Independent Test Lanes."""
     path = require(directory, profile)
     destination.mkdir(parents=True, exist_ok=True)
-    if category == "system":
-        _extract_system(path, destination)
+    if category in LAYERS:
+        _extract_layer(path, destination, category)
     else:
         command = [
             "cargo",
@@ -221,8 +223,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
 # === Private Functions === #
 
 
-def _extract_system(path: Path, destination: Path) -> None:
-    """Keep System Binaries And All Runtime Inputs Without Unpacking Other Test Layers."""
+def _extract_layer(path: Path, destination: Path, category: str) -> None:
+    """Keep One Layer's Binaries And All Runtime Inputs Without Unpacking Other Test Layers."""
     metadata_name = "target/nextest/binaries-metadata.json"
     with tarfile.open(path, "r|zst") as source:
         member = next((member for member in source if member.name == metadata_name), None)
@@ -236,15 +238,11 @@ def _extract_system(path: Path, destination: Path) -> None:
         omitted = {
             (Path("target") / Path(entry["binary-path"]).relative_to(target)).as_posix()
             for entry in binaries.values()
-            if entry["binary-name"] != "system" and not entry["binary-name"].startswith("system-")
+            if not _in_layer(category, entry)
         }
-        document["rust-binaries"] = {
-            identity: entry
-            for identity, entry in binaries.items()
-            if entry["binary-name"] == "system" or entry["binary-name"].startswith("system-")
-        }
+        document["rust-binaries"] = {identity: entry for identity, entry in binaries.items() if _in_layer(category, entry)}
         if not document["rust-binaries"]:
-            raise policy.TestError("nextest archive has no system binaries")
+            raise policy.TestError(f"nextest archive has no {category} binaries")
 
     # Stream The Archive Again So Memory And Disk Follow The Selected Lane's Inputs.
     with tarfile.open(path, "r|zst") as source:
@@ -253,6 +251,17 @@ def _extract_system(path: Path, destination: Path) -> None:
                 continue
             source.extract(member, destination, filter="data")
     (destination / metadata_name).write_text(json.dumps(document), encoding="utf-8")
+
+
+def _in_layer(category: str, entry: Mapping) -> bool:
+    """The Archive Counterpart Of `nextest.layer`, Selecting By Target Kind And Binary Name."""
+    if category == "unit":
+        return entry["kind"] in UNIT_KINDS
+    if entry["kind"] != "test":
+        return False
+    name = entry["binary-name"]
+    named = {layer: name == layer or name.startswith(f"{layer}-") for layer in ("acceptance", "system")}
+    return named[category] if category in named else not any(named.values())
 
 
 def _inside(directory: Path, name: str) -> Path:

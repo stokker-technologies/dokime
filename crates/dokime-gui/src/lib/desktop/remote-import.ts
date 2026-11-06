@@ -16,11 +16,12 @@
 // Standard Library Imports
 
 // Third Party Imports
+import { failureOf } from "@/lib/notification-details";
 import { listen } from "@tauri-apps/api/event";
 
 // Local Imports
 import type { NativeSession } from "@/app/native-session/session";
-import { connectionError } from "@/app/native-session/errors";
+
 import { toast } from "@/lib/notifications";
 import { isTauriDesktop } from "@/lib/desktop-open";
 
@@ -47,7 +48,7 @@ export function watchRemoteImports(owner: NativeSession): () => void {
   }).then(retain);
   void listen("desktop://remote-import-failed", (event) => {
     void owner.refresh();
-    toast.error("Remote Import Failed", { description: connectionError(event.payload), error: event.payload });
+    toast.error(failureOf(event.payload, "Remote Import Failed"));
   }).then(retain);
   return () => {
     disposed = true;

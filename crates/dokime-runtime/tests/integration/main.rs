@@ -30,6 +30,7 @@ mod domains;
 mod engine_artifacts;
 mod execution_seal_report;
 mod execution_workflow;
+mod numeric_query_parity;
 mod plugin;
 mod plugin_store_leases;
 mod query_buckets;

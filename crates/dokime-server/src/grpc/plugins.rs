@@ -18,10 +18,7 @@ mod wire;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Instant};
 
 // Third Party Imports
 use contract as v1;
@@ -45,7 +42,6 @@ use dokime::plugins::{PluginError, PluginStore};
 
 const SERVER_DIAGNOSTIC_TEXT_BYTES: u64 = 4_096;
 const SERVER_PLUGIN_BUNDLE_BYTES: u64 = 285_212_672;
-const SERVER_PLUGIN_UPLOAD_IDLE_MS: u64 = 30_000;
 
 /* === Macros === */
 
@@ -69,10 +65,17 @@ impl Resources {
     async fn submit<T: Send + 'static, F: std::future::Future<Output = Result<T, PluginError>> + Send + 'static>(
         &self, permit: OwnedSemaphorePermit, operation: impl FnOnce(PluginStore) -> F + Send + 'static,
     ) -> Result<T, Status> {
-        let store = dokime::app::live_runtime(&self.runtime).await?.plugin_store();
+        self.change(permit, move |runtime| operation(runtime.plugin_store())).await
+    }
+
+    // A Store Change The Running Backend Applies Without A Restart.
+    async fn change<T: Send + 'static, F: std::future::Future<Output = Result<T, PluginError>> + Send + 'static>(
+        &self, permit: OwnedSemaphorePermit, operation: impl FnOnce(dokime::RuntimeHandle) -> F + Send + 'static,
+    ) -> Result<T, Status> {
+        let runtime = dokime::app::live_runtime(&self.runtime).await?;
         tokio::spawn(async move {
             let _permit = permit;
-            operation(store).await
+            operation(runtime).await
         })
         .await
         .map_err(join)?
@@ -171,10 +174,7 @@ impl Serve<v1::SetEnabled> for Resources {
             let id = id(&request.install_id)?;
             let enabled = request.enabled;
             let entry = self
-                .submit(self.admission.mutation()?, move |store| async move {
-                    store.set_enabled(id, enabled).await?;
-                    store.get(id).await
-                })
+                .change(self.admission.mutation()?, move |runtime| async move { runtime.set_plugin_enabled(id, enabled).await })
                 .await?;
             self.entry(entry).await
         })
@@ -185,16 +185,7 @@ impl Serve<v1::Remove> for Resources {
     fn serve<'a>(&'a self, request: v1::Remove, _: Context<'a, v1::Remove>) -> Served<'a, plugins_model::RemovePluginReply> {
         Box::pin(async move {
             let id = id(&request.install_id)?;
-            let entry = self
-                .submit(self.admission.mutation()?, move |store| async move {
-                    store.remove(id).await?;
-                    match store.get(id).await {
-                        Ok(entry) => Ok(Some(entry)),
-                        Err(PluginError::Unknown(_)) => Ok(None),
-                        Err(error) => Err(error),
-                    }
-                })
-                .await?;
+            let entry = self.change(self.admission.mutation()?, move |runtime| async move { runtime.remove_plugin(id).await }).await?;
             let mut entry = entry;
             if let Some(entry) = &mut entry {
                 dokime::app::live_runtime(&self.runtime).await?.plugin_process_state(entry);
@@ -205,6 +196,16 @@ impl Serve<v1::Remove> for Resources {
                     installation: entry.map(|entry| wire::entry(entry, self.max_message_bytes)).transpose()?,
                 })
             })
+        })
+    }
+}
+
+impl Serve<v1::Retry> for Resources {
+    fn serve<'a>(&'a self, request: v1::Retry, _: Context<'a, v1::Retry>) -> Served<'a, plugins_model::PluginInstallation> {
+        Box::pin(async move {
+            let id = id(&request.install_id)?;
+            let entry = self.change(self.admission.mutation()?, move |runtime| async move { runtime.retry_plugin(id).await }).await?;
+            self.entry(entry).await
         })
     }
 }
@@ -226,9 +227,7 @@ impl Resources {
         &self, input: &StreamInput<plugins_model::InstallPluginFrame>, operation: &dokime::runtime::progress::Operation,
     ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         let permit = self.admission.mutation().map_err(reject)?;
-        let first = message(input, SERVER_PLUGIN_UPLOAD_IDLE_MS)
-            .await?
-            .ok_or_else(|| reject(Status::invalid_argument("install header is required")))?;
+        let first = message(input).await?.ok_or_else(|| reject(Status::invalid_argument("install header is required")))?;
         let Some(plugins_model::InstallPluginFrameFrame::Header(header)) = &first.frame else {
             return Err(reject(Status::invalid_argument("first install frame must be a header")));
         };
@@ -244,7 +243,7 @@ impl Resources {
         let mut bytes = Vec::new();
         bytes.try_reserve_exact(size_bytes as usize).map_err(|_| reject(Status::resource_exhausted("plugin upload memory unavailable")))?;
         let mut hash = Sha256::new();
-        while let Some(frame) = message(input, SERVER_PLUGIN_UPLOAD_IDLE_MS).await? {
+        while let Some(frame) = message(input).await? {
             let Some(plugins_model::InstallPluginFrameFrame::Chunk(chunk)) = &frame.frame else {
                 return Err(reject(Status::invalid_argument("only chunks may follow install header")));
             };
@@ -315,6 +314,7 @@ pub(super) fn prepare(
     setup.resource::<Host<v1::Install>>(Host::<v1::Install>::new(served.clone()));
     setup.resource::<Host<v1::SetEnabled>>(Host::<v1::SetEnabled>::new(served.clone()));
     setup.resource::<Host<v1::Remove>>(Host::<v1::Remove>::new(served.clone()));
+    setup.resource::<Host<v1::Retry>>(Host::<v1::Retry>::new(served.clone()));
     setup.resource::<Host<v1::ListAdmittedPlugins>>(Host::<v1::ListAdmittedPlugins>::new(served.clone()));
 
     Ok(())
@@ -323,9 +323,9 @@ pub(super) fn prepare(
 /* === Private Functions === */
 
 async fn message(
-    input: &StreamInput<plugins_model::InstallPluginFrame>, idle_ms: u64,
+    input: &StreamInput<plugins_model::InstallPluginFrame>,
 ) -> Result<Option<StreamItem<plugins_model::InstallPluginFrame>>, Status> {
-    tokio::time::timeout(Duration::from_millis(idle_ms), input.recv())
+    tokio::time::timeout(<v1::Install as dokime::harmos::operations::OperationDeclaration>::POLICY.timeout, input.recv())
         .await
         .map_err(|_| reject(Status::deadline_exceeded("plugin upload idle deadline exceeded")))
 }

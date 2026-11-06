@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+mod batches;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -70,7 +72,7 @@ pub(crate) struct QueryWork {
     cancelled: Arc<AtomicBool>,
 }
 
-struct Cancellation(Option<Arc<AtomicBool>>);
+pub(crate) struct Cancellation(Option<Arc<AtomicBool>>);
 
 /* === Enums === */
 
@@ -79,6 +81,11 @@ struct Cancellation(Option<Arc<AtomicBool>>);
 /* === Implementations === */
 
 impl QueryWork {
+    pub fn cancellation(&mut self) -> Cancellation {
+        self.cancelled = Arc::new(AtomicBool::new(false));
+        Cancellation(Some(self.cancelled.clone()))
+    }
+
     pub fn new(config: QueryConfig, operation: &'static str) -> Self {
         let deadline = std::time::Instant::now() + config.limits().active_time;
         Self {
@@ -186,8 +193,7 @@ impl State {
     ) -> Result<(T, QueryWork, QueryProgress), Box<Failure>> {
         let operation = work.operation;
         let root = self.0.readers.database.parent().expect("storage root").to_owned();
-        work.cancelled = Arc::new(AtomicBool::new(false));
-        let mut cancellation = Cancellation(Some(work.cancelled.clone()));
+        let mut cancellation = work.cancellation();
         let result = self
             .read(move |connection| {
                 Ok((|| {
@@ -223,3 +229,18 @@ pub(crate) fn storage_error(error: crate::storage::Error, operation: &str) -> Bo
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn query_cancellation() {
+        for armed in [false, true] {
+            let cancelled = Arc::new(AtomicBool::new(false));
+            let cancellation = Cancellation(armed.then(|| cancelled.clone()));
+            drop(cancellation);
+            assert_eq!(cancelled.load(Ordering::Acquire), armed);
+        }
+    }
+}

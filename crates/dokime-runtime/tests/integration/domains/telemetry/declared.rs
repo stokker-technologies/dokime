@@ -22,7 +22,7 @@ use crate::service_support::prelude::*;
 use dokime_runtime::InstalledPlugin;
 use dokime_runtime::definition::SuiteSet;
 use dokime_runtime::execution::Runnable;
-use dokime_runtime::harmos::operations::{OperationPolicy, RetryPolicy};
+use dokime_runtime::harmos::operations::OperationPolicy;
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::{Refusal, Supervisor};
@@ -33,12 +33,7 @@ const SOURCE: &str = "fixture_declaring";
 const SUITE: &str = "fixture.declaring.checks";
 const RECORD: &str = "fixture.declaring.measured";
 const PROMPT: &str = "fixture.declaring.confirm";
-const POLICY: OperationPolicy = OperationPolicy {
-    timeout: Duration::from_secs(120),
-    attempt_timeout: Duration::from_secs(120),
-    cancellation_timeout: std::time::Duration::ZERO,
-    retries: RetryPolicy::Never,
-};
+const POLICY: OperationPolicy = crate::service_support::budgets::settings::FIXTURE_POLICY;
 
 /* === Macros === */
 

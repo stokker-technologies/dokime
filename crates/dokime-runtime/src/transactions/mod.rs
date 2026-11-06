@@ -47,7 +47,7 @@ pub use installation::{InstallPlugin, RemovePlugin};
 pub use invalidation::InvalidateExecutions;
 pub use labels::{LabelSubject, RenameLabel};
 pub use lifecycle::{
-    BeginCycleSeal, CaptureReportLifecycle, CycleReportFinalization, EstablishNodeIdentity, FailReport, MarkRuntimeStarted,
+    BeginCycleSeal, CaptureReportLifecycle, CycleReportFinalization, EstablishNodeIdentity, FailCycleSeal, FailReport, MarkRuntimeStarted,
     RecoverInterruptedCycles, ReportFinalization, ReportLifecycle, RequestCycleReportFinalization, RequestReportFinalization, SealCycle,
     SealExecution, StageQueuedStop, StartShutdown,
 };
@@ -123,6 +123,7 @@ pub enum Transactions {
     SealCycle(SealCycle),
     SealExecution(SealExecution),
     BeginCycleSeal(BeginCycleSeal),
+    FailCycleSeal(FailCycleSeal),
     StageQueuedStop(StageQueuedStop),
     EstablishNodeIdentity(EstablishNodeIdentity),
     StartShutdown(StartShutdown),

@@ -212,6 +212,7 @@ impl DocumentSelection {
             test_execution_id: self.scope.test_execution_id.clone(),
             test_case_id: self.scope.test_case_id.clone(),
             template_id: self.scope.template_id.clone(),
+            suite_id: self.scope.suite_id.clone(),
         }
     }
 

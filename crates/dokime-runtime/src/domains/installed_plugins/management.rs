@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 // Local Imports
+use crate::plugins::PluginRestart;
 use crate::settings::{SettingValues, Settings};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::secrets::SecretAvailability;
@@ -41,6 +42,10 @@ pub struct RuntimePluginSettings {
     pub discovered: SettingValues,
 
     pub secrets: Vec<SecretAvailability>,
+
+    // Whether saved values are waiting to reach the running program.
+    #[serde(default)]
+    pub restart: PluginRestart,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

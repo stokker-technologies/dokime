@@ -253,10 +253,6 @@ pub(super) struct Transform {
     #[serde(default)]
     previous_record_type: Option<String>,
     #[serde(default)]
-    stream: Option<String>,
-    #[serde(default)]
-    field: Option<String>,
-    #[serde(default)]
     name: Option<String>,
     // The Harmos vocabulary's wire name (`mean`, `p95`) of an `aggregate`.
     #[serde(default)]
@@ -1839,7 +1835,6 @@ impl Transform {
     fn encoding_memory(value: &DataTransform) -> usize {
         let fields = match value {
             DataTransform::TimeBetween { previous_record_type } => previous_record_type.len(),
-            DataTransform::TelemetryAtOrBefore { stream, field } => stream.len().saturating_add(field.len()),
             DataTransform::Detail { name } => name.len(),
             DataTransform::Aggregate(aggregate) => aggregate.name().len(),
             _ => 0,
@@ -1851,17 +1846,15 @@ impl Transform {
         let kind = self.kind.as_str();
         let fields = [
             (self.previous_record_type.is_some(), kind == "time_between"),
-            (self.stream.is_some(), kind == "telemetry_at_or_before"),
-            (self.field.is_some(), kind == "telemetry_at_or_before"),
             (self.name.is_some(), kind == "detail"),
             (self.aggregate.is_some(), kind == "aggregate"),
         ];
-        if !matches!(kind, "aggregate" | "time_between" | "telemetry_at_or_before" | "detail" | "per_case")
+        if !matches!(kind, "aggregate" | "time_between" | "detail" | "per_case")
             || fields.iter().any(|(present, required)| present != required)
         {
             return Err(Error::Invalid("data transform fields differ"));
         }
-        let fields = [&self.previous_record_type, &self.stream, &self.field, &self.name, &self.aggregate];
+        let fields = [&self.previous_record_type, &self.name, &self.aggregate];
         Ok(fields
             .into_iter()
             .fold(std::mem::size_of::<DataTransform>(), |bytes, field| bytes.saturating_add(field.as_ref().map_or(0, String::capacity))))
@@ -1882,10 +1875,6 @@ impl TryFrom<&DataTransform> for Transform {
         match value {
             DataTransform::TimeBetween { previous_record_type } => {
                 transform.previous_record_type = Some(previous_record_type.as_str().to_owned())
-            }
-            DataTransform::TelemetryAtOrBefore { stream, field } => {
-                transform.stream = Some(stream.as_str().to_owned());
-                transform.field = Some(field.as_str().to_owned());
             }
             DataTransform::Detail { name } => transform.name = Some(name.as_str().to_owned()),
             DataTransform::Aggregate(aggregate) => transform.aggregate = Some(aggregate.name()),
@@ -1909,10 +1898,6 @@ impl TryFrom<Transform> for DataTransform {
                 .ok_or(Error::Invalid("invalid data transform aggregate")),
             "time_between" => Ok(Self::TimeBetween {
                 previous_record_type: row.previous_record_type.unwrap(),
-            }),
-            "telemetry_at_or_before" => Ok(Self::TelemetryAtOrBefore {
-                stream: row.stream.unwrap(),
-                field: row.field.unwrap(),
             }),
             "detail" => Ok(Self::Detail { name: row.name.unwrap() }),
             "per_case" => Ok(Self::PerCase),
@@ -2271,7 +2256,6 @@ fn transform_name(value: &DataTransform) -> &'static str {
     match value {
         DataTransform::Aggregate(_) => "aggregate",
         DataTransform::TimeBetween { .. } => "time_between",
-        DataTransform::TelemetryAtOrBefore { .. } => "telemetry_at_or_before",
         DataTransform::Detail { .. } => "detail",
         DataTransform::PerCase => "per_case",
     }

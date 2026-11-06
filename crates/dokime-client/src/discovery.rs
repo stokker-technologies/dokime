@@ -93,6 +93,8 @@ pub(super) async fn discover(
         epoch: identity.epoch,
         display_name: identity.display_name,
         product_version: identity.product_version,
+        source_revision: identity.source_revision,
+        channel: identity.channel,
         target: identity.target,
         api_version,
         descriptor_sha256,

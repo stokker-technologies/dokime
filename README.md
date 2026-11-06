@@ -3,8 +3,8 @@
 [![Release](https://img.shields.io/github/v/release/stokker-technologies/dokime)](https://github.com/stokker-technologies/dokime/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev&label=CI)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml)
 [![Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
-[![crates.io](https://img.shields.io/badge/crates.io-unpublished-lightgrey)](#quick-start)
-[![PyPI](https://img.shields.io/badge/PyPI-unpublished-lightgrey)](#quick-start)
+[![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
+[![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 <p align="center">
@@ -35,6 +35,51 @@ operating conditions, and review the evidence behind each result.
 - **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.
 - **Native Media Capture** [`media-native`]: Attach screenshots, camera photos and audio where the platform supports them.
 
+### Why Dokime?
+
+Engineering tests need a procedure, an operator, high-rate data and evidence
+someone can trust. Existing tools cover parts of that, so teams glue together
+sequencers, scripts, data tools and report generators.
+
+Dokime keeps them together: publish your streams, and Dokime handles storage,
+live plots and the HTML report. Plugins are native processes with a clear
+structure, so you can use any instrument library.
+
+| Gate | Dokime | Manual Testing | Hand-Rolled Scripts | pytest Harness | OpenHTF | OpenTAP / PathWave | NI TestStand |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| **Getting Started** | | | | | | | |
+| Low Setup Effort | ✓ | ✓ | ✓ | ✓ | ◐ | ◐ | ✗ |
+| Open Source | ✓ | – | – | ✓ | ✓ | ◐ | ✗ |
+| Repeatable Procedures | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Pass/Fail Criteria | ✓ | ◐ | ◐ | ✓ | ✓ | ✓ | ✓ |
+| **Running It With People** | | | | | | | |
+| GUI & Operator Flow | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
+| Device & Bench Traceability | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
+| HTML Report Generation | ✓ | ✗ | ✗ | ◐ | ◐ | ◐ | ✓ |
+| **Scaling The Test** | | | | | | | |
+| Parameter Sweeps | ✓ | ✗ | ◐ | ✓ | ◐ | ✓ | ✓ |
+| Storage Layer Abstraction | ✓ | ✗ | ✗ | ✗ | ◐ | ◐ | ◐ |
+| Live Measurements | ✓ | ✗ | ◐ | ✗ | ◐ | ◐ | ◐ |
+| Remote Control | ✓ | ✗ | ◐ | ✗ | ◐ | ✓ | ✓ |
+| Long-Run Reliability | ✓ \* | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
+| **Extending And Pushing Limits** | | | | | | | |
+| Plugin Template | ✓ | ✗ | ✗ | ✗ | ◐ | ✓ | ✓ |
+| Sidecar Plugin System | ✓ | ✗ | ✗ | ✗ | ✗ | ◐ | ◐ |
+| Fast Stream Support | ✓ \* | ✗ | ◐ | ✗ | ✗ | ◐ | ◐ |
+
+✓ Built In · ◐ Partial Or Add-On · ✗ Build It Yourself · – Not Applicable · \* Target, Not Yet Proven
+
+| | Dokime | OpenHTF | OpenTAP / PathWave | NI TestStand |
+| --- | --- | --- | --- | --- |
+| **Authoring Language** | Rust; Python and C++ planned | Python | C#, Python | Several |
+| **Licence** | Apache-2.0 | Apache-2.0 | MPL-2.0, Keysight GUI bundle | Commercial |
+| **Ready-Made Instrument Drivers** | Plugin's choice | Some plugs | Vendor ecosystem | Extensive |
+| **End-Of-Line Readiness** | Planned | Yes | Yes | Yes |
+| **Maturity** | Young | Established | Established | Industry standard |
+
+Dokime is young. Choose an established test executive if you need mature
+production-line tooling or ready-made instrument drivers today.
+
 ## Interfaces
 
 ### GUI
@@ -58,7 +103,8 @@ sudo dnf install ./dokime-<version>-1.x86_64.rpm   # Fedora
 Direct Ethernet cables support static or automatic IPv4 link-local addresses;
 see [Direct Cable Between Two PCs](docs/product-guide.md#direct-cable-between-two-pcs).
 
-Feedback appears in toasts and remains in [Notifications](docs/product-guide.md#notifications) until cleared.
+Unavailable views show an inline failure card with retry and copyable technical details.
+Failed actions and background failures appear in toasts and remain in [Notifications](docs/product-guide.md#notifications) until cleared.
 Click either to inspect the full message, failure causes and available technical details, or copy them for troubleshooting.
 
 #### Examples
@@ -155,13 +201,15 @@ keep their installation and storage separate from plain Dokime. They include
 plugins selected by version and feed name, plus external bundles from an
 organization pack or repeatable `cargo dokime installer package --plugin <path>`
 arguments. Release distributions and plugin archives are verified and cached. Bundled plugins
-install on startup without replacing newer installed versions. See the
+install on startup without replacing newer installed versions. An optional
+`[license]` table adds the organization's own terms beside Dokime's unchanged
+Apache-2.0 license. See the
 [installer guide](docs/product-guide.md#native-installers)
 for packaging options.
 
 ## Quick Start
 
-1. **Download An Installer.** Choose a matching [release](https://github.com/stokker-technologies/dokime/releases) or successful [CI candidate](https://github.com/stokker-technologies/dokime/actions); the [download walkthrough](docs/remote/overview.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
+1. **Download An Installer.** Choose a matching [release](https://github.com/stokker-technologies/dokime/releases), the [nightly prerelease](https://github.com/stokker-technologies/dokime/releases/tag/nightly) or a successful [CI candidate](https://github.com/stokker-technologies/dokime/actions); the [download walkthrough](docs/remote/overview.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
 2. **Inspect Host Telemetry.** The installer includes `plugin-host.dokime`, selected explicitly by the Dokime packaging task. Host streams arrive through the supervised plugin boundary.
 3. **Try The Test Fixture.** In a source checkout, build the explicit [OBC fixture](docs/plugin-obc.md#build-and-validate), install its bundle, then run a charging template and inspect its measurements and report.
 4. **Write Your Plugin.** Start with the [plugin starter](crates/cargo-dokime/templates/) and [authoring commands](docs/product-guide.md#plugin-authoring).
@@ -195,8 +243,11 @@ defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots containing earlier telemetry layouts, plugin identities,
 or evidence indexes without incremental numeric summaries, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
-token identities, or the indexed telemetry sample identities require a fresh storage root.
+token identities, indexed record producer scopes, or the indexed telemetry sample identities require a fresh storage root.
 Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
+Scoped evidence reads isolate other cycles; see the
+[storage read policies](docs/product-guide.md#storage-read-isolation)
+for corruption reporting and whole-root failures.
 
 The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-remote` file with an Identifier and Label, connect to it, or
 remove it from the registry without connecting first. Revoke individual clients
@@ -205,8 +256,9 @@ Credentials remain in protected credential stores. Plugin settings and secret
 catalog metadata persist in SQLite; credential values are not stored there.
 Settings → Plugins keeps ordinary settings editable after startup fails and shows
 required secret identifiers. A missing-secret failure offers Set Secret, which opens
-Secret Storage's Add Secret dialog with its identifier prefilled; then restart Dokime
-or retry the plugin. See [Shared Plugin Secrets](docs/product-guide.md#shared-plugin-secrets)
+Secret Storage's Add Secret dialog with its identifier prefilled; then retry the
+plugin. Installing, updating, disabling and removing plugins apply without restarting
+Dokime. See [Shared Plugin Secrets](docs/product-guide.md#shared-plugin-secrets)
 and [Plugin Start Failures](docs/product-guide.md#plugin-start-failures).
 
 Implementation limits use domain and subsystem constants. See the

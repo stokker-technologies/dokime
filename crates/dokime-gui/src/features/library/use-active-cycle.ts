@@ -36,6 +36,7 @@ export type ActiveCycleState = {
   /** Every open cycle, in the server's newest-first order. */
   cycles: OpenCycle[];
   failed: boolean;
+  error: unknown;
   loading: boolean;
   choose: (cycleId: string | null) => void;
   openPicker: () => void;
@@ -68,7 +69,7 @@ export function useActiveCycle(): ActiveCycleState {
   const choose = useCallback((cycleId: string | null) => setUiState({ activeCycleId: cycleId }), [setUiState]);
   const openPicker = useCallback(() => setUiState({ activeCyclePickerOpen: true }), [setUiState]);
 
-  return { choose, cycle, cycles, failed: cyclesQuery.isError, loading: cyclesQuery.isPending, openPicker };
+  return { choose, cycle, cycles, failed: cyclesQuery.isError, error: cyclesQuery.error, loading: cyclesQuery.isPending, openPicker };
 }
 
 /* === Private Functions === */

@@ -20,6 +20,8 @@
 
 /* === External Imports === */
 
+import { toast } from "@/lib/notifications";
+import { failureOf } from "@/lib/notification-details";
 import { Check, Pencil } from "lucide-react";
 import { useState } from "react";
 
@@ -59,7 +61,10 @@ export function EditableLabel({ label, prefix = "", subject, onRename, initially
     setSaving(true);
     onRename(next)
       .then(() => setDraft(CLOSED_LABEL_DRAFT))
-      .catch((error: unknown) => setDraft((current) => refuseLabel(current, error instanceof Error ? error.message : String(error))))
+      .catch((error: unknown) => {
+        toast.error(failureOf(error, "Label Could Not Be Saved"));
+        setDraft((current) => ({ ...current }));
+      })
       .finally(() => setSaving(false));
   };
   const press = (key: string) => {

@@ -331,12 +331,6 @@ fn data_transform(value: &dokime::expressions::DataTransform) -> Result<dokime::
                 previous_record_type: previous_record_type.clone(),
             })
         }
-        DataTransform::TelemetryAtOrBefore { stream, field } => {
-            Kind::TelemetryAtOrBefore(dokime::domain::model::plots::wire::TelemetryAtOrBeforeTransform {
-                stream: stream.clone(),
-                field: field.clone(),
-            })
-        }
         DataTransform::Detail { name } => Kind::Detail(dokime::domain::model::plots::wire::DetailTransform { name: name.clone() }),
         DataTransform::PerCase => Kind::PerCase(dokime::domain::model::plots::wire::EmptyTransform {}),
     };

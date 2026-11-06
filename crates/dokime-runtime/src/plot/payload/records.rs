@@ -43,27 +43,25 @@ use dokime_domain::model::values::Value;
 #[derive(Clone, Copy)]
 struct Expression<'a> {
     record_type: &'a str,
-    source: Source<'a>,
+    previous: &'a str,
     expression: &'a DataExpression,
 }
 
 #[derive(Clone, Copy)]
 struct Candidate<'a> {
-    start: Option<&'a RecordEntry>,
     end: &'a RecordEntry,
-    value: Option<f64>,
-    sample: Option<&'a TelemetrySample>,
+    seconds: f64,
 }
 
 #[derive(Clone, Copy)]
 struct Input<'a> {
-    x: X<'a>,
+    x: &'a str,
     y: f64,
     group: Option<&'a Value>,
 }
 
 struct Row<'a> {
-    x: X<'a>,
+    x: &'a str,
     y: f64,
     group: Option<Cow<'a, str>>,
     ordinal: usize,
@@ -79,32 +77,17 @@ struct Plan<'a> {
 
 /* === Enums === */
 
-#[derive(Clone, Copy)]
-enum Source<'a> {
-    Timing { previous: &'a str },
-    Telemetry { stream: &'a str, field: &'a str },
-}
-
-#[derive(Clone, Copy)]
-enum X<'a> {
-    Timestamp(&'a str),
-    Number(f64),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
 
 impl Expression<'_> {
     fn label(&self) -> [&str; 3] {
-        match self.source {
-            Source::Timing { previous } => [previous, " -> ", self.record_type],
-            Source::Telemetry { field, .. } => [field, " at ", self.record_type],
-        }
+        [self.previous, " -> ", self.record_type]
     }
 
     fn unit<'a>(&self, request: &'a PlotPayloadRequest) -> Option<&'a str> {
-        request.unit.as_deref().or_else(|| matches!(self.source, Source::Timing { .. }).then_some("s"))
+        Some(request.unit.as_deref().unwrap_or("s"))
     }
 }
 
@@ -114,11 +97,7 @@ pub(super) fn project(
     telemetry: &[TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest, generated_at: &str,
     context: &PlotPayloadContext,
 ) -> Result<Option<ReadBatch<PlotPayload>>> {
-    let timing = request.y_expressions.iter().any(|expression| timing_expression(expression).is_some());
-    let expressions = request
-        .y_expressions
-        .iter()
-        .filter_map(|expression| if timing { timing_expression(expression) } else { telemetry_expression(expression) });
+    let expressions = request.y_expressions.iter().filter_map(timing_expression);
     let count = expressions.clone().count();
     if count == 0 {
         return Ok(None);
@@ -159,49 +138,17 @@ fn plan<'a>(
     telemetry: &'a [TelemetrySample], records: crate::records::view::View<'a>, request: &'a PlotPayloadRequest, expression: Expression<'a>,
     group: Option<&'a DataExpression>, aggregate: bool, filters: &RecordFilterLookup<'_>,
 ) -> Result<ReadBatch<Plan<'a>>> {
-    let axis = request.x_expression.as_ref().and_then(telemetry_expression);
-    let contextual = !aggregate && (axis.is_some() || group.is_some());
     let scoped = records.iter().filter(|record| request.scope.as_ref().is_none_or(|scope| record.is_visible_in(scope)));
-    let previous = match expression.source {
-        Source::Timing { previous } => Some(previous),
-        Source::Telemetry { .. } if contextual => {
-            axis.filter(|axis| axis.record_type != expression.record_type).map(|axis| axis.record_type)
-        }
-        _ => None,
-    };
-    let pairs = previous.map(|previous| RecordPairLookup::try_new(scoped.clone(), previous)).transpose()?;
-    let group_context = group.is_some() && !(aggregate && matches!(expression.source, Source::Telemetry { .. }));
-    let y = lookup(telemetry, request, expression)?;
-    let x = axis.filter(|_| contextual).map(|axis| lookup(telemetry, request, axis)).transpose()?.flatten();
-    let group_lookup = group_context
-        .then(|| RecordSampleLookup::try_for_stream_matching(telemetry, &request.stream, request.scope.as_ref(), |_| true))
+    let pairs = RecordPairLookup::try_new(scoped, expression.previous)?;
+    let group_lookup = group
+        .map(|_| RecordSampleLookup::try_for_stream_matching(telemetry, &request.stream, request.scope.as_ref(), |_| true))
         .transpose()?;
-    let candidates = if let Some(pairs) = &pairs {
-        let selected = pairs.pairs(expression.record_type).filter(|pair| filters.matches(pair.end)).map(|pair| Candidate {
-            start: Some(pair.start),
-            end: pair.end,
-            value: matches!(expression.source, Source::Timing { .. }).then_some(pair.seconds),
-            sample: None,
-        });
-        collect(selected)?
-    } else {
-        let selected = scoped.filter(|record| record.record_type.as_str() == expression.record_type && filters.matches(record));
-        let selected = selected.filter_map(|record| {
-            let mut candidate = Candidate {
-                start: axis.map(|_| record),
-                end: record,
-                value: None,
-                sample: None,
-            };
-            if !contextual {
-                let (sample, value) = telemetry_value(&candidate, expression, y.as_ref()?)?;
-                candidate.sample = Some(sample);
-                candidate.value = Some(value);
-            }
-            Some(candidate)
-        });
-        collect(selected)?
-    };
+    let candidates = collect(
+        pairs
+            .pairs(expression.record_type)
+            .filter(|pair| filters.matches(pair.end))
+            .map(|pair| Candidate { end: pair.end, seconds: pair.seconds }),
+    )?;
     let latest = candidates.iter().filter_map(|candidate| super::parse_timestamp(candidate.end.timestamp.as_str())).max();
     let cutoff = latest.and_then(|latest| super::plot_window_cutoff(latest, request.window_s));
     let inputs = candidates
@@ -209,7 +156,7 @@ fn plan<'a>(
         .filter(|candidate| {
             cutoff.is_none_or(|cutoff| super::parse_timestamp(candidate.end.timestamp.as_str()).is_none_or(|time| time >= cutoff))
         })
-        .filter_map(|candidate| input(candidate, expression, axis, group, aggregate, y.as_ref(), x.as_ref(), group_lookup.as_ref()));
+        .filter_map(|candidate| input(candidate, group, group_lookup.as_ref()));
     let rows = harmos::storage::ReadBatch::new(()).try_map(|_| {
         let mut rows = vector(inputs.clone().count())?;
         for (ordinal, input) in inputs.enumerate() {
@@ -258,61 +205,13 @@ fn collect<'a>(candidates: impl Iterator<Item = Candidate<'a>> + Clone) -> Resul
     })
 }
 
-fn lookup<'a>(
-    telemetry: &'a [TelemetrySample], request: &PlotPayloadRequest, expression: Expression<'_>,
-) -> Result<Option<RecordSampleLookup<'a>>> {
-    let Source::Telemetry { stream, field } = expression.source else { return Ok(None) };
-    Ok(Some(RecordSampleLookup::try_for_stream_matching(telemetry, stream, request.scope.as_ref(), |sample| {
-        super::sample_value(sample, field).and_then(super::numeric_value).is_some()
-    })?))
-}
-
-fn telemetry_value<'a>(
-    candidate: &Candidate<'a>, expression: Expression<'_>, lookup: &RecordSampleLookup<'a>,
-) -> Option<(&'a TelemetrySample, f64)> {
-    let Source::Telemetry { field, .. } = expression.source else { return None };
-    let time = super::parse_timestamp(candidate.end.timestamp.as_str())?;
-    let sample = lookup.nearest_at_or_before(candidate.end.scope.as_ref(), time)?.sample;
-    Some((sample, super::sample_value(sample, field).and_then(super::numeric_value)?))
-}
-
-#[allow(clippy::too_many_arguments)]
 fn input<'a>(
-    candidate: &Candidate<'a>, expression: Expression<'_>, axis: Option<Expression<'_>>, group: Option<&DataExpression>, aggregate: bool,
-    y_lookup: Option<&RecordSampleLookup<'a>>, x_lookup: Option<&RecordSampleLookup<'a>>, group_lookup: Option<&RecordSampleLookup<'a>>,
+    candidate: &Candidate<'a>, group: Option<&DataExpression>, group_lookup: Option<&RecordSampleLookup<'a>>,
 ) -> Option<Input<'a>> {
-    let (sample, y) = match candidate.value {
-        Some(value) => (candidate.sample, value),
-        None => {
-            let (sample, value) = telemetry_value(candidate, expression, y_lookup?)?;
-            (Some(sample), value)
-        }
-    };
-    let x = if let Some(axis) = axis.filter(|_| !aggregate) {
-        let record = match expression.source {
-            Source::Timing { previous } if axis.record_type == previous => candidate.start?,
-            Source::Timing { .. } if axis.record_type != expression.record_type => return None,
-            Source::Timing { .. } => candidate.end,
-            Source::Telemetry { .. } => candidate.start?,
-        };
-        let candidate = Candidate {
-            start: None,
-            end: record,
-            value: None,
-            sample: None,
-        };
-        X::Number(telemetry_value(&candidate, axis, x_lookup?)?.1)
-    } else {
-        X::Timestamp(candidate.end.timestamp.as_str())
-    };
     let group = match group {
         Some(group) => {
-            let sample = if aggregate && matches!(expression.source, Source::Telemetry { .. }) {
-                sample?
-            } else {
-                let time = super::parse_timestamp(candidate.end.timestamp.as_str())?;
-                group_lookup?.nearest_at_or_before(candidate.end.scope.as_ref(), time)?.sample
-            };
+            let time = super::parse_timestamp(candidate.end.timestamp.as_str())?;
+            let sample = group_lookup?.latest_until(candidate.end.scope.as_ref(), time)?.sample;
             let value = super::expression_group_input(sample, group)?;
             if !groups::is_key(value) {
                 return None;
@@ -321,7 +220,11 @@ fn input<'a>(
         }
         None => None,
     };
-    Some(Input { x, y, group })
+    Some(Input {
+        x: candidate.end.timestamp.as_str(),
+        y: candidate.seconds,
+        group,
+    })
 }
 
 fn build(plans: &[ReadBatch<Plan<'_>>], request: &PlotPayloadRequest) -> Result<Vec<PlotSeries>> {
@@ -363,9 +266,16 @@ fn build(plans: &[ReadBatch<Plan<'_>>], request: &PlotPayloadRequest) -> Result<
             )?);
             continue;
         }
+        let name = groups::join(&plan.expression.label())?;
         for group in &plan.groups {
-            let label = plan.rows[group.start].group.as_deref().unwrap_or("");
-            series.push(series_entry(text(label)?, text(label)?, plan.expression.unit(request), points(&plan.rows[group.clone()])?)?);
+            let group_label = plan.rows[group.start].group.as_deref().unwrap_or("");
+            let (key, label) = groups::trace_names(&name, group_label, plans.len(), false);
+            series.push(series_entry(
+                groups::join(&key)?,
+                groups::join(&label)?,
+                plan.expression.unit(request),
+                points(&plan.rows[group.clone()])?,
+            )?);
         }
     }
     Ok(series)
@@ -374,11 +284,11 @@ fn build(plans: &[ReadBatch<Plan<'_>>], request: &PlotPayloadRequest) -> Result<
 fn points(rows: &[Row<'_>]) -> Result<Vec<PlotPoint>> {
     let mut points = vector(rows.len())?;
     for row in rows {
-        let x = match row.x {
-            X::Timestamp(value) => JsonValue::String(text(value)?),
-            X::Number(value) => JsonValue::from(value),
-        };
-        points.push(PlotPoint { x, y: Some(row.y), z: None });
+        points.push(PlotPoint {
+            x: JsonValue::String(text(row.x)?),
+            y: Some(row.y),
+            z: None,
+        });
     }
     Ok(points)
 }
@@ -389,19 +299,7 @@ fn timing_expression(expression: &DataExpression) -> Option<Expression<'_>> {
         let DataTransform::TimeBetween { previous_record_type } = transform else { return None };
         Some(Expression {
             record_type,
-            source: Source::Timing { previous: previous_record_type },
-            expression,
-        })
-    })
-}
-
-fn telemetry_expression(expression: &DataExpression) -> Option<Expression<'_>> {
-    let DataSource::Record { record_type } = &expression.source else { return None };
-    expression.transforms.iter().find_map(|transform| {
-        let DataTransform::TelemetryAtOrBefore { stream, field } = transform else { return None };
-        Some(Expression {
-            record_type,
-            source: Source::Telemetry { stream, field },
+            previous: previous_record_type,
             expression,
         })
     })

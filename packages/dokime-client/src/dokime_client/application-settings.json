@@ -25,5 +25,9 @@
     "tls_enabled": true,
     "authentication_enabled": true,
     "certificate_names": []
+  },
+  "plugins": {
+    "startup_timeout_s": 60,
+    "stop_timeout_s": 10
   }
 }

@@ -28,7 +28,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 // Local Imports
 use dokime::{distribution, domain::model::plugins::release::Feed};
-use dokime_packaging::installer::release::Release;
+use dokime_packaging::installer::release::{NIGHTLY, Release};
 
 /* === Constants === */
 
@@ -127,7 +127,7 @@ async fn verified_release_cache() {
     let release = Release::open(reqwest::Client::new(), assets, cache.clone()).await.unwrap();
     let destination = root.path().join("distribution");
     std::fs::create_dir(&destination).unwrap();
-    assert_eq!(release.distribution("edge", target, &destination).await.unwrap(), "1.2.3");
+    assert_eq!(release.distribution(NIGHTLY, target, &destination).await.unwrap(), "1.2.3");
     assert_eq!(std::fs::read(destination.join("distribution.json")).unwrap(), b"distribution metadata");
     let manifest: dokime_packaging::installer::Manifest =
         toml::from_str("[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\n[[plugin]]\nname='plugin-host'").unwrap();

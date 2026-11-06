@@ -14,6 +14,7 @@ mod install;
 mod list_admitted_plugins;
 mod list_installations;
 mod remove;
+mod retry;
 mod set_enabled;
 
 /* === Re-Exports === */
@@ -23,6 +24,7 @@ pub use install::Install;
 pub use list_admitted_plugins::ListAdmittedPlugins;
 pub use list_installations::ListInstallations;
 pub use remove::Remove;
+pub use retry::Retry;
 pub use set_enabled::SetEnabled;
 
 /* === Imports === */
@@ -42,7 +44,7 @@ use dokime_domain::model::plugins::wire::*;
 /* === Macros === */
 
 #[cfg(feature = "runtime")]
-crate::hosted!(GetInstallation, Install, ListAdmittedPlugins, ListInstallations, Remove, SetEnabled);
+crate::hosted!(GetInstallation, Install, ListAdmittedPlugins, ListInstallations, Remove, Retry, SetEnabled);
 
 /* === Type Aliases === */
 
@@ -57,6 +59,7 @@ pub enum Operations {
     Install(Install),
     SetEnabled(SetEnabled),
     Remove(Remove),
+    Retry(Retry),
     ListAdmittedPlugins(ListAdmittedPlugins),
 }
 

@@ -30,12 +30,7 @@ use model::plugins::wire::InstallPluginFrameFrame as Frame;
 /* === Constants === */
 
 const DYNAMIC_OWNER: &str = "grpc_dynamic_fixture";
-const DYNAMIC_POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
-    timeout: Duration::from_secs(120),
-    attempt_timeout: Duration::from_secs(120),
-    cancellation_timeout: std::time::Duration::ZERO,
-    retries: dokime::harmos::operations::RetryPolicy::Never,
-};
+const DYNAMIC_POLICY: dokime::harmos::operations::OperationPolicy = crate::support::budgets::settings::FIXTURE_POLICY;
 
 /* === Macros === */
 
@@ -292,12 +287,7 @@ fn bundle_description(description: &str) -> Vec<u8> {
     let version = "1.0.0";
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
-    let policy = dokime::harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(120),
-        attempt_timeout: std::time::Duration::from_secs(120),
-        cancellation_timeout: std::time::Duration::ZERO,
-        retries: dokime::harmos::operations::RetryPolicy::Never,
-    };
+    let policy = crate::support::budgets::settings::FIXTURE_POLICY;
     let lifecycle = [dokime::harmos::builtins::lifecycle::Action::Initialize, dokime::harmos::builtins::lifecycle::Action::Shutdown]
         .map(|action| serde_json::json!({"action":action,"identity":"harmos.operation.v1","policy":policy}));
     let contracts =
@@ -390,10 +380,20 @@ pub(crate) async fn plugin_install_identity() {
         client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(frames(&bundle())))).await.unwrap().into_inner();
     assert_eq!(staged.state, model::plugins::wire::PluginInstallationState::Installed);
     assert!(!staged.active);
-    assert!(staged.restart_required);
     assert_eq!(staged.metadata.as_ref().unwrap().owners, ["grpc_plugin"]);
     assert_eq!(staged.metadata.as_ref().unwrap().identity.as_ref().unwrap().name, "grpc-fixture");
     assert!(staged.installed_at.is_some());
+    // The Running Backend Starts It Without A Restart; The Inert Fixture Fails Like A Startup.
+    owner.handle().plugin_bundle_settled("grpc-fixture").await;
+    let attempted = client
+        .unary::<contracts::plugins::GetInstallation>(authenticated(contracts::plugins::GetInstallation {
+            install_id: staged.install_id.clone(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(attempted.boot_failed && !attempted.active);
+    assert_eq!(attempted.restart, model::settings::wire::PluginRestart::Idle);
     let disabled = client
         .unary::<contracts::plugins::SetEnabled>(authenticated(contracts::plugins::SetEnabled {
             install_id: staged.install_id.clone(),
@@ -421,7 +421,8 @@ pub(crate) async fn plugin_install_identity() {
         .await
         .unwrap()
         .into_inner();
-    assert!(current.restart_required);
+    assert!(!current.active);
+    assert_eq!(current.state, model::plugins::wire::PluginInstallationState::RemovalPending);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
@@ -711,7 +712,6 @@ pub(crate) async fn bounded_installed_metadata() {
     let installed =
         client.upload::<contracts::plugins::Install>(authenticated(tokio_stream::iter(frames(&bytes)))).await.unwrap().into_inner();
     assert_eq!(installed.state, model::plugins::wire::PluginInstallationState::Installed);
-    assert!(installed.restart_required);
     assert!(installed.metadata.is_none());
     assert!(installed.error.is_some());
     let entry = client
@@ -750,4 +750,81 @@ enum Replacement {
 #[dokime::harmos::catalog(harmos_path = dokime::harmos)]
 enum HostUnary {
     Unary(DynamicUnary),
+}
+
+pub(crate) async fn plugin_install_idle_deadlines() {
+    use dokime::harmos::operations::OperationDeclaration;
+    let root = tempfile::tempdir().unwrap();
+    let prepared = dokime_server::grpc::Service::prepare(keyed()).unwrap();
+    let mut owner = fixture(root.path(), &prepared, None).await;
+    let server = prepared.ready().await.unwrap().listen().await.unwrap();
+    let native =
+        dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
+    let idle = contracts::plugins::Install::POLICY.timeout;
+    let bytes = bundle();
+    let mut progress = owner.handle().operation_progress().watch();
+    let upload = native.plugins_install_open().unwrap();
+    upload.send(frames(&bytes).remove(0)).await.unwrap();
+    let chunk_bytes = bytes.len().div_ceil(4);
+    let chunks = bytes
+        .chunks(chunk_bytes)
+        .enumerate()
+        .map(|(index, chunk)| model::plugins::wire::InstallPluginFrame {
+            frame: Some(Frame::Chunk(model::plugins::wire::InstallPluginChunk {
+                offset: (index * chunk_bytes) as u64,
+                data: chunk.to_vec(),
+            })),
+        })
+        .collect::<Vec<_>>();
+    upload.send(chunks[0].clone()).await.unwrap();
+    let operation = support::operation_fraction(&mut progress, None, chunk_bytes as f64 / bytes.len() as f64).await;
+    tokio::time::pause();
+    let awake = tokio::spawn(async {
+        loop {
+            tokio::task::yield_now().await;
+        }
+    });
+    for (index, frame) in chunks.into_iter().enumerate().skip(1) {
+        tokio::time::advance(idle * 3 / 4).await;
+        upload.send(frame).await.unwrap();
+        support::operation_fraction(
+            &mut progress,
+            Some(&operation),
+            ((index + 1) * chunk_bytes).min(bytes.len()) as f64 / bytes.len() as f64,
+        )
+        .await;
+    }
+    upload.end_input().await.unwrap();
+    let installed = upload.response().await.unwrap();
+    assert_eq!(installed.state, model::plugins::wire::PluginInstallationState::Installed);
+    assert_eq!(installed.sha256, Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
+    upload.close().await;
+    awake.abort();
+    let _ = awake.await;
+    tokio::time::resume();
+    // Settle Activation Before Opening Another Mutation.
+    owner.handle().plugin_bundle_settled("grpc-fixture").await;
+    let stalled = native.plugins_install_open().unwrap();
+    stalled.send(frames(&bytes).remove(0)).await.unwrap();
+    let first = frames(&bytes).remove(1);
+    let Frame::Chunk(chunk) = first.frame.as_ref().unwrap() else { panic!("chunk") };
+    let fraction = chunk.data.len() as f64 / bytes.len() as f64;
+    stalled.send(first).await.unwrap();
+    support::operation_fraction(&mut progress, None, fraction).await;
+    tokio::time::pause();
+    let awake = tokio::spawn(async {
+        loop {
+            tokio::task::yield_now().await;
+        }
+    });
+    tokio::time::advance(idle + Duration::from_secs(1)).await;
+    assert!(matches!(stalled.response().await, Err(dokime::client::Error::Rpc(status))
+        if status.code() == Code::DeadlineExceeded && status.message().contains(contracts::plugins::Install::ID)));
+    stalled.close().await;
+    awake.abort();
+    let _ = awake.await;
+    tokio::time::resume();
+    native.close_and_wait().await;
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
 }

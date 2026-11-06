@@ -58,6 +58,10 @@ const ROOT: &str = "";
 /* === Structs === */
 
 pub(super) struct Directories {
+    #[cfg(feature = "native")]
+    area: Option<tempfile::TempDir>,
+
+    #[cfg(not(feature = "native"))]
     area: PathBuf,
 
     #[cfg(feature = "native")]
@@ -98,6 +102,10 @@ impl Directories {
         let _ = (sink, ordinals);
 
         Self {
+            #[cfg(feature = "native")]
+            area: None,
+
+            #[cfg(not(feature = "native"))]
             area: working_area(&token),
             #[cfg(feature = "native")]
             token,
@@ -116,7 +124,7 @@ impl Directories {
         if let Some(path) = self.registered.get(&name) {
             return Ok(path.clone());
         }
-        let path = self.area.join(ARTIFACTS).join(&name);
+        let path = self.area()?.join(ARTIFACTS).join(&name);
         std::fs::create_dir_all(&path)?;
         self.registered.insert(name, path.clone());
 
@@ -130,7 +138,7 @@ impl Directories {
         if let Some(path) = self.registered.get(ROOT) {
             return Ok(path.clone());
         }
-        let path = self.area.join(ARTIFACTS);
+        let path = self.area()?.join(ARTIFACTS);
         std::fs::create_dir_all(&path)?;
         self.registered.insert(ROOT.to_owned(), path.clone());
 
@@ -148,12 +156,30 @@ impl Directories {
             return Vec::new();
         }
         let mut notes = self.walk(true);
-        if let Err(error) = std::fs::remove_dir_all(&self.area) {
-            notes.push(format!("the execution's artifact directory {} could not be removed: {error}", self.area.display()));
+        if let Some(area) = self.area.as_ref() {
+            if let Err(error) = std::fs::remove_dir_all(area.path()) {
+                notes.push(format!("the execution's artifact directory {} could not be removed: {error}", area.path().display()));
+            } else {
+                self.area.take();
+            }
         }
         self.registered.clear();
 
         notes
+    }
+
+    fn area(&mut self) -> io::Result<PathBuf> {
+        #[cfg(feature = "native")]
+        {
+            if self.area.is_none() {
+                self.area = Some(tempfile::Builder::new().prefix("dokime-artifacts-").tempdir()?);
+            }
+            Ok(self.area.as_ref().expect("owned artifact directory").path().to_owned())
+        }
+        #[cfg(not(feature = "native"))]
+        {
+            Ok(self.area.clone())
+        }
     }
 
     #[cfg(feature = "native")]
@@ -305,6 +331,7 @@ impl Watched {
 
 /* === Private Functions === */
 
+#[cfg(not(feature = "native"))]
 fn working_area(token: &str) -> PathBuf {
     use std::hash::{DefaultHasher, Hash, Hasher};
     let mut hasher = DefaultHasher::new();
@@ -371,3 +398,48 @@ fn read(path: &Path, from: u64, pending: u64, sweeping: bool) -> io::Result<Vec<
 }
 
 /* === Tests === */
+
+#[cfg(all(test, feature = "native"))]
+mod tests {
+    use super::*;
+    use crate::artifacts::Artifacts;
+
+    struct Sink;
+
+    impl ArtifactSink for Sink {
+        fn push(&self, _: ArtifactChunk) {}
+    }
+
+    #[test]
+    fn temporary_artifacts_cleanup_without_sweep() {
+        for failure in [false, true] {
+            let artifacts = Artifacts::new("temporary-owner", Arc::new(Sink));
+            let root = artifacts.root().unwrap();
+            let area = root.parent().unwrap().to_owned();
+            std::fs::write(root.join("evidence.bin"), b"captured evidence").unwrap();
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+                let _owner = artifacts;
+                assert!(!failure, "injected artifact fixture failure");
+            }));
+            assert_eq!(outcome.is_err(), failure);
+            assert!(!area.exists(), "artifact scratch survived owner teardown: {}", area.display());
+        }
+    }
+
+    #[test]
+    fn temporary_artifacts_follow_the_last_clone_and_isolate_equal_tokens() {
+        let first = Artifacts::new("same-token", Arc::new(Sink));
+        let second = Artifacts::new("same-token", Arc::new(Sink));
+        let first_root = first.root().unwrap();
+        let second_root = second.root().unwrap();
+        assert_ne!(first_root, second_root);
+        let retained = first.clone();
+        drop(first);
+        assert!(first_root.exists());
+        drop(retained);
+        assert!(!first_root.exists());
+        assert!(second_root.exists());
+        drop(second);
+        assert!(!second_root.exists());
+    }
+}

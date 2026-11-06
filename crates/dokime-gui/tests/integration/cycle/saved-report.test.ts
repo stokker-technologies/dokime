@@ -97,10 +97,10 @@ test("Saved Report Browser", async () => {
 
     // A Failed Open Keeps The Save Successful And Says Why
     refuseOpen = true;
-    assert.deepEqual(await downloadNativeReport(session, source, "night.html"), {
-      path: "/home/operator/night.html",
-      openFailure: "no default browser",
-    });
+    const delivered = await downloadNativeReport(session, source, "night.html");
+    assert.equal(delivered?.path, "/home/operator/night.html");
+    assert.equal(delivered?.openFailure?.message, "no default browser");
+    assert.ok(delivered?.openFailure?.stack);
     assert.deepEqual(saved, ["bench.html", "cancelled.html", "night.html"]);
 
     // Current Report Origin Survives The Native Pull Without An HTML Payload

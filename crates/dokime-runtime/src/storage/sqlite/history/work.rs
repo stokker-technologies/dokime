@@ -87,9 +87,10 @@ pub(crate) fn index(connection: &Connection, record: &StoredRecord) -> Result<()
     for execution in work.executions {
         let revision = remember(connection, "work_execution", execution.id.as_str(), &position, &execution)?;
         let Some(body) = latest(connection, "execution", execution.id.as_str())? else { continue };
-        let mut summary: ExecutionSummary = serde_json::from_slice(&body)?;
-        super::execution_work(&mut summary, &execution)?;
-        let body = serde_json::to_vec(&summary)?;
+        let mut projection: super::ExecutionProjection = serde_json::from_slice(&body)?;
+        super::execution_work(&mut projection.summary, &execution)?;
+        let body = serde_json::to_vec(&projection)?;
+        let summary = &projection.summary;
         let status = serde_json::to_string(&summary.status)?;
         let time = time_key(summary.started_at);
         connection.execute(

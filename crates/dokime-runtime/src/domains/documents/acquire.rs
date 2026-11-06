@@ -34,8 +34,8 @@ use crate::telemetry::TelemetrySample;
 
 pub(super) struct Acquired {
     pub data: DocumentDataInput,
-    pub records: crate::storage::ReadRows<dokime_domain::model::records::evidence::RecordEntry>,
-    pub artifacts: Option<Vec<crate::artifacts::ArtifactRecord>>,
+    pub records: crate::storage::projection::Pages<dokime_domain::model::records::evidence::RecordEntry>,
+    pub artifacts: Option<harmos::storage::ReadBatch<Vec<crate::artifacts::ArtifactRecord>>>,
     pub telemetry_cut: Option<harmos::storage::StorageCursor>,
     pub telemetry: Option<harmos::storage::ReadBatch<Vec<TelemetrySample>>>,
     pub artifacts_sha256: Option<String>,
@@ -83,15 +83,15 @@ impl From<DocumentAcquisitionFailure> for crate::runtime::Error {
 
 pub(super) async fn acquire(
     runtime: &crate::RuntimeHandle, selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records_needed: bool,
-    telemetry_needed: bool, artifacts_needed: bool,
+    telemetry_needed: bool, artifacts_needed: bool, limits: Option<crate::document::bounded::DocumentLimits>,
 ) -> Result<Acquired, DocumentAcquisitionFailure> {
-    let source_bytes = 16 * 1024 * 1024;
-    let source_rows = 100_000;
-    let source_depth = 32;
-    let evaluation_work = 256_000_000;
+    let (source_bytes, source_rows, source_depth, evaluation_work) = match limits {
+        Some(limits) => (limits.source_bytes, usize::MAX, limits.depth, limits.evaluation_work),
+        None => (16 * 1024 * 1024, 100_000, 32, 256_000_000),
+    };
     let mut captured = Acquired {
         data: DocumentDataInput::default(),
-        records: Default::default(),
+        records: harmos::storage::ReadBatch::new(Vec::new()),
         artifacts: None,
         telemetry_cut: None,
         telemetry: None,
@@ -110,27 +110,23 @@ pub(super) async fn acquire(
             .executions
             .get(selection.scope.test_execution_id.as_ref().ok_or(DocumentAcquisitionFailure::Missing)?)
             .ok_or(DocumentAcquisitionFailure::Missing)?;
-        let mut reader = session
-            .read_records::<crate::storage::records::RecordRow>(harmos::storage::RecordRead {
-                at: at.clone(),
-                selection: harmos::storage::query::RecordSelection {
-                    schema: crate::storage::records::schema(),
-                    scope: None,
-                    item: None,
-                    source_start: None,
-                    source_end: None,
-                },
-                after: 0,
-            })
-            .await
-            .map_err(source)?;
+        // Select By Owner First, Then Validate The Selected Payload's Full Scope.
+        let scope = crate::evidence_runtime::ScopeSelection {
+            test_execution_id: Some(execution.test_execution_id.clone()),
+            ..Default::default()
+        };
+        let mut after = 0;
         let mut pages = harmos::storage::ReadBatch::new(Vec::new());
         let mut count = 0usize;
-        while let Some(page) = reader.next().await.map_err(source)? {
+        loop {
+            let rows = runtime.local_storage.scoped_records(at.clone(), scope.clone(), None, after, 0, u64::MAX).await.map_err(source)?;
+            let Some(last) = rows.last() else { break };
+            after = last.position;
+            let page = harmos::storage::ReadBatch::new(rows);
             let page = page.try_map(|rows| {
                 let mut selected = Vec::new();
                 for row in rows {
-                    let mut record = row.payload.entry().map_err(source)?;
+                    let mut record = row.record;
                     let scope = execution.records.captured_scope(&record).or(record.scope.as_ref());
                     if selection.foreign_execution_scope(scope) {
                         return Err(DocumentAcquisitionFailure::IncompleteCapture);
@@ -150,7 +146,7 @@ pub(super) async fn acquire(
             })?;
             pages = crate::storage::projection::push(pages, page).map_err(|error| native_error(error.into()))?;
         }
-        captured.records = pages.into();
+        captured.records = pages;
     }
 
     if telemetry_needed {
@@ -161,7 +157,7 @@ pub(super) async fn acquire(
                     scope: selection.evidence_scope(),
                     ..Default::default()
                 },
-                Some(source_rows),
+                limits.is_none().then_some(source_rows),
                 None,
                 &at,
             )
@@ -182,7 +178,7 @@ pub(super) async fn acquire(
         for sample in samples.iter() {
             document_size(sample, source_bytes, source_depth).map_err(|_| DocumentAcquisitionFailure::Limit)?;
         }
-        captured.telemetry_cut = Some(at);
+        captured.telemetry_cut = Some(at.clone());
         captured.telemetry = Some(samples);
     }
     if artifacts_needed {
@@ -197,33 +193,55 @@ pub(super) async fn acquire(
             }
         }
         let mut digest = Hasher(Sha256::new());
-        let records = runtime.execution_storage.artifact_records().await.map_err(native_error)?;
+        let executions =
+            if let Some(id) = &selection.scope.test_execution_id {
+                vec![id.clone()]
+            } else {
+                let id = selection.scope.test_cycle_id.as_ref().ok_or(DocumentAcquisitionFailure::Missing)?;
+                let cycle = snapshot.state().cycles.get(id).ok_or(DocumentAcquisitionFailure::Missing)?;
+                let current = runtime.watch_state().latest();
+                if current.state().cycles.get(id).is_none_or(|current| current.execution_ids != cycle.execution_ids) {
+                    return Err(DocumentAcquisitionFailure::IncompleteCapture);
+                }
+                cycle
+                    .execution_ids
+                    .iter()
+                    .filter(|id| {
+                        selection.scope.test_case_id.as_ref().is_none_or(|case| {
+                            snapshot.state().executions.get(*id).is_some_and(|execution| &execution.test_case_id == case)
+                        })
+                    })
+                    .cloned()
+                    .collect()
+            };
+        let records = runtime.execution_storage.selected_artifact_records(&session, &at, &executions).await.map_err(native_error)?;
         captured.artifacts = Some(
-            (|mut records: Vec<crate::artifacts::ArtifactRecord>| -> harmos::Result<_> {
-                validate_cycle_artifacts(selection, snapshot, &records, evaluation_work)?;
-                if records.iter().any(|record| selection.foreign_execution_scope(Some(&record.scope))) {
-                    return Err(harmos::Error::InvalidInput {
-                        field: "document artifact scope",
-                        reason: "artifact descriptor belongs to another cycle or case",
-                    });
-                }
-                // Keep The Original Admitted Buffer And Its Charged Query Owner.
-                records.retain(|record| selection.matches_scope(Some(&record.scope)));
-                charge(records.memory_size()).map_err(artifact_limit)?;
-                for record in &records {
-                    document_size(record, source_bytes, source_depth).map_err(artifact_limit)?;
-                    serde_json::to_writer(&mut digest, record).map_err(|error| {
-                        harmos::Error::backend("encode document artifact fingerprint", harmos::BackendFailure::Corrupt, error)
-                    })?;
-                    digest.write_all(b"\n").map_err(|error| {
-                        harmos::Error::backend("write document artifact fingerprint", harmos::BackendFailure::Corrupt, error)
-                    })?;
-                }
-                charge(size_of::<String>() + 64).map_err(artifact_limit)?;
-                captured.artifacts_sha256 = Some(digest.0.finalize().iter().map(|byte| format!("{byte:02x}")).collect());
-                Ok(records)
-            })(records)
-            .map_err(|error| native_error(error.into()))?,
+            records
+                .try_map(|mut records| -> harmos::Result<_> {
+                    validate_cycle_artifacts(selection, snapshot, &records, evaluation_work)?;
+                    if records.iter().any(|record| selection.foreign_execution_scope(Some(&record.scope))) {
+                        return Err(harmos::Error::InvalidInput {
+                            field: "document artifact scope",
+                            reason: "artifact descriptor belongs to another cycle or case",
+                        });
+                    }
+                    // Keep The Original Admitted Buffer And Its Charged Query Owner.
+                    records.retain(|record| selection.matches_scope(Some(&record.scope)));
+                    charge(records.memory_size()).map_err(artifact_limit)?;
+                    for record in &records {
+                        document_size(record, source_bytes, source_depth).map_err(artifact_limit)?;
+                        serde_json::to_writer(&mut digest, record).map_err(|error| {
+                            harmos::Error::backend("encode document artifact fingerprint", harmos::BackendFailure::Corrupt, error)
+                        })?;
+                        digest.write_all(b"\n").map_err(|error| {
+                            harmos::Error::backend("write document artifact fingerprint", harmos::BackendFailure::Corrupt, error)
+                        })?;
+                    }
+                    charge(size_of::<String>() + 64).map_err(artifact_limit)?;
+                    captured.artifacts_sha256 = Some(digest.0.finalize().iter().map(|byte| format!("{byte:02x}")).collect());
+                    Ok(records)
+                })
+                .map_err(|error| native_error(error.into()))?,
         );
     }
     Ok(captured)

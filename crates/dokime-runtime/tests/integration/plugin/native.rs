@@ -15,7 +15,6 @@
 // Standard Library Imports
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use std::time::Duration;
 
 // Third Party Imports
 use harmos::plugin::{
@@ -34,17 +33,11 @@ use dokime_runtime::transport::{
 };
 use {dokime_runtime::records::RecordPublication, model::records::publication::RecordPublishRequest};
 /* === Constants === */
-const BOUND: Duration = Duration::from_secs(120);
 // Initialization carries the configuration and the host's operation assignments.
 const SDK_BYTES: usize = 64 * 1024;
 const PREPARATION_BYTES: usize = 4 * 1024 * 1024;
 
-pub(super) const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
-    timeout: BOUND,
-    attempt_timeout: BOUND,
-    cancellation_timeout: std::time::Duration::ZERO,
-    retries: harmos::operations::RetryPolicy::Never,
-};
+pub(super) const POLICY: harmos::operations::OperationPolicy = crate::service_support::budgets::settings::FIXTURE_POLICY;
 
 /* === Macros === */
 /* === Type Aliases === */
