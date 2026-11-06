@@ -515,6 +515,24 @@ pub const fn joined<const N: usize>(id: &str, suffix: &str) -> [u8; N] {
     bytes
 }
 
+pub const fn assert_no_builtin_requirements(required: &[Node<harmos::operations::WireDeclaration>]) {
+    let mut index = 0;
+    while index < required.len() {
+        match &required[index] {
+            Node::Nested(nested) => assert_no_builtin_requirements(nested),
+            Node::Leaf(declaration) => {
+                use harmos::operations::OperationDeclaration;
+                let id = declaration.operation.id;
+                assert!(
+                    !same(id, dokime_operations::files::WatchFile::ID) && !same(id, dokime_operations::process::RunProcess::ID),
+                    "unconditional built-in operations must not be listed in a template's `requires` catalog"
+                );
+            }
+        }
+        index += 1;
+    }
+}
+
 pub const fn required_by(
     required: &[Node<harmos::operations::WireDeclaration>], granted: &[Node<harmos::catalog::RequirementEntry>],
     provided: &[Node<harmos::operations::WireDeclaration>],

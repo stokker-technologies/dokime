@@ -358,6 +358,11 @@ name = "system"
 path = "tests/system/main.rs"
 required-features = ["native"]
 
+[[test]]
+name = "invocation"
+path = "tests/invocation.rs"
+required-features = ["native"]
+
 # === Bench Targets === #
 
 [[bench]]

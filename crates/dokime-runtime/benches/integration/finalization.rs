@@ -168,7 +168,7 @@ impl Fixture {
         let report = self
             .runtime
             .operations()
-            .call::<MaterializeReport>(MaterializeReport {
+            .operation::<MaterializeReport>(MaterializeReport {
                 subject: ReportSubject::Execution(self.execution.to_string()),
                 at,
             })

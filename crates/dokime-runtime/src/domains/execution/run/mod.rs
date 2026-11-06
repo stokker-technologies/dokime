@@ -197,6 +197,7 @@ impl Target {
     async fn run(&self, request: RunExecution) -> Result<SidecarExecutionOutcome, ProviderExecutionFailure> {
         let mut context = harmos::operations::CallContext::default();
         let token = request.execution_token.clone();
+        context.insert(host::AttemptOwner(token.clone())).map_err(|error| failure("execution_run", error.to_string()))?;
         let scope = ExecutionScope::execution(token);
         context.insert_portable(scope).map_err(|error| {
             let message = error.to_string();

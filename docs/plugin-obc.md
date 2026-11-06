@@ -56,7 +56,7 @@ devices. Manual operations are not recorded in execution evidence.
 `obc.checks.cpu_load` in `src/suites/checks/cpu_load.rs` demonstrates the
 host CPU load sequence. Install the host plugin beside OBC. The template requests
 50% total system CPU by default for `duration_s = 1.0`, starts the Public
-`host.cpu.load.hold` operation with `ctx.host().submit::<LoadHold>(request).await?`,
+`host.cpu.load.hold` operation with `ctx.operation(request).start().await?`,
 waits and calls `.cancel().await?` for its summary. Scoped `submit` is the suite
 equivalent of the runtime invocation builder’s `.start()`.
 Target percent and hold duration are template parameters. Its subscription captures

@@ -54,7 +54,7 @@ pub(super) async fn fixture(journal: std::sync::Arc<dokime_server::trace::Journa
     environment
         .runtime
         .operations()
-        .call::<dokime::operations::secrets::Put>(dokime::operations::secrets::Put {
+        .operation::<dokime::operations::secrets::Put>(dokime::operations::secrets::Put {
             metadata: model::secrets::catalog::Metadata {
                 identifier: "fixture.token".into(),
                 label: "Token".into(),

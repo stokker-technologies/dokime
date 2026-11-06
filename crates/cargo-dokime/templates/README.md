@@ -59,7 +59,7 @@ A template lists its calls in `requires = Required` and sequences them as:
 ```rust
 // Read Chamber Temperature
 let operation = ReadChamber {};
-let reading = ctx.call(operation).await?;
+let reading = ctx.operation(operation).await?;
 ```
 
 Steps may use returned values for records and criteria. Add each operation to

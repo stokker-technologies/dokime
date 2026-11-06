@@ -125,7 +125,7 @@ pub(super) async fn native_publications_order(owner: &mut Runtime) {
     // and refuses to the plugin, synchronously, what it cannot file: a forged
     // source, an undeclared record type and a payload that is no request.
     for (index, publication) in publications.into_iter().enumerate() {
-        let filed = caller.call::<RecordPublication>(publication).await;
+        let filed = caller.operation::<RecordPublication>(publication).await;
         assert_eq!(filed.is_ok(), matches!(index, 0 | 4), "publication {index}: {filed:?}");
     }
     let mut admitted = Vec::new();

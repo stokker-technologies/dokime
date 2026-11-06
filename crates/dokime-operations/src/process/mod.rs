@@ -45,7 +45,7 @@ crate::hosted!(RunProcess);
 
 /* === Structs === */
 
-// Shared, so a template reaches it through `ctx.host()` without listing it.
+// Shared, so a template reaches it through `ctx.operation(request)` without listing it.
 #[harmos::operation(resources = [crate::hosting::Host<RunProcess>], response = ProcessExit, id = "dokime.process.run",
         policy = POLICY, visibility = harmos::operations::Visibility::Public)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]

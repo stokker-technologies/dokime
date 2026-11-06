@@ -21,7 +21,6 @@ use std::time::Duration;
 // Local Imports
 use super::WifiScan;
 use crate::Error;
-use dokime::harmos::operations::Host;
 use dokime::harmos::plugin;
 use dokime::harmos::sidecar::inventory::observers::Declared;
 use dokime::harmos::sidecar::{Activation, Observer, ObserverContext, Publisher};
@@ -60,7 +59,7 @@ impl<P: plugin::Declared> Observer<Publisher<P>> for WifiScan {
     }
 
     async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<P>>) -> Result<(), Error> {
-        let response = ctx.host().supervisor().call::<Self>(Self {}).await.map_err(|error| Error::Probe(error.to_string()))?;
+        let response = ctx.operation(Self {}).await.map_err(|error| Error::Probe(error.to_string()))?;
         let mut batch = ctx.host().batch::<Self>();
         for sample in &response.rows {
             batch.push_at(sample.row.clone(), sample.timestamp_micros);

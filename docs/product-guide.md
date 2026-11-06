@@ -960,8 +960,17 @@ adds an automated load ladder and verifies that an overcurrent fault disconnects
 the supply and prevents restart. A real charger integration can extend these
 procedures with regulation, efficiency, and thermal criteria for its hardware.
 
-A step also reaches two built-in operations through `ctx.host()`, with nothing
-to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
+Every execution stage uses `ctx.operation(request).await?`, returning the shared
+Harmos `Invocation<StepOperationHost, O>` builder. Await returns `Response<T>`;
+read its fields through Deref, or use `into_owned()` when moving the payload.
+Use `.start().await?` for an instance you will join or cancel. The operation
+macro owns the default policy. `.retry(settings.retry)` overrides one call only;
+obtain the choice from settings, parameters or configuration. Enabled retry
+overrides require declared replay safety, preserve operation deadlines and record
+each attempt in the execution log. Templates have no `.lane()` option.
+
+A step also reaches two built-in operations through `ctx.operation(request)`,
+with nothing to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
 sends its output to the execution log or into an artifact, and records its exit.
 `WatchFile` captures a device log written during the step into an artifact and
 turns matching lines into rows and records. The
@@ -970,8 +979,7 @@ simulated charger's log this way:
 
 ```rust
 let watch = ctx
-    .host()
-    .submit(WatchFile {
+    .operation(WatchFile {
         execution_id: None,
         source: Some(FileWatchSource {
             payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
@@ -994,6 +1002,7 @@ let watch = ctx
         )],
         markers: Vec::new(),
     })
+    .start()
     .await?;
 watch.armed().await?;
 // The baseline is established; the charger can now start logging its readings.
@@ -1035,7 +1044,7 @@ let request = WatchFile {
     matchers: Vec::new(),
     markers: Vec::new(),
 };
-let watch = ctx.host().submit(request.clone()).await?;
+let watch = ctx.operation(request.clone()).start().await?;
 watch.armed().await?;
 // Run the vendor application, then seal its captured logs.
 let captured = watch.cancel().await?.into_owned();

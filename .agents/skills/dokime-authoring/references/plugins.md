@@ -10,6 +10,18 @@ Declare records, streams, prompts and settings once in their domain owner. Dokim
 
 A template lists its calls in its `requires` catalog. Its plugin's own `Private` or `Public` operations can answer without a plugin-level requirement. Calls to another plugin require a `Public` operation and a declared plugin requirement. `Host` operations cannot satisfy a template call.
 
+Use `ctx.operation(request).await?` on every authoring surface. Await returns
+`Response<T>`: read it through Deref, or call `into_owned()` to move the value.
+Use `.start().await?` to retain a scoped instance. Built-ins such as WatchFile and
+RunProcess use that method without a template `requires` entry. Redundant built-in requirements are compile errors.
+The operation macro owns default timeouts, delays and retries. A builder option overrides one
+call; retry choices come from settings, parameters or configuration and require
+declared replay safety when enabled. Every attempt is recorded and attempt
+deadlines are never raised. Import `OperationHost` on carrier hosts; there is no
+request-taking `ctx.call`, template `ctx.host()`, builder `.run()` or `.id()`.
+Keep the no-argument handler `ctx.call()` metadata accessor and the Dokime host
+plugin. Rebuild carrier artifacts together for operation envelope v2.
+
 Contributions name only populated catalogs: `Suites`, `Records`, `Evidence`, `RunStart` and `Settings`. Template records, prompts and streams belong to their template declarations; plugin contributions cover evidence outside those declarations. Observers publish evidence; listeners receive their declared record types.
 
 The plugin declaration implements `dokime::Plugin`; resource ownership implements the shared `dokime::harmos::Lifecycle` separately. Its async `prepare(config, &mut Setup<Self>)` registers shared resources and prepares suites with `dokime::execution::prepare::<Self, Suites>(setup)`. `initialize` activates those resources, followed by serving, `stop` and `cleanup`. Mutable resources use `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Observers acquire measurements through operations using their execution context. Process observers require `#[dokime::observer(interval_ms = …)]` (a constant expression of at least 1 ms). They may implement `fn interval(resources: &ExecutionContext) -> Result<Duration, Error>` beside `observe` to override the declared initial interval; otherwise the declaration applies. Harmos resolves the interval once at activation before initialization and sampling. Manual generic observers declare `Observer::INTERVAL` and inherit the same fallback. Host observer defaults and settings defaults share constants in `settings.rs`. Cadence is absent from static observer inventories. Template-local observer functions keep their separate `interval_ms` declaration.
@@ -46,7 +58,7 @@ a Hub rule or project check.
 ## Hand-Authored Steps
 
 A hand-authored step reads as a list of operations. Each action is a Title Case
-comment, a `let operation` binding and one `ctx.call`, with a blank line between
+comment, a `let operation` binding and one `ctx.operation`, with a blank line between
 actions:
 
 ```rust
@@ -54,19 +66,19 @@ actions:
 async fn preparation(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     // Enable Remote Control
     let operation = SetChamberSettings::from([("RemoteControl", "true")]);
-    ctx.call(operation).await?;
+    ctx.operation(operation).await?;
 
     // Start Chamber Service
     let operation = StartChamberService {};
-    ctx.call(operation).await?;
+    ctx.operation(operation).await?;
 
     // Wait Until Chamber Is Ready
     let operation = WaitUntilChamberReady {};
-    ctx.call(operation).await?;
+    ctx.operation(operation).await?;
 
     // Read Chamber Temperature
     let operation = ReadChamber {};
-    let reading = ctx.call(operation).await?;
+    let reading = ctx.operation(operation).await?;
 
     Ok(())
 }
@@ -79,7 +91,7 @@ For traceability, fetch the data before building and publishing each section:
 async fn traceability(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     // Get Diagnostics
     let operation = GetDiagnostics {};
-    let diagnostics = ctx.call(operation).await?;
+    let diagnostics = ctx.operation(operation).await?;
 
     // === Device Under Test === //
     let mut section = TraceabilitySection::new("dut", "Device Under Test");
@@ -227,7 +239,7 @@ Controller evidence uses distinct `host.cpu.load.control`, structured units and
 `Label [unit]` labels. Percent feedback counts the whole host; FLOP/s counts only
 this generator. Timing and gains belong to the CPU Load Control settings section.
 
-Start a suite handle with `ctx.host().submit::<LoadHold>(request).await?` (the
+Start a suite handle with `ctx.operation(LoadHold { /* request fields */ }).start().await?` (the
 scoped equivalent of the runtime builder’s `.start()`), hold, then `.cancel().await?` for a typed
 `LoadSummary { target, mean, error_rms, duration_s, samples }`. Step/run cleanup cancels unjoined handles. Stopping workers is restoration,
 so no durable effect inverse is needed. The handler uses Harmos cooperative

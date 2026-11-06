@@ -399,6 +399,13 @@ fn requires(template: &Type, required: &TokenStream) -> TokenStream {
 
     quote! {
         #[automatically_derived]
+        const _: () = #sdk::catalog::assert_no_builtin_requirements(
+            <#required as #sdk::catalog::InertCatalog<
+                #sdk::__harmos::operations::Contracts,
+                #sdk::__harmos::operations::WireDeclaration,
+            >>::ENTRIES,
+        );
+
         impl #sdk::execution::Required for #template {
             type Operations = #required;
         }

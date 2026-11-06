@@ -191,11 +191,11 @@ impl Template {
         let operation = OpenHeater {
             port: ctx.parameters().heater_port.clone(),
         };
-        let identity = ctx.call(operation).await?;
+        let identity = ctx.operation(operation).await?;
 
         // Read Chamber Temperature
         let operation = ReadChamber {};
-        let reading = ctx.call(operation).await?;
+        let reading = ctx.operation(operation).await?;
 
         // === Device Under Test === //
         let mut section = TraceabilitySection::new("dut", "Device Under Test");
@@ -240,7 +240,7 @@ impl Template {
     async fn reach(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         // Set the Target
         let operation = SetTarget { temperature_c: ctx.parameters().target_c };
-        ctx.call(operation).await?;
+        ctx.operation(operation).await?;
         dokime::info!(ctx, "heater set to {:.1} °C", ctx.parameters().target_c);
 
         // Update Target Traceability
@@ -300,7 +300,7 @@ impl Template {
 
         // Encode Summary
         let operation = EncodeSummary { summary };
-        let summary = ctx.call(operation).await?;
+        let summary = ctx.operation(operation).await?.into_owned();
         ctx.artifacts().write("summary.json", summary.json)?;
         let record = HoldReached {
             samples: wanted,
@@ -336,7 +336,7 @@ impl Template {
     async fn observe(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         // Read Chamber Temperature
         let operation = ReadChamber {};
-        let reading = ctx.call(operation).await?;
+        let reading = ctx.operation(operation).await?;
 
         let row = Row {
             temperature_c: reading.temperature_c,
@@ -391,7 +391,7 @@ impl Template {
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
         // Release Chamber
         let operation = ReleaseChamber {};
-        let result = ctx.call(operation).await;
+        let result = ctx.operation(operation).await;
         if let Err(error) = &result {
             dokime::warn!(ctx, "could not release chamber: {error}");
         }

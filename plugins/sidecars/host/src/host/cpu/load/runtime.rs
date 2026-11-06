@@ -193,12 +193,45 @@ mod tests {
     use super::*;
     use crate::settings::CPU_LOAD_DEFAULTS as DEFAULT;
     use dokime::telemetry::TelemetryRow;
+    use harmos_sdk::operations::{
+        ChildInstance, ControlFuture, StartFuture,
+        instance::{Id, Outcome, Phase, Status},
+    };
     use tokio_util::sync::CancellationToken;
+
     struct Publications(tokio::sync::mpsc::UnboundedSender<LoadControl>);
+    struct Published(Id);
+
+    impl ChildInstance for Published {
+        fn id(&self) -> Id {
+            self.0
+        }
+        fn status(&self) -> ControlFuture<'_, Status> {
+            Box::pin(async {
+                Ok(Status {
+                    phase: Phase::Settled,
+                    outcome: Some(Outcome::Succeeded),
+                    cancellation_requested: false,
+                    attempt: 0,
+                })
+            })
+        }
+        fn request_cancel(&self) -> ControlFuture<'_, ()> {
+            Box::pin(async { Ok(()) })
+        }
+        fn join(self: Box<Self>) -> harmos_sdk::operations::CallFuture<'static> {
+            Box::pin(async { Ok(Response::new(()).into_erased()) })
+        }
+        fn detach(self: Box<Self>) -> Id {
+            self.0
+        }
+    }
+
     impl harmos_sdk::operations::Caller for Publications {
-        fn call(
-            &self, target: harmos_sdk::operations::Target, request: Box<dyn std::any::Any + Send>,
-        ) -> harmos_sdk::operations::CallFuture<'_> {
+        fn start(
+            &self, target: harmos_sdk::operations::Target, request: Box<dyn std::any::Any + Send>, _: Option<harmos_sdk::RetryPolicy>,
+            _: Box<dyn std::any::Any + Send>, _: dokime::CallContext,
+        ) -> StartFuture<'_> {
             use dokime::harmos::operations::OperationDeclaration;
             assert_eq!(target.id, Publish::ID);
             let request = request.downcast::<Publish>().unwrap();
@@ -206,7 +239,10 @@ mod tests {
             assert_eq!(request.schema, LoadControl::VERSION);
             let row = LoadControl::decode(&request.payload).unwrap();
             self.0.send(row).unwrap();
-            Box::pin(async { Ok(Response::new(()).into_erased()) })
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+            let id = Id::new(NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+            let instance: Box<dyn ChildInstance> = Box::new(Published(id));
+            Box::pin(async move { Ok(instance) })
         }
     }
 

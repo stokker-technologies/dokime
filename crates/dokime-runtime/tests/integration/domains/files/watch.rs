@@ -116,7 +116,7 @@ async fn many_file_stop() {
         })
         .unwrap();
     operations
-        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
+        .operation::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
         .await
         .unwrap();
     for index in 0..64 {
@@ -890,7 +890,7 @@ async fn watch_file_matchers() {
     bench
         .handle
         .operations()
-        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
+        .operation::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
         .await
         .unwrap();
     let mut records = bench.handle.subscribe_records();

@@ -79,7 +79,7 @@ impl Probe {
 
     #[sdk::step(label = "Run")]
     async fn run(&mut self, ctx: &mut sdk::execution::StepContext<'_>) -> Result<(), std::convert::Infallible> {
-        let _ = ctx.call(ReadVoltage {}).await;
+        let _ = ctx.operation(ReadVoltage {}).await;
 
         Ok(())
     }

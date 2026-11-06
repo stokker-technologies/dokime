@@ -7,7 +7,7 @@
  * ***
  */
 
-// The process step built-in through `ctx.host()` with no host behind it, so
+// The process step built-in through `ctx.operation` with no host behind it, so
 // each story launches a real `sh`: one run with its output in a produced
 // artifact, and one spawned process cancelled once it reports readiness.
 
@@ -23,7 +23,6 @@
 use std::time::Duration;
 
 // Third Party Imports
-use dokime_runtime::harmos::operations::Host;
 
 // Local Imports
 use dokime_domain::model;
@@ -96,8 +95,7 @@ impl RunOnce {
     #[dokime_runtime::step(label = "Run the Tool")]
     async fn run(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let exit = ctx
-            .host()
-            .call::<RunProcess>(
+            .operation(
                 shell("printf 'alpha\\nbeta\\n'; echo \"template=$DOKIME_TEMPLATE_ID\" >&2")
                     .stdout(Output::Artifact("logs/tool.log".into())),
             )
@@ -120,7 +118,7 @@ impl SpawnCancel {
     async fn spawn(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let ready = std::path::PathBuf::from(&ctx.parameters().ready);
         let script = shell("echo started; : > \"$1\"; exec sleep 30").args(["sh", ready.to_str().unwrap()]);
-        let running = ctx.host().submit::<RunProcess>(script).await?;
+        let running = ctx.operation(script).start().await?;
 
         // The shell writes its marker after its first line, then waits on its
         // own lifetime until the cancellation ends it.

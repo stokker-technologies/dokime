@@ -20,7 +20,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{CallContext, ContextError, ContextValue, Host, OperationDeclaration, Response};
+use harmos::operations::{CallContext, ContextError, ContextValue, OperationDeclaration, OperationHost};
 use harmos::sidecar::{CallError, Supervisor};
 use harmos::{Message, StreamSpec};
 
@@ -47,13 +47,14 @@ pub struct Caller(Road);
 
 // The host surface of one running stage: each call and submission is
 // scoped to the execution and routed by the operation it names, exactly as
-// `Context::call` routes it.
+// `Context::operation` routes it.
 #[derive(Clone)]
-pub struct StepHost {
+pub struct StepOperationHost {
     caller: Caller,
     stage: String,
     context: CallContext,
-    binding: Binding,
+    binding: Option<Binding>,
+    handles: super::instances::Handles,
 }
 
 /* === Enums === */
@@ -80,54 +81,89 @@ impl Caller {
         Self(Road::Local(Arc::new(operations)))
     }
 
-    pub async fn call<O: OperationDeclaration<Request = O> + harmos::Portable>(&self, request: O) -> crate::Result<O::Response> {
-        self.call_at("", request).await
-    }
-
-    pub(super) fn step_host(&self, stage: &str, binding: Binding) -> StepHost {
-        StepHost {
+    pub(super) fn step_host(&self, stage: &str, binding: Option<Binding>) -> StepOperationHost {
+        let handles = binding.as_ref().map_or_else(super::instances::Handles::new, |binding| binding.handles.clone());
+        StepOperationHost {
             caller: self.clone(),
             stage: stage.to_owned(),
             context: CallContext::default(),
             binding,
+            handles,
         }
     }
 
     fn hosted(&self) -> bool {
         matches!(self.0, Road::Host(_))
     }
-
-    pub(super) async fn call_at<O: OperationDeclaration<Request = O> + harmos::Portable>(
-        &self, stage: &str, request: O,
-    ) -> crate::Result<O::Response> {
-        let operation = O::ID;
-        let refused = |reason: String| crate::Error::Call { operation, reason };
-        match &self.0 {
-            Road::Unmounted => Err(refused("this template is running without a host to route through".into())),
-            Road::Host(host) => routed(host, stage, operation)
-                .map_err(|error| refused(error.to_string()))?
-                .call::<O>(request)
-                .await
-                .map_err(|error| refused(error.to_string()))?
-                .try_unwrap()
-                .map_err(|_| refused("the sidecar response is shared".into())),
-            Road::Local(operations) => {
-                let answer =
-                    operations.get(operation).ok_or_else(|| refused("the harness registered no answer for this operation".into()))?;
-                let bytes = answer(<O::Request as Message>::encode(&request)).await.map_err(refused)?;
-                <O::Response as Message>::decode(bytes.as_slice()).map_err(|error| refused(error.to_string()))
-            }
-        }
-    }
 }
 
-impl Host for StepHost {
-    type Error = CallError;
+impl OperationHost for StepOperationHost {
+    async fn invoke<O: OperationDeclaration, E: harmos::operations::EndpointSet>(
+        &self, request: O::Request, retry: Option<harmos::RetryPolicy>, _endpoints: E,
+    ) -> crate::Result<Self::Instance<O>> {
+        let answer: Result<Self::Instance<O>, CallError> = async {
+            if E::item_types() != (None, None) {
+                return Err(step_refusal("template calls do not accept native stream endpoints"));
+            }
+            if let Some(retry) = retry {
+                retry.validate().map_err(|error| step_refusal(error.to_string()))?;
+                if retry != harmos::RetryPolicy::Never && O::REPLAY == harmos::operations::ReplaySafety::Unknown {
+                    return Err(step_refusal("call-site retries require declared replay safety"));
+                }
+            }
+            let encoded = Message::encode(&request);
+            if let Some(serve) = served(O::ID, self.caller.hosted()) {
+                let binding = self.binding.clone().ok_or(CallError::Unavailable)?;
+                let payload = encoded.clone();
+                let run = LocalRun::spawn::<O, _>(
+                    move |cancel, ready| serve(binding.clone(), payload.clone(), cancel, ready),
+                    true,
+                    retry,
+                    self.binding.as_ref().map(|binding| binding.journal.clone()),
+                    self.stage.clone(),
+                )?;
+                return Ok(StepInstance::local(&self.handles, run, &encoded));
+            }
+            match &self.caller.0 {
+                Road::Unmounted => Err(CallError::Unavailable),
+                Road::Host(host) => {
+                    let readiness_host = routed(host, &self.stage, O::ID).map_err(refusal)?;
+                    let ticket =
+                        (O::ID == <dokime_operations::files::WatchFile as OperationDeclaration>::ID).then(super::WatchTicket::issue);
+                    let submitting = match &ticket {
+                        Some(ticket) => readiness_host.with_value(ticket.clone()).map_err(refusal)?,
+                        None => readiness_host.clone(),
+                    };
+                    let instance = submitting.invoke::<O, E>(request, retry, _endpoints).await?;
+                    Ok(StepInstance::host(&self.handles, instance, &encoded, readiness_host, ticket.map(|ticket| ticket.ticket)))
+                }
+                Road::Local(operations) => {
+                    let answer = operations
+                        .get(O::ID)
+                        .cloned()
+                        .ok_or_else(|| step_refusal(format!("the harness registered no answer for operation `{}`", O::ID)))?;
+                    let payload = encoded.clone();
+                    let run = LocalRun::spawn::<O, _>(
+                        move |_, _| answer(payload.clone()),
+                        false,
+                        retry,
+                        self.binding.as_ref().map(|binding| binding.journal.clone()),
+                        self.stage.clone(),
+                    )?;
+                    Ok(StepInstance::local(&self.handles, run, &encoded))
+                }
+            }
+        }
+        .await;
+        answer.map_err(crate::Error::from)
+    }
+
+    type Error = crate::Error;
     type Instance<O: OperationDeclaration> = StepInstance<O>;
 
     fn context(&self) -> &CallContext {
         match &self.caller.0 {
-            Road::Host(host) => Host::context(host),
+            Road::Host(host) => OperationHost::context(host),
             Road::Unmounted | Road::Local(_) => &self.context,
         }
     }
@@ -135,85 +171,32 @@ impl Host for StepHost {
     fn with_value<T: ContextValue>(&self, value: T) -> Result<Self, ContextError> {
         let mut child = self.clone();
         match &mut child.caller.0 {
-            Road::Host(host) => *host = Host::with_value(host, value)?,
+            Road::Host(host) => *host = OperationHost::with_value(host, value)?,
             Road::Unmounted | Road::Local(_) => child.context.insert_portable(value)?,
         }
 
         Ok(child)
     }
 
-    async fn submit<O: OperationDeclaration>(&self, request: O::Request) -> Result<Self::Instance<O>, CallError> {
-        let encoded = Message::encode(&request);
-        let handles = &self.binding.handles;
-        if let Some(serve) = served(O::ID, self.caller.hosted()) {
-            let binding = self.binding.clone();
-            let payload = encoded.clone();
-            let run = LocalRun::spawn(move |cancel, ready| serve(binding, payload, cancel, ready), true);
-            return Ok(StepInstance::local(handles, run, &encoded));
-        }
-        match &self.caller.0 {
-            Road::Unmounted => Err(CallError::Unavailable),
-            Road::Host(host) => {
-                let readiness_host = routed(host, &self.stage, O::ID).map_err(refusal)?;
-                let ticket = (O::ID == <dokime_operations::files::WatchFile as OperationDeclaration>::ID).then(super::WatchTicket::issue);
-                let submitting = match &ticket {
-                    Some(ticket) => readiness_host.with_value(ticket.clone()).map_err(refusal)?,
-                    None => readiness_host.clone(),
-                };
-                let instance = submitting.submit::<O>(request).await?;
-                Ok(StepInstance::host(handles, instance, &encoded, readiness_host, ticket.map(|ticket| ticket.ticket)))
-            }
-            Road::Local(operations) => {
-                let answer =
-                    operations.get(O::ID).cloned().ok_or_else(|| step_refusal("the harness registered no answer for this operation"))?;
-                let payload = encoded.clone();
-                let run = LocalRun::spawn(move |_, _| answer(payload), false);
-                Ok(StepInstance::local(handles, run, &encoded))
-            }
-        }
-    }
-
-    async fn call<O: OperationDeclaration>(&self, request: O::Request) -> Result<Response<O::Response>, CallError> {
-        if served(O::ID, self.caller.hosted()).is_some() {
-            return self.submit::<O>(request).await?.join().await;
-        }
-        match &self.caller.0 {
-            Road::Unmounted => Err(CallError::Unavailable),
-            Road::Host(host) => routed(host, &self.stage, O::ID).map_err(refusal)?.call::<O>(request).await,
-            Road::Local(operations) => {
-                let answer = operations.get(O::ID).ok_or_else(|| CallError::Refused {
-                    code: STEP_REFUSAL,
-                    failure: refusal_failure("the harness registered no answer for this operation"),
-                })?;
-                let bytes = answer(Message::encode(&request)).await.map_err(|message| CallError::Refused {
-                    code: STEP_REFUSAL,
-                    failure: refusal_failure(message),
-                })?;
-                let response = O::Response::decode(bytes.as_slice()).map_err(|error| CallError::Malformed {
-                    method: O::ID,
-                    message: error.to_string(),
-                })?;
-
-                Ok(Response::new(response))
-            }
-        }
+    async fn submit<O: OperationDeclaration>(&self, request: O::Request) -> crate::Result<Self::Instance<O>> {
+        self.invoke::<O, ()>(request, None, ()).await
     }
 
     // A step lends no process-local resources to the host.
     async fn submit_owned<O: OperationDeclaration>(
         &self, _: O::Request, _: harmos::operations::RequestClaims,
-    ) -> Result<StepInstance<O>, CallError> {
-        Err(CallError::LocalResources { method: O::ID })
+    ) -> crate::Result<StepInstance<O>> {
+        Err(CallError::LocalResources { method: O::ID }.into())
     }
 
     // A step publishes through the attempt's host; a harness without one has no publication route.
-    async fn publish_on<S: StreamSpec>(&self, row: &S::Row) -> Result<(), CallError>
+    async fn publish_on<S: StreamSpec>(&self, row: &S::Row) -> crate::Result<()>
     where
         S::Row: Message,
     {
         match &self.caller.0 {
-            Road::Host(host) => host.publish_on::<S>(row).await,
-            Road::Unmounted | Road::Local(_) => Err(CallError::Unavailable),
+            Road::Host(host) => host.publish_on::<S>(row).await.map_err(crate::Error::from),
+            Road::Unmounted | Road::Local(_) => Err(CallError::Unavailable.into()),
         }
     }
 }

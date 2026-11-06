@@ -166,7 +166,7 @@ async fn two_plugin_owners_resolve_shared_secret_lifecycle() {
     };
     for (generation, value) in [(0, "first-test-value"), (1, "replacement-test-value")] {
         let written = operations
-            .call::<secrets::Put>(secrets::Put {
+            .operation::<secrets::Put>(secrets::Put {
                 metadata: metadata.clone(),
                 value: Some(value.into()),
                 generation,
@@ -183,7 +183,7 @@ async fn two_plugin_owners_resolve_shared_secret_lifecycle() {
     }
 
     operations
-        .call::<secrets::Remove>(secrets::Remove {
+        .operation::<secrets::Remove>(secrets::Remove {
             identifiers: vec![metadata.identifier.clone()],
             generation: 2,
         })

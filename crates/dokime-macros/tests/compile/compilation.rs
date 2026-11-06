@@ -617,3 +617,12 @@ fn shared_stream_once() {
     std::fs::remove_file(output).unwrap();
     assert!(ran.status.success(), "{}", String::from_utf8_lossy(&ran.stderr));
 }
+
+#[test]
+fn redundant_builtin_requirement_is_rejected() {
+    let (built, _) = compile("fixtures/redundant_builtin.rs");
+    assert!(!built.status.success());
+    let diagnostics = String::from_utf8_lossy(&built.stderr);
+    assert!(diagnostics.contains("unconditional built-in operations must not be listed"), "{diagnostics}");
+    assert!(!diagnostics.contains("E0283"), "{diagnostics}");
+}

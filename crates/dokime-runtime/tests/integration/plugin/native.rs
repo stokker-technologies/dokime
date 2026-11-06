@@ -426,7 +426,7 @@ impl Serve<AwaitFileWatchArmed> for Hosting {
             let result = runtime
                 .operations()
                 .with_context(ctx.call().clone())
-                .call::<AwaitFileWatchArmed>(request)
+                .operation::<AwaitFileWatchArmed>(request)
                 .await
                 .map_err(|error| Status::internal(error.to_string()))?;
             Ok(result.into_owned().into())
