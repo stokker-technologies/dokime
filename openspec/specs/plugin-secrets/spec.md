@@ -1,4 +1,4 @@
-# plugin-secrets Specification
+# Plugin Secrets Specification
 
 ## Purpose
 Define direct lookup of declared plugin secret identifiers in protected shared storage, read-only availability in the GUI and removal of saved binding references.
@@ -16,14 +16,14 @@ Secret Storage before plugin start, without bindings or environment sources.
 
 #### Scenario: Required Identifier Is Missing
 - **WHEN** a required identifier is absent
-- **THEN** startup fails before launch with a typed error naming the identifier and instructing the user to add it and retry the plugin
+- **THEN** startup fails before launch with a typed error naming the identifier and instructing the user to add it and reload the plugin
 
 #### Scenario: Optional Identifier Is Missing
 - **WHEN** an optional declared identifier is absent
 - **THEN** initialization receives absence
 
-#### Scenario: Retry Reads New Secrets
-- **WHEN** a missing required secret is added and the plugin is retried or Dokime restarted
+#### Scenario: Reload Reads New Secrets
+- **WHEN** a missing required secret is added and the plugin is reloaded or Dokime restarted
 - **THEN** initialization reads the store again and succeeds
 
 ### Requirement: Show Declarations Without Bindings

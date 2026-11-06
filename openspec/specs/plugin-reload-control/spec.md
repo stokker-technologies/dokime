@@ -1,4 +1,9 @@
-## ADDED Requirements
+# Plugin Reload Control Specification
+
+## Purpose
+Define explicit plugin reloads, backend comparisons of saved and running settings, and observer generation ownership.
+
+## Requirements
 
 ### Requirement: Explicit Settings Application
 The backend SHALL save plugin settings without restarting programs and SHALL report field identifiers whose saved values differ from the running generation startup values. GUIs SHALL show Applied On Reload with a warning highlight for these fields. A backend restart starts from saved settings.
