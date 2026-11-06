@@ -14,6 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::BTreeSet;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -38,6 +39,7 @@ pub struct Artifacts {
     sink: Arc<dyn ArtifactSink>,
     token: Arc<str>,
     next_ordinal: Arc<AtomicU64>,
+    names: Arc<Mutex<BTreeSet<String>>>,
     directories: Arc<Mutex<Directories>>,
 }
 
@@ -77,6 +79,7 @@ impl Artifacts {
             sink,
             token,
             next_ordinal,
+            names: Arc::new(Mutex::new(BTreeSet::new())),
         }
     }
 
@@ -119,7 +122,17 @@ impl Artifacts {
         self.directories.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn opened(&self, name: String, mime: String) -> io::Result<ArtifactWriter> {
+    fn opened(&self, requested: String, mime: String) -> io::Result<ArtifactWriter> {
+        let mut names = self.names.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut name = requested.clone();
+        let mut suffix = 2;
+        while names.contains(&name) {
+            name = super::name::collision_name(&requested, suffix);
+            suffix += 1;
+        }
+        let name = validated(&name)?;
+        names.insert(name.clone());
+        drop(names);
         Ok(ArtifactWriter {
             sink: Arc::clone(&self.sink),
             transfer_id: transfer_identity(&self.token, &self.next_ordinal),
@@ -135,10 +148,10 @@ impl Artifacts {
     pub fn import(&self, path: impl AsRef<Path>, name: impl AsRef<str>) -> crate::Result<()> {
         let name = validated(name.as_ref())?;
         let mime = inferred_mime(&name)?;
-        self.import_with_mime(path, &name, mime)
+        self.import_with_mime(path, &name, mime).map(|_| ())
     }
 
-    pub(crate) fn import_with_mime(&self, path: impl AsRef<Path>, name: &str, mime: String) -> crate::Result<()> {
+    pub(crate) fn import_with_mime(&self, path: impl AsRef<Path>, name: &str, mime: String) -> crate::Result<String> {
         let name = validated(name)?;
         let mut source = std::fs::File::open(path.as_ref())?;
         let mut writer = self.opened(name, mime)?;
@@ -170,7 +183,9 @@ impl Artifacts {
                 writer.emit(Ending::Open);
             }
         }
-        writer.finish()
+        let name = writer.name().to_owned();
+        writer.finish()?;
+        Ok(name)
     }
 }
 

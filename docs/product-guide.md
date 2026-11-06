@@ -1027,7 +1027,20 @@ let captured = watch.cancel().await?.into_owned();
 ```
 
 Stream captures existing files from their arm-point length and later arrivals
-from byte zero. To mirror only ZIP archives anywhere below the same root,
+from byte zero. Existing files that contribute no bytes produce no artifact;
+new empty files are retained. Captured Stream files appear immediately in the
+live artifact tree at `artifacts/<output>/<relative path>`, with their growing
+size and content available before sealing. Their viewer shows Finished after
+capture closes. UUIDs remain internal artifact identities.
+
+Step uploads use the same `artifacts/<requested path>` rule. Within one execution,
+paths are reserved in admission order: repeated `logs/device.log` becomes
+`artifacts/logs/device.2.log`, then `.3.log`, choosing the first free suffix.
+Replacement and copy-truncate segments retain their `.segmentN` names before
+collision suffixing. This changes development stored paths without migration;
+existing storage is never silently reset.
+
+To mirror only ZIP archives anywhere below the same root,
 use `policy: FileWatchPolicy::Mirror` and
 `rules: vec![FileRule { glob: "**/*.zip".into(), action: FileRuleAction::Include }]`.
 Directory watches require `artifact: None`; `output` is the artifact prefix.

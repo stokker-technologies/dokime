@@ -41,7 +41,7 @@ use dokime_domain::model::identity::TestExecutionId;
 
 pub(super) struct Production {
     pub(crate) staged: StagedFile,
-    capture: OpenedCapture,
+    capture: Arc<tokio::sync::Mutex<OpenedCapture>>,
     pub(crate) reference: Option<FileReference>,
     pub(crate) interrupted: bool,
 }
@@ -52,6 +52,7 @@ pub(crate) struct LiveOutput {
     session: Manager,
     path: Arc<String>,
     pub(crate) identity: Arc<StagedFile>,
+    pub(crate) media_type: Arc<str>,
 }
 
 /* === Enums === */
@@ -100,7 +101,7 @@ impl ExecutionStorage {
             return Ok(None);
         };
         let mut acquisition = owner.lock().await;
-        let Some(output) = acquisition.native_outputs.get_mut(path) else {
+        let Some(output) = acquisition.output_mut(path) else {
             return Ok(None);
         };
         // Decide Captured Or Live Under The Owner Lock That Capture Settles Under.
@@ -115,7 +116,10 @@ impl ExecutionStorage {
             return Err(error("resume identity has no registered original production"));
         }
         if output.production.is_none() {
-            let metadata = file_metadata(execution, path, None, None)?;
+            let metadata = match &output.metadata {
+                Some(metadata) => metadata.clone(),
+                None => file_metadata(execution, path, None, None)?,
+            };
             let producer = self.storage.produce_file(metadata).await?;
             let token = producer.session().ok_or_else(|| error("original production has no resumable session"))?;
             let staged = StagedFile {
@@ -126,7 +130,7 @@ impl ExecutionStorage {
             let capture = session.capture_opened_file(file, producer, ByteRange { offset: 0, limit: None }, CaptureConsistency::Stable);
             output.production = Some(Production {
                 staged,
-                capture,
+                capture: Arc::new(tokio::sync::Mutex::new(capture)),
                 reference: None,
                 interrupted: false,
             });
@@ -134,37 +138,33 @@ impl ExecutionStorage {
         if expected.is_some_and(|identity| output.production.as_ref().is_none_or(|production| &production.staged != identity)) {
             return Err(error("resume identity differs from registered output production"));
         }
-        // Admission Must Catch Up To The Requested Committed Offset Before Opening.
-        loop {
-            let stable = synchronize(session, output).await?;
-            let production = output.production.as_ref().expect("registered original production");
-            if production.capture.acknowledged() >= offset {
-                break;
-            }
-            let visible = output.visible_length(open_file(output).await?.metadata().await.map_err(error)?.len())?;
-            if production.capture.acknowledged() >= visible {
-                return Err(error("resume offset exceeds retained output"));
-            }
-            if !stable {
-                tokio::time::sleep(self.storage.settings().filesystem.poll_interval).await;
-            }
-        }
         let production = output.production.as_ref().expect("registered original production");
         let identity = Arc::new(production.staged.clone());
-        let follower = session.follow_production(&production.staged, offset).await?;
         let abandoned = production.interrupted;
+        let media_type = Arc::from(output.content_type(path).unwrap_or("application/octet-stream"));
         let path = Arc::new(path.to_owned());
         drop(acquisition);
-        Ok(Some(NativeAdmission::Live(Box::new((
-            follower,
-            LiveOutput {
-                owner,
-                session: session.clone(),
-                path,
-                identity,
-            },
-            abandoned,
-        )))))
+        let live = LiveOutput {
+            owner,
+            session: session.clone(),
+            path,
+            identity,
+            media_type,
+        };
+        // Viewer Budget Waits Never Hold The Producer's Acquisition Lock.
+        loop {
+            live.synchronize().await?;
+            let progress = session.file_progress(&live.identity).await?;
+            if progress.length >= offset {
+                break;
+            }
+            if live.caught_up().await? {
+                return Err(error("resume offset exceeds retained output"));
+            }
+            tokio::time::sleep(self.storage.settings().filesystem.poll_interval).await;
+        }
+        let follower = session.follow_production(&live.identity, offset).await?;
+        Ok(Some(NativeAdmission::Live(Box::new((follower, live, abandoned)))))
     }
 }
 
@@ -175,7 +175,7 @@ impl LiveOutput {
 
     pub(crate) async fn caught_up(&self) -> Result<bool> {
         let acquisition = self.owner.lock().await;
-        let output = acquisition.native_outputs.get(self.path.as_str()).ok_or_else(|| error("followed output registration disappeared"))?;
+        let output = acquisition.output(self.path.as_str()).ok_or_else(|| error("followed output registration disappeared"))?;
         let production = output.production.as_ref().ok_or_else(|| error("followed output was remapped"))?;
         if production.staged != *self.identity {
             return Err(error("followed output was replaced"));
@@ -184,24 +184,46 @@ impl LiveOutput {
             return Ok(true);
         }
         let physical = open_file(output).await?.metadata().await.map_err(error)?.len();
-        Ok(production.capture.acknowledged() == output.visible_length(physical)?)
+        let visible = output.visible_length(physical)?;
+        let capture = production.capture.clone();
+        drop(acquisition);
+        Ok(capture.lock().await.acknowledged() == visible)
     }
 
     pub(crate) async fn synchronize(&self) -> Result<bool> {
-        // An Accepted Native Write Settles In Its Original Owner If The Viewer Cancels.
-        let owner = self.owner.clone();
-        let path = self.path.clone();
-        let identity = self.identity.clone();
-        let session = self.session.clone();
+        // Keep Accepted Copy State If A Selecting Viewer Cancels.
+        let live = self.clone();
         tokio::spawn(async move {
-            let mut acquisition = owner.lock().await;
-            let output =
-                acquisition.native_outputs.get_mut(path.as_str()).ok_or_else(|| error("followed output registration disappeared"))?;
+            let acquisition = live.owner.lock().await;
+            let output = acquisition.output(live.path.as_str()).ok_or_else(|| error("followed output registration disappeared"))?;
             let production = output.production.as_ref().ok_or_else(|| error("followed output was remapped"))?;
-            if production.staged != *identity {
+            if production.staged != *live.identity {
                 return Err(error("followed output was replaced"));
             }
-            synchronize(&session, output).await
+            if production.reference.is_some() {
+                return Ok(true);
+            }
+            let file = open_file(output).await?;
+            let acknowledged = output.log.as_ref().map(|log| log.acknowledged);
+            let capture = production.capture.clone();
+            drop(acquisition);
+            // Storage Admission May Wait For Read Capacity; Capture Appends Do Not.
+            let mut capture = capture.lock().await;
+            if live.session.file_progress(&live.identity).await?.phase == FilePhase::Finished {
+                return Ok(true);
+            }
+            let physical = file.metadata().await.map_err(error)?.len();
+            // A Later Follower May Have Captured A Newer Acknowledged Log Prefix.
+            let visible = acknowledged.map_or(physical, |length| length.max(capture.acknowledged()));
+            let stable = capture.synchronize(visible).await.map_err(capture_error)?;
+            let abandoned = live.session.file_progress(&live.identity).await?.phase == FilePhase::Abandoned;
+            drop(capture);
+            if abandoned {
+                let mut acquisition = live.owner.lock().await;
+                let output = acquisition.output_mut(live.path.as_str()).ok_or_else(|| error("followed output registration disappeared"))?;
+                output.production.as_mut().ok_or_else(|| error("followed output was remapped"))?.interrupted = true;
+            }
+            Ok(stable)
         })
         .await
         .map_err(error)?
@@ -210,7 +232,7 @@ impl LiveOutput {
     pub(crate) async fn settlement(&self) -> Result<Settlement> {
         // Read Abandonment And The Seal Together; Capture Sets Both Under This Lock.
         let acquisition = self.owner.lock().await;
-        let output = acquisition.native_outputs.get(self.path.as_str()).ok_or_else(|| error("followed output registration disappeared"))?;
+        let output = acquisition.output(self.path.as_str()).ok_or_else(|| error("followed output registration disappeared"))?;
         let production = output.production.as_ref().ok_or_else(|| error("followed output was remapped"))?;
         if production.staged != *self.identity {
             return Err(error("followed output was replaced"));
@@ -228,19 +250,21 @@ impl LiveOutput {
 
 /* === Public Functions === */
 
-pub(super) async fn capture(path: &str, output: &mut NativeOutput, state: Option<SavedStreamState>) -> Result<()> {
+pub(in crate::runtime::storage) async fn capture(path: &str, output: &mut NativeOutput, state: Option<SavedStreamState>) -> Result<()> {
     let started = Instant::now();
     let identity = output.production.as_ref().expect("registered original production");
-    tracing::debug!(file_id = %identity.staged.id, retained_bytes = identity.capture.acknowledged(), "native follow capture started");
+    let retained = identity.capture.lock().await.acknowledged();
+    tracing::debug!(file_id = %identity.staged.id, retained_bytes = retained, "native follow capture started");
     let visible = output.visible_length(open_file(output).await?.metadata().await.map_err(error)?.len())?;
     seal(path, output, state, Some(visible)).await?;
     let production = output.production.as_ref().expect("registered original production");
-    tracing::debug!(file_id = %production.staged.id, retained_bytes = production.capture.acknowledged(),
+    let retained = production.capture.lock().await.acknowledged();
+    tracing::debug!(file_id = %production.staged.id, retained_bytes = retained,
         elapsed_ms = started.elapsed().as_millis() as u64, "native follow capture settled");
     Ok(())
 }
 
-pub(super) async fn interrupt(path: &str, output: &mut NativeOutput) -> Result<()> {
+pub(in crate::runtime::storage) async fn interrupt(path: &str, output: &mut NativeOutput) -> Result<()> {
     // Preserve Only The Original Already Admitted Prefix After Source Failure.
     seal(path, output, Some(SavedStreamState::Interrupted), None).await
 }
@@ -250,14 +274,15 @@ pub(super) async fn interrupt(path: &str, output: &mut NativeOutput) -> Result<(
 async fn seal(path: &str, output: &mut NativeOutput, state: Option<SavedStreamState>, visible: Option<u64>) -> Result<()> {
     let production = output.production.as_mut().expect("registered original production");
     let started = Instant::now();
-    tracing::debug!(file_id = %production.staged.id, retained_bytes = production.capture.acknowledged(), "native follow seal started");
+    let retained = production.capture.lock().await.acknowledged();
+    tracing::debug!(file_id = %production.staged.id, retained_bytes = retained, "native follow seal started");
     let reference = match visible {
-        Some(length) => production.capture.finish_at(length).await.map_err(capture_error)?,
-        None => production.capture.interrupt().await.map_err(capture_error)?,
+        Some(length) => production.capture.lock().await.finish_at(length).await.map_err(capture_error)?,
+        None => production.capture.lock().await.interrupt().await.map_err(capture_error)?,
     };
     tracing::debug!(file_id = %production.staged.id, retained_bytes = reference.length,
         elapsed_ms = started.elapsed().as_millis() as u64, "native follow seal settled");
-    if reference.length != production.capture.acknowledged() {
+    if reference.length != production.capture.lock().await.acknowledged() {
         return Err(error("original sealed file differs from retained production"));
     }
     if let Some(length) = visible {
@@ -279,23 +304,6 @@ async fn seal(path: &str, output: &mut NativeOutput, state: Option<SavedStreamSt
     output.descriptor = Some(descriptor);
     output.captured = true;
     Ok(())
-}
-
-async fn synchronize(session: &Manager, output: &mut NativeOutput) -> Result<bool> {
-    if output.production.as_ref().is_some_and(|production| production.reference.is_some()) {
-        return Ok(true);
-    }
-    // Keep The Product's Original-Path Access And Visible-Log-Prefix Policy.
-    // The Native Owner Retains The Opened Inode And Exact Accepted Copy State.
-    let physical = open_file(output).await?.metadata().await.map_err(error)?.len();
-    let visible = output.visible_length(physical)?;
-    let production = output.production.as_mut().ok_or_else(|| error("output has no original production"))?;
-    let stable = production.capture.synchronize(visible).await.map_err(capture_error)?;
-    let progress = session.file_progress(&production.staged).await?;
-    if progress.phase == FilePhase::Abandoned {
-        production.interrupted = true;
-    }
-    Ok(stable)
 }
 
 fn capture_error(failure: harmos::storage::Error) -> crate::runtime::Error {

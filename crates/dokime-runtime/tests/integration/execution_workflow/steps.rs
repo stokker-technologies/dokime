@@ -300,14 +300,20 @@ impl WatchTree {
             matchers: Vec::new(),
             markers: Vec::new(),
         };
+        let untouched = ctx.host().submit::<WatchFile>(request.clone()).await?;
+        untouched.armed().await?;
+        assert!(untouched.cancel().await?.artifacts.is_empty());
         let stream = ctx.host().submit::<WatchFile>(request.clone()).await?;
         stream.armed().await?;
         std::fs::OpenOptions::new().append(true).open(root.join("Logs/existing.log"))?.write_all(b"after\n")?;
         std::fs::create_dir_all(root.join("Logs/next-day"))?;
         std::fs::write(root.join("Logs/next-day/new.log"), b"new\n")?;
+        std::fs::write(root.join("Logs/next-day/empty.log"), b"")?;
         std::fs::write(root.join("Logs/next-day/ignored.zip"), b"ignored")?;
         let outcome = stream.cancel().await?.into_owned();
-        assert_eq!(outcome.artifacts.len(), 2);
+        assert_eq!(outcome.artifacts.len(), 3);
+        ctx.artifacts().write("same/device.log", b"first")?;
+        ctx.artifacts().write("same/device.log", b"second")?;
 
         let mirror_request = WatchFile {
             rules: vec![FileRule {
@@ -385,6 +391,7 @@ async fn recursive_harness_watches() {
     let tree = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(tree.path().join("Logs")).unwrap();
     std::fs::write(tree.path().join("Logs/existing.log"), b"before\n").unwrap();
+    std::fs::write(tree.path().join("Logs/untouched.log"), b"untouched\n").unwrap();
     std::fs::write(tree.path().join("bundle.zip"), b"old").unwrap();
     std::fs::write(tree.path().join("Logs/status"), b"no extension").unwrap();
     for extension in ["diag", "hpl30"] {
@@ -395,6 +402,9 @@ async fn recursive_harness_watches() {
     for (name, bytes) in [
         ("logs/Logs/existing.log", b"after\n".as_slice()),
         ("logs/Logs/next-day/new.log", b"new\n"),
+        ("logs/Logs/next-day/empty.log", b""),
+        ("same/device.log", b"first"),
+        ("same/device.2.log", b"second"),
         ("logs/bundle.zip", b"updated archive"),
         ("logs/deep/new.zip", b"new archive"),
         ("capture.diag", b"snapshot"),
@@ -403,8 +413,103 @@ async fn recursive_harness_watches() {
     ] {
         assert_eq!(report.artifact(name).bytes, bytes, "{name}");
     }
-    assert!(!report.artifacts().iter().any(|artifact| artifact.name == "logs/deep/ignored.log"));
+    assert!(
+        !report.artifacts().iter().any(|artifact| ["logs/deep/ignored.log", "logs/Logs/untouched.log"].contains(&artifact.name.as_str()))
+    );
     for name in ["capture.diag", "capture.hpl30"] {
         assert_eq!(report.artifact(name).media_type, "application/octet-stream");
     }
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn harness_live_capture() {
+    use dokime_runtime::artifacts::{ArtifactSink, Artifacts};
+    use dokime_runtime::execution::Environment;
+    use dokime_runtime::records::Deliveries;
+    use dokime_runtime::telemetry::Streams;
+    use dokime_runtime::transport::ArtifactChunk;
+    use dokime_runtime::transport::recording::{RecordingSink, RecordingTransport};
+    use std::sync::Arc;
+
+    struct Captured {
+        sink: RecordingSink,
+        changed: tokio::sync::Notify,
+    }
+    impl ArtifactSink for Captured {
+        fn push(&self, chunk: ArtifactChunk) {
+            self.sink.push(chunk);
+            self.changed.notify_one();
+        }
+    }
+    impl Captured {
+        async fn length(&self, length: usize) {
+            loop {
+                let changed = self.changed.notified();
+                if self.sink.assembled("logs/device.log").len() == length {
+                    return;
+                }
+                changed.await;
+            }
+        }
+    }
+    let tree = tempfile::tempdir().unwrap();
+    let path = tree.path().join("device.log");
+    std::fs::write(&path, b"before").unwrap();
+    let captured = Arc::new(Captured {
+        sink: RecordingSink::new(),
+        changed: tokio::sync::Notify::new(),
+    });
+    let sink = Arc::new(RecordingSink::new());
+    let raw = Default::default();
+    let configuration = Default::default();
+    let environment = Environment::<(), (), ()>::new(
+        &(),
+        &raw,
+        &configuration,
+        Artifacts::new("live", captured.clone()),
+        Streams::new(sink.clone()),
+        Deliveries::new(sink),
+    );
+    let mut transport = RecordingTransport::new();
+    let ctx = environment.step(&mut transport);
+    let request = WatchFile {
+        recursive: true,
+        rules: Vec::new(),
+        maximum_files: None,
+        execution_id: None,
+        source: Some(FileWatchSource {
+            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
+                root: tree.path().to_string_lossy().into_owned(),
+            })),
+        }),
+        output: "logs".into(),
+        artifact: None,
+        policy: FileWatchPolicy::Stream,
+        selection: model::files::wire::FileWatchSelection::All,
+        wait_for_source_seconds: None,
+        poll_interval_ms: Some(50),
+        maximum_seconds: None,
+        maximum_bytes: None,
+        matchers: Vec::new(),
+        markers: Vec::new(),
+    };
+    let watch = ctx.host().submit::<WatchFile>(request).await.unwrap();
+    watch.armed().await.unwrap();
+    assert!(captured.sink.chunks().is_empty());
+    std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(b"one").unwrap();
+    captured.length(3).await;
+    let first = captured.sink.chunks();
+    assert_eq!(first.len(), 1);
+    assert!(!first[0].last);
+    std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(b"two").unwrap();
+    captured.length(6).await;
+    assert_eq!(captured.sink.assembled("logs/device.log"), b"onetwo");
+    let outcome = watch.cancel().await.unwrap();
+    assert_eq!(outcome.artifacts.len(), 1);
+    assert_eq!(outcome.artifacts[0].artifact, "logs/device.log");
+    assert_eq!(outcome.artifacts[0].size_bytes, 6);
+    let chunks = captured.sink.chunks();
+    assert!(chunks.last().unwrap().last);
+    assert!(chunks.iter().all(|chunk| chunk.transfer_id == first[0].transfer_id));
 }

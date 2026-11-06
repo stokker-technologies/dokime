@@ -58,10 +58,9 @@ struct Pending {
 impl Reader {
     pub(super) fn new(
         session: Manager, file: std::fs::File, path: &str, observed_size: u64, stream_state: ExecutionFileStreamState,
+        content_type: Option<String>,
     ) -> Result<Self> {
-        let media = super::media_type_for_path(path);
         let metadata = harmos::storage::ReadBatch::new(()).try_map(|_| {
-            let content_type = media.map(str::to_owned);
             Ok::<_, crate::runtime::Error>(ExecutionFileContent {
                 relative_path: path.to_owned(),
                 content_kind: ExecutionFileContentKind::from_metadata(path, content_type.as_deref()),

@@ -296,10 +296,7 @@ export async function invalidateRuntimeProjectionQueries(queryClient: QueryClien
  * rather than on every runtime cursor.
  */
 export async function invalidateRuntimeDocuments(queryClient: QueryClient) {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }, { cancelRefetch: false }),
-    queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }, { cancelRefetch: false }),
-  ]);
+  await queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }, { cancelRefetch: false });
 }
 
 export async function invalidateWorkflowDocuments(queryClient: QueryClient) {

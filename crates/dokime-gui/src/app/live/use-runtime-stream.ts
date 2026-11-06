@@ -24,6 +24,7 @@ import { openNativeRuntimeStream } from "@/lib/api/native-observation";
 import { operationsFromFrame } from "@/shell/status-bar-operations";
 import { type BackendOperationsPatch, useHubStore } from "@/stores/hub-store";
 import {
+  createExecutionFileRefresh,
   createRuntimeProjectionRefreshCoordinator,
   createThrottledRefresh,
   type RuntimeProjectionRefreshCoordinator,
@@ -31,6 +32,7 @@ import {
 
 /* === Constants === */
 
+const GUI_FILE_REFRESH_MS = 250;
 const GUI_DOCUMENT_REFRESH_MS = 5_000;
 const GUI_RECONNECT_MS = 1_000;
 
@@ -56,6 +58,17 @@ export function useRuntimeStream(): void {
     let active = true;
     let stream: Awaited<ReturnType<typeof openNativeRuntimeStream>> | undefined;
     let retry: number | undefined;
+    const fileCoordinator = createRuntimeProjectionRefreshCoordinator(async () => {
+      if (!active || !session.identity.isCurrent()) return;
+      await queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }, { cancelRefetch: false });
+    });
+    const fileRefresh = createExecutionFileRefresh(() => {
+      const ensureTrailing = queryClient.isFetching({ queryKey: [...workflowQueryKeys.all, "execution-files"] }) > 0;
+      void fileCoordinator.request({ ensureTrailing }).catch((error: unknown) => {
+        if (!active || !session.identity.isCurrent()) return;
+        toast.error(failureOf(error, "Execution Files Failed"), { context: "background" });
+      });
+    }, GUI_FILE_REFRESH_MS);
     const documentRefresh = createThrottledRefresh(() => {
       invalidateRuntimeDocuments(queryClient).catch((error: unknown) => {
         if (!active || !session.identity.isCurrent()) return;
@@ -84,6 +97,7 @@ export function useRuntimeStream(): void {
         let observed: string | null = null;
         for await (const frame of stream) {
           if (!active) break;
+          fileRefresh.observe(frame);
           observed = handleRuntimeFrame(
             frame,
             observed,
@@ -116,6 +130,8 @@ export function useRuntimeStream(): void {
       if (retry !== undefined) window.clearTimeout(retry);
       refreshCoordinator.dispose();
       documentRefresh.dispose();
+      fileRefresh.dispose();
+      fileCoordinator.dispose();
       void stream?.cancel();
     };
   }, [queryClient, session, setHubState]);
@@ -140,8 +156,8 @@ function handleRuntimeFrame(
   if (frame.shuttingDown) {
     setHubState({ connection: "reconnecting" });
   }
-  /* A frame that only moves the backend's operations repeats its cursor;
-     the projections it would refresh have not changed. */
+  /* Execution files refresh separately on operation changes; the other
+     projections follow changes to the state cursor. */
   const cursor = frame.cursor ? `${frame.cursor.epoch}/${frame.cursor.stream}/${frame.cursor.position}` : null;
   if (frame.resynchronized || (cursor !== null && cursor !== observed)) {
     const ensureTrailing =

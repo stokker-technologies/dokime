@@ -9,6 +9,10 @@
 
 /* Coalesce runtime-watch refreshes while preserving one trailing observation. */
 
+/* === Local Imports === */
+
+import type { RuntimeStateFrame } from "@/lib/api/native-observation";
+
 /* === Types === */
 
 export type RuntimeProjectionRefreshCoordinator = {
@@ -81,6 +85,25 @@ export function createThrottledRefresh(refresh: () => void, intervalMs: number):
       disposed = true;
       if (timer !== undefined) clearTimeout(timer);
       timer = undefined;
+    },
+  };
+}
+
+/** File capture can advance on an operation-only frame with an unchanged state cursor. */
+export function createExecutionFileRefresh(refresh: () => void, intervalMs: number) {
+  const throttled = createThrottledRefresh(refresh, intervalMs);
+  let observed: string | undefined;
+  return {
+    observe(frame: Pick<RuntimeStateFrame, "cursor" | "operations" | "resynchronized">): void {
+      const revision = JSON.stringify([frame.cursor, frame.operations], (_, value: unknown) =>
+        typeof value === "bigint" ? value.toString() : value,
+      );
+      if (revision === observed && !frame.resynchronized) return;
+      observed = revision;
+      throttled.request();
+    },
+    dispose(): void {
+      throttled.dispose();
     },
   };
 }
