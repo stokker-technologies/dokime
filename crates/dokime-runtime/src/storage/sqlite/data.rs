@@ -321,9 +321,9 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
         connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')", [], |row| row.get(0))?;
     if exists {
         let indexed: bool = connection.query_row(
-            "SELECT count(*)=8 FROM sqlite_master WHERE type='table' AND name IN
+            "SELECT count(*)=7 FROM sqlite_master WHERE type='table' AND name IN
                 ('files','streams','storage_record_visibility','storage_record_captures',
-                 'storage_numeric_summaries','storage_numeric_ranks','storage_report_previews','stream_samples')",
+                 'storage_numeric_summaries','storage_report_previews','stream_samples')",
             [],
             |row| row.get(0),
         )?;
@@ -342,6 +342,9 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
                 "SELECT id,kind,path,size_bytes,sha256,media_type FROM files LIMIT 0",
                 "SELECT file_id,execution,relative_path FROM artifacts LIMIT 0",
                 "SELECT file_id,contract,durable_end,hash_state,finalized,sealed FROM streams LIMIT 0",
+                "SELECT execution,plot,definition,shared FROM report_plot_previews LIMIT 0",
+                "SELECT execution,plot,projection FROM report_plot_bindings LIMIT 0",
+                "SELECT execution,stream,through,state FROM storage_report_context LIMIT 0",
                 "SELECT file_id,offset,metadata_bytes,body_bytes,sha256 FROM stream_batches LIMIT 0",
                 "SELECT sample_id,position,file_id,batch,batch_row FROM stream_samples LIMIT 0",
                 "SELECT file_id,batch,scope,first_at,last_at FROM stream_batch_scopes LIMIT 0",

@@ -56,14 +56,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(contract::ListNotes),
-    Operation1(contract::ListHealth),
-    Operation2(contract::CreateNote),
-    Operation3(contract::EditNote),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -212,7 +204,6 @@ pub(super) fn prepare(
     setup.resource::<Host<contract::CreateNote>>(Host::<contract::CreateNote>::new(served.clone()));
     setup.resource::<Host<contract::EditNote>>(Host::<contract::EditNote>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

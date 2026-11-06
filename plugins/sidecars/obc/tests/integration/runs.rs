@@ -356,6 +356,9 @@ fn execution_id(token: &str) -> String {
 
 fn runtime_request(token: &str, continuous: bool) -> RunExecution {
     RunExecution {
+        publication_rows: 1024,
+        publication_bytes: 1024 * 1024,
+        publication_delay_micros: 0,
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: "cycle".to_owned(),
@@ -396,6 +399,9 @@ fn runtime_request(token: &str, continuous: bool) -> RunExecution {
 
 fn steady_request(token: &str) -> RunExecution {
     RunExecution {
+        publication_rows: 1024,
+        publication_bytes: 1024 * 1024,
+        publication_delay_micros: 0,
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: "cycle".to_owned(),

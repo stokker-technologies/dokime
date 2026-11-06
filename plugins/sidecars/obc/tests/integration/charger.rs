@@ -52,6 +52,9 @@ async fn cleanup_drains_input() {
     workflow
         .start_on(
             RunExecution {
+                publication_rows: 1024,
+                publication_bytes: 1024 * 1024,
+                publication_delay_micros: 0,
                 mode: "automatic".into(),
                 execution_token: "finalize".into(),
                 test_cycle_id: "cycle".into(),

@@ -78,26 +78,7 @@ impl State {
                     let through = if request.current { head.clone() } else { request.at };
                     let fields = previews::report_previews(connection, request.execution.clone(), through.clone())?;
                     let mut exact = aggregates::numeric_summaries(connection, request.execution.clone())?;
-                    for (stream, field, rank) in request.percentiles {
-                        for summary in exact
-                            .iter_mut()
-                            .filter(|summary| crate::plot::stream_matches_alias(&summary.stream, &stream) && summary.field == field)
-                        {
-                            let name = format!("p{rank}");
-                            if summary.statistics.iter().any(|(key, _)| *key == name) {
-                                continue;
-                            }
-                            if let Some(value) = aggregates::numeric_percentile(
-                                connection,
-                                request.execution.clone(),
-                                summary.stream.clone(),
-                                field.clone(),
-                                rank,
-                            )? {
-                                summary.statistics.push((name, value));
-                            }
-                        }
-                    }
+                    aggregates::exact_percentiles(connection, &root, &request.execution, &through, &mut exact, &request.percentiles)?;
                     let plots = crate::plot::preview::index::checkpoints(connection, &request.execution, through.sequence)?;
                     let records =
                         previews::report_record_rows(connection, request.execution.clone(), request.cycle, through.clone(), request.rows)?;

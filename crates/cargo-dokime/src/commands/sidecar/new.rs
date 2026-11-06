@@ -79,7 +79,7 @@ pub fn run(args: Args) -> Result<(), Error> {
     if target.symlink_metadata().is_ok() {
         return Err(Error::Invalid(format!("refusing to overwrite {}", target.display())));
     }
-    let (workspace, detached) = workspace(&target)?;
+    let workspace = workspace(&target)?;
     let selection = if workspace.is_some() { format!(" -p {name}") } else { String::new() };
     let crate_name = name.replace('-', "_");
     // Reserve the target exclusively. On failure only this newly created tree
@@ -102,10 +102,8 @@ pub fn run(args: Args) -> Result<(), Error> {
                         .parse::<toml_edit::DocumentMut>()
                         .map_err(|error| Error::Invalid(format!("{}: {error}", path.display())))?;
                     manifest.remove("profile");
+                    manifest.remove("workspace");
                     contents = manifest.to_string();
-                }
-                if detached && path.file_name().is_some_and(|name| name == "Cargo.toml") {
-                    contents.push_str("\n# This package is excluded from the enclosing workspace.\n[workspace]\n");
                 }
                 fs::write(path, contents)?;
             } else {
@@ -165,7 +163,7 @@ fn validate_name(name: &str) -> Result<(), Error> {
     Ok(())
 }
 
-fn workspace(target: &Path) -> Result<(Option<Workspace>, bool), Error> {
+fn workspace(target: &Path) -> Result<Option<Workspace>, Error> {
     for root in target.parent().unwrap().ancestors() {
         let manifest = root.join("Cargo.toml");
         if !manifest.is_file() {
@@ -187,7 +185,7 @@ fn workspace(target: &Path) -> Result<(Option<Workspace>, bool), Error> {
             .ok_or_else(|| Error::Invalid("workspace member path must be UTF-8".into()))?
             .replace('\\', "/");
         if matches(table.get("exclude"), &relative)? {
-            return Ok((None, true));
+            return Ok(None);
         }
         if !matches(table.get("members"), &relative)? {
             if table.get("members").is_none() {
@@ -195,16 +193,19 @@ fn workspace(target: &Path) -> Result<(Option<Workspace>, bool), Error> {
             }
             table["members"].as_array_mut().ok_or_else(|| Error::Invalid("workspace.members must be an array".into()))?.push(&relative);
         }
-        return Ok((
-            Some(Workspace {
-                manifest,
-                updated: document.to_string(),
-                original,
-            }),
-            false,
-        ));
+        for lint in ["todo", "unimplemented"] {
+            let existing = table.get("lints").and_then(|lints| lints.get("clippy")).and_then(|clippy| clippy.get(lint));
+            if existing.is_none() {
+                table["lints"]["clippy"][lint] = toml_edit::value("deny");
+            }
+        }
+        return Ok(Some(Workspace {
+            manifest,
+            updated: document.to_string(),
+            original,
+        }));
     }
-    Ok((None, false))
+    Ok(None)
 }
 
 fn matches(item: Option<&toml_edit::Item>, relative: &str) -> Result<bool, Error> {

@@ -31,7 +31,7 @@ pub use plugin_host::System;
 
 // The row type declares the stream, so the id is written once and every
 // column comes with a handle a plot can name it by:
-// `TemperatureRow::celsius()` stops resolving the day the field is renamed.
+// `TemperatureRow::temperature_c()` stops resolving the day the field is renamed.
 // The observer below says how often, and everything that reads these rows names
 // this type.
 #[dokime::stream(
@@ -42,7 +42,7 @@ pub use plugin_host::System;
 )]
 pub struct TemperatureRow {
     #[row(unit = "°C")]
-    pub celsius: f64,
+    pub temperature_c: f64,
 }
 
 /* === Enums === */

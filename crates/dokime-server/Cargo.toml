@@ -228,6 +228,9 @@ harness = false
 
 # === Lints === #
 
+[lints]
+workspace = true
+
 # === Profiles === #
 
 # === Patches === #

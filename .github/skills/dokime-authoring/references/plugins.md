@@ -84,6 +84,92 @@ async fn preparation(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
 }
 ```
 
+For traceability, fetch the data before building and publishing each section:
+
+```rust
+#[dokime::step(label = "Traceability")]
+async fn traceability(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
+    // Get Diagnostics
+    let operation = GetDiagnostics {};
+    let diagnostics = ctx.call(operation).await?;
+
+    // === Device Under Test === //
+    let mut section = TraceabilitySection::new("dut", "Device Under Test");
+
+    let serial_number = TraceabilityRow::text("serial_number", "Serial Number", &diagnostics.serial_number);
+    section.row(serial_number);
+
+    let firmware_version = TraceabilityRow::text("firmware_version", "Firmware Version", &diagnostics.firmware_version);
+    section.row(firmware_version);
+
+    ctx.traceability().section(section);
+
+    // === Test Bench === //
+    let mut section = TraceabilitySection::new("bench", "Test Bench");
+
+    let chamber_id = TraceabilityRow::text("chamber_id", "Chamber ID", &diagnostics.chamber_id);
+    section.row(chamber_id);
+
+    let controller_version = TraceabilityRow::text("controller_version", "Controller Version", &diagnostics.controller_version);
+    section.row(controller_version);
+
+    ctx.traceability().section(section);
+
+    Ok(())
+}
+```
+
+Fetch first, then use the result: call the operation once at the top, name the
+result after what it holds, and only read that result in the rest of the step.
+Use `?` by default for operation failures in a step.
+
+- Use two comment levels: `// Title Case` labels an action;
+  `// === Title Case === //` opens a group of actions.
+- Name before use: build a value on one line and hand it over on the next;
+  never nest construction in the call that consumes it.
+- Keep one name throughout: the variable, row ID and response field share a name.
+- Make blocks read alike: create a section, add its rows, then publish it at the
+  end of that group. Reuse the name `section` in each group.
+- Use standard style-guide Title Case for comments and every human-facing label:
+  capitalize the first and last word and every major word; lowercase articles,
+  coordinating conjunctions and short prepositions in between (`a`, `an`, `the`,
+  `and`, `but`, `or`, `nor`, `for`, `of`, `in`, `on`, `at`, `to`, `by`). This includes
+  steps, criteria, records, parameters, streams, sections and rows. For example,
+  `Number of Rows` and `Wait Until Chamber Is Ready`. IDs use `snake_case`.
+- Use `Group / Action` naming in comments and labels, such as
+  `// Check / Number of Rows` and `Setup / Bench`. Descriptions stay sentences.
+- A template is the orchestration unit: read top to bottom as one linear flow.
+  Repeat steps rather than extract a helper. Keep indentation shallow and loop
+  bodies a plain sequence of steps.
+- Build documents one statement at a time: create a plot, configure it, then
+  attach it.
+- Suffix field names with their unit (`duration_s`, `distance_m`); separate
+  attributed fields with a blank line.
+- Use the same type names in every template file: `Template`, `Parameters`,
+  `Row`, `Required`, `Streams` and `Prompts`. Catalog variants match their
+  operation names.
+- Cleanup attempts everything and logs a warning for each failure.
+
+Canonical examples contain no placeholders.
+
+A criterion fetches its data, computes one named check per
+`// Check / Title Case` comment, then combines the names in `Ok(...)`:
+
+```rust
+#[dokime::criterion(label = "All Measurements Successful")]
+fn measurements_ok(ctx: &CriterionContext<'_>) -> Result<bool> {
+    let rows = ctx.samples::<Row>();
+
+    // Check / Number of Rows
+    let number_ok = rows.len() == ctx.parameters().samples as usize;
+
+    // Check / Measurements Successful
+    let measurements_ok = rows.iter().all(|row| row.distance_m.is_some());
+
+    Ok(number_ok && measurements_ok)
+}
+```
+
 ## Layout
 
 ```text

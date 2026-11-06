@@ -40,7 +40,7 @@ pub type SamplePublisher = for<'a> fn(
     &'a harmos::sidecar::Supervisor,
     &'a str,
     &'a dokime_domain::model::identity::Identifier,
-    &'a [StampedRow],
+    Vec<StampedRow>,
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 pub type StepFuture<'a> = Pin<Box<dyn Future<Output = Result<(), Diagnostic>> + Send + 'a>>;
 pub type InitializationFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, Diagnostic>> + Send + 'a>>;
@@ -111,7 +111,7 @@ pub trait SidecarTemplate: Send + Sized + 'static {
 
     fn publish_sample<'a, P: harmos::Plugin + harmos::plugin::Declared>(
         _host: &'a harmos::sidecar::Supervisor, _token: &'a str, stream: &'a dokime_domain::model::identity::Identifier,
-        _rows: &'a [StampedRow],
+        _rows: Vec<StampedRow>,
     ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
         Box::pin(async move { Err(format!("template has no native publisher for stream {stream}")) })
     }

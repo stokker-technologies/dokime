@@ -32,6 +32,9 @@ const LEASE: OperationPolicy = crate::policy(Duration::from_secs(60));
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(EvidenceBatch, OperatorQuestion, LeaseAsk);
+
 /* === Type Aliases === */
 
 /* === Structs === */
@@ -341,12 +344,3 @@ pub fn timestamp() -> String {
 /* === Private Functions === */
 
 /* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    use super::*;
-
-    crate::hosted!(EvidenceBatch, OperatorQuestion, LeaseAsk);
-}

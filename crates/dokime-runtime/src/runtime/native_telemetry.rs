@@ -269,6 +269,7 @@ fn saved_codec(handle: &RuntimeHandle, stream: &Identifier) -> Result<Arc<crate:
 }
 
 // The Row's One Payload Pass: Values Are Projected From The Retained Bytes, Then The Bytes Are Owned Once.
+#[tracing::instrument(level = "debug", name = "ingest.host.decode", skip_all)]
 fn decoded_sample(
     codec: &crate::storage::telemetry::TypedCodec, owner: &str, stream: &Identifier, scope: Option<&RecordScope>, sequence: u64,
     row: &harmos::streams::PublicationRow,

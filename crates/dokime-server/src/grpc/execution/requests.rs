@@ -42,11 +42,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::StartExecution),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -80,7 +75,6 @@ pub(super) fn prepare(setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, ru
 
     setup.resource::<Host<wire::StartExecution>>(Host::<wire::StartExecution>::new(served));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

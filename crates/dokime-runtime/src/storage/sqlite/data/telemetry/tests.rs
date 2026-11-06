@@ -229,6 +229,119 @@ impl Fixture {
 
 /* === Tests === */
 
+#[cfg(feature = "native")]
+#[tokio::test]
+async fn time_series_views_share_field_state_and_preserve_exact_rows() {
+    let fixture = Fixture::new(1024).await;
+    let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>().column(
+        crate::telemetry::TelemetryColumn::declared("value", "Value", crate::ValueType::Number, crate::telemetry::TelemetryRole::Value),
+    );
+    let request = crate::plot::PlotPayloadRequest {
+        stream: "arrow.fixture".into(),
+        y_keys: vec!["value".into()],
+        scope: Some(RecordScope {
+            test_execution_id: Some(fixture.execution.clone()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let requests = (0..64)
+        .map(|index| crate::plot::PlotPayloadRequest {
+            plot_id: Some(format!("plot.{index}")),
+            ..request.clone()
+        })
+        .collect();
+    fixture
+        .local
+        .register_plot_previews(
+            fixture.execution.to_string(),
+            requests,
+            vec![contract],
+            crate::config::local_storage_defaults().previews.into(),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    let points: Vec<_> = (1..=17).map(|index| (index, index as i64)).collect();
+    let at = fixture.admit(&points).await;
+    fixture.storage.flush_until(&at).await.unwrap();
+    let execution = fixture.execution.to_string();
+    let selected = execution.clone();
+    let (plans, views, fields, shared): (i64, i64, i64, i64) = fixture
+        .local
+        .call(move |connection| {
+            connection.query_row(
+                "SELECT (SELECT count(*) FROM report_plot_previews WHERE execution=?1),
+            (SELECT count(*) FROM report_plot_bindings WHERE execution=?1),
+            (SELECT count(*) FROM storage_report_previews WHERE execution=?1),
+            (SELECT sum(shared) FROM report_plot_previews WHERE execution=?1)",
+                [selected],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!((plans, views, fields, shared), (1, 64, 1, 1));
+    let checkpoints = fixture
+        .local
+        .read(move |connection| Ok(crate::plot::preview::index::checkpoints(connection, &execution, at.sequence)))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(checkpoints.len(), views as usize);
+    let mut selected = request;
+    selected.plot_id = Some("plot.31".into());
+    let payload = checkpoints["plot.31"].payload(&selected, "", (None, None)).unwrap();
+    assert_eq!(payload.series[0].points.len(), points.len());
+    assert_eq!(
+        payload.series[0].points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(),
+        points.iter().map(|(_, value)| *value as f64).collect::<Vec<_>>()
+    );
+    fixture.finish().await;
+}
+
+#[cfg(feature = "native")]
+#[tokio::test]
+async fn percentiles_replay_beyond_retained_prefix() {
+    use harmos::storage::query::{
+        Accumulator,
+        scalar::{Agg, ScalarValue},
+    };
+    let fixture = Fixture::new(65_536).await;
+    let count = crate::config::local_storage_defaults().previews.exact_points.get() + 7;
+    let points: Vec<_> = (0..count as u64).map(|index| (index, index as i64)).collect();
+    let at = fixture.admit(&points).await;
+    fixture.storage.flush_until(&at).await.unwrap();
+    let evidence = fixture
+        .local
+        .report_evidence(vec![super::report::Request {
+            execution: fixture.execution.to_string(),
+            cycle: "cycle".into(),
+            at,
+            current: false,
+            rows: 32,
+            streams: Vec::new(),
+            percentiles: std::collections::BTreeSet::from([("arrow.fixture".into(), "value".into(), 17)]),
+        }])
+        .await
+        .unwrap();
+    let summary = evidence[0].exact.iter().find(|summary| summary.field == "value").unwrap();
+    for (name, method) in
+        [("median", harmos::Aggregate::Median), ("p95", harmos::Aggregate::Percentile(95)), ("p17", harmos::Aggregate::Percentile(17))]
+    {
+        let mut reference = Accumulator::new(Agg::Of(method));
+        for (index, _) in &points {
+            reference.push(*index, &ScalarValue::Float(*index as f64)).unwrap();
+        }
+        let ScalarValue::Float(expected) = reference.finish(&mut || Ok(())).unwrap() else {
+            panic!("numeric percentile");
+        };
+        let value = summary.statistics.iter().find(|(key, _)| key == name).unwrap().1;
+        assert_eq!(value, expected);
+    }
+    fixture.finish().await;
+}
+
 #[tokio::test]
 async fn acknowledgement_work() {
     let fixture = Fixture::new(512).await;

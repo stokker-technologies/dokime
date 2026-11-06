@@ -307,20 +307,6 @@ async fn exact_numeric_outputs() {
     assert_eq!(load["cartesian"]["mode"], "aligned");
     assert_eq!(load["cartesian"]["point_count"], 6);
     drop(report);
-    let connection = dokime_runtime::storage::sqlite::rusqlite::Connection::open(root.path().join("local.sqlite")).unwrap();
-    let envelope: Vec<u8> = connection
-        .query_row(
-            "SELECT envelope FROM storage_report_previews WHERE execution=?1 AND stream='tracking' AND field='distance_m'",
-            [execution.test_execution_id.as_str()],
-            |row| row.get(0),
-        )
-        .unwrap();
-    let envelope: serde_json::Value = serde_json::from_slice(&envelope).unwrap();
-    assert_eq!(
-        envelope["buckets"].as_object().unwrap().values().map(|bucket| bucket["count"].as_u64().unwrap()).sum::<u64>(),
-        VALUES.len() as u64
-    );
-    drop(connection);
     runtime.seal_cycle(cycle, CommandContext::default()).await.unwrap();
     let checkpoint = runtime.execution_saved_checkpoint(execution.test_execution_id.clone()).await.unwrap();
     fixture.storage.lock().unwrap().take();

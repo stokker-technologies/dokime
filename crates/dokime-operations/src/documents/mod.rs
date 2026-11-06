@@ -33,6 +33,9 @@ use dokime_domain::model::documents::wire::*;
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(CaptureCurrentDocument, UpdatePlotSettings);
+
 /* === Type Aliases === */
 
 /* === Structs === */

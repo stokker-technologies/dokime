@@ -70,7 +70,7 @@ mod workflow;
 #[cfg(feature = "native")]
 pub use callbacks::{CallbackTask, Callbacks};
 pub use context::{
-    Called, Cleanup, CleanupContext, Context, CriterionContext, InitializationContext, Initialize, Required, Step, StepContext,
+    BuiltIn, Called, Cleanup, CleanupContext, Context, CriterionContext, Declared, InitializationContext, Initialize, Required, Step, StepContext,
 };
 
 #[cfg(feature = "native")]

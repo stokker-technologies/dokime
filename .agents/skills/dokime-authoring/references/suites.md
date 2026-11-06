@@ -10,7 +10,7 @@ Name template identifiers `<suite>.<segment>`, with lowercase segments matching 
 #[dokime::template(
     id = "soak.hold",
     label = "Hold Temperature",
-    parameters = HoldParameters,
+    parameters = Parameters,
     requires = Required,
     subscribes = Subscriptions,
     streams = Streams,
@@ -62,8 +62,10 @@ Keep `suites/mod.rs` as the suite catalog and module declarations. Put each temp
 Traceability is dynamic execution content, contributed through the step context like documents. No template `traceability()` lifecycle method, `TraceabilityContext` or `TraceabilityFuture` exists.
 
 ```rust
-ctx.traceability().section(TraceabilitySection::new("dut", "Device Under Test"));
-ctx.traceability().row("dut", TraceabilityRow::text("serial", "Serial", identity.serial));
+let mut section = TraceabilitySection::new("dut", "Device Under Test");
+let serial_number = TraceabilityRow::text("serial_number", "Serial Number", &identity.serial_number);
+section.row(serial_number);
+ctx.traceability().section(section);
 ```
 
 A section identifier replaces the complete section; a row identifier replaces a row within an existing section. Replacing preserves order and unrelated sections/rows. Add a section before its rows. Missing sections, duplicate row identifiers and host-derived section names are refused and logged without changing captured content. Repeated edits in one delivery apply in order, with the last edit winning. The execution index, buffered evidence delivery, durable transactions and report projections follow the document path; do not introduce an alternate publisher or storage mechanism.

@@ -120,35 +120,43 @@ enum ProbeError {
 
 /* === Implementations === */
 impl dokime_runtime::execution::EmbeddedPublisher for PublishedExecutionRows {
-    fn publish(
-        &self, execution: &str, stream: &dokime_runtime::Identifier, values: BTreeMap<String, Value>, storage_payload: Vec<u8>,
-    ) -> Result<(), String> {
-        let sequence = {
-            let mut rows = self.0.lock().unwrap();
-            let sequence = rows.len() as u64;
-            rows.push((execution.into(), stream.to_string(), values.clone()));
-            sequence
-        };
-        let scope = self.2.lock().unwrap().clone();
-        let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
-            dokime_runtime::model::identity::new_id(),
-            stream.clone(),
-            sequence,
-            dokime_runtime::model::time::now_utc(),
-            SOURCE,
-        );
-        sample.values = values;
-        sample.storage_payload = Some(storage_payload);
-        sample.scope = Some(scope.clone());
-        sample.received_at = sample.timestamp.clone();
-        self.1.deliver_samples(&scope, &[sample], &[]).map_err(|error| error.to_string())?;
-        Ok(())
+    fn publish<'a>(
+        &'a self, execution: &'a str, stream: &'a dokime_runtime::Identifier, rows: Vec<dokime_runtime::execution::StampedRow>,
+    ) -> dokime_runtime::transport::TransportFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            for row in rows {
+                let values = row.values;
+                let storage_payload = row.storage_payload.ok_or("missing typed row")?;
+                let sequence = {
+                    let mut rows = self.0.lock().unwrap();
+                    let sequence = rows.len() as u64;
+                    rows.push((execution.into(), stream.to_string(), values.clone()));
+                    sequence
+                };
+                let scope = self.2.lock().unwrap().clone();
+                let mut sample = dokime_runtime::telemetry::TelemetrySample::new(
+                    dokime_runtime::model::identity::new_id(),
+                    stream.clone(),
+                    sequence,
+                    dokime_runtime::model::time::now_utc(),
+                    SOURCE,
+                );
+                sample.values = values;
+                sample.storage_payload = Some(storage_payload);
+                sample.scope = Some(scope.clone());
+                sample.received_at = sample.timestamp.clone();
+                self.1.deliver_samples(&scope, &[sample], &[]).map_err(|error| error.to_string())?;
+            }
+            Ok(())
+        })
     }
 }
 
 impl dokime_runtime::execution::EmbeddedPublisher for RefusedPublication {
-    fn publish(&self, _: &str, _: &dokime_runtime::Identifier, _: BTreeMap<String, Value>, _: Vec<u8>) -> Result<(), String> {
-        Err(self.0.clone())
+    fn publish<'a>(
+        &'a self, _: &'a str, _: &'a dokime_runtime::Identifier, _: Vec<dokime_runtime::execution::StampedRow>,
+    ) -> dokime_runtime::transport::TransportFuture<'a, Result<(), String>> {
+        Box::pin(async move { Err(self.0.clone()) })
     }
 }
 
@@ -804,6 +812,9 @@ fn encoded_parameters(parameters: serde_json::Value) -> String {
 
 fn start_request(token: &str, parameters: serde_json::Value) -> RunExecution {
     RunExecution {
+        publication_rows: 1024,
+        publication_bytes: 1024 * 1024,
+        publication_delay_micros: 0,
         mode: "automatic".into(),
         execution_token: token.to_owned(),
         test_cycle_id: cycle().to_string(),

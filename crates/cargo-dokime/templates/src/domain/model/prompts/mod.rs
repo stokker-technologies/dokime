@@ -38,14 +38,15 @@
 // struct instance: `SoakCheckpoint { note: seen, ..Default::default() }`.
 #[dokime::prompt(
     id = "{{crate}}.soak.checkpoint",
-    label = "Sign off the soak",
-    submit = "Sign off",
+    label = "Sign Off the Soak",
+    submit = "Sign Off",
     description = "Check the chamber and the unit, then record what you saw."
 )]
 pub struct SoakCheckpoint {
-    #[prompt(label = "Operator note", default = "chamber steady")]
+    #[prompt(label = "Operator Note", default = "chamber steady")]
     pub note: String,
-    #[prompt(label = "The soak looked right", default = true)]
+
+    #[prompt(label = "The Soak Looked Right", default = true)]
     pub accepted: bool,
 }
 

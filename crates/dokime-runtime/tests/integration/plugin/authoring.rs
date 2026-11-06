@@ -316,6 +316,9 @@ enum SpikeSuites {
 /* === Private Functions === */
 fn pulse_start() -> RunExecution {
     RunExecution {
+        publication_rows: 1024,
+        publication_bytes: 1024 * 1024,
+        publication_delay_micros: 0,
         mode: "automatic".into(),
         execution_token: "authoring".to_owned(),
         test_cycle_id: "cycle-1".to_owned(),

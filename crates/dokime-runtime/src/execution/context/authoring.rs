@@ -91,6 +91,10 @@ pub struct Context<'a, C, O, I, Stage> {
     call_stage: String,
 }
 
+pub struct Declared;
+
+pub struct BuiltIn;
+
 pub struct Initialize;
 
 pub struct Step;
@@ -141,11 +145,15 @@ pub trait Required {
     message = "`{T}` does not list `{Self}` in its `requires` catalog",
     label = "add this operation to the template's `requires = ...` catalog"
 )]
-pub trait Called<T> {}
+pub trait Called<T, Proof = Declared> {}
 
 /* === Implementations === */
 
 impl<T: Required, O> Called<T> for O where T::Operations: crate::catalog::Contains<O> {}
+
+impl<T> Called<T, BuiltIn> for dokime_operations::files::WatchFile {}
+
+impl<T> Called<T, BuiltIn> for dokime_operations::process::RunProcess {}
 
 impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
     pub(in crate::execution) fn new(
@@ -211,9 +219,9 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
 
 #[cfg(feature = "native")]
 impl<C, O, I, S> Context<'_, C, O, I, S> {
-    pub fn operation<Op>(&self, request: Op) -> harmos::operations::Invocation<crate::execution::StepOperationHost, Op>
+    pub fn operation<Op, Proof>(&self, request: Op) -> harmos::operations::Invocation<crate::execution::StepOperationHost, Op>
     where
-        Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
+        Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C, Proof>,
     {
         let binding = crate::execution::builtins::Binding {
             artifacts: self.environment.artifacts().clone(),
@@ -268,7 +276,7 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
     pub async fn publish<V: Publishable>(&mut self, value: V) {
         match value.publication().into() {
             Publication::Row { stream, values, payload } => {
-                self.environment.streams().published_as(&stream, values, Some(payload), std::any::type_name::<V>()).await;
+                self.environment.streams().published_as(&stream, move || values, Some(payload), std::any::type_name::<V>()).await;
             }
             Publication::Record(request) => {
                 // A record that follows rows reaches the host after them.
@@ -298,7 +306,7 @@ impl<'a, C, O, I> Context<'a, C, O, I, Observing> {
     pub async fn publish<V: Publishable>(&mut self, value: V) {
         match value.publication().into() {
             Publication::Row { stream, values, payload } => {
-                self.environment.streams().published_as(&stream, values, Some(payload), std::any::type_name::<V>()).await;
+                self.environment.streams().published_as(&stream, move || values, Some(payload), std::any::type_name::<V>()).await;
             }
             Publication::Record(request) => {
                 if let Err(refusal) = self.stage.publisher.record(*request) {
@@ -368,9 +376,9 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     }
 
     #[cfg(feature = "native")]
-    pub fn operation<Op>(&self, request: Op) -> harmos::operations::Invocation<crate::execution::StepOperationHost, Op>
+    pub fn operation<Op, Proof>(&self, request: Op) -> harmos::operations::Invocation<crate::execution::StepOperationHost, Op>
     where
-        Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
+        Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C, Proof>,
     {
         let stage = self.log.map_or_else(String::new, |(_, criterion)| format!("criterion/{criterion}"));
         harmos::operations::Invocation::new(self.caller.step_host(&stage, self.operation_binding.clone()), request)

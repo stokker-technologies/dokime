@@ -104,6 +104,7 @@ prost-reflect = { version = "0.16.5", features = ["serde"] }
 prost-types = { version = "=0.14.4" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154" }
+postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 toml = { version = "1.1.8" }
 toml_edit = { version = "0.25.17" }
 
@@ -184,6 +185,10 @@ xcap = { version = "0.9.8" }
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 
 # === Workspace Lints === #
+
+[workspace.lints.clippy]
+todo = "deny"
+unimplemented = "deny"
 
 # === Lints === #
 

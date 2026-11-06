@@ -24,12 +24,10 @@ use harmos::sidecar::StreamDeclaration;
 // Local Imports
 use super::{RuntimeHandle, native_telemetry};
 use crate::execution::{EmbeddedPublisher, Runnable, SampleOutput};
-use crate::schema::graph::Schema;
 use crate::state::ProviderCatalog;
 use crate::transport::TransportFuture;
 use crate::{InstalledPlugin, runtime::Error, runtime::Result};
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -98,7 +96,6 @@ struct Admitted<'a> {
 }
 
 struct Publisher {
-    schema_settings: harmos::config::SchemaSettings,
     owner: String,
     executions: native_telemetry::Executions,
     streams: BTreeMap<Identifier, Publication>,
@@ -107,7 +104,7 @@ struct Publisher {
 
 struct Publication {
     lease: Arc<harmos::streams::PublicationLease>,
-    schema: Schema,
+    sequence: tokio::sync::Mutex<u64>,
 }
 
 /* === Enums === */
@@ -367,12 +364,17 @@ impl Publisher {
             .into_iter()
             .zip(registration.leases().iter().cloned())
             .map(|(declaration, lease)| {
-                Ok((Identifier::new(declaration.id).map_err(operation)?, Publication { lease, schema: declaration.row }))
+                Ok((
+                    Identifier::new(declaration.id).map_err(operation)?,
+                    Publication {
+                        lease,
+                        sequence: tokio::sync::Mutex::new(0),
+                    },
+                ))
             })
             .collect::<Result<_>>()?;
 
         Ok(Self {
-            schema_settings: *handle.schema_settings(),
             owner: scope.owner().into(),
             executions: handle.native_executions.clone(),
             streams,
@@ -388,27 +390,36 @@ impl Publisher {
 }
 
 impl EmbeddedPublisher for Publisher {
-    fn publish(
-        &self, token: &str, stream: &Identifier, _values: BTreeMap<String, Value>, payload: Vec<u8>,
-    ) -> std::result::Result<(), String> {
-        self.executions.scope(&self.owner, token, stream)?;
-        let publication = self.streams.get(stream).ok_or("stream was not admitted for this provider")?;
-        let validator =
-            harmos::schema::Validator::from_schema(&publication.schema, &self.schema_settings).map_err(|error| error.to_string())?;
-        validator.validate(&payload).map_err(|error| error.to_string())?;
-        let published_unix_micros = i64::try_from(time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000)
-            .map_err(|_| "publication time exceeds the protocol range")?;
-        publication
-            .lease
-            .publish_row(
-                harmos::streams::PublicationRow {
-                    payload,
-                    published_unix_micros: Some(published_unix_micros),
-                    context: Some(token.into()),
-                },
-                0,
-            )
-            .map_err(|error| error.to_string())
+    fn values_required(&self) -> bool {
+        false
+    }
+
+    fn publish<'a>(
+        &'a self, token: &'a str, stream: &'a Identifier, rows: Vec<crate::execution::StampedRow>,
+    ) -> TransportFuture<'a, std::result::Result<(), String>> {
+        Box::pin(async move {
+            self.executions.scope(&self.owner, token, stream)?;
+            let publication = self.streams.get(stream).ok_or("stream was not admitted for this provider")?;
+            let rows = rows
+                .into_iter()
+                .map(|row| {
+                    Ok(harmos::streams::PublicationRow {
+                        payload: row.storage_payload.ok_or("typed publication requires original row bytes")?,
+                        published_unix_micros: Some(row.published_unix_micros),
+                        context: Some(token.into()),
+                    })
+                })
+                .collect::<std::result::Result<Vec<_>, String>>()?;
+            let mut sequence = publication.sequence.lock().await;
+            let first = sequence.checked_add(1).ok_or("publication sequence overflow")?;
+            let batch = publication.lease.stage_rows(rows, first, 0);
+            *sequence = sequence.checked_add(batch.staged.len() as u64).ok_or("publication sequence overflow")?;
+            for staged in batch.staged {
+                staged.committed().await.map_err(|error| error.to_string())?;
+            }
+            publication.lease.ingested().await.map_err(|error| error.to_string())?;
+            batch.refused.map_or(Ok(()), |error| Err(error.to_string()))
+        })
     }
 }
 

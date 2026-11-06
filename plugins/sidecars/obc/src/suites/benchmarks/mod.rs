@@ -11,6 +11,7 @@
 
 /* === Modules === */
 mod capture;
+mod ingest;
 
 /* === Re-Exports === */
 
@@ -35,6 +36,12 @@ pub struct Suite;
 #[dokime::catalog]
 pub enum Templates {
     Capture(capture::Capture),
+    ScalarZero(ingest::ScalarZero),
+    ScalarOne(ingest::ScalarOne),
+    ScalarMany(ingest::ScalarMany),
+    WideZero(ingest::WideZero),
+    WideOne(ingest::WideOne),
+    WideMany(ingest::WideMany),
 }
 
 /* === Traits === */

@@ -37,7 +37,6 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 // Local Imports
 use crate::prompts::{PromptInstance as DomainPrompt, PromptKind};
 use crate::storage::{Error, Result};
-use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::ContractId;
 use dokime_domain::model::identity::PromptId;
 use dokime_domain::model::time::Timestamp;
@@ -70,64 +69,13 @@ pub struct PromptInstance {
 
 /* === Implementations === */
 
-impl PromptInstance {
-    pub fn encoding_memory(value: &DomainPrompt) -> Result<usize> {
-        value.created_at.to_datetime()?;
-        if let Some(time) = &value.expires_at {
-            time.to_datetime()?;
-        }
-        let definition = PromptDefinition::encoding_memory(&value.definition)?;
-        let values = Values::encoding_memory(&value.values)?;
-        let scope = Scope::encoding_memory(&value.scope);
-        if [definition, values, scope].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            value.prompt_id.as_str().len(),
-            value.contract_id.as_str().len(),
-            value.created_at.as_str().len(),
-            value.expires_at.as_ref().map_or(0, |time| time.as_str().len()),
-            definition.saturating_sub(std::mem::size_of::<PromptDefinition>()),
-            values.saturating_sub(std::mem::size_of::<Values>()),
-            scope.saturating_sub(std::mem::size_of::<Scope>()),
-        ];
-        Ok(fields.into_iter().fold(std::mem::size_of::<Self>(), usize::saturating_add))
-    }
-
-    pub fn projection_memory(&self) -> Result<usize> {
-        kind(self.kind)?;
-        OffsetDateTime::parse(&self.created_at, &Rfc3339).map_err(|_| Error::Invalid("captured prompt timestamp is invalid"))?;
-        if let Some(time) = &self.expires_at {
-            OffsetDateTime::parse(time, &Rfc3339).map_err(|_| Error::Invalid("captured prompt expiry is invalid"))?;
-        }
-        let definition = self.definition.as_ref().ok_or(Error::Invalid("captured prompt definition is missing"))?;
-        let values = self.values.as_ref().ok_or(Error::Invalid("captured prompt values are missing"))?;
-        let scope = self.scope.as_ref().ok_or(Error::Invalid("captured prompt scope is missing"))?;
-        let definition_bytes = definition.projection_memory()?;
-        let values_bytes = values.projection_memory()?;
-        let scope_bytes = scope.projection_memory();
-        if [definition_bytes, values_bytes, scope_bytes].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        let fields = [
-            self.prompt_id.capacity(),
-            self.contract_id.capacity(),
-            self.created_at.capacity(),
-            self.expires_at.as_ref().map_or(0, String::capacity),
-            definition_bytes.saturating_sub(std::mem::size_of::<crate::prompts::PromptDefinition>()),
-            values_bytes.saturating_sub(std::mem::size_of::<std::collections::BTreeMap<String, dokime_domain::model::values::Value>>()),
-            scope_bytes.saturating_sub(std::mem::size_of::<RecordScope>()),
-        ];
-        Ok(fields.into_iter().fold(std::mem::size_of::<DomainPrompt>(), usize::saturating_add))
-    }
-}
-
 impl TryFrom<&DomainPrompt> for PromptInstance {
     type Error = Error;
 
     fn try_from(value: &DomainPrompt) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(Error::Invalid("captured prompt encoding memory overflows"));
+        value.created_at.to_datetime()?;
+        if let Some(time) = &value.expires_at {
+            time.to_datetime()?;
         }
         Ok(Self {
             prompt_id: value.prompt_id.as_str().to_owned(),
@@ -153,8 +101,9 @@ impl TryFrom<PromptInstance> for DomainPrompt {
     type Error = Error;
 
     fn try_from(value: PromptInstance) -> Result<Self> {
-        if value.projection_memory()? == usize::MAX {
-            return Err(Error::Invalid("captured prompt projection memory overflows"));
+        OffsetDateTime::parse(&value.created_at, &Rfc3339).map_err(|_| Error::Invalid("captured prompt timestamp is invalid"))?;
+        if let Some(time) = &value.expires_at {
+            OffsetDateTime::parse(time, &Rfc3339).map_err(|_| Error::Invalid("captured prompt expiry is invalid"))?;
         }
         Ok(Self {
             prompt_id: PromptId::from_uuid(value.prompt_id)?,

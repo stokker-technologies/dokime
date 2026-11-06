@@ -54,11 +54,6 @@ struct Sealing {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(contract::FileWatch),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -148,7 +143,6 @@ pub(super) fn prepare(setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, ru
 
     setup.resource::<Host<contract::FileWatch>>(Host::<contract::FileWatch>::new(served));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

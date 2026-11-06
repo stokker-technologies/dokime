@@ -44,7 +44,7 @@ const POLICY: OperationPolicy = OperationPolicy {
 #[derive(Clone, PartialEq)]
 pub struct ChamberReading {
     #[row(description = "What the chamber is at, in °C.")]
-    pub celsius: f64,
+    pub temperature_c: f64,
 
     #[row(
         description = "What read it, for the traceability a template states.\nA template never names this plugin, so anything it wants to say about the bench it reads off a reply: what an operation answers is the whole of what a run knows about the process serving it."
@@ -72,8 +72,11 @@ impl Operation for ReadChamber {
 
     async fn run(self, ctx: Context<'_, Self>) -> Result<Response<ChamberReading>, Refusal> {
         let bench = ctx.resource::<Bench>();
-        let celsius = dokime::plugin::refusal(bench.sensor.read_celsius())?;
-        Ok(Response::new(ChamberReading { celsius, sensor: bench.sensor.describe() }))
+        let temperature_c = dokime::plugin::refusal(bench.sensor.read_celsius())?;
+        Ok(Response::new(ChamberReading {
+            temperature_c,
+            sensor: bench.sensor.describe(),
+        }))
     }
 }
 

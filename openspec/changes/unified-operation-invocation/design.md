@@ -16,6 +16,6 @@ Host execution dispatch attaches a process-local AttemptOwner beside the portabl
 
 StepOperationHost and StepInstance use Dokime Error, converting the underlying sidecar CallError once inside the host/instance boundary. Template error enums retain their existing From<dokime::Error> conversion; await still returns the host-associated error directly, without another surface future or a transitive-conversion requirement.
 
-## Pending Authorization Decision
+## Approved Authorization
 
-The existing blanket `impl<T: Required, O> Called<T> for O where T::Operations: Contains<O>` overlaps unconditional implementations for exempt built-ins. Proposed, pending owner direction: add an inferred proof parameter `Called<C, Proof = Declared>` and keep `ctx.operation(request)` unchanged. Ordinary helpers retain the default proof; built-ins use a distinct proof. Reject a redundant built-in in requires to avoid inference ambiguity. The alternative is requiring built-ins in requires, which changes the existing exemption contract. Neither adjustment is implemented without the owner's decision.
+Use `pub trait Called<C, Proof = Declared> {}` with an inferred proof parameter on `operation`. Declared operations use the default proof and unconditional WatchFile/RunProcess built-ins use BuiltIn. Keep `ctx.operation(request)` unchanged. Reject unconditional built-ins in a template requires catalog with a compile-time diagnostic, including nested catalogs.
