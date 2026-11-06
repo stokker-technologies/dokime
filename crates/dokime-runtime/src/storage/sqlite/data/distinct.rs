@@ -643,7 +643,9 @@ mod tests {
                         } else {
                             dokime_domain::model::values::ValueType::Integer
                         };
-                        TelemetryColumn::new(Metadata::new(Identifier::new(*name).unwrap(), *name, None), value_type, TelemetryRole::Value)
+                        let mut column = TelemetryColumn::new(Metadata::new(Identifier::new(*name).unwrap(), *name, None), value_type, TelemetryRole::Value);
+                        column.nullable = *name == "metric.name";
+                        column
                     }).collect();
                     let contract = TelemetryContract {
                         stream: Identifier::new("fixture").unwrap(),
