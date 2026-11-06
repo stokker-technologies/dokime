@@ -21,7 +21,7 @@
 use super::acquire::{DocumentAcquisitionFailure, acquire};
 use crate::document::{
     DocumentCardBody, DocumentDefinition, DocumentResolveInput, DocumentSelection,
-    bounded::{DocumentLimits, capture_document_borrowed, document_size},
+    bounded::{DocumentLimits, document_size},
 };
 use crate::{RuntimeHandle, queries::RuntimeStateSnapshot};
 use dokime_domain::model::execution::RecordScope;
@@ -161,10 +161,10 @@ impl PreparedCurrentDocument {
         }
         let telemetry = {
             let context = binding_context(&self.snapshot, &self.definition, &self.selection, limits.source_bytes)?;
-            crate::document::binding::telemetry_needed(&self.definition, context)
+            crate::document::binding::repeat_telemetry_needed(&self.definition, context)
         };
         artifacts |= crate::document::binding::artifacts_needed(&self.definition);
-        let records = crate::document::binding::records_needed(&self.definition);
+        let records = crate::document::binding::repeat_records_needed(&self.definition);
         let acquired = acquire(&self.runtime, &self.selection, &self.snapshot, records, telemetry, artifacts, None).await?;
         let records: crate::storage::ReadRows<_> = acquired.records.into();
         let input = DocumentResolveInput {
@@ -184,15 +184,26 @@ impl PreparedCurrentDocument {
         borrowed.data.telemetry = acquired.telemetry.as_deref().map_or(&[], Vec::as_slice);
         borrowed.data.artifacts =
             crate::document::input::Artifacts::Native(acquired.artifacts.as_ref().map_or(&[], |records| records.as_slice()));
-        let capture = capture_document_borrowed(borrowed, limits).map_err(|error| match error {
-            crate::Error::Document(crate::document::DocumentFailure::Limit) => DocumentAcquisitionFailure::Limit,
-            error => DocumentAcquisitionFailure::Source(error.to_string()),
-        })?;
+        let data = borrowed.data;
+        let mut queries = Vec::new();
+        let mut capture =
+            crate::document::resolve::capture_with_queries(borrowed, limits, None, Some(&mut queries)).map_err(|error| match error {
+                crate::Error::Document(crate::document::DocumentFailure::Limit) => DocumentAcquisitionFailure::Limit,
+                error @ crate::Error::Document(crate::document::DocumentFailure::Budget { .. }) => {
+                    DocumentAcquisitionFailure::Budget(error.to_string())
+                }
+                error => DocumentAcquisitionFailure::Source(error.to_string()),
+            })?;
+        let at = acquired.at;
+        let telemetry_queries = crate::document::binding::telemetry_needed(&input.definition, data.context);
+        crate::document::query::summaries(&self.runtime, &self.snapshot, &input.selection, &at, queries, &mut capture, data).await?;
+        crate::document::bounded::card_size(&capture, limits.materialized_bytes, limits.depth, capture.definition.document_id.as_str())
+            .map_err(|error| DocumentAcquisitionFailure::Budget(error.to_string()))?;
         Ok(CurrentDocumentCapture {
             capture,
             process_epoch: self.snapshot.state().process_epoch().to_string(),
             state_revision: self.snapshot.revision(),
-            telemetry_cut: acquired.telemetry_cut,
+            telemetry_cut: acquired.telemetry_cut.or_else(|| telemetry_queries.then_some(at)),
             artifacts_sha256: acquired.artifacts_sha256,
         })
     }

@@ -211,6 +211,46 @@ impl Moments {
 }
 
 impl crate::storage::sqlite::State {
+    pub(crate) async fn document_moments(
+        &self, execution: String, stream: String, field: String, at: harmos::storage::StorageCursor,
+    ) -> Result<Option<Moments>, Error> {
+        self.read(move |connection| {
+            Ok((|| {
+                let head = super::super::saved(connection)?;
+                if head.history != at.history || head.sequence != at.sequence {
+                    return Ok(None);
+                }
+                let shared: bool = connection.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM streams s WHERE s.stream=?2 AND s.execution IS NOT ?1
+                     AND EXISTS(SELECT 1 FROM stream_captures c WHERE c.execution=?1 AND c.file_id=s.file_id))",
+                    params![execution, stream],
+                    |row| row.get(0),
+                )?;
+                if shared {
+                    return Ok(None);
+                }
+                let bytes: Option<Vec<u8>> = connection
+                    .query_row(
+                        "SELECT moments FROM storage_numeric_summaries WHERE execution=?1 AND stream=?2 AND field=?3",
+                        params![execution, stream, field],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                let Some(bytes) = bytes else {
+                    return Ok(None);
+                };
+                let moments = Moments::decode(&bytes)?;
+                let captured: i64 = connection.query_row(
+                    "SELECT COALESCE(SUM(s.rows),0) FROM streams s WHERE s.execution=?1 AND s.stream=?2",
+                    params![execution, stream],
+                    |row| row.get(0),
+                )?;
+                Ok((u64::try_from(captured).ok() == Some(moments.count)).then_some(moments))
+            })())
+        })
+        .await?
+    }
+
     pub(crate) async fn numeric_summaries(&self, execution: String) -> Result<Vec<NumericSummary>, Error> {
         self.read(move |connection| Ok(numeric_summaries(connection, execution))).await?
     }

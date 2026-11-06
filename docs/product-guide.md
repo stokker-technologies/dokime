@@ -1177,6 +1177,14 @@ verdicts stand and no partial report is kept. Retrying cycle sealing publishes
 from the same persisted boundary, including after a restart. Cycle Seal also
 finalizes an empty cycle with its report.
 
+Live summary tiles query saved evidence at a fixed capture boundary. Numeric folds
+retain bounded working state, and exact median/percentile values spill rank scratch
+instead of collecting a run's samples into the document. Record summaries seek
+indexed record pages. Building a document no longer estimates evaluation cost from
+its definition size multiplied by source rows, and there is no document source-row
+ceiling. Limits apply to actual encoded output and expanded nodes; an exceeded
+card budget identifies the card, budget, limit and reached amount.
+
 ## Finite Evidence Queries
 
 The Python client discovers executions and cycles in the connected backend's

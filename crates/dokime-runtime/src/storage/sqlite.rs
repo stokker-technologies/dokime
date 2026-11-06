@@ -22,7 +22,7 @@ pub use catalog::Source;
 pub use data::Backend;
 pub(crate) use data::telemetry::StreamFile;
 pub(crate) use data::telemetry::aggregates::Moments;
-pub(crate) use data::telemetry::query::{QueryRead, QueryWork, storage_error};
+pub(crate) use data::telemetry::query::{QueryProjection, QueryRead, QueryWork, storage_error};
 pub use rusqlite;
 
 /* === Imports === */

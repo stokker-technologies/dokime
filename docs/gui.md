@@ -87,6 +87,14 @@ HTML share this formatter. Keep structured units separate from authored labels.
 Table headings truncate as a whole with the full label in a tooltip, while sort
 and filter controls remain usable. Preserve the case of unit symbols.
 
+## Document Summaries
+
+Live document summary tiles query one saved evidence cut using bounded folds and
+exact order statistics. They do not load the run's telemetry into a document input
+array or reject estimated definition-size-times-row work. Plots retain their
+existing independent query path. Actual output and expansion limits report the
+budget, limit, amount reached and affected card.
+
 ## Telemetry Plots
 
 Live and frozen report plots retain samples from the selected execution,
