@@ -355,7 +355,14 @@ impl RuntimeHandle {
         if self.execution_storage.acquisition(id).await.is_none() {
             self.execution_storage.acquire(cycle, execution).await?;
         }
-        self.capture_report_lifecycle(execution).await?;
+        {
+            let gate = self.execution_storage.materialization_gate(id).await?;
+            let _capture = gate.lock().await;
+            if self.adopt_saved_execution(id).await? {
+                return Ok(());
+            }
+            self.capture_report_lifecycle(execution).await?;
+        }
         crate::runtime::operations::reports::Resources::from_runtime(self)
             .materialize(crate::operations::reports::MaterializeReport {
                 subject: ReportSubject::Execution(id.to_string()),
