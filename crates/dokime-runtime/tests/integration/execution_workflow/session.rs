@@ -391,8 +391,7 @@ impl EmbeddedProvider for Provider {
 /* === Private Functions === */
 async fn save_scan_interval(runtime: &RuntimeHandle, seconds: u32) -> PluginRestart {
     let host = identifier(HOST);
-    let mut values = runtime.plugin_settings(&host).await.unwrap().values;
-    values.insert(SCAN_INTERVAL.into(), dokime_runtime::Value::from(seconds));
+    let values = std::collections::BTreeMap::from([(SCAN_INTERVAL.into(), dokime_runtime::Value::Number(f64::from(seconds)))]);
     runtime.save_plugin_settings(&host, PluginSettingsUpdate { values }).await.unwrap().restart
 }
 
@@ -728,16 +727,48 @@ pub(crate) async fn provider_failure_releases() {
     owner.shutdown().await.unwrap();
 }
 
-// A Saved Change Restarts The Idle Host Plugin With It; Saving It Again Restarts Nothing.
-pub(crate) async fn saved_change_restarts() {
+// Saved Values Wait For Explicit Reload And Are Visible To Independent Readers.
+pub(crate) async fn saved_change_waits_for_reload() {
     let root = tempdir().unwrap();
     let (mut owner, handle) = started(config(root.path()).with_plugins([crate::service_support::bundles::host_plugin()])).await;
     let (generation, prepared, _) = prepared_scan_interval(&owner).await;
+    assert!(handle.plugin_settings(&identifier(HOST)).await.unwrap().unapplied.is_empty());
 
-    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Restarting);
+    let equivalent = Value::Integer(dokime_domain::model::values::numeric_value(&prepared).unwrap() as i64);
+    handle
+        .save_plugin_settings(
+            &identifier(HOST),
+            PluginSettingsUpdate {
+                values: std::collections::BTreeMap::from([(SCAN_INTERVAL.into(), equivalent)]),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(handle.plugin_settings(&identifier(HOST)).await.unwrap().unapplied.is_empty());
+    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Idle);
+    let unchanged = prepared_scan_interval(&owner).await;
+    assert_eq!(unchanged.0, generation);
+    assert_eq!(unchanged.1, prepared);
+    for reader in [handle.clone(), owner.handle()] {
+        assert_eq!(reader.plugin_settings(&identifier(HOST)).await.unwrap().unapplied, [SCAN_INTERVAL]);
+    }
+    handle
+        .save_plugin_settings(
+            &identifier(HOST),
+            PluginSettingsUpdate {
+                values: std::collections::BTreeMap::from([(SCAN_INTERVAL.into(), prepared.clone())]),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(handle.plugin_settings(&identifier(HOST)).await.unwrap().unapplied.is_empty());
+    assert_eq!(prepared_scan_interval(&owner).await.0, generation);
+    save_scan_interval(&handle, 47).await;
+    assert_eq!(handle.reload_plugin_program(&identifier(HOST)), PluginRestart::Restarting);
     handle.plugin_restart_settled(&identifier(HOST)).await;
+    assert!(handle.plugin_settings(&identifier(HOST)).await.unwrap().unapplied.is_empty());
     let (restarted, applied, saved) = prepared_scan_interval(&owner).await;
-    assert_ne!(restarted, generation, "the save started a new generation");
+    assert_ne!(restarted, generation, "reload started a new generation");
     assert_ne!(applied, prepared);
     assert_eq!(applied, saved, "the new generation prepared with the saved value");
 
@@ -747,9 +778,8 @@ pub(crate) async fn saved_change_restarts() {
     owner.shutdown().await.unwrap();
 }
 
-// A Save While A Cycle Is Active Waits Across The Gap Between Its Cases, Then Restarts Once With
-// The Latest Value; With The Cycle Idle Again, A Save Restarts At Once.
-pub(crate) async fn saved_change_waits_for_cycle() {
+// Reload Waits Across Active Cases And Applies The Latest Saved Values.
+pub(crate) async fn reload_waits_for_cycle() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::Held));
     let configuration =
@@ -759,7 +789,8 @@ pub(crate) async fn saved_change_waits_for_cycle() {
     let (generation, prepared, _) = prepared_scan_interval(&owner).await;
     let cycle_id = held_cycle(&handle, &probe, metadata("session.restart", "Pending Restart")).await;
 
-    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Pending);
+    assert_eq!(save_scan_interval(&handle, 47).await, PluginRestart::Idle);
+    assert_eq!(handle.reload_plugin_program(&identifier(HOST)), PluginRestart::Pending);
     assert_eq!(save_scan_interval(&handle, 48).await, PluginRestart::Pending);
     assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
     next_case(&probe).await;
@@ -779,9 +810,10 @@ pub(crate) async fn saved_change_waits_for_cycle() {
     assert_eq!(applied, saved, "the restart prepared with the latest saved value");
 
     // The Idle Cycle Stays Open, Yet Nothing Is Active.
-    assert_eq!(save_scan_interval(&handle, 49).await, PluginRestart::Restarting);
+    assert_eq!(save_scan_interval(&handle, 49).await, PluginRestart::Idle);
+    assert_eq!(handle.reload_plugin_program(&identifier(HOST)), PluginRestart::Restarting);
     handle.plugin_restart_settled(&identifier(HOST)).await;
-    assert_ne!(prepared_scan_interval(&owner).await.0, restarted, "a save with no active cycle restarts at once");
+    assert_ne!(prepared_scan_interval(&owner).await.0, restarted, "reload with no active cycle restarts at once");
     probe.runtime.lock().unwrap().take();
     drop(handle);
     owner.shutdown().await.unwrap();
@@ -909,7 +941,7 @@ pub(crate) async fn installs_apply_live() {
     assert_ne!(replaced, started);
 
     // A Retry Starts Only This Plugin Again.
-    let retried = handle.retry_plugin(second.installation.install_id).await.unwrap();
+    let retried = handle.reload_installed_plugin(second.installation.install_id).await.unwrap();
     settled(&handle, &retried).await;
     handle.plugin_restart_settled(&identifier(HOST)).await;
     let restarted = running_generation(&owner).await.expect("the retried program runs");
@@ -1031,7 +1063,7 @@ pub(crate) async fn refused_replacement_keeps_running() {
 
 // A Refused Restart Keeps The Running Generation; Retry Starts One Plugin Again Once The Cause Is Fixed.
 // While A Cycle Is Active, Retry Starts A Plugin That Did Not Start At Once, And Restarting One That Runs Waits.
-pub(crate) async fn retry_restarts_one_plugin() {
+pub(crate) async fn reload_restarts_one_plugin() {
     let root = tempdir().unwrap();
     let probe = Arc::new(Probe::new(Settlement::Held));
     let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
@@ -1042,14 +1074,14 @@ pub(crate) async fn retry_restarts_one_plugin() {
     let install = host.installation.install_id;
     let generation = running_generation(&owner).await.expect("the installed program runs");
     save_unresolvable(&handle, install, true).await;
-    handle.retry_plugin(install).await.unwrap();
+    handle.reload_installed_plugin(install).await.unwrap();
     handle.plugin_restart_settled(&identifier(HOST)).await;
     let refused = installation(&handle, install).await;
     assert!(refused.active && !refused.boot_failed, "the previous generation still runs");
     assert!(matches!(refused.installation.last_boot, Some(PluginLastBoot::Failed { .. })));
     assert_eq!(running_generation(&owner).await, Some(generation));
     save_unresolvable(&handle, install, false).await;
-    handle.retry_plugin(install).await.unwrap();
+    handle.reload_installed_plugin(install).await.unwrap();
     handle.plugin_restart_settled(&identifier(HOST)).await;
     let retried = installation(&handle, install).await;
     assert!(retried.active && matches!(retried.installation.last_boot, Some(PluginLastBoot::Loaded { .. })));
@@ -1074,7 +1106,7 @@ pub(crate) async fn retry_restarts_one_plugin() {
         })
         .await
         .unwrap();
-    let retried = handle.retry_plugin(failed.installation.install_id).await.unwrap();
+    let retried = handle.reload_installed_plugin(failed.installation.install_id).await.unwrap();
     assert_ne!(installation(&handle, retried.installation.install_id).await.restart, PluginRestart::Pending);
     let retried = settled(&handle, &retried).await;
     let Some(PluginLastBoot::Failed { failure, .. }) = &retried.installation.last_boot else { panic!("the inert program cannot start") };
@@ -1082,7 +1114,7 @@ pub(crate) async fn retry_restarts_one_plugin() {
     assert!(installation(&handle, install).await.active, "retrying one plugin leaves the others running");
 
     // Retrying A Running Plugin Restarts It Once The Cycle Ends.
-    handle.retry_plugin(install).await.unwrap();
+    handle.reload_installed_plugin(install).await.unwrap();
     assert_eq!(handle.plugin_settings(&identifier(HOST)).await.unwrap().restart, PluginRestart::Pending);
     next_case(&probe).await;
     assert_eq!(running_generation(&owner).await, Some(generation), "the running plugin keeps its generation during the cycle");

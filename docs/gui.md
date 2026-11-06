@@ -234,21 +234,18 @@ Untouched baseline files do not clutter the tree; new empty files remain visible
   Secret declarations show identifiers and availability read-only; Add In Secret
   Storage opens the shared Add Secret dialog prefilled with the identifier.
   Every owner in an inactive bundle remains visible. Add missing identifiers, then
-  use the page's **Retry**, which calls `Plugins.Retry` for that installation only.
-- A saved settings change restarts its program. The plugin's status badge reads
-  Restarting… while the new generation starts, and Restart Pending, explained as
-  applying after plugin work completes, while an execution runs, pauses or stops,
-  a prepared run waits, automatic continuation is between cases, or plugin streams
-  still drain. Completed means a terminal execution outcome, settled plugin cleanup
-  and stream drain, and durably frozen report inputs. Sealing and report publication
-  after that boundary do not keep Restart Pending, even if sealing fails or stalls.
-  Both states come from `PluginRuntimeSettings.restart`;
-  while one holds, the page re-reads the plugin views whenever the backend's
-  operations change, since the restart runs as one. A restart refused before the
-  program stopped shows **Restart Refused** with **Retry** while the plugin stays
-  active; a failed new generation surfaces like a failed startup. **Retry** starts
-  a plugin that does not run at once, even during a cycle; retrying a running one
-  shows Restart Pending until no work can reach a plugin.
+  use the page's **Reload**, which calls `Plugins.Reload` for that installation only.
+- Saving plugin settings keeps its running generation unchanged. Fields whose saved
+  values differ from its startup settings show **Applied On Reload** with a warning
+  highlight. The backend computes these marks, so reopening the view, restarting
+  the GUI or attaching another GUI preserves them. Restarting the backend starts
+  programs with saved values. Every plugin page offers **Reload**, and the plugin
+  table puts status in its own column beside direct Settings, Reload and Delete
+  actions. Reload applies saved settings and restarts all observers, including
+  plugin-activated observers. It waits as **Restart Pending** while active work
+  owns the plugin; preparation refusal keeps the running generation and marks,
+  with **Restart Refused** and its reason. A plugin that does not run starts at
+  once. A successful reload clears marks for the values it applied.
 - Install, reinstall, update, enable, disable and remove apply in the running
   backend; no plugin action prompts to restart the application. After a successful
   live stop, removed or replaced installations disappear with their bundles.

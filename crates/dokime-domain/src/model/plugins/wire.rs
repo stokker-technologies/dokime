@@ -253,7 +253,7 @@ mod tests {
         let mut failure = PluginStartFailure {
             plugin_id: "example".to_owned(),
             plugin_name: "example-plugin".to_owned(),
-            message: "Plugin example-plugin could not start: secret `api_token` is not in Secret Storage; add it and retry the plugin"
+            message: "Plugin example-plugin could not start: secret `api_token` is not in Secret Storage; add it and reload the plugin"
                 .to_owned(),
             code: Some("10001".to_owned()),
             missing_secret: Some("api_token".to_owned()),

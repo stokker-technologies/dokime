@@ -2,8 +2,8 @@ from dokime_client._wire.dokime.v1.PluginsMessages.GetInstallation import messag
 from dokime_client._wire.dokime.v1.PluginsMessages.Install import messages_pb2 as _messages_pb2_1
 from dokime_client._wire.dokime.v1.PluginsMessages.ListAdmittedPlugins import messages_pb2 as _messages_pb2_1_1
 from dokime_client._wire.dokime.v1.PluginsMessages.ListInstallations import messages_pb2 as _messages_pb2_1_1_1
-from dokime_client._wire.dokime.v1.PluginsMessages.Remove import messages_pb2 as _messages_pb2_1_1_1_1
-from dokime_client._wire.dokime.v1.PluginsMessages.Retry import messages_pb2 as _messages_pb2_1_1_1_1_1
+from dokime_client._wire.dokime.v1.PluginsMessages.Reload import messages_pb2 as _messages_pb2_1_1_1_1
+from dokime_client._wire.dokime.v1.PluginsMessages.Remove import messages_pb2 as _messages_pb2_1_1_1_1_1
 from dokime_client._wire.dokime.v1.PluginsMessages.SetEnabled import messages_pb2 as _messages_pb2_1_1_1_1_1_1
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
@@ -102,6 +102,26 @@ class PluginsListInstallationsRunOutput(_message.Message):
     response: _messages_pb2_1_1_1.Row2
     def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1.Row2, _Mapping]] = ...) -> None: ...
 
+class PluginsReloadCancellation(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class PluginsReloadRunInput(_message.Message):
+    __slots__ = ("request", "cancel", "finish")
+    REQUEST_FIELD_NUMBER: _ClassVar[int]
+    CANCEL_FIELD_NUMBER: _ClassVar[int]
+    FINISH_FIELD_NUMBER: _ClassVar[int]
+    request: _messages_pb2_1_1_1_1.Row1
+    cancel: PluginsReloadCancellation
+    finish: PluginsReloadCancellation
+    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[PluginsReloadCancellation, _Mapping]] = ..., finish: _Optional[_Union[PluginsReloadCancellation, _Mapping]] = ...) -> None: ...
+
+class PluginsReloadRunOutput(_message.Message):
+    __slots__ = ("response",)
+    RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    response: _messages_pb2_1_1_1_1.Row2
+    def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
+
 class PluginsRemoveCancellation(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
@@ -111,32 +131,12 @@ class PluginsRemoveRunInput(_message.Message):
     REQUEST_FIELD_NUMBER: _ClassVar[int]
     CANCEL_FIELD_NUMBER: _ClassVar[int]
     FINISH_FIELD_NUMBER: _ClassVar[int]
-    request: _messages_pb2_1_1_1_1.Row1
+    request: _messages_pb2_1_1_1_1_1.Row1
     cancel: PluginsRemoveCancellation
     finish: PluginsRemoveCancellation
-    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[PluginsRemoveCancellation, _Mapping]] = ..., finish: _Optional[_Union[PluginsRemoveCancellation, _Mapping]] = ...) -> None: ...
+    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[PluginsRemoveCancellation, _Mapping]] = ..., finish: _Optional[_Union[PluginsRemoveCancellation, _Mapping]] = ...) -> None: ...
 
 class PluginsRemoveRunOutput(_message.Message):
-    __slots__ = ("response",)
-    RESPONSE_FIELD_NUMBER: _ClassVar[int]
-    response: _messages_pb2_1_1_1_1.Row2
-    def __init__(self, response: _Optional[_Union[_messages_pb2_1_1_1_1.Row2, _Mapping]] = ...) -> None: ...
-
-class PluginsRetryCancellation(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class PluginsRetryRunInput(_message.Message):
-    __slots__ = ("request", "cancel", "finish")
-    REQUEST_FIELD_NUMBER: _ClassVar[int]
-    CANCEL_FIELD_NUMBER: _ClassVar[int]
-    FINISH_FIELD_NUMBER: _ClassVar[int]
-    request: _messages_pb2_1_1_1_1_1.Row1
-    cancel: PluginsRetryCancellation
-    finish: PluginsRetryCancellation
-    def __init__(self, request: _Optional[_Union[_messages_pb2_1_1_1_1_1.Row1, _Mapping]] = ..., cancel: _Optional[_Union[PluginsRetryCancellation, _Mapping]] = ..., finish: _Optional[_Union[PluginsRetryCancellation, _Mapping]] = ...) -> None: ...
-
-class PluginsRetryRunOutput(_message.Message):
     __slots__ = ("response",)
     RESPONSE_FIELD_NUMBER: _ClassVar[int]
     response: _messages_pb2_1_1_1_1_1.Row2

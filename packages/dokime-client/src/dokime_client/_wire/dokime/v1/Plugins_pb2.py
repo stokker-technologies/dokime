@@ -25,8 +25,8 @@ from dokime_client._wire.dokime.v1.PluginsMessages.GetInstallation import messag
 from dokime_client._wire.dokime.v1.PluginsMessages.Install import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_Install_dot_messages__pb2
 from dokime_client._wire.dokime.v1.PluginsMessages.ListAdmittedPlugins import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_ListAdmittedPlugins_dot_messages__pb2
 from dokime_client._wire.dokime.v1.PluginsMessages.ListInstallations import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_ListInstallations_dot_messages__pb2
+from dokime_client._wire.dokime.v1.PluginsMessages.Reload import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_Reload_dot_messages__pb2
 from dokime_client._wire.dokime.v1.PluginsMessages.Remove import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_Remove_dot_messages__pb2
-from dokime_client._wire.dokime.v1.PluginsMessages.Retry import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_Retry_dot_messages__pb2
 from dokime_client._wire.dokime.v1.PluginsMessages.SetEnabled import messages_pb2 as dokime__client_dot___wire_dot_dokime_dot_v1_dot_PluginsMessages_dot_SetEnabled_dot_messages__pb2
 
 # Type Checking Imports
@@ -52,59 +52,59 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Plugins.proto\x12\tdokime.v1\x1aLdokime_client/_wire/dokime/v1/PluginsMessages/GetInstallation/messages.proto\x1a\x44\x64okime_client/_wire/dokime/v1/PluginsMessages/Install/messages.proto\x1aPdokime_client/_wire/dokime/v1/PluginsMessages/ListAdmittedPlugins/messages.proto\x1aNdokime_client/_wire/dokime/v1/PluginsMessages/ListInstallations/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/PluginsMessages/Remove/messages.proto\x1a\x42\x64okime_client/_wire/dokime/v1/PluginsMessages/Retry/messages.proto\x1aGdokime_client/_wire/dokime/v1/PluginsMessages/SetEnabled/messages.proto\"$\n\"PluginsGetInstallationCancellation\"\x88\x02\n\x1ePluginsGetInstallationRunInput\x12K\n\x07request\x18\x01 \x01(\x0b\x32/.dokime.v1.PluginsMessages.GetInstallation.Row1H\x00R\x07request\x12G\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32-.dokime.v1.PluginsGetInstallationCancellationH\x00R\x06\x63\x61ncel\x12G\n\x06\x66inish\x18\x04 \x01(\x0b\x32-.dokime.v1.PluginsGetInstallationCancellationH\x00R\x06\x66inishB\x07\n\x05value\"y\n\x1fPluginsGetInstallationRunOutput\x12M\n\x08response\x18\x02 \x01(\x0b\x32/.dokime.v1.PluginsMessages.GetInstallation.Row2H\x00R\x08responseB\x07\n\x05value\"\xa2\x01\n\x13PluginsInstallInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row1H\x00R\x07request\x12=\n\x04item\x18\x02 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row3H\x00R\x04itemB\x07\n\x05value\"\x1c\n\x1aPluginsInstallCancellation\"\xa7\x02\n\x16PluginsInstallRunInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row1H\x00R\x07request\x12?\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32%.dokime.v1.PluginsInstallCancellationH\x00R\x06\x63\x61ncel\x12?\n\x06\x66inish\x18\x04 \x01(\x0b\x32%.dokime.v1.PluginsInstallCancellationH\x00R\x06\x66inish\x12=\n\x04item\x18\x02 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row3H\x00R\x04itemB\x07\n\x05value\"i\n\x17PluginsInstallRunOutput\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row2H\x00R\x08responseB\x07\n\x05value\"(\n&PluginsListAdmittedPluginsCancellation\"\x98\x02\n\"PluginsListAdmittedPluginsRunInput\x12O\n\x07request\x18\x01 \x01(\x0b\x32\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row1H\x00R\x07request\x12K\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x31.dokime.v1.PluginsListAdmittedPluginsCancellationH\x00R\x06\x63\x61ncel\x12K\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x31.dokime.v1.PluginsListAdmittedPluginsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x81\x01\n#PluginsListAdmittedPluginsRunOutput\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row2H\x00R\x08responseB\x07\n\x05value\"&\n$PluginsListInstallationsCancellation\"\x90\x02\n PluginsListInstallationsRunInput\x12M\n\x07request\x18\x01 \x01(\x0b\x32\x31.dokime.v1.PluginsMessages.ListInstallations.Row1H\x00R\x07request\x12I\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32/.dokime.v1.PluginsListInstallationsCancellationH\x00R\x06\x63\x61ncel\x12I\n\x06\x66inish\x18\x04 \x01(\x0b\x32/.dokime.v1.PluginsListInstallationsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"}\n!PluginsListInstallationsRunOutput\x12O\n\x08response\x18\x02 \x01(\x0b\x32\x31.dokime.v1.PluginsMessages.ListInstallations.Row2H\x00R\x08responseB\x07\n\x05value\"\x1b\n\x19PluginsRemoveCancellation\"\xe4\x01\n\x15PluginsRemoveRunInput\x12\x42\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.PluginsMessages.Remove.Row1H\x00R\x07request\x12>\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32$.dokime.v1.PluginsRemoveCancellationH\x00R\x06\x63\x61ncel\x12>\n\x06\x66inish\x18\x04 \x01(\x0b\x32$.dokime.v1.PluginsRemoveCancellationH\x00R\x06\x66inishB\x07\n\x05value\"g\n\x16PluginsRemoveRunOutput\x12\x44\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.PluginsMessages.Remove.Row2H\x00R\x08responseB\x07\n\x05value\"\x1a\n\x18PluginsRetryCancellation\"\xe0\x01\n\x14PluginsRetryRunInput\x12\x41\n\x07request\x18\x01 \x01(\x0b\x32%.dokime.v1.PluginsMessages.Retry.Row1H\x00R\x07request\x12=\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32#.dokime.v1.PluginsRetryCancellationH\x00R\x06\x63\x61ncel\x12=\n\x06\x66inish\x18\x04 \x01(\x0b\x32#.dokime.v1.PluginsRetryCancellationH\x00R\x06\x66inishB\x07\n\x05value\"e\n\x15PluginsRetryRunOutput\x12\x43\n\x08response\x18\x02 \x01(\x0b\x32%.dokime.v1.PluginsMessages.Retry.Row2H\x00R\x08responseB\x07\n\x05value\"\x1f\n\x1dPluginsSetEnabledCancellation\"\xf4\x01\n\x19PluginsSetEnabledRunInput\x12\x46\n\x07request\x18\x01 \x01(\x0b\x32*.dokime.v1.PluginsMessages.SetEnabled.Row1H\x00R\x07request\x12\x42\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32(.dokime.v1.PluginsSetEnabledCancellationH\x00R\x06\x63\x61ncel\x12\x42\n\x06\x66inish\x18\x04 \x01(\x0b\x32(.dokime.v1.PluginsSetEnabledCancellationH\x00R\x06\x66inishB\x07\n\x05value\"o\n\x1aPluginsSetEnabledRunOutput\x12H\n\x08response\x18\x02 \x01(\x0b\x32*.dokime.v1.PluginsMessages.SetEnabled.Row2H\x00R\x08responseB\x07\n\x05value2\xb0\x0b\n\x07Plugins\x12s\n\x0fGetInstallation\x12/.dokime.v1.PluginsMessages.GetInstallation.Row1\x1a/.dokime.v1.PluginsMessages.GetInstallation.Row2\x12o\n\x12RunGetInstallation\x12).dokime.v1.PluginsGetInstallationRunInput\x1a*.dokime.v1.PluginsGetInstallationRunOutput(\x01\x30\x01\x12T\n\x07Install\x12\x1e.dokime.v1.PluginsInstallInput\x1a\'.dokime.v1.PluginsMessages.Install.Row2(\x01\x12W\n\nRunInstall\x12!.dokime.v1.PluginsInstallRunInput\x1a\".dokime.v1.PluginsInstallRunOutput(\x01\x30\x01\x12\x7f\n\x13ListAdmittedPlugins\x12\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row1\x1a\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row2\x12{\n\x16RunListAdmittedPlugins\x12-.dokime.v1.PluginsListAdmittedPluginsRunInput\x1a..dokime.v1.PluginsListAdmittedPluginsRunOutput(\x01\x30\x01\x12y\n\x11ListInstallations\x12\x31.dokime.v1.PluginsMessages.ListInstallations.Row1\x1a\x31.dokime.v1.PluginsMessages.ListInstallations.Row2\x12u\n\x14RunListInstallations\x12+.dokime.v1.PluginsListInstallationsRunInput\x1a,.dokime.v1.PluginsListInstallationsRunOutput(\x01\x30\x01\x12X\n\x06Remove\x12&.dokime.v1.PluginsMessages.Remove.Row1\x1a&.dokime.v1.PluginsMessages.Remove.Row2\x12T\n\tRunRemove\x12 .dokime.v1.PluginsRemoveRunInput\x1a!.dokime.v1.PluginsRemoveRunOutput(\x01\x30\x01\x12U\n\x05Retry\x12%.dokime.v1.PluginsMessages.Retry.Row1\x1a%.dokime.v1.PluginsMessages.Retry.Row2\x12Q\n\x08RunRetry\x12\x1f.dokime.v1.PluginsRetryRunInput\x1a .dokime.v1.PluginsRetryRunOutput(\x01\x30\x01\x12\x64\n\nSetEnabled\x12*.dokime.v1.PluginsMessages.SetEnabled.Row1\x1a*.dokime.v1.PluginsMessages.SetEnabled.Row2\x12`\n\rRunSetEnabled\x12$.dokime.v1.PluginsSetEnabledRunInput\x1a%.dokime.v1.PluginsSetEnabledRunOutput(\x01\x30\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n+dokime_client/_wire/dokime/v1/Plugins.proto\x12\tdokime.v1\x1aLdokime_client/_wire/dokime/v1/PluginsMessages/GetInstallation/messages.proto\x1a\x44\x64okime_client/_wire/dokime/v1/PluginsMessages/Install/messages.proto\x1aPdokime_client/_wire/dokime/v1/PluginsMessages/ListAdmittedPlugins/messages.proto\x1aNdokime_client/_wire/dokime/v1/PluginsMessages/ListInstallations/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/PluginsMessages/Reload/messages.proto\x1a\x43\x64okime_client/_wire/dokime/v1/PluginsMessages/Remove/messages.proto\x1aGdokime_client/_wire/dokime/v1/PluginsMessages/SetEnabled/messages.proto\"$\n\"PluginsGetInstallationCancellation\"\x88\x02\n\x1ePluginsGetInstallationRunInput\x12K\n\x07request\x18\x01 \x01(\x0b\x32/.dokime.v1.PluginsMessages.GetInstallation.Row1H\x00R\x07request\x12G\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32-.dokime.v1.PluginsGetInstallationCancellationH\x00R\x06\x63\x61ncel\x12G\n\x06\x66inish\x18\x04 \x01(\x0b\x32-.dokime.v1.PluginsGetInstallationCancellationH\x00R\x06\x66inishB\x07\n\x05value\"y\n\x1fPluginsGetInstallationRunOutput\x12M\n\x08response\x18\x02 \x01(\x0b\x32/.dokime.v1.PluginsMessages.GetInstallation.Row2H\x00R\x08responseB\x07\n\x05value\"\xa2\x01\n\x13PluginsInstallInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row1H\x00R\x07request\x12=\n\x04item\x18\x02 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row3H\x00R\x04itemB\x07\n\x05value\"\x1c\n\x1aPluginsInstallCancellation\"\xa7\x02\n\x16PluginsInstallRunInput\x12\x43\n\x07request\x18\x01 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row1H\x00R\x07request\x12?\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32%.dokime.v1.PluginsInstallCancellationH\x00R\x06\x63\x61ncel\x12?\n\x06\x66inish\x18\x04 \x01(\x0b\x32%.dokime.v1.PluginsInstallCancellationH\x00R\x06\x66inish\x12=\n\x04item\x18\x02 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row3H\x00R\x04itemB\x07\n\x05value\"i\n\x17PluginsInstallRunOutput\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.PluginsMessages.Install.Row2H\x00R\x08responseB\x07\n\x05value\"(\n&PluginsListAdmittedPluginsCancellation\"\x98\x02\n\"PluginsListAdmittedPluginsRunInput\x12O\n\x07request\x18\x01 \x01(\x0b\x32\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row1H\x00R\x07request\x12K\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32\x31.dokime.v1.PluginsListAdmittedPluginsCancellationH\x00R\x06\x63\x61ncel\x12K\n\x06\x66inish\x18\x04 \x01(\x0b\x32\x31.dokime.v1.PluginsListAdmittedPluginsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"\x81\x01\n#PluginsListAdmittedPluginsRunOutput\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row2H\x00R\x08responseB\x07\n\x05value\"&\n$PluginsListInstallationsCancellation\"\x90\x02\n PluginsListInstallationsRunInput\x12M\n\x07request\x18\x01 \x01(\x0b\x32\x31.dokime.v1.PluginsMessages.ListInstallations.Row1H\x00R\x07request\x12I\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32/.dokime.v1.PluginsListInstallationsCancellationH\x00R\x06\x63\x61ncel\x12I\n\x06\x66inish\x18\x04 \x01(\x0b\x32/.dokime.v1.PluginsListInstallationsCancellationH\x00R\x06\x66inishB\x07\n\x05value\"}\n!PluginsListInstallationsRunOutput\x12O\n\x08response\x18\x02 \x01(\x0b\x32\x31.dokime.v1.PluginsMessages.ListInstallations.Row2H\x00R\x08responseB\x07\n\x05value\"\x1b\n\x19PluginsReloadCancellation\"\xe4\x01\n\x15PluginsReloadRunInput\x12\x42\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.PluginsMessages.Reload.Row1H\x00R\x07request\x12>\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32$.dokime.v1.PluginsReloadCancellationH\x00R\x06\x63\x61ncel\x12>\n\x06\x66inish\x18\x04 \x01(\x0b\x32$.dokime.v1.PluginsReloadCancellationH\x00R\x06\x66inishB\x07\n\x05value\"g\n\x16PluginsReloadRunOutput\x12\x44\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.PluginsMessages.Reload.Row2H\x00R\x08responseB\x07\n\x05value\"\x1b\n\x19PluginsRemoveCancellation\"\xe4\x01\n\x15PluginsRemoveRunInput\x12\x42\n\x07request\x18\x01 \x01(\x0b\x32&.dokime.v1.PluginsMessages.Remove.Row1H\x00R\x07request\x12>\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32$.dokime.v1.PluginsRemoveCancellationH\x00R\x06\x63\x61ncel\x12>\n\x06\x66inish\x18\x04 \x01(\x0b\x32$.dokime.v1.PluginsRemoveCancellationH\x00R\x06\x66inishB\x07\n\x05value\"g\n\x16PluginsRemoveRunOutput\x12\x44\n\x08response\x18\x02 \x01(\x0b\x32&.dokime.v1.PluginsMessages.Remove.Row2H\x00R\x08responseB\x07\n\x05value\"\x1f\n\x1dPluginsSetEnabledCancellation\"\xf4\x01\n\x19PluginsSetEnabledRunInput\x12\x46\n\x07request\x18\x01 \x01(\x0b\x32*.dokime.v1.PluginsMessages.SetEnabled.Row1H\x00R\x07request\x12\x42\n\x06\x63\x61ncel\x18\x03 \x01(\x0b\x32(.dokime.v1.PluginsSetEnabledCancellationH\x00R\x06\x63\x61ncel\x12\x42\n\x06\x66inish\x18\x04 \x01(\x0b\x32(.dokime.v1.PluginsSetEnabledCancellationH\x00R\x06\x66inishB\x07\n\x05value\"o\n\x1aPluginsSetEnabledRunOutput\x12H\n\x08response\x18\x02 \x01(\x0b\x32*.dokime.v1.PluginsMessages.SetEnabled.Row2H\x00R\x08responseB\x07\n\x05value2\xb6\x0b\n\x07Plugins\x12s\n\x0fGetInstallation\x12/.dokime.v1.PluginsMessages.GetInstallation.Row1\x1a/.dokime.v1.PluginsMessages.GetInstallation.Row2\x12o\n\x12RunGetInstallation\x12).dokime.v1.PluginsGetInstallationRunInput\x1a*.dokime.v1.PluginsGetInstallationRunOutput(\x01\x30\x01\x12T\n\x07Install\x12\x1e.dokime.v1.PluginsInstallInput\x1a\'.dokime.v1.PluginsMessages.Install.Row2(\x01\x12W\n\nRunInstall\x12!.dokime.v1.PluginsInstallRunInput\x1a\".dokime.v1.PluginsInstallRunOutput(\x01\x30\x01\x12\x7f\n\x13ListAdmittedPlugins\x12\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row1\x1a\x33.dokime.v1.PluginsMessages.ListAdmittedPlugins.Row2\x12{\n\x16RunListAdmittedPlugins\x12-.dokime.v1.PluginsListAdmittedPluginsRunInput\x1a..dokime.v1.PluginsListAdmittedPluginsRunOutput(\x01\x30\x01\x12y\n\x11ListInstallations\x12\x31.dokime.v1.PluginsMessages.ListInstallations.Row1\x1a\x31.dokime.v1.PluginsMessages.ListInstallations.Row2\x12u\n\x14RunListInstallations\x12+.dokime.v1.PluginsListInstallationsRunInput\x1a,.dokime.v1.PluginsListInstallationsRunOutput(\x01\x30\x01\x12X\n\x06Reload\x12&.dokime.v1.PluginsMessages.Reload.Row1\x1a&.dokime.v1.PluginsMessages.Reload.Row2\x12T\n\tRunReload\x12 .dokime.v1.PluginsReloadRunInput\x1a!.dokime.v1.PluginsReloadRunOutput(\x01\x30\x01\x12X\n\x06Remove\x12&.dokime.v1.PluginsMessages.Remove.Row1\x1a&.dokime.v1.PluginsMessages.Remove.Row2\x12T\n\tRunRemove\x12 .dokime.v1.PluginsRemoveRunInput\x1a!.dokime.v1.PluginsRemoveRunOutput(\x01\x30\x01\x12\x64\n\nSetEnabled\x12*.dokime.v1.PluginsMessages.SetEnabled.Row1\x1a*.dokime.v1.PluginsMessages.SetEnabled.Row2\x12`\n\rRunSetEnabled\x12$.dokime.v1.PluginsSetEnabledRunInput\x1a%.dokime.v1.PluginsSetEnabledRunOutput(\x01\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime_client._wire.dokime.v1.Plugins_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_PLUGINSGETINSTALLATIONCANCELLATION']._serialized_start=578
-  _globals['_PLUGINSGETINSTALLATIONCANCELLATION']._serialized_end=614
-  _globals['_PLUGINSGETINSTALLATIONRUNINPUT']._serialized_start=617
-  _globals['_PLUGINSGETINSTALLATIONRUNINPUT']._serialized_end=881
-  _globals['_PLUGINSGETINSTALLATIONRUNOUTPUT']._serialized_start=883
-  _globals['_PLUGINSGETINSTALLATIONRUNOUTPUT']._serialized_end=1004
-  _globals['_PLUGINSINSTALLINPUT']._serialized_start=1007
-  _globals['_PLUGINSINSTALLINPUT']._serialized_end=1169
-  _globals['_PLUGINSINSTALLCANCELLATION']._serialized_start=1171
-  _globals['_PLUGINSINSTALLCANCELLATION']._serialized_end=1199
-  _globals['_PLUGINSINSTALLRUNINPUT']._serialized_start=1202
-  _globals['_PLUGINSINSTALLRUNINPUT']._serialized_end=1497
-  _globals['_PLUGINSINSTALLRUNOUTPUT']._serialized_start=1499
-  _globals['_PLUGINSINSTALLRUNOUTPUT']._serialized_end=1604
-  _globals['_PLUGINSLISTADMITTEDPLUGINSCANCELLATION']._serialized_start=1606
-  _globals['_PLUGINSLISTADMITTEDPLUGINSCANCELLATION']._serialized_end=1646
-  _globals['_PLUGINSLISTADMITTEDPLUGINSRUNINPUT']._serialized_start=1649
-  _globals['_PLUGINSLISTADMITTEDPLUGINSRUNINPUT']._serialized_end=1929
-  _globals['_PLUGINSLISTADMITTEDPLUGINSRUNOUTPUT']._serialized_start=1932
-  _globals['_PLUGINSLISTADMITTEDPLUGINSRUNOUTPUT']._serialized_end=2061
-  _globals['_PLUGINSLISTINSTALLATIONSCANCELLATION']._serialized_start=2063
-  _globals['_PLUGINSLISTINSTALLATIONSCANCELLATION']._serialized_end=2101
-  _globals['_PLUGINSLISTINSTALLATIONSRUNINPUT']._serialized_start=2104
-  _globals['_PLUGINSLISTINSTALLATIONSRUNINPUT']._serialized_end=2376
-  _globals['_PLUGINSLISTINSTALLATIONSRUNOUTPUT']._serialized_start=2378
-  _globals['_PLUGINSLISTINSTALLATIONSRUNOUTPUT']._serialized_end=2503
-  _globals['_PLUGINSREMOVECANCELLATION']._serialized_start=2505
-  _globals['_PLUGINSREMOVECANCELLATION']._serialized_end=2532
-  _globals['_PLUGINSREMOVERUNINPUT']._serialized_start=2535
-  _globals['_PLUGINSREMOVERUNINPUT']._serialized_end=2763
-  _globals['_PLUGINSREMOVERUNOUTPUT']._serialized_start=2765
-  _globals['_PLUGINSREMOVERUNOUTPUT']._serialized_end=2868
-  _globals['_PLUGINSRETRYCANCELLATION']._serialized_start=2870
-  _globals['_PLUGINSRETRYCANCELLATION']._serialized_end=2896
-  _globals['_PLUGINSRETRYRUNINPUT']._serialized_start=2899
-  _globals['_PLUGINSRETRYRUNINPUT']._serialized_end=3123
-  _globals['_PLUGINSRETRYRUNOUTPUT']._serialized_start=3125
-  _globals['_PLUGINSRETRYRUNOUTPUT']._serialized_end=3226
-  _globals['_PLUGINSSETENABLEDCANCELLATION']._serialized_start=3228
-  _globals['_PLUGINSSETENABLEDCANCELLATION']._serialized_end=3259
-  _globals['_PLUGINSSETENABLEDRUNINPUT']._serialized_start=3262
-  _globals['_PLUGINSSETENABLEDRUNINPUT']._serialized_end=3506
-  _globals['_PLUGINSSETENABLEDRUNOUTPUT']._serialized_start=3508
-  _globals['_PLUGINSSETENABLEDRUNOUTPUT']._serialized_end=3619
-  _globals['_PLUGINS']._serialized_start=3622
-  _globals['_PLUGINS']._serialized_end=5078
+  _globals['_PLUGINSGETINSTALLATIONCANCELLATION']._serialized_start=579
+  _globals['_PLUGINSGETINSTALLATIONCANCELLATION']._serialized_end=615
+  _globals['_PLUGINSGETINSTALLATIONRUNINPUT']._serialized_start=618
+  _globals['_PLUGINSGETINSTALLATIONRUNINPUT']._serialized_end=882
+  _globals['_PLUGINSGETINSTALLATIONRUNOUTPUT']._serialized_start=884
+  _globals['_PLUGINSGETINSTALLATIONRUNOUTPUT']._serialized_end=1005
+  _globals['_PLUGINSINSTALLINPUT']._serialized_start=1008
+  _globals['_PLUGINSINSTALLINPUT']._serialized_end=1170
+  _globals['_PLUGINSINSTALLCANCELLATION']._serialized_start=1172
+  _globals['_PLUGINSINSTALLCANCELLATION']._serialized_end=1200
+  _globals['_PLUGINSINSTALLRUNINPUT']._serialized_start=1203
+  _globals['_PLUGINSINSTALLRUNINPUT']._serialized_end=1498
+  _globals['_PLUGINSINSTALLRUNOUTPUT']._serialized_start=1500
+  _globals['_PLUGINSINSTALLRUNOUTPUT']._serialized_end=1605
+  _globals['_PLUGINSLISTADMITTEDPLUGINSCANCELLATION']._serialized_start=1607
+  _globals['_PLUGINSLISTADMITTEDPLUGINSCANCELLATION']._serialized_end=1647
+  _globals['_PLUGINSLISTADMITTEDPLUGINSRUNINPUT']._serialized_start=1650
+  _globals['_PLUGINSLISTADMITTEDPLUGINSRUNINPUT']._serialized_end=1930
+  _globals['_PLUGINSLISTADMITTEDPLUGINSRUNOUTPUT']._serialized_start=1933
+  _globals['_PLUGINSLISTADMITTEDPLUGINSRUNOUTPUT']._serialized_end=2062
+  _globals['_PLUGINSLISTINSTALLATIONSCANCELLATION']._serialized_start=2064
+  _globals['_PLUGINSLISTINSTALLATIONSCANCELLATION']._serialized_end=2102
+  _globals['_PLUGINSLISTINSTALLATIONSRUNINPUT']._serialized_start=2105
+  _globals['_PLUGINSLISTINSTALLATIONSRUNINPUT']._serialized_end=2377
+  _globals['_PLUGINSLISTINSTALLATIONSRUNOUTPUT']._serialized_start=2379
+  _globals['_PLUGINSLISTINSTALLATIONSRUNOUTPUT']._serialized_end=2504
+  _globals['_PLUGINSRELOADCANCELLATION']._serialized_start=2506
+  _globals['_PLUGINSRELOADCANCELLATION']._serialized_end=2533
+  _globals['_PLUGINSRELOADRUNINPUT']._serialized_start=2536
+  _globals['_PLUGINSRELOADRUNINPUT']._serialized_end=2764
+  _globals['_PLUGINSRELOADRUNOUTPUT']._serialized_start=2766
+  _globals['_PLUGINSRELOADRUNOUTPUT']._serialized_end=2869
+  _globals['_PLUGINSREMOVECANCELLATION']._serialized_start=2871
+  _globals['_PLUGINSREMOVECANCELLATION']._serialized_end=2898
+  _globals['_PLUGINSREMOVERUNINPUT']._serialized_start=2901
+  _globals['_PLUGINSREMOVERUNINPUT']._serialized_end=3129
+  _globals['_PLUGINSREMOVERUNOUTPUT']._serialized_start=3131
+  _globals['_PLUGINSREMOVERUNOUTPUT']._serialized_end=3234
+  _globals['_PLUGINSSETENABLEDCANCELLATION']._serialized_start=3236
+  _globals['_PLUGINSSETENABLEDCANCELLATION']._serialized_end=3267
+  _globals['_PLUGINSSETENABLEDRUNINPUT']._serialized_start=3270
+  _globals['_PLUGINSSETENABLEDRUNINPUT']._serialized_end=3514
+  _globals['_PLUGINSSETENABLEDRUNOUTPUT']._serialized_start=3516
+  _globals['_PLUGINSSETENABLEDRUNOUTPUT']._serialized_end=3627
+  _globals['_PLUGINS']._serialized_start=3630
+  _globals['_PLUGINS']._serialized_end=5092
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #
