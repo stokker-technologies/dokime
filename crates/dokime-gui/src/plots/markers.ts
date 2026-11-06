@@ -39,6 +39,8 @@ export type MarkerKind = {
 
 export type MarkerRange = { min: number; max: number } | null;
 
+export type MarkerTooltip = { label: string; left: number; width: number };
+
 /* === Classes === */
 
 /* === Public Functions === */
@@ -143,6 +145,25 @@ export function nearestMarker(
     }
   }
   return best;
+}
+
+/** Both Marker Kinds Share Hit Testing And A Card-Bounded Tooltip Box. */
+export function markerTooltip(
+  plot: uPlot,
+  kinds: readonly MarkerKind[],
+  hidden: ReadonlySet<string>,
+  card: Pick<DOMRect, "left" | "width">,
+): MarkerTooltip | null {
+  const cursor = plot.cursor.left;
+  if (cursor == null || cursor < 0 || cursor > plot.over.clientWidth) return null;
+  const marker = nearestMarker(plot, kinds, hidden, cursor);
+  if (!marker) return null;
+
+  const inset = Math.min(4, card.width / 2);
+  const width = Math.min(256, card.width - 2 * inset);
+  const anchor = plot.over.getBoundingClientRect().left - card.left + marker.left;
+  const left = Math.max(inset, Math.min(anchor - width / 2, card.width - inset - width));
+  return { label: marker.label, left, width };
 }
 
 /* === Private Functions === */
