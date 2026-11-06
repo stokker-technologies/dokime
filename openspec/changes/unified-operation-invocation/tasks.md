@@ -14,6 +14,8 @@
 
 ## Final Validation and Delivery
 
-- [ ] 2.1 Merge fresh origin/dev again, migrate newly landed calls and close the full consumer source inventory.
+- [x] 2.1 Merge fresh origin/dev again, migrate newly landed calls and close the full consumer source inventory.
 - [ ] 2.2 Run focused sidecar/guest proof, starter test, check:rust, lint and repository checks; inspect final diffs and scan prohibited names.
 - [ ] 2.3 Validate OpenSpec and prepare the final authorized ready-PR candidate and review description.
+
+- [ ] 2.4 Resolve the repository-wide convention-audit scope with the owner before delivery.
