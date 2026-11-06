@@ -4,6 +4,7 @@ import { createDokimeQueryClient } from "@/app/query-client";
 import { commands } from "@/lib/desktop/commands";
 import type { BackendSelection, DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
+import { toast } from "@/lib/notifications";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
@@ -12,6 +13,7 @@ export interface SessionControls {
   disconnect(): Promise<DesktopSessionSnapshot>;
   /** Development only: delete the owned backend's storage and restart it. */
   resetLocalStorage(directory: string): Promise<DesktopSessionSnapshot>;
+  backupResetLocalStorage(directory: string, archive: string): Promise<DesktopSessionSnapshot>;
 }
 export interface ConnectedSession {
   snapshot: DesktopSessionSnapshot;
@@ -22,8 +24,8 @@ export interface ConnectedSession {
 }
 export type SessionState =
   | { phase: "disconnected" }
-  /** `reset` marks an explicit development storage reset. */
-  | { phase: "connecting"; reset: boolean }
+  /** Explicit resets distinguish backed-up recovery from the development reset. */
+  | { phase: "connecting"; reset: false | "reset" | "backup" }
   | { phase: "connected"; session: ConnectedSession }
   | { phase: "failed"; error: unknown };
 const nativeControls: SessionControls = {
@@ -34,6 +36,7 @@ const nativeControls: SessionControls = {
   },
   disconnect: () => commands.desktopSessionDisconnect(),
   resetLocalStorage: (directory) => commands.desktopResetLocalStorage(directory),
+  backupResetLocalStorage: (directory, archive) => commands.desktopBackupResetLocalStorage(directory, archive),
 };
 
 /** One owner per desktop window. Inputs containing secrets are never retained. */
@@ -64,9 +67,16 @@ export class NativeSession {
   /** Reconnects to the owned backend restarted on an empty data directory,
    * exactly as after any restart: a new generation and fresh queries. */
   async resetLocalStorage(directory: string): Promise<void> {
-    await this.connect(() => this.controls.resetLocalStorage(directory), true);
+    await this.connect(() => this.controls.resetLocalStorage(directory), "reset");
   }
-  private async connect(start: () => Promise<DesktopSessionSnapshot>, reset: boolean): Promise<void> {
+  async backupAndResetLocalStorage(directory: string, archive: string): Promise<void> {
+    await this.connect(async () => {
+      const snapshot = await this.controls.backupResetLocalStorage(directory, archive);
+      toast.success("Local Storage Backed Up And Reset", { description: snapshot.archive ?? archive });
+      return snapshot;
+    }, "backup");
+  }
+  private async connect(start: () => Promise<DesktopSessionSnapshot>, reset: false | "reset" | "backup"): Promise<void> {
     const revision = this.invalidate();
     this.publish({ phase: "connecting", reset });
     try {

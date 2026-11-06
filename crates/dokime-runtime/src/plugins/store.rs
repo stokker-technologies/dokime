@@ -193,7 +193,11 @@ impl PluginStore {
                     if !matches!(other.state, PluginState::Installed | PluginState::Disabled) {
                         continue;
                     }
-                    let (other_bundle, other_metadata) = store.verified(*other_id, other)?;
+                    // An Unreadable Installation Has No Verified Package Or Owners To Reserve.
+                    // It Remains Visible With Its Own Failure And Cannot Block Other Installs.
+                    let Ok((other_bundle, other_metadata)) = store.verified(*other_id, other) else {
+                        continue;
+                    };
                     if other_metadata.identity.name == metadata.identity.name {
                         if newer_only && other_bundle.manifest().identity.version.cmp_precedence(&version).is_ge() {
                             return Ok(entry(other.installation(*other_id), Some(other_metadata), None));

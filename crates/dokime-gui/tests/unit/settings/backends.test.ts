@@ -28,6 +28,7 @@ import { BackendsTable, backendValidation } from "@/features/settings/BackendsTa
 import { commands } from "@/lib/desktop/commands";
 import type { DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
+import { toast } from "@/lib/notifications";
 
 /* === Re-Exports === */
 
@@ -57,6 +58,8 @@ function connected(generation = "8"): DesktopSessionSnapshot {
     statusRevision: 1,
     ownership: "attached",
     phase: null,
+    archivedBytes: null,
+    archive: null,
     connection: {
       generation,
       phase: "connected",
@@ -160,6 +163,29 @@ test("Failed Selection Stays Failed Until An Explicit New Selection", async () =
   assert.equal(fixture.identity.mock.calls.length, 0);
   await owner.select({ kind: "profile", identifier: "lab" });
   assert.equal(owner.snapshot().phase, "connected");
+});
+
+test("Confirmed Recovery Publishes The Archive And Connects A Fresh Generation", async () => {
+  const announce = vi.spyOn(toast, "success").mockReturnValue("fixture");
+  const snapshot = { ...connected("9"), ownership: "owned_local" as const, archive: "/fixture/saved.zip" };
+  fixture.invoke.mockResolvedValueOnce(snapshot);
+  const owner = new NativeSession();
+  const states: unknown[] = [];
+  owner.subscribe(() => states.push(owner.snapshot()));
+  try {
+    await owner.backupAndResetLocalStorage("/fixture/data", "/fixture/saved.zip");
+    assert.deepEqual(fixture.invoke.mock.calls[0], [
+      "desktop_backup_reset_local_storage",
+      { directory: "/fixture/data", archive: "/fixture/saved.zip" },
+    ]);
+    assert.deepEqual(states[0], { phase: "connecting", reset: "backup" });
+    assert.equal(owner.snapshot().phase, "connected");
+    assert.equal(announce.mock.calls[0]?.[1]?.description, "/fixture/saved.zip");
+    assert.equal(fixture.identity.mock.calls[0]?.[0]?.generation, "9");
+    await owner.disconnect();
+  } finally {
+    announce.mockRestore();
+  }
 });
 
 test("Deleting The Active Backend Invalidates Its Generation And Owned Resources", async () => {
