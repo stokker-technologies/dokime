@@ -63,6 +63,13 @@ retains the original files even when their metadata cannot be decoded.
 
 ## Cycle Lists And Restart Recovery
 
+Finished executions whose template is absent from the connected backend's live
+catalog show **Plugin Unavailable** in Control. Their saved evidence stays
+readable; the execution card and its menu offer no re-run. A Python plugin is
+available only while its registering backend runs. Start that backend again,
+or install the original native plugin revision, before running its cases again.
+The catalog's pending or failed read never asserts that a plugin is absent.
+
 The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
 current live cycles and durable sealed cycle headers as one list, with the same
 filter, ordering and continuation rules. A live cycle supersedes its saved

@@ -56,6 +56,8 @@ export type ExecutionControlState = {
 
 /** The facts the execution's card is decided from. */
 export type ExecutionControlInput = {
+  /** False only after the live catalog confirms that this template is absent. */
+  pluginAvailable?: boolean;
   status: TestExecution["status"];
   controls: TestExecution["controls"];
   /** The live step progress, when the runtime streams one for this execution. */
@@ -98,6 +100,15 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
       : { actions: ["Start", "Cancel"], detail: null, line: "Not started · waits for Start", phase: "unstarted" };
   }
   if (isTerminalExecutionStatus(status) && !controls) {
+    if (input.pluginAvailable === false) {
+      return {
+        actions: [],
+        detail:
+          "Its plugin is unavailable on this backend. Saved evidence remains readable; start the Python backend that registered it or install its original plugin revision to run it again.",
+        line: `Ended · ${executionStatusLabel(status)} · Plugin Unavailable`,
+        phase: "ended",
+      };
+    }
     return { actions: ["Re-Run"], detail: null, line: `Ended · ${executionStatusLabel(status)}`, phase: "ended" };
   }
   if (status === "finalizing" || isTerminalExecutionStatus(status)) {

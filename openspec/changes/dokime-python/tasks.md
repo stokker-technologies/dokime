@@ -27,7 +27,7 @@
 - [ ] 4.2 Implement the Rust-to-Python callback bridge: event loop, worker threads, cancellation and tracebacks.
 - [ ] 4.3 Implement the decorators and registration validation from the mapping table.
 - [ ] 4.4 Implement batch stream publication from NumPy and Arrow columns.
-- [ ] 4.5 Show an unavailable plugin clearly in the GUI for finished Python executions.
+- [x] 4.5 Show an unavailable plugin clearly in the GUI for finished Python executions.
 - [ ] 4.6 Write stubs for the backend and authoring surface.
 
 ## 5. Tests And Documentation
@@ -44,8 +44,8 @@
 
 ## Workflow Follow-Up
 
-- This slice owns 3.1–3.3: server session composition, pairing export and startup errors; Python backend context, configuration, exceptions and stubs; installed-plugin admission and ID collision refusal; focused wheel tests and affected documentation. Task 1.1 is merged first. Authoring and invocation callbacks remain owned by tasks 4.x and the separate unified-operation worker.
-- Slice proof: focused backend startup, pairing export, ID clash and storage-format refusal tests against the Windows wheel; strict stubtest, `check:rust`, repository checks and the required diff scan. Record decisions and measurements in `design.md`. Push without PR, dev merge or full simulation; later tasks stay open.
+- This slice owns 4.1–4.6 on `feat/dokime-python`: embedded operation, observer and settings composition; native callback and column publication bindings; Python decorators, validation and stubs; finished-execution GUI availability; targeted installed-wheel and GUI proof, and affected reference documentation. Dependency order is native provider composition, callback bridge, declarations and columns, then built-wheel proof. Tasks 5.x remain open.
+- Slice proof: a Python operation, observer and settings exercised against the Windows wheel; callback cancellation and tracebacks; NumPy and Arrow batch publication and a plain Rust comparison; touched-surface stubtest, GUI availability tests, `check:rust`, repository checks and the required diff scan. Record decisions and measurements in `design.md`. Push without PR, dev merge or full simulation; later tasks stay open.
 - Task 6.1 retains the existing native source-policy repairs; this slice does not waive them.
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - The owner decides the PyPI and import name before any publication; a final `dokime-client` release then points to the new package.

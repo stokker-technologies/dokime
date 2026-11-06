@@ -127,6 +127,7 @@ export function useExecutionActions({
   execution,
   onSelectExecution,
   prompts,
+  pluginAvailable,
   row,
 }: {
   cycleActive: boolean;
@@ -135,6 +136,7 @@ export function useExecutionActions({
   execution: TestExecution | null;
   onSelectExecution: (executionId: string) => void;
   prompts: readonly PromptRequest[];
+  pluginAvailable?: boolean;
   row: CycleExecutionRow;
 }): ExecutionActions | null {
   const commands = useCycleCommands(cycleId);
@@ -143,6 +145,7 @@ export function useExecutionActions({
   if (!execution) return null;
   const progress = live && live.testExecutionId === execution.test_execution_id ? live : null;
   const state = executionControlState({
+    pluginAvailable,
     controls: execution.controls,
     progress: progress
       ? {

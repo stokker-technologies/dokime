@@ -30,6 +30,7 @@ import { ArtifactTree } from "@/components/ArtifactTree";
 import { OperatorNotesContent } from "@/components/document/OperatorNotesContent";
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery } from "@/components/MediaGallery";
+import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import type { HubLiveState, PromptRequest, RecordScope, TestCyclePlan, TestExecution } from "@/lib/types";
 import { type CycleExecutionRow, isUnstartedExecution } from "./cycle-workspace-model";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
@@ -81,6 +82,10 @@ export function ExecutionSections({
   onSelectExecution,
 }: ExecutionSectionsProps) {
   const plotWindow = usePlotWindow();
+  const suitesQuery = useTestSuitesQuery();
+  const pluginAvailable = suitesQuery.isSuccess
+    ? suitesQuery.data.some((suite) => suite.members.some((template) => template.template_id === row.case.templateId))
+    : undefined;
   const started = row.execution && !isUnstartedExecution(row.execution.status) ? row.execution : null;
   const scope = useMemo<RecordScope>(
     () =>
@@ -131,6 +136,7 @@ export function ExecutionSections({
     execution: commanded,
     onSelectExecution,
     prompts: pagePrompts,
+    pluginAvailable,
     row,
   });
   const reportSubject = useMemo(
@@ -150,7 +156,7 @@ export function ExecutionSections({
       ) : null}
       <NodeActionCluster
         cycleId={cycleId}
-        menu={menu}
+        menu={pluginAvailable === false ? { ...menu, onRerun: null, rerunRefusal: "Plugin Unavailable" } : menu}
         primary={primary && actions ? <ExecutionActionButton action={primary} actions={actions} /> : null}
         subject={reportSubject}
       />
