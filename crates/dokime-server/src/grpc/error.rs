@@ -57,6 +57,7 @@ pub(super) fn detailed_error(status: Status, error: &(dyn std::error::Error + 's
     let code = status.code();
     let message = status.message().to_owned();
     let mut detail = captured(&diagnostic);
+    detail.code = error.downcast_ref::<HostError>().and_then(HostError::code).map(str::to_owned);
     loop {
         let envelope = tonic_types::Status {
             code: code as i32,

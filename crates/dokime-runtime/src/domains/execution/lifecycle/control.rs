@@ -164,7 +164,13 @@ impl RuntimeHandle {
             .find(|execution| execution.test_execution_id == id)
             .ok_or_else(|| Error::not_found("execution_not_found", "execution not found"))?;
         if execution.saved.is_none() {
-            self.finish_saved_execution(&cycle, execution).await.map_err(report_not_saved)?;
+            self.queue_saved_execution(&cycle, execution).await.map_err(|error| {
+                report_not_saved(
+                    error,
+                    dokime_domain::model::reports::wire::ReportSubject::Execution(id.to_string()),
+                    "capturing execution report inputs",
+                )
+            })?;
         }
         if queued {
             let request = request.expect("queued request");
@@ -185,6 +191,16 @@ impl RuntimeHandle {
         }
         self.execution_storage.save_cycle_header(cycle_id).await?;
         self.dispatch_next_request().await;
+        // Report Publication Cannot Prevent A Drained Stop From Settling Its Request.
+        if execution.saved.is_none() {
+            self.finish_saved_execution(&cycle, execution).await.map_err(|error| {
+                report_not_saved(
+                    error,
+                    dokime_domain::model::reports::wire::ReportSubject::Execution(id.to_string()),
+                    "execution report finalization",
+                )
+            })?;
+        }
         Ok(())
     }
 
@@ -446,7 +462,11 @@ impl RuntimeHandle {
         let cycle = self.state_read().cycle_view(&test_cycle_id).ok_or_else(|| Error::not_found("cycle_not_found", "cycle not found"))?;
         if let Err(error) = self.finish_saved_members(&cycle).await {
             self.fail_cycle_seal(&test_cycle_id, &error).await;
-            return Err(report_not_saved(error));
+            return Err(report_not_saved(
+                error,
+                dokime_domain::model::reports::wire::ReportSubject::Cycle(test_cycle_id.to_string()),
+                "cycle report finalization",
+            ));
         }
 
         // A Queued Receipt Becomes Terminal Only After Its Selection Is Sealed.
@@ -475,7 +495,13 @@ impl RuntimeHandle {
         if let Err(error) = &sealed {
             self.fail_cycle_seal(&test_cycle_id, error).await;
         }
-        sealed
+        sealed.map_err(|error| {
+            report_not_saved(
+                error,
+                dokime_domain::model::reports::wire::ReportSubject::Cycle(test_cycle_id.to_string()),
+                "cycle report finalization",
+            )
+        })
     }
 
     async fn control_cycle(&self, test_cycle_id: TestCycleId, action: Action, context: CommandContext) -> Result<(), Error> {
@@ -606,16 +632,12 @@ async fn admit_control<'a>(action: &Action, evidence: &'a tokio::sync::Mutex<()>
     if matches!(action, Action::Stop) { None } else { Some(evidence.lock().await) }
 }
 
-// The Operator Reads One Sentence; The Application Log Keeps The Full Chain.
-fn report_not_saved(error: Error) -> Error {
-    if matches!(error, Error::Admission(_) | Error::ShuttingDown | Error::Interrupted) {
+fn report_not_saved(error: Error, subject: dokime_domain::model::reports::wire::ReportSubject, stage: &'static str) -> Error {
+    if matches!(error, Error::Admission(_) | Error::ShuttingDown | Error::Interrupted | Error::ReportSave { .. }) {
         return error;
     }
-    tracing::error!(%error, "final report could not be saved");
-    Error::internal(
-        "report_not_saved",
-        format!("The report could not be saved because {}. Details are in the application log.", report_failure_reason(&error)),
-    )
+    tracing::error!(%error, ?subject, "final report could not be saved");
+    Error::ReportSave { subject, stage, source: Box::new(error) }
 }
 
 // The Operator-Facing Cause: Undecodable Stored Evidence Names The Incompatible Build.
@@ -645,19 +667,6 @@ fn undecodable(error: &(dyn std::error::Error + 'static)) -> bool {
                 })
             )
     })
-}
-
-fn report_failure_reason(error: &(dyn std::error::Error + 'static)) -> &'static str {
-    let mut chain = std::iter::successors(Some(error), |error| error.source());
-    let Some(io) = chain.find_map(|error| error.downcast_ref::<std::io::Error>()) else {
-        return "an internal error occurred";
-    };
-    match io.kind() {
-        std::io::ErrorKind::PermissionDenied => "access to one of its files was denied",
-        std::io::ErrorKind::StorageFull | std::io::ErrorKind::QuotaExceeded => "the disk is full",
-        std::io::ErrorKind::NotFound => "one of its files is missing",
-        _ => "a file operation failed",
-    }
 }
 
 /* === Tests === */

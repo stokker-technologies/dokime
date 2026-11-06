@@ -157,7 +157,12 @@ impl RuntimeHandle {
             }
         }
         match self.finish_saved_executions(cycle, &pending).await?.into_iter().next() {
-            Some((_, error)) => Err(error),
+            Some((_, error @ (Error::Admission(_) | Error::ShuttingDown | Error::Interrupted))) => Err(error),
+            Some((id, error)) => Err(Error::ReportSave {
+                subject: ReportSubject::Execution(id.to_string()),
+                stage: "execution report finalization",
+                source: Box::new(error),
+            }),
             None => Ok(()),
         }
     }

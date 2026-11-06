@@ -2145,8 +2145,11 @@ Development roots without report previews require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 
 Stop closes and drains evidence, then waits for the execution's durable seal,
-joining report publication already in flight. A report failure fails Stop without
-changing the execution result. Cancel and natural completion publish HTML in the
+joining report publication already in flight. A report failure is returned after
+Stop settles its request and preserves the execution result and evidence. Technical
+Details identifies the report finalization stage, execution and redacted cause chain.
+Seal the cycle, or use Retry Seal after a failed seal, to retry report publication
+from the original frozen evidence. Cancel and natural completion publish HTML in the
 background. Execution detail exposes report **Pending**, **Ready** or
 **Failed**, including the failure cause. The GUI shows it beside report actions;
 CLI `operation call dokime.execution.get_execution --json '{"execution_id":"<uuid>"}'`

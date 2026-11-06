@@ -119,6 +119,15 @@ pub enum Error {
     #[error("runtime operation was interrupted")]
     Interrupted,
 
+    #[error("The report could not be saved during {stage} for {}. Retry sealing the cycle to save it again.", report_subject(.subject))]
+    ReportSave {
+        subject: dokime_domain::model::reports::wire::ReportSubject,
+        stage: &'static str,
+
+        #[source]
+        source: Box<Error>,
+    },
+
     #[error("invalid checkpoint report inputs: {0}")]
     InvalidReportInputs(String),
 
@@ -164,6 +173,7 @@ impl Error {
     pub fn code(&self) -> Option<&str> {
         match self {
             Self::Admission(failure) => Some(failure.code()),
+            Self::ReportSave { .. } => Some("report_not_saved"),
             _ => None,
         }
     }
@@ -227,6 +237,13 @@ pub(crate) fn chain_message(error: &(dyn std::error::Error + 'static)) -> String
 }
 
 /* === Private Functions === */
+
+fn report_subject(subject: &dokime_domain::model::reports::wire::ReportSubject) -> String {
+    match subject {
+        dokime_domain::model::reports::wire::ReportSubject::Execution(id) => format!("execution `{id}`"),
+        dokime_domain::model::reports::wire::ReportSubject::Cycle(id) => format!("cycle `{id}`"),
+    }
+}
 
 fn harmos_message(error: &harmos::Error) -> String {
     use std::fmt::Write as _;
