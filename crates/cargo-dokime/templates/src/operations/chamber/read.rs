@@ -73,7 +73,10 @@ impl Operation for ReadChamber {
     async fn run(self, ctx: Context<'_, Self>) -> Result<Response<ChamberReading>, Refusal> {
         let bench = ctx.resource::<Bench>();
         let temperature_c = dokime::plugin::refusal(bench.sensor.read_celsius())?;
-        Ok(Response::new(ChamberReading { temperature_c, sensor: bench.sensor.describe() }))
+        Ok(Response::new(ChamberReading {
+            temperature_c,
+            sensor: bench.sensor.describe(),
+        }))
     }
 }
 
