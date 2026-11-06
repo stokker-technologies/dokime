@@ -14,7 +14,7 @@
 /* === Imports === */
 
 use crate::Error;
-use dokime::harmos::operations::Host;
+use dokime::harmos::operations::OperationHost;
 use dokime::prelude::*;
 use plugin_host::host::cpu::load::{LoadControl, LoadHold, LoadTarget};
 use std::time::Duration;

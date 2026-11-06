@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::operations::Host;
+use harmos::operations::OperationHost;
 
 // Local Imports
 use crate::publication::{Publication, Publishable};

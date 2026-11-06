@@ -21,7 +21,7 @@ use std::time::Duration;
 // Local Imports
 use super::Bluetooth;
 use crate::Error;
-use dokime::harmos::operations::Host;
+use dokime::harmos::operations::OperationHost;
 use dokime::harmos::plugin;
 use dokime::harmos::sidecar::inventory::observers::Declared;
 use dokime::harmos::sidecar::{Activation, Observer, ObserverContext, Publisher};

@@ -20,7 +20,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::operations::{CallContext, ContextError, ContextValue, Host, OperationDeclaration, Response};
+use harmos::operations::{CallContext, ContextError, ContextValue, OperationHost, OperationDeclaration, Response};
 use harmos::sidecar::{CallError, Supervisor};
 use harmos::{Message, StreamSpec};
 
@@ -49,7 +49,7 @@ pub struct Caller(Road);
 // scoped to the execution and routed by the operation it names, exactly as
 // `Context::call` routes it.
 #[derive(Clone)]
-pub struct StepHost {
+pub struct StepOperationHost {
     caller: Caller,
     stage: String,
     context: CallContext,
@@ -84,8 +84,8 @@ impl Caller {
         self.call_at("", request).await
     }
 
-    pub(super) fn step_host(&self, stage: &str, binding: Binding) -> StepHost {
-        StepHost {
+    pub(super) fn step_host(&self, stage: &str, binding: Binding) -> StepOperationHost {
+        StepOperationHost {
             caller: self.clone(),
             stage: stage.to_owned(),
             context: CallContext::default(),
@@ -121,13 +121,32 @@ impl Caller {
     }
 }
 
-impl Host for StepHost {
+impl OperationHost for StepOperationHost {
+    async fn invoke<O: OperationDeclaration, E: harmos::operations::EndpointSet>(&self, request: O::Request, retry: Option<harmos::RetryPolicy>, endpoints: E) -> Result<Self::Instance<O>, CallError> {
+        if E::item_types() != (None, None) { return Err(step_refusal("template calls do not accept native stream endpoints")); }
+        if let Some(retry) = retry {
+            retry.validate().map_err(|error| step_refusal(error.to_string()))?;
+            if retry != harmos::RetryPolicy::Never && O::REPLAY == harmos::operations::ReplaySafety::Unknown {
+                return Err(step_refusal("call-site retries require declared replay safety"));
+            }
+        }
+        match &self.caller.0 {
+            Road::Host(host) if served(O::ID, true).is_none() => {
+                let encoded = Message::encode(&request);
+                let readiness_host = routed(host, &self.stage, O::ID).map_err(refusal)?;
+                let instance = readiness_host.invoke::<O, E>(request, retry, endpoints).await?;
+                Ok(StepInstance::host(&self.binding.handles, instance, &encoded, readiness_host, None))
+            }
+            _ => self.submit::<O>(request).await,
+        }
+    }
+
     type Error = CallError;
     type Instance<O: OperationDeclaration> = StepInstance<O>;
 
     fn context(&self) -> &CallContext {
         match &self.caller.0 {
-            Road::Host(host) => Host::context(host),
+            Road::Host(host) => OperationHost::context(host),
             Road::Unmounted | Road::Local(_) => &self.context,
         }
     }
@@ -135,7 +154,7 @@ impl Host for StepHost {
     fn with_value<T: ContextValue>(&self, value: T) -> Result<Self, ContextError> {
         let mut child = self.clone();
         match &mut child.caller.0 {
-            Road::Host(host) => *host = Host::with_value(host, value)?,
+            Road::Host(host) => *host = OperationHost::with_value(host, value)?,
             Road::Unmounted | Road::Local(_) => child.context.insert_portable(value)?,
         }
 

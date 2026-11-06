@@ -19,7 +19,7 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos::operations::Host;
+use harmos::operations::OperationHost;
 use harmos::plugin::Declared;
 
 // Local Imports

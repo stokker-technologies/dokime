@@ -48,6 +48,9 @@ pub(crate) struct Embedded {
 
 struct Serving(Arc<Sessions>);
 
+struct AttemptEvidence(Arc<Sessions>);
+
+
 /* === Enums === */
 
 #[harmos::catalog]
@@ -60,6 +63,24 @@ enum PreparedOperations {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::operations::middleware::Middleware for AttemptEvidence {
+    fn enter<'a>(&'a self, _: &'a mut harmos::operations::middleware::Invocation) -> harmos::operations::middleware::Enter<'a> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn attempt<'a>(&'a self, call: &'a harmos::operations::middleware::Invocation, observation: harmos::operations::middleware::AttemptObservation) -> harmos::operations::middleware::Enter<'a> {
+        Box::pin(async move {
+            let Some(scope) = ExecutionScope::current(call.context()) else { return Ok(()) };
+            let Some(session) = self.0.get(&scope.execution) else { return Ok(()) };
+            if let Some(caller) = call.caller_scope() && caller.owner() != session.source() {
+                return Err(harmos::Error::PermissionDenied);
+            }
+            session.record_operation_attempt(&scope.stage, call, observation).await;
+            Ok(())
+        })
+    }
+}
 
 impl Sessions {
     pub(super) fn insert(&self, execution: &str, session: Arc<Session>) {
@@ -172,6 +193,7 @@ impl Serve<LeaseAsk> for Serving {
 /* === Public Functions === */
 
 pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, sessions: &Arc<Sessions>) -> harmos::Result<()> {
+    setup.settings().operation_middleware(Arc::new(AttemptEvidence(Arc::clone(sessions))));
     let served = Arc::new(Serving(Arc::clone(sessions)));
 
     setup.resource::<Host<EvidenceBatch>>(Host::<EvidenceBatch>::new(served.clone()));

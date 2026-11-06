@@ -258,6 +258,15 @@ impl Session {
         self.refusal.lock().await.take()
     }
 
+    pub(crate) async fn record_operation_attempt(&self, stage: &str, call: &harmos::operations::middleware::Invocation, observation: harmos::operations::middleware::AttemptObservation) {
+        let entry = crate::execution::log::Entry::new(
+            crate::execution::log::Level::Info,
+            format!("operation={} instance={} generation={:?} stage={} attempt={} outcome={:?}", call.operation().id, call.id(), call.generation(), stage, observation.attempt, observation.outcome),
+        );
+        let mut pages = self.pages.lock().await;
+        pages.stream_log.append(&self.context, &self.execution, &self.workflow, &self.source, &[entry]).await;
+    }
+
     pub(super) async fn narrate_refusal(&self, refusal: &ProviderExecutionFailure) {
         let mut pages = self.pages.lock().await;
         let stage = pages.phase.current.as_ref().map(|(id, _)| id.to_string()).unwrap_or_else(|| "initialization".to_owned());

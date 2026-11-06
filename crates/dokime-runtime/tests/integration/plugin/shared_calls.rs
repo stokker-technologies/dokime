@@ -22,7 +22,7 @@ use std::sync::{
 
 // Third Party Imports
 use dokime_runtime::harmos::catalog::Node;
-use dokime_runtime::harmos::operations::{Host, OperationDeclaration, WireDeclaration};
+use dokime_runtime::harmos::operations::{OperationHost, OperationDeclaration, WireDeclaration};
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{Attach, PluginNative};
 

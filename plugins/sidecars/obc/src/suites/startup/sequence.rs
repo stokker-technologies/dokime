@@ -33,7 +33,7 @@ use dokime::domain::model::files::wire::LineMatcher;
 use dokime::domain::model::files::wire::LocalWatchSource;
 use dokime::domain::model::identity::TemplateId;
 use dokime::expressions::telemetry;
-use dokime::harmos::operations::Host;
+use dokime::harmos::operations::OperationHost;
 use dokime::host::ToolConnectionAcquired;
 use dokime::operations::files::WatchFile;
 use dokime::prelude::*;

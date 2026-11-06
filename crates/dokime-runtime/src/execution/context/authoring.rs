@@ -208,6 +208,13 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
 
 #[cfg(feature = "native")]
 impl<C, O, I, S> Context<'_, C, O, I, S> {
+    pub fn operation<Op>(&self, request: Op) -> harmos::operations::Invocation<crate::execution::StepOperationHost, Op>
+    where
+        Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
+    {
+        harmos::operations::Invocation::new(self.host(), request)
+    }
+
     pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
     where
         Op: harmos::operations::OperationDeclaration<Request = Op> + harmos::Portable + Called<C>,
@@ -217,7 +224,7 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
 
     // The host surface for this stage: `call` and `submit` take the request,
     // which is the operation declaration.
-    pub fn host(&self) -> crate::execution::StepHost {
+    pub fn host(&self) -> crate::execution::StepOperationHost {
         let binding = crate::execution::builtins::Binding {
             artifacts: self.environment.artifacts().clone(),
             streams: self.environment.streams().clone(),

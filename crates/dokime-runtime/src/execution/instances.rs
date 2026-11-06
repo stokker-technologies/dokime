@@ -29,7 +29,7 @@ use std::time::Duration;
 // Third Party Imports
 use harmos::Message;
 use harmos::operations::instance::{Id, Outcome, Phase, Status};
-use harmos::operations::{Host, Instance, OperationDeclaration, Response};
+use harmos::operations::{OperationHost, Instance, OperationDeclaration, Response};
 use harmos::sidecar::{CallError, Supervisor};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -52,7 +52,7 @@ const LOCAL_IDS: u64 = u64::MAX;
 
 /* === Type Aliases === */
 
-type HostInstance<O> = <Supervisor as Host>::Instance<O>;
+type HostInstance<O> = <Supervisor as OperationHost>::Instance<O>;
 type Sweeping<'a> = Pin<Box<dyn Future<Output = Option<StepHandleCancelled>> + Send + 'a>>;
 
 /* === Structs === */

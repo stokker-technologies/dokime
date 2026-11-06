@@ -27,7 +27,7 @@ use dokime::{
     Supervisor,
     harmos::{
         Context, Message, Operation, Response,
-        operations::Host,
+        operations::OperationHost,
         state::{Invertible, Transaction},
     },
 };

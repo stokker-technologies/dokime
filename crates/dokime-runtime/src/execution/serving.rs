@@ -19,7 +19,7 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 // Third Party Imports
-use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, Requires, RetryPolicy, Visibility};
+use harmos::operations::{OperationHost, NoStream, OperationDeclaration, OperationPolicy, Requires, RetryPolicy, Visibility};
 use harmos::sidecar::operations::ServingError;
 use harmos::sidecar::{Refusal, Supervisor};
 

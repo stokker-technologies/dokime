@@ -23,7 +23,7 @@
 use std::time::Duration;
 
 // Third Party Imports
-use dokime_runtime::harmos::operations::Host;
+use dokime_runtime::harmos::operations::OperationHost;
 
 // Local Imports
 use dokime_domain::model;
