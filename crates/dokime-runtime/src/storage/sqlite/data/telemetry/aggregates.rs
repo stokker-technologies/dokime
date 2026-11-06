@@ -184,7 +184,7 @@ impl Moments {
         bytes
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, Error> {
+    pub(super) fn decode(bytes: &[u8]) -> Result<Self, Error> {
         if bytes.len() != 72 {
             return Err(Error::Corrupt("numeric summary width differs"));
         }

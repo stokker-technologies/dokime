@@ -316,16 +316,15 @@ impl RuntimeHandle {
     }
 
     pub async fn query_plot_payloads(
-        &self, requests: Vec<crate::queries::PlotPayloadRequest>, mode: crate::queries::RuntimePlotQueryMode,
+        &self, requests: Vec<crate::queries::PlotPayloadRequest>,
     ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<crate::queries::PlotPayloadEnvelope>>> {
-        crate::queries::plots::query_plot_payloads(self, requests, mode).await
+        crate::queries::plots::query_plot_payloads(self, requests).await
     }
 
     pub async fn query_plot_payloads_at(
-        &self, requests: Vec<crate::queries::PlotPayloadRequest>, mode: crate::queries::RuntimePlotQueryMode,
-        at: &harmos::storage::StorageCursor,
+        &self, requests: Vec<crate::queries::PlotPayloadRequest>, at: &harmos::storage::StorageCursor,
     ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<crate::queries::PlotPayloadEnvelope>>> {
-        crate::queries::plots::query_plot_payloads_at(self, requests, mode, at).await
+        crate::queries::plots::query_plot_payloads_at(self, requests, at).await
     }
 
     pub async fn query_plot_stream_batches(

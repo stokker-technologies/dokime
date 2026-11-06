@@ -419,7 +419,7 @@ async fn prepared_scan_interval(owner: &dokime_runtime::Runtime) -> (Option<Plug
 
 async fn execution_log(runtime: &RuntimeHandle, execution: &dokime_domain::model::identity::TestExecutionId) -> String {
     let files = runtime.execution_files(execution).await.unwrap();
-    let Some(file) = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")) else { return String::new() };
+    let Some(file) = files.iter().find(|file| file.relative_path == "artifacts/execution.log") else { return String::new() };
     let content = runtime.execution_file_content(execution, file.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     String::from_utf8_lossy(&content.bytes).into_owned()
 }
@@ -572,7 +572,7 @@ pub(crate) async fn cancellation_retains_verdict() {
             assert_eq!(criteria[0].message.as_deref(), Some("cancelled before deciding"));
         }
         let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-        let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+        let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
         let content =
             handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
         let log_path = log.relative_path.clone();
@@ -655,7 +655,7 @@ async fn ignored_stop(mode: Settlement) {
     assert!(cycle.saved.is_some(), "host settlement seals the final cycle report");
     assert!(handle.pending_prompt_projection().await.is_empty());
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+    let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     assert!(std::str::from_utf8(&log.bytes).unwrap().contains(&format!(
         "the run did not answer its stop within {} seconds",
@@ -681,7 +681,7 @@ pub(crate) async fn refused_settlement_winds_down() {
     let cycle = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Stopped).await;
     let execution = &cycle.test_executions[0];
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+    let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     let log = std::str::from_utf8(&log.bytes).unwrap().to_owned();
     assert!(log.contains("invalid step attempt"), "{log}");
@@ -706,7 +706,7 @@ pub(crate) async fn abandoned_admission_closes() {
     let execution = &cycle.test_executions[0];
     assert_eq!(execution.status, ExecutionStatus::Cancelled);
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-    let log = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")).unwrap();
+    let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
     let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
     let log = std::str::from_utf8(&log.bytes).unwrap().to_owned();
     assert!(log.contains("fixture cancellation settled"), "the run's cleanup page is admitted: {log}");
@@ -740,7 +740,7 @@ pub(crate) async fn live_replay_settles() {
     let execution = &cycle.test_executions[0];
     let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
     let mut log = String::new();
-    if let Some(file) = files.iter().find(|file| file.relative_path.ends_with("stream.000000.log")) {
+    if let Some(file) = files.iter().find(|file| file.relative_path == "artifacts/execution.log") {
         let path = file.relative_path.clone();
         let content = handle.execution_file_content(&execution.test_execution_id, path, 0, 4096).await.unwrap().unwrap();
         log = String::from_utf8(content.bytes.to_vec()).unwrap();

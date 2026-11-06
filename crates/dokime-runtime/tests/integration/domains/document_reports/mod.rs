@@ -338,14 +338,11 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
         }
     }
     let plots = runtime
-        .query_plot_payloads(
-            vec![dokime_runtime::runtime::query::PlotPayloadRequest {
-                scope: Some(cycle.test_executions[0].scope.clone()),
-                marker_record_types: vec!["calibration.field.completed".into()],
-                ..Default::default()
-            }],
-            dokime_runtime::runtime::query::RuntimePlotQueryMode::Snapshot,
-        )
+        .query_plot_payloads(vec![dokime_runtime::runtime::query::PlotPayloadRequest {
+            scope: Some(cycle.test_executions[0].scope.clone()),
+            marker_record_types: vec!["calibration.field.completed".into()],
+            ..Default::default()
+        }])
         .await
         .unwrap();
     assert_eq!(plots[0].payload.markers.len(), 1);

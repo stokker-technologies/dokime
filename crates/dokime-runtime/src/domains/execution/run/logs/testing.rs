@@ -52,7 +52,7 @@ pub async fn logs(days: u64, per_day: u64) {
     storage.acquire(&cycle, execution).await.unwrap();
 
     let mut log = StreamLog::default();
-    let path = segment_path("workflow", 0);
+    let path = segment_path(0);
     storage.reserve_output(&execution.test_execution_id, &path).await.unwrap();
     let mut writer = StreamLogWriter {
         storage,
@@ -61,7 +61,6 @@ pub async fn logs(days: u64, per_day: u64) {
         capacity: 64 * 1024,
         buffer: None,
         log: &mut log,
-        workflow: "workflow",
     };
     runtime.inject_log_write_faults(writer.execution, 2, std::io::ErrorKind::Interrupted);
     for day in 0..days {

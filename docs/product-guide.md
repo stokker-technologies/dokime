@@ -207,8 +207,7 @@ Remote files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
 `endpoints` (an ordered nonempty list), `backend_identifier`, `label`,
 `ca_certificate_pem` and `access_key`. CA/key values may be null for explicitly
 unsecured lab listeners. Unknown fields, invalid identities or PEM, wildcard
-origins and inconsistent TLS/CA combinations are rejected. `.dokime-pair` files
-and the old single `endpoint` format are unsupported. The remote security store
+origins and inconsistent TLS/CA combinations are rejected. The remote security store
 also keeps format v1; old stores require a fresh application root and are never
 silently reset.
 
@@ -2172,7 +2171,10 @@ does not cancel sealing; later Stop or shutdown calls await that work. Closing
 capture admission refuses new capture producers, and successful provider cleanup
 stages remain complete across retries.
 
-Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
+Execution logs use `artifacts/execution.log`, rolling over to `execution.2.log`,
+`execution.3.log` and the next free collision suffix. The log retains the plain
+name when a step uploads an artifact named `execution.log`. Logs segment at
+64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture
 failure appears in evidence health and affects the terminal result when required
 evidence is lost; bounded retries preserve acknowledged offsets.

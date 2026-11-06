@@ -19,6 +19,7 @@ pub(crate) mod control;
 pub(crate) mod frame;
 pub mod protocol;
 pub mod provider;
+#[cfg(feature = "testing")]
 pub mod recording;
 
 /* === Re-Exports === */
