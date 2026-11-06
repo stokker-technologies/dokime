@@ -74,7 +74,6 @@ pub struct Input<'a> {
 }
 
 pub struct Prepared {
-    schema_settings: harmos::config::SchemaSettings,
     manager: Manager,
     state: Option<harmos::storage::ReadBatch<PublicationState>>,
 }
@@ -83,7 +82,6 @@ struct PublicationState {
     row: Publication,
     scope: Identifier,
     schema: SchemaKey,
-    schema_position: Option<StorageCursor>,
     position: Option<StorageCursor>,
 }
 
@@ -100,7 +98,8 @@ pub enum Owner<'a> {
 /* === Implementations === */
 
 impl Prepared {
-    pub fn new(manager: &Manager, input: &Input<'_>, schema_settings: &harmos::config::SchemaSettings) -> Result<Self> {
+    /// Uses a manager whose publication schema has been declared.
+    pub fn new(manager: &Manager, input: &Input<'_>) -> Result<Self> {
         if !manager.cursor_saved().covers(input.dependencies_saved)? {
             return Err(Error::Invalid("report dependencies are not durable in this manager"));
         }
@@ -113,12 +112,10 @@ impl Prepared {
                 row,
                 scope,
                 schema: schema(),
-                schema_position: None,
                 position: None,
             })
         })?;
         Ok(Self {
-            schema_settings: *schema_settings,
             manager: manager.clone(),
             state: Some(state),
         })
@@ -126,17 +123,6 @@ impl Prepared {
 
     #[tracing::instrument(name = "report.publication", skip_all)]
     pub async fn finish(&mut self) -> Result<StorageCursor> {
-        let state = self.state();
-        if state.schema_position.is_none() {
-            // Native Declaration Compilation Still Owns Its Private Workspace.
-            let graph = harmos::schema::graph::Schema::from_declaration(Publication::DEFINITION, &self.schema_settings)
-                .map_err(|error| harmos::Error::backend("prepare report schema", harmos::BackendFailure::Permanent, error))?;
-            let key = state.schema.clone();
-            let position = self.manager.write_schema(key, graph).await?;
-            let position = Some(position);
-            self.update(|state| state.schema_position = position)?;
-        }
-
         let state = self.state();
         if state.position.is_none() {
             let records = state.records()?;
@@ -351,6 +337,13 @@ impl Publication {
 }
 
 /* === Public Functions === */
+
+/// Declares the publication schema before saving reports with this manager.
+pub async fn declare(manager: &Manager, settings: &harmos::config::SchemaSettings) -> Result<StorageCursor> {
+    let graph = harmos::schema::graph::Schema::from_declaration(Publication::DEFINITION, settings)
+        .map_err(|error| harmos::Error::backend("prepare report schema", harmos::BackendFailure::Permanent, error))?;
+    Ok(manager.write_schema(schema(), graph).await?)
+}
 
 pub fn schema() -> SchemaKey {
     SchemaKey {

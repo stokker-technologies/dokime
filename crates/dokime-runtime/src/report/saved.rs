@@ -313,7 +313,7 @@ impl PreparedExecutionReport {
     }
 
     pub(crate) async fn publish_current(
-        &mut self, manager: &Manager, revision: &ExecutionRevision, schema_settings: &harmos::config::SchemaSettings,
+        &mut self, manager: &Manager, revision: &ExecutionRevision,
     ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
         self.captured.validate()?;
         tokio::try_join!(self.context.write(manager), self.report.write(manager))?;
@@ -335,7 +335,6 @@ impl PreparedExecutionReport {
                 cycle: None,
                 execution: None,
             },
-            schema_settings,
         )?;
         publication.finish().await?;
         Ok(dokime_domain::model::reports::wire::MaterializedReport { report })
