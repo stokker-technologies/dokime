@@ -12,11 +12,12 @@
 /* === Modules === */
 
 pub(crate) mod engine_storage;
-pub(crate) mod runtime_storage;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
+use crate::runtime::storage as runtime_storage;
 
 // Standard Library Imports
 

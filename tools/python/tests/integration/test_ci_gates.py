@@ -36,7 +36,7 @@ from dokime_tools.release import nightly, pins, policy, registry
 
 # === Constants === #
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 
 # === Types === #
 

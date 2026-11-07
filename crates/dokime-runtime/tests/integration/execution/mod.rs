@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub(crate) mod workflow;
+
 pub(crate) mod artifacts;
 pub(crate) mod cancel;
 pub(crate) mod contention;

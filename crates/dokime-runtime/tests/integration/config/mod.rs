@@ -14,13 +14,14 @@
 pub(crate) mod config_application;
 mod distribution;
 pub(crate) mod identity;
-pub(crate) mod installed_plugins;
 pub(crate) mod runtime_settings;
 pub(crate) mod secrets_transfer;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
+use crate::domains::installed_plugins;
 
 // Standard Library Imports
 

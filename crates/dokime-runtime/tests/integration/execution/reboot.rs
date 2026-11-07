@@ -126,7 +126,7 @@ pub(crate) async fn stored_telemetry_reboot() {
     rebooted.shutdown().await.unwrap();
 }
 
-/* === Helpers === */
+// Helpers
 
 fn unscoped_tracking_batch(count: u64) -> TelemetryBatch {
     let stream = Identifier::new("tracking").unwrap();

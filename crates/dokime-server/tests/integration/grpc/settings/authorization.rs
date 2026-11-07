@@ -246,7 +246,7 @@ matrix! {
     "/dokime.v1.Prompts/ListDefinitions", unary, contracts::prompts::ListDefinitions;
     "/dokime.v1.Prompts/ListPending", unary, contracts::prompts::ListPending;
     "/dokime.v1.Prompts/Respond", unary, contracts::prompts::Respond;
-    "/dokime.v1.Query/ListCycles", unary, contracts::query::ListCycles = super::super::finite_queries::cycles();
+    "/dokime.v1.Query/ListCycles", unary, contracts::query::ListCycles = crate::finite_queries::cycles();
     "/dokime.v1.Query/ListExecutions", unary, contracts::query::ListExecutions = contracts::query::ListExecutions {
         selection: model::query::selection::ExecutionSelection { template_ids: vec![], cycle_ids: vec![], statuses: vec![], started_at: None, archive: None },
         page: model::query::page::PageRequest { rows: None, bytes: None, after: None }, at: None,

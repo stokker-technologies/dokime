@@ -99,7 +99,7 @@ class TraceSummaryTests(unittest.TestCase):
             self.assertEqual(json.loads(summary.read_text(encoding="utf-8"))["trace_files"], 1)
 
     def test_desktop_export(self):
-        module = Path(__file__).resolve().parents[3] / "crates/dokime-gui/e2e/test-trace.mjs"
+        module = Path(__file__).resolve().parents[4] / "crates/dokime-gui/e2e/test-trace.mjs"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             script = root / "fixture.mjs"

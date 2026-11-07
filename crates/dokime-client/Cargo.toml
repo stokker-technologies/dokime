@@ -79,7 +79,7 @@ url = { workspace = true }
 
 [dev-dependencies]
 # Local
-dokime-tracing = { workspace = true }
+dokime-tracing = { path = "../dokime-tracing" }
 
 # Git
 

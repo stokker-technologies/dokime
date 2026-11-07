@@ -11,8 +11,9 @@
 
 /* === Modules === */
 
-mod diagnostics;
 mod trace;
+
+mod diagnostics;
 
 /* === Re-Exports === */
 

@@ -39,7 +39,7 @@ from dokime_tools.ci import environment as step_environment
 
 # === Constants === #
 
-SETUP = runpy.run_path(str(Path(__file__).resolve().parents[3] / ".github/actions/setup/run.py"))
+SETUP = runpy.run_path(str(Path(__file__).resolve().parents[4] / ".github/actions/setup/run.py"))
 # Setup Functions Resolve Names In The Script Namespace, Which `run_path` Returns Only A Copy Of.
 SETUP_GLOBALS = SETUP["verify_temporary_exclusions"].__globals__
 SCANNING = {"AMRunningMode": "Normal", "RealTimeProtectionEnabled": True, "OnAccessProtectionEnabled": True}

@@ -557,31 +557,36 @@ fn execution_page<'a>(
 
 /* === Tests === */
 
-#[test]
-fn report_failure_details() {
-    use dokime::domain::model::{evidence::wire::CapturedRecordError, reports::wire::ReportSubject};
-    use dokime::harmos::grpc::{Transcoded, Wire};
-    use harmos_sdk::grpc::DecodeInput;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let execution = "00000000-0000-7000-8000-000000000123";
-    let root = std::env::current_dir().unwrap();
-    let source = std::io::Error::other(format!("fixture-save-root: {}", root.join("report.html").display()));
-    let error = Error::ReportSave {
-        subject: ReportSubject::Execution(execution.into()),
-        stage: "execution report publication",
-        source: Box::new(Error::ReportUnavailable(Box::new(source.into()))),
-    };
-    let status = status(error);
-    assert_eq!(status.code(), Code::Internal);
-    let envelope = tonic_types::Status::decode(status.details()).unwrap();
-    let detail = envelope.details.iter().find(|detail| detail.type_url.ends_with("CapturedRecordError")).unwrap();
-    let (detail, _) =
-        <Transcoded as Wire<CapturedRecordError>>::decode_admitted(DecodeInput::new(&detail.value), |_| Ok::<_, Status>(())).unwrap();
-    assert_eq!(detail.code.as_deref(), Some("report_not_saved"));
-    assert!(detail.message.contains(execution));
-    assert!(detail.message.contains("execution report publication"));
-    assert!(detail.cause_chain.len() >= 2);
-    assert_eq!(detail.cause_chain.last().unwrap().message, "fixture-save-root: report.html");
-    assert!(!detail.cause_chain.iter().any(|cause| cause.message.contains(&root.display().to_string())));
-    assert!(detail.source.is_some());
+    #[test]
+    fn report_failure_details() {
+        use dokime::domain::model::{evidence::wire::CapturedRecordError, reports::wire::ReportSubject};
+        use dokime::harmos::grpc::{Transcoded, Wire};
+        use harmos_sdk::grpc::DecodeInput;
+
+        let execution = "00000000-0000-7000-8000-000000000123";
+        let root = std::env::current_dir().unwrap();
+        let source = std::io::Error::other(format!("fixture-save-root: {}", root.join("report.html").display()));
+        let error = Error::ReportSave {
+            subject: ReportSubject::Execution(execution.into()),
+            stage: "execution report publication",
+            source: Box::new(Error::ReportUnavailable(Box::new(source.into()))),
+        };
+        let status = status(error);
+        assert_eq!(status.code(), Code::Internal);
+        let envelope = tonic_types::Status::decode(status.details()).unwrap();
+        let detail = envelope.details.iter().find(|detail| detail.type_url.ends_with("CapturedRecordError")).unwrap();
+        let (detail, _) =
+            <Transcoded as Wire<CapturedRecordError>>::decode_admitted(DecodeInput::new(&detail.value), |_| Ok::<_, Status>(())).unwrap();
+        assert_eq!(detail.code.as_deref(), Some("report_not_saved"));
+        assert!(detail.message.contains(execution));
+        assert!(detail.message.contains("execution report publication"));
+        assert!(detail.cause_chain.len() >= 2);
+        assert_eq!(detail.cause_chain.last().unwrap().message, "fixture-save-root: report.html");
+        assert!(!detail.cause_chain.iter().any(|cause| cause.message.contains(&root.display().to_string())));
+        assert!(detail.source.is_some());
+    }
 }

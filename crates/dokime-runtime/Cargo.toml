@@ -203,7 +203,7 @@ proc-macro2 = { workspace = true }
 
 [dev-dependencies]
 # Local
-dokime-tracing = { workspace = true }
+dokime-tracing = { path = "../dokime-tracing" }
 plugin-host = { workspace = true }
 
 # Git
@@ -397,7 +397,7 @@ required-features = ["native"]
 
 [[test]]
 name = "invocation"
-path = "tests/invocation.rs"
+path = "tests/plugin/main.rs"
 required-features = ["native"]
 
 # === Bench Targets === #

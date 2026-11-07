@@ -18,8 +18,7 @@ from unittest.mock import patch
 
 # Third Party Imports
 # Local Imports
-from dokime_tools import lint
-from dokime_tools.build import cargo
+from dokime_tools.build import cargo, lint
 
 # Type Checking Imports
 

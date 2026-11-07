@@ -26,15 +26,13 @@ mod retained_evidence;
 mod evidence_durability;
 mod managed_durability;
 
+mod artifacts;
 mod domains;
-mod engine_artifacts;
-mod execution_seal_report;
-mod execution_workflow;
+mod execution;
 mod numeric_query_parity;
 mod plugin;
 #[cfg(feature = "testing")]
 mod plugin_completion;
-mod plugin_store_leases;
 mod plugins;
 mod query_buckets;
 mod query_running;
@@ -46,11 +44,10 @@ mod query_telemetry;
 #[cfg(feature = "testing")]
 mod record_queries;
 
+mod config;
 mod runtime;
-mod runtime_queries;
-mod settings_backends;
+mod storage;
 mod storage_format;
-mod storage_recovery;
 
 #[path = "../support/engine/mod.rs"]
 pub mod engine_support;

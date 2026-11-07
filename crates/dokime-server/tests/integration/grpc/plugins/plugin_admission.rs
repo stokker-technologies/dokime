@@ -11,7 +11,7 @@
 
 /* === Modules === */
 
-#[path = "../../../src/grpc/plugins/admission.rs"]
+#[path = "../../../../src/grpc/plugins/admission.rs"]
 mod admission;
 
 /* === Re-Exports === */

@@ -75,7 +75,7 @@ pub fn workspace_root() -> std::path::PathBuf {
 pub fn standalone_directory() -> StandaloneDirectory {
     let mut command = dokime::domain::process::command("uv");
     let mut owner = command
-        .args(["run", "--locked", "--project", "tools/python", "python", "-m", "dokime_tools.fixture"])
+        .args(["run", "--locked", "--project", "tools/python", "python", "-m", "dokime_tools.test.fixture"])
         .current_dir(workspace_root())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

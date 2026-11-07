@@ -11,8 +11,6 @@
 
 /* === Modules === */
 
-pub(crate) mod policy;
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -32,6 +30,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 
 // Local Imports
+use dokime::config::organization::policy;
 
 /* === Constants === */
 

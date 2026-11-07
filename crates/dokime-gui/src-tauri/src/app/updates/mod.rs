@@ -183,7 +183,7 @@ impl UpdateState {
         inner.candidate = None;
         let result = match found {
             Some(mut update) => {
-                super::organization::policy::https_url(update.download_url.as_str())?;
+                dokime::config::organization::policy::https_url(update.download_url.as_str())?;
                 update.timeout = Some(Duration::from_millis(DESKTOP_UPDATE_TIMEOUT_MS));
                 let id = format!("{:032x}", rand::random::<u128>());
                 let result = UpdateCheck {
@@ -330,7 +330,7 @@ pub async fn desktop_updates_install(state: State<'_, UpdateState>, candidate: S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::organization::policy::Source;
+    use dokime::config::organization::policy::Source;
 
     #[cfg(feature = "updater")]
     #[tokio::test]

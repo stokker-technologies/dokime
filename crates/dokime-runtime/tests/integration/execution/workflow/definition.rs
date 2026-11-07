@@ -31,12 +31,12 @@ use dokime_runtime::definition::{
 
 /* === Structs === */
 
-/* === Doc Example: Template Authoring === */
+// Doc Example: Template Authoring
 
 // --8<-- [start:template]
 struct TrackingTestTemplate;
 
-/* === Doc Example: Parameter Spaces And Case Expansion === */
+// Doc Example: Parameter Spaces And Case Expansion
 
 // --8<-- [start:parameter-spaces]
 struct MatrixTemplate;

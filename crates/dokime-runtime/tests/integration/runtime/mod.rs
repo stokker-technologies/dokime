@@ -9,6 +9,10 @@
 
 /* === Modules === */
 
+pub(crate) mod storage;
+
+pub(crate) mod query;
+
 pub(crate) mod secrets;
 
 /* === Re-Exports === */

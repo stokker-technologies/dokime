@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Verify Shipping Sidecar Archives Mark Bundles As Regular Files."""
 
 # === Imports === #
@@ -19,9 +18,20 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+# Third Party Imports
 # Local Imports
 from dokime_tools.package import plugins
 from dokime_tools.release import layout
+
+# Type Checking Imports
+
+# === Public Exports === #
+
+# === Constants === #
+
+# === Types === #
+
+# === Classes === #
 
 
 class ArchiveTests(unittest.TestCase):
@@ -58,6 +68,12 @@ class ReleaseLayoutTests(unittest.TestCase):
                 self.assertTrue(stat.S_ISREG(entry.external_attr >> 16))
                 self.assertEqual(archive.read(entry), b"bundle")
 
+
+# === Public Functions === #
+
+# === Private Functions === #
+
+# === Entry Point === #
 
 if __name__ == "__main__":
     unittest.main()

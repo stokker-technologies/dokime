@@ -195,11 +195,15 @@ fn quote_or_blank(byte: u8) -> bool {
 /* === Tests === */
 
 #[cfg(test)]
-#[test]
-fn diagnostics_redact_secrets() {
-    let message = redact("Authorization: Bearer fixture-access-key\npassword='fixture-password' token=fixture-token");
-    for secret in ["fixture-access-key", "fixture-password", "fixture-token"] {
-        assert!(!message.contains(secret));
+mod tests {
+    use super::*;
+
+    #[test]
+    fn diagnostics_redact_secrets() {
+        let message = redact("Authorization: Bearer fixture-access-key\npassword='fixture-password' token=fixture-token");
+        for secret in ["fixture-access-key", "fixture-password", "fixture-token"] {
+            assert!(!message.contains(secret));
+        }
+        assert!(message.contains(REDACTED));
     }
-    assert!(message.contains(REDACTED));
 }
