@@ -5,10 +5,16 @@
 ### Requirement: Automatic Immutable Row Revisions
 Dokime SHALL derive row revisions from schemas, retain each definition and decode saved rows through their own revisions. Authors SHALL NOT bump versions or restart the backend for a changed row.
 
-#### Scenario: Reload or Restart on One Root
-- **WHEN** two executions capture different row definitions under one stream id with reload or backend restart between them
+#### Scenario: Reload Within One Cycle
+- **WHEN** executions capture different row definitions under one stream id with live reload between them in one cycle
 - **THEN** both execution reports and their cycle report build with the correct values
 - **AND** current catalogs and plots resolve the activated stream by id
+
+#### Scenario: Restart on One Root
+- **WHEN** two executions capture different row definitions with a backend restart between them on one storage root
+- **THEN** both execution reports build with their correct values
+- **AND** recovery seals the idle pre-restart cycle
+- **AND** a new cycle after restart supports mixed revisions through live reload, with correct execution and cycle report values
 
 ### Requirement: Cross-Revision Columns
 Queries SHALL select streams by id and column, omit absent columns, and isolate incompatible column failures to affected report bindings with diagnostics naming stream and column. Conflicting definitions under one stored key SHALL be refused with fresh-root guidance without deleting data.

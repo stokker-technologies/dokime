@@ -158,21 +158,41 @@ async fn stream_revisions_reload_and_restart_reports() {
         let root = tempdir().unwrap();
         let mut owner = dokime_runtime::Runtime::start(config(root.path()).register(Arc::new(Provider(Variant::Initial)))).await.unwrap();
         let mut handle = owner.handle();
+        let previous_execution = if restart {
+            // Capture Evidence Before Restart
+            let suite = Provider(Variant::Initial).suite();
+            let cycle = start_cases(
+                &handle,
+                metadata("revision.before_restart", "Before Restart"),
+                materialize_cases("revision.checks", &suite.suite),
+            )
+            .await;
+            handle.update_cycle_policy(cycle.clone(), false, CommandContext::default()).await.unwrap();
+            let execution = handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
+            let receipt = handle.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
+            assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+            handle.wait_execution_report(&execution).await.unwrap();
+            crate::service_support::waits::wait_for_run_settled(&handle, &receipt.command_id).await;
+
+            // Restart Before Creating The Mixed-Revision Cycle
+            owner.shutdown().await.unwrap();
+            drop(handle);
+            drop(owner);
+            owner = dokime_runtime::Runtime::start(config(root.path()).register(Arc::new(Provider(Variant::Initial)))).await.unwrap();
+            handle = owner.handle();
+            let recovered = cycle_snapshot(&handle, &cycle).await;
+            assert_eq!(recovered.phase, dokime_domain::model::execution::result::CyclePhase::Sealed);
+            Some(execution)
+        } else {
+            None
+        };
         let suite = Provider(Variant::Initial).suite();
         let cycle = start_cases(&handle, metadata("revision.cycle", "Revisions"), materialize_cases("revision.checks", &suite.suite)).await;
         handle.update_cycle_policy(cycle.clone(), false, CommandContext::default()).await.unwrap();
         let mut executions = Vec::new();
         for variant in [Variant::Initial, Variant::Expanded, Variant::Incompatible] {
             if !matches!(variant, Variant::Initial) {
-                if restart {
-                    owner.shutdown().await.unwrap();
-                    drop(handle);
-                    drop(owner);
-                    owner = dokime_runtime::Runtime::start(config(root.path()).register(Arc::new(Provider(variant)))).await.unwrap();
-                    handle = owner.handle();
-                } else {
-                    owner.register(Arc::new(Provider(variant))).await.unwrap();
-                }
+                owner.register(Arc::new(Provider(variant))).await.unwrap();
                 let suite = Provider(variant).suite();
                 handle
                     .append_fixture_cases(cycle.clone(), materialize_cases("revision.checks", &suite.suite), CommandContext::default())
@@ -229,10 +249,22 @@ async fn stream_revisions_reload_and_restart_reports() {
                 let index = executions.iter().position(|id| id == previous).unwrap();
                 assert_eq!(samples[0]["value"], [serde_json::json!(7.0), serde_json::json!(13.0), serde_json::json!("changed")][index]);
             }
+            if let Some(previous) = &previous_execution {
+                let mut report = handle.open_execution_report(previous).await.unwrap();
+                let bytes = reports::opened_bytes(&mut report).await;
+                let report = reports::parse(std::str::from_utf8(&bytes).unwrap());
+                let samples = report["snapshot"]["telemetry"]["revision.reading"]["samples"].as_array().unwrap();
+                assert_eq!(samples.len(), 1);
+                assert_eq!(samples[0]["value"], serde_json::json!(7.0));
+            }
             let mut report = handle.open_cycle_report(&cycle).await.unwrap();
             let bytes = reports::opened_bytes(&mut report).await;
             let report = reports::parse(std::str::from_utf8(&bytes).unwrap());
-            assert_eq!(report["snapshot"]["telemetry"]["revision.reading"]["samples"].as_array().unwrap().len(), executions.len());
+            let samples = report["snapshot"]["telemetry"]["revision.reading"]["samples"].as_array().unwrap();
+            assert_eq!(samples.len(), executions.len());
+            for (sample, expected) in samples.iter().zip([serde_json::json!(7.0), serde_json::json!(13.0), serde_json::json!("changed")]) {
+                assert_eq!(sample["value"], expected);
+            }
             if matches!(variant, Variant::Incompatible) {
                 assert!(
                     report["warnings"]

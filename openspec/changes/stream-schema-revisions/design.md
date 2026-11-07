@@ -12,4 +12,4 @@ Validation follows the explicit owner override: the selected workspace build, GU
 
 ## Restart Cycle Decision
 
-Existing RecoverInterruptedCycles seals every open cycle on startup, including idle cycles. A cycle containing executions from before and after a backend restart cannot be created through the existing admission API. Owner direction is required before changing this recovery contract or substituting a proof that preserves it. Live reload on one cycle and retained execution reads across restart remain in scope regardless.
+Preserve RecoverInterruptedCycles sealing every open cycle on startup, including idle cycles. Both executions' reports must build with their captured values across a restart. Prove mixed revisions within a new cycle created after restart, using live reload between its executions without another restart inside that cycle. The pre-restart execution report must remain readable after those reloads.
