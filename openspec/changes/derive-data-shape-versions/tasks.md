@@ -13,3 +13,7 @@
 - [ ] 2.2 Run the owner-required all-targets feature build, TypeScript build and lint:rust; repair failures.
 - [ ] 2.3 Review relevant hosted CI and obtain CLEAN from the owner-specified scan.
 - [ ] 2.4 Archive this change and publish the completed candidate through the authorized PR.
+
+## Workflow Follow-Up
+
+The native Harmos `Described` derive cannot describe Serde tagging, enum renaming or conditional omission used by Dokime's built-in journal records. See design.md for the exact declarations, observed errors and recommended upstream resolution. Implementation and final proof remain open; do not merge the dependency-only checkpoint.
