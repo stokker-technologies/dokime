@@ -33,10 +33,8 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 
 // Local Imports
-use super::organization::{
-    OrganizationState,
-    policy::{Mode, UpdatePolicy},
-};
+use super::organization::OrganizationState;
+use dokime::config::organization::policy::{Mode, UpdatePolicy};
 
 /* === Constants === */
 
