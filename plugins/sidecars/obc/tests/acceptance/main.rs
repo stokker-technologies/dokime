@@ -234,20 +234,28 @@ impl Serve<dokime::records::RecordPublication> for Hosting {
     }
 }
 
-// The step built-ins a suite plugin requires; this host watches no files.
-impl Serve<dokime::operations::files::WatchFile> for Hosting {
+// The step built-ins a suite plugin requires; this host captures no files.
+impl Serve<dokime::operations::files::CopyFiles> for Hosting {
     fn serve<'a>(
-        &'a self, _: dokime::operations::files::WatchFile, _: Context<'a, dokime::operations::files::WatchFile>,
-    ) -> Served<'a, dokime::domain::model::files::wire::WatchFileOutcome> {
-        Box::pin(std::future::ready(Err(refusal("the test host watches no files"))))
+        &'a self, _: dokime::operations::files::CopyFiles, _: Context<'a, dokime::operations::files::CopyFiles>,
+    ) -> Served<'a, dokime::domain::model::files::wire::CapturedFiles> {
+        Box::pin(std::future::ready(Err(refusal("the test host captures no files"))))
     }
 }
 
-impl Serve<dokime::operations::files::AwaitFileWatchArmed> for Hosting {
+impl Serve<dokime::operations::files::StartCapture> for Hosting {
     fn serve<'a>(
-        &'a self, _: dokime::operations::files::AwaitFileWatchArmed, _: Context<'a, dokime::operations::files::AwaitFileWatchArmed>,
-    ) -> Served<'a, dokime::domain::model::files::wire::FileWatchArmed> {
-        Box::pin(std::future::ready(Err(refusal("the test host watches no files"))))
+        &'a self, _: dokime::operations::files::StartCapture, _: Context<'a, dokime::operations::files::StartCapture>,
+    ) -> Served<'a, dokime::domain::model::files::wire::CaptureStarted> {
+        Box::pin(std::future::ready(Err(refusal("the test host captures no files"))))
+    }
+}
+
+impl Serve<dokime::operations::files::StopCapture> for Hosting {
+    fn serve<'a>(
+        &'a self, _: dokime::operations::files::StopCapture, _: Context<'a, dokime::operations::files::StopCapture>,
+    ) -> Served<'a, dokime::domain::model::files::wire::CapturedFiles> {
+        Box::pin(std::future::ready(Err(refusal("the test host captures no files"))))
     }
 }
 
@@ -475,8 +483,9 @@ struct FixtureConfig {
 
 #[harmos::catalog(harmos_path = dokime::harmos)]
 enum HostOperations {
-    Operation0(dokime::operations::files::AwaitFileWatchArmed),
-    Operation1(dokime::operations::files::WatchFile),
+    Operation0(dokime::operations::files::CopyFiles),
+    Operation1(dokime::operations::files::StartCapture),
+    Operation7(dokime::operations::files::StopCapture),
     Operation2(dokime::records::RecordPublication),
     Operation3(EvidenceBatch),
     Operation4(OperatorQuestion),
@@ -495,11 +504,14 @@ impl harmos::Lifecycle for Fixture {
             ..Default::default()
         });
         let hosting = config.hosting.expect("fixture hosting resources");
-        setup.resource::<Hosted<dokime::operations::files::AwaitFileWatchArmed>>(
-            Hosted::<dokime::operations::files::AwaitFileWatchArmed>::new(hosting.clone()),
-        );
         setup
-            .resource::<Hosted<dokime::operations::files::WatchFile>>(Hosted::<dokime::operations::files::WatchFile>::new(hosting.clone()));
+            .resource::<Hosted<dokime::operations::files::CopyFiles>>(Hosted::<dokime::operations::files::CopyFiles>::new(hosting.clone()));
+        setup.resource::<Hosted<dokime::operations::files::StartCapture>>(Hosted::<dokime::operations::files::StartCapture>::new(
+            hosting.clone(),
+        ));
+        setup.resource::<Hosted<dokime::operations::files::StopCapture>>(Hosted::<dokime::operations::files::StopCapture>::new(
+            hosting.clone(),
+        ));
         setup.resource::<Hosted<dokime::records::RecordPublication>>(Hosted::<dokime::records::RecordPublication>::new(hosting.clone()));
         setup.resource::<Hosted<EvidenceBatch>>(Hosted::<EvidenceBatch>::new(hosting.clone()));
         setup.resource::<Hosted<OperatorQuestion>>(Hosted::<OperatorQuestion>::new(hosting.clone()));

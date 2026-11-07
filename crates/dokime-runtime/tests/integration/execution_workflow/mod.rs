@@ -137,7 +137,8 @@ async fn execution_workflow_prompt_commands() {
 async fn execution_workflow_pooled() {
     steps::harness_mirror_arms_before_rotation_and_retains_both_segments().await;
     steps::harness_copy_truncate_retains_the_previous_segment().await;
-    steps::swept_watch_warning().await;
+    steps::capture_seals_with_or_without_a_stop().await;
+    steps::capture_spans_steps().await;
     workflow::artifact_backpressure().await;
 }
 

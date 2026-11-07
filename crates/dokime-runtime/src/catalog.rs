@@ -524,7 +524,10 @@ pub const fn assert_no_builtin_requirements(required: &[Node<harmos::operations:
                 use harmos::operations::OperationDeclaration;
                 let id = declaration.operation.id;
                 assert!(
-                    !same(id, dokime_operations::files::WatchFile::ID) && !same(id, dokime_operations::process::RunProcess::ID),
+                    !same(id, dokime_operations::files::CopyFiles::ID)
+                        && !same(id, dokime_operations::files::StartCapture::ID)
+                        && !same(id, dokime_operations::files::StopCapture::ID)
+                        && !same(id, dokime_operations::process::RunProcess::ID),
                     "unconditional built-in operations must not be listed in a template's `requires` catalog"
                 );
             }

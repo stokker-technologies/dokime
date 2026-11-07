@@ -11,6 +11,8 @@
 pub(crate) mod analysis;
 pub(crate) mod authoring;
 pub(crate) mod calls;
+#[cfg(feature = "testing")]
+mod capture_stop;
 pub(crate) mod demand;
 pub(crate) mod documents;
 pub(crate) mod harmos;
@@ -24,8 +26,6 @@ pub(crate) mod resources;
 pub(crate) mod sdk_error;
 pub(crate) mod shared_calls;
 pub(crate) mod stream_admission;
-#[cfg(feature = "testing")]
-mod watch_stop;
 
 /* === Re-Exports === */
 

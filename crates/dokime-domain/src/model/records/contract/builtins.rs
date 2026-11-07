@@ -131,6 +131,8 @@ builtin_record_types! {
     ResourceRemoved => "resource.removed",
     ToolConnectionAcquired => "tool.connection.acquired",
     ToolConnectionLost => "tool.connection.lost",
+    FileCaptureGap => "dokime.files.capture_gap",
+    FileCaptureFailed => "dokime.files.capture_failed",
     TargetLost => "target.lost",
     TargetAcquired => "target.acquired",
     CalibrationFieldStarted => "calibration.field.started",
@@ -323,13 +325,21 @@ impl BuiltinRecordType {
                     field("cancelled", ValueType::Boolean).with_default(Value::from(false)),
                 ],
             ),
-            // A process, watch or submitted operation still running when its
+            // A process or submitted operation still running when its
             // step ended, which the step-end sweep cancelled.
             Self::TestStepHandleCancelled => contract(
                 record_type,
                 RecordSeverity::Warning,
                 vec![field("step", ValueType::Text), field("kind", ValueType::Text), field("name", ValueType::Text)],
             ),
+            // Source bytes a file capture's output does not contain.
+            Self::FileCaptureGap => contract(
+                record_type,
+                RecordSeverity::Warning,
+                vec![field("path", ValueType::Text), field("offset", ValueType::Integer), field("reason", ValueType::Text)],
+            ),
+            // A file capture that ended early, whether or not anyone stopped it.
+            Self::FileCaptureFailed => contract(record_type, RecordSeverity::Warning, vec![field("reason", ValueType::Text)]),
             Self::ProgressMilestone => contract(
                 record_type,
                 RecordSeverity::Info,

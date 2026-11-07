@@ -148,7 +148,7 @@ pub struct ProcessExited {
 }
 
 // Something a step left running that the step-end sweep cancelled: a
-// `process`, a `watch` or another submitted `operation`.
+// `process` or another submitted `operation`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StepHandleCancelled {
     pub step: String,

@@ -23,22 +23,19 @@ use super::*;
 use crate::domain::model::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::domain::model::charger::{Charger, Power};
 use crate::domain::model::measurement::Row;
-use crate::domain::model::settings::FILE_POLL_MS;
 use crate::domain::{Error, model::prompts::checkpoint};
 use crate::domain::{document as system, model::measurement};
 use crate::operations::charger::*;
 use crate::operations::wait::Wait;
 use dokime::document::{self, PlotStyle};
-use dokime::domain::model::files::wire::FileWatchPolicy;
-use dokime::domain::model::files::wire::FileWatchSelection;
-use dokime::domain::model::files::wire::FileWatchSource;
-use dokime::domain::model::files::wire::FileWatchSourcePayload;
+use dokime::domain::model::files::wire::FileSource;
 use dokime::domain::model::files::wire::LineMatcher;
-use dokime::domain::model::files::wire::LocalWatchSource;
+use dokime::domain::model::files::wire::StreamCapture;
 use dokime::domain::model::identity::TemplateId;
 use dokime::expressions::telemetry;
 use dokime::host::ToolConnectionAcquired;
-use dokime::operations::files::WatchFile;
+use dokime::operations::files::StartCapture;
+use dokime::operations::files::StopCapture;
 use dokime::prelude::*;
 
 /* === Constants === */
@@ -327,37 +324,15 @@ impl Template {
 
     #[dokime::step(
         label = "Tail the Charger Log",
-        description = "Watches the charger's log file while it reports its first readings.\nThe watch is the host's `WatchFile` operation: it captures only what the charger writes after the watch starts into the `charger/device.log` artifact, and its matcher turns every status line into a row of the charger log stream. The producer cancels and seals the bounded watch after writing its readings."
+        description = "Captures the charger's log file while it reports its first readings.\nThe capture is the host's `StartCapture` operation: it captures only what the charger writes after it starts into the `charger/device.log` artifact, and its matcher turns every status line into a row of the charger log stream. The step stops and seals the capture after writing its readings."
     )]
     async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        // Watch the Charger Log
-        let operation = WatchFile {
-            recursive: false,
-            rules: Vec::new(),
-            maximum_files: None,
-            execution_id: None,
-            source: Some(FileWatchSource {
-                payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-                    root: self.log.to_string_lossy().into_owned(),
-                })),
-            }),
-            output: "charger".into(),
-            artifact: Some("charger/device.log".into()),
-            policy: FileWatchPolicy::Stream,
-            selection: FileWatchSelection::All,
-            wait_for_source_seconds: None,
-            poll_interval_ms: Some(FILE_POLL_MS),
-            maximum_seconds: Some(1),
-            maximum_bytes: None,
-            matchers: vec![LineMatcher::publishing::<ChargerLog>(
-                r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)",
-            )],
-            markers: Vec::new(),
-        };
-        let watch = ctx.operation(operation).start().await?;
-        // The watch takes its baseline first; the charger then logs its
-        // readings while it runs.
-        watch.armed().await?;
+        // Start Capture
+        let matcher =
+            LineMatcher::publishing::<ChargerLog>(r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)");
+        let request = StartCapture::new(FileSource::file(&self.log), "charger/device.log", StreamCapture::plain().matcher(matcher));
+        let capture = ctx.operation(request).await?;
+
         let interval_s = ctx.parameters().sample_interval_s;
         for index in 0..5 {
             // Sample Charger Into Its Log
@@ -368,7 +343,10 @@ impl Template {
             let sample = ctx.operation(operation).await?.into_owned();
             self.device = sample.charger;
         }
-        let captured = watch.cancel().await?.into_owned();
+
+        // Stop Capture
+        let request = StopCapture { capture_id: capture.capture_id };
+        let captured = ctx.operation(request).await?.into_owned();
         ctx.info(format!("record=charger_log bytes={}", captured.artifacts.iter().map(|artifact| artifact.size_bytes).sum::<u64>()));
         Ok(())
     }

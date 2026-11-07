@@ -429,7 +429,7 @@ Await returns Harmos `Response<T>`, which dereferences to the value; use
 The operation macro owns default timeouts, delays and retries. `.retry(settings.retry)`
 overrides one call, using settings, parameters or configuration. Enabled overrides
 require declared replay safety, preserve attempt deadlines and record every attempt.
-Template built-ins such as WatchFile and RunProcess use the same method without a
+Template built-ins such as StartCapture and RunProcess use the same method without a
 `requires` entry; listing an unconditional built-in there is a compile error.
 Import `OperationHost` for carrier hosts. Rebuild sidecars and guests together for child-call envelope v2.
 

@@ -205,6 +205,7 @@ async fn execute<T: SidecarTemplate>(
         Ok(template) => template,
         Err(ended) => {
             let cleanup_error = settle_callbacks(&environment, &transport).await;
+            environment.captures().seal_all().await;
             environment.streams().flush().await;
             super::scanning::settle(scanning, &watched, &executions, &token).await;
             if let Err(diagnostic) = finalize_record_inputs(&executions, &token, &mut evidence, host_managed_subscriptions).await {
@@ -271,6 +272,8 @@ async fn execute<T: SidecarTemplate>(
     transport.capture_phase(dokime_domain::model::execution::CapturePhase::Default);
     let callback_error = settle_callbacks(&environment, &transport).await;
     let cleanup_error = cleanup_error.or(callback_error);
+    // A capture no step stopped seals into this run's evidence.
+    environment.captures().seal_all().await;
     // Whatever cleanup pushed reaches the host before the run reports.
     environment.streams().flush().await;
 
@@ -478,7 +481,7 @@ async fn walk<T: SidecarTemplate>(
             }
         };
         // What the step left running is cancelled before its attempt ends,
-        // so a process's exit and a watch's last rows still belong to it.
+        // so a process's exit still belongs to it.
         drop(ctx);
         for warning in environment.handles().sweep().await {
             transport.emit(crate::records::DeclaredRecord::request(warning));

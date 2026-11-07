@@ -7,7 +7,7 @@
  * ***
  */
 
-// A Stream watch over an in-process FTP server: listing discovery, ranged
+// A Stream capture over an in-process FTP server: listing discovery, ranged
 // retrieval from the committed offset, and the password read from the host
 // secret store by reference. FTPS needs a certificate the platform
 // verifier trusts, so it is checked manually against a real server.
@@ -29,7 +29,10 @@ use unftp_sbe_fs::Filesystem;
 use super::*;
 use dokime_domain::model;
 use dokime_runtime::domains::files::{GapReason, Phase, UNREACHABLE};
-use {model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSourcePayload, model::files::wire::FtpWatchSource};
+use {
+    dokime_operations::files::StartCapture, model::files::wire::FileLocation, model::files::wire::FileRule, model::files::wire::FileSource,
+    model::files::wire::LineMarker, model::files::wire::StreamCapture,
+};
 
 /* === Constants === */
 const USER: &str = "bench";
@@ -82,21 +85,18 @@ async fn serve(root: &Path) -> u16 {
     port
 }
 
-// Recoverable FTP Passes May Be Empty; Drive The Same Watch Until It Advances.
-async fn next_events(watch: &mut FileWatch) -> Vec<WatchEvent> {
+// Recoverable FTP Passes May Be Empty; Drive The Same Capture Until It Advances.
+async fn next_events(capture: &mut FileCapture) -> Vec<CaptureEvent> {
     loop {
-        let events = poll(watch).await;
+        let events = poll(capture).await;
         if !events.is_empty() {
             return events;
         }
     }
 }
 
-fn ftp(url: String, secret: Option<&str>) -> FileWatchSourcePayload {
-    FileWatchSourcePayload::Ftp(FtpWatchSource {
-        url,
-        secret_id: secret.map(str::to_owned),
-    })
+fn ftp(url: String, secret: Option<&str>) -> FileLocation {
+    FileLocation::ftp(url, secret.map(str::to_owned))
 }
 
 async fn store_ftp_secret(bench: &Bench) {
@@ -161,26 +161,12 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
     let port = serve(served.path()).await;
     let (port, proxy) = refusing_resume(port).await;
     let url = format!("ftp://{USER}@127.0.0.1:{port}/bench/device.log");
-    let request = dokime_operations::files::WatchFile {
-        recursive: false,
-        rules: Vec::new(),
-        maximum_files: None,
-        execution_id: Some(bench.execution.clone()),
-        source: Some(model::files::wire::FileWatchSource { payload: Some(ftp(url, Some(SECRET))) }),
-        output: OUTPUT.to_owned(),
-        artifact: None,
-        policy: FileWatchPolicy::Stream,
-        selection: model::files::wire::FileWatchSelection::All,
-        wait_for_source_seconds: None,
-        poll_interval_ms: None,
-        maximum_seconds: None,
-        maximum_bytes: None,
-        matchers: Vec::new(),
-        markers: vec![model::files::wire::LineMarker::new("WARN", "tracking.warning")],
-    };
-    let mut extraction = bench.handle.open_watch_file(&request, None).await.unwrap();
+    let source = FileSource::file(ftp(url, Some(SECRET)));
+    let mode = StreamCapture::plain().marker(LineMarker::new("WARN", "tracking.warning"));
+    let request = StartCapture::new(source.clone(), format!("{OUTPUT}/device.log"), mode);
+    let mut extraction = bench.handle.open_file_capture(&request, &bench.execution).await.unwrap();
     let armed = next_events(&mut extraction).await;
-    assert!(armed.iter().any(|event| matches!(event, WatchEvent::Armed { .. })));
+    assert!(armed.iter().any(|event| matches!(event, CaptureEvent::Armed { .. })));
     append(&log, b"WARN\n");
     next_events(&mut extraction).await;
     append(&log, b"WARN\n");
@@ -192,23 +178,19 @@ async fn refused_resume_reports_extraction_failure_and_artifact_only_fallback() 
     };
     assert_eq!(error.code(), Some(dokime_runtime::domains::files::UNSUPPORTED));
     assert!(error.to_string().contains("Enable REST"));
-    assert!(events.iter().any(|event| matches!(event, WatchEvent::Gap { reason: GapReason::ResumeUnsupported, .. })));
+    assert!(events.iter().any(|event| matches!(event, CaptureEvent::Gap { reason: GapReason::ResumeUnsupported, .. })));
     seal(&mut extraction).await;
     assert_eq!(extraction.sealed().len(), 1, "captured prefix remains evidence on extraction failure");
     let preserved = bench.handle.read_artifact_content(&extraction.sealed()[0].artifact_id, 100).await.unwrap().unwrap();
     assert_eq!(preserved.bytes, b"WARN\n");
 
-    let artifact_request = dokime_operations::files::WatchFile {
-        markers: Vec::new(),
-        output: "fallback".into(),
-        ..request
-    };
-    let mut artifact = bench.handle.open_watch_file(&artifact_request, None).await.unwrap();
+    let artifact_request = StartCapture::new(source, "fallback/device.log", StreamCapture::plain());
+    let mut artifact = bench.handle.open_file_capture(&artifact_request, &bench.execution).await.unwrap();
     let armed = next_events(&mut artifact).await;
-    assert!(armed.iter().any(|event| matches!(event, WatchEvent::Armed { .. })));
+    assert!(armed.iter().any(|event| matches!(event, CaptureEvent::Armed { .. })));
     append(&log, b"tail\n");
     let fallback = next_events(&mut artifact).await;
-    assert!(fallback.iter().any(|event| matches!(event, WatchEvent::Gap { reason: GapReason::ResumeUnsupported, .. })));
+    assert!(fallback.iter().any(|event| matches!(event, CaptureEvent::Gap { reason: GapReason::ResumeUnsupported, .. })));
     seal(&mut artifact).await;
     let record = &artifact.sealed()[0];
     let content = bench.handle.read_artifact_content(&record.artifact_id, 100).await.unwrap().unwrap();
@@ -226,59 +208,47 @@ async fn stream_ftp_source() {
     store_ftp_secret(&bench).await;
     let served = tempdir().unwrap();
     let log = served.path().join("bench/logs/charger.log");
-    write(&log, b"before the watch\n");
+    write(&log, b"before the capture\n");
     write(&served.path().join("bench/readme.txt"), b"unmatched\n");
     let port = serve(served.path()).await;
     let url = format!("ftp://{USER}@127.0.0.1:{port}/bench");
-    let rules = vec![include("**/*.log")];
+    let rules = vec![FileRule::include("**/*.log")];
+    let start =
+        |secret: Option<&str>| StartCapture::new(FileSource::tree(ftp(url.clone(), secret), rules.clone()), OUTPUT, StreamCapture::plain());
 
     // A Wrong or Missing Secret Is Refused at Open
-    let refused = bench
-        .handle
-        .open_file_watch(&request(&bench.execution, ftp(url.clone(), None), rules.clone(), FileWatchPolicy::Stream), None)
-        .await
-        .err()
-        .unwrap();
+    let refused = bench.handle.open_file_capture(&start(None), &bench.execution).await.err().unwrap();
     assert_eq!(refused.code(), Some(UNREACHABLE), "{refused}");
-    let missing = bench
-        .handle
-        .open_file_watch(&request(&bench.execution, ftp(url.clone(), Some("absent")), rules.clone(), FileWatchPolicy::Stream), None)
-        .await
-        .err()
-        .unwrap();
+    let missing = bench.handle.open_file_capture(&start(Some("absent")), &bench.execution).await.err().unwrap();
     assert_eq!(missing.code(), Some("secret_not_found"), "{missing}");
 
-    // The Stored Secret Opens The Watch; Listing Baselines Existing Files
-    let mut watch = bench
-        .handle
-        .open_file_watch(&request(&bench.execution, ftp(url, Some(SECRET)), rules, FileWatchPolicy::Stream), None)
-        .await
-        .unwrap();
-    let first = poll(&mut watch).await;
+    // The Stored Secret Opens The Capture; Listing Baselines Existing Files
+    let mut capture = bench.handle.open_file_capture(&start(Some(SECRET)), &bench.execution).await.unwrap();
+    let first = poll(&mut capture).await;
     assert!(matches!(
         first.as_slice(),
-        [WatchEvent::Armed { .. }, WatchEvent::Progress { path, phase: Phase::Baseline, .. }] if path == "logs/charger.log"
+        [CaptureEvent::Armed { .. }, CaptureEvent::Progress { path, phase: Phase::Baseline, .. }] if path == "logs/charger.log"
     ));
 
     // Ranged Retrieval Captures Only The Appended Bytes; New Files Whole
     append(&log, b"line 1\n");
     write(&served.path().join("bench/logs/new/bms.log"), b"born\n");
-    poll(&mut watch).await;
+    poll(&mut capture).await;
     append(&log, b"line 2\n");
-    poll(&mut watch).await;
+    poll(&mut capture).await;
 
     // Truncation Restarts at the First Byte with a Gap
     write(&served.path().join("bench/logs/new/bms.log"), b"x\n");
-    let truncated = poll(&mut watch).await;
+    let truncated = poll(&mut capture).await;
     assert!(truncated.iter().any(|event| matches!(
         event,
-        WatchEvent::Gap { path, offset: 5, reason: GapReason::Truncated } if path == "logs/new/bms.log"
+        CaptureEvent::Gap { path, offset: 5, reason: GapReason::Truncated } if path == "logs/new/bms.log"
     )));
 
-    let sealed = sealed(&seal(&mut watch).await);
+    let sealed = sealed(&seal(&mut capture).await);
     assert_artifact(&sealed["logs/charger.log"], "logs/charger.log", b"line 1\nline 2\n");
     assert_artifact(&sealed["logs/new/bms.log"], "logs/new/bms.segment2.log", b"x\n");
 
-    drop(watch);
+    drop(capture);
     bench.stop().await;
 }

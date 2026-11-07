@@ -7,14 +7,15 @@
  * ***
  */
 
-// One running file watch. Each tracked file owns a private spool that holds
+// One running file capture. Each tracked file owns a private spool that holds
 // exactly its captured bytes. Stream captures publish committed ranges into
-// one live artifact; sealing finishes that same identity. Mirror captures
-// upload their final successful spool under `<output>/<relative path>`.
-// The caller drives `poll` on changes or at its interval, and `seal` at the end. Closing the execution asks the watch to seal, and dropping an unsealed
-// watch seals it in the background. A watch with line matchers offers each
-// line the Stream policy captures to them, publishing rows to the matched
-// streams and markers as records in the watched execution's scope.
+// one live artifact; sealing finishes that same identity. Mirror and copy
+// captures upload their final successful spool under `<output>/<relative path>`.
+// The caller drives `poll` on changes or at its interval, and `seal` at the end.
+// Closing the execution asks the capture to seal, and dropping an unsealed
+// capture seals it in the background. A Stream capture with line matchers offers
+// each captured line to them, publishing rows to the matched streams and markers
+// as records in the execution's scope. Gaps become records the same way.
 
 /* === Modules === */
 
@@ -36,7 +37,9 @@ use tokio::{io::AsyncSeekExt, sync::oneshot};
 
 // Local Imports
 use super::source::{Entry, Listing, ReadFailure, Source};
-use super::{GapReason, Phase, Policy, Selection, Settings, capped, invalid, unreachable_source};
+#[cfg(feature = "ftp")]
+use super::unreachable_source;
+use super::{GapReason, Settings, capped, invalid};
 use crate::artifacts::{ArtifactRecord, ArtifactUploadInput};
 use crate::execution_runtime::outputs::media_type_for_path;
 use crate::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
@@ -50,7 +53,9 @@ use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::records::BuiltinRecordType;
 use dokime_domain::model::records::publication::RecordPublishRequest;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -63,8 +68,8 @@ const SOURCE: &str = "dokime.files";
 
 /* === Structs === */
 
-pub struct FileWatch {
-    // Taken by `Drop` to seal an abandoned watch in the background.
+pub struct FileCapture {
+    // Taken by `Drop` to seal an abandoned capture in the background.
     state: Option<State>,
     changes: Option<harmos::storage::DirectoryWatcher>,
 }
@@ -75,15 +80,11 @@ struct State {
     execution: TestExecutionId,
     output: String,
     artifact: Option<String>,
-    policy: Policy,
-    selection: Selection,
+    mode: Mode,
+    newest: bool,
     baseline: Option<BTreeSet<String>>,
     selected: Option<String>,
-    wait_for_source: Option<Duration>,
-    waiting_since: tokio::time::Instant,
-    armed_at: Option<tokio::time::Instant>,
     single: bool,
-    preserve_paths: bool,
     segments: BTreeMap<String, u64>,
     names: BTreeSet<String>,
     matcher: FileMatcher,
@@ -91,9 +92,10 @@ struct State {
     sequences: BTreeMap<String, u64>,
     source: Source,
     poll_interval: Duration,
-    deadline: Option<Duration>,
     maximum_files: usize,
     maximum_bytes: u64,
+    maximum_failed_passes: u64,
+    line_bytes: std::num::NonZeroUsize,
     spools: tempfile::TempDir,
     tracked: BTreeMap<String, Tracked>,
     // Bytes held by live spools and sealed artifacts, charged to the byte cap.
@@ -130,8 +132,25 @@ struct Tracked {
 
 /* === Enums === */
 
+// What a capture does to a selected file's bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    Stream,
+    Mirror,
+    // Each selected file once, as it is at the first pass.
+    Copy,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Phase {
+    // Discovered; capture starts from the baseline.
+    Baseline,
+    Capturing,
+    Synced,
+}
+
 #[derive(Debug)]
-pub enum WatchEvent {
+pub enum CaptureEvent {
     Armed { baseline: Vec<String> },
     Progress { path: String, offset: u64, phase: Phase },
     Gap { path: String, offset: u64, reason: GapReason },
@@ -142,16 +161,17 @@ pub enum WatchEvent {
 
 /* === Implementations === */
 
-impl FileWatch {
+impl FileCapture {
     pub(super) async fn open(runtime: RuntimeHandle, settings: Settings, source: Source) -> Result<Self> {
-        let execution = settings.scope.test_execution_id.clone().ok_or_else(|| invalid("a file watch requires an execution"))?;
+        let execution = settings.scope.test_execution_id.clone().ok_or_else(|| invalid("a file capture requires an execution"))?;
         let spools = tempfile::Builder::new()
-            .prefix("dokime-watch-")
+            .prefix("dokime-capture-")
             .tempdir()
-            .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
+            .map_err(|source| Error::Operation(format!("file capture spool: {source}")))?;
 
         // Subscribe Before The Baseline So A Racing Write Remains Observable.
-        let changes = source.changes(runtime.storage()).await;
+        // A Mirror Checks Once Per Interval, However Often Its Source Changes.
+        let changes = if settings.mode == Mode::Stream { source.changes(runtime.storage()).await } else { None };
 
         // Seal into the Execution Before It Stops Admitting Artifacts
         let (seal_sender, seal_request) = oneshot::channel();
@@ -163,15 +183,11 @@ impl FileWatch {
                 execution,
                 output: settings.output,
                 artifact: settings.artifact,
-                policy: settings.policy,
-                selection: settings.selection,
+                mode: settings.mode,
+                newest: settings.newest,
                 baseline: None,
                 selected: None,
-                wait_for_source: settings.wait_for_source,
-                waiting_since: tokio::time::Instant::now(),
-                armed_at: None,
                 single: settings.single,
-                preserve_paths: settings.preserve_paths,
                 segments: BTreeMap::new(),
                 names: BTreeSet::new(),
                 matcher: settings.matcher,
@@ -179,9 +195,10 @@ impl FileWatch {
                 sequences: BTreeMap::new(),
                 source,
                 poll_interval: settings.poll_interval,
-                deadline: settings.deadline,
                 maximum_files: settings.maximum_files,
                 maximum_bytes: settings.maximum_bytes,
+                maximum_failed_passes: settings.maximum_failed_passes,
+                line_bytes: settings.line_bytes,
                 spools,
                 tracked: BTreeMap::new(),
                 captured: 0,
@@ -198,30 +215,16 @@ impl FileWatch {
         })
     }
 
-    pub fn policy(&self) -> Policy {
-        self.state().policy
-    }
-
-    pub(super) fn execution(&self) -> &TestExecutionId {
-        &self.state().execution
-    }
-
     pub fn poll_interval(&self) -> Duration {
-        let state = self.state();
-        if state.baseline.is_none()
-            && let Some(wait) = state.wait_for_source
-        {
-            return state.poll_interval.min(wait.saturating_sub(state.waiting_since.elapsed()));
-        }
-        state.poll_interval
+        self.state().poll_interval
     }
 
-    pub fn remaining(&self) -> Option<Duration> {
-        let state = self.state();
-        state.deadline.zip(state.armed_at).map(|(deadline, armed)| deadline.saturating_sub(armed.elapsed()))
+    // Whether a change of the source can wake the next pass early.
+    pub fn follows_changes(&self) -> bool {
+        self.changes.is_some()
     }
 
-    // Whether the watch has sealed every file it will capture.
+    // Whether the capture has sealed every file it will capture.
     pub fn is_complete(&self) -> bool {
         self.state().complete
     }
@@ -233,7 +236,7 @@ impl FileWatch {
 
     // One discovery and capture pass. Events are pushed even when the pass
     // fails, so frames already earned reach the caller.
-    pub async fn poll(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
+    pub async fn poll(&mut self, events: &mut Vec<CaptureEvent>) -> Result<()> {
         let result = self.state_mut().poll(events).await;
         if self.state().complete || self.state().failed {
             self.changes = None;
@@ -242,7 +245,7 @@ impl FileWatch {
     }
 
     // Captures what remains, then seals every tracked file. Idempotent.
-    pub async fn seal(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
+    pub async fn seal(&mut self, events: &mut Vec<CaptureEvent>) -> Result<()> {
         self.changes = None;
         self.state_mut().seal(events).await
     }
@@ -253,8 +256,10 @@ impl FileWatch {
         self.state_mut().seal_requested().await;
     }
 
-    pub(crate) async fn wait_for_poll(&mut self, pause: Duration) -> bool {
-        let state = self.state.as_mut().expect("file watch state lives until drop");
+    // Waits for the next pass; true means the execution asked for the seal.
+    pub async fn wait_for_poll(&mut self) -> bool {
+        let pause = self.poll_interval();
+        let state = self.state.as_mut().expect("file capture state lives until drop");
         tokio::select! {
             () = state.seal_requested() => true,
             () = source_changed(&mut self.changes) => false,
@@ -262,16 +267,26 @@ impl FileWatch {
         }
     }
 
+    // Records a capture that ended early, in the evidence of its execution.
+    pub(super) async fn record_failure(&self, failure: &Error) {
+        let mut record = RecordPublishRequest::new(BuiltinRecordType::FileCaptureFailed.identifier(), RecordSeverity::Warning);
+        record.details.insert("reason".to_owned(), Value::Text(failure.to_string()));
+        record.scope = Some(self.state().scope.clone());
+        if let Err(error) = self.state().runtime.publish_record(record).await {
+            tracing::warn!(%error, "file capture failure record was refused");
+        }
+    }
+
     fn state(&self) -> &State {
-        self.state.as_ref().expect("file watch state lives until drop")
+        self.state.as_ref().expect("file capture state lives until drop")
     }
 
     fn state_mut(&mut self) -> &mut State {
-        self.state.as_mut().expect("file watch state lives until drop")
+        self.state.as_mut().expect("file capture state lives until drop")
     }
 }
 
-impl Drop for FileWatch {
+impl Drop for FileCapture {
     fn drop(&mut self) {
         let Some(mut state) = self.state.take() else {
             return;
@@ -280,14 +295,14 @@ impl Drop for FileWatch {
             return;
         }
         let Ok(runtime) = tokio::runtime::Handle::try_current() else {
-            tracing::warn!(execution = %state.execution, "file watch dropped outside a runtime; its spools are discarded");
+            tracing::warn!(execution = %state.execution, "file capture dropped outside a runtime; its spools are discarded");
             state.release();
             return;
         };
         runtime.spawn(async move {
             let mut events = Vec::new();
             if let Err(source) = state.seal(&mut events).await {
-                tracing::warn!(error = %source, "abandoned file watch failed to seal");
+                tracing::warn!(error = %source, "abandoned file capture failed to seal");
             }
         });
     }
@@ -304,31 +319,25 @@ impl State {
         }
     }
 
-    async fn poll(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
+    async fn poll(&mut self, events: &mut Vec<CaptureEvent>) -> Result<()> {
         if self.complete || self.failed {
             return Ok(());
         }
         let first = self.baseline.is_none();
         let beginning = events.len();
         self.passes += 1;
-        let polled = match self.policy {
-            Policy::SnapshotAtStart if first => match self.snapshot(events).await {
-                Ok(()) if self.baseline.is_some() => self.finish(events).await,
-                Ok(()) => Ok(()),
-                Err(source) => Err(source),
-            },
-            Policy::SnapshotAtStop if first => self.listing().await.map(|_| ()),
-            Policy::SnapshotAtStart | Policy::SnapshotAtStop | Policy::Unspecified => Ok(()),
-            Policy::Stream | Policy::Mirror => self.track(first, events).await,
+        let polled = match self.mode {
+            Mode::Copy if first => self.copy(events).await,
+            Mode::Copy => Ok(()),
+            Mode::Stream | Mode::Mirror => self.track(first, events).await,
         };
         if polled.is_ok()
             && first
             && let Some(baseline) = &self.baseline
         {
-            self.armed_at = Some(tokio::time::Instant::now());
             events.insert(
                 beginning,
-                WatchEvent::Armed {
+                CaptureEvent::Armed {
                     baseline: baseline.iter().cloned().collect(),
                 },
             );
@@ -337,41 +346,39 @@ impl State {
         polled
     }
 
-    #[tracing::instrument(name = "files.watch.seal", level = "debug", skip_all)]
-    async fn seal(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
+    #[tracing::instrument(name = "files.capture.seal", level = "debug", skip_all)]
+    async fn seal(&mut self, events: &mut Vec<CaptureEvent>) -> Result<()> {
         if self.complete {
             return Ok(());
         }
 
         // Capture The Last Bytes; A Failing Source Still Seals What It Gave
-        let captured = match self.policy {
+        let captured = match self.mode {
             _ if self.failed => Ok(()),
-            _ if self.baseline.is_none() && self.wait_for_source.is_some() => Ok(()),
-            Policy::SnapshotAtStart if self.passes == 0 => self.snapshot(events).await,
-            Policy::SnapshotAtStop => self.snapshot(events).await,
-            Policy::Stream | Policy::Mirror => {
+            Mode::Copy if self.passes == 0 => self.copy(events).await,
+            Mode::Copy => Ok(()),
+            Mode::Stream | Mode::Mirror => {
                 let first = self.passes == 0;
                 self.track(first, events).await
             }
-            Policy::SnapshotAtStart | Policy::Unspecified => Ok(()),
         };
         if let Err(source) = &captured {
-            tracing::warn!(error = %source, execution = %self.execution, "file watch sealed after a failed final pass");
+            tracing::warn!(error = %source, execution = %self.execution, "file capture sealed after a failed final pass");
         }
         let sealed = self.finish(events).await;
         captured.and(sealed)
     }
 
     // Seals every tracked file, then answers the execution's seal request.
-    #[tracing::instrument(name = "files.watch.finish", level = "debug", skip_all)]
-    async fn finish(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
+    #[tracing::instrument(name = "files.capture.finish", level = "debug", skip_all)]
+    async fn finish(&mut self, events: &mut Vec<CaptureEvent>) -> Result<()> {
         #[cfg(feature = "testing")]
-        crate::domains::execution::run::testing::before_watch_seal(&self.execution).await;
+        crate::domains::execution::run::testing::before_capture_seal(&self.execution).await;
         let mut outcome = Ok(());
         let paths = self.tracked.keys().cloned().collect::<Vec<_>>();
         for path in paths {
             if let Err(source) = self.seal_file(&path, events).await {
-                tracing::warn!(error = %source, %path, "file watch failed to seal a file");
+                tracing::warn!(error = %source, %path, "file capture failed to seal a file");
                 if outcome.is_ok() {
                     outcome = Err(source);
                 }
@@ -390,7 +397,7 @@ impl State {
     }
 
     // Stream and Mirror: discover, capture, and seal files that vanished.
-    async fn track(&mut self, first: bool, events: &mut Vec<WatchEvent>) -> Result<()> {
+    async fn track(&mut self, first: bool, events: &mut Vec<CaptureEvent>) -> Result<()> {
         let Some(listing) = self.listing().await? else {
             return Ok(());
         };
@@ -399,11 +406,7 @@ impl State {
         let vanished = self.tracked.keys().filter(|path| !listing.contains_key(*path)).cloned().collect::<Vec<_>>();
         for path in vanished {
             let offset = self.tracked[&path].written;
-            events.push(WatchEvent::Gap {
-                path: path.clone(),
-                offset,
-                reason: GapReason::Vanished,
-            });
+            self.gap(&path, offset, GapReason::Vanished, events).await;
             self.seal_file(&path, events).await?;
         }
 
@@ -417,17 +420,14 @@ impl State {
                 );
                 let truncated = entry.size < tracked.offset || (tracked.mirrored && entry.size < tracked.entry.size);
                 if replaced || truncated {
+                    let offset = tracked.written;
                     let reason = if replaced { GapReason::Replaced } else { GapReason::Truncated };
-                    events.push(WatchEvent::Gap {
-                        path: path.clone(),
-                        offset: tracked.written,
-                        reason,
-                    });
+                    self.gap(path, offset, reason, events).await;
                     self.seal_file(path, events).await?;
                 }
             }
             if !self.tracked.contains_key(path) {
-                let baseline = if first && self.policy == Policy::Stream && self.selection != Selection::New { entry.size } else { 0 };
+                let baseline = if first && self.mode == Mode::Stream { entry.size } else { 0 };
                 self.discover(path, *entry, baseline, !first, events).await?;
             }
             match self.capture(path, *entry, events).await {
@@ -442,17 +442,10 @@ impl State {
 
     async fn listing(&mut self) -> Result<Option<Listing>> {
         let first = self.baseline.is_none();
-        if first && self.wait_for_source.is_some_and(|wait| self.waiting_since.elapsed() >= wait) {
-            return Err(Error::not_found("file_watch_missing", "source wait deadline elapsed before a matching file appeared"));
-        }
         let mut listing = match self.source.scan(&self.matcher).await {
             Ok(listing) => {
                 self.failed_passes = 0;
                 listing
-            }
-            Err(source) if first && source.code() == Some("file_watch_missing") => {
-                self.missing_source(source)?;
-                return Ok(None);
             }
             Err(source @ Error::Admission(AdmissionFailure::Unavailable { .. })) => {
                 self.failed_pass(source)?;
@@ -461,34 +454,31 @@ impl State {
             Err(source) => return Err(source),
         };
 
-        let requires_file = self.single || (self.selection == Selection::Latest && self.wait_for_source.is_some());
-        if first && listing.is_empty() && requires_file {
-            let source = Error::not_found("file_watch_missing", "the watched source has no matching file");
-            self.missing_source(source)?;
-            return Ok(None);
+        if first && listing.is_empty() && (self.single || self.newest) {
+            return Err(Error::not_found(super::MISSING, "the source has no matching file"));
         }
         self.select(&mut listing);
 
         Ok(Some(listing))
     }
 
-    // A source that keeps failing ends the watch; a passing glitch does not.
+    // A source that keeps failing ends the capture; a passing glitch does not.
     fn failed_pass(&mut self, source: Error) -> Result<()> {
         self.failed_passes += 1;
-        tracing::warn!(error = %source, attempt = self.failed_passes, "file watch pass failed");
-        if self.failed_passes >= 10 {
+        tracing::warn!(error = %source, attempt = self.failed_passes, "file capture pass failed");
+        if self.failed_passes >= self.maximum_failed_passes {
             return Err(source);
         }
         Ok(())
     }
 
     // Starts tracking one file, refusing it explicitly past the caps.
-    async fn discover(&mut self, path: &str, entry: Entry, baseline: u64, new_source: bool, events: &mut Vec<WatchEvent>) -> Result<()> {
+    async fn discover(&mut self, path: &str, entry: Entry, baseline: u64, new_source: bool, events: &mut Vec<CaptureEvent>) -> Result<()> {
         if self.artifact.is_some() && !self.tracked.is_empty() {
-            return Err(capped(format!("a watch into one named artifact tracks one file; {path:?} would be a second")));
+            return Err(capped(format!("a capture into one named artifact tracks one file; {path:?} would be a second")));
         }
         if self.tracked.len() >= self.maximum_files {
-            return Err(capped(format!("the watch tracks at most {} files; {path:?} would exceed it", self.maximum_files)));
+            return Err(capped(format!("the capture tracks at most {} files; {path:?} would exceed it", self.maximum_files)));
         }
         let mut artifact = self.artifact_name(path);
         while self.names.contains(&artifact) {
@@ -498,10 +488,8 @@ impl State {
         name::validate(&artifact).map_err(|source| invalid(format!("artifact {artifact:?}: {source}")))?;
         self.names.insert(artifact.clone());
         let spool = tempfile::NamedTempFile::new_in(self.spools.path())
-            .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?
+            .map_err(|source| Error::Operation(format!("file capture spool: {source}")))?
             .into_temp_path();
-        let line_bytes = 64 * 1024;
-        let line_bytes = std::num::NonZeroUsize::new(line_bytes).ok_or_else(|| invalid("line byte capacity must be nonzero"))?;
         self.tracked.insert(
             path.to_owned(),
             Tracked {
@@ -511,13 +499,13 @@ impl State {
                 written: 0,
                 offset: baseline,
                 entry,
-                mirrored: self.policy == Policy::Mirror,
+                mirrored: self.mode == Mode::Mirror,
                 synced: false,
-                pending: LineBuffer::new(line_bytes),
-                sealable: self.policy == Policy::Stream && new_source,
+                pending: LineBuffer::new(self.line_bytes),
+                sealable: self.mode == Mode::Stream && new_source,
             },
         );
-        events.push(WatchEvent::Progress {
+        events.push(CaptureEvent::Progress {
             path: path.to_owned(),
             offset: 0,
             phase: Phase::Baseline,
@@ -525,7 +513,7 @@ impl State {
         Ok(())
     }
 
-    async fn capture(&mut self, path: &str, entry: Entry, events: &mut Vec<WatchEvent>) -> Result<()> {
+    async fn capture(&mut self, path: &str, entry: Entry, events: &mut Vec<CaptureEvent>) -> Result<()> {
         let tracked = self.tracked.get_mut(path).expect("captured files are tracked");
         if tracked.mirrored {
             return self.mirror(path, entry, events).await;
@@ -551,7 +539,7 @@ impl State {
                     return Ok(());
                 }
                 tracked.sealable = true;
-                events.push(WatchEvent::Progress {
+                events.push(CaptureEvent::Progress {
                     path: path.to_owned(),
                     offset: tracked.written,
                     phase: Phase::Capturing,
@@ -567,12 +555,11 @@ impl State {
                 Ok(())
             }
             // A Source That Cannot Resume Mirrors This File from Now On
+            #[cfg(feature = "ftp")]
             Err(ReadFailure::ResumeUnsupported) => {
-                events.push(WatchEvent::Gap {
-                    path: path.to_owned(),
-                    offset: tracked.written,
-                    reason: GapReason::ResumeUnsupported,
-                });
+                let offset = tracked.written;
+                self.gap(path, offset, GapReason::ResumeUnsupported, events).await;
+                let tracked = self.tracked.get(path).expect("captured files are tracked");
                 if !self.lines.is_empty() {
                     return Err(Error::conflict(
                         super::UNSUPPORTED,
@@ -592,7 +579,7 @@ impl State {
     }
 
     // Refetches the whole file when its size or modification time changed.
-    async fn mirror(&mut self, path: &str, entry: Entry, events: &mut Vec<WatchEvent>) -> Result<()> {
+    async fn mirror(&mut self, path: &str, entry: Entry, events: &mut Vec<CaptureEvent>) -> Result<()> {
         let tracked = self.tracked.get_mut(path).expect("mirrored files are tracked");
         if tracked.synced
             && tracked.entry.size == entry.size
@@ -608,12 +595,13 @@ impl State {
 
         // Fetch Into A Fresh Spool; The Previous Copy Stays Until It Succeeds
         let fresh = tempfile::NamedTempFile::new_in(self.spools.path())
-            .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?
+            .map_err(|source| Error::Operation(format!("file capture spool: {source}")))?
             .into_temp_path();
         let mut spool = open_spool(&fresh, 0, true).await?;
         let copied = match self.source.read_range(path, 0, entry.size, &mut spool).await {
             Ok(copied) => copied,
             Err(ReadFailure::Failed(source)) => return Err(source),
+            #[cfg(feature = "ftp")]
             Err(ReadFailure::ResumeUnsupported) => {
                 return Err(unreachable_source("a whole-file retrieval was refused"));
             }
@@ -625,7 +613,7 @@ impl State {
         tracked.synced = true;
         tracked.sealable = true;
         self.captured = held + copied;
-        events.push(WatchEvent::Progress {
+        events.push(CaptureEvent::Progress {
             path: path.to_owned(),
             offset: copied,
             phase: Phase::Synced,
@@ -633,8 +621,8 @@ impl State {
         Ok(())
     }
 
-    // Copies every matched file once, as it is now.
-    async fn snapshot(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
+    // Copies every selected file once, as it is now.
+    async fn copy(&mut self, events: &mut Vec<CaptureEvent>) -> Result<()> {
         let Some(listing) = self.listing().await? else {
             return Ok(());
         };
@@ -671,7 +659,7 @@ impl State {
     }
 
     // Uploads one spool as the artifact `<output>/<path>` and stops tracking it.
-    async fn seal_file(&mut self, path: &str, events: &mut Vec<WatchEvent>) -> Result<()> {
+    async fn seal_file(&mut self, path: &str, events: &mut Vec<CaptureEvent>) -> Result<()> {
         self.publish(path).await?;
         let Some(mut tracked) = self.tracked.remove(path) else {
             return Ok(());
@@ -680,7 +668,7 @@ impl State {
             self.offer(vec![last]).await;
         }
         if !tracked.sealable {
-            tracing::debug!(%path, "file watch never copied this file; nothing is sealed");
+            tracing::debug!(%path, "file capture never copied this file; nothing is sealed");
             return Ok(());
         }
         // Drop Any Interrupted Write Past the Committed Length
@@ -700,7 +688,7 @@ impl State {
         };
         self.sealed.push(record.clone());
         *self.segments.entry(path.to_owned()).or_default() += 1;
-        events.push(WatchEvent::Sealed {
+        events.push(CaptureEvent::Sealed {
             path: path.to_owned(),
             record: Box::new(record),
         });
@@ -713,25 +701,17 @@ impl State {
             None if self.output.is_empty() => path.to_owned(),
             None => format!("{}/{path}", self.output),
         };
-        let base = if self.preserve_paths { base } else { crate::exports::storage::paths::safe_artifact_path(&base) };
+        let base = if self.single { crate::exports::storage::paths::safe_artifact_path(&base) } else { base };
         match self.segments.get(path).copied().unwrap_or_default() {
             0 => base,
             segment => crate::files::segment_name(&base, segment + 1),
         }
     }
 
-    fn missing_source(&self, source: Error) -> Result<()> {
-        match self.wait_for_source {
-            Some(wait) if self.waiting_since.elapsed() < wait => Ok(()),
-            Some(_) => Err(Error::not_found("file_watch_missing", "source wait deadline elapsed before a matching file appeared")),
-            None => Err(source),
-        }
-    }
-
     fn select(&mut self, listing: &mut Listing) {
         if self.baseline.is_none() {
             let baseline = listing.keys().cloned().collect::<BTreeSet<_>>();
-            if self.selection == Selection::Latest {
+            if self.newest {
                 self.selected = listing
                     .iter()
                     .max_by(|(left_path, left), (right_path, right)| {
@@ -741,15 +721,26 @@ impl State {
             }
             self.baseline = Some(baseline);
         }
-        match self.selection {
-            Selection::All => {}
-            Selection::Latest => listing.retain(|path, _| self.selected.as_ref() == Some(path)),
-            Selection::New => listing.retain(|path, _| !self.baseline.as_ref().expect("baseline established").contains(path)),
+        if self.newest {
+            listing.retain(|path, _| self.selected.as_ref() == Some(path));
+        }
+    }
+
+    // Reports one gap to the caller and into the execution's evidence.
+    async fn gap(&self, path: &str, offset: u64, reason: GapReason, events: &mut Vec<CaptureEvent>) {
+        events.push(CaptureEvent::Gap { path: path.to_owned(), offset, reason });
+        let mut record = RecordPublishRequest::new(BuiltinRecordType::FileCaptureGap.identifier(), RecordSeverity::Warning);
+        record.details.insert("path".to_owned(), Value::Text(path.to_owned()));
+        record.details.insert("offset".to_owned(), Value::Integer(offset.try_into().unwrap_or(i64::MAX)));
+        record.details.insert("reason".to_owned(), Value::Text(super::gap_reason(reason).to_owned()));
+        record.scope = Some(self.scope.clone());
+        if let Err(error) = self.runtime.publish_record(record).await {
+            tracing::warn!(%error, %path, "file capture gap record was refused");
         }
     }
 
     // Publishes what the line matchers find in these lines: rows to their
-    // streams, markers as records, both in the watched execution's scope. A
+    // streams, markers as records, both in the captured execution's scope. A
     // refused publication is logged; it never ends the capture.
     async fn offer(&mut self, lines: Vec<String>) {
         let mut rows = BTreeMap::<String, Vec<TelemetrySample>>::new();
@@ -797,13 +788,13 @@ impl State {
             if let Err(error) =
                 self.runtime.publish_telemetry_batch(TelemetryBatch::new(crate::model::identity::new_id(), identifier, samples)).await
             {
-                tracing::warn!(%error, %stream, "file watch rows were refused");
+                tracing::warn!(%error, %stream, "file capture rows were refused");
             }
         }
         for record in records {
             let record_type = record.record_type.clone();
             if let Err(error) = self.runtime.publish_record(record).await {
-                tracing::warn!(%error, %record_type, "file watch marker was refused");
+                tracing::warn!(%error, %record_type, "file capture marker was refused");
             }
         }
     }
@@ -828,12 +819,12 @@ async fn source_changed(changes: &mut Option<harmos::storage::DirectoryWatcher>)
 }
 
 fn over_bytes(maximum: u64, path: &str) -> Error {
-    capped(format!("the watch captures at most {maximum} bytes; {path:?} would exceed it"))
+    capped(format!("the capture holds at most {maximum} bytes; {path:?} would exceed it"))
 }
 
 // The `length` bytes a capture appended at `from`.
 fn read_back(spool: &TempPath, from: u64, length: u64) -> Result<Vec<u8>> {
-    let failed = |source: std::io::Error| Error::Operation(format!("file watch spool: {source}"));
+    let failed = |source: std::io::Error| Error::Operation(format!("file capture spool: {source}"));
     let mut file = std::fs::File::open(spool).map_err(failed)?;
     file.seek(std::io::SeekFrom::Start(from)).map_err(failed)?;
     let mut bytes = Vec::new();
@@ -847,10 +838,10 @@ async fn open_spool(path: &TempPath, length: u64, truncate: bool) -> Result<toki
         .write(true)
         .open(path)
         .await
-        .map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
+        .map_err(|source| Error::Operation(format!("file capture spool: {source}")))?;
     let length = if truncate { 0 } else { length };
-    file.set_len(length).await.map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
-    file.seek(std::io::SeekFrom::Start(length)).await.map_err(|source| Error::Operation(format!("file watch spool: {source}")))?;
+    file.set_len(length).await.map_err(|source| Error::Operation(format!("file capture spool: {source}")))?;
+    file.seek(std::io::SeekFrom::Start(length)).await.map_err(|source| Error::Operation(format!("file capture spool: {source}")))?;
     Ok(file)
 }
 

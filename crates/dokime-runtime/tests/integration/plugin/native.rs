@@ -26,7 +26,7 @@ use tonic::Status;
 
 // Local Imports
 use dokime_domain::model;
-use dokime_runtime::operations::files::{AwaitFileWatchArmed, WatchFile};
+use dokime_runtime::operations::files::{CopyFiles, StartCapture, StopCapture};
 use dokime_runtime::operations::hosting::{Host as Hosted, Serve, Served};
 use dokime_runtime::transport::{
     EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, StepAdmission,
@@ -120,8 +120,9 @@ enum HostOperations {
     Evidence(EvidenceBatch),
     Questions(OperatorQuestion),
     Lease(LeaseAsk),
-    Watch(WatchFile),
-    Armed(AwaitFileWatchArmed),
+    Copy(CopyFiles),
+    Start(StartCapture),
+    Stop(StopCapture),
     Publish(harmos::builtins::streams::Publish),
 }
 
@@ -139,8 +140,9 @@ impl harmos::Lifecycle for Fixture {
         setup.resource::<Hosted<EvidenceBatch>>(Hosted::<EvidenceBatch>::new(hosting.clone()));
         setup.resource::<Hosted<OperatorQuestion>>(Hosted::<OperatorQuestion>::new(hosting.clone()));
         setup.resource::<Hosted<LeaseAsk>>(Hosted::<LeaseAsk>::new(hosting.clone()));
-        setup.resource::<Hosted<WatchFile>>(Hosted::<WatchFile>::new(hosting.clone()));
-        setup.resource::<Hosted<AwaitFileWatchArmed>>(Hosted::<AwaitFileWatchArmed>::new(hosting.clone()));
+        setup.resource::<Hosted<CopyFiles>>(Hosted::<CopyFiles>::new(hosting.clone()));
+        setup.resource::<Hosted<StartCapture>>(Hosted::<StartCapture>::new(hosting.clone()));
+        setup.resource::<Hosted<StopCapture>>(Hosted::<StopCapture>::new(hosting.clone()));
         setup.operations::<HostOperations>(Lanes::Open);
         Ok(Self)
     }
@@ -402,34 +404,37 @@ impl Serve<LeaseAsk> for Hosting {
     }
 }
 
-impl Serve<WatchFile> for Hosting {
-    fn serve<'a>(&'a self, request: WatchFile, ctx: harmos::Context<'a, WatchFile>) -> Served<'a, model::files::wire::WatchFileOutcome> {
+impl Serve<CopyFiles> for Hosting {
+    fn serve<'a>(&'a self, request: CopyFiles, ctx: harmos::Context<'a, CopyFiles>) -> Served<'a, model::files::wire::CapturedFiles> {
         Box::pin(async move {
-            let runtime = self.0.watch_runtime.lock().unwrap().clone().ok_or_else(|| Status::failed_precondition("no watch runtime"))?;
+            let runtime = self.0.watch_runtime.lock().unwrap().clone().ok_or_else(|| Status::failed_precondition("no capture runtime"))?;
             let operations = runtime.operations().with_context(ctx.call().clone());
-            let mut instance = operations.submit::<WatchFile>(request).map_err(|error| Status::internal(error.to_string()))?;
-            tokio::select! {
-                result = &mut instance => return result.map(|response| response.into_owned().into()).map_err(|error| Status::internal(error.to_string())),
-                () = ctx.cancelled() => instance.request_cancel(),
-            }
-            instance.await.map(|response| response.into_owned().into()).map_err(|error| Status::internal(error.to_string()))
+            let answer = operations.operation::<CopyFiles>(request).await.map_err(|error| Status::internal(error.to_string()))?;
+            Ok(answer.into_owned().into())
         })
     }
 }
 
-impl Serve<AwaitFileWatchArmed> for Hosting {
+impl Serve<StartCapture> for Hosting {
     fn serve<'a>(
-        &'a self, request: AwaitFileWatchArmed, ctx: harmos::Context<'a, AwaitFileWatchArmed>,
-    ) -> Served<'a, model::files::wire::FileWatchArmed> {
+        &'a self, request: StartCapture, ctx: harmos::Context<'a, StartCapture>,
+    ) -> Served<'a, model::files::wire::CaptureStarted> {
         Box::pin(async move {
-            let runtime = self.0.watch_runtime.lock().unwrap().clone().ok_or_else(|| Status::failed_precondition("no watch runtime"))?;
-            let result = runtime
-                .operations()
-                .with_context(ctx.call().clone())
-                .operation::<AwaitFileWatchArmed>(request)
-                .await
-                .map_err(|error| Status::internal(error.to_string()))?;
-            Ok(result.into_owned().into())
+            let runtime = self.0.watch_runtime.lock().unwrap().clone().ok_or_else(|| Status::failed_precondition("no capture runtime"))?;
+            let operations = runtime.operations().with_context(ctx.call().clone());
+            let answer = operations.operation::<StartCapture>(request).await.map_err(|error| Status::internal(error.to_string()))?;
+            Ok(answer.into_owned().into())
+        })
+    }
+}
+
+impl Serve<StopCapture> for Hosting {
+    fn serve<'a>(&'a self, request: StopCapture, ctx: harmos::Context<'a, StopCapture>) -> Served<'a, model::files::wire::CapturedFiles> {
+        Box::pin(async move {
+            let runtime = self.0.watch_runtime.lock().unwrap().clone().ok_or_else(|| Status::failed_precondition("no capture runtime"))?;
+            let operations = runtime.operations().with_context(ctx.call().clone());
+            let answer = operations.operation::<StopCapture>(request).await.map_err(|error| Status::internal(error.to_string()))?;
+            Ok(answer.into_owned().into())
         })
     }
 }
