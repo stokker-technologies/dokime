@@ -287,20 +287,30 @@ impl RuntimeHandle {
         use harmos::storage::{ObjectRead, query::ObjectVersions};
         let mut sealed = false;
         if let Some(id) = &selection.scope.test_execution_id {
-            let intent = self.state_read().report_finalizations.get(id).filter(|intent| intent.lifecycle.is_some()).cloned();
-            if let Some(intent) = intent {
-                sealed = at.covers(&intent.evidence_at)?;
+            let closed_at = {
+                let state = self.state_read();
+                state
+                    .report_finalizations
+                    .get(id)
+                    .filter(|intent| intent.lifecycle.is_some())
+                    .map(|intent| intent.evidence_at.clone())
+                    .or_else(|| state.executions.get(id)?.saved.as_ref().map(|seal| seal.dependencies_saved.clone()))
+            };
+            if let Some(closed_at) = closed_at {
+                sealed = at.covers(&closed_at)?;
             }
 
-            let mut rows = session
-                .read_objects::<crate::storage::objects::execution::Execution>(ObjectRead {
-                    at: at.clone(),
-                    key: Some(id.as_str()),
-                    versions: ObjectVersions::Latest,
-                })
-                .await?;
-            while let Some(page) = rows.next().await? {
-                sealed |= page.iter().any(|row| row.value.is_sealed());
+            if !sealed {
+                let mut rows = session
+                    .read_objects::<crate::storage::objects::execution::Execution>(ObjectRead {
+                        at: at.clone(),
+                        key: Some(id.as_str()),
+                        versions: ObjectVersions::Latest,
+                    })
+                    .await?;
+                while let Some(page) = rows.next().await? {
+                    sealed |= page.iter().any(|row| row.value.is_sealed());
+                }
             }
         }
         let options = crate::runtime::storage::telemetry::ReadOptions { after, ..Default::default() };
