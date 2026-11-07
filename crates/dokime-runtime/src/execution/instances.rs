@@ -330,7 +330,8 @@ impl Drop for LocalAttempt {
         *self.observed.lock().unwrap_or_else(PoisonError::into_inner) = Some(self.outcome);
         if let Some(journal) = &self.journal {
             let entry = super::log::operation_attempt(self.operation, self.instance, None, &self.stage, self.attempt, self.outcome);
-            journal.log(super::log::Level::Info, entry.message);
+            let level = super::log::Level::try_from(entry.level).expect("operation attempt has a known log level");
+            journal.log(level, entry.message);
         }
     }
 }
