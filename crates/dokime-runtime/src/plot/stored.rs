@@ -252,7 +252,7 @@ pub(crate) async fn materialize(
                     series.label = expression.label.clone().unwrap_or_else(|| key.clone());
                 }
             }
-            if super::payload::analyses::summarizes(&request) {
+            if super::payload::analyses::summarizes(request) {
                 payload.summaries = vec![summary.clone()];
             }
             Ok::<_, Error>(payload)
