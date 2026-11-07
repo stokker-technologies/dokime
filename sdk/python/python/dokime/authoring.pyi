@@ -11,7 +11,7 @@
 # Standard Library Imports
 from collections.abc import Callable, Generator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal, Self, TypeVar, dataclass_transform
+from typing import Any, ClassVar, Literal, NotRequired, Self, TypedDict, TypeVar, dataclass_transform
 
 # Third Party Imports
 # Local Imports
@@ -29,6 +29,9 @@ __all__ = [
     "OperationPolicy",
     "Plugin",
     "PromptAnswer",
+    "ReferenceBand",
+    "ReferenceLine",
+    "ReferenceValue",
     "RegistrationError",
     "RetryPolicy",
     "StreamSelection",
@@ -53,6 +56,28 @@ __all__ = [
 # === Types === #
 
 # === Classes === #
+
+type ReferenceValue = float | Mapping[str, Any]
+
+
+class ReferenceLine(TypedDict):
+    """A Y-axis reference in stored units, scaled with the plot data."""
+
+    label: NotRequired[str]
+    color: NotRequired[str]
+    value: ReferenceValue
+
+
+class ReferenceBand(TypedDict, total=False):
+    """Y-axis bounds or center ± tolerance in stored units, scaled with the data."""
+
+    label: str
+    color: str
+    min: ReferenceValue
+    max: ReferenceValue
+    center: ReferenceValue
+    tolerance: ReferenceValue
+
 
 class RegistrationError(ValueError): ...
 

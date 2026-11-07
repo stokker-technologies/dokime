@@ -1863,7 +1863,9 @@ impl PlotDefinition {
     }
 
     /// Add a Y-axis center ± tolerance in stored units. `scale` converts both with the plot data.
-    pub fn reference_tolerance(&mut self, label: impl Into<String>, center: impl Into<ReferenceValue>, tolerance: impl Into<ReferenceValue>) {
+    pub fn reference_tolerance(
+        &mut self, label: impl Into<String>, center: impl Into<ReferenceValue>, tolerance: impl Into<ReferenceValue>,
+    ) {
         self.reference_bands.push(ReferenceBand {
             min: None,
             max: None,
@@ -2128,22 +2130,22 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
     }
     for line in &plot.reference_lines {
         if matches!(line.value, ReferenceValue::Constant(value) if !value.is_finite()) {
-            return Err(error(format_args!("reference line value must be finite")));
+            return Err(error(format_args!("plot {}: reference line value must be finite", plot.metadata.label)));
         }
     }
     for band in &plot.reference_bands {
         for value in [&band.min, &band.max, &band.center, &band.tolerance].into_iter().flatten() {
             if matches!(value, ReferenceValue::Constant(value) if !value.is_finite()) {
-                return Err(error(format_args!("reference band values must be finite")));
+                return Err(error(format_args!("plot {}: reference band values must be finite", plot.metadata.label)));
             }
         }
         if matches!(band.tolerance, Some(ReferenceValue::Constant(value)) if value < 0.0) {
-            return Err(error(format_args!("reference tolerance must be greater than or equal to zero")));
+            return Err(error(format_args!("plot {}: reference tolerance must be greater than or equal to zero", plot.metadata.label)));
         }
         if let (Some(ReferenceValue::Constant(min)), Some(ReferenceValue::Constant(max))) = (&band.min, &band.max)
             && min > max
         {
-            return Err(error(format_args!("reference band min must be less than or equal to max")));
+            return Err(error(format_args!("plot {}: reference band min must be less than or equal to max", plot.metadata.label)));
         }
     }
 

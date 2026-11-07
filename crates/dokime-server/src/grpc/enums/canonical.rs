@@ -99,7 +99,6 @@ encode!(frequency_level_unit: FrequencyLevelUnit -> dokime::domain::model::plots
     Dbm,
 });
 
-
 encode!(execution_file_kind: ExecutionFileContentKind -> dokime::domain::model::content::wire::ExecutionFileKind {
     Text,
     Binary,

@@ -53,6 +53,43 @@ fn refusal(plot: &PlotDefinition) -> String {
 
 #[dokime_tracing::trace_test]
 #[test]
+fn reference_values_validation() {
+    use model::document::{DocumentDefinition, DocumentSection, ReferenceValue};
+    use model::expressions::{detail, parameter};
+
+    let mut plot = Plot::time_series("Temperature");
+    plot.y(telemetry("temperature", "temperature_c"));
+    plot.reference_band("Requirement", -10.0, 10.0);
+    plot.reference_band("Limits", parameter("lower_limit_c"), parameter("upper_limit_c"));
+    plot.reference_tolerance("Requirement", 0.0, parameter("angle_tolerance_arcsec"));
+    plot.reference_tolerance("Target ± Band", parameter("target_c"), parameter("band_c"));
+    plot.reference_line("Limit", parameter("limit_c"));
+    plot.reference_line("Fixed", 5.0);
+    plot.reference_line("Record", detail("reading", "temperature_c"));
+    validate_plot_definition(&plot).unwrap();
+    assert_eq!(plot.reference_bands[0].min, Some(ReferenceValue::Constant(-10.0)));
+    assert_eq!(plot.reference_bands[1].min, Some(ReferenceValue::Expression(parameter("lower_limit_c"))));
+    assert_eq!(plot.reference_bands[2].center, Some(ReferenceValue::Constant(0.0)));
+    let encoded = serde_json::to_value(&plot).unwrap();
+    let decoded: PlotDefinition = serde_json::from_value(encoded).unwrap();
+    assert_eq!(decoded, plot);
+
+    for (min, max, tolerance) in [(10.0, -10.0, 1.0), (-10.0, 10.0, -1.0), (f64::NAN, 10.0, 1.0)] {
+        let mut plot = Plot::time_series("Invalid Temperature");
+        plot.y(telemetry("temperature", "temperature_c"));
+        plot.reference_band("Bounds", min, max);
+        plot.reference_tolerance("Tolerance", 0.0, tolerance);
+        assert!(refusal(&plot).contains("Invalid Temperature"));
+        let mut section = DocumentSection::new("Measurements");
+        section.plot(plot);
+        let mut document = DocumentDefinition::new("temperature", "Temperature");
+        document.section(section);
+        assert!(model::document::validate_document_definition(&document, 8, 1000).is_err());
+    }
+}
+
+#[dokime_tracing::trace_test]
+#[test]
 fn display_scale_validation() {
     let mut plot = Plot::time_series("Distance Delta");
     plot.y(telemetry("distance", "delta_m"));

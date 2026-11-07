@@ -360,7 +360,9 @@ fn reference_value(value: &dokime::document::ReferenceValue) -> Result<dokime::d
     Ok(dokime::domain::model::documents::wire::PlotReferenceValue { constant, expression })
 }
 
-fn plot_reference_line_wire(value: &dokime::document::ReferenceLine) -> Result<dokime::domain::model::documents::wire::PlotReferenceLine, Status> {
+fn plot_reference_line_wire(
+    value: &dokime::document::ReferenceLine,
+) -> Result<dokime::domain::model::documents::wire::PlotReferenceLine, Status> {
     Ok(dokime::domain::model::documents::wire::PlotReferenceLine {
         value: reference_value(&value.value)?,
         label: value.label.clone(),
@@ -368,7 +370,9 @@ fn plot_reference_line_wire(value: &dokime::document::ReferenceLine) -> Result<d
     })
 }
 
-fn plot_reference_band_wire(value: &dokime::document::ReferenceBand) -> Result<dokime::domain::model::documents::wire::PlotReferenceBand, Status> {
+fn plot_reference_band_wire(
+    value: &dokime::document::ReferenceBand,
+) -> Result<dokime::domain::model::documents::wire::PlotReferenceBand, Status> {
     Ok(dokime::domain::model::documents::wire::PlotReferenceBand {
         min: value.min.as_ref().map(reference_value).transpose()?,
         max: value.max.as_ref().map(reference_value).transpose()?,

@@ -714,6 +714,33 @@ Live plots and frozen HTML scale points, y-axis/cursor/tooltip values, statistic
 (except count) and y references. Filters and section repeats use stored units;
 evidence, exports, criteria, queries and expressions keep stored values.
 
+Reference lines and bands are Y-axis properties of the plot. Python mappings use
+numbers or data-expression mappings for the same `ReferenceValue` as Rust.
+`dokime.ReferenceLine` and `dokime.ReferenceBand` type these mappings; choose
+either `min`/`max` or `center`/`tolerance` on a band:
+
+```python
+lower = {"source": {"type": "parameter", "name": "lower_limit_c"}}
+upper = {"source": {"type": "parameter", "name": "upper_limit_c"}}
+target = {"source": {"type": "parameter", "name": "target_c"}}
+band = {"source": {"type": "parameter", "name": "band_c"}}
+plot["reference_bands"] = [
+    {"label": "Requirement", "min": -10.0, "max": 10.0},
+    {"label": "Limits", "min": lower, "max": upper},
+    {"label": "Target ± Band", "center": target, "tolerance": band},
+    {"label": "Zero ± Band", "center": 0.0, "tolerance": band},
+]
+plot["reference_lines"] = [{"label": "Limit", "value": upper}]
+```
+
+These values are in stored units and scale with the data. Each case uses its
+captured parameters on the shared live/frozen presentation path. Missing,
+nonfinite or reversed dynamic bounds and negative dynamic tolerance are undrawn.
+Native document validation refuses reversed literal bounds and negative literal
+tolerance, naming the plot. References have no axis or quantity argument; data
+expressions still cannot contain numeric constants. Incompatible development
+storage requires a fresh root; the schema remains v1 and old data is never reset.
+
 `Query.Aggregate` and plot expressions name their statistic with the Harmos
 aggregate enum message: one `_harmos_variant` oneof whose members are `Count`,
 `Sum`, `Mean`, `Median`, `Min`, `Max`, `Rms`, `Std` and `Percentile`, which

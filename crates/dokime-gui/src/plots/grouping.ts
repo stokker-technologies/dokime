@@ -9,6 +9,7 @@
 
 /* === Local Imports === */
 
+import type { ReferenceBand, ReferenceLine, ReferenceValue } from "@/lib/document-contracts";
 import { formatTitleWord } from "@/lib/format";
 import type {
   DocumentReferenceBand,
@@ -173,10 +174,8 @@ function scalePresentation(plot: PlotCardSpec, scale: number): PlotCardSpec {
         Object.entries(summary).map(([key, value]) => [key, key !== "count" && typeof value === "number" ? value * scale : value]),
       ),
     ) as PlotCardSpec["summaries"],
-    referenceLines: plot.referenceLines.map((line) => (line.axis === "y" ? { ...line, value: scaled(line.value) } : line)),
-    referenceBands: plot.referenceBands.map((band) =>
-      band.axis === "y" ? { ...band, min: scaled(band.min), max: scaled(band.max) } : band,
-    ),
+    referenceLines: plot.referenceLines.map((line) => ({ ...line, value: scaled(line.value) })),
+    referenceBands: plot.referenceBands.map((band) => ({ ...band, min: scaled(band.min), max: scaled(band.max) })),
   };
 }
 
@@ -195,72 +194,56 @@ function commonUnit(series: PlotPayload["series"]): string | null {
 }
 
 function resolveReferenceLines(
-  lines: DocumentReferenceLine[],
+  lines: ReferenceLine[],
   plot: DocumentViewPlot,
   telemetry: Record<string, TelemetryStream> | null | undefined,
   parameters: Record<string, unknown> | null | undefined,
 ): DocumentReferenceLine[] {
-  return lines.map((line) => {
-    if (Number.isFinite(line.value)) {
-      return line;
-    }
-    const value = referenceSourceValue(line.source, plot, telemetry, parameters);
-    if (value === null) {
-      return line;
-    }
-    const sourceScale = numberValue(line.source_scale) ?? 1.0;
-    return { ...line, value: value * sourceScale };
-  });
+  return lines.map((line) => ({
+    ...line,
+    color: line.color ?? "#60706a",
+    value: referenceValue(line.value, plot, telemetry, parameters),
+  }));
 }
 
 function resolveReferenceBands(
-  bands: DocumentReferenceBand[],
+  bands: ReferenceBand[],
   plot: DocumentViewPlot,
   telemetry: Record<string, TelemetryStream> | null | undefined,
   parameters: Record<string, unknown> | null | undefined,
 ): DocumentReferenceBand[] {
   return bands.map((band) => {
-    if (Number.isFinite(band.min) && Number.isFinite(band.max)) return band;
-    const center = referenceSourceValue(band.center, plot, telemetry, parameters);
-    const tolerance = referenceSourceValue(band.tolerance, plot, telemetry, parameters);
-    if (center === null || tolerance === null) return band;
-    return { ...band, min: center - Math.abs(tolerance), max: center + Math.abs(tolerance) };
+    let min = referenceValue(band.min, plot, telemetry, parameters);
+    let max = referenceValue(band.max, plot, telemetry, parameters);
+    if (band.center != null || band.tolerance != null) {
+      const center = referenceValue(band.center, plot, telemetry, parameters);
+      const tolerance = referenceValue(band.tolerance, plot, telemetry, parameters);
+      min = center !== null && tolerance !== null && tolerance >= 0 ? center - tolerance : null;
+      max = center !== null && tolerance !== null && tolerance >= 0 ? center + tolerance : null;
+    }
+    if (min === null || max === null || !Number.isFinite(min) || !Number.isFinite(max) || min > max) {
+      min = null;
+      max = null;
+    }
+    return { label: band.label, color: band.color ?? "#60706a", min, max };
   });
 }
 
-function referenceSourceValue(
-  source: DocumentReferenceLine["source"],
+/** One resolution path for live views and serialized frozen documents. */
+function referenceValue(
+  value: ReferenceValue | null | undefined,
   plot: DocumentViewPlot,
   telemetry: Record<string, TelemetryStream> | null | undefined,
   parameters: Record<string, unknown> | null | undefined,
 ): number | null {
-  if (!isRecord(source)) {
-    return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (!value) return null;
+  const source = value.source;
+  if (source.type === "telemetry") {
+    const stream = source.stream ?? plot.stream;
+    return numberValue(latestSample(telemetry, stream)?.[source.field]);
   }
-  const sourceRecord: Record<string, unknown> = source;
-
-  const directKind = textValue(sourceRecord.kind);
-  if (directKind === "static") {
-    return numberValue(sourceRecord.value);
-  }
-  if (directKind === "telemetry_value") {
-    const stream = textValue(sourceRecord.stream) ?? plot.stream;
-    const field = textValue(sourceRecord.field);
-    return field ? numberValue(latestSample(telemetry, stream)?.[field]) : null;
-  }
-
-  const nestedSource = sourceRecord.source;
-  const expressionSource = isRecord(nestedSource) ? nestedSource : sourceRecord;
-  const expressionType = textValue(expressionSource.type);
-  if (expressionType === "telemetry") {
-    const stream = textValue(expressionSource.stream) ?? plot.stream;
-    const field = textValue(expressionSource.field);
-    return field ? numberValue(latestSample(telemetry, stream)?.[field]) : null;
-  }
-  if (expressionType === "parameter") {
-    const field = textValue(expressionSource.name);
-    return field ? numberValue(parameters?.[field]) : null;
-  }
+  if (source.type === "parameter") return numberValue(parameters?.[source.name]);
   return null;
 }
 

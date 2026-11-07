@@ -1788,6 +1788,68 @@ test("Report Metadata Subtitles", () => {
   assert.ok(html.includes("fixture-network"));
 });
 
+test("Reference Values Resolve Constants Parameters and Tolerances Per Case in Live and Frozen Plots", () => {
+  const parameter = (name: string) => ({ source: { type: "parameter" as const, name }, transforms: [] });
+  const descriptor: DocumentViewPlot = {
+    plot_id: "reference-values",
+    title: "Temperature",
+    stream: "temperature",
+    plot_type: "time_series",
+    y: ["temperature_c"],
+    scale: 10,
+    reference_lines: [
+      { value: 0, label: "Zero" },
+      { value: parameter("limit_c"), label: "Limit" },
+    ],
+    reference_bands: [
+      { min: -10, max: 10 },
+      { min: parameter("lower_limit_c"), max: parameter("upper_limit_c") },
+      { center: 0, tolerance: parameter("band_c") },
+      { center: parameter("target_c"), tolerance: 2 },
+      { center: parameter("missing"), tolerance: 1 },
+      { center: 0, tolerance: parameter("negative") },
+      { min: parameter("upper_limit_c"), max: parameter("lower_limit_c") },
+    ],
+  };
+  const original = structuredClone(descriptor);
+  for (const target_c of [5, 20]) {
+    const parameters = {
+      target_c,
+      limit_c: target_c + 3,
+      lower_limit_c: target_c - 4,
+      upper_limit_c: target_c + 4,
+      band_c: 1,
+      negative: -1,
+    };
+    const live = documentPlotSpec({ plot: descriptor, payload: null, parameters, title: descriptor.title, position: 0 });
+    const frozen = documentPlotSpec({
+      plot: JSON.parse(JSON.stringify(descriptor)),
+      payload: null,
+      parameters: JSON.parse(JSON.stringify(parameters)),
+      title: descriptor.title,
+      position: 0,
+    });
+    assert.deepEqual(
+      live.referenceLines.map(({ value }) => value),
+      [0, (target_c + 3) * 10],
+    );
+    assert.deepEqual(
+      live.referenceBands.map(({ min, max }) => [min, max]),
+      [
+        [-100, 100],
+        [(target_c - 4) * 10, (target_c + 4) * 10],
+        [-10, 10],
+        [(target_c - 2) * 10, (target_c + 2) * 10],
+        [null, null],
+        [null, null],
+        [null, null],
+      ],
+    );
+    assert.deepEqual(frozen, live);
+  }
+  assert.deepEqual(descriptor, original);
+});
+
 test("Display Scale Converts Returned Points Statistics and References Without Mutating Evidence", () => {
   const descriptor = {
     plot_id: "distance",
@@ -1798,15 +1860,12 @@ test("Display Scale Converts Returned Points Statistics and References Without M
     unit: "mm",
     scale: 1000,
     reference_lines: [
-      { axis: "y", value: 0.004, color: "red" },
-      { axis: "x", value: 2, color: "blue" },
-      { axis: "y", source: { source: { type: "parameter", name: "target_m" } }, source_scale: 2, color: "green" },
+      { value: 0.004, color: "red" },
+      { value: { source: { type: "parameter", name: "target_m" }, transforms: [] }, color: "green" },
     ],
     reference_bands: [
-      { axis: "y", min: -0.002, max: 0.003, color: "red" },
-      { axis: "x", min: 1, max: 3, color: "blue" },
+      { min: -0.002, max: 0.003, color: "red" },
       {
-        axis: "y",
         center: { source: { type: "parameter", name: "target_m" } },
         tolerance: { source: { type: "parameter", name: "tolerance_m" } },
         color: "green",
@@ -1855,13 +1914,12 @@ test("Display Scale Converts Returned Points Statistics and References Without M
     plot.referenceBands.map(({ min, max }) => [min, max]),
     [
       [-2, 3],
-      [1, 3],
       [4, 6],
     ],
   );
   assert.deepEqual(
     plot.referenceLines.map(({ value }) => value),
-    [4, 2, 10],
+    [4, 5],
   );
   // Repeated frames and frozen JSON take the same conversion path once.
   assert.deepEqual(present(JSON.parse(JSON.stringify(payload))), plot);

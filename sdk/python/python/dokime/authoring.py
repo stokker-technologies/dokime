@@ -19,7 +19,7 @@ import json
 import types
 from collections.abc import Callable, Generator, Mapping, Sequence
 from dataclasses import MISSING, dataclass, field
-from typing import Annotated, Any, Literal, Self, dataclass_transform, get_args, get_origin, get_type_hints
+from typing import Annotated, Any, Literal, NotRequired, Self, TypedDict, dataclass_transform, get_args, get_origin, get_type_hints
 
 # Third Party Imports
 # Local Imports
@@ -38,6 +38,9 @@ __all__ = [
     "OperationPolicy",
     "Plugin",
     "PromptAnswer",
+    "ReferenceBand",
+    "ReferenceLine",
+    "ReferenceValue",
     "RegistrationError",
     "RetryPolicy",
     "StreamSelection",
@@ -61,7 +64,30 @@ __all__ = [
 
 # === Types === #
 
+
+type ReferenceValue = float | Mapping[str, Any]
+
+
 # === Classes === #
+
+
+class ReferenceLine(TypedDict):
+    """A Y-axis reference in stored units, scaled with the plot data."""
+
+    label: NotRequired[str]
+    color: NotRequired[str]
+    value: ReferenceValue
+
+
+class ReferenceBand(TypedDict, total=False):
+    """Y-axis bounds or center ± tolerance in stored units, scaled with the data."""
+
+    label: str
+    color: str
+    min: ReferenceValue
+    max: ReferenceValue
+    center: ReferenceValue
+    tolerance: ReferenceValue
 
 
 class RegistrationError(ValueError):

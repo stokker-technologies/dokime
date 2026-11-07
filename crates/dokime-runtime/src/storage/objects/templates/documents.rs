@@ -1141,7 +1141,9 @@ impl Reference {
             }
             crate::document::ReferenceValue::Expression(value) => {
                 let memory = Data::encoding_memory(value)?;
-                if memory == usize::MAX { return Ok(usize::MAX); }
+                if memory == usize::MAX {
+                    return Ok(usize::MAX);
+                }
                 Ok(std::mem::size_of::<Self>().saturating_add(memory.saturating_sub(std::mem::size_of::<Data>())))
             }
         }
@@ -1163,7 +1165,9 @@ impl TryFrom<&crate::document::ReferenceValue> for Reference {
     type Error = Error;
 
     fn try_from(value: &crate::document::ReferenceValue) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX { return Err(Error::Invalid("reference encoding memory overflows")); }
+        if Self::encoding_memory(value)? == usize::MAX {
+            return Err(Error::Invalid("reference encoding memory overflows"));
+        }
         let (constant, expression) = match value {
             crate::document::ReferenceValue::Constant(value) => (Some(*value), None),
             crate::document::ReferenceValue::Expression(value) => (None, Some(Data::try_from(value)?)),
@@ -1176,7 +1180,9 @@ impl TryFrom<Reference> for crate::document::ReferenceValue {
     type Error = Error;
 
     fn try_from(value: Reference) -> Result<Self> {
-        if value.projection_memory()? == usize::MAX { return Err(Error::Invalid("reference projection memory overflows")); }
+        if value.projection_memory()? == usize::MAX {
+            return Err(Error::Invalid("reference projection memory overflows"));
+        }
         match (value.constant, value.expression) {
             (Some(value), None) => Ok(Self::Constant(value)),
             (None, Some(value)) => Ok(Self::Expression(value.try_into()?)),
@@ -1188,7 +1194,9 @@ impl TryFrom<Reference> for crate::document::ReferenceValue {
 impl Line {
     pub fn encoding_memory(value: &crate::document::ReferenceLine) -> Result<usize> {
         let reference = Reference::encoding_memory(&value.value)?;
-        if reference == usize::MAX { return Ok(usize::MAX); }
+        if reference == usize::MAX {
+            return Ok(usize::MAX);
+        }
         Ok(std::mem::size_of::<Self>()
             .saturating_add(reference.saturating_sub(std::mem::size_of::<Reference>()))
             .saturating_add(value.label.as_deref().map_or(0, str::len))
@@ -1207,7 +1215,9 @@ impl TryFrom<&crate::document::ReferenceLine> for Line {
     type Error = Error;
 
     fn try_from(value: &crate::document::ReferenceLine) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX { return Err(Error::Invalid("reference line encoding memory overflows")); }
+        if Self::encoding_memory(value)? == usize::MAX {
+            return Err(Error::Invalid("reference line encoding memory overflows"));
+        }
         Ok(Self {
             value: Reference::try_from(&value.value)?,
             label: value.label.clone(),
@@ -1220,19 +1230,26 @@ impl TryFrom<Line> for crate::document::ReferenceLine {
     type Error = Error;
 
     fn try_from(row: Line) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX { return Err(Error::Invalid("reference line projection memory overflows")); }
-        Ok(Self { value: row.value.try_into()?, label: row.label, color: row.color })
+        if row.projection_memory()? == usize::MAX {
+            return Err(Error::Invalid("reference line projection memory overflows"));
+        }
+        Ok(Self {
+            value: row.value.try_into()?,
+            label: row.label,
+            color: row.color,
+        })
     }
 }
 
 impl Band {
     pub fn encoding_memory(value: &crate::document::ReferenceBand) -> Result<usize> {
-        let mut memory = std::mem::size_of::<Self>()
-            .saturating_add(value.label.as_deref().map_or(0, str::len))
-            .saturating_add(value.color.len());
+        let mut memory =
+            std::mem::size_of::<Self>().saturating_add(value.label.as_deref().map_or(0, str::len)).saturating_add(value.color.len());
         for value in [&value.min, &value.max, &value.center, &value.tolerance].into_iter().flatten() {
             let reference = Reference::encoding_memory(value)?;
-            if reference == usize::MAX { return Ok(usize::MAX); }
+            if reference == usize::MAX {
+                return Ok(usize::MAX);
+            }
             memory = memory.saturating_add(reference.saturating_sub(std::mem::size_of::<Reference>()));
         }
         Ok(memory)
@@ -1253,7 +1270,9 @@ impl TryFrom<&crate::document::ReferenceBand> for Band {
     type Error = Error;
 
     fn try_from(value: &crate::document::ReferenceBand) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX { return Err(Error::Invalid("reference band encoding memory overflows")); }
+        if Self::encoding_memory(value)? == usize::MAX {
+            return Err(Error::Invalid("reference band encoding memory overflows"));
+        }
         Ok(Self {
             min: value.min.as_ref().map(Reference::try_from).transpose()?,
             max: value.max.as_ref().map(Reference::try_from).transpose()?,
@@ -1269,7 +1288,9 @@ impl TryFrom<Band> for crate::document::ReferenceBand {
     type Error = Error;
 
     fn try_from(row: Band) -> Result<Self> {
-        if row.projection_memory()? == usize::MAX { return Err(Error::Invalid("reference band projection memory overflows")); }
+        if row.projection_memory()? == usize::MAX {
+            return Err(Error::Invalid("reference band projection memory overflows"));
+        }
         Ok(Self {
             min: row.min.map(TryInto::try_into).transpose()?,
             max: row.max.map(TryInto::try_into).transpose()?,
