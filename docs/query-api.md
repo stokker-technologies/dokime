@@ -100,6 +100,11 @@ and indexed case count; listing its cases reads those headers in the sealed memb
 order, retaining the first case definition and the latest attempt status and count.
 Complete cycle inspection still validates every member's exact saved execution.
 Development roots without sealed case headers require a fresh storage root.
+Sealed file descriptors are indexed by execution revision and relative path in
+the same transaction as the native execution. File and log windows resolve one
+descriptor without reopening the execution; native output precedence, seal
+admission checks and file-byte verification are preserved. Development roots
+without this index require a fresh storage root.
 Later metadata and archive changes append projections; earlier catalog cuts
 keep their original membership, values and ordering. Cycle membership is indexed
 at the same revision. History capture flushes only the fixed admitted metadata
