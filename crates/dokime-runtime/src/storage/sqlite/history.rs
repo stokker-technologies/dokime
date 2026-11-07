@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS query_execution_outputs (
  execution TEXT NOT NULL, position TEXT NOT NULL REFERENCES storage_data_entries(position) ON DELETE CASCADE,
  path TEXT NOT NULL, body BLOB NOT NULL, PRIMARY KEY(execution,position,path)
 ) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS query_execution_outputs_position ON query_execution_outputs(position);
 ";
 
 /* === Macros === */
