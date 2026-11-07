@@ -528,7 +528,7 @@ impl Pages {
     }
 
     fn report(self, outcome: SidecarExecutionOutcome, declared: Option<DocumentDefinition>) -> Report {
-        let mut document = declared.unwrap_or_else(|| DocumentDefinition::new("default", "Document"));
+        let mut document = declared.unwrap_or_else(|| DocumentDefinition::new("Document"));
         for addition in self.documents {
             let _ = document.add(addition);
         }

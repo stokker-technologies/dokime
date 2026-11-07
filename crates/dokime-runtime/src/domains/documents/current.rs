@@ -138,7 +138,7 @@ impl RuntimeHandle {
             .get(execution_id)
             .filter(|execution| &execution.test_cycle_id == cycle_id)
             .ok_or(PreparationFailure::Missing)?;
-        let definition = super::captured_authored_document(&state.suites, execution, document_id).ok_or(PreparationFailure::Missing)?;
+        let definition = super::captured_authored_document(&state.suites, execution, document_id)?.ok_or(PreparationFailure::Missing)?;
         let selection = DocumentSelection { scope: execution.scope.clone() };
         Ok(PreparedCurrentDocument {
             runtime: self.clone(),

@@ -278,7 +278,7 @@ pub(crate) async fn bounded_snapshot_recovery() {
             .collect(),
     };
     template.parameters.push(member);
-    let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Session");
+    let mut document = dokime_runtime::document::DocumentDefinition::new("Session");
     let mut section = dokime_runtime::document::DocumentSection::new("Definition");
     section.card(dokime_runtime::document::DocumentCard {
         metadata: metadata("definition", "Definition"),

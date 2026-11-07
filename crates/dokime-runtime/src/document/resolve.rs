@@ -608,6 +608,7 @@ pub(crate) fn capture_with_queries(
     input: BorrowedInput<'_>, limits: DocumentLimits, repeats: Option<&RepeatValues>,
     summary_queries: Option<&mut Vec<DocumentCardDefinition>>,
 ) -> Result<Capture> {
+    input.definition.validate_identity().map_err(|issue| DocumentFailure::InvalidDefinition { issues: vec![issue] })?;
     let (mut cards, layout) = input.definition.normalized_parts();
     validate_normalized_parts(&cards, &layout, limits.layout_depth, limits.maximum_plot_points)
         .map_err(|issues| DocumentFailure::InvalidDefinition { issues })?;
@@ -722,6 +723,7 @@ pub(crate) fn resolve_normalized(
     definition: crate::document::DocumentDefinition, selection: crate::document::DocumentSelection, data: BorrowedData<'_>,
     materialize_plots: bool, limits: DocumentLimits,
 ) -> Result<DocumentPayload> {
+    definition.validate_identity().map_err(|issue| DocumentFailure::InvalidDefinition { issues: vec![issue] })?;
     let crate::document::DocumentDefinition {
         document_id,
         metadata,

@@ -104,7 +104,7 @@ fn reference_values_validation() {
         assert!(refusal(&plot).contains("Invalid Temperature"));
         let mut section = DocumentSection::new("Measurements");
         section.plot(plot);
-        let mut document = DocumentDefinition::new("temperature", "Temperature");
+        let mut document = DocumentDefinition::new("Temperature");
         document.section(section);
         assert!(model::document::validate_document_definition(&document, 8, 1000).is_err());
     }
@@ -127,7 +127,7 @@ fn display_scale_validation() {
         assert!(message.contains("positive finite"), "{message}");
         let mut section = model::document::DocumentSection::new("Measurements");
         section.plot(plot.clone());
-        let mut document = model::document::DocumentDefinition::new("distance", "Distance");
+        let mut document = model::document::DocumentDefinition::new("Distance");
         document.section(section);
         let issues = model::document::validate_document_definition(&document, 8, 1000).unwrap_err();
         assert!(issues.iter().any(|issue| issue.contains("Distance Delta")));

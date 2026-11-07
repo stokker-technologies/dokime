@@ -423,7 +423,7 @@ impl Template {
         plot.y(telemetry(STEADY_STREAM, "current_a"));
         execution.plot(plot);
 
-        let mut document = Document::new("default", "Steady-State Measurement");
+        let mut document = Document::new("Steady-State Measurement");
         document.section(execution);
 
         let mut charging = Section::new("Battery Charging");

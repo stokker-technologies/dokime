@@ -192,7 +192,7 @@ impl Check {
         spectrum.fft.sample_rate_hz = Some(SPECTRUM_SAMPLE_RATE_HZ);
         spectrum.fft.window = dokime_runtime::document::FftWindow::Rectangular;
         section.plot(spectrum);
-        let mut document = dokime_runtime::prelude::Document::new("default", "Fixture Smoke");
+        let mut document = dokime_runtime::prelude::Document::new("Fixture Smoke");
         document.section(section);
         document
     }

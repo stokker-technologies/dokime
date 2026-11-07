@@ -112,7 +112,7 @@ pub(crate) fn document(stream: &str, title: &str) -> Document {
     waveform.plot(voltage);
     waveform.plot(current);
 
-    let mut document = Document::new("default", title);
+    let mut document = Document::new(title);
     document.section(waveform);
 
     let mut charging = Section::new("Battery Charging");

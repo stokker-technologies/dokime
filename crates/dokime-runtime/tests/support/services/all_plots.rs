@@ -69,7 +69,7 @@ impl AllPlots {
         settings.local_storage.previews.exact_points = std::num::NonZeroUsize::new(exact_points).unwrap();
         let (owner, runtime) = started_with_fixture(settings, executor.clone()).await;
         let definitions = definitions();
-        let mut document = Document::new("default", "Plot History");
+        let mut document = Document::new("Plot History");
         let mut section = DocumentSection::new("Measurements");
         for plot in &definitions {
             section.plot(plot.clone());

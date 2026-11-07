@@ -67,7 +67,7 @@ pub(crate) async fn current_document_rows() {
                 .collect(),
         },
     });
-    let mut authored = DocumentDefinition::new("default", "Authored");
+    let mut authored = DocumentDefinition::new("Authored");
     authored.section(measurements);
     suite.test_case_templates[0].document = Some(authored);
     support::register_fixture_execution(&handle, suite.clone()).await;
@@ -216,7 +216,7 @@ pub(crate) async fn summary_complete_telemetry() {
 
     let mut progress = DocumentSection::new("Progress");
     progress.card(DocumentCard::telemetry_summary(summary));
-    let mut telemetry_document = DocumentDefinition::new("default", "Telemetry");
+    let mut telemetry_document = DocumentDefinition::new("Telemetry");
     telemetry_document.section(progress);
     suite.test_case_templates[0].document = Some(telemetry_document);
     support::register_fixture_progress_execution(&handle, suite.clone()).await;
@@ -370,7 +370,7 @@ pub(crate) async fn duration_x_axis() {
     voltage.y(telemetry("bench.samples", "voltage_v"));
     let mut waveform = DocumentSection::new("Waveforms");
     waveform.plot(voltage);
-    let mut authored = DocumentDefinition::new("default", "Authored");
+    let mut authored = DocumentDefinition::new("Authored");
     authored.section(waveform);
     suite.test_case_templates[0].document = Some(authored);
 

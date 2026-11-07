@@ -567,7 +567,7 @@ impl Template {
     }
 
     fn document() -> Document {
-        let mut document = Document::new("default", "Start-Up Sequence");
+        let mut document = Document::new("Start-Up Sequence");
 
         // === What One Execution Shows === //
 

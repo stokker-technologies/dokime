@@ -684,7 +684,7 @@ mod tests {
         use dokime::domain::model::values::Value;
         let (large, pending_large) = summary("fixture.large", None);
         let (healthy, pending_healthy) = summary("fixture.healthy", None);
-        let mut definition = native::DocumentDefinition::new("default", "Fixture");
+        let mut definition = native::DocumentDefinition::new("Fixture");
         for card in [large, healthy] {
             definition.layout.nodes.push(native::DocumentNode::Card(native::DocumentCardPlacement {
                 card_id: card.metadata.identifier.clone(),

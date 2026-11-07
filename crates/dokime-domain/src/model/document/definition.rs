@@ -29,6 +29,7 @@ use crate::model::identity::DocumentId;
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::identity::identifier_from_label;
+use crate::model::identity::normalized_identifier;
 use crate::model::telemetry::TelemetryColumn;
 use crate::model::telemetry::TelemetryContract;
 use crate::model::values::Value;
@@ -1126,15 +1127,31 @@ impl Default for HistogramOptions {
 }
 
 impl DocumentDefinition {
-    pub fn new(identifier: impl AsRef<str>, label: impl Into<String>) -> Self {
-        let identifier = identifier.as_ref();
+    pub fn new(label: impl Into<String>) -> Self {
+        let label = label.into();
+        let identifier = normalized_identifier(&label);
         Self {
-            document_id: DocumentId::from_identifier(identifier).unwrap_or_else(|_| DocumentId::from_seed(identifier)),
-            metadata: metadata(identifier, label.into(), None),
+            document_id: DocumentId::from_identifier(&identifier).unwrap_or_else(|_| DocumentId::from_seed(&identifier)),
+            metadata: metadata(&identifier, label, None),
             cards: Vec::new(),
             layout: DocumentLayout::default(),
             sections: Vec::new(),
         }
+    }
+
+    pub fn id(&mut self, identifier: impl AsRef<str>) {
+        self.metadata.identifier = Identifier::new(identifier.as_ref()).unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
+        self.document_id = DocumentId::from_identifier(self.metadata.identifier.as_str()).expect("document identifier is valid");
+    }
+
+    pub fn validate_identity(&self) -> Result<(), String> {
+        if self.document_id.as_str() != self.metadata.identifier.as_str() {
+            return Err(format!(
+                "document {:?} has an invalid or empty derived identifier; set .id(...) to a valid identifier",
+                self.metadata.label
+            ));
+        }
+        Ok(())
     }
 
     pub fn section(&mut self, section: DocumentSection) {

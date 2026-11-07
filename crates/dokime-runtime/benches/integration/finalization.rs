@@ -304,7 +304,7 @@ fn values(contract: &TelemetryContract, index: u64) -> BTreeMap<String, Value> {
 }
 
 fn document() -> Document {
-    let mut document = Document::new("default", "Long Execution Evidence");
+    let mut document = Document::new("Long Execution Evidence");
     let mut section = DocumentSection::new("Measurements");
     for (stream, field) in [
         ("tracking", "distance_m"),

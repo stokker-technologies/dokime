@@ -75,7 +75,7 @@ pub(super) fn capture(
     let mut execution_documents = BTreeMap::new();
     let ids = execution.documents.keys().filter(|id| *id != &default_id).chain(std::iter::once(&default_id));
     for id in ids {
-        if let Some(definition) = crate::documents::captured_authored_document(&state.suites, execution, id) {
+        if let Some(definition) = crate::documents::captured_authored_document(&state.suites, execution, id)? {
             execution_documents.insert(id.clone(), definition);
         }
     }

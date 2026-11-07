@@ -1193,9 +1193,17 @@ voltage.y(Row::column_dc_voltage_v().on(stream));
 let mut charging = Section::new("Battery Charging");
 charging.plot(voltage);
 
-let mut document = Document::new("default", "Charger Qualification");
+let mut document = Document::new("Charger Qualification");
 document.section(charging);
 ```
+
+`Document::new(label)` derives its identifier with the same normalization as
+traceability and sections: `Charger Qualification` becomes `charger.qualification`.
+Set `document.id("qualification");` when label edits must preserve the key.
+Validation refuses empty or invalid derived identifiers and duplicate identifiers
+within one document registry; set `.id(...)` to resolve them. Each template declares
+one document. Runtime execution views retain their internal `default` document,
+combining that authored content with built-in results and evidence.
 
 Declare a bare label and a structured unit, such as `"Battery Voltage"` and
 `.unit("V")`. The GUI and report HTML render these as `Battery Voltage [V]` on

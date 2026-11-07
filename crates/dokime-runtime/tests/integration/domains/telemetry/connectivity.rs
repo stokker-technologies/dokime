@@ -69,7 +69,7 @@ async fn boolean_connectivity() {
     plot.y = vec!["internet".into()];
     let mut section = DocumentSection::new("Connectivity");
     section.plot(plot);
-    let mut document = DocumentDefinition::new("default", "Network");
+    let mut document = DocumentDefinition::new("Network");
     document.section(section);
     suite.test_case_templates[0].document = Some(document);
     register_custom_suite(&runtime, suite.clone()).await;

@@ -281,7 +281,7 @@ impl Template {
         let mut signals = Section::new("Pulse");
         signals.plot(pulse);
 
-        let mut document = Document::new("obc.checks.pulse.document", LABEL);
+        let mut document = Document::new(LABEL);
         document.section(signals);
         let section = system::section("obc.checks.pulse");
         document.section(section);

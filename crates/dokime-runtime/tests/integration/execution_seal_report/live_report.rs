@@ -91,7 +91,7 @@ async fn plotted_cycle(
     plot.y = vec!["distance_m".into()];
     let mut section = DocumentSection::new("Samples");
     section.plot(plot);
-    let mut document = DocumentDefinition::new("default", "Live Evidence");
+    let mut document = DocumentDefinition::new("Live Evidence");
     document.section(section);
     suite.test_case_templates[0].document = Some(document);
     runtime

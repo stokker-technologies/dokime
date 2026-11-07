@@ -85,7 +85,7 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     summary.group(group);
     let mut section = DocumentSection::new("Captured Records");
     section.card(DocumentCard::telemetry_summary(summary));
-    let mut document = DocumentDefinition::new("default", "Evidence");
+    let mut document = DocumentDefinition::new("Evidence");
     document.section(section);
     suite.test_case_templates[0].document = Some(document);
     suite.test_case_templates[0]

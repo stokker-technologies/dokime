@@ -431,7 +431,7 @@ mod tests {
 
     #[test]
     fn nested_repeat_indexes_selectors_and_aliases_without_plot_fields() {
-        let mut document = super::super::DocumentDefinition::new("fixture", "Fixture");
+        let mut document = super::super::DocumentDefinition::new("Fixture");
         let mut section = super::super::DocumentSection::new("Values");
         let repeat = section.each(crate::expressions::telemetry("sensor", "schema.mode"), "{value}");
         repeat.order_by = Some(crate::expressions::telemetry("sensor", "order"));
