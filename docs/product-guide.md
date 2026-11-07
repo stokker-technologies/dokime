@@ -1019,7 +1019,10 @@ Use `.start().await?` for an instance you will join or cancel. The operation
 macro owns the default policy. `.retry(settings.retry)` overrides one call only;
 obtain the choice from settings, parameters or configuration. Enabled retry
 overrides require declared replay safety, preserve operation deadlines and record
-each attempt in the execution log. Templates have no `.lane()` option.
+each attempt in the execution log. These JSON `operation_attempt` records use
+Trace for first-attempt success, Info for success after a retry, Debug for
+cancellation, and Warn for failure, timeout or unavailability. Templates have
+no `.lane()` option.
 
 A step also reaches four built-in operations through `ctx.operation(request)`,
 with nothing to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
@@ -2316,7 +2319,10 @@ stages remain complete across retries.
 
 Execution logs use `artifacts/execution.log`, rolling over to `execution.2.log`,
 `execution.3.log` and the next free collision suffix. The log retains the plain
-name when a step uploads an artifact named `execution.log`. Logs segment at
+name when a step uploads an artifact named `execution.log`. Saved logs and
+evidence exports retain every level, including Trace. The GUI console defaults
+to Info, hiding Trace and Debug; select Trace in its existing level filter for
+all levels. The live console remembers the selected filter. Logs segment at
 64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture
 failure appears in evidence health and affects the terminal result when required

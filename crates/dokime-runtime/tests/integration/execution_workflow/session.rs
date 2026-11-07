@@ -581,7 +581,8 @@ pub(crate) async fn cancellation_retains_verdict() {
         let mut diagnostics = Vec::new();
         let mut attempts = Vec::new();
         for line in log.lines() {
-            let event = line.strip_prefix("[INFO] ").and_then(|message| serde_json::from_str::<serde_json::Value>(message).ok());
+            let prefix = if mode == Settlement::Refused { "[WARN] " } else { "[TRACE] " };
+            let event = line.strip_prefix(prefix).and_then(|message| serde_json::from_str::<serde_json::Value>(message).ok());
             if let Some(attempt) = event.filter(|event| event["kind"] == "operation_attempt") {
                 attempts.push(attempt);
             } else {
