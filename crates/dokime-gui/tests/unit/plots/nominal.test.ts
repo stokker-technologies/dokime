@@ -1066,7 +1066,7 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
   }
   for (const mode of ["light", "dark"] as const) {
     const html = renderToStaticMarkup(
-      createElement(ApplicationThemeProvider, { value: { resolvedTheme: mode, setTheme() {} }, children: createElement(Palette) }),
+      createElement(ApplicationThemeProvider, { value: { resolvedTheme: mode, setTheme() {} } }, createElement(Palette)),
     );
     assert.equal(html, renderToStaticMarkup(createElement("output", null, JSON.stringify(family[mode].plot_palette))));
   }

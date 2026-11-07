@@ -575,9 +575,7 @@ def observer(
 
 
 @dataclass_transform(field_specifiers=(parameter,))
-def stream[T](
-    *, id: str, label: str, window: int, row: type | None = None, description: str | None = None
-) -> Callable[[type[T]], type[T]]:
+def stream[T](*, id: str, label: str, window: int, row: type | None = None, description: str | None = None) -> Callable[[type[T]], type[T]]:
     return _declare("stream", id=id, label=label, window=window, row=row, description=description)
 
 
