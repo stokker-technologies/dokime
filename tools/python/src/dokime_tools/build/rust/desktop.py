@@ -16,8 +16,10 @@ import subprocess
 import sys
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
-from dokime_tools.build import cargo, configuration, frontend, outputs, paths, storage
+from dokime_tools.build import cargo, configuration, frontend, outputs, storage
 from dokime_tools.package import distribution
 from dokime_tools.package.staging import stage_file, sync_output
 

@@ -16,9 +16,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 # Third Party Imports
+from harmos_tools.build import paths
+from harmos_tools.test import policy
+
 # Local Imports
-from dokime_tools.build import paths
-from dokime_tools.test import policy, run
+from dokime_tools.test import run
 
 # Type Checking Imports
 

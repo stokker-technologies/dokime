@@ -22,9 +22,10 @@ import sys
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools import temporary
+from harmos_tools.build import paths
+
 # Local Imports
-from dokime_tools import temporary
-from dokime_tools.build import paths
 from dokime_tools.build.frontend import ROOT
 from dokime_tools.package import distribution, plugins
 from dokime_tools.package.staging import clear_output, stage_file

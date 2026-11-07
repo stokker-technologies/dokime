@@ -18,10 +18,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.release import policy
+
 # Local Imports
 # isort: split
 from ..test import archive
-from . import policy
 
 # Type Checking Imports
 

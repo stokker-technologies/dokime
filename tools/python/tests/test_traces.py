@@ -21,8 +21,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 # Third Party Imports
+from harmos_tools.process import spawn_flags
+
 # Local Imports
-from dokime_tools.process import spawn_flags
 from dokime_tools.test import run, traces
 
 # Type Checking Imports

@@ -17,8 +17,9 @@ import sys
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
-from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output
 
 # Type Checking Imports

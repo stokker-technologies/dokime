@@ -17,10 +17,13 @@ import sys
 from time import perf_counter
 
 # Third Party Imports
+from harmos_tools.build import paths
+from harmos_tools.test import policy
+
 # Local Imports
-from dokime_tools.build import cargo, configuration, frontend, outputs, paths
+from dokime_tools.build import cargo, configuration, frontend, outputs
 from dokime_tools.package import plugins
-from dokime_tools.test import archive, policy
+from dokime_tools.test import archive
 
 # Type Checking Imports
 

@@ -16,9 +16,10 @@ import os
 import subprocess
 
 # Third Party Imports
+from harmos_tools.process import spawn_flags
+from harmos_tools.release import policy
+
 # Local Imports
-from ..process import spawn_flags
-from ..release import policy
 from ..release.run import release_tag
 
 # Type Checking Imports

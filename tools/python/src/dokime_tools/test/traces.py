@@ -18,8 +18,10 @@ from pathlib import Path
 from typing import Any
 
 # Third Party Imports
+from harmos_tools.test import policy
+
 # Local Imports
-from . import policy, report
+from . import report
 
 # Type Checking Imports
 

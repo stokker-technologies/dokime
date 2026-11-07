@@ -27,8 +27,10 @@ import tempfile
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
-from dokime_tools.build import paths, storage
+from dokime_tools.build import storage
 from dokime_tools.build.outputs import executables
 from dokime_tools.package.contracts import locate
 from dokime_tools.package.staging import sync_output

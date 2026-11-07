@@ -84,13 +84,13 @@ run = [
 description = "Build the Contract Generator and Generate TypeScript Modules"
 depends = ["prepare"]
 usage = 'flag "--write" help="Refresh tracked clients instead of checking them"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.prepare.generated --generate{% if not usage.write %} --check{% endif %}"
+run = "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.prepare.generated --generate{% if not usage.write %} --check{% endif %}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."prepare:bindings"]
 description = "Regenerate Canonical Python and TypeScript Contracts"
 depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.prepare.generated --generate"
+run = "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.prepare.generated --generate"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."prepare:desktop"]
@@ -174,12 +174,12 @@ run = [
 description = "Lint Rust"
 usage = 'flag "--extended"'
 run = [
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}},dokime-runtime/testing",
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.lint -- --locked --workspace --profile dev --features {{vars.rust_plugin_features}},{{vars.rust_desktop_features}}",
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --bins --benches --profile bench --features plugin-obc/benchmarks,{{vars.rust_plugin_features}}",
-  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.lint -- --locked --workspace --all-targets --all-features --profile test{% endif %}",
-  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --profile test -p dokime-domain --target wasm32-unknown-unknown{% endif %}",
-  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --lib --bins --no-default-features --profile test{% endif %}",
+  "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}},dokime-runtime/testing",
+  "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.lint -- --locked --workspace --profile dev --features {{vars.rust_plugin_features}},{{vars.rust_desktop_features}}",
+  "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --bins --benches --profile bench --features plugin-obc/benchmarks,{{vars.rust_plugin_features}}",
+  "{% if usage.extended %}{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.lint -- --locked --workspace --all-targets --all-features --profile test{% endif %}",
+  "{% if usage.extended %}{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --profile test -p dokime-domain --target wasm32-unknown-unknown{% endif %}",
+  "{% if usage.extended %}{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --lib --bins --no-default-features --profile test{% endif %}",
 ]
 env = { CARGO_BUILD_WARNINGS = "deny" }
 
@@ -213,7 +213,7 @@ env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."check:repository"]
 description = "Check Repository Configuration"
-run = [{ task = "format:toml --check" }, "{{vars.tools}} dokime_tools.ci.mise", "shellcheck --version", "actionlint"]
+run = [{ task = "format:toml --check" }, "{{vars.tools}} harmos_tools.ci.mise", "shellcheck --version", "actionlint"]
 
 [tasks."check:rust"]
 description = "Check Rust"
@@ -262,43 +262,43 @@ run = "{{vars.tools}} dokime_tools.build.python --profile {{usage.profile}}"
 description = "Build Shipping Native Executables and Plugin Bundle"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust --profile {{usage.profile}}"
+run = "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.rust --profile {{usage.profile}}"
 
 [tasks."build:rust:bench"]
 description = "Build Benchmarks and Their Matching Native Fixtures"
 depends = ["prepare"]
 usage = 'flag "--binary <binary>" help="Build One Benchmark Executable and Its Native Fixtures"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.bench {% if usage.binary %}--binary {{usage.binary}}{% endif %}"
+run = "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.rust.bench {% if usage.binary %}--binary {{usage.binary}}{% endif %}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:compatibility"]
 description = "Verify Local Extended Feature and Browser Configurations"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.compatibility --profile {{usage.profile}}"
+run = "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.rust.compatibility --profile {{usage.profile}}"
 
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:contracts"]
 description = "Verify Rust Compile Contracts in Their Build Tree"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.contracts --profile {{usage.profile}}"
+run = "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.rust.contracts --profile {{usage.profile}}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:desktop"]
 description = "Build the Desktop with Its Compiled Frontend"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.desktop --profile {{usage.profile}}"
+run = "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.rust.desktop --profile {{usage.profile}}"
 
 [tasks."build:rust:focused"]
 description = "Compile an Explicit Local Rust Selection"
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused"
+run = "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.cargo focused"
 
 [tasks."build:rust:tests"]
 description = "Build Independent Test Archive and Compile Contracts"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.tests --profile {{usage.profile}}",
+  "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.rust.tests --profile {{usage.profile}}",
   { task = "build:rust:contracts --profile {{usage.profile}}" },
 ]
 env.CARGO_INCREMENTAL = "0"
@@ -438,7 +438,7 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.test.run coverage --language rust --profile {{usage.profile}} -- --features \"{{vars.rust_plugin_features}},dokime-runtime/testing,dokime-gui/testing{% if usage.profile == 'release' %},{{vars.rust_release_features}}{% endif %}\" -E \"not binary_id(dokime-macros::compile)\"",
+  "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.test.run coverage --language rust --profile {{usage.profile}} -- --features \"{{vars.rust_plugin_features}},dokime-runtime/testing,dokime-gui/testing{% if usage.profile == 'release' %},{{vars.rust_release_features}}{% endif %}\" -E \"not binary_id(dokime-macros::compile)\"",
 ]
 
 [tasks."test:rust:extended"]
@@ -447,7 +447,7 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = [
   { task = "build --profile {{usage.profile}}" },
   { task = "build:rust:compatibility --profile {{usage.profile}}" },
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.tests --profile {{usage.profile}} --extended",
+  "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.build.rust.tests --profile {{usage.profile}} --extended",
   { task = "test:rust --profile {{usage.profile}}" },
 ]
 
@@ -456,7 +456,7 @@ env.CARGO_INCREMENTAL = "0"
 [tasks."test:rust:starter"]
 description = "Prove the Standalone Starter in Nightly Validation"
 usage = 'flag "--profile <profile>" default="release"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.test.rust.starter --profile {{usage.profile}}"
+run = "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.test.rust.starter --profile {{usage.profile}}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:tooling"]
@@ -545,7 +545,7 @@ usage = '''
 flag "--profile <profile>" default="dev"
 flag "--target <target>" default="any"
 '''
-run = "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target {{usage.target}}"
+run = "{{vars.tools}} harmos_tools.package.run python --profile {{usage.profile}} --target {{usage.target}}"
 
 [tasks."package:rust"]
 description = "Package the Desktop Installer, Tools and Plugin Archives"
@@ -556,7 +556,7 @@ flag "--profile <profile>" default="dev"
 flag "--target <target>" default="native"
 '''
 run = [
-  "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}} --target {{usage.target}}",
+  "{{vars.tools}} harmos_tools.package.run rust --profile {{usage.profile}} --target {{usage.target}}",
   "{{vars.tools}} dokime_tools.package.installer bundle --profile {{usage.profile}} --target {{usage.target}}",
 ]
 
@@ -590,10 +590,10 @@ run = "{{vars.tools}} dokime_tools.release.run publish"
 description = "Dry-Run Every Publication"
 depends = ["prepare:report"]
 run = [
-  "{{vars.tools}} dokime_tools.release.version check",
+  "{{vars.tools}} harmos_tools.release.version check",
   "{{vars.tools}} dokime_tools.release.run dry",
   "{{vars.tools}} dokime_tools.release.run crates-dry",
-  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.test.publish --python packages/dokime-client",
+  "{{vars.tools}} harmos_tools.build.machine -- python -m dokime_tools.test.publish --python packages/dokime-client",
 ]
 
 [tasks."release:publish:finalize"]
