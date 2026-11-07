@@ -7,9 +7,15 @@ attempts with record and sample readers, and answer a confirmation. Begin with t
 [shared walkthrough](overview.md) to obtain the matching candidate artifacts,
 install/configure the host plugin and transfer the public certificate and key.
 
-These source examples use a locally built wheel from the same revision as the
-backend. Tutorials and Python distributions are not release downloads. Prepare
-the wheel and refresh the tutorial lock before transferring the example tree.
+Use the same candidate revision for the SDK and backend. The [SDK install
+guide](../../sdk/python/README.md#install) supports `uv add` directly from Git
+with Rust supplied by mise, or a matching native wheel. Tutorials remain source
+examples; native wheels are packaged as release assets. For this unreleased
+candidate, prepare the wheel and tutorial lock before transferring the tree.
+
+To author a backend and plugin, run `dokime new bench --lang python` and follow
+the [starter guide](../../sdk/python/README.md#author-an-embedded-plugin). Its
+backend exports the same pairing format consumed by the scripts below.
 
 ## Prepare the Environment
 
@@ -315,7 +321,7 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | Symptom | Check |
 | --- | --- |
 | uv cannot find a supported Python | Run `uv python install 3.13`, then sync with `--python 3.13`. Supported versions are 3.13, 3.14 and 3.15, not an unrestricted future version. |
-| The local wheel path is missing | Extract the complete examples ZIP. `python/` and `wheels/` must remain siblings. |
+| The local wheel path is missing | Prepare the matching source wheel and copy the complete tutorial tree. `python/` and `wheels/` must remain siblings. |
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
 | `lab.dokime-remote` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
 | A secret/certificate is refused | Follow the shared [connection troubleshooting](overview.md#troubleshooting), including process-key precedence and certificate identity. |

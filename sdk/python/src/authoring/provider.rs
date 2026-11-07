@@ -63,8 +63,10 @@ pub(super) struct Spec {
     pub observers: Vec<ObserverSpec>,
     pub settings: dokime::settings::Settings,
     pub settings_status: Option<String>,
+
     #[serde(deserialize_with = "records")]
     pub records: Vec<dokime::records::RecordContract>,
+
     pub prompts: Vec<dokime::prompts::PromptDefinition>,
     pub requirements: Vec<OperationSpec>,
 }
@@ -91,6 +93,7 @@ pub(super) struct StreamSpec {
     pub schema: u32,
     pub window: usize,
     pub row: Shape,
+
     #[serde(deserialize_with = "columns")]
     pub columns: Vec<dokime::telemetry::TelemetryColumn>,
 }

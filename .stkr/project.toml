@@ -371,7 +371,7 @@ exclude = ["crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 exclude = ["crates/dokime-runtime/src/prelude.rs", "crates/dokime-runtime/src/plugin/sidecar.rs"]
 
 [markdown]
-include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**", "openspec/**"]
+include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**", "openspec/**", "docs/**/*.md"]
 
 # === === Templates === === #
 

@@ -30,7 +30,7 @@ operating conditions, and review the evidence behind each result.
 - **Parameter Sweeps:** Expand one template into operating points without copying the procedure.
 - **Measurements and Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts.
 - **Operator Workflows:** Combine automation with confirmations and manual checkpoints; keep responses with the execution.
-- **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust authoring API.
+- **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust and embedded Python authoring APIs.
 - **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.
 - **Native Media Capture** [`media-native`]: Attach screenshots, camera photos and audio where the platform supports them.
 
@@ -70,7 +70,7 @@ structure, so you can use any instrument library.
 
 | | Dokime | OpenHTF | OpenTAP / PathWave | NI TestStand |
 | --- | --- | --- | --- | --- |
-| **Authoring Language** | Rust and Python; C++ planned | Python | C#, Python | Several |
+| **Authoring Language** | Rust and Python (embedded); C++ planned | Python | C#, Python | Several |
 | **Licence** | Apache-2.0 | Apache-2.0 | MPL-2.0, Keysight GUI bundle | Commercial |
 | **Ready-Made Instrument Drivers** | Plugin's choice | Some plugs | Vendor ecosystem | Extensive |
 | **End-Of-Line Readiness** | Planned | Yes | Yes | Yes |
@@ -143,8 +143,11 @@ Follow the [locked remote tutorial](docs/remote/python.md) for a complete exampl
 
 #### Examples
 
-The native SDK wraps the Rust client. Its provisional distribution is
-`dokime-python`; registry publication awaits the naming decision.
+Start an authoring project with `dokime new bench --lang python`; its `main.py`
+starts the backend and exports a desktop pairing file, while `plugin/` keeps
+instrument operations and suites together. [Install with uv](sdk/python/README.md#install)
+from this candidate's Git revision or a matching native wheel. The provisional
+distribution is `dokime-python`; registry publication awaits the naming decision.
 
 Install the native wheel matching your backend and platform, selecting the optional
 extra for this dataframe example:
@@ -219,7 +222,7 @@ for packaging options.
 1. **Download An Installer.** Choose a matching [release](https://github.com/stokker-technologies/dokime/releases), the [nightly prerelease](https://github.com/stokker-technologies/dokime/releases/tag/nightly) or a successful [CI candidate](https://github.com/stokker-technologies/dokime/actions); the [download walkthrough](docs/remote/overview.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
 2. **Inspect Host Telemetry.** The installer includes `plugin-host.dokime`, selected explicitly by the Dokime packaging task. Host streams arrive through the supervised plugin boundary.
 3. **Try The Test Fixture.** In a source checkout, build the explicit [OBC fixture](docs/plugin-obc.md#build-and-validate), install its bundle, then run a charging template and inspect its measurements and report.
-4. **Write Your Plugin.** Start with the [plugin starter](crates/cargo-dokime/templates/) and [authoring commands](docs/product-guide.md#plugin-authoring).
+4. **Write Your Plugin.** Run `dokime new bench --lang python` for the [Python starter](sdk/python/examples/starter/), or use the [Rust plugin starter](crates/cargo-dokime/templates/) and [authoring commands](docs/product-guide.md#plugin-authoring).
 
 Dokime is pre-1.0. Pin matching application, client and plugin revisions;
 public APIs and development storage formats may change. See the

@@ -60,7 +60,6 @@ PYTHONDONTWRITEBYTECODE = "1"
 
 [vars]
 rust_desktop_features = "tauri/custom-protocol"
-# The Host Plugin Builds Its Sidecar Only With Its Runtime; Its Definitions Need No Features.
 rust_plugin_features = "plugin-host/runtime"
 rust_release_features = "dokime-server/media-native"
 rust_extended_features = "dokime/fault-injection,dokime-server/fault-injection"
@@ -325,14 +324,6 @@ depends = ["prepare:desktop"]
 run = "{{vars.tools}} dokime_tools.test.schedule --profile {{usage.profile}}"
 env = { CARGO_INCREMENTAL = "0" }
 
-[tasks."test:python:wheel"]
-description = "Import The Installed Native Wheel"
-usage = '''
-flag "--profile <profile>" default="dev"
-flag "--stubs" help="Check All Shipped Stubs Against The Installed Extension"
-'''
-run = "{{vars.tools}} dokime_tools.test.wheel --profile {{usage.profile}}{% if usage.stubs %} --stubs{% endif %}"
-
 [tasks."test:python"]
 description = "Test Python Layers"
 usage = 'flag "--profile <profile>" default="dev"'
@@ -340,6 +331,7 @@ depends = [
   "test:python:unit --profile {{usage.profile}}",
   "test:python:integration --profile {{usage.profile}}",
   "test:python:acceptance --profile {{usage.profile}}",
+  "test:python:system --profile {{usage.profile}}",
 ]
 env = { CARGO_INCREMENTAL = "0" }
 
@@ -373,6 +365,17 @@ flag "--select <select>" help="Run Matching Installed-Wheel Stories"
 run = '{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category acceptance -- --build-profile {{usage.profile}} {% if usage.artifacts %}--artifacts "{{usage.artifacts}}"{% endif %} {% if usage.select %}-k "{{usage.select}}"{% endif %}'
 env = { CARGO_INCREMENTAL = "0" }
 
+[tasks."test:python:system"]
+description = "Test System Python"
+depends = ["prepare"]
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--artifacts <artifacts>" help="Use an Explicit Native Fixture Root"
+flag "--select <select>" help="Run Matching System Stories"
+'''
+run = '{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category system -- --build-profile {{usage.profile}} {% if usage.artifacts %}--artifacts "{{usage.artifacts}}"{% endif %} {% if usage.select %}-k "{{usage.select}}"{% endif %}'
+env = { CARGO_INCREMENTAL = "0" }
+
 [tasks."test:python:coverage"]
 description = "Measure Python Coverage over Instrumented Lanes"
 depends = ["prepare"]
@@ -381,6 +384,14 @@ run = [
   "{{vars.tools}} dokime_tools.test.archive --profile {{usage.profile}} --install-wheels",
   "{{vars.tools}} dokime_tools.test.run coverage --language python --profile {{usage.profile}} --project sdk/python",
 ]
+
+[tasks."test:python:wheel"]
+description = "Import The Installed Native Wheel"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--stubs" help="Check All Shipped Stubs Against The Installed Extension"
+'''
+run = "{{vars.tools}} dokime_tools.test.wheel --profile {{usage.profile}}{% if usage.stubs %} --stubs{% endif %}"
 
 [tasks."test:rust"]
 description = "Test Rust Layers"
@@ -522,6 +533,14 @@ env = { CARGO_INCREMENTAL = "0" }
 [tasks.bench]
 description = "Measure Every Bench Layer"
 depends = ["bench:rust:unit", "bench:rust:integration", "bench:rust:system"]
+
+[tasks."bench:python:system"]
+description = "Measure Python Batch Publication"
+depends = ["prepare"]
+run = [
+  "{{vars.tools}} dokime_tools.test.archive --profile dev --install-wheels",
+  "{{vars.tools}} dokime_tools.test.run bench --language python --category system --project sdk/python -- -s",
+]
 
 [tasks."bench:rust:unit"]
 description = "Bench Unit Rust"

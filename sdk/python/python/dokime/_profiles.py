@@ -7,9 +7,8 @@
 # ***
 """Python Snapshots Of Rust Backend Profiles"""
 
-from __future__ import annotations
-
 # === Imports === #
+
 # Standard Library Imports
 from dataclasses import dataclass
 from typing import Literal
@@ -19,7 +18,9 @@ from typing import Literal
 # Type Checking Imports
 
 # === Public Exports === #
+
 # === Constants === #
+
 # === Types === #
 
 type Secret = Literal["none", "keyring"]
@@ -46,5 +47,7 @@ class Document:
 
 
 # === Public Functions === #
+
 # === Private Functions === #
+
 # === Entry Point === #

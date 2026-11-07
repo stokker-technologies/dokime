@@ -14,9 +14,7 @@
 # Standard Library Imports
 import asyncio
 import threading
-import time
 import warnings
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -291,43 +289,6 @@ def test_authoring_ignored_worker_cancellation(tmp_path: Path) -> None:
                 await asyncio.wait_for(exited.wait(), 5)
         finally:
             released.set()
-
-    asyncio.run(story())
-
-
-def test_authoring_batch_throughput(tmp_path: Path, record_testsuite_property: Callable[[str, object], None]) -> None:
-    async def story() -> None:
-        completed = asyncio.Event()
-        rates: dict[str, float] = {}
-        rows = 10000
-        batches = {
-            "numpy": {"counter": np.arange(1000, dtype=np.int64), "value": np.arange(1000, dtype=np.float64)},
-            "arrow": {"counter": pa.array(range(1000)), "value": pa.array([float(index) for index in range(1000)])},
-        }
-
-        @dk.stream(id="batch.samples", label="Samples", window=10000)
-        class Reading:
-            counter: int
-            value: float
-
-        @dk.observer(id="publish", interval_ms=100, streams=[Reading])
-        async def publish(ctx: dk.Context) -> None:
-            if completed.is_set():
-                return
-            writer = ctx.stream(Reading).open()
-            for name, columns in batches.items():
-                started = time.perf_counter()
-                for _ in range(rows // 1000):
-                    await writer.push_columns(columns)
-                rates[name] = rows / (time.perf_counter() - started)
-            completed.set()
-
-        plugin = dk.Plugin("batch", "0.1.0", catalog=[Reading, publish])
-        async with dk.Backend(port=0, application_root=tmp_path, plugins=[plugin]):
-            await asyncio.wait_for(completed.wait(), 30)
-        print(f"AUTHORING_BATCH rows={rows} batch=1000 numpy_rows_s={rates['numpy']:.0f} arrow_rows_s={rates['arrow']:.0f}")
-        for name, rate in rates.items():
-            record_testsuite_property(f"authoring_{name}_rows_s", round(rate))
 
     asyncio.run(story())
 

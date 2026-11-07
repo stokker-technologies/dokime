@@ -49,7 +49,8 @@ fixture, not a candidate download; build it with `mise run build:rust:tests`
 and transfer `target/build/dev/<target>/fixtures/plugins/plugin-obc.dokime`
 when running the OBC walkthrough below.
 
-Tutorials and Python distributions are not release downloads. Check out the
+Tutorials remain source examples; native SDK wheels are release assets. For this
+unreleased candidate, check out the
 recorded candidate SHA and copy `sdk/python/examples/remote/` to
 `remote-demo/` on the remote PC. For Python, follow the
 [local wheel setup](python.md#prepare-the-environment) before transferring

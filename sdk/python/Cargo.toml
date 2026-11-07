@@ -33,26 +33,84 @@ media-native = ["dokime-server/media-native"]
 # === Dependencies === #
 
 [dependencies]
-async-trait = { workspace = true }
+# Local
 dokime = { workspace = true, features = ["client", "native"] }
 dokime-server = { workspace = true }
-pyo3 = { version = "0.29.3", features = ["abi3-py313"] }
-pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
-serde_json = { workspace = true }
-serde = { workspace = true }
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+pyo3 = { workspace = true }
+
+# Serialization
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+async-trait = { workspace = true }
+pyo3-async-runtimes = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
+
+# Networking
 tonic = { workspace = true }
+
+# Storage
+
+# UI
+
+# Testing
 
 # === Build Dependencies === #
 
 # === Dev Dependencies === #
 
 [dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
 tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
 
 # === Target Dependencies === #
 

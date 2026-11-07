@@ -58,6 +58,27 @@ removed. It does not create a remote rehearsal release. The integration owner
 must re-register crates.io and PyPI Trusted Publishing to `release.yml`,
 environment `release`, before the first publication under this workflow.
 
+## Start a Python Project
+
+Install the native SDK with [uv](../sdk/python/README.md#install), using the same
+candidate revision as the backend or desktop. The Git install builds with uv
+and Rust supplied by mise; native wheels require no compiler. The provisional
+package is `dokime-python`, importing `dokime`.
+
+```sh
+dokime new bench --lang python
+cd bench
+uv add /path/to/dokime_python-0.1.2-cp313-abi3-win_amd64.whl
+uv run python main.py
+```
+
+Use the platform's matching wheel. The [starter](../sdk/python/examples/starter/)
+keeps `main.py`, plugin composition, instrument operations and suites separate.
+Import its generated pairing file into the desktop and run **Bench / Capture**.
+The prompt confirms connections before simulated voltage acquisition. See
+[plugin authoring](plugins.md#python-projects) for the operation boundary and
+[remote Python](remote/python.md) to control an existing backend instead.
+
 ## The Test Domain
 
 Definitions describe what can be tested. Execution captures what happened when

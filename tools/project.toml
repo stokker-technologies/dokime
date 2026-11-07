@@ -182,6 +182,11 @@ id = "test:python:acceptance"
 inputs = ["build:python#python", "build#cli", "build#plugins", "build:rust:tests#tests"]
 
 [[ci.jobs]]
+id = "test:python:system"
+inputs = ["build:python#python", "build#cli"]
+pipelines = ["nightly"]
+
+[[ci.jobs]]
 id = "test:python:coverage"
 inputs = ["build:python#python", "build#cli", "build#plugins", "build:rust:tests#tests"]
 

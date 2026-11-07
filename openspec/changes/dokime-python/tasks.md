@@ -32,11 +32,11 @@
 
 ## 5. Tests and Documentation
 
-- [ ] 5.1 Add focused unit, integration and acceptance tests for conversions, ownership, shutdown and errors.
-- [ ] 5.2 Add `test:python:system` with the end-to-end story on Windows and Linux, wired into Nightly only.
-- [ ] 5.3 Add Python examples, and update the README, the comparison table and the remote and plugin guides.
-- [ ] 5.4 Update `AGENTS.md` and `docs/tooling.md` where the package changes project structure or tasks.
-- [ ] 5.5 Add the `dokime new --lang python` template with `main.py` and `plugin/`.
+- [x] 5.1 Add focused unit, integration and acceptance tests for conversions, ownership, shutdown and errors.
+- [x] 5.2 Add `test:python:system` with the end-to-end story on Windows and Linux, wired into Nightly only.
+- [x] 5.3 Add Python examples, and update the README, the comparison table and the remote and plugin guides.
+- [x] 5.4 Update `AGENTS.md` and `docs/tooling.md` where the package changes project structure or tasks.
+- [x] 5.5 Add the `dokime new --lang python` template with `main.py` and `plugin/`.
 
 ## 6. Final Validation
 
@@ -44,10 +44,10 @@
 
 ## Workflow Follow-Up
 
-- This slice owns 4.1–4.6 on `feat/dokime-python`: embedded operation, observer and settings composition; native callback and column publication bindings; Python decorators, validation and stubs; finished-execution GUI availability; targeted installed-wheel and GUI proof, and affected reference documentation. Dependency order is native provider composition, callback bridge, declarations and columns, then built-wheel proof. Tasks 5.x remain open.
-- Slice proof: a Python operation, observer and settings exercised against the Windows wheel; callback cancellation and tracebacks; NumPy and Arrow batch publication and a plain Rust comparison; touched-surface stubtest, GUI availability tests, `check:rust`, repository checks and the required diff scan. Record decisions and measurements in `design.md`. Push without PR, dev merge or full simulation; later tasks stay open.
-- Task 6.1 retains the existing native source-policy repairs; this slice does not waive them.
-- Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
+- Current owner-locked slice: 5.1–5.5 and targeted 6.1. Source inventory: `sdk/python` declarations/conversion and callback tests, installed-wheel acceptance and system stories, reusable starter examples; `crates/dokime-cli` Python project generation and its targeted proof; `mise.toml`, `tools/project.toml`, Nightly and its simulation graph for the Python system lane; README, SDK, remote/plugin/product/tooling guides and root `AGENTS.md`. Dependencies: merged dev, starter and focused tests, system/CI wiring, documentation, then built-wheel and requested targeted proof. Repository-policy repairs are limited to files owned by this change; dev's later sweep owns other findings.
+- Delivery for this slice: push `feat/dokime-python` without force, PR, dev merge, full simulation or `stkr specification finish`. Keep the change open during the owner's build freeze. Linux system execution remains required in Nightly; this slice's local system proof runs once on Windows. Re-measure the existing Python/native batch workload after the dev merge and separate bridge work from admitted storage work.
+- Tasks 5.1–5.5 are source-complete in the combined feature worktree with no delegated writers. Targeted proof covers portable values, callback/resource ownership, cancellation/errors, installed-wheel column conversion and refusal, and the Windows generated-project system story. Final requested Rust/repository checks, the refreshed built-wheel proof, diff review and batch measurements remain part of 6.1 until recorded in `design.md`.
+- Task 6.1 remains open for the residual native source-policy audit; the owner explicitly assigns inherited dev findings to a later sweep. Do not widen this slice into that sweep. Strict installed-wheel stubtest is the executable binding proof; no native-mapper failure is represented as a passing audit.
 - The owner decides the PyPI and import name before any publication; a final `dokime-client` release then points to the new package.
 - Depends on the separate rule that completed executions and cycles do not depend on their plugins.
 - Packaging Python plugins as distributable bundles stays out of this change.

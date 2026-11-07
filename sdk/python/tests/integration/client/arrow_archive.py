@@ -39,6 +39,8 @@ from pathlib import Path
 
 
 # === Public Functions === #
+
+
 def verify_arrow_archive(path: Path) -> None:
     """Read Native Exported Batches With An Independent Arrow Implementation."""
     import polars as pl
@@ -76,5 +78,6 @@ def verify_arrow_archive(path: Path) -> None:
 # === Private Functions === #
 
 # === Entry Point === #
+
 if __name__ == "__main__":
     verify_arrow_archive(Path(sys.argv[1]))

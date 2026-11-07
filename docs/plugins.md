@@ -7,6 +7,38 @@ the same managed generation and publication boundaries as native providers. See
 callback ownership and batch publication. These providers live with their Python
 backend; distributable Python plugin bundles remain outside the current SDK.
 
+## Python Projects
+
+Create a project with `dokime new bench --lang python`, install the matching SDK
+with [uv](../sdk/python/README.md#install), and run `uv run python main.py`.
+The [runnable source](../sdk/python/examples/starter/) owns the generated files:
+`main.py` composes the backend; `plugin/__init__.py` assembles its catalog;
+`plugin/operations/read.py` owns the instrument request, policy and handler;
+`plugin/suites/capture.py` owns parameters, prompt, stream, steps and criterion.
+Python operation handlers are the driver boundary, just as Rust operations are.
+
+```python
+# Read Voltage
+operation = Read(index)
+voltage_v = await ctx.operation(operation)
+
+# Publish the Reading
+row = Row(index, voltage_v)
+await writer.push(row)
+```
+
+Async callbacks stay on the starting event loop; synchronous operations run on
+workers. Resources are plugin-owned shared objects, while serialized requests
+and replies are independent values. Native deadlines and cancellation still
+apply. A retained callback context refuses calls after its owner ends. Completed
+evidence and sealed reports can be reopened without registering the Python
+plugin again; the GUI shows its unavailable template without offering a new run.
+Installed plugins always load and reserve their IDs, including when disabled.
+Changing the Python plugin means restarting its backend; no Python sidecar bundle
+or hot-reload lifecycle is provided.
+
+## Native Plugin Runtime
+
 Startup failures appear in a desktop notification and in Settings › Plugins,
 with the bundle's display name and the underlying cause. The verified ordinary
 settings remain editable even when the plugin could not start. Secret declarations

@@ -175,6 +175,7 @@ async def drive(endpoint: str, contract: dict, scenario: dict) -> None:
 # === Private Functions === #
 
 # === Entry Point === #
+
 if __name__ == "__main__":
     contract = json.loads(Path(sys.argv[2]).read_text())
     scenario = next(item for item in contract["scenarios"] if item["name"] == sys.argv[3])

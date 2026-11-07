@@ -50,19 +50,18 @@ def main() -> None:
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)
     environment.pop("UV_PROJECT_ENVIRONMENT", None)
+    environment.pop("VIRTUAL_ENV", None)
     with TemporaryDirectory(prefix="dokime-wheel-") as scratch:
         install = Path(scratch)
-        python = install / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        python = install / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         commands = [
-            ["uv", "venv", str(install), "--python", sys.executable],
+            ["uv", "init", "--bare", "--name", "dokime-wheel-proof", "--python", sys.executable],
             [
                 "uv",
-                "pip",
-                "install",
+                "add",
                 "--python",
-                str(python),
+                sys.executable,
                 str(wheels[0]),
-                *(["mypy==2.4.1", "types-protobuf"] if options.stubs else []),
             ],
             [
                 str(python),
@@ -78,7 +77,7 @@ def main() -> None:
             ],
         ]
         if options.stubs:
-            commands.append(["uv", "pip", "install", "--python", str(python), "polars>=2.1,<3", "pandas>=3,<4", "pandas-stubs"])
+            commands.append(["uv", "add", "--dev", "mypy==2.4.1", "types-protobuf", "polars>=2.1,<3", "pandas>=3,<4", "pandas-stubs"])
             commands.append([str(python), "-I", str(Path(__file__).with_name("stubs.py")), "dokime"])
         for command in commands:
             result = subprocess.run(

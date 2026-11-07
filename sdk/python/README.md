@@ -8,21 +8,34 @@ checks, deadlines and cancellation. The provisional distribution is
 
 ## Install
 
-Use CPython `>=3.13,<3.16`. For the beginner host/second-PC workflow, follow the
-[candidate-artifact walkthrough](../../docs/remote/overview.md) and its
-[locked uv setup](../../docs/remote/python.md). That environment uses a
-locally built matching wheel and makes no published-registry availability claim.
-
-Build a matching wheel with `mise run build:python`, then install the wheel for
-your platform:
+Use CPython 3.13 or newer and [uv](https://docs.astral.sh/uv/). Until the package
+name is settled, install this candidate from Git with Rust available through
+mise; uv builds the native extension without a manual download:
 
 ```sh
-uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl
+uv init --python 3.13 bench
+cd bench
+mise use rust@1.99.0 protoc@36.2
+mise exec -- uv add "dokime-python @ git+https://github.com/stokker-technologies/dokime.git@feat/dokime-python#subdirectory=sdk/python"
 ```
 
-Linux uses its matching native wheel. The stable ABI supports CPython 3.13 and
-newer on that platform. Runtime dependencies are `protobuf` and `python-dotenv`;
-using a wheel requires no Rust compiler or Python gRPC transport.
+Pin the agreed candidate commit in place of `feat/dokime-python` for reproducible
+use. The `dokime` project on PyPI is unrelated. Native wheels need no compiler;
+source builds also need the platform's C toolchain (Visual Studio Build Tools on
+Windows, GCC or Clang on Linux).
+In a matching source checkout, build with `mise run build:python`. From a separate
+uv project on Windows, install the resulting native artifact:
+
+```sh
+uv add C:/path/to/dokime/target/build/dev/windows-x86_64/python/dokime_python-0.1.2-cp313-abi3-win_amd64.whl
+uv run python -c "import dokime; print(dokime.__version__)"
+```
+
+On Linux use the wheel under `target/build/dev/linux-x86_64/python/` instead.
+The stable ABI supports CPython 3.13 and newer on the wheel's platform. Runtime
+dependencies are `protobuf` and `python-dotenv`; no Python gRPC transport is used.
+The [remote tutorial](../../docs/remote/python.md) keeps host and client on the
+same candidate and prepares a wheel environment for transfer.
 
 Finite query iteration needs no dataframe library. Install either optional extra
 for local conversion, keeping the client and backend revisions matched:
@@ -35,7 +48,7 @@ uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra pandas
 Only the selected conversion imports its library. A missing extra raises
 `QueryDependencyError` with installation guidance before any page is requested.
 
-## Start A Backend
+## Start a Backend
 
 ```python
 import asyncio, dokime
@@ -68,7 +81,7 @@ data, and `PluginIdConflict` for an embedded ID reserved by an installed plugin,
 including a disabled installation. These inherit `BackendError`; format refusal
 exposes `root`, both build identities and both formats and never resets data.
 
-## Author An Embedded Plugin
+## Author an Embedded Plugin
 
 Python declarations use the native plugin catalog, operation admission, settings,
 observers and execution workflow. Pass `Plugin` declarations to `Backend(plugins=...)`:
@@ -88,7 +101,10 @@ class Double:
 
 @dk.observer(id="sample", interval_ms=1000)
 async def sample(ctx):
-    print(await ctx.operation(Double(3)))
+    # Double the Reading
+    operation = Double(3)
+    reading = await ctx.operation(operation)
+    print(reading)
 
 
 plugin = dk.Plugin("example", "0.1.0", catalog=[Double, sample])
@@ -101,6 +117,24 @@ async def main():
 
 asyncio.run(main())
 ```
+
+The CLI generates the runnable [starter](examples/starter/) with `main.py` and
+`plugin/operations/` plus `plugin/suites/`:
+
+```sh
+dokime new bench --lang python
+cd bench
+uv add /path/to/dokime_python-0.1.2-cp313-abi3-win_amd64.whl
+uv run python main.py
+```
+
+Use the matching native wheel or the Git installation command above. Import
+`bench.dokime-remote` into the desktop while the process runs, select **Bench /
+Capture**, confirm connections, and review voltage samples. Ctrl+C closes the
+backend. The generated project contains simulated instrument operation `Read`;
+replace its implementation with your driver. Steps and observers import the
+operation, Dokime and plugin-owned data, keeping driver imports in operations.
+Steps name each action, build its request, then await `ctx.operation(operation)`.
 
 Use dataclass fields for portable requests, responses and rows. `Annotated` fields
 can select `u32`, `u64`, `i32`, `i64`, `f32` or `f64`; ordinary `int` and `float`
@@ -118,7 +152,12 @@ reports a warning. Exceptions carry their Python traceback to the native caller.
 
 `@settings` groups dataclass `@section` declarations. Fields use
 `parameter(default=..., min=..., max=..., step=...)`; defaults and saved overrides
-are resolved by the backend. `ctx.settings` is the resolved snapshot. Plugin IDs
+are resolved by the backend. `ctx.settings` is the resolved snapshot.
+`Plugin(resources={Resource: instance})` retains that instance;
+`ctx.resource(Resource)` shares it. Requests and responses are owned decoded
+values: mutating a response does not mutate the resource or original request.
+Retained contexts and stream writers refuse new work after their callback ends.
+Plugin IDs
 share the installed-plugin namespace and collisions are refused.
 
 `@suite(templates=[...])` owns `@template` classes. Template IDs extend their

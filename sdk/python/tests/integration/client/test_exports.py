@@ -34,6 +34,7 @@ from google.protobuf.message import Message
 # === Public Exports === #
 
 # === Constants === #
+
 IDENTITY = str(UUID(int=1))
 DATA = b"saved-evidence:" + bytes(range(256)) * 400
 BACKEND = Backend("host", "epoch", "0.6", "Export Fixture", frozenset(), max_evidence_bytes=1024 * 1024)
@@ -42,6 +43,8 @@ BACKEND = Backend("host", "epoch", "0.6", "Export Fixture", frozenset(), max_evi
 
 
 # === Classes === #
+
+
 class Reader:
     def __init__(self, frames: list[Message], failure: Exception | None = None, *, stall: bool = False) -> None:
         self.frames = iter(frames)
@@ -87,6 +90,8 @@ class ExportTransport(Transport):
 
 
 # === Public Functions === #
+
+
 def test_verified_export(tmp_path: Path) -> None:
     destination = tmp_path / "execution.zip"
     destination.write_bytes(b"previous")
@@ -172,6 +177,8 @@ def test_export_cancellation(tmp_path: Path) -> None:
 
 
 # === Private Functions === #
+
+
 def _frame(branch: str, fields: dict) -> Message:
     output = _contracts.operation("Content", "DownloadEvidence").output
     assert output is not None

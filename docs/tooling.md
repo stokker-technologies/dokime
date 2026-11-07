@@ -63,7 +63,7 @@ save policy. The workflows own producer selection.
 
 ## Native Python SDK Builds
 
-`sdk/python` contains the native Rust client wrappers and Python contexts/readers. The `dokime-python` distribution and `dokime` import names are provisional; registry publication is refused until naming is settled. Backend and plugin-authoring wrappers remain in later slices of `openspec/changes/dokime-python/`.
+`sdk/python` contains native Rust client, backend and callback wrappers, Python authoring declarations, contexts and readers. The `dokime-python` distribution and `dokime` import names are provisional; registry publication is refused until naming is settled.
 
 ```sh
 mise run build --profile dev
@@ -88,7 +88,7 @@ native wheels; no source distribution or platform-independent wheel is produced.
 `test:python:wheel` installs into a disposable environment outside the checkout
 and imports the native extension with isolated Python path handling.
 
-## Focused Python Client Checks
+## Focused Python Checks
 
 `mise run test:python:unit --select <expression>` and `mise run test:python:integration --select <expression>` run the moved client tests against the installed native wheel. Build it first with `mise run build:python`. `check:python:bindings` runs stubtest from an isolated installed-wheel environment. Python contract generation and its checked-in wire tree have been removed; private interpreter message views come from Rust reflection.
 
@@ -106,6 +106,38 @@ storage refusal and installed-plugin collision stories during backend work.
 Use the corresponding native target directory on Linux. The foreign-operation
 socket fixtures come from Rust contract construction; refresh their JSON with
 `mise run build:rust:focused -- run --locked -p dokime-python --example client-contracts -- sdk/python/tests/integration/client/fixtures/operations.json`.
+
+## Python System Story and Batch Measurements
+
+`sdk/python/tests/{unit,integration,acceptance,system}/` separate pure value
+invariants, in-process callback ownership, installed-wheel stories and the
+CLI/SDK composition. `sdk/python/examples/starter/` supplies `dokime new --lang
+python`; it is embedded by `crates/dokime-cli/src/commands/new.rs`, so changing the
+starter requires rebuilding the CLI as well as validating the Python source.
+
+```sh
+mise run build:python:fixtures
+mise run test:python:system --artifacts target/build/dev/windows-x86_64/fixtures/python-client
+```
+
+The system story starts the generated Python plugin, exports pairing, runs a
+prompt and measurement execution, seals its report, and reopens it without the
+plugin. It consumes only the native CLI and wheel, never a desktop or test
+archive. Nightly runs the same task on Linux and Windows; PR and dev jobs do not
+select it. Use `linux-x86_64` for the corresponding local Linux fixture path.
+
+After validation has stopped, measure the same 10,000-row, 1,000-row-batch workload:
+
+```sh
+mise run build:rust:focused -- run --locked -p dokime-python --example authoring-batch
+mise run bench:python:system
+```
+
+The native example and Python benchmark both await admitted ingestion. Python's
+native pytest-benchmark JSON under `target/benchmarks/` additionally records
+synchronous bridge preparation (snapshot, encoding and value conversion) and the
+awaited publication separately. These are development-profile workstation
+measurements, not a throughput target. Timings are absent from correctness tests.
 
 ## Hosted-Runner Test Budgets
 
