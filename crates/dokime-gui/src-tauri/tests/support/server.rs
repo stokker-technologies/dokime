@@ -54,7 +54,7 @@ pub struct Published {
 
 impl Fixture {
     pub async fn new() -> Self {
-        // Runtime With A Calibration Record
+        // Runtime with a Calibration Record
         let root = tempfile::tempdir().unwrap();
         let artifacts = Arc::new(artifact::Provider::default());
         let mut config = RuntimeConfig::new(root.path(), Metadata::new(Identifier::new("rpc.fixture").unwrap(), "RPC fixture", None));
@@ -70,7 +70,7 @@ impl Fixture {
         );
         runtime.handle().publish_product_record(calibration.into_draft("rpc.fixture")).await.unwrap();
 
-        // Native Server And Session
+        // Native Server and Session
         // Keep The 1.2 MB Artifact In Multiple Frames While Admitting 256 KiB Upload Chunks.
 
         let server = prepared_runtime.ready().await.unwrap().listen().await.unwrap();

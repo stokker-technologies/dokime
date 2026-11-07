@@ -1542,7 +1542,7 @@ pub(crate) fn cycle_admission_provenance() {
     assert!(created.test_executions.is_empty());
     assert_eq!(state.cycle_view(&existing).unwrap().test_executions.len(), 1);
 
-    // Refuse Missing Provenance Without Changing The Registered Case
+    // Refuse Missing Provenance Without Changing the Registered Case
     let mut append = FixtureAppend {
         admission_identifier: dokime_runtime::model::identity::new_id::<CommandId>(),
         test_cycle_id: id,
@@ -1555,7 +1555,7 @@ pub(crate) fn cycle_admission_provenance() {
     assert!(append.check(&state).unwrap_err().contains("owning suite"));
     assert_eq!(state.suites.case(&case.test_case_id), Some(&case));
 
-    // The Corrected Append Fills Only The Selected Container
+    // The Corrected Append Fills Only the Selected Container
     append.cases[0].suite = case.suite.clone();
     append.check(&state).unwrap();
     append.apply(&mut state);
@@ -1574,7 +1574,7 @@ pub(crate) fn request_queues_evidence() {
     assert_eq!(execution.status, ExecutionStatus::Skipped);
     assert_eq!(execution.test_cycle_id, cycle_id);
 
-    // A Missing Or Foreign Container Identity Cannot Be Prepared
+    // A Missing or Foreign Container Identity Cannot Be Prepared
     let mut encoded = serde_json::to_value(execution).unwrap();
     encoded.as_object_mut().unwrap().remove("test_cycle_id");
     assert!(serde_json::from_value::<TestExecution>(encoded.clone()).is_err());
@@ -1591,7 +1591,7 @@ pub(crate) fn request_queues_evidence() {
     assert_eq!(fenced.run_requests[&request_id].summary.prepared, 0);
     assert_eq!(fenced.run_requests[&request_id].pending.len(), 1);
 
-    // Retired Or Missing Execution Rows Leave Their Queue Entry Unprepared
+    // Retired or Missing Execution Rows Leave Their Queue Entry Unprepared
     let mut refused = state.clone();
     for status in [ExecutionStatus::Invalidated, ExecutionStatus::Running] {
         refused.executions.get_mut(&execution_id).unwrap().status = status;
@@ -1892,7 +1892,7 @@ pub(crate) fn start_plan_matches_admission() {
         accepted_at: dokime_runtime::model::time::now_utc(),
     };
 
-    // Start Plans Against The Live State, And The Commit Admits Exactly That Plan
+    // Start Plans Against the Live State, and the Commit Admits Exactly That Plan
     let plan = dokime_runtime::transactions::provider::request::plan_queue(&state, &run).unwrap();
     run.check(&state).unwrap();
     run.apply(&mut state);
@@ -1900,7 +1900,7 @@ pub(crate) fn start_plan_matches_admission() {
     assert_eq!(plan.summary, admitted.summary);
     assert_eq!(plan.target, admitted.target);
 
-    // A Replayed Start Plans The Admitted Request Unchanged
+    // A Replayed Start Plans the Admitted Request Unchanged
     let replay = dokime_runtime::transactions::provider::request::plan_queue(&state, &run).unwrap();
     assert_eq!(replay.summary, admitted.summary);
 }

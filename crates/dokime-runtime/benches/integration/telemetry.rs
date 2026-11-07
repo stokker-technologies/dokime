@@ -7,7 +7,7 @@
  * ***
  */
 
-// Arrow Telemetry Write Query Finalize And Export Benchmarks
+// Arrow Telemetry Write Query Finalize and Export Benchmarks
 
 /* === Modules === */
 

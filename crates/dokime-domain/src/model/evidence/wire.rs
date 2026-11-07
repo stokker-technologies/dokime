@@ -7,7 +7,7 @@
  * ***
  */
 
-// Captured Evidence Selection And Paged Record Messages
+// Captured Evidence Selection and Paged Record Messages
 
 /* === Modules === */
 

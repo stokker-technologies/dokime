@@ -303,7 +303,7 @@ export function CycleSidebarCasesView({
                 {plan.test_cycle.title}
               </button>
               <span aria-hidden />
-              <span className="text-right text-xs text-muted-foreground tabular-nums" title={`${finished} Of ${total} Cases Finished`}>
+              <span className="text-right text-xs text-muted-foreground tabular-nums" title={`${finished} of ${total} Cases Finished`}>
                 {finished}/{total}
               </span>
               <span aria-hidden />
@@ -341,7 +341,7 @@ export function CycleSidebarCasesView({
                         live={live}
                         onDelete={setPendingDelete}
                         onRerun={() =>
-                          report({ done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" }, async () => {
+                          report({ done: "New Attempt Ready to Start", failed: "Case Re-Run Failed" }, async () => {
                             const created = await liveActions(actions).rerunCase(row.case.caseId);
                             if (created) select({ executionId: created });
                           })
@@ -448,8 +448,8 @@ function ExecutionTreeRow({
   const reason = caseActionTooltip(row.case);
   const deleteAllowed = actions === null || actions.delete;
   const startAllowed = active && row.execution !== null && isPlannedExecution(row.execution.status);
-  const glyph: Glyph = inputNeeded ? { icon: BellRing, label: "Waiting For Input", tone: "warning" } : rowGlyph(row);
-  const label = row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run Of #${row.rerunOf}`;
+  const glyph: Glyph = inputNeeded ? { icon: BellRing, label: "Waiting for Input", tone: "warning" } : rowGlyph(row);
+  const label = row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run of #${row.rerunOf}`;
   const [menuOpen, setMenuOpen] = useState(false);
   const press = useLongPress(() => setMenuOpen(true));
   const menu = live && row.newest;
@@ -483,7 +483,7 @@ function ExecutionTreeRow({
           type="button"
         >
           {row.case.label}
-          {row.rerunOf === null ? null : <span className="text-xs text-muted-foreground"> Re-Run Of #{row.rerunOf}</span>}
+          {row.rerunOf === null ? null : <span className="text-xs text-muted-foreground"> Re-Run of #{row.rerunOf}</span>}
         </button>
         {/* Run Again is the one row command an operator reaches for after a
             case ends, so it is a visible target, not a menu item. */}
@@ -513,7 +513,7 @@ function ExecutionTreeRow({
           <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
             <DropdownMenuTrigger asChild>
               <Button
-                aria-label={`Actions For ${row.case.label}`}
+                aria-label={`Actions for ${row.case.label}`}
                 className="size-[var(--tree-action-width)] opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [[data-density=touch]_&]:pointer-events-none"
                 size="icon-sm"
                 tabIndex={-1}
@@ -526,7 +526,7 @@ function ExecutionTreeRow({
               <DropdownMenuItem
                 disabled={!startAllowed}
                 onSelect={onRun}
-                title={startAllowed ? undefined : "Select An Unstarted Execution In An Active Cycle"}
+                title={startAllowed ? undefined : "Select an Unstarted Execution in an Active Cycle"}
               >
                 <Play />
                 Start Execution

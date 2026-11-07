@@ -17,7 +17,7 @@ without changing its contents.
 - **THEN** startup fails with `StorageFormatMismatch`, naming the root and both builds, and
   no file changes
 
-#### Scenario: Populated Root Without A Record
+#### Scenario: Populated Root Without a Record
 - **WHEN** a backend opens a root with data but no format record
 - **THEN** startup fails the same way
 

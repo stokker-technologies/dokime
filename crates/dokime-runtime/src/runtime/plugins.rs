@@ -1105,7 +1105,7 @@ fn admission(
             };
             refusals.entry(index).or_insert(failure);
         }
-        // Removing A Provider Can Turn A Previously Routed Contract Into A Host
+        // Removing a Provider Can Turn a Previously Routed Contract into a Host
         // Requirement. Replan Before Activation.
         let remaining: Vec<_> = (0..packages.len()).filter(|index| !removed.contains(index)).collect();
         removed.extend(plan_admission(packages, &remaining, &embedded_plugins, handle, &mut refusals)?);
@@ -1262,7 +1262,7 @@ async fn prune(
         };
         refused(store, &packages[index].input, failure).await?;
     }
-    // Removing A Provider Can Turn A Previously Routed Contract Into A Host
+    // Removing a Provider Can Turn a Previously Routed Contract into a Host
     // Requirement. Replan Before Activation, Including Startup Failure Retries.
     let remaining: Vec<_> = packages.iter().enumerate().filter(|(index, _)| !removed.contains(index)).collect();
     let further = plan(store, &remaining.iter().map(|(_, package)| **package).collect::<Vec<_>>(), embedded, operations).await?;

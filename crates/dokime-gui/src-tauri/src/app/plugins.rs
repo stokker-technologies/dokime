@@ -142,7 +142,7 @@ async fn pick_bundle<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<Option<Pat
 pub(super) async fn install(
     lease: &SessionLease, bytes: Vec<u8>, progress: Channel<InstallProgress>, expected_digest: Option<&str>,
 ) -> Result<dokime::domain::model::plugins::wire::PluginInstallation, String> {
-    // Hash Once, Off The Async Workers
+    // Hash Once, off the Async Workers
     let started = Instant::now();
     let size_bytes = bytes.len();
     let hashing = move || {
@@ -154,7 +154,7 @@ pub(super) async fn install(
         return Err("The downloaded plugin does not match the release SHA-256".into());
     }
 
-    // Stream The Advertised Chunk Size Over The Shared Client
+    // Stream the Advertised Chunk Size over the Shared Client
     let frame_limit = NonZeroUsize::new(crate::rpc::protocol::FRAME_BYTES as usize).ok_or("The desktop upload frame limit is invalid")?;
     let client = lease.client().with_frame_limit(frame_limit);
     let mut reported: Option<Instant> = None;

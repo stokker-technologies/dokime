@@ -1004,6 +1004,7 @@ async fn telemetry_history() {
 #[tokio::test]
 async fn numeric_query_reductions_match_spilled_results() {
     let mut reference = None;
+    let total = 2305;
     for bytes in [8192, 8 * 1024 * 1024] {
         let root = tempdir().unwrap();
         let mut settings = config(root.path());
@@ -1040,8 +1041,8 @@ async fn numeric_query_reductions_match_spilled_results() {
             )
             .await
             .unwrap();
-        for first in (0..2305).step_by(512) {
-            let samples = (first..(first + 512).min(2305))
+        for first in (0..total).step_by(512) {
+            let samples = (first..(first + 512).min(total))
                 .map(|index| {
                     let mut sample = TelemetrySample::new(
                         dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("numeric-query.{index}")),
@@ -1075,6 +1076,8 @@ async fn numeric_query_reductions_match_spilled_results() {
                 runtime.storage().flush().await.unwrap();
             }
         }
+        // Compare Reductions at the Same Complete Saved Frontier.
+        runtime.storage().flush().await.unwrap();
         let mut results = Vec::new();
         for technique in [DownsampleTechnique::Raw, DownsampleTechnique::Lttb, DownsampleTechnique::MinMax, DownsampleTechnique::Auto] {
             for x in ["timestamp", "sample_index"] {
@@ -1090,6 +1093,7 @@ async fn numeric_query_reductions_match_spilled_results() {
                         ..Default::default()
                     };
                     let result = runtime.query_plot_payloads(vec![request]).await.unwrap();
+                    assert!(result[0].payload.series.iter().all(|series| series.raw_points == total));
                     results.push(serde_json::to_string(&serde_json::json!({"series":result[0].payload.series,"summaries":result[0].payload.summaries,"analysis":result[0].payload.analysis})).unwrap());
                 }
             }

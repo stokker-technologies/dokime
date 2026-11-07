@@ -38,13 +38,13 @@ from .canonical import _message
 def test_readable_catalog() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
-            # Suites And Templates List And Resolve By Their Readable IDs
+            # Suites and Templates List and Resolve by Their Readable IDs
             suites = [suite async for suite in client.suites()]
             assert [suite.id for suite in suites] == [SUITE_ID]
             assert [template.id for template in suites[0].templates] == [TEMPLATE]
             assert (await client.suite(SUITE_ID)).templates[0].id == TEMPLATE
 
-            # The Registered UUID Is Wire Identity, Never A Template Reference
+            # The Registered UUID Is Wire Identity, Never a Template Reference
             with pytest.raises(RpcError, match="template not found"):
                 await client.template(TEMPLATE_ID)
             assert server.append_calls == 0

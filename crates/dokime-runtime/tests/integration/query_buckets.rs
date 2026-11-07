@@ -7,7 +7,7 @@
  * ***
  */
 
-// Epoch Bucket Boundaries And Bounded Pages
+// Epoch Bucket Boundaries and Bounded Pages
 
 /* === Modules === */
 

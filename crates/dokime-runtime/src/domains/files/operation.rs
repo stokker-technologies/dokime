@@ -114,7 +114,7 @@ impl Watching {
         };
         let watch = self.watch.insert(watch);
 
-        // Poll Until Complete, Bounded, Or Sealed By The Execution
+        // Poll Until Complete, Bounded, or Sealed by the Execution
         let mut events = Vec::new();
         let mut gaps = Vec::new();
         let mut failure = None;

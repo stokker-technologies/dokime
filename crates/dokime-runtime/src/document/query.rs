@@ -24,11 +24,12 @@ use sha2::{Digest, Sha256};
 use tokio::sync::OnceCell;
 
 // Local Imports
+use super::bounded::DocumentLimits;
 use super::{DocumentCardBody, DocumentCardDefinition, DocumentSelection, TelemetrySummaryGroupPayload};
 use super::{
     binding::{self, Evidence},
-    capture::{CardBinding, CardBindingResult},
-    input::BorrowedData,
+    capture::{Capture, CardBinding, CardBindingResult, CardFailure},
+    input::{BorrowedData, BorrowedInput},
 };
 use crate::expressions::{DataSource, DataTransform};
 use crate::storage::sqlite::{QueryProjection, QueryRead, QueryWork, snapshots::Scope};
@@ -43,9 +44,17 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
+#[derive(Clone, Copy)]
+pub(crate) struct Environment<'a> {
+    pub storage: &'a crate::storage::sqlite::State,
+    pub config: &'a crate::config::QueryConfig,
+    pub limits: super::bounded::DocumentLimits,
+    pub journal: Option<(&'a str, u64)>,
+}
+
 pub(crate) struct Context<'a> {
-    runtime: &'a RuntimeHandle,
-    snapshot: &'a RuntimeStateSnapshot,
+    pub(crate) environment: Environment<'a>,
+    live: Option<(&'a RuntimeHandle, &'a RuntimeStateSnapshot)>,
     selection: &'a DocumentSelection,
     pub(crate) at: &'a harmos::storage::StorageCursor,
     artifacts: OnceCell<ArtifactInput>,
@@ -135,8 +144,23 @@ impl Context<'_> {
         at: &'a harmos::storage::StorageCursor,
     ) -> Context<'a> {
         Context {
-            runtime,
-            snapshot,
+            environment: Environment {
+                storage: &runtime.local_storage,
+                config: runtime.query_config(),
+                limits: Default::default(),
+                journal: Some((snapshot.state().process_epoch().as_str(), snapshot.revision())),
+            },
+            live: Some((runtime, snapshot)),
+            selection,
+            at,
+            artifacts: OnceCell::new(),
+        }
+    }
+
+    fn stored<'a>(environment: Environment<'a>, selection: &'a DocumentSelection, at: &'a harmos::storage::StorageCursor) -> Context<'a> {
+        Context {
+            environment,
+            live: None,
             selection,
             at,
             artifacts: OnceCell::new(),
@@ -148,11 +172,12 @@ impl Context<'_> {
     }
 
     pub(crate) fn validate_membership(&self) -> crate::runtime::Result<()> {
+        let Some((runtime, snapshot)) = self.live else { return Ok(()) };
         if self.selection.scope.test_execution_id.is_none()
             && let Some(id) = &self.selection.scope.test_cycle_id
         {
-            let captured = self.snapshot.state().cycles.get(id);
-            let current = self.runtime.watch_state().latest();
+            let captured = snapshot.state().cycles.get(id);
+            let current = runtime.watch_state().latest();
             if captured
                 .is_none_or(|captured| current.state().cycles.get(id).is_none_or(|current| current.execution_ids != captured.execution_ids))
             {
@@ -167,6 +192,8 @@ impl Context<'_> {
             .artifacts
             .get_or_try_init(|| async {
                 self.validate_membership()?;
+                let (runtime, snapshot) =
+                    self.live.ok_or_else(|| crate::runtime::Error::Operation("stored cards use captured artifacts".into()))?;
                 let executions = if let Some(id) = &self.selection.scope.test_execution_id {
                     vec![id.clone()]
                 } else {
@@ -176,8 +203,7 @@ impl Context<'_> {
                         .test_cycle_id
                         .as_ref()
                         .ok_or_else(|| crate::runtime::Error::Operation("artifact query requires an owner".into()))?;
-                    let cycle = self
-                        .snapshot
+                    let cycle = snapshot
                         .state()
                         .cycles
                         .get(id)
@@ -187,14 +213,14 @@ impl Context<'_> {
                         .iter()
                         .filter(|id| {
                             self.selection.scope.test_case_id.as_ref().is_none_or(|case| {
-                                self.snapshot.state().executions.get(*id).is_some_and(|execution| &execution.test_case_id == case)
+                                snapshot.state().executions.get(*id).is_some_and(|execution| &execution.test_case_id == case)
                             })
                         })
                         .cloned()
                         .collect()
                 };
-                let rows = self.runtime.execution_storage.selected_artifact_records(self.runtime.storage(), self.at, &executions).await?;
-                validate_cycle_artifacts(self.selection, self.snapshot, rows.as_slice())
+                let rows = runtime.execution_storage.selected_artifact_records(runtime.storage(), self.at, &executions).await?;
+                validate_cycle_artifacts(self.selection, snapshot, rows.as_slice())
                     .map_err(|_| crate::runtime::Error::conflict("document_capture_incomplete", "artifact capture scope differs"))?;
                 if rows.iter().any(|record| self.selection.foreign_execution_scope(Some(&record.scope))) {
                     return Err(crate::runtime::Error::conflict("document_capture_incomplete", "artifact capture scope differs"));
@@ -214,8 +240,8 @@ impl Context<'_> {
     pub(crate) async fn card(
         &self, card: DocumentCardDefinition, mut binding: CardBinding, data: BorrowedData<'_>,
     ) -> crate::runtime::Result<CardBinding> {
-        let (runtime, snapshot, selection, at) = (self.runtime, self.snapshot, self.selection, self.at);
-        let limits = super::bounded::DocumentLimits::default();
+        let (environment, selection, at) = (self.environment, self.selection, self.at);
+        let limits = environment.limits;
         let DocumentCardBody::TelemetrySummary { summary } = &card.body else { return Ok(binding) };
         let artifacts_needed = card
             .filters
@@ -230,7 +256,11 @@ impl Context<'_> {
             )
             .any(|expression| matches!(expression.source, DataSource::Artifact { .. }));
         let data = BorrowedData {
-            artifacts: if artifacts_needed { super::input::Artifacts::Native(self.artifacts().await?) } else { data.artifacts },
+            artifacts: if artifacts_needed && self.live.is_some() {
+                super::input::Artifacts::Native(self.artifacts().await?)
+            } else {
+                data.artifacts
+            },
             ..data
         };
         let evidence = Evidence {
@@ -274,9 +304,9 @@ impl Context<'_> {
                     let result = if let Err(error) = validation {
                         Err(crate::runtime::Error::Operation(error.to_string()))
                     } else if matches!(tile.value.source, DataSource::Record { .. }) {
-                        records(runtime, snapshot, selection, at, tile.value.clone(), filters).await
+                        records(environment, data.context, selection, at, tile.value.clone(), filters).await
                     } else {
-                        telemetry(runtime, snapshot, selection, at, tile.value.clone(), filters).await
+                        telemetry(environment, data.context, selection, at, tile.value.clone(), filters).await
                     };
                     match result {
                         Ok(value) => {
@@ -330,6 +360,45 @@ impl Write for HashWriter {
 
 /* === Public Functions === */
 
+pub(crate) async fn capture(
+    environment: Environment<'_>, input: BorrowedInput<'_>, at: &harmos::storage::StorageCursor,
+) -> crate::runtime::Result<Capture> {
+    let repeats = super::resolve::RepeatDefinitions::new([input.definition])?;
+    let repeated = !repeats.is_empty();
+    let empty = repeats.finish();
+    let mut queries = Vec::new();
+    let mut captured = super::resolve::capture_with_queries(input, environment.limits, Some(&empty), Some(&mut queries))?;
+    sealed_size(&captured, environment.limits)?;
+    if repeated {
+        let mut cursor = super::page::Cursor::default();
+        loop {
+            let page = super::page::expand(environment, input, at, cursor).await?;
+            super::page::merge(&mut captured, page.capture);
+            for query in page.queries {
+                if !queries.iter().any(|previous: &DocumentCardDefinition| previous.metadata.identifier == query.metadata.identifier) {
+                    queries.push(query);
+                }
+            }
+            sealed_size(&captured, environment.limits)?;
+            let Some(next) = page.next else { break };
+            cursor = next;
+        }
+    }
+    let context = Context::stored(environment, input.selection, at);
+    for card in queries {
+        let index = captured
+            .cards
+            .iter()
+            .position(|binding| binding.metadata.identifier == card.metadata.identifier)
+            .expect("query has a captured card");
+        let binding = captured.cards[index].clone();
+        let result = context.card(card, binding.clone(), input.data).await;
+        captured.cards[index] = complete_card(binding, result, environment.limits);
+        sealed_size(&captured, environment.limits)?;
+    }
+    Ok(captured)
+}
+
 pub(crate) fn validate_cycle_artifacts(
     selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot, records: &[crate::artifacts::ArtifactRecord],
 ) -> harmos::Result<()> {
@@ -360,7 +429,46 @@ pub(crate) fn validate_cycle_artifacts(
     Ok(())
 }
 
+pub(crate) fn complete_card(mut binding: CardBinding, result: crate::runtime::Result<CardBinding>, limits: DocumentLimits) -> CardBinding {
+    let result = result.and_then(|card| {
+        crate::document::bounded::card_size(&card, limits.materialized_bytes, limits.depth, card.metadata.identifier.as_str())?;
+        Ok(card)
+    });
+    match result {
+        Ok(card) => card,
+        Err(error) => {
+            let failure = match error {
+                crate::runtime::Error::Dokime(error) => CardFailure::document(error),
+                error => CardFailure {
+                    code: error.code().unwrap_or("document_query_failed").to_owned(),
+                    message: format!("card {}: {error}", binding.metadata.identifier),
+                    budget: None,
+                },
+            };
+            binding.result = CardBindingResult::Failed { failure };
+            binding
+        }
+    }
+}
+
 /* === Private Functions === */
+
+fn sealed_size(capture: &Capture, limits: DocumentLimits) -> crate::runtime::Result<()> {
+    let size = super::bounded::document_size(capture, limits.materialized_bytes, limits.depth);
+    let Err(error) = size else { return Ok(()) };
+    let card = capture
+        .cards
+        .last()
+        .map_or_else(|| capture.definition.metadata.identifier.to_string(), |card| card.metadata.identifier.to_string());
+    let (budget, limit, reached) = match error {
+        super::bounded::DocumentLimit::Bytes { limit, reached } => ("sealed_bytes", limit, reached),
+        super::bounded::DocumentLimit::Depth { limit, reached } => ("value_depth", limit, reached),
+        super::bounded::DocumentLimit::Encoding => {
+            return Err(crate::runtime::Error::Operation("sealed document cannot be encoded".into()));
+        }
+    };
+    Err(crate::Error::Document(super::DocumentFailure::Budget { budget, limit, reached, card }).into())
+}
 
 fn cycle_artifact_scope() -> harmos::Error {
     harmos::Error::InvalidInput {
@@ -387,8 +495,8 @@ async fn finish(fold: super::frame::Fold, config: crate::config::QueryConfig) ->
 }
 
 async fn telemetry(
-    runtime: &RuntimeHandle, snapshot: &RuntimeStateSnapshot, selection: &DocumentSelection, at: &harmos::storage::StorageCursor,
-    expression: crate::expressions::DataExpression, filters: Vec<super::DocumentFilter>,
+    environment: Environment<'_>, execution_context: super::input::Context<'_>, selection: &DocumentSelection,
+    at: &harmos::storage::StorageCursor, expression: crate::expressions::DataExpression, filters: Vec<super::DocumentFilter>,
 ) -> crate::runtime::Result<Option<Value>> {
     let operation = "dokime.documents.summary";
     let execution = selection
@@ -397,16 +505,11 @@ async fn telemetry(
         .as_ref()
         .ok_or_else(|| crate::runtime::Error::Operation("summary query requires an execution".into()))?;
     let scope = Scope::Execution(execution.to_string());
-    let mut contracts = runtime
-        .local_storage
-        .query_telemetry_contracts(scope.clone(), at.sequence, runtime.query_config().limits().schema_bytes as usize, operation)
+    let contracts = environment
+        .storage
+        .query_telemetry_contracts(scope.clone(), at.sequence, environment.config.limits().schema_bytes as usize, operation)
         .await
         .map_err(query_error)?;
-    for contract in snapshot.state().telemetry_definitions.values() {
-        if !contracts.iter().any(|saved| saved.stream == contract.stream && saved.schema_version == contract.schema_version) {
-            contracts.push(contract.clone());
-        }
-    }
     let declared = match &expression.source {
         DataSource::Telemetry { stream, .. } => Some(stream.as_str()),
         DataSource::Dimension { .. } => None,
@@ -441,34 +544,31 @@ async fn telemetry(
                     ) || *aggregate == harmos::Aggregate::Count)
             })
         })
-        && let Some(value) = runtime
-            .local_storage
+        && let Some(value) = environment
+            .storage
             .document_statistic(
                 execution.to_string(),
                 stream.clone(),
                 field.clone(),
                 at.clone(),
                 *aggregate,
-                *value_type == dokime_domain::model::values::ValueType::Integer,
+                QueryWork::document(environment.config.clone(), operation),
             )
             .await?
     {
-        return Ok(Some(value));
+        return Ok(value);
     }
     let expires = dokime_domain::model::identity::wire::Timestamp::from(
         time::OffsetDateTime::now_utc()
-            + time::Duration::try_from(runtime.query_config().limits().snapshot_lifetime)
+            + time::Duration::try_from(environment.config.limits().snapshot_lifetime)
                 .map_err(|_| crate::runtime::Error::Operation("invalid query lifetime".into()))?,
     );
     let bytes = serde_json::to_vec(&contracts).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
-    let cut = runtime
-        .local_storage
-        .snapshot_capture(scope, Some(at.clone()), None, expires, bytes, Some(snapshot.revision()))
+    let cut = environment
+        .storage
+        .snapshot_capture(scope, Some(at.clone()), None, expires, bytes, None)
         .await?
         .ok_or_else(|| crate::runtime::Error::Operation("document query cut unavailable".into()))?;
-    let execution_context = snapshot.state().executions.get(execution).map_or_else(super::input::Context::default, |execution| {
-        super::input::Context::new(std::slice::from_ref(execution), &selection.scope)
-    });
     let contextual = execution_context.supplies(&expression.source);
     let mut state = (super::frame::Fold::new(&expression)?, false);
     for stream in streams {
@@ -514,14 +614,14 @@ async fn telemetry(
             decoded_bytes: super::bounded::DocumentLimits::default().materialized_bytes,
         };
         let selected = selection.clone();
-        let snapshot = snapshot.clone();
+        let captured = execution_context.capture();
         let filters = filters.clone();
         let expression = expression.clone();
-        let (result, _) = runtime
-            .local_storage
+        let (result, _) = environment
+            .storage
             .query_native_batches(
                 read,
-                QueryWork::document(runtime.query_config().clone(), operation),
+                QueryWork::document(environment.config.clone(), operation),
                 state,
                 Some(projection),
                 move |(fold, seen), input, contract, work| {
@@ -538,10 +638,7 @@ async fn telemetry(
                         .column_by_name("position")
                         .and_then(|column| column.as_any().downcast_ref::<UInt64Array>())
                         .ok_or_else(corrupt)?;
-                    let execution = selected.scope.test_execution_id.as_ref().and_then(|id| snapshot.state().executions.get(id));
-                    let context = execution.map_or_else(super::input::Context::default, |execution| {
-                        super::input::Context::new(std::slice::from_ref(execution), &selected.scope)
-                    });
+                    let context = super::input::Context::captured(&captured, &selected.scope);
                     let context = context.entries().next();
                     for index in 0..input.num_rows() {
                         work.check()?;
@@ -583,48 +680,67 @@ async fn telemetry(
             .map_err(query_error)?;
         state = result;
     }
-    finish(state.0, runtime.query_config().clone()).await
+    finish(state.0, environment.config.clone()).await
 }
 
 async fn records(
-    runtime: &RuntimeHandle, snapshot: &RuntimeStateSnapshot, selection: &DocumentSelection, at: &harmos::storage::StorageCursor,
+    environment: Environment<'_>, context: super::input::Context<'_>, selection: &DocumentSelection, at: &harmos::storage::StorageCursor,
     expression: crate::expressions::DataExpression, filters: Vec<super::DocumentFilter>,
 ) -> crate::runtime::Result<Option<Value>> {
     let execution = selection
         .scope
         .test_execution_id
         .as_ref()
-        .and_then(|id| snapshot.state().executions.get(id))
         .ok_or_else(|| crate::runtime::Error::Operation("record summary requires an execution".into()))?;
     let mut fold = super::frame::Fold::new(&expression)?;
-    let mut previous = std::collections::BTreeMap::<(String, String, String), i128>::new();
-    let mut after = 0;
-    let context = super::input::Context::new(std::slice::from_ref(execution), &selection.scope);
+    let needed = std::iter::once(&expression)
+        .chain(filters.iter().map(|filter| &filter.expression))
+        .filter_map(|expression| match expression.transforms.first() {
+            Some(DataTransform::TimeBetween { previous_record_type }) => Some(previous_record_type.clone()),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut previous = std::collections::BTreeMap::<String, i128>::new();
+    let mut partition = String::new();
+    let mut after = (String::new(), 0);
+    let mut work = QueryWork::document(environment.config.clone(), "dokime.documents.records");
+    let _cancel = work.cancellation();
     loop {
-        let rows = runtime
-            .local_storage
-            .scoped_records(
+        work.check()?;
+        let (rows, next) = environment
+            .storage
+            .document_records(
                 at.clone(),
-                crate::evidence_runtime::ScopeSelection {
-                    test_execution_id: Some(execution.test_execution_id.clone()),
-                    ..Default::default()
-                },
-                None,
+                execution.to_string(),
                 after,
-                0,
-                u64::MAX,
+                environment.journal.map(|(epoch, revision)| (epoch.to_owned(), revision)),
             )
-            .await?;
-        let Some(last) = rows.last() else { break };
-        after = last.position;
+            .await
+            .map_err(|error| match error {
+                crate::storage::Error::Runtime(harmos::Error::InvalidInput { field: "document record scope", .. }) => {
+                    crate::runtime::Error::conflict("document_capture_incomplete", "record capture scope differs")
+                }
+                error => error.into(),
+            })?;
+        let Some(next) = next else { break };
+        after = next;
         for row in &rows {
             let record = &row.record;
-            let scope = execution.records.captured_scope(record).or(record.scope.as_ref());
+            let scope = record.captured_scope(execution).or(record.scope.as_ref());
             if selection.foreign_execution_scope(scope) {
                 return Err(crate::runtime::Error::conflict("document_capture_incomplete", "record capture scope differs"));
             }
             if !selection.matches_scope(scope) {
                 continue;
+            }
+            work.check()?;
+            let attempt = match scope.map(|scope| &scope.origin) {
+                Some(dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id }) => attempt_id.as_str(),
+                _ => "",
+            };
+            if partition != attempt {
+                previous.clear();
+                partition = attempt.to_owned();
             }
             let view = super::input::RecordView { entry: record, scope };
             let evidence = Evidence {
@@ -634,8 +750,7 @@ async fn records(
             };
             let value = |expression: &crate::expressions::DataExpression| {
                 if let Some(DataTransform::TimeBetween { previous_record_type }) = expression.transforms.first() {
-                    let key = record_key(previous_record_type, scope);
-                    let start = previous.get(&key)?;
+                    let start = previous.get(previous_record_type)?;
                     let end = record.timestamp.to_datetime().ok()?.unix_timestamp_nanos();
                     let elapsed = end.checked_sub(*start).filter(|elapsed| *elapsed >= 0)?;
                     return Some(if elapsed % 1_000_000_000 == 0 {
@@ -666,22 +781,14 @@ async fn records(
             {
                 fold.push_at(row.position, value(&expression).as_ref())?;
             }
-            if let Ok(time) = record.timestamp.to_datetime() {
-                previous.insert(record_key(record.record_type.as_str(), scope), time.unix_timestamp_nanos());
+            if needed.contains(record.record_type.as_str())
+                && let Ok(time) = record.timestamp.to_datetime()
+            {
+                previous.insert(record.record_type.to_string(), time.unix_timestamp_nanos());
             }
         }
     }
-    finish(fold, runtime.query_config().clone()).await
-}
-
-fn record_key(record_type: &str, scope: Option<&dokime_domain::model::execution::RecordScope>) -> (String, String, String) {
-    use dokime_domain::model::execution::EvidenceOrigin;
-    let execution = scope.and_then(|scope| scope.test_execution_id.as_ref()).map_or("", |id| id.as_str());
-    let attempt = match scope.map(|scope| &scope.origin) {
-        Some(EvidenceOrigin::Step { attempt_id }) => attempt_id.as_str(),
-        _ => "",
-    };
-    (record_type.to_owned(), execution.to_owned(), attempt.to_owned())
+    finish(fold, environment.config.clone()).await
 }
 
 fn query_error(error: Box<dokime_domain::model::query::error::Failure>) -> crate::runtime::Error {

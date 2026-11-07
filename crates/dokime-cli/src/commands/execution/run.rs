@@ -7,7 +7,7 @@
  * ***
  */
 
-// Start An Execution And Observe Its Durable Completion
+// Start an Execution and Observe Its Durable Completion
 
 /* === Modules === */
 

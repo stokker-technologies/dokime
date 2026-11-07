@@ -7,7 +7,7 @@
  * ***
  */
 
-// Bounded Pairing File Input And Certificate Trust Validation
+// Bounded Pairing File Input and Certificate Trust Validation
 
 /* === Modules === */
 

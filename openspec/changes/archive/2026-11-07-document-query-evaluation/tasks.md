@@ -1,4 +1,4 @@
-## Slice 1: Static Structure And Query Summaries
+## Slice 1: Static Structure and Query Summaries
 
 - [x] 1.1 Runtime documents/current, document/bounded/binding/resolve: static structure and query-backed summaries/statistics; preserve plot path.
 - [x] 1.2 Remove estimated row-work admission and source-row ceilings; enforce actual output/expansion budgets with card diagnostics.
@@ -13,17 +13,17 @@
 
 ## Slice 3: Indexed Evaluation
 
-- [ ] 3.1 Record/query ownership: replace nested TimeBetween and PerCase scans with linear sorted merge/partition evaluation and deterministic tests.
-- [ ] 3.2 Storage ingest/query and document runtime ownership: distinct-value index and paged repeat expansion, domain/operation/server continuations and GUI page controls; preserve complete distinct values and fixed cuts.
-- [ ] 3.3 Reuse/extend maintained count/min/max/mean/RMS at ingest; exact median query; prove raw-row equivalence and update affected guides.
-- [ ] 3.4 Focused tests, check:rust, GUI tests/bindings if touched and diff scan.
+- [x] 3.1 Record/query ownership: replace nested TimeBetween and PerCase scans with linear sorted merge/partition evaluation and deterministic tests.
+- [x] 3.2 Storage ingest/query and document runtime ownership: distinct-value index and paged repeat expansion, domain/operation/server continuations and GUI page controls; preserve complete distinct values and fixed cuts.
+- [x] 3.3 Reuse/extend maintained count/min/max/mean/RMS at ingest; exact median query; prove raw-row equivalence and update affected guides.
+- [x] 3.4 Focused tests, check:rust, GUI tests/bindings if touched and diff scan.
 
-## Slice 4: Frozen Reports And Benchmark
+## Slice 4: Frozen Reports and Benchmark
 
-- [ ] 4.1 Report materialization uses the same card queries at sealed cuts, retaining complete paged tables and repeated sections; remove old acquisition and superseded tests.
-- [ ] 4.2 Add deterministic sealed report parity proof and update product/GUI/query guides and affected README claims.
-- [ ] 4.3 Wire integration benchmark into existing bench inventory and native resource probe: three days, several million samples, 30 plots, structure/card latency and peak-memory scaling with Linux and Windows RSS support.
-- [ ] 4.4 Run focused proof, check:rust and applicable GUI/binding checks; run requested benchmark and scan diff.
+- [x] 4.1 Document query/repeat/page, indexed record/distinct storage, report scope/materialization and runtime query/view owners: share storage/configuration-backed card evaluation at sealed cuts, drain repeated pages and retain full authored tables. Retire raw acquisition, RuntimeDocumentData/Input, resolve_cycle_document, the obsolete Document view/frame and their superseded tests; migrate meaningful scope/layout behaviors to current captures. Bound live record summaries and indexed repeats by the prepared journal epoch/revision as well as the physical evidence cut.
+- [x] 4.2 Add deterministic sealed report parity proof and update product/GUI/query guides and affected README claims.
+- [x] 4.3 Integration-runtime bench inventory, bounded real-ingest fixture and shared storage resource probe: three days, several million samples, 30 plots, structure/card latency including plot payloads and peak-memory scaling with Linux and Windows RSS support. Preserve native Criterion/resource outputs.
+- [x] 4.4 Run focused proof, check:rust and applicable GUI/binding checks; run requested benchmark and scan diff.
 
 ## Workflow Follow-Up
 

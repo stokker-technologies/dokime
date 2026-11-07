@@ -14,7 +14,7 @@ addresses, excluding virtual adapters and IPv6 link-local. Listener status SHALL
 provide the same ordered export endpoints with adapter names. Exported TLS
 endpoints SHALL be covered by a leaf signed by the persistent CA.
 
-#### Scenario: Cable Without A Gateway
+#### Scenario: Cable Without a Gateway
 
 - **WHEN** a physical cable adapter acquires an IPv4 link-local address
 - **THEN** its endpoint and adapter name appear before export, the exported file includes it, and TLS validates it

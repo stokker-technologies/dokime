@@ -7,7 +7,7 @@
  * ***
  */
 
-// Borrowed Projected Arrow Columns For Deterministic Query Folds
+// Borrowed Projected Arrow Columns for Deterministic Query Folds
 
 /* === Modules === */
 

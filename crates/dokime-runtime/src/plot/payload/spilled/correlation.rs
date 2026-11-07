@@ -7,7 +7,7 @@
  * ***
  */
 
-// Indexed Record And Telemetry Correlation For Plot Projection
+// Indexed Record and Telemetry Correlation for Plot Projection
 
 /* === Modules === */
 

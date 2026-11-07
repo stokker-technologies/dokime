@@ -53,14 +53,14 @@ def test_named_profile_selection(tmp_path, monkeypatch):
     monkeypatch.setenv("DOKIME_BACKEND", "unknown")
     monkeypatch.setenv("DOKIME_PROFILES_FILE", str(path))
 
-    # A Named Profile Ignores The Default Selection And Opens No Channel
+    # A Named Profile Ignores the Default Selection and Opens No Channel
     profile = load("local")
     client = DokimeClient.from_profile("local")
     assert client._transport.backend is None
     assert client._transport._channel is None
     assert client._transport._expected_backend_id == "machine-1"
 
-    # Loaded Profiles Are Snapshots Of The Document
+    # Loaded Profiles Are Snapshots of the Document
     path.write_text('{"version":1,"profiles":[]}')
     assert profile.expected_backend_id == "machine-1"
     assert client._transport._expected_backend_id == "machine-1"

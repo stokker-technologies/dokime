@@ -83,7 +83,7 @@ def test_wait_awaits_seal() -> None:
             await server.terminal.wait()
             assert await handle.checkpoint() is None
 
-            # A Terminal But Unsealed Execution Keeps The Wait Pending
+            # A Terminal but Unsealed Execution Keeps the Wait Pending
             waiting = asyncio.create_task(handle.wait(poll_interval=0.005))
             server.checkpoint_missed.clear()
             await server.checkpoint_missed.wait()
@@ -237,7 +237,7 @@ def test_close_keeps_run() -> None:
             await run.start()
             assert await run.checkpoint() is None
 
-            # Closing Twice Leaves Remote Work Running To Completion
+            # Closing Twice Leaves Remote Work Running to Completion
             await client.close()
             await client.close()
             server.finish_gate.set()
@@ -264,7 +264,7 @@ def test_command_receipt_replay() -> None:
             assert receipt.execution_id == EXECUTION_ID
             assert server.command_reads == 1
 
-            # A Receipt For Another Execution Is Data Loss
+            # A Receipt for Another Execution Is Data Loss
             server.command_execution_id = CYCLE_ID
             with pytest.raises(RpcError) as foreign:
                 await handle.command_receipt(REQUEST_ID, COMMAND_ID)
@@ -291,7 +291,7 @@ def test_execution_mode_recovery() -> None:
                 await handle.start(mode=invalid_mode)
             assert server.run_calls == 0
 
-            # An Uncertain Admission Retains Execution Identity And Mode
+            # An Uncertain Admission Retains Execution Identity and Mode
             server.fail_admission = True
             with pytest.raises(ExecutionSubmissionUncertain) as caught:
                 await handle.start(mode="interactive")
@@ -352,7 +352,7 @@ def test_malformed_checkpoint(mutation: str) -> None:
             with pytest.raises(ProtocolError):
                 await handle.checkpoint()
 
-            # The Refusal Leaves The Handle Usable Once The Seal Is Valid
+            # The Refusal Leaves the Handle Usable Once the Seal Is Valid
             server.point.CopyFrom(valid)
             restored = await handle.checkpoint()
             assert restored is not None and _wire.equal(restored._wire(), valid)

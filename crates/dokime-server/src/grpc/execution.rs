@@ -147,9 +147,16 @@ impl Serve<wire::ListExecutions> for Resources {
 impl Resources {
     async fn get_cycle(&self, request: &wire::GetCycle) -> Result<dokime::domain::model::execution::wire::CycleSummary, Status> {
         let id = cycle_id(&request.cycle_id)?;
-        let snapshot = dokime::app::live_runtime(&self.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
-        let cycle = snapshot.state().cycles.get(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
-        let value = summary(snapshot.state(), cycle, canonical::cursor(&snapshot))?;
+        let runtime = dokime::app::live_runtime(&self.runtime).await?;
+        let snapshot = runtime.watch_state().latest();
+        let state = snapshot.state();
+        let cursor = canonical::cursor(&snapshot);
+        let value = if let Some(cycle) = state.cycles.get(&id) {
+            summary(state, cycle, cursor)?
+        } else {
+            let header = runtime.saved_cycle_header(&id).await.map_err(status)?.ok_or_else(|| Status::not_found("cycle not found"))?;
+            cycle_summary(&header.cycle, header.case_count, Default::default(), state.archived_cycles.contains(&id), cursor)?
+        };
         inspection_reply(self, value)
     }
 
@@ -194,11 +201,25 @@ impl Resources {
 
     async fn list_cases(&self, request: &wire::ListCases) -> Result<dokime::domain::model::execution::wire::ListCasesReply, Status> {
         let id = cycle_id(&request.cycle_id)?;
-        let snapshot = dokime::app::live_runtime(&self.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
+        let runtime = dokime::app::live_runtime(&self.runtime).await?;
+        let snapshot = runtime.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor.page(request.limit, &request.after_case_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
-        let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
-        let value = case_page(snapshot.state(), &cycle, &request.after_case_id, limit, cursor)?;
+        let value = if let Some(cycle) = snapshot.state().cycle_view(&id) {
+            case_page(snapshot.state(), &cycle, &request.after_case_id, limit, cursor)?
+        } else {
+            let headers = runtime.saved_cycle_cases(&id).await.map_err(status)?.ok_or_else(|| Status::not_found("cycle not found"))?;
+            let start = after_position(&request.after_case_id, headers.iter().map(|case| case.case_id.as_str()))?;
+            let count = headers.len();
+            let cases = headers.into_iter().skip(start).take(limit).map(case_header_summary).collect::<Result<Vec<_>, _>>()?;
+            let next_after_case_id =
+                (start + cases.len() < count).then(|| cases.last().expect("nonempty continued case page").case_id.clone());
+            dokime::domain::model::execution::wire::ListCasesReply {
+                cases,
+                next_after_case_id,
+                cursor: Some(cursor),
+            }
+        };
         inspection_reply(self, value)
     }
 
@@ -325,12 +346,20 @@ fn cycle_summary(
 pub(super) fn case_summary(
     case: &TestCase, ordinal: usize, projection: CaseProjection,
 ) -> Result<dokime::domain::model::execution::wire::CaseSummary, Status> {
+    let header = dokime::runtime::query::cases::CaseHeader::new(case, ordinal, projection);
+    case_header_summary(header)
+}
+
+fn case_header_summary(
+    case: dokime::runtime::query::cases::CaseHeader,
+) -> Result<dokime::domain::model::execution::wire::CaseSummary, Status> {
+    let projection = case.projection;
     Ok(dokime::domain::model::execution::wire::CaseSummary {
-        suite_id: case.suite_id.clone(),
-        case_id: case.test_case_id.as_str().to_owned(),
-        template_id: case.test_case_template_id.as_str().to_owned(),
+        suite_id: case.suite_id,
+        case_id: case.case_id.to_string(),
+        template_id: case.template_id.to_string(),
         metadata: Some(canonical::metadata(&case.metadata)?),
-        ordinal: ordinal as u64,
+        ordinal: case.ordinal as u64,
         status: projection.status.map_or(dokime::domain::model::execution::wire::CaseStatus::Unspecified, case_status),
         latest_execution_id: projection.latest_execution_id.as_ref().map(|id| id.as_str().to_owned()),
         latest_execution_status: projection.latest_execution_status.as_ref().map(execution_status),

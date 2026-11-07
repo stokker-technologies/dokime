@@ -7,7 +7,7 @@
  * ***
  */
 
-// File And Stream Catalog For Arrow Telemetry
+// File and Stream Catalog for Arrow Telemetry
 
 /* === Modules === */
 

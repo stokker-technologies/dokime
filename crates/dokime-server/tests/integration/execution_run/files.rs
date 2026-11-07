@@ -598,6 +598,9 @@ async fn live_follow_refusal(change: &str) {
                 let Frame::Metadata(metadata) = frame.payload.unwrap() else {
                     panic!("abandoned follow starts with metadata");
                 };
+                if metadata.phase == ExecutionFilePhase::Producing {
+                    return None;
+                }
                 Some((stream, metadata))
             }
             Ok(None) => panic!("abandoned follow requires metadata"),

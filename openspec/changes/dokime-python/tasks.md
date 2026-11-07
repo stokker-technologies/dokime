@@ -30,7 +30,7 @@
 - [x] 4.5 Show an unavailable plugin clearly in the GUI for finished Python executions.
 - [x] 4.6 Write stubs for the backend and authoring surface.
 
-## 5. Tests And Documentation
+## 5. Tests and Documentation
 
 - [ ] 5.1 Add focused unit, integration and acceptance tests for conversions, ownership, shutdown and errors.
 - [ ] 5.2 Add `test:python:system` with the end-to-end story on Windows and Linux, wired into Nightly only.

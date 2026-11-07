@@ -578,33 +578,38 @@ pub(crate) async fn cancellation_retains_verdict() {
         let log_path = log.relative_path.clone();
         let checkpoint = handle.execution_saved_checkpoint(execution.test_execution_id.clone()).await.unwrap();
         let log = without_timestamps(std::str::from_utf8(&content.bytes).unwrap());
-        let mut diagnostics = String::new();
+        let mut diagnostics = Vec::new();
         let mut attempts = Vec::new();
         for line in log.lines() {
-            if let Some(payload) = line.strip_prefix("[INFO] ")
-                && let Ok(attempt) = serde_json::from_str::<serde_json::Value>(payload)
-                && attempt["kind"] == "operation_attempt"
-            {
+            let event = line.strip_prefix("[INFO] ").and_then(|message| serde_json::from_str::<serde_json::Value>(message).ok());
+            if let Some(attempt) = event.filter(|event| event["kind"] == "operation_attempt") {
                 attempts.push(attempt);
             } else {
-                diagnostics.push_str(line);
-                diagnostics.push('\n');
+                diagnostics.push(line);
             }
         }
-        assert_eq!(attempts.len(), 1);
-        assert_eq!(attempts[0]["operation"], "dokime.template.run");
-        assert_eq!(attempts[0]["attempt"], 0);
-        assert!(attempts[0]["instance"].as_u64().unwrap() > 0);
-        assert!(attempts[0]["generation"].as_u64().unwrap() > 0);
+        let [attempt] = attempts.as_slice() else {
+            panic!("one provider invocation retains one operation attempt: {attempts:?}");
+        };
+        assert_eq!(attempt["operation"], "dokime.template.run");
+        assert_eq!(attempt["outcome"], if mode == Settlement::Refused { "failed" } else { "succeeded" });
+        assert!(attempt["instance"].as_u64().is_some());
+        assert!(attempt["generation"].as_u64().is_some());
         if mode == Settlement::Refused {
-            assert!(diagnostics.starts_with("[ERROR] "), "{diagnostics}");
-            assert!(diagnostics.contains("run refused during cancellation"), "{diagnostics}");
+            assert!(diagnostics[0].starts_with("[ERROR] "), "{log}");
+            assert!(diagnostics[0].contains("run refused during cancellation"), "{log}");
         } else {
-            assert_eq!(attempts[0]["outcome"], "succeeded");
-            assert_eq!(
-                diagnostics,
-                "[TRACE] trace detail\n[DEBUG] debug detail\n[INFO] fixture cancellation settled\n[WARN] warning\n[WARN] continued\n[ERROR] error detail\n[INFO] \n[UNKNOWN(99)] unknown detail\n"
-            );
+            let mut lines = diagnostics.into_iter();
+            for entry in cancellation_log() {
+                let level = Level::try_from(entry.level)
+                    .map(|level| format!("{level:?}").to_uppercase())
+                    .unwrap_or_else(|_| format!("UNKNOWN({})", entry.level));
+                for message in entry.message.split('\n') {
+                    let expected = format!("[{level}] {message}");
+                    assert_eq!(lines.next(), Some(expected.as_str()));
+                }
+            }
+            assert!(lines.next().is_none());
         }
         drop(handle);
         owner.shutdown().await.unwrap();
@@ -1193,7 +1198,7 @@ pub(crate) async fn reload_restarts_one_plugin() {
     assert!(failed.boot_failed && !failed.active);
     let Some(PluginLastBoot::Failed { failure, .. }) = &failed.installation.last_boot else { panic!("the failed start is recorded") };
     assert_eq!(failure.missing_secret.as_deref(), Some("token"));
-    let cycle_id = held_cycle(&handle, &probe, metadata("session.retry", "Retry During A Cycle")).await;
+    let cycle_id = held_cycle(&handle, &probe, metadata("session.retry", "Retry During a Cycle")).await;
     handle
         .operations()
         .operation::<dokime_runtime::operations::secrets::Put>(dokime_runtime::operations::secrets::Put {

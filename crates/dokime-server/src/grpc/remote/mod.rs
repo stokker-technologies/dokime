@@ -7,7 +7,7 @@
  * ***
  */
 
-// Persistent Remote Listener Ownership And Rollback
+// Persistent Remote Listener Ownership and Rollback
 
 /* === Modules === */
 

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Saved-Window And Follow-Frontier Volume Fixtures
+// Saved-Window and Follow-Frontier Volume Fixtures
 
 /* === Modules === */
 

@@ -13,7 +13,7 @@
  * sections read as one column of equals. The header is one row on a fixed
  * height whether or not it carries an action, so titles share a baseline from
  * card to card. A section with nothing to show yet states it in the same
- * dashed well, below whatever controls it keeps live (Add a note, capture).
+ * dashed well, below whatever controls it keeps live (Add a Note, capture).
  */
 
 /* === External Imports === */

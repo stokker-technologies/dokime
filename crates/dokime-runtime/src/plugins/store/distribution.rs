@@ -7,7 +7,7 @@
  * ***
  */
 
-// Reconcile Bundled Installer Plugins Once Per Distribution
+// Reconcile Bundled Installer Plugins Once per Distribution
 
 /* === Modules === */
 

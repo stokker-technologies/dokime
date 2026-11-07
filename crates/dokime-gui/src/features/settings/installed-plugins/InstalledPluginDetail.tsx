@@ -93,7 +93,7 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
                   </span>
                   {!available ? (
                     <Button variant="outline" onClick={() => setAdding(secret.id)}>
-                      Add In Secret Storage
+                      Add in Secret Storage
                     </Button>
                   ) : null}
                 </SettingsRow>

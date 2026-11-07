@@ -129,7 +129,7 @@ test("Cycle State", () => {
     assert.equal(cycleState("active", lifecycle, false).label, "Active · Running");
   }
 
-  // An Answerable Prompt Means The Cycle Waits On The Operator
+  // An Answerable Prompt Means the Cycle Waits on the Operator
   assert.equal(cycleState("active", "running", true).label, "Active · Waiting");
 
   // The Closing Phases Name Only Themselves
@@ -137,12 +137,12 @@ test("Cycle State", () => {
   assert.equal(cycleState("sealed", "failed", false).label, "Sealed");
   assert.deepEqual(cycleState("seal_failed", "stopped", true), { label: "Seal Failed", variant: "destructive" });
 
-  // Only A Settled Seal, Sealed Or Failed, Archives
+  // Only a Settled Seal, Sealed or Failed, Archives
   assert.deepEqual((["active", "sealing", "seal_failed", "sealed"] as const).filter(isCycleArchivable), ["seal_failed", "sealed"]);
 });
 
 test("Status Pill", () => {
-  // The Longest State Label Renders Whole, On A Track Every Label Sizes
+  // The Longest State Label Renders Whole, on a Track Every Label Sizes
   const longest = CYCLE_STATE_LABELS.reduce((wide, label) => (label.length > wide.length ? label : wide));
   const markup = renderToStaticMarkup(createElement(CycleStatusPill, { label: longest, tone: "good" }));
   const badges = [...markup.matchAll(/<span ([^>]*data-slot="badge"[^>]*)>([^<]*)<\/span>/g)];
@@ -160,7 +160,7 @@ test("Status Pill", () => {
 });
 
 test("Live Data Flow", () => {
-  // A Record Tail Appends From Its Stream, Keeps The Latest And Never Duplicates
+  // A Record Tail Appends from Its Stream, Keeps the Latest and Never Duplicates
   const record = (id: number) => ({ record_id: `r${id}` }) as HubRecord;
   const cursor = (position: number) => ({ epoch: "e", position: BigInt(position), stream: "s" });
   const tail = { cursor: cursor(2), records: [record(1), record(2)] };
@@ -176,7 +176,7 @@ test("Live Data Flow", () => {
   assert.equal(capped.records.length, RECORD_TAIL);
   assert.equal(capped.records.at(-1)?.record_id, `r${RECORD_TAIL}`);
 
-  // A Capture With The Held Frontiers Is The Held Document
+  // A Capture with the Held Frontiers Is the Held Document
   const frontiers = { artifactsSha256: "a", processEpoch: "p", stateRevision: 7n } as never;
   assert.ok(sameFrontiers(frontiers, { ...(frontiers as object) } as never));
   assert.ok(!sameFrontiers(frontiers, { ...(frontiers as object), stateRevision: 8n } as never));
@@ -210,14 +210,14 @@ test("Settings Dialogs", () => {
   assert.ok((sealed.match(/ disabled=""/g) ?? []).length >= 3, "title, description and continuation are all read-only");
   assert.match(sealed, /role="switch"[^>]* disabled=""/);
 
-  // An Execution's Settings Are Its Title Alone, The Same Form
+  // An Execution's Settings Are Its Title Alone, the Same Form
   const execution = render({ onChange: () => undefined, values: { title: "Charger Start-Up" } });
   assert.match(execution, /Title/);
   assert.doesNotMatch(execution, /Description|Continue Automatically/);
 });
 
 test("Node Menus", () => {
-  // Cycle Menu Opens Its Report And Archives, With No Bundle, Folder Or Clearing
+  // Cycle Menu Opens Its Report and Archives, with No Bundle, Folder or Clearing
   const items: string[] = nodeMenuGroups("cycle", false).flat();
   assert.deepEqual(nodeMenuGroups("cycle", false), [
     ["Copy Cycle", "Add Cases", "Follow Active"],
@@ -228,19 +228,19 @@ test("Node Menus", () => {
     assert.ok(!items.includes(removed), removed);
   }
 
-  // Execution Menu Offers Re-Run, Open Report, Settings And Archive
+  // Execution Menu Offers Re-Run, Open Report, Settings and Archive
   assert.deepEqual(nodeMenuGroups("execution", false), [["Re-Run"], ["Open Report", "Settings"], ["Archive"]]);
 
-  // An Archived Node Offers Unarchive In Place Of Archive
+  // An Archived Node Offers Unarchive in Place of Archive
   assert.deepEqual(nodeMenuGroups("cycle", true).at(-1), ["Unarchive"]);
   assert.deepEqual(nodeMenuGroups("execution", true).at(-1), ["Unarchive"]);
 
-  // Archiving Waits For A Sealed Cycle Or An Ended Run And Says So
+  // Archiving Waits for a Sealed Cycle or an Ended Run and Says So
   assert.equal(archiveRefusal(true, "cycle"), undefined);
   assert.match(archiveRefusal(false, "cycle") ?? "", /once the cycle is sealed/);
   assert.match(archiveRefusal(false, "execution") ?? "", /once the run has ended/);
 
-  // Download Report Waits Only For A Save In Progress
+  // Download Report Waits Only for a Save in Progress
   assert.deepEqual(reportDownloadState(false), {
     disabled: false,
     label: "Download Report",
@@ -251,13 +251,13 @@ test("Node Menus", () => {
   assert.equal(saving.label, "Download Report");
   assert.notEqual(saving.title, "Download Report");
 
-  // A Saved Report Is Named After Its Cycle Or Execution
+  // A Saved Report Is Named After Its Cycle or Execution
   assert.equal(reportFilename("Charger Soak"), "Charger Soak.html");
   assert.equal(reportFilename("Execution 1 · OBC / Reconnection"), "Execution 1 · OBC - Reconnection.html");
   assert.equal(reportFilename(' a:b*c? "d" '), "a-b-c- -d.html");
   assert.equal(reportFilename("..."), "report.html");
 
-  // The Archived View Lists Every Archived Cycle In One Group
+  // The Archived View Lists Every Archived Cycle in One Group
   const rows = [{ cycleId: "one" }, { cycleId: "two" }] as CycleRow[];
   const [group, ...rest] = archivedCycleGroups(rows);
   assert.equal(rest.length, 0);
@@ -285,7 +285,7 @@ test("Execution Controls", () => {
     stopRequested: false,
   } as unknown as NonNullable<RunControl>;
 
-  // An Unstarted Attempt Offers Start And Cancel, Never Stop
+  // An Unstarted Attempt Offers Start and Cancel, Never Stop
   for (const status of ["planned", "created"] as const) {
     const state = executionControlState(input({ status }));
     assert.deepEqual(state.actions, ["Start", "Cancel"]);
@@ -293,7 +293,7 @@ test("Execution Controls", () => {
   }
   assert.equal(executionControlState(input({ status: "planned" })).line, "Not started · waits for Start");
 
-  // Stop Shows Only While An Attempt Runs, After Pause When It Pauses
+  // Stop Shows Only While an Attempt Runs, After Pause When It Pauses
   assert.deepEqual(executionControlState(input({ controls: running })).actions, ["Stop"]);
   assert.deepEqual(executionControlState(input({ controls: { ...running, canPause: true } })).actions, ["Pause", "Stop"]);
   assert.deepEqual(executionControlState(input({ controls: { ...running, canResume: true, paused: true } })), {
@@ -304,14 +304,14 @@ test("Execution Controls", () => {
   });
   assert.deepEqual(executionControlState(input({})).actions, []);
 
-  // The Running Step Reads By Its Label, Its Id Muted After It, Its Count Beside The Bar
+  // The Running Step Reads by Its Label, Its Id Muted After It, Its Count Beside the Bar
   const step = executionControlState(
     input({ controls: running, progress: { completed: 2, id: "publish", label: "Publish Evidence", total: 5 } }),
   );
   assert.equal(step.line, "Publish Evidence");
   assert.equal(step.detail, "publish");
 
-  // A Waiting Prompt Is Named, Not Shown, In Control
+  // A Waiting Prompt Is Named, Not Shown, in Control
   assert.equal(executionControlState(input({ controls: running, promptWaiting: true })).line, "Waits on the prompt below");
 
   // Runtime Finalization Offers Nothing; A Completed Step Counter Does Not End The Run.
@@ -329,7 +329,7 @@ test("Execution Controls", () => {
   assert.equal(waiting.phase, "waiting");
   assert.deepEqual(waiting.actions, ["Stop"]);
 
-  // A Stop In Flight Offers Nothing Further
+  // A Stop in Flight Offers Nothing Further
   assert.equal(executionControlState(input({ controls: running, stopping: true })).line, "Stopping · saving evidence");
 
   // An Ended Attempt Offers Re-Run
@@ -354,7 +354,7 @@ test("Execution Controls", () => {
 });
 
 test("Label Editing", () => {
-  // The Pencil Opens A Draft Holding The Current Label
+  // The Pencil Opens a Draft Holding the Current Label
   assert.deepEqual(openLabelEdit("Charger #2"), {
     mode: "editing",
     original: "Charger #2",
@@ -362,7 +362,7 @@ test("Label Editing", () => {
     error: null,
   });
 
-  // Enter Saves The Trimmed Label
+  // Enter Saves the Trimmed Label
   const renamed = updateLabelText(openLabelEdit("Charger #2"), "  Charger Burn-In  ");
   assert.deepEqual(labelEditorKey(renamed, "Enter"), { kind: "save", label: "Charger Burn-In" });
 
@@ -370,19 +370,19 @@ test("Label Editing", () => {
   const typed = updateLabelText(openLabelEdit("Charger #2"), "Charger Burn-In");
   assert.deepEqual(labelEditorKey(typed, "Escape"), { kind: "cancel" });
 
-  // Enter On An Unchanged Label Closes The Draft Without Saving
+  // Enter on an Unchanged Label Closes the Draft Without Saving
   const unchanged = updateLabelText(openLabelEdit("Charger #2"), " Charger #2 ");
   assert.deepEqual(labelEditorKey(unchanged, "Enter"), { kind: "cancel" });
 
-  // Enter On A Blank Label Is Refused In Place
+  // Enter on a Blank Label Is Refused in Place
   const blank = updateLabelText(openLabelEdit("Charger #2"), "   ");
   assert.deepEqual(labelEditorKey(blank, "Enter"), { kind: "refuse", error: EMPTY_LABEL_ERROR });
 
-  // Other Keys Type, And A Closed Editor Ignores Every Key
+  // Other Keys Type, and a Closed Editor Ignores Every Key
   assert.deepEqual(labelEditorKey(openLabelEdit("Charger #2"), "a"), { kind: "none" });
   assert.deepEqual(labelEditorKey(CLOSED_LABEL_DRAFT, "Enter"), { kind: "none" });
 
-  // A Refusal Stays Beside The Draft Until The Operator Types Again
+  // A Refusal Stays Beside the Draft Until the Operator Types Again
   const refused = refuseLabel(openLabelEdit("Charger #2"), "label must not be empty");
   assert.ok(refused.mode === "editing");
   assert.equal(refused.error, "label must not be empty");
@@ -394,7 +394,7 @@ test("Label Editing", () => {
 });
 
 test("Execution Rows", () => {
-  // A Rerun Appends A Distinct Row While The Old Selection Still Names Its Evidence
+  // A Rerun Appends a Distinct Row While the Old Selection Still Names Its Evidence
   const first = execution({ case_id: "first", test_execution_id: "one", attempt_index: 0 });
   const second = execution({ case_id: "second", test_execution_id: "two", attempt_index: 1 });
   const rerun = execution({ case_id: "first", test_execution_id: "three", attempt_index: 2 });
@@ -411,7 +411,7 @@ test("Execution Rows", () => {
   assert.deepEqual(cycleRowSelection(rows[2]), { executionId: "three" });
   assert.equal(selectedCycleRow(rows, { caseId: "first" }), null);
 
-  // A Case Without An Execution Has A Placeholder And Stale Executions Select No Row
+  // A Case Without an Execution Has a Placeholder and Stale Executions Select No Row
   const only = execution({ case_id: "first", test_execution_id: "one", attempt_index: 0 });
   const placeholders = buildCycleExecutionRows(cases("first", "second"), [only]);
 
@@ -421,7 +421,7 @@ test("Execution Rows", () => {
   assert.equal(selectedCycleRow(placeholders, { executionId: "removed" }), null);
   assert.equal(selectedCycleRow(placeholders, {}), null);
 
-  // Run Again Is Offered On The Newest Ended Attempt And The Ended Cycle
+  // Run Again Is Offered on the Newest Ended Attempt and the Ended Cycle
   const attempts = buildCycleExecutionRows(cases("first", "second", "third"), [
     execution({
       case_id: "first",
@@ -476,7 +476,7 @@ test("Reloaded Execution Selection", () => {
 });
 
 test("Follow Active", () => {
-  // An Explicit Selection Beats Follow Active Until The Operator Returns To It
+  // An Explicit Selection Beats Follow Active Until the Operator Returns to It
   const follow = (selection: CycleSelection, extra: Partial<FollowInput> = {}) =>
     followSelection({
       active: "ten",
@@ -506,7 +506,7 @@ test("Follow Active", () => {
     null,
   );
 
-  // Following Reads The Selection Against The Active Execution
+  // Following Reads the Selection Against the Active Execution
   assert.equal(isFollowing({}, "ten"), true);
   assert.equal(isFollowing({ executionId: "ten" }, "ten"), true);
   assert.equal(isFollowing({ executionId: "twelve" }, "ten"), false);
@@ -528,7 +528,7 @@ test("Report Steps", () => {
     assert.ok(item.steps.every((row) => row.test_execution_id === item.test_execution_id));
   }
 
-  // A Written Report Carries Each Artifact Complete With Its Download Target
+  // A Written Report Carries Each Artifact Complete with Its Download Target
   assert.ok(payload.snapshot);
   const [artifact] = payload.snapshot.artifacts;
 
@@ -538,20 +538,20 @@ test("Report Steps", () => {
 });
 
 test("Focus Keeps Controls", () => {
-  // Focus Drops The Heading But Keeps Start, Stop And A Labelled Exit
+  // Focus Drops the Heading but Keeps Start, Stop and a Labelled Exit
   const focused = focusPresentation(true);
   assert.equal(focused.actions, true);
   assert.equal(focused.heading, false);
   assert.equal(focused.toggleLabel, "Leave Focus");
 
-  // Outside Focus The Whole Bar Shows
+  // Outside Focus the Whole Bar Shows
   assert.deepEqual(focusPresentation(false), {
     actions: true,
     heading: true,
     toggleLabel: "Focus",
   });
 
-  // Only A Frozen Report Has No Actions
+  // Only a Frozen Report Has No Actions
   assert.equal(focusPresentation(false, true).actions, false);
 });
 
@@ -569,7 +569,7 @@ test("Evidence Pane", () => {
     detail: { code: 8, message: "document artifact source budget exhausted", details: [] },
   });
 
-  // Busy Refusals Are Recognized By Wording Or Bridge Kind, Not By Status Alone
+  // Busy Refusals Are Recognized by Wording or Bridge Kind, Not by Status Alone
   assert.ok(isBusyRefusal(busy));
   assert.ok(isBusyRefusal({ kind: "busy" }));
   assert.ok(!isBusyRefusal(failed));
@@ -585,7 +585,7 @@ test("Evidence Pane", () => {
   assert.equal(documentRetryDelay(2, busy), 4_000);
   assert.equal(documentRetryDelay(20, busy), RECONNECT_MAX_MS);
 
-  // A Read Document Stays On Screen Whatever Later Reads Do
+  // A Read Document Stays on Screen Whatever Later Reads Do
   const pane = (fields: Partial<Parameters<typeof evidencePaneState>[0]>) =>
     evidencePaneState({
       hasDocument: false,
@@ -605,7 +605,7 @@ test("Evidence Pane", () => {
     failure: failureOf(failed, "fixture"),
   });
 
-  // Without A Document, Busy Is Pending And Only A Real Failure Is A Notice
+  // Without a Document, Busy Is Pending and Only a Real Failure Is a Notice
   assert.deepEqual(pane({ pending: true, failureReason: busy }), { kind: "busy" });
   assert.deepEqual(pane({ error: busy }), { kind: "busy" });
   assert.deepEqual(pane({ pending: true }), { kind: "loading" });
@@ -620,7 +620,7 @@ test("New Cycle Form", () => {
   const opened = new Date(2026, 9, 16, 14, 5);
   const form = initialNewCycleForm(opened);
 
-  // The Title Opens As The Moment The Dialog Opened
+  // The Title Opens as the Moment the Dialog Opened
   assert.equal(form.title, defaultCycleLabel(opened));
   assert.notEqual(form.title, defaultCycleLabel(new Date(2026, 9, 17, 9, 30)));
   assert.equal(form.description, "");
@@ -630,7 +630,7 @@ test("New Cycle Form", () => {
   // A Blank Title Is Refused
   assert.equal(newCycleFormError({ ...form, title: "   " }), EMPTY_TITLE_ERROR);
 
-  // The Request Trims Its Text And Omits A Blank Description
+  // The Request Trims Its Text and Omits a Blank Description
   assert.deepEqual(newCycleRequest({ continueAutomatically: false, description: "  ", title: "  Bench A  " }), {
     continueAutomatically: false,
     description: undefined,

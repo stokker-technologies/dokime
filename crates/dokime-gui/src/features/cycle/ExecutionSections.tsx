@@ -34,6 +34,7 @@ import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import type { HubLiveState, PromptRequest, RecordScope, TestCyclePlan, TestExecution } from "@/lib/types";
 import { type CycleExecutionRow, isUnstartedExecution } from "./cycle-workspace-model";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
+import { DocumentPagination } from "./DocumentPagination";
 import { evidencePaneState } from "./document-query-model";
 import { ExecutionActionButton, type ExecutionActions, ExecutionControl, useExecutionActions } from "./ExecutionControl";
 import { ExecutionSectionsView } from "./ExecutionSectionsView";
@@ -99,7 +100,7 @@ export function ExecutionSections({
     [started, cycleId, row.case.caseId],
   );
 
-  // Read The Execution And Its Document
+  // Read the Execution and Its Document
   const detailQuery = useExecutionDetailQuery(started?.test_execution_id ?? null, Boolean(started));
   const execution: TestExecution | null = detailQuery.data ?? started ?? null;
   const documentQuery = useExecutionDocumentQuery({
@@ -171,7 +172,12 @@ export function ExecutionSections({
       titlePrefix={titlePrefix}
       label={label}
       onRename={onRename}
-      pageActions={pageActions}
+      pageActions={
+        <>
+          {pageActions}
+          <DocumentPagination navigation={documentQuery.navigation} />
+        </>
+      }
       trail={["Cycle", `Execution ${row.ordinal}`]}
       started={started}
       surface={surface}

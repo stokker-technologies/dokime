@@ -101,7 +101,7 @@ CLI installation follows [mise's GitHub backend](https://mise.jdx.dev/dev-tools/
 See also [Microsoft's PowerShell execution policies](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies)
 and [supported Windows releases](https://learn.microsoft.com/dotnet/core/install/windows#supported-versions).
 
-## Configure A Script
+## Configure a Script
 
 Install Dokime on `PATH`, restart the host after admitting the matching OBC
 plugin, and import the host-created pairing once:
@@ -160,7 +160,7 @@ control-test.bat
 control-prompt.bat
 ```
 
-## Control The Device
+## Control the Device
 
 The device script lists operations, reads the manual device, powers it on,
 reads it again, powers it off and performs a final read. Powered state reports
@@ -210,7 +210,7 @@ prompt UUIDs. The read-only prompt display is saved as `prompt.json` in the
 current directory. Sampling begins after confirmation. The script waits for the
 durable result, saves `execution.zip`, seals its cycle and saves `cycle.zip`.
 
-## Preserve And Inspect Evidence
+## Preserve and Inspect Evidence
 
 Choose a separate `OUTPUT_DIRECTORY` for each workflow. Existing bundle
 destinations fail preflight unless `OVERWRITE` is enabled. CLI downloads verify
@@ -260,7 +260,7 @@ stdout use base64 within the JSON byte ceiling; larger responses require
 within the ceiling, written directly to the JSON output file; larger responses
 without a chunked download protocol require a typed client.
 
-## Interruption And Recovery
+## Interruption and Recovery
 
 Append, Start, blocking run, execution wait/export and prompt discovery,
 display/answer pass `--cancel-on-interrupt`, `--owned-cycle` and

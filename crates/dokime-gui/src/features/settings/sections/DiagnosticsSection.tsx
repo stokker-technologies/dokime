@@ -61,7 +61,7 @@ export function DiagnosticsSection() {
           error={organizationPackError(bootOrganization.error, organizationPack !== null)}
         >
           <span className="text-sm text-muted-foreground">
-            {organizationPack ? `${organizationPack.label} pack applied` : "Compiled brand"}
+            {organizationPack ? `${organizationPack.label} pack applied` : "Compiled Brand"}
           </span>
         </SettingsRow>
       </SettingsCard>
@@ -203,7 +203,7 @@ function StorageResetRow({ directory }: { directory: string }) {
                 Cancel
               </Button>
               <Button disabled={!armed} type="submit" variant="destructive">
-                Delete And Restart
+                Delete and Restart
               </Button>
             </DialogFooter>
           </form>

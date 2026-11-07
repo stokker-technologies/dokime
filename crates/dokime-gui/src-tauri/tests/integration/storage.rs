@@ -144,7 +144,7 @@ fn backup_archives_store() {
     fs::write(store.join("artifacts/cycle-1/evidence.bin"), b"bytes").unwrap();
     fs::write(store.join("artifacts/cycle-1/nested/trace.csv"), vec![b'7'; 3 << 20]).unwrap();
 
-    // A Backend Holding The Lease Refuses The Backup
+    // A Backend Holding the Lease Refuses the Backup
     let lease = fs::OpenOptions::new().create(true).truncate(false).write(true).open(store.join("local.lock")).unwrap();
     lease.try_lock().unwrap();
     let destination = storage.backup_destination(time::OffsetDateTime::UNIX_EPOCH);
@@ -159,7 +159,7 @@ fn backup_archives_store() {
     assert!(!destination.exists());
     drop(lease);
 
-    // A Destination Inside The Root Is Refused
+    // A Destination Inside the Root Is Refused
     assert!(matches!(
         storage.archive(&store.join("inside.zip"), |_| {}),
         Err(DesktopSessionError::StorageReset {
@@ -168,7 +168,7 @@ fn backup_archives_store() {
         })
     ));
 
-    // The Archive Holds Every Nested File, The WAL Included, But The Lease
+    // The Archive Holds Every Nested File, the WAL Included, but the Lease
     let mut reports = Vec::new();
     let archive = storage.archive(&destination, |bytes| reports.push(bytes)).unwrap();
     assert_eq!(archive, destination);
@@ -206,7 +206,7 @@ fn backup_archives_store() {
     assert!(storage.archive(&destination, |_| {}).is_err());
     assert_eq!(fs::metadata(&archive).unwrap().len(), written);
 
-    // The Reset Then Empties The Root
+    // The Reset Then Empties the Root
     storage.clear().unwrap();
     assert_eq!(fs::read_dir(&store).unwrap().count(), 0);
     assert!(archive.exists());

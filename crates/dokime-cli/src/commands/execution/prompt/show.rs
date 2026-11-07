@@ -7,7 +7,7 @@
  * ***
  */
 
-// Display An Execution Prompt By Identity
+// Display an Execution Prompt by Identity
 
 /* === Modules === */
 
@@ -74,7 +74,7 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     }
     let prompt = view.prompt.as_ref().ok_or_else(|| crate::Error::Setup("prompt view is empty".into()))?;
     let definition = prompt.definition.as_ref().ok_or_else(|| crate::Error::Setup("prompt definition is empty".into()))?;
-    println!("Prompt {} For Execution {}", args.prompt_id, args.execution_id);
+    println!("Prompt {} for Execution {}", args.prompt_id, args.execution_id);
     println!("{}", definition.title);
     if let Some(message) = &definition.message {
         println!("{message}");

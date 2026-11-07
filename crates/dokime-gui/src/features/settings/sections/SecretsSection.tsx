@@ -368,7 +368,7 @@ function SecretEditor({
             disabled={busy}
             onChange={(event) => setDescription(event.target.value)}
           />
-          <Label htmlFor={`${id}-value`}>{editor.kind === "edit" ? "Replacement Value (Leave Empty To Keep)" : "Value"}</Label>
+          <Label htmlFor={`${id}-value`}>{editor.kind === "edit" ? "Replacement Value (Leave Empty to Keep)" : "Value"}</Label>
           <Input
             id={`${id}-value`}
             type="password"

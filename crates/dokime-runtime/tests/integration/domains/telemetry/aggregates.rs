@@ -200,7 +200,7 @@ async fn exact_numeric_outputs() {
     scatter.x(dokime_runtime::expressions::telemetry("tracking", "distance_m"));
     scatter.y(dokime_runtime::expressions::telemetry("tracking", "distance_m"));
     section.plot(scatter);
-    let mut reconnect = dokime_runtime::document::Plot::time_series("Time To Reconnect Tool");
+    let mut reconnect = dokime_runtime::document::Plot::time_series("Time to Reconnect Tool");
     reconnect.y(dokime_runtime::expressions::record("tool.connection.acquired").time_between("tool.connection.lost"));
     section.plot(reconnect);
     let mut occupancy = dokime_runtime::document::PlotDefinition::with_type(

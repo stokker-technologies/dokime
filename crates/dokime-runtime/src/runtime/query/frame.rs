@@ -23,8 +23,8 @@ use crate::{
     queries::RuntimeOverviewSnapshot,
     queries::{
         RuntimeArtifactFrame, RuntimeCursor, RuntimeDocumentFrame, RuntimeExecutionFileRead, RuntimeHealthFrame,
-        RuntimeInstalledPluginFrame, RuntimeNoteFrame, RuntimePromptFrame, RuntimeRecordFrame, RuntimeResolvedDocumentRead,
-        RuntimeResourceFrame, RuntimeTelemetryRead, RuntimeTraceabilityRead, RuntimeWindow,
+        RuntimeInstalledPluginFrame, RuntimeNoteFrame, RuntimePromptFrame, RuntimeRecordFrame, RuntimeResourceFrame, RuntimeTelemetryRead,
+        RuntimeTraceabilityRead, RuntimeWindow,
     },
 };
 
@@ -87,7 +87,6 @@ pub enum RuntimeViewPayload {
     Records { frame: Box<RuntimeRecordFrame> },
     TelemetryDefinitions { frame: RuntimeListFrame },
     Telemetry { frame: RuntimeTelemetryRead },
-    Document { frame: RuntimeResolvedDocumentRead },
     Documents { frame: Box<RuntimeDocumentFrame> },
     Artifacts { frame: Box<RuntimeArtifactFrame> },
     Resources { frame: Box<RuntimeResourceFrame> },

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Pin Sealed Evidence Revisions And Verify Exact Dependencies
+// Pin Sealed Evidence Revisions and Verify Exact Dependencies
 
 /* === Modules === */
 

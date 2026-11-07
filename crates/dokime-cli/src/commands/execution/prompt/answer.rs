@@ -7,7 +7,7 @@
  * ***
  */
 
-// Answer An Execution Prompt By Identity
+// Answer an Execution Prompt by Identity
 
 /* === Modules === */
 
@@ -87,7 +87,7 @@ pub(crate) async fn run(mut args: Args, settings: &dokime::domain::model::settin
     if args.json {
         println!("{}", serde_json::to_string(&receipt)?);
     } else {
-        println!("Answered Prompt {} For Execution {}", args.prompt_id, args.execution_id);
+        println!("Answered Prompt {} for Execution {}", args.prompt_id, args.execution_id);
     }
     Ok(())
 }

@@ -79,7 +79,7 @@ export function promptMarkers(records: readonly HubRecord[]): PromptMarker[] {
 
 /** What a marker's hover reads: the moment, then the prompt's title. */
 export function promptMarkerLabel(marker: PromptMarker): string {
-  return `${marker.kind === "asked" ? "Prompt asked" : "Prompt answered"}: ${marker.title}`;
+  return `${marker.kind === "asked" ? "Prompt Asked" : "Prompt Answered"}: ${marker.title}`;
 }
 
 /* === Private Functions === */

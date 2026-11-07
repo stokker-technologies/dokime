@@ -56,7 +56,7 @@ export function AboutSection() {
         </SettingsRow>
         <div className="flex justify-end px-4 py-3">
           <Button variant="outline" disabled={!isTauriDesktop()} onClick={() => setUpdatesOpen(true)}>
-            Check For Updates
+            Check for Updates
           </Button>
         </div>
       </SettingsCard>
@@ -75,7 +75,7 @@ function BuildVersion({ build }: { build: BuildIdentity }) {
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              aria-label={`Copy Commit ${commit} To Clipboard`}
+              aria-label={`Copy Commit ${commit} to Clipboard`}
               className="underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => void copyTraceabilityText(commit)}
               type="button"

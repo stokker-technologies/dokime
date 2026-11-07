@@ -39,9 +39,9 @@ const STREAM: &str = "bench.plot";
 /* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq)]
-struct PlotRow {
-    timestamp: String,
-    value: Option<f64>,
+pub(super) struct PlotRow {
+    pub(super) timestamp: String,
+    pub(super) value: Option<f64>,
 }
 
 /* === Enums === */

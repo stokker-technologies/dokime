@@ -208,7 +208,7 @@ impl RuntimeHandle {
                 crate::records::RecordSeverity::Info,
             );
             request.scope = Some(scope.clone());
-            request.message = Some(format!("Run Start Evidence From {source}"));
+            request.message = Some(format!("Run Start Evidence from {source}"));
             request.details.insert("publisher".into(), dokime_domain::model::values::Value::from(source));
             request.details.insert("snapshot".into(), json_value(json));
             self.commit(crate::transactions::PublishRecord::host(request, now_utc()))

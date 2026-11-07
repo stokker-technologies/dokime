@@ -7,7 +7,7 @@
  * ***
  */
 
-// Deliver The Operator's Interrupt To An Armed Wait
+// Deliver the Operator's Interrupt to an Armed Wait
 
 /* === Modules === */
 
@@ -41,7 +41,7 @@
 pub(crate) async fn requested() -> std::io::Result<()> {
     #[cfg(windows)]
     {
-        // A Process Created In A New Group Ignores Ctrl+C, And Its Descendants Inherit That Across
+        // A Process Created in a New Group Ignores Ctrl+C, and Its Descendants Inherit That Across
         // New Consoles Such As Pseudo-Terminals. An Armed Wait Advertises Ctrl+C, So It Restores
         // Processing; Ctrl+Break Reaches A Process Group Even Where Ctrl+C Cannot.
         // SAFETY: A Null Handler Only Clears This Process's Ignore-Ctrl+C Attribute.

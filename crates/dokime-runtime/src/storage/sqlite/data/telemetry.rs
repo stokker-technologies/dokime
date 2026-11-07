@@ -7,7 +7,7 @@
  * ***
  */
 
-// Arrow Telemetry Catalog And Native Reads
+// Arrow Telemetry Catalog and Native Reads
 
 /* === Modules === */
 

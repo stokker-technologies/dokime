@@ -107,7 +107,7 @@ Workspace backtraces retain source locations; type and variable inspection
 require rebuilding the affected crate with full debug information.
 Debug assertions and overflow checks remain enabled.
 
-## Tests And Checks
+## Tests and Checks
 
 Build matching artifacts, then run every test lane concurrently (the five-minute
 execution target is advisory and excludes compilation):
@@ -279,6 +279,25 @@ concurrent lifetimes, with process-local parent IDs in metadata. Normal completi
 flushes export; killed processes may omit open spans or leave unreadable files,
 which the summary lists. Test totals come from JUnit and include harness overhead.
 
+### Document Query Benchmark
+
+The integration-runtime Criterion group `document_queries` ingests three days
+at 307,200, 1,536,000 and 3,072,000 samples through the real runtime. Each document
+has 30 distinct telemetry streams/plots and maintained count/min/max/mean/RMS tiles. `structure` measures the
+first structure event; `cards_and_plots` measures all bindings and the 30 bounded
+plot payloads at one saved cut, deriving requests from the actual card descriptors
+through the same mapping as the GUI. Each pass verifies sample coverage without
+a raw-history scan. Setup uses bounded batches outside the timings.
+The shared resource probe reports current process RSS on Linux and Windows,
+including its baseline and sampled peak for each measurement window. Compare
+the same visible output at increasing retained row counts; RSS includes the
+whole process and periodic sampling can miss short peaks.
+
+```sh
+mise run build:rust:bench --binary integration-runtime
+mise run bench:rust:integration -- --binary integration-runtime -- document_queries
+```
+
 ### Storage Benchmarks
 
 The runtime's `integration-storage` Criterion target uses the actual SQLite
@@ -387,6 +406,18 @@ the measured intervals. The long workloads do not run without this explicit opt-
 Run measurements without concurrent validation and preserve the original executable
 before changing production source. A running execution uses Stop; Cancel skips an
 execution that has not started and retains its own report/evidence boundary.
+
+Set `DOKIME_HEAVY_PATHS=cycles`, `files`, `finalizer` or `all` to measure the
+cycle summaries, saved 64 KiB windows and report verification paths. The cycle
+fixture uses 128 members; file paging and finalizer probes use one member with
+a 2 MiB log to isolate its reads and verification. Each prints seven samples
+and checks the returned data. A smaller sealed cycle compares historical inspection
+within the existing working-memory limit. Use an absolute `DOKIME_TEST_TRACE_DIR`
+to retain runtime and rendering spans beside the timing samples.
+
+```sh
+mise run build:rust:focused -- bench --locked -p dokime-runtime --features testing --bench integration-runtime -- heavy_paths
+```
 
 ## Pull Requests
 

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Backend Profile Selection, Pairing And Atomic Edit Story
+// Backend Profile Selection, Pairing and Atomic Edit Story
 
 /* === Modules === */
 

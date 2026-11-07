@@ -44,13 +44,13 @@ const MAX_SAMPLE_COUNT: u64 = 64;
 
 #[dokime::record(
     id = "obc.run.started",
-    label = "Run started",
+    label = "Run Started",
     description = "The run has begun.\nDeclared here, beside the step that publishes it, and named once on the template's `records = Records`. The struct is the contract: there is no id to keep in agreement with a separate declaration."
 )]
 #[derive(Clone, Debug)]
 pub struct RunStarted {}
 
-#[dokime::record(id = "obc.run.completed", label = "Run completed", description = "The run finished, and this is what it produced.")]
+#[dokime::record(id = "obc.run.completed", label = "Run Completed", description = "The run finished, and this is what it produced.")]
 #[derive(Clone, Debug)]
 pub struct RunCompleted {
     #[record(description = "How many rows the declared stream produced before the run completed.")]

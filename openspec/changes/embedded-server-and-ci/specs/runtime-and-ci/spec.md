@@ -1,4 +1,4 @@
-# Runtime And CI
+# Runtime and CI
 
 ## ADDED Requirements
 
@@ -27,7 +27,7 @@ Tests SHALL inject an isolated in-memory credential provider at runtime composit
 - **THEN** their unchanged behavioral assertions pass with the explicitly supplied test provider
 - **AND** production secure-storage and existing-data guarantees are unchanged
 
-### Requirement: Default Profiles And Nightly Consumer Proof
+### Requirement: Default Profiles and Nightly Consumer Proof
 
 Project compiler overrides SHALL be removed. Tests SHALL use default test compilation with matching Clippy and consume the existing archive for contract execution. The full generated-starter consumer proof SHALL run only in an explicitly declared nightly test job.
 
@@ -60,7 +60,7 @@ Report testing SHALL open reports in a test-owned browser instance/profile and c
 
 Native report journeys supply a test-scoped opener resource targeting an owned browser profile and debugging endpoint. The gate records exact report tab identities and closes those tabs in its final cleanup before deleting fixtures, including failure and timeout paths. Production keeps the system opener. No user browser enumeration, tab closure or process termination is permitted.
 
-### Requirement: Keyring Secrets And Base64 Files
+### Requirement: Keyring Secrets and Base64 Files
 
 Host secrets SHALL use the OS keyring, existing catalog and explicit credential-provider composition. Saved files SHALL contain standard Base64 of v1 JSON metadata and values, without encryption or passwords. Legacy adoption SHALL be removed without reading or deleting old stores. Unrelated authentication and cryptography SHALL remain unchanged.
 

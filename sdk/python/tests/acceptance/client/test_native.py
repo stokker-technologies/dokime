@@ -74,7 +74,7 @@ def native(
     env_file.touch()
     log = root / "backend.log"
 
-    # Start The Server And Await Its Ready Line
+    # Start the Server and Await Its Ready Line
     with log.open("w") as stderr:
         process = subprocess.Popen(
             [
@@ -111,7 +111,7 @@ def native(
 
             yield Host(ready["endpoint"], process, log)
 
-            # Closing Stdin Is The Owned Shutdown Request
+            # Closing Stdin Is the Owned Shutdown Request
             assert process.poll() is None, "client close must not stop the backend"
             process.stdin.close()
             assert process.wait(120) == 0, log.read_text()
@@ -152,7 +152,7 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
                     samples.append(sample)
                     live_sample.set()
 
-            # Follow Live Evidence And Answer The Operator Prompt
+            # Follow Live Evidence and Answer the Operator Prompt
             async with asyncio.TaskGroup() as tasks:
                 tasks.create_task(events())
                 tasks.create_task(telemetry())
@@ -181,7 +181,7 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
             replay = [s async for s in handle.samples(page_size=2)]
             assert {s.id for s in samples} == {s.id for s in replay}
 
-            # Sealed History Holds The Execution's Own Evidence
+            # Sealed History Holds the Execution's Own Evidence
             point = await handle.checkpoint()
             assert point is not None
             captured = ExecutionEvidence(handle._transport, point, handle._backend)
@@ -197,7 +197,7 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
             }
             assert {item.sample.id for item in historical_samples} == {item.id for item in samples}
 
-            # Export Saved Server Evidence Independently Of Local Observations
+            # Export Saved Server Evidence Independently of Local Observations
             output.mkdir()
             await handle.export(output / "execution.zip")
             await cycle.seal()

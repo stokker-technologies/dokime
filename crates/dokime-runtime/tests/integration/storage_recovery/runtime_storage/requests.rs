@@ -132,7 +132,7 @@ pub(crate) async fn receipt_initialize_storage() {
     let admitted = handle.storage().write_object(&native).await.unwrap();
     handle.storage().flush_until(&admitted.position).await.unwrap();
     runtime.shutdown().await.unwrap();
-    // Corrupt The Saved Receipt Without Changing Its Recovery Selection
+    // Corrupt the Saved Receipt Without Changing Its Recovery Selection
     let backend = dokime_runtime::storage::Backend::primary(root.path().to_path_buf()).await.unwrap();
     let control = backend.local_state();
     control

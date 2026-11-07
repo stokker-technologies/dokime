@@ -7,7 +7,7 @@
  * ***
  */
 
-// Prepare And Activate Server Handler Resources
+// Prepare and Activate Server Handler Resources
 
 /* === Modules === */
 

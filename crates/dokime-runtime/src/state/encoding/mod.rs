@@ -169,7 +169,7 @@ impl Serialize for RuntimeState {
             archived_executions,
         } = self;
 
-        // Collect The Shared Catalog Before Encoding Its Owners
+        // Collect the Shared Catalog Before Encoding Its Owners
         let mut pool = catalog::Pool::default();
         let installed_plugins = pool.plugins(installed_plugins);
         let suites = pool.registry(suites);
@@ -300,7 +300,7 @@ impl Decoded {
 
 /* === Private Functions === */
 
-// Returns The Position Of A Shared Value, Storing It On First Sight
+// Returns the Position of a Shared Value, Storing It on First Sight
 fn intern<'a, T: PartialEq + ?Sized>(values: &mut Vec<&'a T>, value: &'a T) -> u32 {
     let index = match values.iter().position(|candidate| *candidate == value) {
         Some(index) => index,

@@ -57,7 +57,7 @@ pub struct DocumentDataInput {
     pub artifacts: Vec<ArtifactRecord>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Copy, Serialize)]
 pub(crate) struct BorrowedInput<'a> {
     pub definition: &'a DocumentDefinition,
     pub selection: &'a DocumentSelection,
@@ -83,8 +83,6 @@ pub(super) struct RecordView<'a> {
 #[derive(Clone, Copy)]
 pub(crate) enum Records<'a> {
     Native(crate::records::view::View<'a>),
-    Pages(&'a [harmos::storage::ReadBatch<Vec<RecordEntry>>]),
-    Subscribed { rows: crate::records::view::View<'a>, captures: &'a dokime_domain::state::records::set::TestRecordSet },
 }
 
 #[derive(Clone, Copy)]
@@ -116,23 +114,14 @@ impl Records<'_> {
     pub(super) fn len(self) -> usize {
         match self {
             Self::Native(rows) => rows.len(),
-            Self::Pages(pages) => pages.iter().map(|page| page.len()).sum(),
-            Self::Subscribed { rows, .. } => rows.len(),
         }
     }
 }
 
 impl<'a> Records<'a> {
     pub(super) fn iter(self) -> impl DoubleEndedIterator<Item = RecordView<'a>> + Clone {
-        let (native, pages, scopes) = match self {
-            Self::Native(rows) => (rows, &[][..], None),
-            Self::Pages(pages) => (crate::records::view::View::default(), pages, None),
-            Self::Subscribed { rows, captures } => (rows, &[][..], Some(captures)),
-        };
-        native.iter().chain(pages.iter().flat_map(|page| page.iter())).map(move |entry| RecordView {
-            entry,
-            scope: scopes.and_then(|captures| captures.captured_scope(entry)).or(entry.scope.as_ref()),
-        })
+        let Self::Native(rows) = self;
+        rows.iter().map(move |entry| RecordView { entry, scope: entry.scope.as_ref() })
     }
 }
 
@@ -204,16 +193,6 @@ impl DocumentSelection {
                     && (scope.test_cycle_id.as_ref().is_some_and(|id| self.scope.test_cycle_id.as_ref() != Some(id))
                         || scope.test_case_id.as_ref().is_some_and(|id| self.scope.test_case_id.as_ref() != Some(id)))
             })
-    }
-
-    pub(crate) fn evidence_scope(&self) -> crate::evidence_runtime::ScopeSelection {
-        crate::evidence_runtime::ScopeSelection {
-            test_cycle_id: self.scope.test_cycle_id.clone(),
-            test_execution_id: self.scope.test_execution_id.clone(),
-            test_case_id: self.scope.test_case_id.clone(),
-            template_id: self.scope.template_id.clone(),
-            suite_id: self.scope.suite_id.clone(),
-        }
     }
 
     pub(crate) fn matches_scope(&self, scope: Option<&RecordScope>) -> bool {

@@ -1,4 +1,4 @@
-# Run The Remote Examples With Python
+# Run the Remote Examples with Python
 
 Scripts: `sdk/python/examples/remote/python/`. Commands below run from that folder.
 
@@ -11,7 +11,7 @@ These source examples use a locally built wheel from the same revision as the
 backend. Tutorials and Python distributions are not release downloads. Prepare
 the wheel and refresh the tutorial lock before transferring the example tree.
 
-## Prepare The Environment
+## Prepare the Environment
 
 Use CPython `>=3.13,<3.16` on Windows or Linux x86-64. Python 3.13 is the
 baseline used below. On Windows, set `$INSTALL_DOKIME = $false` in
@@ -92,7 +92,7 @@ close/cancellation prevents another fetch and leaves backend execution running.
 `records.complete` reports consumption; page metadata retains server completeness,
 schema, limits and snapshot after closing. No dataframe dependency is needed.
 
-### Refuse When Busy And Discover Record Columns
+### Refuse When Busy and Discover Record Columns
 
 Before starting your own work, inspect typed cycle statuses:
 
@@ -186,7 +186,7 @@ The remaining execution, filter and evidence parameters match the
 [native CLI scripts](cli.md). These are edit-and-run examples; they
 accept no command-line arguments.
 
-## Control The Manual Device
+## Control the Manual Device
 
 Run `control-device.py` from the directory where its fixed response files
 should be saved.
@@ -291,7 +291,7 @@ Use the native CLI prompt commands if an operator needs to inspect and answer
 separately. Rejected, duplicate or uncertain answers must be inspected through
 their original execution and prompt identities before any manual resubmission.
 
-## Cancellation And Inspection
+## Cancellation and Inspection
 
 Ctrl+C during test/prompt work stops the selected execution, seals the script's
 own cycle and saves collected evidence in its configured output directory.

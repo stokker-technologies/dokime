@@ -45,7 +45,7 @@ fn command() -> std::process::Command {
     command
 }
 
-// A Connected Client Sees The Host Ready Before It Is Stopped
+// A Connected Client Sees the Host Ready Before It Is Stopped
 async fn serve_until_stopped(signal: bool) {
     let host = Host::launch(None).await;
     let client = host.connect().await;
@@ -151,7 +151,7 @@ async fn environment_file_precedence() {
 }
 
 fn owned_launch(application: &std::path::Path) -> std::process::Command {
-    // The Arguments The Desktop Shell Passes Its Owned Backend
+    // The Arguments the Desktop Shell Passes Its Owned Backend
     let mut command = command();
     command
         .args(["--color", "never", "--dev-control", "--shutdown-stdin", "--port", "0", "--application-root"])
@@ -167,7 +167,7 @@ fn same_root_relaunches() {
     let root = tempfile::tempdir().unwrap();
     let application = root.path().join("application");
     for launch in 0..3 {
-        // Await The Readiness Line On The Default Data Root
+        // Await the Readiness Line on the Default Data Root
         let mut child = owned_launch(&application).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
         let mut events = BufReader::new(child.stdout.take().unwrap());
         let ready = loop {
@@ -181,7 +181,7 @@ fn same_root_relaunches() {
             }
         };
 
-        // Drain Through The Owned Shutdown Path
+        // Drain Through the Owned Shutdown Path
         drop(child.stdin.take());
         let output = child.wait_with_output().unwrap();
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -202,20 +202,20 @@ async fn incompatible_storage_refused() {
     let data = application.join("data");
     std::fs::create_dir_all(&data).unwrap();
 
-    // Write A Root From Another Baseline
+    // Write a Root from Another Baseline
     let connection = rusqlite::Connection::open(data.join("local.sqlite")).unwrap();
     connection.execute_batch("PRAGMA user_version=7; CREATE TABLE foreign_evidence(payload BLOB);").unwrap();
     drop(connection);
     let original = std::fs::read(data.join("local.sqlite")).unwrap();
 
-    // The Process Exits With Its Own Code And A Remedy On Stderr Only
+    // The Process Exits with Its Own Code and a Remedy on Stderr Only
     let output = owned_launch(&application).output().unwrap();
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(4), "{stderr}");
     assert!(!String::from_utf8_lossy(&output.stdout).contains("\"ready\""), "a refused root never reports readiness");
     assert_eq!(std::fs::read(data.join("local.sqlite")).unwrap(), original);
 
-    // The Same Refusal Is Typed In Process
+    // The Same Refusal Is Typed in Process
     let mut config = dokime::config::Config::local(&data);
     config.application = Some(dokime::paths::ApplicationPaths::new(application.clone()));
     let error = dokime::app::launch(config).boxed_local().await.err().unwrap();
@@ -223,7 +223,7 @@ async fn incompatible_storage_refused() {
     assert!(matches!(&error, dokime_server::host::Error::IncompatibleStorage { root, .. } if root == &data), "{error}");
     assert_eq!(error.exit_code(), std::process::ExitCode::from(4));
 
-    // A Root Owned By Another Runtime Is Not Reported As Incompatible
+    // A Root Owned by Another Runtime Is Not Reported as Incompatible
     let fresh = root.path().join("owned");
     let owner = sqlite::State::open(&fresh).await.unwrap();
     let mut config = dokime::config::Config::local(&fresh);

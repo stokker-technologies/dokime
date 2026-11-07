@@ -1,4 +1,4 @@
-# Control The Simulated OBC From Another PC
+# Control the Simulated OBC from Another PC
 
 Use Dokime's simulated on-board charger (OBC) to learn remote device control,
 test execution, confirmation prompts and evidence inspection without hardware.
@@ -111,9 +111,9 @@ Launch **Dokime** from the host's application menu. Keep that host application
 open throughout the walkthrough. The remote PC only needs terminal commands;
 launching another local server there is unnecessary.
 
-## Install The Host Plugin
+## Install the Host Plugin
 
-On the host, open **Settings → Plugins**. Under **Install A Plugin**, choose
+On the host, open **Settings → Plugins**. Under **Install a Plugin**, choose
 **Choose File**, then select the host-platform `plugin-obc.dokime` from the
 candidate's `plugins/` directory. Selecting the bundle installs it directly.
 
@@ -148,7 +148,7 @@ It contains a one-time access key and public CA certificate; keep the file priva
 The host retains only a verifier. Create a separate pairing for each client, and
 revoke a lost client's entry in **Paired Clients**. Revocation leaves other clients usable.
 
-## Connect From The Remote PC
+## Connect from the Remote PC
 
 Import the pairing once into the native registry; its credential goes to the OS keyring:
 
@@ -167,7 +167,7 @@ that client's transport. CLI remote import verifies the connection; GUI import a
 the new backend. Python constructs a client first, connecting on `async with` or
 `await client.connect()`.
 
-## Run The Three Workflows
+## Run the Three Workflows
 
 Choose one family:
 
@@ -211,7 +211,7 @@ Shell error handling can stop a script before its later export commands; use
 the printed identities to inspect and export that attempt. Do not resubmit an uncertain
 mutation just because a response or connection was lost.
 
-## Stop And Recover
+## Stop and Recover
 
 Ctrl+C in a test or prompt workflow requests scoped cancellation and evidence
 recovery. The script's own cycle is sealed, cancelling its unstarted members;

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Reduction And Saved Windows Share One Durable Plot History
+// Reduction and Saved Windows Share One Durable Plot History
 
 /* === Modules === */
 

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Journal Work Revisions And Native Checkpoints Share One Versioned Projection
+// Journal Work Revisions and Native Checkpoints Share One Versioned Projection
 
 /* === Modules === */
 

@@ -67,7 +67,7 @@ export function PlotSettingsButton({ children, plot, onSubmit }: PlotSettingsBut
     <Dialog open={open} onOpenChange={setOpen}>
       {children(
         <DialogTrigger asChild>
-          <Button aria-label={`Plot Settings For ${plot.title}`} size="icon-sm" title="Plot Settings" type="button" variant="ghost">
+          <Button aria-label={`Plot Settings for ${plot.title}`} size="icon-sm" title="Plot Settings" type="button" variant="ghost">
             <Settings2 />
           </Button>
         </DialogTrigger>,

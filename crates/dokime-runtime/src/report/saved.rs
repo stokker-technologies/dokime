@@ -549,7 +549,7 @@ pub(crate) async fn save_context(manager: &Manager, captured: &CapturedSource) -
 
 /* === Private Functions === */
 
-// The Producer Retains An Admitted Chunk Across Failures, So A Retry Resends The
+// The Producer Retains an Admitted Chunk Across Failures, So a Retry Resends The
 // Same Offset And Bytes. A Refused Chunk Admitted Nothing: Await Durability Of
 // The Accepted Data Queue Only (No File Checkpoint, No Exclusive Lifecycle Lock),
 // Refresh The Shared Accounting And Retry. Storage Failures Surface As Errors.

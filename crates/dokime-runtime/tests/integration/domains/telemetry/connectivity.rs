@@ -7,7 +7,7 @@
  * ***
  */
 
-// Boolean Connectivity In Live And Frozen Plots
+// Boolean Connectivity in Live and Frozen Plots
 
 /* === Modules === */
 

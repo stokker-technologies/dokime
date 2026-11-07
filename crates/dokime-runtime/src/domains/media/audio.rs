@@ -51,11 +51,11 @@ mod device {
         };
         let _ = ready.send(Ok(()));
 
-        // Record Until Stopped Or Abandoned
+        // Record Until Stopped or Abandoned
         let _ = stop.recv();
         drop(stream);
 
-        // Finalize The Header Over The Written Samples
+        // Finalize the Header over the Written Samples
         let finished = writer.lock().map_err(|_| Error::Operation("audio writer lock poisoned".into()))?.take();
         if let Some(finished) = finished {
             finished.finalize().map_err(|source| Error::Operation(format!("audio file finalization: {source}")))?;
@@ -68,7 +68,7 @@ mod device {
     }
 
     fn open(path: &Path, input: Option<u32>, writer: &Writer, failure: &Failure, samples: Arc<AtomicU64>) -> Result<cpal::Stream> {
-        // Select The Input Device
+        // Select the Input Device
         let host = cpal::default_host();
         let device = match input {
             None => host.default_input_device(),
@@ -80,7 +80,7 @@ mod device {
         let supported =
             device.default_input_config().map_err(|source| unavailable(format!("audio input configuration failed: {source}")))?;
 
-        // Create The WAV File
+        // Create the WAV File
         let spec = hound::WavSpec {
             channels: supported.channels(),
             sample_rate: supported.sample_rate(),
@@ -90,7 +90,7 @@ mod device {
         let created = hound::WavWriter::create(path, spec).map_err(|source| Error::Operation(format!("audio file creation: {source}")))?;
         *writer.lock().map_err(|_| Error::Operation("audio writer lock poisoned".into()))? = Some(created);
 
-        // Start The Stream In Its Native Sample Format
+        // Start the Stream in Its Native Sample Format
         let config = supported.config();
         let parts = (device, config, writer.clone(), failure.clone(), samples);
         let stream = match supported.sample_format() {
@@ -255,7 +255,7 @@ impl AudioRecording {
             .into_temp_path();
         let samples = Arc::new(AtomicU64::new(0));
 
-        // Open The Device On Its Own Thread
+        // Open the Device on Its Own Thread
         let (ready, opened) = oneshot::channel();
         let (stop, stopped) = mpsc::channel();
         let path = file.to_path_buf();
@@ -271,7 +271,7 @@ impl AudioRecording {
             return Err(source);
         }
 
-        // Supervise Until Finished, Discarded Or Sealed By The Execution
+        // Supervise Until Finished, Discarded or Sealed by the Execution
         let (seal_request, seal) = oneshot::channel();
         let registration = match runtime.execution_storage.captures.register(&execution, seal_request as SealRequest) {
             Ok(registration) => registration,
@@ -348,7 +348,7 @@ impl Drop for AudioRecording {
 
 impl Supervisor {
     async fn run(mut self) {
-        // Wait For A Command Or The Execution Closing
+        // Wait for a Command or the Execution Closing
         let mut sealed = None;
         let finish = tokio::select! {
             command = &mut self.command => matches!(command, Ok(Command::Finish)),
@@ -361,7 +361,7 @@ impl Supervisor {
             },
         };
 
-        // Close The Device, Then Store Or Discard The File
+        // Close the Device, Then Store or Discard the File
         let closed = self.recorder.close().await;
         let outcome = match closed {
             Err(source) => Err(source),

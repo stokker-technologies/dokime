@@ -18,21 +18,21 @@ New evidence queries SHALL accept a flat conjunction of typed declared-field pre
 - **THEN** only rows satisfying all three are returned
 - **AND** a predicate containing a SQL fragment or unknown operator fails before reading evidence
 
-### Requirement: Declared Fields And Exact Types
+### Requirement: Declared Fields and Exact Types
 Record predicates SHALL address captured `details` fields; samples SHALL address captured stream column IDs. IDs SHALL be literal, including dots. Validation SHALL precede scanning, even on empty data. Numeric comparisons SHALL preserve mathematical value without lossy integer-to-float conversion or string/boolean coercion.
 
-#### Scenario: Envelope And Value Types
+#### Scenario: Envelope and Value Types
 - **WHEN** a caller selects envelope fields or nonnumeric values
 - **THEN** only `@id`, `@timestamp`, `@received_at`, `@source`, `@schema_version`, and records' `@severity` are reserved envelope IDs, using declared string/time/enum types
 - **AND** strings compare case-sensitively with locale-independent ordering; booleans permit eq/IN/exists and arrays/objects permit only exists
 - **AND** nested traversal, array indexing, undeclared extras and non-finite numeric operands fail even if ingestion allows extras
 
-#### Scenario: Dotted Column And Large Integer
+#### Scenario: Dotted Column and Large Integer
 - **WHEN** the contract declares `cpu.load` and an unsigned counter above 2^53
 - **THEN** `cpu.load` selects that exact ID and counter equality preserves integer distinctions
 - **AND** `"1"` as a numeric operand fails with a typed mismatch
 
-### Requirement: Missing And Null Semantics
+### Requirement: Missing and Null Semantics
 `exists(true)` SHALL mean the field is present and non-null; `exists(false)` SHALL match absent or null values. Missing/null fields SHALL not match equality, IN or ordered comparisons. Null operands SHALL be rejected with guidance to use exists. Ingestion defaults SHALL NOT be applied again during querying. Raw results SHALL preserve absent versus explicit null values where the captured contract distinguishes them.
 
 #### Scenario: Optional Measurement
@@ -42,7 +42,7 @@ Record predicates SHALL address captured `details` fields; samples SHALL address
 ### Requirement: Captured Schema Selection
 Records SHALL select one concrete type and execution/cycle scope; samples one concrete stream and execution. Optional versions SHALL resolve from contracts at the snapshot. Omitted versions SHALL include compatible captured versions; incompatible types/units SHALL fail with available versions and narrowing guidance. Replies SHALL retain typed schema and attribution.
 
-#### Scenario: Compatible Versions With No Matches
+#### Scenario: Compatible Versions with No Matches
 - **WHEN** selected compatible versions have optional missing fields or no matching rows
 - **THEN** absent fields are nullable and a known contract returns a typed empty result; an unknown contract fails
 - **AND** replies carry schema identity/version, scalar types, nullability and units, while raw rows retain original versions and execution/cycle attribution
@@ -61,7 +61,7 @@ New query windows SHALL be `[start, end)` with optional bounds, using authored r
 - **AND** naive datetimes, invalid precision, reversed/equal bounds fail; omitted windows include missing timestamps
 - **AND** explicit predicates on `@received_at` can select capture time separately
 
-#### Scenario: Adjacent Windows And Late Arrival
+#### Scenario: Adjacent Windows and Late Arrival
 - **WHEN** adjacent queries use `[t0,t1)` and `[t1,t2)` at the same snapshot
 - **THEN** a sample at t1 appears only in the second query
 - **AND** late-arriving evidence after the snapshot is absent even if its occurrence time falls inside either window

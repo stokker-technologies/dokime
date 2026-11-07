@@ -16,7 +16,7 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { once } from "node:events";
+import { on, once } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -39,7 +39,11 @@ const browserPath =
 
 /* === Types === */
 
-type Reply = { id?: number; result?: { result?: { value?: unknown }; exceptionDetails?: unknown; data?: string }; error?: unknown };
+type Reply = {
+  id?: number;
+  result?: { result?: { value?: unknown }; exceptionDetails?: unknown; data?: string; loaderId?: string; errorText?: string };
+  error?: unknown;
+};
 
 /* === Classes === */
 
@@ -49,7 +53,7 @@ type Reply = { id?: number; result?: { result?: { value?: unknown }; exceptionDe
 
 /* === Entry Point === */
 
-test("Sparse Samples On Live And Frozen Canvas", async () => {
+test("Sparse Samples on Live and Frozen Canvas", async () => {
   if (process.platform === "win32") assert.ok(existsSync(browserPath), "Chromium is available for canvas proof");
   const scratch = await mkdtemp(join(tmpdir(), "dokime-plot-canvas-"));
   let child: ReturnType<typeof spawn> | undefined;
@@ -102,7 +106,7 @@ test("Sparse Samples On Live And Frozen Canvas", async () => {
         }
       });
     });
-    const target = await fetch(`${endpoint}/json/new?${encodeURIComponent(pathToFileURL(join(scratch, "frozen/report.html")).href)}`, {
+    const target = await fetch(`${endpoint}/json/new?about:blank`, {
       method: "PUT",
       signal: AbortSignal.timeout(30_000),
     }).then((response) => response.json());
@@ -137,6 +141,18 @@ test("Sparse Samples On Live And Frozen Canvas", async () => {
     };
     const evaluate = async (expression: string) =>
       (await command("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }))?.result?.value;
+
+    // Attach Before Navigation And Await This Document's Loader.
+    const events = on(connection, "message", { signal: AbortSignal.timeout(30_000) });
+    await command("Page.enable", {});
+    await command("Page.setLifecycleEventsEnabled", { enabled: true });
+    const navigation = await command("Page.navigate", { url: pathToFileURL(join(scratch, "frozen/report.html")).href });
+    assert.ok(navigation?.loaderId && !navigation.errorText, JSON.stringify(navigation));
+    for await (const [event] of events) {
+      const message = JSON.parse(event.data);
+      if (message.method === "Page.lifecycleEvent" && message.params.name === "load" && message.params.loaderId === navigation.loaderId)
+        break;
+    }
     await evaluate(
       `new Promise(resolve => { const ready = () => window.canvasFixture ? resolve(true) : requestAnimationFrame(ready); ready(); })`,
     );

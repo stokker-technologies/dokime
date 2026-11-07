@@ -135,7 +135,7 @@ impl ArtifactUpload {
         let storage = self.storage.upgrade().ok_or(Error::ShuttingDown)?;
         let count = chunk.bytes.as_slice().len() as u64;
         let appended = tokio::spawn(async move {
-            // Retain The Producer Token Through Admission
+            // Retain the Producer Token Through Admission
             let owner = storage.acquisition(&chunk.upload.execution).await.ok_or_else(|| error("execution acquisition is closed"))?;
             let mut acquisition = owner.lock().await;
             let state = acquisition.artifacts.get_mut(&chunk.upload.id).ok_or_else(|| error("artifact upload is missing"))?;
@@ -626,7 +626,7 @@ async fn close(upload: &mut Upload, complete: bool) -> Result<()> {
 
 async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result<()> {
     let Some(status) = upload.closing.as_ref() else {
-        // A Mutable Upload Is Not A Saved Artifact Descriptor
+        // A Mutable Upload Is Not a Saved Artifact Descriptor
         return Ok(());
     };
     if upload.descriptor.is_some() {
@@ -653,7 +653,7 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
                     .clone());
             }
             if upload.pending.is_none() {
-                // The Private File Is Frozen By The Execution Gate And Closing Decision
+                // The Private File Is Frozen by the Execution Gate and Closing Decision
                 upload.file.set_len(upload.record.size_bytes).await.map_err(source_error)?;
                 upload.file.flush().await.map_err(source_error)?;
                 let file = upload.file.try_clone().await.map_err(source_error)?;

@@ -442,7 +442,7 @@ impl ExecutionStorage {
                 return Err(invalid("report capture changed the original finalization input"));
             }
             if final_report && acquisition.finalizing.is_none() {
-                // Retain The Exact Input Before Closing Admission Or Awaiting A Save
+                // Retain the Exact Input Before Closing Admission or Awaiting a Save
                 acquisition.finalizing = Some(frozen.clone());
                 acquisition.finish_requested = true;
                 open_scopes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&acquisition.execution_id);
@@ -701,7 +701,7 @@ impl ExecutionStorage {
             crate::domains::execution::run::testing::before_execution_checkpoint(id).await;
             tokio::spawn(async move {
                 let mut acquisition = owner.lock().await;
-                // Settle The Original Admission Before Reading Any Newer Journal State
+                // Settle the Original Admission Before Reading Any Newer Journal State
                 if acquisition.pending.is_some() {
                     save_working_revision(&mut acquisition).await?;
                 }
@@ -970,7 +970,7 @@ async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevisi
         })?;
         let sealed = sealed_owner.as_ref().clone();
         acquisition.execution_owner = sealed_owner;
-        // Keep The Mutable Head Unsealed Until This Exact Pending Admission Is Saved
+        // Keep the Mutable Head Unsealed Until This Exact Pending Admission Is Saved
         acquisition.pending = Some(PendingRevision { execution: sealed, receipt: None });
     }
     save_working_revision(acquisition).await?;

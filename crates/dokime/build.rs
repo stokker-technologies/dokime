@@ -7,7 +7,7 @@
  * ***
  */
 
-// Embed The Source Commit And Publication Channel Of This Build
+// Embed the Source Commit and Publication Channel of This Build
 
 /* === Modules === */
 

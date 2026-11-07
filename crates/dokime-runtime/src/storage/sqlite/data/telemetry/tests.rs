@@ -7,7 +7,7 @@
  * ***
  */
 
-// Arrow Catalog, Flush Policy And Live Window Proofs
+// Arrow Catalog, Flush Policy and Live Window Proofs
 
 /* === Modules === */
 

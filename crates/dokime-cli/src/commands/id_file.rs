@@ -7,7 +7,7 @@
  * ***
  */
 
-// Hand Confirmed Identities To Scripts Without Capturing Standard Output
+// Hand Confirmed Identities to Scripts Without Capturing Standard Output
 
 /* === Modules === */
 

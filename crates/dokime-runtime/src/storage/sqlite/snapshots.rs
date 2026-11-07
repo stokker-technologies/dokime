@@ -7,7 +7,7 @@
  * ***
  */
 
-// Fixed Local Catalog And Evidence Cuts Without Retained Reader Transactions
+// Fixed Local Catalog and Evidence Cuts Without Retained Reader Transactions
 
 /* === Modules === */
 

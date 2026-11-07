@@ -104,7 +104,7 @@ export function StepFailure({ detail }: { detail: StepFailureDetail }) {
         <>
           <CollapsibleTrigger className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ChevronDown className={open ? "rotate-180 transition-transform" : "transition-transform"} size={12} />
-            {open ? "Hide details" : "Show details"}
+            {open ? "Hide Details" : "Show Details"}
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="mt-2 grid gap-2 rounded-lg border bg-muted/30 p-2 text-xs leading-snug">

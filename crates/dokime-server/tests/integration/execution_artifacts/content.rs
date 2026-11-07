@@ -108,7 +108,7 @@ impl ExecutionFixture for UploadGate {
 
 /* === Private Functions === */
 
-// A 4 KiB Frame Limit Pages Listings And Chunks Downloads Into Small Frames
+// A 4 KiB Frame Limit Pages Listings and Chunks Downloads into Small Frames
 pub(crate) async fn small_frame_transfer() {
     artifact_transfer(4096).boxed_local().await;
 }
@@ -228,7 +228,7 @@ async fn artifact_transfer(message_bytes: usize) {
     );
 
     if message_bytes >= 1024 * 1024 {
-        // Shared Native Verification And Publication
+        // Shared Native Verification and Publication
         let native = dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None)
             .await
             .unwrap();

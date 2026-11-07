@@ -18,7 +18,7 @@ asyncio.run(main())
 
 The backend reuses `dokime_server::host::Session`, the managed remote pairing controller, `local.lock` and the normal installed-plugin store. Embedded templates use host-level `dokime.template.*` operations; task 4.1 extends `runtime/embedded.rs::EmbeddedProvider` instead of adding another path.
 
-## Rust To Python Calls
+## Rust to Python Calls
 
 Tokio owns the runtime; Rust releases the interpreter while waiting. Async callbacks run on the starting loop; synchronous callbacks run on workers. Operation deadlines remain authoritative; cancellation cancels the Python task and ignored cancellation is reported. Exceptions become operation failures with tracebacks. Shutdown failures are logged and cannot start new work.
 

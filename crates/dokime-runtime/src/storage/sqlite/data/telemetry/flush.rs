@@ -7,7 +7,7 @@
  * ***
  */
 
-// Configured Row-Or-Time Flushes And The Unflushed Read Tail
+// Configured Row-Or-Time Flushes and the Unflushed Read Tail
 
 /* === Modules === */
 

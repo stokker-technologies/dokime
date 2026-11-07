@@ -16,7 +16,7 @@ A distribution SHALL declare its identifier in the installer manifest; packaging
 - **WHEN** a distribution declares no identifier
 - **THEN** directories derive from the compiled identifier
 
-#### Scenario: Install Side By Side
+#### Scenario: Install Side by Side
 
 - **WHEN** a branded distribution is installed
 - **THEN** its install folder, uninstall registry key and package name use its identifier, while installer titles, pages, shortcuts and native display names use the resolved organization manifest's display label

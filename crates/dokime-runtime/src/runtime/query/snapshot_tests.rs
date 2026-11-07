@@ -7,7 +7,7 @@
  * ***
  */
 
-// Snapshot Cut, Seek, Authentication And Restart Proofs
+// Snapshot Cut, Seek, Authentication and Restart Proofs
 
 /* === Modules === */
 

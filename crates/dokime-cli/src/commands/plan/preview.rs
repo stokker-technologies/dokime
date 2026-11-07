@@ -7,7 +7,7 @@
  * ***
  */
 
-// Preview A Canonical Selection Request
+// Preview a Canonical Selection Request
 
 /* === Modules === */
 

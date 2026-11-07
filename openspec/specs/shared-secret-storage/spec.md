@@ -9,12 +9,12 @@ Define host-owned shared secrets and authenticated, bounded transfer without exp
 
 The host SHALL provide freely managed stable named secrets shared through plugin lookup, while app authentication tokens and signing keys remain separate. Organization Packs SHALL contain neither secret values nor plugin secret binding declarations.
 
-#### Scenario: Shared Lookup And Management
+#### Scenario: Shared Lookup and Management
 
 - **WHEN** multiple plugins look up a name that is added, replaced or deleted
 - **THEN** future lookups see its current value or a clear missing-secret error, existing required-secret checks fail before device work where available, and settings show the owning host without exposing values or claiming exhaustive usage.
 
-#### Scenario: Encrypted Transfer And Conflict Preview
+#### Scenario: Encrypted Transfer and Conflict Preview
 
 - **WHEN** an operator exports selected secrets and imports them with explicit conflict choices
 - **THEN** authenticated password encryption protects the transfer, wrong passwords/tampering/invalid or oversized input write nothing, and accepted replace/skip choices publish atomically with no raw values in logs, reports or evidence.

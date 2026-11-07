@@ -73,7 +73,7 @@ pub(super) async fn report_save_receipt() {
     let manager = Manager::new(StorageBackends { primary, state: recovery }, settings).unwrap();
     let runtime = crate::service_support::reports::storage_runtime(&manager).await;
 
-    // Use An Actual Admitted Execution Revision
+    // Use an Actual Admitted Execution Revision
     let finished_at = Timestamp::new("2026-10-06T06:00:00Z");
     let cycle_id = dokime_runtime::model::identity::new_id::<TestCycleId>();
     let case = TestCase {
@@ -213,13 +213,13 @@ pub(super) async fn report_save_receipt() {
     assert!(prepared.save_dependencies(&manager, &Timestamp::new("2030-01-01T00:00:00Z"), &revision).await.is_err());
     assert_eq!(manager.status().saved, saved);
 
-    // Read The Original Native Captured File
+    // Read the Original Native Captured File
     let bytes = dokime_runtime::storage::read_file_bytes(&manager, &original.source.context).await.unwrap();
     assert!(!bytes.is_empty());
     assert_eq!(bytes.len() as u64, original.source.context.length);
     assert_eq!(sha2::Sha256::digest(bytes.as_slice()).as_slice(), original.source.context.sha256.as_slice());
 
-    // Flush The Seal's Own Original Receipt
+    // Flush the Seal's Own Original Receipt
     let mut sealed_execution = original_execution;
     sealed_execution.saved = Some(original.clone());
     let sealed = Execution::try_from(&sealed_execution).unwrap();
@@ -247,7 +247,7 @@ pub(super) async fn report_save_receipt() {
     assert_eq!(crate::service_support::reports::bytes(&manager, &original.report).await, original_bytes);
     assert_eq!(manager.status().accepted, accepted);
 
-    // Inspect The Original Seal And Preserve Its Earlier Evidence Cut
+    // Inspect the Original Seal and Preserve Its Earlier Evidence Cut
     let inspection = dokime_runtime::runtime::ExecutionView::open(
         &manager,
         &sealed_execution.test_execution_id,
@@ -285,7 +285,7 @@ pub(super) async fn report_save_receipt() {
     drop(shared);
     drop(snapshot);
 
-    // Shape-Valid Cut Substitution And Unsealed Revisions Are Refused
+    // Shape-Valid Cut Substitution and Unsealed Revisions Are Refused
     let mut wrong_cut = checkpoint.clone();
     wrong_cut.evidence_through.sequence = 0;
     wrong_cut.validate().unwrap();

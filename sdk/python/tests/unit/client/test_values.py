@@ -51,7 +51,7 @@ def test_datetime_values() -> None:
     date = datetime(2026, 9, 28, 12, 13, 14, 123456, tzinfo=UTC)
     assert decode(_project(date), 64) == date
 
-    # Nanosecond Precision Survives And Orders After The Microsecond Value
+    # Nanosecond Precision Survives and Orders After the Microsecond Value
     precise = _project(DatetimeValue.from_rfc3339("2026-09-28T12:13:14.123456789Z"))
     assert _project(decode(precise, 64)) == precise
     decoded = decode(precise, 64)
@@ -60,7 +60,7 @@ def test_datetime_values() -> None:
     assert decoded > date
     assert len({decoded, date}) == 2
 
-    # Arithmetic Keeps The Precise Wire Representation
+    # Arithmetic Keeps the Precise Wire Representation
     replaced_value = decoded.replace(second=15)
     shifted_value = decoded + timedelta(seconds=1)
     replaced = decode(_project(replaced_value), 64)

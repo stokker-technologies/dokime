@@ -28,7 +28,7 @@ operating conditions, and review the evidence behind each result.
 - **Reusable Procedures:** Define suites, typed parameters, ordered steps, acceptance criteria and explicit cleanup.
 - **Traceability:** Capture and edit device and bench identity from steps; retain it with the execution and reports.
 - **Parameter Sweeps:** Expand one template into operating points without copying the procedure.
-- **Measurements And Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts.
+- **Measurements and Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts.
 - **Operator Workflows:** Combine automation with confirmations and manual checkpoints; keep responses with the execution.
 - **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust authoring API.
 - **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.
@@ -51,17 +51,17 @@ structure, so you can use any instrument library.
 | Open Source | ✓ | – | – | ✓ | ✓ | ◐ | ✗ |
 | Repeatable Procedures | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Pass/Fail Criteria | ✓ | ◐ | ◐ | ✓ | ✓ | ✓ | ✓ |
-| **Running It With People** | | | | | | | |
+| **Running It with People** | | | | | | | |
 | GUI & Operator Flow | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
 | Device & Bench Traceability | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
 | HTML Report Generation | ✓ | ✗ | ✗ | ◐ | ◐ | ◐ | ✓ |
-| **Scaling The Test** | | | | | | | |
+| **Scaling the Test** | | | | | | | |
 | Parameter Sweeps | ✓ | ✗ | ◐ | ✓ | ◐ | ✓ | ✓ |
 | Storage Layer Abstraction | ✓ | ✗ | ✗ | ✗ | ◐ | ◐ | ◐ |
 | Live Measurements | ✓ | ✗ | ◐ | ✗ | ◐ | ◐ | ◐ |
 | Remote Control | ✓ | ✗ | ◐ | ✗ | ◐ | ✓ | ✓ |
 | Long-Run Reliability | ✓ \* | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
-| **Extending And Pushing Limits** | | | | | | | |
+| **Extending and Pushing Limits** | | | | | | | |
 | Plugin Template | ✓ | ✗ | ✗ | ✗ | ◐ | ✓ | ✓ |
 | Sidecar Plugin System | ✓ | ✗ | ✗ | ✗ | ✗ | ◐ | ◐ |
 | Fast Stream Support | ✓ \* | ✗ | ◐ | ✗ | ✗ | ◐ | ◐ |
@@ -250,7 +250,7 @@ defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots without durable case registration revisions, or containing earlier telemetry layouts, plugin identities,
 or evidence indexes without incremental numeric summaries, shared field projections and plot bindings, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
-token identities, indexed record producer scopes, or the indexed telemetry sample identities require a fresh storage root.
+token identities, indexed record producer scopes, indexed telemetry sample identities, or sealed case headers require a fresh storage root.
 Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 Each root records a derived storage format digest and its writer commit before evidence writes.
 A mismatched or populated unmarked root refuses with `StorageFormatMismatch`, preserving its contents; choose a fresh root.
@@ -296,6 +296,7 @@ Live summary tiles fold finite saved-evidence queries with bounded memory. Docum
 capture no longer rejects estimated work based on retained source-row count.
 The page shows its structure first, then each data card loads and refreshes
 independently. A failed card leaves the others available.
+Repeated sections use indexed pages; page navigation keeps one saved evidence cut.
 
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.
@@ -308,6 +309,9 @@ reads continue retrying, while other document failures retry once.
 
 Bug reports, focused fixes, clearer examples and equipment integrations are
 welcome. Read [Contributing](CONTRIBUTING.md) for setup and the review workflow.
+Frozen documents share the live card query path, retain complete authored tables
+and include every repeated-section page at the sealed evidence cut.
+
 The [storage benchmarks](CONTRIBUTING.md#storage-benchmarks) mirror Harmos's storage
 suite using Dokime's default settings and SQLite backend, including writes, reads,
 queries, filesystem operations and concurrent workloads.

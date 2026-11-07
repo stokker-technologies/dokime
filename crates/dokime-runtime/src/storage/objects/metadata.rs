@@ -85,7 +85,7 @@ impl TryFrom<Row> for Metadata {
         for timestamp in [value.created_at.as_deref(), value.updated_at.as_deref()].into_iter().flatten() {
             values::validate_datetime(timestamp)?;
         }
-        // Tags Remain In Authored Order
+        // Tags Remain in Authored Order
         let mut tags = Vec::new();
         tags.try_reserve_exact(value.tags.len()).map_err(|_| Error::Invalid("metadata tag allocation failed"))?;
         tags.extend(value.tags.iter().map(String::as_str));

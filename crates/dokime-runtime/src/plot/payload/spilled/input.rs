@@ -7,7 +7,7 @@
  * ***
  */
 
-// Indexed Disk Ownership For Complex Plot Inputs
+// Indexed Disk Ownership for Complex Plot Inputs
 
 /* === Modules === */
 
@@ -58,7 +58,7 @@ pub(super) struct Read<'a> {
 
 impl Input {
     pub(crate) fn new() -> Result<Self> {
-        // A Private Temporary Database Stays In The Page Cache Until It Exceeds
+        // A Private Temporary Database Stays in the Page Cache Until It Exceeds
         // `cache_size`; SQLite Creates Its Backing File Only When It Spills.
         let connection = Connection::open("").map_err(failure)?;
         connection

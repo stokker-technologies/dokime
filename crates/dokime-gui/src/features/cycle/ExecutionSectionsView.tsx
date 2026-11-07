@@ -123,7 +123,7 @@ export function ExecutionSectionsView({
   artifactsContent,
   documentView: DocumentContent = DocumentViewPresentation,
 }: ExecutionSectionsViewProps) {
-  // Divide The Document Into Sections
+  // Divide the Document into Sections
   const { shared, view } = surface;
   const mainCards = view.sections.flatMap((section) => section.cards).filter(isDocumentSurfaceCard);
   const present = new Set(executionDocumentSections(mainCards));

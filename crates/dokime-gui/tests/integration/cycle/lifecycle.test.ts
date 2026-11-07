@@ -192,7 +192,7 @@ test("Container Seal Controls", () => {
     "Execution 2 · Energize Charger",
   );
 
-  // Sealing And Sealed Offer Nothing
+  // Sealing and Sealed Offer Nothing
   assert.deepEqual(cycleControlState({ phase: "sealing", running: null }), {
     actions: [],
     detail: null,
@@ -200,7 +200,7 @@ test("Container Seal Controls", () => {
   });
   assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], detail: null, line: "Sealed · evidence saved" });
 
-  // A Failed Seal Offers Retry And Archive, Never A Running Control
+  // A Failed Seal Offers Retry and Archive, Never a Running Control
   assert.deepEqual(cycleControlState({ phase: "seal_failed", running: null }).actions, ["Retry Seal", "Archive"]);
 });
 

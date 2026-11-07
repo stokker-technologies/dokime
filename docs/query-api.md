@@ -95,6 +95,11 @@ emit work projections in their state journal transaction, so status filters and
 cycle running counts observe committed work before the next checkpoint. Native
 checkpoints retain the latest committed lifecycle projection. Revision indexes support
 exact template/status/cycle/archive filters and normalized UTC time/ID seeks.
+Sealed execution projections retain case headers. Opening a cycle reads its header
+and indexed case count; listing its cases reads those headers in the sealed member
+order, retaining the first case definition and the latest attempt status and count.
+Complete cycle inspection still validates every member's exact saved execution.
+Development roots without sealed case headers require a fresh storage root.
 Later metadata and archive changes append projections; earlier catalog cuts
 keep their original membership, values and ordering. Cycle membership is indexed
 at the same revision. History capture flushes only the fixed admitted metadata
@@ -163,13 +168,37 @@ Captured contracts include retained Arrow versions from the selected execution o
 ## Document Bindings
 
 Live document summaries use finite storage queries at their captured saved boundary.
-Compatible unfiltered telemetry statistics reuse the numeric index, including an
-exact median rank query. Integer index answers require lossless bounds; otherwise
-folds consume bounded typed pages and exact order statistics spill scratch.
+Compatible unfiltered telemetry statistics reuse typed numeric prefix checkpoints.
+Count, min, max, mean and RMS are maintained during ingest; a cut within a saved
+batch reads only the bounded remainder after its checkpoint. Integer extrema and
+totals remain lossless. Median selects exact ranks from the ordered distinct-value
+dictionary and its occurrence index at the same cut. Other folds consume bounded
+typed pages, with exact order statistics spilling scratch where required.
+Null telemetry roots do not create occurrence rows; their saved schema preserves
+field presence, alias precedence and null predicates across contract versions.
 Record bindings seek execution-owned record pages and preserve subscribed capture
-scope. The document structure is authored metadata, with no row-based evaluation
+scope. Live record summaries and distinct repeats also retain the prepared journal
+epoch/revision, excluding records admitted later in that epoch even if the physical
+saved cursor has advanced. Continuations retain both coordinates. The document structure is authored metadata, with no row-based evaluation
 estimate or document source-row ceiling. Encoded output and actual expansion have
 presentation budgets independently of raw evidence retention.
+
+Repeated sections enumerate indexed distinct values, including row-local filters
+and ordering, through authenticated pages at one saved cut. Their persisted
+continuation context contains the authored definition, scalar execution context
+and traversal position. It contains no raw evidence or in-memory capture registry.
+The capture stream emits a Page frame with current and optional next tokens;
+selected-card requests carry the current page token. A continuation is bound to
+its document and scope. Numeric values order exactly across signed integers,
+unsigned integers and floats; other values use a deterministic typed order.
+The current development storage layout remains v1 and requires a fresh root;
+existing roots are neither migrated nor reset.
+
+Frozen report materialization supplies the same evaluator with storage, query
+configuration, captured scalar context and its sealed cursor. It drains indexed
+repeat pages and evaluates each binding at that cursor. The former raw document
+acquisition and Document runtime view/frame APIs have been removed; use the
+current capture operation for live documents.
 
 The capture operation supports metadata and selected-binding projections:
 
@@ -236,7 +265,7 @@ selection and reducer; each page rescans the fixed cut within its work budget,
 without retaining a transaction or sample history between calls. Schema,
 snapshot and the longest required continuation count against page byte limits.
 
-## Finite Records And Follow
+## Finite Records and Follow
 
 `RuntimeHandle::query_list_records` selects one record type within an execution
 or cycle, optionally narrowed to a member execution. It reads the existing indexed
@@ -267,7 +296,7 @@ can change between calls. Schema, snapshot and continuation metadata count towar
 the page ceiling. An indivisible oversized row or metadata, work exhaustion,
 corruption or unavailable cut returns a typed failure, never a complete subset.
 
-## Transport Access And CLI Paging
+## Transport Access and CLI Paging
 
 Native and gRPC calls use the runtime's five canonical handlers. Existing remote
 keys grant full product read access; native-only operations keep their separate

@@ -6,7 +6,7 @@
 - [x] 1.4 Cover marker-free plots and frozen report rendering and toggles with targeted tests.
 - [x] 1.5 Update docs/gui.md and review README impact; refresh generated report resources through its task.
 
-## Validation And Delivery
+## Validation and Delivery
 
 - [x] 2.1 Pass touched TypeScript tests, GUI format, lint and type checks; verify forbidden diff terms are absent.
 - [ ] 2.2 Commit, push and verify remote SHA; open PR to dev and squash immediately using the authorized subject.

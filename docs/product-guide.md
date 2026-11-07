@@ -2,7 +2,7 @@
 
 Detailed concepts, supported interfaces and existing authoring examples. For installation, start with the [Quick Start](../README.md#quick-start).
 
-## Install Tools With Mise
+## Install Tools with Mise
 
 Select the CLI and authoring tool from one release in your mise configuration,
 the same form generated plugin projects use:
@@ -248,7 +248,7 @@ firewall notice reports blocked access, optionally select **Allow In Firewall…
 and approve the administrator prompt; the rule covers that profile for peers on
 the same subnet. Installation never changes firewall rules.
 
-## Full-Control Access And Plugin Capabilities
+## Full-Control Access and Plugin Capabilities
 
 A valid access key grants full control over remote product operations and
 installed plugins, including request-dependent channel, stream and source scopes.
@@ -554,7 +554,7 @@ human display text. No `name` alias is accepted in secret contracts.
 
 Saving a changed value in **Settings → Plugins** keeps the program running with
 its startup values. The backend compares saved values against that generation
-and marks differing fields **Applied On Reload** with a warning highlight.
+and marks differing fields **Applied on Reload** with a warning highlight.
 These marks survive navigation, a GUI restart and another attached GUI. A backend
 restart starts programs with their saved settings.
 
@@ -567,7 +567,7 @@ generation, saved settings and field marks, with **Restart Refused** and its rea
 A plugin with no running program starts immediately, including during an active
 cycle. An idle open cycle, sealing and completed report publication hold no plugin.
 
-### Plugin Startup And Stop Timeouts
+### Plugin Startup and Stop Timeouts
 
 **Settings › Plugins** also holds the backend's **Plugin Startup Timeout [s]**
 (default 60 s), the time each plugin program has to launch and become ready, and,
@@ -584,7 +584,7 @@ Saved preferences use the current defaults for absent sections or fields, so an
 existing backend data root starts with default plugin budgets until they are set.
 Explicit saved values remain in effect and must pass validation.
 
-### Installing And Removing Plugins
+### Installing and Removing Plugins
 
 Installing, reinstalling or updating a plugin in **Settings → Plugins**, and
 enabling, disabling or removing one, take effect in the running backend; nothing
@@ -674,12 +674,12 @@ window and batch size are settings. Windows ICMP reply storage follows the
 native API's required trailer layout. These are measurement or protocol
 definitions rather than deployment tunables.
 
-#### Ordinary Settings And Shared Secrets
+#### Ordinary Settings and Shared Secrets
 
 **Settings → Plugins** keeps ordinary plugin settings editable after startup
 fails. Its read-only **Required Secrets** list shows each declared identifier,
 whether it is required or optional, and whether it exists in Secret Storage.
-**Add In Secret Storage** opens **Add Secret** with that exact identifier prefilled.
+**Add in Secret Storage** opens **Add Secret** with that exact identifier prefilled.
 Secret values are entered only in Secret Storage; the plugin settings form has no
 secret fields. Existing saved references are ignored on load without migrating
 values or changing storage v1. A stored identifier such as `example.api_token` does
@@ -690,7 +690,7 @@ Declare `api_token: dokime::plugin::Secret` for a required shared identifier or
 the store identifier; secret declarations have no default or `from_environment`
 argument. Rebuild external plugins against the matching SDK after this clean break.
 
-## Planning And Creating Cycles
+## Planning and Creating Cycles
 
 Name a template by the readable ID that `dokime catalog show` lists. Preview
 its cases, then materialize them before constructing execution attempts:
@@ -875,7 +875,7 @@ uncertain, inspect the backend before creating another container.
 
 ## Examples
 
-### Qualify An On-Board Charger
+### Qualify an On-Board Charger
 
 Harmos supplies the runtime and plugin boundary. Applications use
 `Runtime::<A>::launch(origin, config)` with the shared `Lifecycle`: `prepare`
@@ -890,7 +890,7 @@ steady-state measurement, overcurrent protection, and recovery. It models a
 charger testbench for learning the workflow; it is not a validated electrical
 model or a ready-made vehicle qualification standard.
 
-### Define The Operating Points
+### Define the Operating Points
 
 A shortened version of OBC's
 [steady-state parameters](../plugins/sidecars/obc/src/suites/steady/measurement.rs) declare the
@@ -921,7 +921,7 @@ pub struct Parameters {
 The template names its parameter type once. Every expanded case resolves those
 inputs before execution, so the procedure and its document see the same values.
 
-### Run The Procedure And Capture Evidence
+### Run the Procedure and Capture Evidence
 
 OBC's [steady-state template](../plugins/sidecars/obc/src/suites/steady/measurement.rs)
 initializes shared device resources, energizes the charger, observes its
@@ -1115,7 +1115,7 @@ Stop still waits for all captured files and the durable execution seal.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 
-### Capture And Edit Traceability
+### Capture and Edit Traceability
 
 Steps contribute traceability through their context, alongside document additions:
 
@@ -1137,7 +1137,7 @@ observers and cleanup have no traceability mutation handle. The former template
 `traceability()` lifecycle method is removed; move identity discovery into steps.
 The storage baseline remains v1 and existing storage is never automatically reset.
 
-### Present The Result
+### Present the Result
 
 Compose plots from the same typed measurement fields used by the procedure.
 This shortened example follows OBC's
@@ -1203,13 +1203,30 @@ The document page shows its authored structure immediately. Data cards load and
 refresh independently, so a slow median or a failing card leaves the others
 available. An error stays inside its affected card and can be retried there.
 
+Repeated sections read a durable index of distinct values and fill one page at a
+time. Previous Page and Next Page keep the same captured evidence and authored
+definition; Latest returns to live refresh. Page cursors retain scalar execution
+context, without keeping raw telemetry or a document registry in memory. Generated
+repeat identities use the typed value rather than its display label.
+
 Live summary tiles query saved evidence at a fixed capture boundary. Numeric folds
-retain bounded working state, and exact median/percentile values spill rank scratch
-instead of collecting a run's samples into the document. Record summaries seek
+use ingest-maintained count, min, max, mean and RMS checkpoints where applicable.
+A boundary inside a saved batch folds only its bounded remainder. Integer extrema
+and totals retain their exact representation, including values above f64 precision.
+Median selects exact ranks from the ordered distinct-value dictionary and its
+occurrence index. Other numeric folds retain bounded working state, and exact
+order statistics spill scratch where required instead of collecting a run's
+samples into the document. Record summaries seek
 indexed record pages. Building a document no longer estimates evaluation cost from
 its definition size multiplied by source rows, and there is no document source-row
 ceiling. Limits apply to actual encoded output and expanded nodes; an exceeded
 card budget identifies the card, budget, limit and reached amount.
+
+Frozen documents use the same card queries at the sealed evidence cut. Report
+materialization drains every repeated-section page and retains every authored
+table row. It reads no full telemetry or record history into document inputs;
+telemetry and record previews remain bounded separately from document content.
+Later evidence cannot change the sealed statistics or repeated sections.
 
 ## Finite Evidence Queries
 
@@ -1260,7 +1277,7 @@ command prints its full flags with `--help`. Backend RPC commands accept
 `--endpoint` or `--backend` and `--timeout-seconds` for unary waits; streaming
 transfers use their operation idle policy. Most accept `--json` for scripts.
 
-### Connection And Backends
+### Connection and Backends
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
@@ -1269,7 +1286,7 @@ transfers use their operation idle policy. Most accept `--json` for scripts.
 | `dokime server` | Run the server in the CLI process. | `--application-root`, `--port` |
 | `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
 
-### Catalog And Plans
+### Catalog and Plans
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
@@ -1278,7 +1295,7 @@ transfers use their operation idle policy. Most accept `--json` for scripts.
 | `dokime plan register` | Register cases with a caller-retained idempotency key. | `--template`, `--request-key`, `--max-cases` |
 | `dokime plan materialize` | Materialize template cases without creating executions. | `--template`, `--parameters-json`, `--id-only` |
 
-### Cycles And Executions
+### Cycles and Executions
 
 Exercised by [control-test](../sdk/python/examples/remote/cli/control-test.sh)
 and [control-prompt](../sdk/python/examples/remote/cli/control-prompt.sh).
@@ -1347,7 +1364,7 @@ admitted rows/bytes, and runtime operation admission bounds active and waiting
 queries. The [query contracts](query-api.md) describe page/failure shapes and
 [finite records versus follow](query-api.md#finite-records-and-follow).
 
-### Operations And Plugins
+### Operations and Plugins
 
 The [Query API Foundations](query-api.md) describe the finite query declarations;
 the five operations share runtime handlers and existing read authorization.
@@ -1576,7 +1593,7 @@ Because the text is copied verbatim, the pack's `file` must be UTF-8 on Linux.
 RPM packages carry the same file as documentation; their license metadata
 remains the `License` tag.
 
-#### Distribution From A Release
+#### Distribution from a Release
 
 Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.
 Use an exact semantic version such as `"0.1.3"`, `"nightly"`, or omit the key
@@ -2068,7 +2085,7 @@ unreadable: a scoped request cannot safely infer membership from corrupt catalog
 Roots without indexed record producer scopes require a fresh root. This clean
 break retains the v1 baseline and does not upgrade or reset existing storage.
 
-## Long-Running Evidence And Report Saves
+## Long-Running Evidence and Report Saves
 
 Telemetry admission retains a bounded in-memory tail. A flush writes a
 ZSTD-compressed Arrow batch and syncs it before committing SQLite catalog metadata
@@ -2129,7 +2146,7 @@ the preview cap. Medians and percentiles use those inputs when available;
 longer captures replay the selected stream's numeric Arrow columns through
 the saved frontier and sort them in disposable SQLite storage. The replay
 uses bounded pages and a bounded SQLite cache; it does not build a permanent
-rank index during ingestion. Raw evidence remains unchanged. Development roots
+rank counts during ingestion. Raw evidence remains unchanged. Development roots
 with older evidence indexes need a fresh storage root and are never reset
 automatically.
 

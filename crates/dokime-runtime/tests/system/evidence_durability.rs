@@ -7,7 +7,7 @@
  * ***
  */
 
-// Evidence Durability Through Actual SQLite Fault And Retry Boundaries
+// Evidence Durability Through Actual SQLite Fault and Retry Boundaries
 
 /* === Modules === */
 

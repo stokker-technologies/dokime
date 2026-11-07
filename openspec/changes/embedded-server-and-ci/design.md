@@ -1,4 +1,4 @@
-# Composition And Ownership
+# Composition and Ownership
 
 The existing server library owns boot, listener/runtime resources and bounded drain in a running session. CLI and GUI supply configuration and own process-global tracing, signal handling and presentation. Embedding must not install a second global subscriber or signal handler. Partial startup failures release acquired resources.
 
@@ -48,7 +48,7 @@ Linux native picker automation observes the owned GTK dialog's realized controls
 
 Dropping or selecting a bundle performs one streamed Install operation using the existing verified header, chunks and digest protocol. Runtime installation verifies bundle integrity and configured/installed owner collisions before atomically publishing Installed settings with installed_at. Stage, Consent, staged state, consent metadata, expiry, review dialogs and their obsolete stories are removed together. Activation retains the existing next-start behavior. Rejected installations preserve existing installed state; unreferenced failed outputs are reclaimed without deleting installed bytes. Mutation ownership survives transport cancellation, and clients reconcile the outcome rather than blindly reinstalling. No approval adapter, persistent verification cache or deadline workaround is introduced.
 
-## Test Hang Guards And Performance
+## Test Hang Guards and Performance
 
 Tests use a minimum 120-second hang guard and retain higher limits, as explicitly authorized after runner-dependent thirty-second failures. This is a correctness watchdog, not a performance assertion: normal application operations are still expected to finish in less than ten seconds, and a pass after increasing a guard does not establish acceptable speed. Benchmarks own performance measurements. No compiler optimization exceptions accompany this policy. Product and starter configuration declare unit and integration deadlines of 120 seconds and preserve acceptance and system deadlines of 900 seconds; generated policy follows its owning configuration.
 
@@ -73,7 +73,7 @@ The user retired the compiler-color test; remove it and its routing rather than 
 
 An explicit nonempty `DOKIME_APPLICATION_ROOT` also owns Tauri's native application directories. Resolve relative roots against the working directory before configuring the native directory override. This keeps report and media staging within the selected application root on Windows; absent or empty overrides preserve native defaults. Owned report-browser path checks remain enforced.
 
-## Shared Preflight And Report File Retries
+## Shared Preflight and Report File Retries
 
 Compiler entry points adopt the shared preflight that reclaims idle disposable Cargo output above 64 GiB while preserving declared build/test/package artifacts; local simulation retains serial jobs without thread or memory limits. Shared Docker cleanup removes only owned disposable execution state. Root and managed starters use the same rendered helpers. Impact rules use include with their existing selectors; provider protections remain untouched by --no-provider renders.
 

@@ -4,7 +4,7 @@
 
 Arrow IPC telemetry storage is landed on `dev`. This retained change owns its remaining query-latency obligation. The query-only follow-up in `perf/arrow-query` preserves the landed format, write path, finalize and export contracts. Motivation and the original locked decisions remain in `proposal.md`.
 
-## Goals And Non-Goals
+## Goals and Non-Goals
 
 Retain durable evidence and live queries while eliminating per-signal writes and export payload conversion. No Harmos changes, Parquet, compatibility adapters, development-data migrations, silent storage resets, installers or example-plugin changes.
 
@@ -30,7 +30,7 @@ Keep the block list in memory and in the SQLite batch index. Finalize reads no p
 
 The IPC file starts with eight bytes of magic/padding before its embedded stream. A recovery stream reader skips that header. Preserve readable flushed batches and rebuild the footer without decoding their payloads.
 
-## Ownership And Dependency Order
+## Ownership and Dependency Order
 
 The query follow-up has one writer in the current `perf/arrow-query` worktree; its initial tree was clean at the merged Arrow storage commit and tracked `origin/dev`. Tasks lock the source inventory. The change is activated through `stkr specification start arrow-telemetry-storage` with a native persistent goal.
 
@@ -58,11 +58,11 @@ Exact medians retain finite numeric values within one existing response-byte bud
 
 The plot integration fixture still asserted full-history report XY/histogram output removed by the locked `long-execution-finalize` bounded-report contract. Its report checks now require explicit unavailable frames and compare supported indexed summaries with live numeric queries; live reduction fixtures and the typed-integer expression retain query coverage. Report implementation and persistence stay unchanged.
 
-## Validation And Delivery
+## Validation and Delivery
 
 Use discovered mise tasks with standard compiler preflight and `UV_PROJECT_ENVIRONMENT` absent; do not redirect Python or temporary environments. Run targeted proof during implementation. After complete source closure, run the requested workspace checks/format and the existing benchmark task exactly once with an origin/dev comparison; no installers or umbrella lanes. TypeScript check/lint applies only if GUI changes. The owner's explicit no-push instruction overrides ordinary delivery automation.
 
-## Risks And Rollout
+## Risks and Rollout
 
 Cross-resource durability needs fault tests proving fsync → catalog commit → saved-cursor publication. Recovery must preserve existing storage and Windows handle ownership. New incompatible roots remain explicit operator choices; existing roots are never reset.
 

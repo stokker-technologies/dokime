@@ -131,7 +131,7 @@ impl Serialize for Members<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(Some(self.executions.len()))?;
         for (id, execution) in self.executions {
-            // One Lean Copy At A Time Keeps The Encoder's Peak Memory To One Member
+            // One Lean Copy at a Time Keeps the Encoder's Peak Memory to One Member
             let snapshot = &execution.snapshot;
             let mut lean = lean_clone(execution);
             let mut telemetry_outputs = Vec::new();

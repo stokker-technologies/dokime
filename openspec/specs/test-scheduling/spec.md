@@ -20,7 +20,7 @@ exit statuses and time summaries. Five minutes is a soft target, never a deadlin
 ### Requirement: Isolated Parallel Workers
 The runners SHALL parallelize isolated tests while preserving resource ownership.
 
-#### Scenario: Shared Inputs And Exclusive Desktop
+#### Scenario: Shared Inputs and Exclusive Desktop
 - **WHEN** concurrent lanes consume wheels, generated contracts and fixture artifacts
 - **THEN** preparation finishes before readers start and no lane rewrites those inputs
 - **AND** independent native desktop workflows run concurrently with their own roots and ports inside one exclusively owned desktop lane

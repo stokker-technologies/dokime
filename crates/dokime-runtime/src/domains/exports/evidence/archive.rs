@@ -7,7 +7,7 @@
  * ***
  */
 
-// Write Bounded Verified ZIP Payloads And Manifest
+// Write Bounded Verified ZIP Payloads and Manifest
 
 /* === Modules === */
 

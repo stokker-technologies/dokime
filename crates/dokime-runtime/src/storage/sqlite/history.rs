@@ -7,7 +7,7 @@
  * ***
  */
 
-// Versioned Local Catalog Projections At Durable Cuts
+// Versioned Local Catalog Projections at Durable Cuts
 
 /* === Modules === */
 
@@ -24,7 +24,7 @@ mod tests;
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{Message, storage::ObjectEntry};
+use harmos::{MemorySize, Message, storage::ObjectEntry};
 use rusqlite::{Connection, params, types::Value};
 use serde::{Deserialize, Serialize};
 
@@ -90,6 +90,7 @@ struct ExecutionProjection {
     #[serde(flatten)]
     summary: ExecutionSummary,
     suite_id: Option<SuiteId>,
+    case: Option<crate::runtime::query::cases::CaseHeader>,
 }
 
 #[derive(Clone)]
@@ -118,15 +119,62 @@ pub(super) struct Plan {
 /* === Implementations === */
 
 impl State {
+    pub(crate) async fn cycle_case_headers(
+        &self, cycle: String, members: Vec<(String, u64)>, maximum: u64,
+    ) -> Result<Vec<crate::runtime::query::cases::CaseHeader>, Error> {
+        let members = members.into_iter().map(|(id, sequence)| (id, super::data::position(sequence))).collect::<Vec<_>>();
+        let members = serde_json::to_string(&members)?;
+        self.read(move |connection| {
+            Ok((|| {
+                let mut statement = connection.prepare(
+                    "SELECT h.body FROM json_each(?1) m CROSS JOIN query_history h
+                WHERE h.kind='execution' AND h.id=json_extract(m.value,'$[0]') AND h.cycle=?2
+                AND h.revision=(SELECT n.revision FROM query_history n
+                    WHERE n.kind='execution' AND n.id=json_extract(m.value,'$[0]') AND n.position=json_extract(m.value,'$[1]')
+                    ORDER BY n.revision DESC LIMIT 1)
+                ORDER BY CAST(m.key AS INTEGER)",
+                )?;
+                let mut rows = statement.query(params![members, cycle])?;
+                let mut headers = Vec::new();
+                let mut bytes = 0u64;
+                let mut retained = std::mem::size_of_val(&headers) as u64;
+                while let Some(row) = rows.next()? {
+                    let body = super::data::blob(row, 0)?;
+                    bytes = bytes.saturating_add(body.len() as u64);
+                    if bytes > maximum {
+                        return Err(Error::Budget {
+                            budget: "cycle case headers",
+                            limit: maximum,
+                            reached: bytes,
+                        });
+                    }
+                    let projection: ExecutionProjection = serde_json::from_slice(body)?;
+                    let case = projection.case.ok_or_else(|| Error::Incompatible("local catalog lacks sealed case headers".into()))?;
+                    retained = retained.saturating_add(case.memory_size() as u64);
+                    if retained > maximum {
+                        return Err(Error::Budget {
+                            budget: "cycle case headers",
+                            limit: maximum,
+                            reached: retained,
+                        });
+                    }
+                    headers.push(case);
+                }
+                Ok(headers)
+            })())
+        })
+        .await?
+    }
+
     pub(crate) async fn history_cycle_case_count(&self, cycle: String) -> Result<u64, Error> {
         self.read(move |connection| {
             connection.query_row(
-                "SELECT COUNT(DISTINCT json_extract(h.body,'$.case_id')) FROM query_history h INDEXED BY query_history_cycle
-             WHERE h.kind='execution' AND h.cycle=?1 AND NOT EXISTS(
-                     SELECT 1 FROM query_history n WHERE n.kind=h.kind AND n.id=h.id AND n.revision>h.revision)
-                 AND EXISTS(SELECT 1 FROM query_members m WHERE m.cycle=?1 AND m.execution=h.id
-                     AND m.position=(SELECT c.position FROM query_history c WHERE c.kind='cycle' AND c.id=?1
-                         ORDER BY c.revision DESC LIMIT 1))",
+                "SELECT COUNT(DISTINCT json_extract(h.body,'$.case_id')) FROM query_members m CROSS JOIN query_history h
+             WHERE m.cycle=?1 AND m.position=(SELECT c.position FROM query_history c
+                 WHERE c.kind='cycle' AND c.id=?1 ORDER BY c.revision DESC LIMIT 1)
+                 AND h.kind='execution' AND h.id=m.execution AND h.cycle=?1
+                 AND h.revision=(SELECT n.revision FROM query_history n
+                     WHERE n.kind='execution' AND n.id=m.execution ORDER BY n.revision DESC LIMIT 1)",
                 [cycle],
                 |row| row.get::<_, i64>(0),
             )
@@ -216,6 +264,19 @@ pub(super) fn index(connection: &Connection, object: &ObjectEntry) -> Result<(),
                 serde_json::to_string(&summary.status)?,
                 summary.started_at,
                 serde_json::to_vec(&ExecutionProjection {
+                    case: execution.saved.as_ref().map(|_| {
+                        crate::runtime::query::cases::CaseHeader::new(
+                            execution.snapshot.case(),
+                            0,
+                            crate::runtime::query::cases::CaseProjection {
+                                status: Some(crate::runtime::query::cases::status(Some(&execution))),
+                                latest_execution_id: Some(execution.test_execution_id.clone()),
+                                latest_execution_status: Some(execution.status.clone()),
+                                attempt_count: 1,
+                                actions: Default::default(),
+                            },
+                        )
+                    }),
                     summary,
                     suite_id: execution.scope.suite_id,
                 })?,

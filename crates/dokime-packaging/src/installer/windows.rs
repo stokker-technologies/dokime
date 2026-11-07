@@ -101,7 +101,7 @@ pub(super) fn replace(path: &Path, icon: &Icon) -> Result<(), Error> {
     std::fs::write(path, bytes)?;
     let old = resources(path, &[ICON, GROUP_ICON])?;
 
-    // Replace Every Icon And Language
+    // Replace Every Icon and Language
     let filename = wide_path(path)?;
     let handle = unsafe { BeginUpdateResourceW(filename.as_ptr(), 0) };
     if handle.is_null() {

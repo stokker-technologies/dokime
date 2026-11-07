@@ -20,7 +20,7 @@ an explicit root for distributions with their own.
 - **WHEN** the GUI's local backend or another process owns the root
 - **THEN** startup raises `BackendRunning` naming the root and leaves its data untouched
 
-#### Scenario: GUI Local Start During A Script
+#### Scenario: GUI Local Start During a Script
 - **WHEN** the GUI starts its local backend while a script owns the root
 - **THEN** the GUI reports the existing running-backend refusal and still allows attaching
 
@@ -39,7 +39,7 @@ A running backend SHALL export a pairing file the GUI can import.
 A Python-started backend SHALL load the root's installed plugins exactly as the GUI's
 backend does, with no option to skip them.
 
-#### Scenario: Installed And Python Plugins Together
+#### Scenario: Installed and Python Plugins Together
 - **WHEN** the root has an installed plugin and the script registers a Python plugin
 - **THEN** both appear in the catalog and either can run
 
@@ -51,7 +51,7 @@ remains in the data root.
 - **WHEN** the GUI starts on the root after the script exits
 - **THEN** the plugin is absent from its catalog and its sealed evidence stays readable
 
-#### Scenario: Re-Run Without The Plugin
+#### Scenario: Re-Run Without the Plugin
 - **WHEN** a user selects a finished execution whose Python plugin is absent
 - **THEN** the view reads its evidence and starting it again reports the plugin is unavailable
 

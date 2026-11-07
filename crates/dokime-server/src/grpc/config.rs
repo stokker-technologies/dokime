@@ -147,7 +147,7 @@ impl Config {
         let item_messages = NonZeroUsize::new(SERVER_INPUT_ITEM_MESSAGES as usize).unwrap();
         let stream = dokime::harmos::operations::StreamSettings {
             items: NonZeroUsize::new(SERVER_STREAM_ITEMS as usize).unwrap(),
-            // Admitting One Decoded Input Item Charges Its Canonical Buffer And Its Decoded Value,
+            // Admitting One Decoded Input Item Charges Its Canonical Buffer and Its Decoded Value,
             // Each Nearly A Whole Message, Plus The Value's Native Layout. Two Messages Fall Short
             // By That Layout For A Full Upload Chunk, So The Single-Item Budget Holds Three.
             bytes: bytes.saturating_mul(item_messages),

@@ -12,13 +12,13 @@ The desktop and CLI SHALL share one backend connection registry, separate from a
 - **THEN** it presents reconnect and backend-selection controls
 - **AND** it neither silently starts Local nor retries forever
 
-#### Scenario: Delete The Active Backend
+#### Scenario: Delete the Active Backend
 
 - **WHEN** the user confirms deletion of the active row
 - **THEN** the same registry mutation as CLI remove runs and clears the default when necessary
 - **AND** that connection generation disconnects
 
-#### Scenario: Select A Backend
+#### Scenario: Select a Backend
 
 - **WHEN** the user selects a profile
 - **THEN** selection validates that the profile still matches the selected snapshot

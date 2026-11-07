@@ -4,7 +4,7 @@
 The package SHALL be a PyO3 interface beside the GUI and the CLI, holding no domain
 logic of its own.
 
-#### Scenario: Behaviour Lives In Rust
+#### Scenario: Behaviour Lives in Rust
 - **WHEN** a Python call starts a cycle, reads evidence or runs a plugin operation
 - **THEN** the behaviour runs in the existing Rust crates through a wrapper
 
@@ -36,7 +36,7 @@ The package SHALL provide every behaviour in the `python-client` capability, rep
 - **WHEN** the change completes
 - **THEN** `packages/dokime-client` and its build, test and release wiring are gone
 
-### Requirement: One Wheel Per Machine
+### Requirement: One Wheel per Machine
 Each supported platform SHALL build one abi3 wheel for all supported Python versions,
 after the product build and outside default workspace builds.
 
@@ -51,7 +51,7 @@ after the product build and outside default workspace builds.
 ### Requirement: Python System Lane
 A `test:python:system` lane SHALL prove the whole flow on every required platform, running in Nightly rather than on pull requests.
 
-#### Scenario: End To End Story
+#### Scenario: End to End Story
 - **WHEN** a script starts a backend with a Python plugin, exports a pairing file, attaches
   a client through it, runs an execution with a prompt and a stream, then exits
 - **THEN** a new backend on that root reads the sealed report without the plugin

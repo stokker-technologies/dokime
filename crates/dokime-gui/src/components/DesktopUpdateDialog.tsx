@@ -124,7 +124,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
                     ? `Update ${update.version} Available`
                     : update.status === "disabled"
                       ? "Updates Disabled"
-                      : "Up To Date"}
+                      : "Up to Date"}
                 </div>
                 <p className="text-muted-foreground">{update.body ?? `Current Version ${update.currentVersion}`}</p>
               </div>
@@ -142,7 +142,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
               })
             }
           >
-            Check For Updates
+            Check for Updates
           </Button>
           <Button
             disabled={busy || !update?.candidate}

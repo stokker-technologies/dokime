@@ -70,7 +70,7 @@ beforeAll(async () => {
   );
   contractPaths = new Set(inventory.contracts.flatMap(({ grpc }) => (grpc ? [`/${grpc.package}.${grpc.service}/${grpc.method}`] : [])));
 
-  // Canonical Descriptors, As The Generated Modules Embed Them
+  // Canonical Descriptors, as the Generated Modules Embed Them
   files = [];
   for (const path of sources.keys()) {
     if (!path.endsWith("_pb.ts")) continue;

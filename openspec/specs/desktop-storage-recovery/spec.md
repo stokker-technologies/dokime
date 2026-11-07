@@ -26,7 +26,7 @@ removal after backup. Only confirmation SHALL start backup and reset.
 - **WHEN** backup cannot complete
 - **THEN** no root contents are deleted
 
-### Requirement: Preserve Installations And Secrets
+### Requirement: Preserve Installations and Secrets
 
 Recovery SHALL retain installed bundles, enabled state and valid settings, preserve
 readable node identity and secret catalog, and leave credentials untouched. Bundled
@@ -44,7 +44,7 @@ and orphan bundles; unreadable metadata SHALL allow recovery of bundle files.
 - **WHEN** the new backend refuses a recovered bundle
 - **THEN** startup completes and the plugin inventory exposes its failure
 
-#### Scenario: Removed And Orphan Bundles
+#### Scenario: Removed and Orphan Bundles
 
 - **WHEN** readable metadata records an installation as removed or does not reference a bundle file
 - **THEN** automatic recovery excludes that bundle

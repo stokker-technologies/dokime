@@ -7,7 +7,7 @@
  * ***
  */
 
-// Independent Pairing Verifiers And Bounded Client Lifecycles
+// Independent Pairing Verifiers and Bounded Client Lifecycles
 
 /* === Modules === */
 

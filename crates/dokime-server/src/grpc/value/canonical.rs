@@ -7,7 +7,7 @@
  * ***
  */
 
-// Project Bounded Native Values Into Canonical Messages
+// Project Bounded Native Values into Canonical Messages
 
 /* === Modules === */
 

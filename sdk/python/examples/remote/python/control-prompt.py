@@ -33,7 +33,7 @@ from dokime.client import Cycle, DokimeClient, DokimeError, Execution
 # Connection Parameters
 PAIRING_FILE = Path("../lab.dokime-remote")
 
-# Case And Execution Parameters
+# Case and Execution Parameters
 TEMPLATE = "obc.checks.pulse"
 CYCLE_LABEL = "Remote Confirmation Demonstration"
 ANSWER = "yes"
@@ -64,7 +64,7 @@ async def run() -> int:
         execution: Execution | None = None
         exported = False
         try:
-            # Materialize The Confirmation Case And Append Its Attempt
+            # Materialize the Confirmation Case and Append Its Attempt
             template = await client.template(TEMPLATE)
             (test_case,) = await template.materialize(parameters={"require_confirmation": True})
             attempt = Execution(test_case)
@@ -75,7 +75,7 @@ async def run() -> int:
             await cycle.append([attempt])
             execution = attempt
 
-            # Start Without Blocking So The Script Can Answer Its Prompt
+            # Start Without Blocking So the Script Can Answer Its Prompt
             await execution.start()
             # Python Lists Pending Prompts But Offers No Blocking Next-Prompt Call.
             # This One Bounded Wait Ends At A Prompt, A Saved Seal Or The Deadline.
@@ -92,7 +92,7 @@ async def run() -> int:
                         raise ValueError("execution sealed without the expected confirmation")
                     await asyncio.sleep(0.2)
 
-            # Inspect And Answer This Exact Execution's Prompt Once
+            # Inspect and Answer This Exact Execution's Prompt Once
             print(f"Prompt: {prompt.id} Execution: {execution.id}", flush=True)
             question = await execution.prompt(prompt.id)
             print("Question:", json.dumps(question), flush=True)
@@ -110,7 +110,7 @@ async def run() -> int:
             return 0
 
         except asyncio.CancelledError:
-            # Recover Only This Script's Execution And Cycle
+            # Recover Only This Script's Execution and Cycle
             print("Cancellation Requested; Waiting For Saved Evidence", file=sys.stderr, flush=True)
             if cycle is None:
                 print("Cycle Creation Was Not Confirmed; Inspect The Server Before Creating Another", file=sys.stderr, flush=True)

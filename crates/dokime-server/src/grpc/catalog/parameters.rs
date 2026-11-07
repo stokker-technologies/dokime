@@ -7,7 +7,7 @@
  * ***
  */
 
-// Catalog Parameter Projection And Value Validation
+// Catalog Parameter Projection and Value Validation
 
 /* === Modules === */
 

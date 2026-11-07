@@ -377,6 +377,13 @@ pub struct DocumentFrame {
     pub frame: Option<DocumentFrameFrame>,
 }
 
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DocumentPage {
+    pub current: String,
+    pub next: Option<String>,
+}
+
 /* === Enums === */
 
 #[harmos::message]
@@ -533,6 +540,7 @@ pub enum DocumentFrameFrame {
     EvidenceCut(DocumentEvidenceCut),
     SectionRemoval(String),
     ArtifactCut(String),
+    Page(DocumentPage),
 }
 
 /* === Traits === */

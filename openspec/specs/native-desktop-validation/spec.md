@@ -46,7 +46,7 @@ Windows desktop bootstrap SHALL obtain a driver matching the installed WebView2 
 
 Provider completion SHALL NOT resubmit a pending group while the request is stopped or the runtime is shutting down. Valid non-stopping replay SHALL remain idempotent.
 
-#### Scenario: Cancellation With Pending Work
+#### Scenario: Cancellation with Pending Work
 
 - **WHEN** a cancelled provider invocation leaves pending work and additional groups
 - **THEN** completion settles the request without repeatedly submitting the same cancelled group

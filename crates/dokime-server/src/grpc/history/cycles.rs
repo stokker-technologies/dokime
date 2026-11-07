@@ -63,7 +63,7 @@ impl Serve<BrowseCycles> for Resources {
                 filter,
             };
 
-            // Project Only The Selected Headers
+            // Project Only the Selected Headers
             let page = dokime::app::live_runtime(&self.runtime).await?.browse_cycles(query).await.map_err(wire::query_failure)?;
             project(page, self.maximum).map_err(|source| wire::query_failure(source.into()))
         })

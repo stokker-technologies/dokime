@@ -11,7 +11,7 @@ Startup failures appear in a desktop notification and in Settings › Plugins,
 with the bundle's display name and the underlying cause. The verified ordinary
 settings remain editable even when the plugin could not start. Secret declarations
 show their shared Secret Storage identifiers and availability read-only. Use
-**Add In Secret Storage** to open Add Secret prefilled with a missing identifier,
+**Add in Secret Storage** to open Add Secret prefilled with a missing identifier,
 then use **Reload** on the plugin page, which starts that plugin again while Dokime
 keeps running. There are no secret bindings or environment-variable sources.
 Notification history retains the settings link.
@@ -265,7 +265,7 @@ and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
 Launch configuration seeds unsaved fields; explicitly saved values take precedence.
 Saving settings preserves the running generation and its settings snapshot in execution evidence. The backend compares saved
 values with that generation's startup values and reports differing setting IDs.
-The GUI marks these **Applied On Reload**. **Reload** reads saved settings and
+The GUI marks these **Applied on Reload**. **Reload** reads saved settings and
 restarts the program, its dependents and all their observers, including
 `activation = "plugin"` observers, which resolve their new collection intervals.
 A reload refused before the program stops keeps the running generation and its
@@ -275,7 +275,7 @@ owner and plugins that depend on it still require successful cleanup before repl
 Unavailable-contract reasons identify the owner and required contract; cycle
 reasons identify every involved plugin.
 
-### Observer Refusals And Diagnostics
+### Observer Refusals and Diagnostics
 
 Harmos refusal `-32607` means the operation or route deadline elapsed. It does
 not identify a restart or a retired generation: operation execution, lane admission,
@@ -572,7 +572,7 @@ Use unprefixed suite names and only populated modules. Keep the selected
 repository skeleton and all its section markers. Keep declarations explicit,
 with no prelude modules or placeholder suites.
 
-## Plugin Startup And Stop Budgets
+## Plugin Startup and Stop Budgets
 
 Two host settings bound a sidecar program's lifecycle outside its own code.
 They live in `PluginPreferences` in

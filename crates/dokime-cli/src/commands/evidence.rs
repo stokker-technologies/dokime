@@ -7,7 +7,7 @@
  * ***
  */
 
-// Download And Publish Sealed Evidence Atomically
+// Download and Publish Sealed Evidence Atomically
 
 /* === Modules === */
 
@@ -98,7 +98,7 @@ pub(crate) async fn run(
     if args.json {
         println!("{}", serde_json::json!({ "path": downloaded.path, "size_bytes": downloaded.size_bytes, "sha256": downloaded.sha256 }));
     } else {
-        println!("Evidence Saved To {} ({} Bytes, SHA-256 {})", downloaded.path.display(), downloaded.size_bytes, downloaded.sha256);
+        println!("Evidence Saved to {} ({} Bytes, SHA-256 {})", downloaded.path.display(), downloaded.size_bytes, downloaded.sha256);
     }
     Ok(())
 }

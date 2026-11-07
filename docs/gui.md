@@ -12,7 +12,7 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
-## About And Build Versions
+## About and Build Versions
 
 Settings › About shows **Desktop Version** from the native `desktop_build` command
 and, while connected, **Backend Version** from the backend identity, since a remote
@@ -22,7 +22,7 @@ one is known. Clicking the short commit copies the full commit. Formatting lives
 `src/features/settings/sections/build-version.ts`. A browser build without the
 native shell shows only the bundled frontend version.
 
-## Desktop Launches And Storage Ownership
+## Desktop Launches and Storage Ownership
 
 Every launch opens its own desktop window. Launch arguments and deep links belong
 to that instance; there is no desktop lock, focus channel or forwarding to another
@@ -41,7 +41,7 @@ its existing client preferences when the occupied Local backend cannot supply th
 Storage reset and backup still refuse an occupied folder with `BackendRunning`.
 
 After Start Local Backend fails, including corrupt data, decode errors or an
-incompatible storage format, the connection screen offers **Back Up And Reset**.
+incompatible storage format, the connection screen offers **Back Up and Reset**.
 It is absent for `BackendRunning`. The confirmation names the data folder and
 timestamped ZIP destination beside it, and explains that the folder's contents
 will be removed after backup. Cancelling changes nothing. A failed backup never
@@ -61,7 +61,7 @@ not prevent recovery or startup. Credentials are untouched; readable node identi
 and the secret catalog survive so existing secrets remain addressable. The ZIP
 retains the original files even when their metadata cannot be decoded.
 
-## Cycle Lists And Restart Recovery
+## Cycle Lists and Restart Recovery
 
 Finished executions whose template is absent from the connected backend's live
 catalog show **Plugin Unavailable** in Control. Their saved evidence stays
@@ -94,7 +94,7 @@ complete settles as Seal Failed: the Cycles home lists it under Needs Attention,
 and the cycle's control card shows the cause with Retry Seal and Archive, each
 behind a confirmation. Startup does not retry a Seal Failed cycle.
 
-## Keyboard Focus And Theme Colors
+## Keyboard Focus and Theme Colors
 
 Keyboard focus uses the optional `--focus-ring` token, independently of `--primary`,
 `--destructive` and the organization palette's required `--ring` token. Tailwind's
@@ -114,7 +114,7 @@ adjacent surfaces in both modes, including the 50% opacity used by focus rings.
 The defaults meet this threshold on the bundled background, card and popover
 surfaces; packs that change those surfaces must verify their focus contrast.
 
-## Units In Labels
+## Units in Labels
 
 Labels and titles show units in square brackets on the same line, for example
 `Mean [Mbps]`. Use `formatUnitLabel` in `src/lib/format.ts` for table headings,
@@ -133,11 +133,25 @@ A completed card remains visible when another card or transfer fails. Failed
 bindings render the existing ErrorCard with their native diagnostic and budget
 fields. Repeated sections keep a loading identity until their expansion arrives.
 
+Repeated sections use distinct-value index pages. Previous Page and Next Page
+replace the visible page at the same saved cut, including its captured definition
+and scalar context. Latest resumes live refresh. Card query identities remain
+stable across page and evidence frontier changes; each repeated card requests the
+page that declared it. A page retains only its actual expanded output.
+
 Live document summary tiles query one saved evidence cut using bounded folds and
 exact order statistics. They do not load the run's telemetry into a document input
-array or reject estimated definition-size-times-row work. Plots retain their
+array. Count, min, max, mean and RMS reuse typed ingest checkpoints; a cut inside
+a saved batch reads only its bounded remainder. Median remains exact and loads in
+an independently loading card. They do not
+reject estimated definition-size-times-row work. Plots retain their
 existing independent query path. Actual output and expansion limits report the
 budget, limit, amount reached and affected card.
+
+Saved HTML uses the same card query evaluator at its frozen evidence cut.
+It includes all repeated-section pages and complete authored tables, rather than
+only the page currently displayed in the GUI. A failed data binding retains its
+card diagnostic in the saved document.
 
 ## Telemetry Plots
 
@@ -239,7 +253,7 @@ capture. Read frames, tail offsets and retained text keep their existing budgets
 Runtime operation changes refresh the file list and size without idle polling.
 Untouched baseline files do not clutter the tree; new empty files remain visible.
 
-## Media Capture And Live Artifacts
+## Media Capture and Live Artifacts
 
 Screenshot, Photo and Record Audio save execution uploads under `media/`,
 preserving their relative names and the existing `.2`, `.3` collision suffixes.
@@ -258,7 +272,7 @@ Names ellipsize, retain their full text as a tooltip, and occupy a separate row
 from Inspect. Frozen HTML retains its original media and download links under
 `outputs/media/`, independently of the desktop preview cache.
 
-## Canonical Bindings And Transport
+## Canonical Bindings and Transport
 
 - `mise run check:typescript:generated --source` checks locally prepared bindings
   and GUI types. Without `--source`, the generated check restores staged Product
@@ -304,7 +318,7 @@ from Inspect. Frozen HTML retains its original media and download links under
   Every owner in an inactive bundle remains visible. Add missing identifiers, then
   use the page's **Reload**, which calls `Plugins.Reload` for that installation only.
 - Saving plugin settings keeps its running generation unchanged. Fields whose saved
-  values differ from its startup settings show **Applied On Reload** with a warning
+  values differ from its startup settings show **Applied on Reload** with a warning
   highlight. The backend computes these marks, so reopening the view, restarting
   the GUI or attaching another GUI preserves them. Restarting the backend starts
   programs with saved values. Every plugin page offers **Reload**, and the plugin

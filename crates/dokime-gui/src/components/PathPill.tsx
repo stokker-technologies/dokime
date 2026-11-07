@@ -57,9 +57,9 @@ export function PathPill({ value, align = "left", copy = true, compact = false, 
       ) : null}
       {onOpen ? (
         <button
-          aria-label="Open With Default Application"
+          aria-label="Open with Default Application"
           className={action}
-          title="Open With Default Application"
+          title="Open with Default Application"
           type="button"
           onClick={(event) => {
             event.stopPropagation();

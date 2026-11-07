@@ -7,7 +7,7 @@
  * ***
  */
 
-// Verified Binary Report Downloads Through The Shipping CLI
+// Verified Binary Report Downloads Through the Shipping CLI
 
 /* === Modules === */
 

@@ -92,7 +92,7 @@ export function SuiteProvenance({ className, plugin, source }: SuiteProvenancePr
 
   return (
     <div className={cn("flex min-w-0 flex-wrap items-center gap-1", className)}>
-      <TagChip className="font-mono" label={pluginLabel} title={`Registered By Plugin ${pluginLabel}`} />
+      <TagChip className="font-mono" label={pluginLabel} title={`Registered by Plugin ${pluginLabel}`} />
       {owner ? <TagChip label={owner.label} title={owner.title} /> : null}
       {plugin?.version ? <TagChip className="font-mono" label={versionLabel(plugin.version)} title="Plugin Version" /> : null}
       {plugin && !plugin.enabled ? <TagChip label="Disabled" title="Plugin Is Disabled" /> : null}
@@ -116,9 +116,9 @@ export function pluginSearchText(plugin: RuntimeInstalledPluginRecord | undefine
 function ownerDisplay(owner: RuntimeInstalledPluginRecord["owner"], brandLabel: string): OwnerDisplay | null {
   switch (owner?.kind) {
     case "host":
-      return { label: "Host", title: `Registered By The ${brandLabel} Host` };
+      return { label: "Host", title: `Registered by the ${brandLabel} Host` };
     case "embedded":
-      return { label: "Built-In", title: `Built Into This Application (${owner.generation})` };
+      return { label: "Built-In", title: `Built into This Application (${owner.generation})` };
     case "bundle":
       return owner.installation
         ? { label: "Installed", title: `Installed Bundle ${owner.package}` }

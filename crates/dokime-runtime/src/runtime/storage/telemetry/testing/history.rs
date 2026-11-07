@@ -7,7 +7,7 @@
  * ***
  */
 
-// Pending Admission, Window Reads And Follow On One Saved History
+// Pending Admission, Window Reads and Follow On One Saved History
 
 /* === Modules === */
 
