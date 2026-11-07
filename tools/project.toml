@@ -371,8 +371,6 @@ lock_commands = [
     "sync",
     "--locked",
     "--all-groups",
-    "--no-install-package",
-    "dokime-client",
   ],
 ]
 plugin_extension = "dokime"

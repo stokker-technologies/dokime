@@ -147,3 +147,59 @@ The same 10,000 rows in batches of 1,000, one i64 counter and one f64 value, are
 No material Python penalty is measured against Rust in this run; the earlier roughly twofold gap is not reproduced. Synchronous bridge snapshot, encoding and value conversion account for about 2.5% of the Python publication time. Awaited native publication/ingestion accounts for the remainder, so this evidence points to the shared backend/storage path, not interpreter crossings, as the dominant cost. Workstation variability and the corrected readiness boundary prevent attributing the earlier gap to a single fix solely from these observations. Fast Stream Support still owns throughput targets.
 
 Task 6.1 remains open for the native project-policy audit, which still exits nonzero. SDK Cargo inheritance/grouping and changed source skeleton spacing are repaired; private `_native` export mapping, generated Ruff ownership and inherited baseline findings remain explicit audit work. The owner's later sweep owns inherited dev findings. Linux system execution awaits the declared Nightly job. The source-complete branch is retained for the build-freeze handoff, with retirement deliberately deferred.
+
+## Delivery Audit and Proof
+
+The delivery normally merges dev through `2d7b30d3c` in `8a5c42bba`, including
+#332 ingest throughput, #334 admission, #335 hang guards, #337 retained seals,
+#338 starter formatting, #339 bounded forward pages, #340 lint-only Clippy and
+#341 Linux desktop prerequisites. Dev's newer Harmos revision includes the
+runtime-defined Python binding additions and is retained. Python's file-watch
+surface is unchanged.
+
+The full diff review found stale release preparation exclusions for the removed
+Python distribution and a new Rust doc comment prohibited by project policy;
+both are removed. Disk and subprocess stories move from unit to integration.
+The SDK Ruff ownership entry moves with its package, using the Hub refresh's
+rendered receipt. Broader refresh changes are excluded from this delivery.
+
+The native export audit missed private Rust child modules sharing one Python
+namespace, and rejected underscore-prefixed constants. Hub checkpoint
+`fef8b92b6a733e8624eea2ecee3dd270ad7ebad5` fixes traversal without crossing
+separately mapped public modules and recognizes `__version__`. Its focused
+binding workflow passes, and `prepare:override` installs the checkpoint. The
+strict installed-wheel stubtest passes for all 42 shipped modules. The final
+native audit has no SDK-path or binding mapping findings; its overall exit is
+still 1 for 1,583 baseline policy findings. Those remain follow-up work under
+the recorded baseline-sweep ownership; this delivery does not claim a passing
+repository-wide native audit. Hub publication remains a separate owner action.
+
+Windows proof: Python unit 174, integration 301, acceptance 15 and system one
+all pass. The acceptance story retains live two-row sample pages and now also
+compares one-row sealed replay in order. The system story uses two-row pages
+before shutdown and one-row pages after restart without the plugin. Thus the
+new SDK uses the same native paging path as the former client's hang; #339's
+native row bounds and retained-seal fixes carry over and the regression passes.
+Python checks, wheel import and strict binding checks exit 0.
+
+The existing `ci-managed:683cb0ff0be68071e272277ecf658ae12b173e7c79fc94b7bd0ed6d60f0ccd22`
+Ubuntu 24.04 container image and cached Rust 1.99.0/CPython 3.15 toolchain need no
+new runner provisioning. Normal package sync supplies wheel/test dependencies.
+The source snapshot supplies `DOKIME_BUILD_COMMIT=8a5c42bba` as a full revision
+because it has no Git metadata. The Linux dev wheel is 79,771,078 bytes with a
+`manylinux_2_39_x86_64` tag; wheel build and focused fixture production exit 0.
+Its generated-project pairing/prompt/capture/report/restart system story passes
+(one case, exit 0). This proves that container, without claiming execution on
+the distinct hosted Ubuntu 22.04 image. Nightly's Linux/Windows-only system graph,
+native CLI/wheel inputs and final-report inclusion are reviewed.
+
+Bench measurement uses normal `cargo build --profile bench` artifacts. Maturin's
+`cargo rustc --profile bench` instead selects a test harness and emitted an
+unimportable wheel; that attempted artifact is rejected and never measured.
+The benchmark loads the normal bench extension explicitly, uses the matching
+wheel's Python modules and records its native writer commit. Shipping wheel
+production stays restricted to dev/release. The workload and timing boundaries
+remain the same: 10,000 rows, batches of 1,000, prepared i64/f64 inputs, backend
+readiness before timing, separate Python bridge preparation and admitted
+publication. Initial native comparison and desktop check attempts exhausted
+Windows allocation capacity; subsequent compilation uses two Cargo jobs.

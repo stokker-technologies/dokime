@@ -746,3 +746,20 @@ The complete retained prefix participates in final SHA-256 verification.
 A `finished` update requires the original seal and successful final RPC status;
 `abandoned` retains partial bytes and carries no seal. Cancellation leaves the
 committed local prefix available for explicit resume.
+
+## Measure Batch Publication
+
+Build the wheel for its Python modules, then build the native extension and Rust
+comparison in the bench profile. Cargo's `rustc --profile bench` selects a test
+harness, so the benchmark loads the normal extension produced by `cargo build`:
+
+```sh
+mise run build:python
+mise run build:rust:focused -- build --locked -p dokime-python --lib --example authoring-batch --profile bench --features pyo3/extension-module
+mise run bench:python:system
+```
+
+Run `target/release/examples/authoring-batch` (`.exe` on Windows) for the Rust
+comparison. Both workloads publish 10,000 rows in batches of 1,000 after backend
+readiness, with prepared inputs. Python reports bridge preparation separately
+from admitted publication and records the native storage writer commit.

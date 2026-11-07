@@ -62,9 +62,9 @@ def relative(paths: list[Path]) -> list[str]:
     return sorted(path.resolve().relative_to(ROOT.resolve()).as_posix() for path in paths)
 
 
-def invoke(operation: Callable[[str], object], *, profiles: tuple[str, ...] = PROFILES) -> int:
+def invoke(operation: Callable[[str], object]) -> int:
     parser = argparse.ArgumentParser(description=operation.__doc__)
-    parser.add_argument("--profile", choices=profiles, default="dev")
+    parser.add_argument("--profile", choices=PROFILES, default="dev")
     options = parser.parse_args()
     started = perf_counter()
     print(f"[build] {operation.__doc__} Started profile={options.profile}", flush=True)

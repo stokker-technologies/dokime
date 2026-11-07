@@ -117,7 +117,7 @@ impl Client {
         self.stream_raw_response(path, input, deadline).await.map(tonic::Response::into_inner)
     }
 
-    /// Opens a raw stream while retaining its initial response metadata.
+    // Opens A Raw Stream While Retaining Its Initial Response Metadata.
     pub async fn stream_raw_response<S>(&self, path: &str, input: S, deadline: Duration) -> Result<tonic::Response<RawStreaming<Vec<u8>>>>
     where
         S: Stream<Item = Vec<u8>> + Send + 'static,

@@ -561,8 +561,6 @@ lock_commands = [
     "sync",
     "--locked",
     "--all-groups",
-    "--no-install-package",
-    "dokime-client",
   ],
 ]
 targets = ["linux-x86_64", "windows-x86_64"]
