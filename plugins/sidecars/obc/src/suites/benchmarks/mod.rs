@@ -42,6 +42,8 @@ pub enum Templates {
     WideZero(ingest::WideZero),
     WideOne(ingest::WideOne),
     WideMany(ingest::WideMany),
+    Payload4kZero(ingest::Payload4kZero),
+    Payload64kZero(ingest::Payload64kZero),
 }
 
 /* === Traits === */

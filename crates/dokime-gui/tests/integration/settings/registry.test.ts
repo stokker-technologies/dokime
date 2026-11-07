@@ -73,7 +73,7 @@ test("Backend Action Menus Survive Owner Renders", async () => {
     await act(async () => root.render(createElement(Controller.Provider, { value: owner }, createElement(BackendsTable))));
   };
   await render();
-  const trigger = host.querySelector<HTMLButtonElement>("[aria-label='Actions for lab']");
+  const trigger = host.querySelector<HTMLButtonElement>('[data-row-id="lab"] [data-testid="table-row-actions"]');
   assert.ok(trigger);
   await act(async () => trigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 })));
   assert.ok(document.querySelector("[role=menu]"));

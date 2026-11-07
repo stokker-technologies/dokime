@@ -21,7 +21,7 @@ pub use reader::TelemetryReader;
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
 // Third Party Imports
 use harmos::{
@@ -53,6 +53,7 @@ pub(super) type PositionedTelemetry = super::paging::Positioned<TelemetryEntry>;
 pub(crate) struct ReadOptions<'a> {
     pub codecs: Option<&'a [telemetry::TypedCodec]>,
     pub scan_limit: Option<usize>,
+    pub page_rows: Option<NonZeroUsize>,
     pub window: Option<(&'a str, f64)>,
     pub visible: Option<&'a dokime_domain::model::execution::RecordScope>,
     pub sequence: Sequence,
@@ -166,6 +167,7 @@ impl ScopedTelemetry {
 }
 
 impl TelemetryAdmission {
+    #[tracing::instrument(level = "debug", name = "ingest.host.commit", skip_all)]
     pub(crate) async fn commit(mut self, closure: Option<&crate::services::telemetry::Sampling>) -> Result<CommittedTelemetry> {
         let mut accepted = crate::domains::telemetry::telemetry_slots(self.rows.len())?;
         accepted.resize(self.rows.len(), false);
@@ -456,9 +458,14 @@ pub(crate) async fn collect_saved(
 /// Reads One Page In Storage Order After `options.after`; Each Schema Stops Once It Holds The Page Limit.
 pub(crate) async fn collect_page(
     session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection,
-    settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
+    settings: &harmos::config::SchemaSettings, mut options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
 ) -> Result<TelemetryPage> {
     let limit = selection.limit.unwrap_or(usize::MAX);
+    // Forward Pages Must Not Materialize a Storage Batch for Every Small Client Page.
+    if !selection.latest {
+        options.page_rows = NonZeroUsize::new(limit);
+    }
+
     let mut rows = std::collections::VecDeque::new();
     let mut held = (usize::MAX, 0_usize);
     let mut limited = false;
@@ -519,6 +526,7 @@ async fn visit_positioned(
     let ReadOptions {
         codecs,
         scan_limit,
+        page_rows,
         window,
         visible,
         sequence,
@@ -626,7 +634,7 @@ async fn visit_positioned(
                     .map_err(crate::storage::Error::from)?;
             }
         }
-        let page_rows = session.settings().response.batch_rows;
+        let page_rows = session.settings().response.batch_rows.min(page_rows.unwrap_or(NonZeroUsize::MAX));
         let page_bytes = session.settings().response.batch_bytes;
         loop {
             let page = harmos::storage::ScanPage {

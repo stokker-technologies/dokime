@@ -39,7 +39,7 @@ export type MarkerKind = {
 
 export type MarkerRange = { min: number; max: number } | null;
 
-export type MarkerTooltip = { label: string; left: number; width: number };
+export type MarkerTooltip = { key: string; label: string; left: number; width: number };
 
 /* === Classes === */
 
@@ -130,8 +130,8 @@ export function nearestMarker(
   kinds: readonly MarkerKind[],
   hidden: ReadonlySet<string>,
   left: number,
-): { label: string; left: number } | null {
-  let best: { label: string; left: number } | null = null;
+): { key: string; label: string; left: number } | null {
+  let best: { key: string; label: string; left: number } | null = null;
   let distance = 6;
   let event = false;
   for (const kind of kinds) {
@@ -141,7 +141,7 @@ export function nearestMarker(
       const gap = Math.abs(position - left);
       const preferred = gap < distance || (gap === distance && event && kind.glyph !== "event");
       if (Number.isFinite(position) && position >= 0 && position <= plot.over.clientWidth && preferred) {
-        best = { label: marker.label, left: position };
+        best = { key: kind.key, label: marker.label, left: position };
         distance = gap;
         event = kind.glyph === "event";
       }
@@ -166,7 +166,7 @@ export function markerTooltip(
   const width = Math.min(256, card.width - 2 * inset);
   const anchor = plot.over.getBoundingClientRect().left - card.left + marker.left;
   const left = Math.max(inset, Math.min(anchor - width / 2, card.width - inset - width));
-  return { label: marker.label, left, width };
+  return { key: marker.key, label: marker.label, left, width };
 }
 
 /* === Private Functions === */

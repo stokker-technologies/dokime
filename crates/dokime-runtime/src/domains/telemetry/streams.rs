@@ -63,6 +63,7 @@ impl RuntimeHandle {
             .await
             .map_err(|e| unavailable_rejection(e.to_string()))?
     }
+    #[tracing::instrument(level = "debug", name = "ingest.admission", skip_all)]
     async fn publish_telemetry_to_streams_inner(
         &self, mut batch: TelemetryBatch, received_at: Timestamp, payloads: Payloads,
     ) -> std::result::Result<harmos::storage::ReadBatch<PublishReceipt>, crate::runtime::Error> {

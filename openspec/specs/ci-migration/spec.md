@@ -60,7 +60,7 @@ All local implementation and validation SHALL use the assigned worktree. Local p
 - AND integration remains blocked until distinct-path consumers and every required native platform pass
 
 ### Requirement: Share Native Compilation Ownership
-Product and Tests SHALL compile independently in parallel per platform/profile, under repository-owned canonical configurations and matching Clippy. Shipping behavior and canonical test coverage SHALL remain intact. Check SHALL not compile; Test and Package SHALL consume existing exports. Noncanonical compatibility and fault injection SHALL remain explicit local-only extended validation.
+Product and Tests SHALL compile independently in parallel per platform/profile, under repository-owned canonical configurations with Clippy owned by `lint:rust`. Shipping behavior and canonical test coverage SHALL remain intact. Check SHALL not compile; Test and Package SHALL consume existing exports. Noncanonical compatibility and fault injection SHALL remain explicit local-only extended validation.
 
 #### Scenario: Build a Native Candidate
 - **WHEN** native CI builds the candidate

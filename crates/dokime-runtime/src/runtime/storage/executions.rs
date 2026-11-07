@@ -790,6 +790,9 @@ impl ExecutionStorage {
             (defaults, documents, contracts)
         };
         let selection = crate::document::DocumentSelection { scope: execution.scope.clone() };
+        let context = crate::plot::dimension_context_for_scope(execution);
+        let fields = crate::document::repeat::fields(documents.values(), &contracts, &context);
+        self.local.register_distinct_fields(execution.test_execution_id.to_string(), fields).await?;
         let mut requests = Vec::new();
         for mut document in documents.into_values() {
             defaults.apply(&mut document);
@@ -807,13 +810,7 @@ impl ExecutionStorage {
             }
         }
         self.local
-            .register_plot_previews(
-                execution.test_execution_id.to_string(),
-                requests,
-                contracts,
-                self.preview_limits,
-                crate::plot::dimension_context_for_scope(execution),
-            )
+            .register_plot_previews(execution.test_execution_id.to_string(), requests, contracts, self.preview_limits, context)
             .await?;
         let (frozen, execution_owner) = retained_execution(execution)?;
         let id = execution.test_execution_id.clone();

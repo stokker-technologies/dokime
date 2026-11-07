@@ -11,6 +11,7 @@
 
 /* === Modules === */
 mod ingest;
+mod ingest_sync;
 mod report;
 
 /* === Re-Exports === */

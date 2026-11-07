@@ -66,6 +66,9 @@ ORDER BY i.position LIMIT 1";
 
 /* === Type Aliases === */
 
+pub(in crate::storage::sqlite) type RegisteredContracts =
+    std::sync::RwLock<std::collections::BTreeMap<String, (Arc<TypedCodec>, arrow_schema::FieldRef)>>;
+
 /* === Structs === */
 
 /* === Enums === */
@@ -184,14 +187,16 @@ impl State {
     ) -> Result<(), Error> {
         let key = serde_json::to_string(codec.schema())?;
         let encoded = serde_json::to_string(&contract)?;
+        let schema = crate::storage::ipc::contract_schema(&contract, None)?;
+        let field = schema.fields()[1].clone();
         let owner = self.0.clone();
         self.call(move |connection| {
             Ok((|| {
-                owner.telemetry.lock().unwrap().register(&contract, codec)?;
                 connection.execute(
                     "INSERT INTO telemetry_contracts VALUES (?1,?2) ON CONFLICT(schema_key) DO UPDATE SET contract=excluded.contract",
                     params![key, encoded],
                 )?;
+                owner.telemetry_contracts.write().unwrap().insert(key, (codec, field));
                 Ok(())
             })())
         })
@@ -200,7 +205,13 @@ impl State {
 
     pub(super) async fn arrow_write(&self, batch: StorageBatch<StoredRow>) -> Result<SavedData, Error> {
         let owner = self.0.clone();
-        self.call(move |connection| Ok(owner.telemetry.lock().unwrap().write(connection, batch))).await?
+        self.call(move |connection| {
+            let waiting = std::time::Instant::now();
+            let mut store = owner.telemetry.lock().unwrap();
+            tracing::debug!(name: "ingest.lock.store.writer", elapsed_ns = waiting.elapsed().as_nanos() as u64);
+            Ok(store.write(connection, batch, &owner.telemetry_contracts))
+        })
+        .await?
     }
 
     pub(crate) async fn finalize_telemetry(&self, execution: String) -> Result<(), Error> {

@@ -245,6 +245,7 @@ impl RuntimeHandle {
     }
 
     // Stores a finished local file as the artifact `name`, a relative path.
+    #[tracing::instrument(name = "storage.artifacts.upload_file", level = "debug", skip_all)]
     pub async fn upload_artifact_file(
         &self, scope: dokime_domain::model::execution::RecordScope, path: impl AsRef<std::path::Path>, filename: String,
         content_type: Option<String>,
@@ -320,6 +321,7 @@ impl RuntimeHandle {
         self.state_manager.state().read(move |state| state.capture_scope(&scope)).await.map_err(error)?.value.map_err(error)
     }
 
+    #[tracing::instrument(name = "storage.artifacts.begin_upload", level = "debug", skip_all)]
     pub async fn begin_artifact_upload(&self, mut input: ArtifactUploadInput) -> Result<ArtifactUpload> {
         let created_at = crate::model::time::now_utc();
         input.scope = self.capture_publication_scope(input.scope).await?;

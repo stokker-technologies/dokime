@@ -134,6 +134,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
         {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
         <DialogFooter>
           <Button
+            data-testid="desktop-updates-check"
             variant="outline"
             disabled={busy || !status?.source || status.mode === "disabled"}
             onClick={() =>
@@ -145,6 +146,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
             Check for Updates
           </Button>
           <Button
+            data-testid="desktop-updates-install"
             disabled={busy || !update?.candidate}
             onClick={() =>
               void perform(async () => {

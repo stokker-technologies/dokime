@@ -51,7 +51,7 @@ export function CycleExportMenuItem({ cycleId, executionId, sealed }: Props) {
       .catch((error: unknown) => toast.error(failureOf(error, "Evidence Could Not Be Saved")));
   };
   return (
-    <DropdownMenuItem disabled={!sealed || exportEvidence.isPending} onSelect={save} title={title}>
+    <DropdownMenuItem data-testid="evidence-export" disabled={!sealed || exportEvidence.isPending} onSelect={save} title={title}>
       <FileArchive data-icon="inline-start" />
       {exportEvidence.isPending ? "Exporting Evidence…" : "Export Evidence"}
     </DropdownMenuItem>

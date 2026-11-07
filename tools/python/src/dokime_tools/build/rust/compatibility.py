@@ -39,7 +39,9 @@ def build(profile: str) -> list[str]:
         ["--workspace", "--exclude", "dokime-python", "--lib", "--bins", "--no-default-features"],
         ["--package", "dokime-domain", "--target", "wasm32-unknown-unknown"],
     ):
-        cargo.clippy(ROOT, ["--locked", "--profile", "test", *selected])
+        status = cargo.focused(ROOT, "check", ["--locked", "--profile", "test", *selected])
+        if status:
+            raise ValueError("compatibility compilation failed")
     return []
 
 

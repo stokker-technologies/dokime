@@ -87,6 +87,9 @@ struct PowerProfileContext {
 
 impl SystemCollector {
     pub fn new(options: crate::HostOptions) -> Result<Self> {
+        // Reading Components Enters The Apartment On This Thread For WMI And Never Leaves It.
+        #[cfg(target_os = "windows")]
+        crate::platform::windows::apartment::retain()?;
         Ok(Self {
             options,
             sample_index: 0,

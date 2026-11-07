@@ -47,7 +47,6 @@ pub(crate) struct Store {
     pub root: PathBuf,
     pub settings: super::super::super::Settings,
     open: BTreeMap<String, Stream>,
-    contracts: BTreeMap<String, (Arc<TypedCodec>, arrow_schema::FieldRef)>,
     #[cfg(test)]
     fail_sync: bool,
 }
@@ -63,6 +62,7 @@ struct Stream {
 struct Context<'a> {
     through: u64,
     values: BTreeMap<&'a str, &'a Value>,
+    indexed: std::collections::BTreeSet<String>,
 }
 
 /* === Enums === */
@@ -77,22 +77,9 @@ impl Store {
             root,
             settings,
             open: BTreeMap::new(),
-            contracts: BTreeMap::new(),
             #[cfg(test)]
             fail_sync: false,
         }
-    }
-
-    pub(super) fn register(&mut self, contract: &TelemetryContract, codec: Arc<TypedCodec>) -> Result<()> {
-        let schema = ipc::contract_schema(contract, None)?;
-        self.contracts.insert(serde_json::to_string(codec.schema())?, (codec, schema.fields()[1].clone()));
-        Ok(())
-    }
-
-    pub(super) fn prepare_tail(&self, entry: &mut crate::storage::telemetry::TelemetryEntry) -> Result<()> {
-        let key = serde_json::to_string(&super::reader::key(entry)?)?;
-        let (_, field) = self.contracts.get(&key).ok_or(Error::Invalid("telemetry tail contract is not registered"))?;
-        ipc::normalize_values(field, &mut entry.sample.values)
     }
 
     #[cfg(test)]
@@ -101,7 +88,9 @@ impl Store {
     }
 
     #[tracing::instrument(level = "debug", name = "ingest.writer", skip_all)]
-    pub(super) fn write(&mut self, connection: &mut Connection, batch: StorageBatch<StoredRow>) -> Result<SavedData> {
+    pub(super) fn write(
+        &mut self, connection: &mut Connection, batch: StorageBatch<StoredRow>, contracts: &super::RegisteredContracts,
+    ) -> Result<SavedData> {
         let rows = batch.as_slice();
         let mut head = saved(connection)?;
         let mut groups: BTreeMap<String, Vec<(u64, Admitted)>> = BTreeMap::new();
@@ -124,7 +113,7 @@ impl Store {
             }
             let id = identity(row);
             if !self.open.contains_key(&id) {
-                let stream = self.create(connection, &id, row)?;
+                let stream = self.create(connection, &id, row, contracts)?;
                 self.open.insert(id.clone(), stream);
             }
             let stream = self.open.get(&id).expect("telemetry writer was opened");
@@ -132,7 +121,10 @@ impl Store {
                 return Err(Error::Conflict("stream contract changed within its execution"));
             }
             let mut entry = stream.codec.decode_admission(row)?;
-            ipc::normalize_values(stream.schema.field(1), &mut entry.entry.sample.values)?;
+            {
+                let _span = tracing::debug_span!("ingest.normalize.writer").entered();
+                ipc::normalize_values(stream.schema.field(1), &mut entry.entry.sample.values)?;
+            }
             plots.sample(connection, row, &entry.entry.sample)?;
             groups.entry(id).or_default().push((row.record.position.sequence, entry));
             head.sequence = row.record.position.sequence;
@@ -312,7 +304,15 @@ impl Store {
                             .filter_map(|scope| scope.test_execution_id.as_ref())
                             .collect();
                         for execution in owners {
-                            let context = contexts.entry(execution).or_insert_with(Context::default);
+                            if !contexts.contains_key(execution) {
+                                let indexed = super::super::distinct::telemetry_fields(
+                                    &transaction,
+                                    execution.as_str(),
+                                    entry.sample.stream.as_str(),
+                                )?;
+                                contexts.insert(execution, Context { indexed, ..Default::default() });
+                            }
+                            let context = contexts.get_mut(execution).expect("loaded execution context");
                             context.through = *position;
                             for (field, value) in &entry.sample.values {
                                 if !matches!(value, Value::Null) {
@@ -326,6 +326,9 @@ impl Store {
                                 time: *time,
                             };
                             aggregates.push(&transaction, input, &entry.sample, &mut previews)?;
+                            if context.indexed.is_empty() {
+                                continue;
+                            }
                             let timestamp = Value::Datetime(
                                 time::OffsetDateTime::from_unix_timestamp_nanos(*time)
                                     .map_err(|_| Error::Invalid("telemetry timestamp is outside supported range"))?,
@@ -334,8 +337,12 @@ impl Store {
                                 .sample
                                 .values
                                 .iter()
+                                .filter(|(name, _)| context.indexed.contains(name.as_str()))
                                 .map(|(name, value)| (name.as_str(), value))
-                                .chain((!entry.sample.values.contains_key("timestamp")).then_some(("timestamp", &timestamp)));
+                                .chain(
+                                    (context.indexed.contains("timestamp") && !entry.sample.values.contains_key("timestamp"))
+                                        .then_some(("timestamp", &timestamp)),
+                                );
                             let scope = entry
                                 .sample
                                 .captured_scopes
@@ -343,6 +350,7 @@ impl Store {
                                 .find(|scope| scope.test_execution_id.as_ref() == Some(execution))
                                 .or(entry.sample.scope.as_ref())
                                 .ok_or(Error::Invalid("captured sample scope is absent"))?;
+                            let _distinct = tracing::debug_span!("ingest.distinct").entered();
                             super::super::distinct::insert(
                                 &transaction,
                                 super::super::distinct::Row {
@@ -398,7 +406,7 @@ impl Store {
         result
     }
 
-    fn create(&self, connection: &mut Connection, id: &str, row: &StoredRow) -> Result<Stream> {
+    fn create(&self, connection: &mut Connection, id: &str, row: &StoredRow, contracts: &super::RegisteredContracts) -> Result<Stream> {
         let schema = catalog::composed(connection, &row.record.schema)?;
         let key = serde_json::to_string(&row.record.schema)?;
         let contract: Option<String> =
@@ -453,8 +461,9 @@ impl Store {
             }
             if path.try_exists()? { ipc::Writer::recover_empty(&path, arrow.clone())? } else { ipc::Writer::create(&path, arrow.clone())? }
         };
-        let codec = match self.contracts.get(&key) {
-            Some((codec, _)) => codec.clone(),
+        let codec = contracts.read().unwrap().get(&key).map(|(codec, _)| codec.clone());
+        let codec = match codec {
+            Some(codec) => codec,
             None => {
                 Arc::new(TypedCodec::from_stored(row.record.schema.clone(), schema.schema, &harmos::config::SchemaSettings::default())?)
             }

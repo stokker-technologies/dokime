@@ -158,39 +158,61 @@ impl State {
         let state = self.clone();
         let end = through.sequence;
         let first = end.checked_sub(entries.len() as u64).ok_or(Error::Invalid("telemetry admission cursor underflows"))? + 1;
-        let settings = self.0.telemetry.lock().unwrap().settings;
-        let start = self
-            .call(move |connection| {
-                Ok((|| -> Result<bool> {
-                    let saved = super::super::saved(connection)?;
-                    saved.history.check(&through.history)?;
-                    let store = state.0.telemetry.lock().unwrap();
-                    let mut tail = state.0.telemetry_tail.lock().unwrap();
-                    tail.discard_saved(saved.sequence);
-                    for (index, mut entry) in entries.into_iter().enumerate() {
-                        let position = first + index as u64;
-                        if position > saved.sequence {
-                            store.prepare_tail(&mut entry)?;
-                            tail.insert(position, entry);
-                        }
+        let settings = self.0.settings;
+        let admitted = storage.clone();
+        let parent = tracing::Span::current();
+        let staging = std::time::Instant::now();
+        // Tail Admission Needs No Disk Writer: The Saved Cursor Is Published After Its Catalog Commit.
+        let start = tokio::task::spawn_blocking(move || -> Result<bool> {
+            let _parent = parent.enter();
+            let _span = tracing::debug_span!("ingest.host.stage").entered();
+            if state.0.closing.load(std::sync::atomic::Ordering::Acquire) {
+                return Err(Error::Closed);
+            }
+            let saved = admitted.cursor_saved();
+            saved.history.check(&through.history)?;
+            let mut pending = Vec::with_capacity(entries.len());
+            {
+                let contracts = state.0.telemetry_contracts.read().unwrap();
+                for (index, mut entry) in entries.into_iter().enumerate() {
+                    let position = first + index as u64;
+                    if position <= saved.sequence {
+                        continue;
                     }
-                    // Publish Read Progress Only After Every Row Is In The Tail Or Saved.
-                    tail.readable.send_if_modified(|position| {
-                        if end <= *position {
-                            return false;
-                        }
-                        *position = end;
-                        true
-                    });
-                    tail.changed.notify_one();
-                    let start = !tail.running && !tail.entries.is_empty();
-                    if start {
-                        tail.running = true;
+                    let key = serde_json::to_string(&super::reader::key(&entry)?)?;
+                    let (_, field) = contracts.get(&key).ok_or(Error::Invalid("telemetry tail contract is not registered"))?;
+                    {
+                        let _span = tracing::debug_span!("ingest.normalize.tail").entered();
+                        crate::storage::ipc::normalize_values(field, &mut entry.sample.values)?;
                     }
-                    Ok(start)
-                })())
-            })
-            .await??;
+                    pending.push((position, entry));
+                }
+            }
+            let waiting = std::time::Instant::now();
+            let mut tail = state.0.telemetry_tail.lock().unwrap();
+            tracing::debug!(name: "ingest.lock.tail", elapsed_ns = waiting.elapsed().as_nanos() as u64);
+            tail.discard_saved(saved.sequence);
+            for (position, entry) in pending {
+                let _span = tracing::debug_span!("ingest.tail.insert").entered();
+                tail.insert(position, entry);
+            }
+            // Publish Read Progress Only After Every Row Is In The Tail Or Saved.
+            tail.readable.send_if_modified(|position| {
+                if end <= *position {
+                    return false;
+                }
+                *position = end;
+                true
+            });
+            tail.changed.notify_one();
+            let start = !tail.running && !tail.entries.is_empty();
+            if start {
+                tail.running = true;
+            }
+            Ok(start)
+        })
+        .await??;
+        tracing::debug!(name: "ingest.host.stage.elapsed", elapsed_ns = staging.elapsed().as_nanos() as u64);
         if !start {
             return Ok(());
         }

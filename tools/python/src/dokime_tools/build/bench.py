@@ -24,7 +24,7 @@ from pathlib import Path
 from .. import temporary
 from ..process import spawn_flags
 from ..test import archive
-from . import cargo, paths
+from . import paths, storage
 
 # Type Checking Imports
 
@@ -49,16 +49,7 @@ def build(
     messages = output / "bench/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)
     messages.unlink(missing_ok=True)
-    cargo.clippy(
-        directory,
-        [
-            "--locked",
-            *selection,
-            "--profile",
-            "bench",
-            *extra,
-        ],
-    )
+    storage.preflight(directory)
     command = [
         "cargo",
         "build",

@@ -107,6 +107,7 @@ export function ExecutionActionButton({ action, actions }: ExecutionActionButton
   return (
     <Button
       className="h-[var(--bar-control-height)] px-3"
+      data-execution-action={action}
       disabled={disabled}
       onClick={() => actions.run(action)}
       title={disabled ? actions.refusal : undefined}

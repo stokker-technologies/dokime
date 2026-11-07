@@ -17,7 +17,7 @@ import sys
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import cargo, configuration, frontend, outputs, paths
+from dokime_tools.build import cargo, configuration, frontend, outputs, paths, storage
 from dokime_tools.package import distribution
 from dokime_tools.package.staging import stage_file, sync_output
 
@@ -54,7 +54,7 @@ def build(profile: str) -> list[str]:
         stdout=sys.stderr,
         stderr=sys.stderr,
     )
-    cargo.clippy(ROOT, arguments)
+    storage.preflight(ROOT)
     command = ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"]
     with messages.open("w", encoding="utf-8") as written:
         subprocess.run(

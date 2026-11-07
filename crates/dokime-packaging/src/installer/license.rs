@@ -118,7 +118,7 @@ pub fn combined(expression: Option<&str>) -> String {
     };
     // AND Binds Tighter Than OR, So A Compound Expression Keeps Its Own Grouping.
     let compound = expression.contains(char::is_whitespace) || expression.contains('(');
-    if compound { format!("({expression}) AND {DOKIME}") } else { format!("{expression} and {DOKIME}") }
+    if compound { format!("({expression}) AND {DOKIME}") } else { format!("{expression} AND {DOKIME}") }
 }
 
 /// Returns The Installed Name Of The Pack's Terms: `EULA` Plus The Source File's Extension.
