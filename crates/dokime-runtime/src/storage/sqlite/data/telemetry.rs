@@ -192,6 +192,20 @@ impl State {
         let owner = self.0.clone();
         self.call(move |connection| {
             Ok((|| {
+                let previous: Option<String> = connection
+                    .query_row("SELECT contract FROM telemetry_contracts WHERE schema_key=?1", [&key], |row| row.get(0))
+                    .optional()?;
+                if let Some(previous) = previous {
+                    let previous: dokime_domain::model::telemetry::TelemetryContract = serde_json::from_str(&previous)?;
+                    let same = match (&previous.storage_schema, &contract.storage_schema) {
+                        (Some(previous), Some(current)) => crate::storage::telemetry::same_graph(previous, current)?,
+                        (None, None) => true,
+                        _ => false,
+                    };
+                    if !same {
+                        return Err(Error::TelemetryIntegrity { stream: contract.stream.to_string() });
+                    }
+                }
                 connection.execute(
                     "INSERT INTO telemetry_contracts VALUES (?1,?2) ON CONFLICT(schema_key) DO UPDATE SET contract=excluded.contract",
                     params![key, encoded],

@@ -63,6 +63,7 @@ import { defaultCycleLabel } from "@/lib/time-format";
 import type { HubRecord } from "@/lib/types";
 import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/use-row-window";
 import { reportFixturePayload } from "@/report/report-fixture";
+import { cycleSnapshotSource } from "@/report/report-snapshot";
 import { focusPresentation } from "@/shell/focus-mode";
 
 /* === Re-Exports === */
@@ -284,6 +285,19 @@ test("Execution Controls", () => {
     requestId: "r",
     stopRequested: false,
   } as unknown as NonNullable<RunControl>;
+
+  for (const reportState of ["ready", "failed"] as const) {
+    const settled = executionControlState(
+      input({
+        controls: running,
+        status: "passed",
+        report: { state: reportState, failure: reportState === "failed" ? "fixture failure" : null },
+      }),
+    );
+    assert.equal(settled.phase, "ended");
+    assert.deepEqual(settled.actions, ["Re-Run"]);
+    assert.equal(settled.detail, reportState === "failed" ? "fixture failure" : null);
+  }
 
   // An Unstarted Attempt Offers Start and Cancel, Never Stop
   for (const status of ["planned", "created"] as const) {
@@ -641,4 +655,12 @@ test("New Cycle Form", () => {
     description: "Night run",
     label: "Bench B",
   });
+});
+
+test("Combined Report Notices Reach the Frozen Surface", () => {
+  const payload = reportFixturePayload();
+  const notice = "revision.reading.value";
+  payload.warnings.push(`report.stream_column_type_changed: ${notice}`);
+  const source = cycleSnapshotSource(payload);
+  assert.deepEqual(source.warnings, [notice]);
 });

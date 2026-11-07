@@ -345,7 +345,6 @@ class Plugin:
                         "id": metadata["id"],
                         "label": metadata["label"],
                         "description": metadata.get("description"),
-                        "schema": metadata["schema"],
                         "window": metadata["window"],
                         "row": shape,
                         "columns": _columns(row),
@@ -577,9 +576,9 @@ def observer(
 
 @dataclass_transform(field_specifiers=(parameter,))
 def stream[T](
-    *, id: str, label: str, window: int, row: type | None = None, schema: int = 1, description: str | None = None
+    *, id: str, label: str, window: int, row: type | None = None, description: str | None = None
 ) -> Callable[[type[T]], type[T]]:
-    return _declare("stream", id=id, label=label, window=window, row=row, schema=schema, description=description)
+    return _declare("stream", id=id, label=label, window=window, row=row, description=description)
 
 
 @dataclass_transform(field_specifiers=(parameter,))

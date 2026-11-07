@@ -67,6 +67,9 @@ export function cycleSnapshotSource(payload: ReportPayload): CycleSnapshotSource
       executionId === null ? [] : artifacts.filter((artifact) => artifact.scope?.test_execution_id === executionId),
     executions: payload.test_executions,
     generatedAt: payload.generated_at ?? null,
+    warnings: payload.warnings
+      .filter((warning) => warning.startsWith("report.stream_column_type_changed:"))
+      .map((warning) => warning.slice("report.stream_column_type_changed:".length).trim()),
     health: snapshot?.health ?? [],
     notes: snapshot?.notes ?? [],
     plan: payload.test_cycle_plan ?? null,

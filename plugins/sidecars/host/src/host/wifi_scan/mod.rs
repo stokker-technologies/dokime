@@ -75,7 +75,7 @@ pub struct Collected {
 impl dokime::StreamSpec for WifiScan {
     type Row = crate::WifiScan;
     const ID: &'static str = "host.wifi.scan";
-    const VERSION: u32 = 1;
+
     const WINDOW: usize = <crate::WifiScan as dokime::StreamSpec>::WINDOW;
 }
 

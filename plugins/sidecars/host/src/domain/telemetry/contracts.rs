@@ -113,7 +113,6 @@ mod tests {
     #[test]
     fn native_row_schemas() {
         for contract in host_telemetry_contracts() {
-            assert_eq!(contract.schema_version, 1);
             assert_eq!(contract.columns.iter().filter(|column| column.metadata.identifier.as_str() == "timestamp").count(), 1);
             let graph = contract.storage_schema.as_ref().unwrap();
             assert!(graph.root().unwrap().fields().iter().all(|field| field.name != "timestamp"));

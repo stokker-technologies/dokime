@@ -92,7 +92,6 @@ impl EmbeddedProvider for Provider {
             metadata: dokime::Metadata::new(dokime::Identifier::new("batch.samples").unwrap(), "Samples", None),
             row_metadata: vec![],
             id: "batch.samples".into(),
-            schema: 1,
             window: 10000,
             row: Schema::from_declaration(Reading::DEFINITION, &Default::default()).unwrap(),
         }]

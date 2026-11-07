@@ -127,8 +127,8 @@ async fn stream_alias_publication() {
         vec![],
     )
     .await;
-    let inlet = native.runtime.streams.publication("sdk_streams.inlet", 1).unwrap();
-    let outlet = native.runtime.streams.publication("sdk_streams.outlet", 1).unwrap();
+    let inlet = native.runtime.streams.current_publication("sdk_streams.inlet").unwrap();
+    let outlet = native.runtime.streams.current_publication("sdk_streams.outlet").unwrap();
 
     // Original Read Handles Preserve Lifecycle Evidence After Producer Retirement.
     native.retire().await;

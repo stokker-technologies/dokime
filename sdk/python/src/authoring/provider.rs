@@ -90,7 +90,6 @@ pub(super) struct StreamSpec {
     pub id: String,
     pub label: String,
     pub description: Option<String>,
-    pub schema: u32,
     pub window: usize,
     pub row: Shape,
 
@@ -223,7 +222,6 @@ impl StreamSpec {
         let mut contract = dokime::telemetry::TelemetryContract::declared(&self.id, &self.label)
             .with_storage_schema(self.row.schema.clone())
             .columns(self.columns.clone());
-        contract.schema_version = self.schema;
         contract.metadata.description = self.description.clone();
         contract
     }
@@ -500,7 +498,6 @@ pub(super) fn compile(spec: Spec) -> Result<Compiled, String> {
             ),
             row_metadata: vec![],
             id: stream.id.clone(),
-            schema: stream.schema,
             window: stream.window,
             row: stream.row.schema.clone(),
         };

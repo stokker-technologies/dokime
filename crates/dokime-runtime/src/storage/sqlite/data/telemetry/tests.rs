@@ -149,6 +149,7 @@ impl Fixture {
             "fixture",
         )
         .typed(&Reading { value: index as f64 });
+        sample.schema_version = self.codec.schema().version.get();
         sample.values.insert("value".into(), Cell::Number(index as f64));
         sample.scope = Some(RecordScope {
             test_execution_id: Some(self.execution.clone()),
@@ -361,6 +362,7 @@ async fn unindexed_medians_preserve_nullable_large_integers_at_saved_cuts() {
             let (mut input, mut entry) = fixture.row(index as u64, index as i64);
             entry.sample.stream = harmos::Identifier::new("unsigned.fixture").unwrap();
             entry.sample = entry.sample.typed(&UnsignedReading { value });
+            entry.sample.schema_version = codec.schema().version.get();
             entry.sample.values.insert("value".into(), value.map(Cell::Unsigned).unwrap_or(Cell::Null));
             input.stream = entry.sample.stream.clone();
             input.record.schema = codec.schema().clone();

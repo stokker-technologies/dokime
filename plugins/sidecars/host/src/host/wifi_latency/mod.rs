@@ -75,7 +75,7 @@ pub struct Collected {
 impl dokime::StreamSpec for WifiLatency {
     type Row = crate::WifiLatency;
     const ID: &'static str = "host.wifi.latency";
-    const VERSION: u32 = 1;
+
     const WINDOW: usize = <crate::WifiLatency as dokime::StreamSpec>::WINDOW;
 }
 

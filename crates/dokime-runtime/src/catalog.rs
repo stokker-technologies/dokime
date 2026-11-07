@@ -37,7 +37,6 @@ const UNSET: Publication = Publication {
     id: "",
     metadata_json: "",
     row_metadata_json: "[]",
-    schema: 0,
     window: 0,
     row: harmos::schema::declaration::Definition::of::<()>(),
 };
@@ -578,7 +577,7 @@ pub const fn distinct_publications(declared: &[Publication]) -> usize {
         match earlier(declared, index) {
             Some(first) => assert!(
                 same_publication(&declared[first], &declared[index]),
-                "two declarations of the plugin name one stream id with different rows, schema versions, windows or metadata"
+                "two declarations of the plugin name one stream id with different rows, windows or metadata"
             ),
             None => distinct += 1,
         }
@@ -709,8 +708,7 @@ const fn earlier(declared: &[Publication], index: usize) -> Option<usize> {
 // compares the fields themselves.
 #[cfg(feature = "native")]
 const fn same_publication(left: &Publication, right: &Publication) -> bool {
-    left.schema == right.schema
-        && left.window == right.window
+    left.window == right.window
         && same(left.row.name, right.row.name)
         && same(left.metadata_json, right.metadata_json)
         && same(left.row_metadata_json, right.row_metadata_json)

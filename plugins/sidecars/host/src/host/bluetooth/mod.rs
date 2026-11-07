@@ -75,7 +75,7 @@ pub struct Collected {
 impl dokime::StreamSpec for Bluetooth {
     type Row = crate::Bluetooth;
     const ID: &'static str = "host.bluetooth";
-    const VERSION: u32 = 1;
+
     const WINDOW: usize = <crate::Bluetooth as dokime::StreamSpec>::WINDOW;
 }
 

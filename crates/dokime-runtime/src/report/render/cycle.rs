@@ -215,7 +215,10 @@ impl MemberRows {
                 "PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF; PRAGMA temp_store=FILE;
              PRAGMA cache_size=-8192; PRAGMA mmap_size=0;
              CREATE TABLE rows(section TEXT,member INTEGER,ordinal INTEGER,payload BLOB NOT NULL,
-             PRIMARY KEY(section,member,ordinal)) WITHOUT ROWID; BEGIN;",
+             PRIMARY KEY(section,member,ordinal)) WITHOUT ROWID;
+             CREATE TABLE stream_columns(stream TEXT,name TEXT,kind TEXT,payload BLOB NOT NULL,
+             PRIMARY KEY(stream,name,kind)) WITHOUT ROWID;
+             CREATE TABLE stream_conflicts(stream TEXT,name TEXT,PRIMARY KEY(stream,name)) WITHOUT ROWID; BEGIN;",
             )
             .map_err(rows_error)?;
         Ok(Self { connection })
@@ -242,6 +245,59 @@ impl MemberRows {
         for (stream, versions) in &captured.telemetry_contracts {
             for (version, contract) in versions {
                 self.append(&format!("spec:{stream}"), member, *version as usize, &telemetry::Spec::new(contract))?;
+                let spec =
+                    serde_json::to_value(telemetry::Spec::new(contract)).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+                for (column, declaration) in
+                    spec["columns"].as_array().expect("stream columns serialize as an array").iter().zip(&contract.columns)
+                {
+                    let name = column["name"].as_str().expect("column name is text");
+                    let value_type = match declaration.value_type {
+                        dokime_domain::model::values::ValueType::File => dokime_domain::model::values::ValueType::Text,
+                        _ => declaration.value_type.clone(),
+                    };
+                    let unit = declaration.unit.as_ref().map(|unit| (&unit.metadata.identifier, &unit.family, &unit.symbol));
+                    let kind = serde_json::to_string(&(value_type, unit)).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+                    let incompatible: bool = self
+                        .connection
+                        .query_row(
+                            "SELECT EXISTS(SELECT 1 FROM stream_columns WHERE stream=?1 AND name=?2 AND kind<>?3)",
+                            rusqlite::params![stream.as_str(), name, kind],
+                            |row| row.get(0),
+                        )
+                        .map_err(rows_error)?;
+                    if incompatible {
+                        let first = self
+                            .connection
+                            .execute("INSERT OR IGNORE INTO stream_conflicts VALUES (?1,?2)", rusqlite::params![stream.as_str(), name])
+                            .map_err(rows_error)?;
+                        if first != 0 {
+                            let ordinal: i64 = self
+                                .connection
+                                .query_row(
+                                    "SELECT COALESCE(MAX(ordinal)+1,0) FROM rows WHERE section='warnings' AND member=?1",
+                                    [member as i64],
+                                    |row| row.get(0),
+                                )
+                                .map_err(rows_error)?;
+                            let message = format!(
+                                "Stream `{stream}` column `{name}` has incompatible types or units across executions. Read each execution's values and plots separately; combined previews show the values as recorded."
+                            );
+                            self.append(
+                                "warnings",
+                                member,
+                                usize::try_from(ordinal).map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
+                                &DocumentWarningText("report.stream_column_type_changed", &message),
+                            )?;
+                        }
+                    }
+                    let payload = serde_json::to_vec(column).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+                    self.connection
+                        .execute(
+                            "INSERT OR IGNORE INTO stream_columns VALUES (?1,?2,?3,?4)",
+                            rusqlite::params![stream.as_str(), name, kind, payload],
+                        )
+                        .map_err(rows_error)?;
+                }
             }
         }
         for ordinal in crate::report::previews::indices(captured.context.notes.len(), captured.report_defaults.table_rows as usize) {
@@ -323,7 +379,29 @@ impl MemberRows {
             .query_row(rusqlite::params![format!("spec:{}", sample.stream), member, i64::from(sample.schema_version)], |row| row.get(0))
             .optional()
             .map_err(io::Error::other)?;
-        writer.write_all(bytes.as_deref().unwrap_or(b"null"))
+        let Some(bytes) = bytes else { return writer.write_all(b"null") };
+        let mut spec: serde_json::Value = serde_json::from_slice(&bytes).map_err(io::Error::other)?;
+        let mut columns = BTreeMap::<String, serde_json::Value>::new();
+        let mut statement = self
+            .connection
+            .prepare_cached("SELECT name,payload FROM stream_columns WHERE stream=?1 ORDER BY name,kind")
+            .map_err(io::Error::other)?;
+        let mut rows = statement.query([sample.stream.as_str()]).map_err(io::Error::other)?;
+        while let Some(row) = rows.next().map_err(io::Error::other)? {
+            let name: String = row.get(0).map_err(io::Error::other)?;
+            let bytes: Vec<u8> = row.get(1).map_err(io::Error::other)?;
+            let column: serde_json::Value = serde_json::from_slice(&bytes).map_err(io::Error::other)?;
+            match columns.entry(name) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(column);
+                }
+                std::collections::btree_map::Entry::Occupied(mut entry) => {
+                    entry.get_mut()["value_type"] = "string".into();
+                }
+            }
+        }
+        spec["columns"] = columns.into_values().collect::<Vec<_>>().into();
+        output::write_json(writer, &spec)
     }
 
     fn row(&self, writer: &mut dyn Write, section: &str, member: usize, ordinal: usize) -> io::Result<()> {

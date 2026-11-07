@@ -649,6 +649,16 @@ impl TestExecution {
             row.finished_at = finished_at;
             row.detail = detail;
         }
+        // Runtime Initialization Precedes The Frozen Template Plan, Then Cleanup.
+        steps.sort_by_key(|step| {
+            if step.metadata.identifier.as_str() == "initialization" {
+                return (0, 0);
+            }
+            if let Some(index) = template.phases.iter().position(|phase| phase.step_id == step.step_id) {
+                return (1, index);
+            }
+            (2, 0)
+        });
         self.steps = steps;
     }
 

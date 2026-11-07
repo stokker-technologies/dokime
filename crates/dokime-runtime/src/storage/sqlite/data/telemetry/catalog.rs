@@ -104,14 +104,25 @@ pub(super) fn composed(connection: &Connection, key: &harmos::storage::SchemaKey
 pub(super) fn composed_at(connection: &Connection, key: &harmos::storage::SchemaKey, at: u64) -> Result<harmos::storage::StorageSchema> {
     let encoded = serde_json::to_string(key)?;
     let mut statement = connection
-        .prepare("SELECT body,digest FROM storage_data_entries WHERE kind='schema' AND schema_key=?1 AND position<=?2 ORDER BY position DESC LIMIT 1")?;
+        .prepare("SELECT body,digest FROM storage_data_entries WHERE kind='schema' AND schema_key=?1 AND position<=?2 ORDER BY position")?;
     let mut rows = statement.query(params![encoded, super::super::position(at)])?;
-    let row = rows.next()?.ok_or(Error::Corrupt("telemetry schema is absent"))?;
-    let body = super::super::blob(row, 0)?;
-    super::super::check_digest(body, super::super::blob(row, 1)?)?;
-    let Entry::Schema(schema) = Entry::decode("schema", body)? else {
-        return Err(Error::Corrupt("telemetry schema collection differs"));
-    };
+    let mut selected: Option<harmos::storage::StorageSchema> = None;
+    while let Some(row) = rows.next()? {
+        let body = super::super::blob(row, 0)?;
+        super::super::check_digest(body, super::super::blob(row, 1)?)?;
+        let Entry::Schema(schema) = Entry::decode("schema", body)? else {
+            return Err(Error::Corrupt("telemetry schema collection differs"));
+        };
+        if let Some(previous) = &selected
+            && !crate::storage::telemetry::same_graph(&previous.schema, &schema.schema)?
+        {
+            return Err(Error::TelemetryIntegrity {
+                stream: key.id.as_str().strip_prefix("dokime.telemetry.").unwrap_or(key.id.as_str()).to_owned(),
+            });
+        }
+        selected = Some(schema);
+    }
+    let schema = selected.ok_or(Error::Corrupt("telemetry schema is absent"))?;
     Ok(schema)
 }
 

@@ -45,7 +45,6 @@ struct HomedRow {
 impl dokime::StreamSpec for HomedRow {
     type Row = Self;
     const ID: &'static str = HOME_STREAM;
-    const VERSION: u32 = 1;
     const WINDOW: usize = 4096;
 }
 

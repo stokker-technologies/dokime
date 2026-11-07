@@ -201,10 +201,15 @@ fn report_failure(error: dokime::runtime::Error) -> Status {
         return Status::not_found(message.clone());
     }
     tracing::error!(error = ?error, "report download failed");
+    if let Some(message) = error.report_evidence_message() {
+        return Status::failed_precondition(message);
+    }
     if matches!(&error, dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. })) {
         Status::resource_exhausted("There is not enough capacity to create this report. Try again after other report operations finish.")
     } else {
-        Status::failed_precondition("The report could not be created or read. Try again; if the problem continues, collect diagnostics.")
+        Status::failed_precondition(
+            "The report could not be created or read. Open Settings → Diagnostics → Support Bundle and send it to the plugin developer.",
+        )
     }
 }
 
@@ -235,6 +240,36 @@ mod tests {
         assert_eq!(status.code(), tonic::Code::FailedPrecondition);
         assert!(!status.message().contains(&detail));
         assert!(status.details().is_empty());
+        let status = report_failure(dokime::runtime::Error::InvalidReportInputs(detail.clone()));
+        assert!(!status.message().contains(&detail));
+    }
+
+    #[test]
+    fn report_evidence_errors_keep_their_actionable_identity() {
+        for storage in [
+            dokime::storage::Error::TelemetryIntegrity { stream: "fixture.reading".into() },
+            dokime::storage::Error::TelemetryProjection {
+                stream: "fixture.reading".into(),
+                column: "value".into(),
+            },
+        ] {
+            let expected = storage.to_string();
+            let error = dokime::runtime::Error::Storage(storage);
+            assert_eq!(error.report_evidence_message().as_deref(), Some(expected.as_str()));
+            let status = report_failure(dokime::runtime::Error::ReportUnavailable(Box::new(error)));
+            assert_eq!(status.code(), tonic::Code::FailedPrecondition);
+            assert_eq!(status.message(), expected);
+            let error = dokime::runtime::Error::ReportFinalizationFailed(expected.clone());
+            assert_eq!(report_failure(error).message(), expected);
+            let error = dokime::runtime::Error::ReportSave {
+                subject: dokime::domain::model::reports::wire::ReportSubject::Execution(
+                    dokime::domain::model::identity::TestExecutionId::from_seed("report.failure").to_string(),
+                ),
+                stage: "render",
+                source: Box::new(dokime::runtime::Error::ReportFinalizationFailed(expected.clone())),
+            };
+            assert_eq!(report_failure(error).message(), expected);
+        }
     }
 
     #[test]

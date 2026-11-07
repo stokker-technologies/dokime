@@ -205,7 +205,7 @@ def observer(
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]: ...
 @dataclass_transform(field_specifiers=(parameter,))
 def stream[T](
-    *, id: str, label: str, window: int, row: type | None = None, schema: int = 1, description: str | None = None
+    *, id: str, label: str, window: int, row: type | None = None, description: str | None = None
 ) -> Callable[[type[T]], type[T]]: ...
 @dataclass_transform(field_specifiers=(parameter,))
 def record[T](

@@ -77,6 +77,15 @@ function ReportSurface() {
         title,
       }}
     >
+      {source.warnings?.length ? (
+        <aside aria-label="Report Notices" className="mx-4 mt-4 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+          <ul className="grid gap-2">
+            {source.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </aside>
+      ) : null}
       <ReportCycleWorkspace selection={selection} source={source} />
     </ReportShell>
   );

@@ -142,7 +142,7 @@ impl EmbeddedProvider for Probe {
             metadata: <Reading as harmos::StreamSpec>::metadata(),
             row_metadata: <Reading as harmos::RowMetadata>::row_metadata(),
             id: Reading::ID.into(),
-            schema: Reading::VERSION,
+
             window: Reading::WINDOW,
             row: harmos::schema::graph::Schema::from_declaration(
                 <Reading as Described>::DEFINITION,

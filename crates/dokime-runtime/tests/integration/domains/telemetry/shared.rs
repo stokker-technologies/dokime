@@ -128,7 +128,7 @@ impl EmbeddedProvider for SharedProvider {
             metadata: <Sample as harmos::StreamSpec>::metadata(),
             row_metadata: <Sample as harmos::RowMetadata>::row_metadata(),
             id: Sample::ID.into(),
-            schema: Sample::VERSION,
+
             window: Sample::WINDOW,
             row: harmos::schema::graph::Schema::from_declaration(
                 <Sample as Described>::DEFINITION,

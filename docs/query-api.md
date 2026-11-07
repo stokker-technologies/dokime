@@ -83,6 +83,14 @@ own closed enum. The pure matcher accepts borrowed values and occurrence time,
 so it applies no ingestion defaults or implicit object traversal. It opens no
 storage reader. Both record and sample execution use this planner.
 
+Stream row revisions derive automatically from their schemas. Queries still name
+an execution, stream id and columns; they use that execution's captured definitions.
+A column absent from a captured row contributes no value. Cycle reports compose
+execution results independently and retain recorded values in combined previews.
+Their column catalog includes fields from all members; conflicting types or units use text
+presentation in the combined preview and a warning names the stream and column.
+Read the execution's own values and plots for its original type and interpretation.
+
 ## Local History Storage
 
 Finite history queries read only the connected server's local retained SQLite catalog.

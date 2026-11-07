@@ -95,7 +95,7 @@ macro_rules! host_rows {
             impl dokime::StreamSpec for $stream {
                 type Row = Self;
                 const ID: &'static str = $id;
-                const VERSION: u32 = 1;
+
                 const WINDOW: usize = crate::settings::STREAM_WINDOW;
             }
             impl TelemetryStream for $stream {
@@ -179,7 +179,6 @@ mod tests {
                 assert_eq!(column.unit.as_ref().unwrap().symbol, "GiB");
             }
         }
-        assert_eq!(contract.schema_version, 1);
     }
 
     #[test]

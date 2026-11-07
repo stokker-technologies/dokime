@@ -384,6 +384,15 @@ from Inspect. Frozen HTML retains its original media and download links under
 
 ## Failure Presentation
 
+User-facing errors name the action that can resolve the failure. Offer Try Again
+only when retry can help. A real unrecoverable failure directs the operator to
+Settings → Diagnostics → Support Bundle so logs can reach the plugin developer.
+Ambiguous stored stream definitions instead explain that the evidence cannot be
+repaired and advise a fresh storage root, preserving the original files.
+Failed report finalization settles Control and the sidebar through the same
+terminal projection as successful publication; its durable cause remains visible
+after reload. Initialization precedes ordinary steps and cleanup in both views.
+
 Every GUI failure enters `failureOf(error, title)` in
 `src/lib/notification-details.ts`. Its serializable `NotificationFailure` carries
 a title, root message, root-first causes, field problems, operation/request/invocation

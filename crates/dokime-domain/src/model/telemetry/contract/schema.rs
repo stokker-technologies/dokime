@@ -165,6 +165,7 @@ impl TelemetryContract {
     }
 
     pub fn with_storage_schema(mut self, schema: harmos::schema::graph::Schema) -> Self {
+        self.schema_version = harmos::domain::streams::revision(&schema, 1).expect("a telemetry row has a finite schema");
         self.storage_schema = Some(schema);
         self
     }

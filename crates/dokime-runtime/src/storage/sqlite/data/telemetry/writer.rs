@@ -534,7 +534,8 @@ pub(super) fn identity(row: &StoredRow) -> String {
         .as_ref()
         .map(ToString::to_string)
         .unwrap_or_else(|| format!("session:{}", row.record.source.as_ref().map(harmos::Identifier::as_str).unwrap_or_default()));
-    let digest = Sha256::digest(format!("{owner}|{}", row.stream));
+    let schema = serde_json::to_string(&row.record.schema).expect("a schema key contains serializable scalars");
+    let digest = Sha256::digest(format!("{owner}|{}|{schema}", row.stream));
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
