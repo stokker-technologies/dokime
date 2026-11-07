@@ -15,7 +15,7 @@
 
 ## Final Validation
 
-- [ ] 2.1 Run focused storage/telemetry tests, exact report replay, repeated benchmark runs and check:rust; inspect the forbidden-term diff. No full simulation, as explicitly requested.
+- [ ] 2.1 Run focused storage/telemetry tests, exact report replay, repeated benchmark runs and check:rust; inspect the forbidden-term diff. Resolve the native wide-case deadline failure after dev added per-row distinct indexing; index-repair scope requires the owner's decision. No deadline or budget changes. No full simulation, as explicitly requested.
 - [ ] 2.2 Rebase the combined candidate on fresh origin/dev and revalidate affected behavior before authorized delivery.
 
 ## Workflow Follow-Up
