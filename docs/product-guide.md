@@ -2544,9 +2544,32 @@ wait is at the store-settings read behind writer activity. The source difference
 includes the distinct index, and the workstation remains busy; these ranges
 are not savings attributed to any of the four rejected trims.
 
-Detailed profiling observes the merged index call separately as `ingest.distinct`.
-The earlier admission/host/writer profile table describes the source before
-that index. CPU remains reported by process; inclusive stage clocks overlap.
+Three separate detailed-profile repeats of the indexed source observe the
+merged index call as `ingest.distinct`. The earlier four-shape stage table
+describes the source before that index. The following clocks remain overlapping
+active poll/callback wall µs/row, including preemption and profiling overhead;
+they are not a disjoint CPU budget.
+
+| Stage, µs/Row | 8 B | 4 KiB | 64 KiB |
+| --- | ---: | ---: | ---: |
+| Admission Prepare | 3.41–4.69 | 3.27–3.71 | 9.57–11.03 |
+| Admission Commit | 791.24–1041.44 | 1603.69–2135.32 | 14836.58–19248.28 |
+| Host Commit | 1622.35–2127.98 | 3273.73–4292.65 | 29533.04–39581.92 |
+| Host Payload Projection | 1.73–2.19 | 3.49–3.72 | 31.87–34.32 |
+| Host Canonical Encoding | 4.39–6.22 | 5.98–6.51 | 44.06–49.72 |
+| Tail Staging Callback | 4.28–5.51 | 4.55–5.32 | 24.51–27.14 |
+| Writer Total | 833.58–1089.05 | 1675.97–2163.63 | 14779.91–20417.81 |
+| Writer Decode/Group | 12.09–16.41 | 16.02–17.55 | 65.10–74.72 |
+| Distinct-Value Index | 101.35–128.39 | 222.40–245.96 | 3923.21–4721.45 |
+| Arrow Build/Compress/Sync | 15.14–41.16 | 81.82–128.81 | 1070.99–2940.64 |
+| Writer Catalog Commit | 660.95–893.58 | 1342.10–1805.37 | 8456.31–12081.49 |
+| Writer SQLite Sync | 482.45–674.97 | 1037.60–1438.49 | 6024.11–9379.29 |
+| IPC File Writes | 0.08–0.10 | 1.50–5.49 | 30.74–143.20 |
+| IPC Hashing | 0.06–0.07 | 3.17–3.33 | 51.73–53.61 |
+| Tail Key Insert | 0.76–0.98 | 0.68–0.78 | 1.40–1.54 |
+| Tail Normalization | 0.45–0.55 | 0.48–0.56 | 1.02–1.11 |
+| Writer Normalization | 0.23–0.37 | 0.27–0.30 | 0.74–0.90 |
+| Sample Identity Inserts | 1.36–1.80 | 1.63–1.87 | 5.30–6.07 |
 
 ## Remote Certificate Refresh
 
