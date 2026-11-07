@@ -69,8 +69,9 @@ its cache, after a successful build and only on an exact-key miss. PRs restore
 only. Dev pushes save the dev Product and Tests caches; Nightly on dev runs in
 `READ_WRITE` mode and saves release Product, release Tests and bench Bench caches.
 `.github/actions/setup/run.py` resolves `CACHE_PLAN` using the build job's
-`COMPILER_CACHE_KIND`; `.github/actions/save-caches` enforces the Tests and Bench
-save policy. The workflows own producer selection.
+`COMPILER_CACHE_KIND`. Each job's single `.github/actions/save-caches` step names
+the caches it saves, and only the build jobs name `sccache`; the action skips it
+in `READ_ONLY` mode.
 
 ## Focused Python Client Checks
 

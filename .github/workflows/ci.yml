@@ -63,38 +63,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc,git-cliff
@@ -134,38 +106,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -203,38 +147,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,protoc
@@ -313,38 +229,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc
@@ -416,38 +304,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Compiler\":\"${{ steps.setup.outputs.sccache-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.sccache-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.sccache-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,protoc,python,rust,sccache,uv
       MISE_TASK_SKIP: package:python,package:rust
@@ -544,38 +404,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
       MISE_TASK_SKIP: package:python,package:rust
@@ -650,38 +482,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -732,38 +536,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -822,38 +598,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -936,38 +684,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -1028,38 +748,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -1118,38 +810,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -1217,38 +881,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     if: >-
       (((github.event_name == 'schedule' || github.event_name == 'pull_request' ||
       startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')) &&
@@ -1306,38 +942,10 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.cargo_downloads-cache-hit != 'true'
+        'pull_request')
       with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.mise-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.pnpm-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup.outputs.uv-cache-hit != 'true'
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - name: Cache Summary
-      if: always()
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -1504,58 +1112,13 @@ jobs:
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success() && (github.ref
-        == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success'
+        && contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success()
+        && (github.ref == 'refs/heads/dev' && github.event_name !=
+        'pull_request'))
       with:
-        key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success() && (github.ref
-        == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success() && (github.ref
-        == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success() && (github.ref
-        == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.sccache-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.sccache-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success() && (github.ref
-        == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Compiler\":\"${{ steps.setup_unix.outputs.sccache-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.sccache-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.sccache-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_unix.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","sccache","uv"]'
     - id: setup_windows
       uses: ./.github/actions/setup
       with:
@@ -1694,58 +1257,13 @@ jobs:
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'windows' && ((true) && needs.impact.result ==
+        'success' && contains(fromJSON(needs.impact.outputs.jobs), 'build')) &&
+        (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
+        'pull_request'))
       with:
-        key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.sccache-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.sccache-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Compiler\":\"${{ steps.setup_windows.outputs.sccache-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.sccache-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.sccache-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_windows.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","sccache","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
@@ -1834,57 +1352,13 @@ jobs:
         contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (true)
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success'
+        && contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) &&
+        (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
+        'pull_request'))
       with:
-        key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.uv-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success())
-      with:
-        compiler-key: ${{ steps.setup_unix.outputs.sccache-cache-primary-key }}
-        compiler-path: ${{ steps.setup_unix.outputs.sccache-path }}
-        compiler-hit: ${{ steps.setup_unix.outputs.sccache-cache-hit }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Compiler\":\"${{ steps.setup_unix.outputs.sccache-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.sccache-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.sccache-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_unix.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","sccache","uv"]'
     - id: setup_windows
       uses: ./.github/actions/setup
       with:
@@ -1924,57 +1398,13 @@ jobs:
         contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (true)
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'windows' && ((true) && needs.impact.result ==
+        'success' && contains(fromJSON(needs.impact.outputs.jobs),
+        'build:rust:tests')) && (success() && (github.ref == 'refs/heads/dev' &&
+        github.event_name != 'pull_request'))
       with:
-        key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.uv-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (success())
-      with:
-        compiler-key: ${{ steps.setup_windows.outputs.sccache-cache-primary-key }}
-        compiler-path: ${{ steps.setup_windows.outputs.sccache-path }}
-        compiler-hit: ${{ steps.setup_windows.outputs.sccache-cache-hit }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Compiler\":\"${{ steps.setup_windows.outputs.sccache-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.sccache-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.sccache-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_windows.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","sccache","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
@@ -2045,49 +1475,13 @@ jobs:
         contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (true)
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success'
+        && contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) &&
+        (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
+        'pull_request'))
       with:
-        key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Compiler\":\"${{ steps.setup_unix.outputs.sccache-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.sccache-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.sccache-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_unix.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     - id: setup_windows
       uses: ./.github/actions/setup
       with:
@@ -2111,49 +1505,13 @@ jobs:
         contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (true)
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'windows' && ((true) && needs.impact.result ==
+        'success' && contains(fromJSON(needs.impact.outputs.jobs),
+        'check:rust')) && (success() && (github.ref == 'refs/heads/dev' &&
+        github.event_name != 'pull_request'))
       with:
-        key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'check:rust')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Compiler\":\"${{ steps.setup_windows.outputs.sccache-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.sccache-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.sccache-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_windows.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,sccache,taplo,uv,protoc
@@ -2384,73 +1742,19 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
-        github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
-        !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
+        github.event_name == 'pull_request' || startsWith(github.ref,
+        'refs/tags/v') || github.event_name == 'workflow_dispatch') &&
+        (!startsWith(github.ref, 'refs/tags/') ||
+        needs.source.outputs.stable_release == 'true' || github.workflow ==
+        'Nightly') && !(needs.source.outputs.stable_release == 'true' &&
+        contains(fromJSON('["windows"]'), 'unix') && github.workflow !=
+        'Nightly')) && needs.impact.result == 'success' &&
+        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) &&
+        (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
+        'pull_request'))
       with:
-        key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
-        github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
-        !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
-        github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
-        !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
-        github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
-        !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
-        github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
-        !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'), 'unix') &&
-        github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_unix.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     - id: setup_windows
       uses: ./.github/actions/setup
       with:
@@ -2626,73 +1930,19 @@ jobs:
     - uses: ./.github/actions/save-caches
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
-        github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
-        !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
+        github.event_name == 'pull_request' || startsWith(github.ref,
+        'refs/tags/v') || github.event_name == 'workflow_dispatch') &&
+        (!startsWith(github.ref, 'refs/tags/') ||
+        needs.source.outputs.stable_release == 'true' || github.workflow ==
+        'Nightly') && !(needs.source.outputs.stable_release == 'true' &&
+        contains(fromJSON('["windows"]'), 'windows') && github.workflow !=
+        'Nightly')) && needs.impact.result == 'success' &&
+        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) &&
+        (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
+        'pull_request'))
       with:
-        key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
-        github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
-        !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
-        github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
-        !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
-        github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
-        !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
-        github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
-        github.event_name == 'workflow_dispatch') && (!startsWith(github.ref, 'refs/tags/') ||
-        needs.source.outputs.stable_release == 'true' || github.workflow == 'Nightly') &&
-        !(needs.source.outputs.stable_release == 'true' && contains(fromJSON('["windows"]'),
-        'windows') && github.workflow != 'Nightly')) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'package:rust')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_windows.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     if: >-
       ((((github.event_name == 'schedule' || github.event_name == 'pull_request' ||
       startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') &&
@@ -2858,49 +2108,13 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success'
+        && contains(fromJSON(needs.impact.outputs.jobs),
+        'test:rust:acceptance')) && (success() && (github.ref ==
+        'refs/heads/dev' && github.event_name != 'pull_request'))
       with:
-        key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_unix.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     - id: setup_windows
       uses: ./.github/actions/setup
       with:
@@ -3016,50 +2230,13 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'windows' && ((true) && needs.impact.result ==
+        'success' && contains(fromJSON(needs.impact.outputs.jobs),
+        'test:rust:acceptance')) && (success() && (github.ref ==
+        'refs/heads/dev' && github.event_name != 'pull_request'))
       with:
-        key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) &&
-        (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_windows.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -3148,49 +2325,13 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success'
+        && contains(fromJSON(needs.impact.outputs.jobs),
+        'test:rust:integration')) && (success() && (github.ref ==
+        'refs/heads/dev' && github.event_name != 'pull_request'))
       with:
-        key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_unix.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     - id: setup_windows
       uses: ./.github/actions/setup
       with:
@@ -3251,50 +2392,13 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request')
-        && steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'windows' && ((true) && needs.impact.result ==
+        'success' && contains(fromJSON(needs.impact.outputs.jobs),
+        'test:rust:integration')) && (success() && (github.ref ==
+        'refs/heads/dev' && github.event_name != 'pull_request'))
       with:
-        key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request')
-        && steps.setup_windows.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request')
-        && steps.setup_windows.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request')
-        && steps.setup_windows.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) &&
-        (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_windows.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -3423,49 +2527,13 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success'
+        && contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) &&
+        (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
+        'pull_request'))
       with:
-        key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_unix.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     - id: setup_windows
       uses: ./.github/actions/setup
       with:
@@ -3552,49 +2620,13 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'windows' && ((true) && needs.impact.result ==
+        'success' && contains(fromJSON(needs.impact.outputs.jobs),
+        'test:rust:system')) && (success() && (github.ref == 'refs/heads/dev' &&
+        github.event_name != 'pull_request'))
       with:
-        key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (success()
-        && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_windows.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -3683,49 +2715,13 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success'
+        && contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) &&
+        (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
+        'pull_request'))
       with:
-        key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_unix.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     - id: setup_windows
       uses: ./.github/actions/setup
       with:
@@ -3770,49 +2766,13 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'windows' && ((true) && needs.impact.result ==
+        'success' && contains(fromJSON(needs.impact.outputs.jobs),
+        'test:rust:unit')) && (success() && (github.ref == 'refs/heads/dev' &&
+        github.event_name != 'pull_request'))
       with:
-        key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (success() &&
-        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_windows.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
@@ -3956,50 +2916,13 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success'
+        && contains(fromJSON(needs.impact.outputs.jobs),
+        'test:typescript:system')) && (success() && (github.ref ==
+        'refs/heads/dev' && github.event_name != 'pull_request'))
       with:
-        key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_unix.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_unix.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) &&
-        (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_unix.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     - id: setup_windows
       uses: ./.github/actions/setup
       with:
@@ -4101,50 +3024,13 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request')
-        && steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
+        matrix.platform == 'windows' && ((true) && needs.impact.result ==
+        'success' && contains(fromJSON(needs.impact.outputs.jobs),
+        'test:typescript:system')) && (success() && (github.ref ==
+        'refs/heads/dev' && github.event_name != 'pull_request'))
       with:
-        key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request')
-        && steps.setup_windows.outputs.mise-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.mise-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request')
-        && steps.setup_windows.outputs.pnpm-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.pnpm-path }}
-    - uses: ./.github/actions/save-caches
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) &&
-        (success() && (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request')
-        && steps.setup_windows.outputs.uv-cache-hit != 'true')
-      with:
-        key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup_windows.outputs.uv-path }}
-    - name: Cache Summary
-      if: >-
-        matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
-        contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) &&
-        (always())
-      env:
-        CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
-      uses: ./.github/actions/save-caches
-      with:
-        summary-module: ""
+        setup: ${{ toJSON(steps.setup_windows.outputs) }}
+        caches: '["cargo_downloads","mise","pnpm","uv"]'
     env:
       MISE_ENABLE_TOOLS: >-
         go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
