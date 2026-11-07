@@ -92,6 +92,7 @@ pub(in crate::grpc) fn historical_plot(
         analysis: value.analysis.as_ref().map(analysis_selection).transpose()?,
         plot_id: Some(value.metadata.identifier.as_str().to_owned()),
         plot_type: enums::plot_type(&value.plot_type),
+        style: enums::plot_style(&value.style),
         x_scale: enums::axis_scale(&value.x_scale),
         y_scale: enums::axis_scale(&value.y_scale),
         stream: value.stream.clone().unwrap_or_default(),

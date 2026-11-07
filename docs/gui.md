@@ -241,8 +241,7 @@ stream's declared window. A flush moves those rows into saved batches without a
 gap or duplicate. Tail rows shown live can be lost in a crash. Finite queries,
 All refreshes and frozen reports retain saved evidence cuts.
 
-Numeric time series and histograms show numeric statistics. XY scatter, XY line,
-XY interval, trajectory and heatmap plots omit the statistics block in both the
+Numeric time series and histograms show numeric statistics. XY, XY interval, trajectory and heatmap plots omit the statistics block in both the
 desktop and report renderer. XY traces keep their ordinary legend.
 
 Plot legend tables list traces only. Clicking a trace row hides or restores that

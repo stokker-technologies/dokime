@@ -705,7 +705,25 @@ raw `client.call` still exposes its canonical contracts. The existing catalog
 `Aggregate` vocabulary for catalog columns rather than stream samples.
 
 Python document plots are mappings passed to `Document.section` or the template's
-`document` declaration. Their `unit` is only a label. Use `"scale": 1e3` beside
+`document` declaration. Use `"plot_type": "xy"` for explicit X and Y axes.
+Style defaults to `"line"`; choose `"points"`, `"line_points"` or `"step"` through
+`"style"`. Points use the density grid above the exact preview limit; the other
+styles retain the ordered envelope without a grid. For example:
+
+```python
+plot = {
+    "metadata": {"identifier": "tracking.path", "label": "Tracking Path"},
+    "plot_type": "xy",
+    "x_expression": {"source": {"type": "telemetry", "stream": "tracking", "field": "easting_m"}},
+    "y_expressions": [{"source": {"type": "telemetry", "stream": "tracking", "field": "northing_m"}}],
+    "style": "points",
+}
+```
+
+The development document schema remains v1. Older incompatible documents need
+an explicit fresh storage root; existing data is preserved.
+
+Their `unit` is only a label. Use `"scale": 1e3` beside
 `"unit": "mm"` on a `"plot_type": "time_series"` plot to display stored metres
 as millimetres. The native document validator accepts only positive finite
 scales on time-series y values against the row timestamp, refusing other kinds,

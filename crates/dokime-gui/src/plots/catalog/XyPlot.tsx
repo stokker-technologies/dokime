@@ -18,7 +18,7 @@ import type { PlotCardSpec, PlotViewportMode } from "@/plots/types";
 
 /* === Components === */
 
-export function XyLinePlot({
+export function XyPlot({
   actions,
   plot,
   resetKey,
@@ -31,7 +31,7 @@ export function XyLinePlot({
 }) {
   return (
     <CartesianPlot
-      badge="XY Line"
+      badge="XY"
       cartesian={plot.cartesian}
       colors={plot.colors}
       referenceBands={plot.referenceBands}
@@ -41,7 +41,7 @@ export function XyLinePlot({
       series={plot.series}
       stateDetail={plot.stateDetail}
       stateLabel={plot.stateLabel}
-      style="line"
+      style={plot.style}
       timeAxis={false}
       title={plot.title}
       unit={plot.unit}

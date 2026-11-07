@@ -256,6 +256,7 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime::domain::mod
         analysis: request.analysis.as_ref().map(super::analysis::selection_wire).transpose()?,
         plot_id: request.plot_id.clone(),
         plot_type: request.plot_type.as_ref().map_or(dokime::domain::model::plots::wire::PlotType::Unspecified, enums::plot_type),
+        style: enums::plot_style(&request.style),
         x_scale: enums::axis_scale(&request.x_scale),
         y_scale: enums::axis_scale(&request.y_scale),
         stream,
@@ -670,6 +671,38 @@ fn plot_marker(value: dokime::runtime::query::PlotMarker) -> Result<dokime::doma
 mod tests {
     use super::*;
     use dokime::domain::model::plots::wire::{PlotEnvelope, PlotStreamFrame, PlotStreamKind};
+
+    #[test]
+    fn xy_request_style_roundtrip() {
+        use dokime::document::{PlotStyle, PlotType};
+        use dokime::runtime::query::PlotPayloadRequest;
+
+        for style in [PlotStyle::Line, PlotStyle::Points, PlotStyle::LinePoints, PlotStyle::Step] {
+            let request = PlotPayloadRequest {
+                stream: "tracking".into(),
+                plot_type: Some(PlotType::Xy),
+                style: style.clone(),
+                x_key: Some("easting_m".into()),
+                y_keys: vec!["northing_m".into()],
+                ..Default::default()
+            };
+            let wire = plot_request_wire(&request).unwrap();
+            let (decoded, _) = super::super::cursor::decode_plot_requests(vec![wire]).unwrap();
+            assert_eq!(decoded[0].plot_type, request.plot_type);
+            assert_eq!(decoded[0].style, style);
+            assert_eq!(decoded[0].x_key, request.x_key);
+            assert_eq!(decoded[0].y_keys, request.y_keys);
+        }
+        let mut wire = plot_request_wire(&PlotPayloadRequest {
+            stream: "tracking".into(),
+            plot_type: Some(PlotType::Xy),
+            ..Default::default()
+        })
+        .unwrap();
+        wire.style = dokime::domain::model::documents::wire::PlotStyle::Unspecified;
+        let (decoded, _) = super::super::cursor::decode_plot_requests(vec![wire]).unwrap();
+        assert_eq!(decoded[0].style, PlotStyle::Line);
+    }
 
     #[test]
     fn complete_stream_frame_limits() {

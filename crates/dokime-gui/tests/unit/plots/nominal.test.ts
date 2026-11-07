@@ -25,7 +25,7 @@ import type { ConnectedSession } from "@/app/native-session/session";
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
-import type { NativePlotPayloadEnvelope, NativePlotStreamMessage } from "@/lib/api/native-plots";
+import { toNativePlotRequest, type NativePlotPayloadEnvelope, type NativePlotStreamMessage } from "@/lib/api/native-plots";
 import * as appearance from "@/lib/appearance";
 import { ApplicationThemeProvider } from "@/lib/application-theme";
 import { formatUnitLabel } from "@/lib/format";
@@ -47,8 +47,7 @@ import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, serie
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
-import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
-import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
+import { XyPlot } from "@/plots/catalog/XyPlot";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
@@ -1237,6 +1236,30 @@ test("Cursor Point Marks", () => {
   }
 });
 
+test("XY Styles Reach the Native Request", () => {
+  for (const style of ["line", "points", "line_points", "step"] as const) {
+    const plot = {
+      plot_id: "tracking.path",
+      title: "Tracking Path",
+      stream: "tracking",
+      plot_type: "xy",
+      x: "easting_m",
+      y: ["northing_m"],
+      style,
+    } as DocumentViewPlot;
+    const request = plotRequestForDocumentPlot(plot, { scope: null });
+    assert.equal(request.plotType, "xy");
+    assert.equal(request.style, style);
+    const native = toNativePlotRequest(request);
+    assert.equal(native.plotType?.HarmosVariant.case, "Xy");
+    assert.equal(native.style?.HarmosVariant.case, { line: "Line", points: "Points", line_points: "LinePoints", step: "Step" }[style]);
+    const spec = documentPlotSpec({ plot, payload: hostFrame([1, 2], [[3, 4]]), title: plot.title, position: 0 });
+    assert.equal(spec.style, style);
+    const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom: false }, createElement(XyPlot, { plot: spec })));
+    assert.match(html, /plot-follow/);
+  }
+});
+
 test("Plot Statistics", () => {
   const payload = hostFrame([0, 1, 2], [[2, 5, 11]], { keys: ["distance"] });
   payload.summaries = [{ ...SUMMARIES[0], series_id: "distance" }];
@@ -1261,7 +1284,7 @@ test("Plot Statistics", () => {
       renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom }, child));
     const time = render(createElement(TimeSeriesPlot, { plot }));
     assert.match(time, /<thead\b/);
-    for (const Component of [XyScatterPlot, XyLinePlot, TrajectoryPlot]) {
+    for (const Component of [XyPlot, TrajectoryPlot]) {
       const xy = render(createElement(Component, { plot: { ...plot, timeAxis: false } }));
       assert.match(xy, /plot-follow/);
       assert.doesNotMatch(xy, /<table\b/);

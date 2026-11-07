@@ -96,13 +96,13 @@ pub(crate) fn row(index: u64, reading: Reading, phase: &str) -> Row {
 }
 
 pub(crate) fn document(stream: &str, title: &str) -> Document {
-    let mut voltage = Plot::xy_line("Voltage");
+    let mut voltage = Plot::xy("Voltage");
     voltage.id(format!("{stream}.voltage"));
     voltage.unit("V");
     voltage.x(telemetry(stream, "elapsed_s"));
     voltage.y(telemetry(stream, "voltage_v"));
 
-    let mut current = Plot::xy_line("Current");
+    let mut current = Plot::xy("Current");
     current.id(format!("{stream}.current"));
     current.unit("A");
     current.x(telemetry(stream, "elapsed_s"));
@@ -121,7 +121,7 @@ pub(crate) fn document(stream: &str, title: &str) -> Document {
         (Row::column_dc_current_a(), "Charging Current", "A"),
         (Row::column_input_power_w(), "AC Input Power", "W"),
     ] {
-        let mut plot = Plot::xy_line(label);
+        let mut plot = Plot::xy(label);
         plot.id(format!("{stream}.{}", column.field()));
         plot.unit(unit);
         plot.x(Row::column_elapsed_s().on(stream));

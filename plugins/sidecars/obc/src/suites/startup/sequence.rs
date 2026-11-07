@@ -623,7 +623,7 @@ impl Template {
         plot.x(telemetry(STARTUP_STREAM, "phase"));
         plot.y(telemetry(STARTUP_STREAM, "sample_index").count());
         phase_breakdown.plot(plot);
-        let mut plot = Plot::xy_scatter("Signal Correlation");
+        let mut plot = Plot::xy("Signal Correlation");
         plot.id("obc.charger.startup.sequence.signal_correlation");
         plot.style(PlotStyle::Points);
         plot.x(telemetry(STARTUP_STREAM, "voltage_v"));

@@ -27,8 +27,7 @@ import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { WifiChannelOccupancyPlot } from "@/plots/catalog/WifiChannelOccupancyPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
-import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
-import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
+import { XyPlot } from "@/plots/catalog/XyPlot";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
 import { PlotInteractionProvider, usePlotInteraction } from "@/plots/interaction";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
@@ -292,11 +291,8 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   if (plot.plotType === "bar") {
     return <BarPlot plot={plot} />;
   }
-  if (plot.plotType === "xy_scatter") {
-    return <XyScatterPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
-  }
-  if (plot.plotType === "xy_line") {
-    return <XyLinePlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+  if (plot.plotType === "xy") {
+    return <XyPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "xy_interval") {
     return <XyIntervalPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
@@ -401,8 +397,7 @@ function plotHasNumericSamples(plot: PlotCardSpec): boolean {
 function isChartLikePlot(plot: PlotCardSpec): boolean {
   return (
     plot.plotType === "time_series" ||
-    plot.plotType === "xy_scatter" ||
-    plot.plotType === "xy_line" ||
+    plot.plotType === "xy" ||
     plot.plotType === "xy_interval" ||
     plot.plotType === "trajectory" ||
     plot.plotType === "frequency_series" ||

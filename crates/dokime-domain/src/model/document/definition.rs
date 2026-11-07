@@ -596,8 +596,7 @@ pub enum PlotType {
     Pie,
     Donut,
     Pareto,
-    XyScatter,
-    XyLine,
+    Xy,
     XyInterval,
     Trajectory,
     Heatmap,
@@ -1890,12 +1889,8 @@ impl Plot {
         PlotDefinition::with_type(label, PlotType::Bar)
     }
 
-    pub fn xy_scatter(label: impl Into<String>) -> PlotDefinition {
-        PlotDefinition::with_type(label, PlotType::XyScatter)
-    }
-
-    pub fn xy_line(label: impl Into<String>) -> PlotDefinition {
-        PlotDefinition::with_type(label, PlotType::XyLine)
+    pub fn xy(label: impl Into<String>) -> PlotDefinition {
+        PlotDefinition::with_type(label, PlotType::Xy)
     }
 
     pub fn sigma_interval(label: impl Into<String>) -> PlotDefinition {
@@ -2029,7 +2024,7 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
     {
         return Err(error(format_args!(
             "`time_series` plots draw against the row timestamp; remove `.x(…)`, or use \
-             `Plot::xy_line` to choose both axes"
+             `Plot::xy` to choose both axes"
         )));
     }
 
@@ -2076,7 +2071,7 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
                 return Err(error(format_args!("bar plots must declare at least one y field or y expression")));
             }
         }
-        PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pareto | PlotType::XyScatter | PlotType::XyLine | PlotType::XyInterval => {
+        PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pareto | PlotType::Xy | PlotType::XyInterval => {
             validate_xy_axes(plot, error)?
         }
         PlotType::Trajectory => validate_xy_axes(plot, error)?,
@@ -2161,8 +2156,7 @@ pub(crate) fn plot_type_label(plot_type: &PlotType) -> &'static str {
         PlotType::Pie => "pie",
         PlotType::Donut => "donut",
         PlotType::Pareto => "pareto",
-        PlotType::XyScatter => "xy_scatter",
-        PlotType::XyLine => "xy_line",
+        PlotType::Xy => "xy",
         PlotType::XyInterval => "xy_interval",
         PlotType::Trajectory => "trajectory",
         PlotType::Heatmap => "heatmap",
@@ -2239,8 +2233,7 @@ fn plot_has_number_x_axis(plot_type: &PlotType) -> bool {
             | PlotType::GroupedBar
             | PlotType::StackedBar
             | PlotType::Pareto
-            | PlotType::XyScatter
-            | PlotType::XyLine
+            | PlotType::Xy
             | PlotType::XyInterval
             | PlotType::Trajectory
             | PlotType::Heatmap

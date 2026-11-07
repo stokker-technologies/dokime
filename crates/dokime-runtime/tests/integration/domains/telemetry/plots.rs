@@ -382,7 +382,8 @@ async fn execution_plots_samples() {
     wide.stream = Some("fixture.wide".into());
     wide.y = wide_keys.iter().map(|key| (*key).into()).collect();
     section.plot(wide);
-    let mut sparse = dokime_runtime::document::Plot::xy_scatter("Sparse Plot");
+    let mut sparse = dokime_runtime::document::Plot::xy("Sparse Plot");
+    sparse.style(dokime_runtime::document::PlotStyle::Points);
     sparse.id("sparse.plot");
     sparse.stream = Some("fixture.wide".into());
     sparse.x = Some("elapsed_s".into());
@@ -390,7 +391,8 @@ async fn execution_plots_samples() {
     section.plot(sparse);
     for (id, field, label) in [("distance.plot", "distance_m", "distance.selected"), ("position.plot", "position_x_m", "position.selected")]
     {
-        let mut projection = dokime_runtime::document::Plot::xy_scatter(id);
+        let mut projection = dokime_runtime::document::Plot::xy(id);
+        projection.style(dokime_runtime::document::PlotStyle::Points);
         projection.id(id);
         projection.stream = Some("fixture.wide".into());
         projection.x = Some("elapsed_s".into());
@@ -408,7 +410,8 @@ async fn execution_plots_samples() {
     exact.stream = Some("fixture.exact".into());
     exact.y = vec!["sample_index".into()];
     section.plot(exact);
-    let mut missing_x = dokime_runtime::document::Plot::xy_scatter("Independent Window");
+    let mut missing_x = dokime_runtime::document::Plot::xy("Independent Window");
+    missing_x.style(dokime_runtime::document::PlotStyle::Points);
     missing_x.id("missing-x.plot");
     missing_x.stream = Some("fixture.exact".into());
     missing_x.x = Some("ordinal".into());

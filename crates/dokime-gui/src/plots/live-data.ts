@@ -429,6 +429,7 @@ export function plotRequestForDocumentPlot(
     filters: plot.filters ?? [],
     xKey: plot.x ?? undefined,
     plotType: plot.plot_type,
+    style: plot.style ?? "line",
     xScale: plot.x_scale ?? "linear",
     yScale: plot.y_scale ?? "linear",
     fft: plot.fft,

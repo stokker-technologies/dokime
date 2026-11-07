@@ -53,6 +53,28 @@ fn refusal(plot: &PlotDefinition) -> String {
 
 #[dokime_tracing::trace_test]
 #[test]
+fn xy_axes_and_styles() {
+    use model::document::{PlotStyle, PlotType};
+
+    let mut plot = Plot::xy("Tracking Path");
+    assert_eq!(plot.plot_type, PlotType::Xy);
+    assert_eq!(plot.style, PlotStyle::Line);
+    assert!(validate_plot_definition(&plot).is_err());
+    plot.x(telemetry("tracking", "easting_m"));
+    assert!(validate_plot_definition(&plot).is_err());
+    plot.y(telemetry("tracking", "northing_m"));
+    for style in [PlotStyle::Line, PlotStyle::Points, PlotStyle::LinePoints, PlotStyle::Step] {
+        plot.style(style);
+        validate_plot_definition(&plot).unwrap();
+        let encoded = serde_json::to_value(&plot).unwrap();
+        assert_eq!(encoded["plot_type"], "xy");
+        let decoded: PlotDefinition = serde_json::from_value(encoded).unwrap();
+        assert_eq!(decoded, plot);
+    }
+}
+
+#[dokime_tracing::trace_test]
+#[test]
 fn reference_values_validation() {
     use model::document::{DocumentDefinition, DocumentSection, ReferenceValue};
     use model::expressions::{detail, parameter};
@@ -131,8 +153,7 @@ fn display_scale_refuses_other_axes() {
         PlotType::Pie,
         PlotType::Donut,
         PlotType::Pareto,
-        PlotType::XyScatter,
-        PlotType::XyLine,
+        PlotType::Xy,
         PlotType::XyInterval,
         PlotType::Trajectory,
         PlotType::Heatmap,

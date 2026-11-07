@@ -183,13 +183,11 @@ function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBin
 }
 
 function mapPlotType(value: string): DocumentPlotType {
-  if (value === "xy") return "xy_scatter";
   if (value === "frequency") return "frequency_series";
   if (
     value === "time_series" ||
     value === "bar" ||
-    value === "xy_scatter" ||
-    value === "xy_line" ||
+    value === "xy" ||
     value === "xy_interval" ||
     value === "trajectory" ||
     value === "heatmap" ||

@@ -67,8 +67,7 @@ export type PlotMarker = Omit<NativePlotMarker, "x"> & { x: unknown };
 export type DocumentPlotType =
   | "time_series"
   | "bar"
-  | "xy_scatter"
-  | "xy_line"
+  | "xy"
   | "xy_interval"
   | "trajectory"
   | "heatmap"

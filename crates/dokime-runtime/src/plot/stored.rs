@@ -101,12 +101,7 @@ pub(crate) fn supports(request: &PlotPayloadRequest) -> bool {
         && !request.y_keys.is_empty()
         && matches!(
             request.plot_type,
-            None | Some(
-                crate::document::PlotType::TimeSeries
-                    | crate::document::PlotType::XyScatter
-                    | crate::document::PlotType::XyLine
-                    | crate::document::PlotType::Histogram
-            )
+            None | Some(crate::document::PlotType::TimeSeries | crate::document::PlotType::Xy | crate::document::PlotType::Histogram)
         )
 }
 
@@ -257,7 +252,7 @@ pub(crate) async fn materialize(
                     series.label = expression.label.clone().unwrap_or_else(|| key.clone());
                 }
             }
-            if matches!(request.plot_type, Some(crate::document::PlotType::TimeSeries | crate::document::PlotType::XyScatter)) {
+            if super::payload::analyses::summarizes(&request) {
                 payload.summaries = vec![summary.clone()];
             }
             Ok::<_, Error>(payload)
@@ -826,7 +821,7 @@ mod tests {
             stream: "tracking".into(),
             x_expression: Some(crate::expressions::telemetry("tracking", "easting")),
             y_expressions: vec![crate::expressions::telemetry("tracking", "northing").label("Northing")],
-            plot_type: Some(crate::document::PlotType::XyLine),
+            plot_type: Some(crate::document::PlotType::Xy),
             max_points: Some(17),
             ..Default::default()
         };

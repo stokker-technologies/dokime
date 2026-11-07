@@ -1182,7 +1182,7 @@ This shortened example follows OBC's
 the suite-owned stream carrying `Row` rows:
 
 ```rust
-let mut voltage = Plot::xy_line("Battery Voltage");
+let mut voltage = Plot::xy("Battery Voltage");
 voltage.unit("V");
 voltage.x(Row::column_elapsed_s().on(stream));
 voltage.y(Row::column_dc_voltage_v().on(stream));
@@ -2261,9 +2261,10 @@ metadata; capture cost still scales with their cardinality, rather than sample h
 
 Specialized projections apply filters and scopes before accumulating data. They
 keep exact inputs up to `exact_points` (2,000 by default). Longer time series use
-extrema envelopes; XY scatter keeps paired coordinates in a density grid (64 by
-64 by default), re-binning occupied cells as extents grow. Each cell retains its
-sample count. Group counters and numeric moments update incrementally, and
+extrema envelopes. `Plot::xy(label)` defaults to `PlotStyle::Line`;
+`Points` keeps paired coordinates in a density grid (64 by 64 by default),
+re-binning occupied cells as extents grow. Each cell retains its sample count.
+`Line`, `LinePoints` and `Step` retain the ordered envelope without a grid. Group counters and numeric moments update incrementally, and
 record durations retain the preceding matching record and telemetry context.
 `groups` bounds series and correlation keys (256 by default). Plots with fewer
 than four points render normally. Analyses that need more exact history than the

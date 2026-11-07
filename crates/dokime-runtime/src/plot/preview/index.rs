@@ -557,7 +557,8 @@ mod tests {
                     stream: "stream".into(),
                     x_key: Some("value".into()),
                     y_keys: vec!["value".into()],
-                    plot_type: Some(crate::document::PlotType::XyScatter),
+                    plot_type: Some(crate::document::PlotType::Xy),
+                    style: crate::document::PlotStyle::Points,
                     ..Default::default()
                 })
                 .collect();

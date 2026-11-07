@@ -78,16 +78,16 @@ type AxisScale = NonNullable<PlotRequest["xScale"]>;
 type DownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 type FilterOperator = NonNullable<PlotRequest["filters"][number]["operator"]>;
 type PlotCartesianMode = NonNullable<NativePlotCartesianFrame["mode"]>;
-const AnalysisSelectionSchema = plotWire.Row14Schema;
-const DataExpressionSchema = plotWire.Row8Schema;
-const DataTransformSchema = plotWire.Row43Schema;
+const AnalysisSelectionSchema = plotWire.Row15Schema;
+const DataExpressionSchema = plotWire.Row9Schema;
+const DataTransformSchema = plotWire.Row48Schema;
 
-const PlotFftOptionsSchema = plotWire.Row11Schema;
-const PlotFilterSchema = plotWire.Row7Schema;
-const PlotHistogramOptionsSchema = plotWire.Row13Schema;
-const PlotIntervalOptionsSchema = plotWire.Row12Schema;
+const PlotFftOptionsSchema = plotWire.Row12Schema;
+const PlotFilterSchema = plotWire.Row8Schema;
+const PlotHistogramOptionsSchema = plotWire.Row14Schema;
+const PlotIntervalOptionsSchema = plotWire.Row13Schema;
 const PlotRequestSchema = plotWire.Row3Schema;
-const PlotWindowSchema = plotWire.Row15Schema;
+const PlotWindowSchema = plotWire.Row16Schema;
 type PlotStreamFrame = Wire<WatchFrame>;
 type PlotStreamKind = PlotStreamFrame["kind"];
 
@@ -110,6 +110,7 @@ export type PlotPayloadRequestInput = {
   filters?: DocumentViewPlot["filters"];
   xKey?: string | null;
   plotType?: DocumentPlotType | null;
+  style?: DocumentViewPlot["style"];
   xScale?: DocumentAxisScale | null;
   yScale?: DocumentAxisScale | null;
   fft?: DocumentFftOptions;
@@ -175,6 +176,12 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
         })
       : undefined,
     plotType: plotType(input.plotType),
+    style: {
+      HarmosVariant: {
+        case: ({ line: "Line", points: "Points", line_points: "LinePoints", step: "Step" } as const)[input.style ?? "line"],
+        value: {},
+      },
+    },
     xScale: axisScale(input.xScale),
     yScale: axisScale(input.yScale),
     ...(input.zExpression == null ? {} : { zExpression: dataExpression(input.zExpression) }),
@@ -509,10 +516,8 @@ function plotType(value?: DocumentPlotType | null): PlotType {
       return { HarmosVariant: { case: "TimeSeries" as const, value: {} } };
     case "bar":
       return { HarmosVariant: { case: "Bar" as const, value: {} } };
-    case "xy_scatter":
-      return { HarmosVariant: { case: "XyScatter" as const, value: {} } };
-    case "xy_line":
-      return { HarmosVariant: { case: "XyLine" as const, value: {} } };
+    case "xy":
+      return { HarmosVariant: { case: "Xy" as const, value: {} } };
     case "xy_interval":
       return { HarmosVariant: { case: "XyInterval" as const, value: {} } };
     case "trajectory":
