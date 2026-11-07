@@ -23,7 +23,6 @@ mod support;
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 // Third Party Imports
