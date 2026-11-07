@@ -2,7 +2,7 @@
   "version": 1,
   "files": {
     ".claude/skills/dokime-architecture/SKILL.md": "a6f2978bf8e18cf3961dbb1f0c081be4b933063f278779d641570c0d38a2ccf6",
-    ".claude/skills/dokime-authoring/SKILL.md": "3a6e55d819eac0ceef6f0e0899bf6fd06a629f4436ca2ea64c8703b9d78ea537",
+    ".claude/skills/dokime-authoring/SKILL.md": "313508223b9fa2838d65ed06195b270f197360f49dcc36c1d7ac6173cdf10295",
     ".claude/skills/dokime-authoring/references/plugins.md": "b7b9f5b5c4a2ef21e4fc06cc06f6bdfb0f3fe19ae6603d8bee1e33a408a0cf70",
     ".claude/skills/dokime-authoring/references/suites.md": "5f1fbf0e7917c4204c27037fa76ddc3f1c0e4735e54659815be4519ee2780c33",
     ".claude/skills/dokime-conventions/SKILL.md": "44aa51c64649ae294c042479c8da4f610ff6038446d7b36b1180f8e97e1f8b67",
@@ -23,7 +23,7 @@
     ".github/actions/setup/run.py": "3d616a0f6d3cf66f9bcba9c70b445ef8d69950a680be97596254f16479df0a2c",
     ".github/renovate.json5": "9bcbd7257b2502274c89f3fdadc9ef8c20fbf8094b484637553ad883db6232fd",
     ".github/skills/dokime-architecture/SKILL.md": "a6f2978bf8e18cf3961dbb1f0c081be4b933063f278779d641570c0d38a2ccf6",
-    ".github/skills/dokime-authoring/SKILL.md": "3a6e55d819eac0ceef6f0e0899bf6fd06a629f4436ca2ea64c8703b9d78ea537",
+    ".github/skills/dokime-authoring/SKILL.md": "313508223b9fa2838d65ed06195b270f197360f49dcc36c1d7ac6173cdf10295",
     ".github/skills/dokime-authoring/references/plugins.md": "b7b9f5b5c4a2ef21e4fc06cc06f6bdfb0f3fe19ae6603d8bee1e33a408a0cf70",
     ".github/skills/dokime-authoring/references/suites.md": "5f1fbf0e7917c4204c27037fa76ddc3f1c0e4735e54659815be4519ee2780c33",
     ".github/skills/dokime-conventions/SKILL.md": "44aa51c64649ae294c042479c8da4f610ff6038446d7b36b1180f8e97e1f8b67",
@@ -119,6 +119,7 @@
     "crates/cargo-dokime/templates/tools/python/src/project_tools/test/vitest.py.tmpl": "13ad067d9b050d0b5fbee51439b82a846d800a6544788a686abfd2558dc25768",
     "crates/cargo-dokime/templates/typos.toml.tmpl": "777d9c2e10702f205b4190714387ab2983434c934634ea809ed2d4dff8104829",
     "rustfmt.toml": "62a61be289564ff61eb7c2847eee6712deae7a94c918247e09f4755c88d46906",
+    "sdk/python/ruff.toml": "ee5a97cf84a1912ce707b7b2d36e962ac1795440e006d1cbad2920c1f3373d2f",
     "taplo.toml": "851ddd5002ac7af1a708ff9098afcc69c7d5c78f82130e6b253eff4795d155e7",
     "tools/python/ruff.toml": "ee5a97cf84a1912ce707b7b2d36e962ac1795440e006d1cbad2920c1f3373d2f",
     "tools/python/src/dokime_tools/build/__init__.py": "d5c4775bcd7fdded10e5f9de8e3643b2be3bbd35659f8eb6b345c5418727e30e",
@@ -164,7 +165,6 @@
     "tools/python/src/dokime_tools/test/run.py": "3752a0b7e6874653e99e9ac61dd0d51795979c166f8cd81b6d20e423d1c3c7a9",
     "tools/python/src/dokime_tools/test/runners.py": "6898006a2e4187f0b466a16a72f9bd9fb9d0d9069e82957634cc632845d537fe",
     "tools/python/src/dokime_tools/test/vitest.py": "b1ef52e10208604acc1b21cab59faa6456dbb9b9062f1732301ee9953e8beaa8",
-    "typos.toml": "2325a5124fb1d2bd60b5f82dd8f47f74d66a937488a95e527223afe56cdcd87a",
-    "sdk/python/ruff.toml": "ee5a97cf84a1912ce707b7b2d36e962ac1795440e006d1cbad2920c1f3373d2f"
+    "typos.toml": "2325a5124fb1d2bd60b5f82dd8f47f74d66a937488a95e527223afe56cdcd87a"
   }
 }

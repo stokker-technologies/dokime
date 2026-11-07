@@ -51,6 +51,85 @@ fn refusal(plot: &PlotDefinition) -> String {
 
 /* === Tests === */
 
+#[dokime_tracing::trace_test]
+#[test]
+fn display_scale_validation() {
+    let mut plot = Plot::time_series("Distance Delta");
+    plot.y(telemetry("distance", "delta_m"));
+    let unscaled = serde_json::to_value(&plot).unwrap();
+    assert!(unscaled.get("scale").is_none());
+    let decoded: PlotDefinition = serde_json::from_value(unscaled).unwrap();
+    assert_eq!(decoded.scale, None);
+
+    for scale in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        plot.scale(scale);
+        let message = refusal(&plot);
+        assert!(message.contains("Distance Delta"), "{message}");
+        assert!(message.contains("positive finite"), "{message}");
+        let mut section = model::document::DocumentSection::new("Measurements");
+        section.plot(plot.clone());
+        let mut document = model::document::DocumentDefinition::new("distance", "Distance");
+        document.section(section);
+        let issues = model::document::validate_document_definition(&document, 8, 1000).unwrap_err();
+        assert!(issues.iter().any(|issue| issue.contains("Distance Delta")));
+    }
+    for scale in [1.0, 1e3, 1e-3] {
+        plot.scale(scale);
+        validate_plot_definition(&plot).unwrap();
+        let encoded = serde_json::to_value(&plot).unwrap();
+        let decoded: PlotDefinition = serde_json::from_value(encoded).unwrap();
+        assert_eq!(decoded, plot);
+    }
+}
+
+#[dokime_tracing::trace_test]
+#[test]
+fn display_scale_refuses_other_axes() {
+    use model::document::{PlotAxisKind, PlotType};
+
+    for plot_type in [
+        PlotType::Bar,
+        PlotType::GroupedBar,
+        PlotType::StackedBar,
+        PlotType::Pie,
+        PlotType::Donut,
+        PlotType::Pareto,
+        PlotType::XyScatter,
+        PlotType::XyLine,
+        PlotType::XyInterval,
+        PlotType::Trajectory,
+        PlotType::Heatmap,
+        PlotType::XyValueHeatmap,
+        PlotType::WifiChannelOccupancy,
+        PlotType::FrequencySeries,
+        PlotType::Histogram,
+        PlotType::BoxSummary,
+        PlotType::AggregateTable,
+    ] {
+        let mut plot = PlotDefinition::with_type("Unsupported Axis", plot_type);
+        plot.scale(1e3);
+        let message = refusal(&plot);
+        assert!(message.contains("Unsupported Axis"), "{message}");
+        assert!(message.contains("time_series y"), "{message}");
+    }
+
+    let mut plot = Plot::time_series("Distance Delta");
+    plot.y(telemetry("distance", "delta_m"));
+    plot.scale(1e3);
+    plot.x(telemetry("distance", "elapsed_s"));
+    assert!(refusal(&plot).contains("Distance Delta"));
+    plot.x_expression = None;
+    plot.x_axis(PlotAxisKind::elapsed("s"));
+    assert!(refusal(&plot).contains("other x axes"));
+    plot.x_axis(PlotAxisKind::WallTime);
+    plot.analysis = Some(model::analysis::Selection {
+        id: "custom".to_owned(),
+        version: 1,
+        parameters: Default::default(),
+    });
+    assert!(refusal(&plot).contains("custom analyses"));
+}
+
 // A histogram bins the one value it declares on x; the host counts it on y.
 #[dokime_tracing::trace_test]
 #[test]

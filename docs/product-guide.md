@@ -1205,6 +1205,26 @@ one line. All unit-bearing labels use square brackets directly after the label;
 table headers truncate with a full-text tooltip instead of wrapping the unit
 below the title. Preserve unit symbols and case.
 
+`unit` is only a label; it never converts data. To display stored metres as
+millimetres on a time-series y axis:
+
+```rust
+let mut distance = Plot::time_series("Distance Delta");
+distance.unit("mm");
+distance.y(Row::column_distance_delta_m());
+distance.scale(1e3);
+```
+
+`scale` defaults to 1.0 and is omitted from serialization when absent. Document
+validation requires a positive finite constant, naming the plot on refusal.
+Only time-series y values against the row timestamp are supported; other plot
+kinds, custom analyses and alternate x axes refuse `.scale(...)`.
+Live plots and frozen HTML multiply returned points, y-axis/cursor/tooltip
+values, min, max, mean, median, percentiles, std, RMS and y reference lines/bands.
+Count stays unchanged. Filters such as `.only(column.gt(...))` and section
+repeats use stored units. Stored evidence, exports, criteria, query plans and
+expressions are unchanged; arithmetic such as `column * 1e3` remains unsupported.
+
 Column handles keep plot expressions tied to the declared data shape, and they
 compare straight into filters: `voltage.only(column.gt(0.0))` narrows a plot,
 and `section.each(column, "Point {value}")` repeats a section once per distinct

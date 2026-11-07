@@ -155,6 +155,17 @@ card diagnostic in the saved document.
 
 ## Telemetry Plots
 
+`unit` is only a label. A plot's optional `scale` multiplies returned time-series
+y values for display, including points, axis ticks, cursor/tooltips, statistics
+and y reference lines/bands. Count and timestamps stay unchanged. Live plots and
+frozen HTML use `src/plots/grouping.ts` for the same conversion, without mutating
+query payloads. Explicit conversion uses a numeric axis, including encoded 0/1
+Boolean values; ordinary Boolean plots retain False/True labels.
+Scale defaults to 1.0 and is omitted from documents when absent. Validation
+requires a positive finite constant and refuses other plot kinds, custom analyses
+and alternate x axes. Filters and section repeats still use stored units;
+evidence, exports, criteria, query plans and expressions remain unchanged.
+
 Live and frozen report plots retain samples from the selected execution,
 including shared streams captured by its leases. Authored stream aliases resolve
 to the captured producer streams. Running reports freeze one saved evidence cut;

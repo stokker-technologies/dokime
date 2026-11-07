@@ -702,6 +702,16 @@ raw `client.call` still exposes its canonical contracts. The existing catalog
 `dokime.query.aggregate` remains a separate grouping operation, using the same
 `Aggregate` vocabulary for catalog columns rather than stream samples.
 
+Python document plots are mappings passed to `Document.section` or the template's
+`document` declaration. Their `unit` is only a label. Use `"scale": 1e3` beside
+`"unit": "mm"` on a `"plot_type": "time_series"` plot to display stored metres
+as millimetres. The native document validator accepts only positive finite
+scales on time-series y values against the row timestamp, refusing other kinds,
+custom analyses and alternate x axes. Omit `scale` for the default 1.0.
+Live plots and frozen HTML scale points, y-axis/cursor/tooltip values, statistics
+(except count) and y references. Filters and section repeats use stored units;
+evidence, exports, criteria, queries and expressions keep stored values.
+
 `Query.Aggregate` and plot expressions name their statistic with the Harmos
 aggregate enum message: one `_harmos_variant` oneof whose members are `Count`,
 `Sum`, `Mean`, `Median`, `Min`, `Max`, `Rms`, `Std` and `Percentile`, which

@@ -302,6 +302,10 @@ pub(super) struct Plot {
     filters: Vec<Filter>,
     #[serde(default)]
     unit: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    scale: Option<f64>,
+
     #[serde(default)]
     style: String,
     #[serde(default)]
@@ -908,6 +912,7 @@ impl TryFrom<&crate::document::PlotDefinition> for Plot {
             filters,
             unit: value.unit.as_deref().map(str::to_owned),
             style: name(&value.style),
+            scale: value.scale,
             x_scale: name(&value.x_scale),
             y_scale: name(&value.y_scale),
             fft: Fft::try_from(&value.fft)?,
@@ -974,6 +979,7 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
             filters,
             unit: row.unit,
             style: parse(&row.style, "invalid plot style")?,
+            scale: row.scale,
             x_scale: parse(&row.x_scale, "invalid axis scale")?,
             y_scale: parse(&row.y_scale, "invalid axis scale")?,
             fft: row.fft.try_into()?,

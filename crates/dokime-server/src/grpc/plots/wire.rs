@@ -278,7 +278,7 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime::domain::mod
             .max_points
             .map(|value| u64::try_from(value).map_err(|_| Status::internal("plot max_points does not fit wire")))
             .transpose()?,
-        window_s: request.window_s.map(|value| finite_duration(value, "plot window_s")).transpose()?,
+        window_s: request.window_s.map(|value| finite_nonnegative(value, "plot window_s")).transpose()?,
         scope: request.scope.as_ref().map(canonical::scope).transpose()?,
         technique: enums::downsample_technique(&request.technique),
         summary_window: request
@@ -307,6 +307,7 @@ fn data_transform_wire(transform: &DataTransform) -> Result<dokime::domain::mode
 fn plot_presentation(input: &PlotInput) -> Result<dokime::domain::model::documents::wire::PlotPresentation, Status> {
     let (x_axis, x_axis_unit) = enums::plot_axis(input.x_axis.as_ref());
     Ok(dokime::domain::model::documents::wire::PlotPresentation {
+        scale: input.scale,
         style: enums::plot_style(&input.style),
         fft: Some(plot_fft_wire(&input.fft)?),
         interval: Some(plot_interval_wire(&input.interval)?),
@@ -389,10 +390,6 @@ fn finite_nonnegative(value: f64, label: &str) -> Result<f64, Status> {
         return Err(Status::internal(format!("{label} is negative")));
     }
     Ok(value)
-}
-
-fn finite_duration(value: f64, label: &str) -> Result<f64, Status> {
-    finite_nonnegative(value, label)
 }
 
 fn plot_stream_kind(value: PlotPayloadStreamKind) -> dokime::domain::model::plots::wire::PlotStreamKind {

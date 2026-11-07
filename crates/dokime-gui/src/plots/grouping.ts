@@ -10,7 +10,14 @@
 /* === Local Imports === */
 
 import { formatTitleWord } from "@/lib/format";
-import type { DocumentReferenceLine, DocumentViewPlot, PlotPayload, TelemetryStream, ValueFormat } from "@/lib/types";
+import type {
+  DocumentReferenceBand,
+  DocumentReferenceLine,
+  DocumentViewPlot,
+  PlotPayload,
+  TelemetryStream,
+  ValueFormat,
+} from "@/lib/types";
 import { isRecord } from "@/lib/utils";
 import { elapsedColumnUnit } from "@/plots/axis";
 import { plotColor } from "@/plots/colors";
@@ -57,7 +64,7 @@ export function documentPlotSpec({
   // it waits for its first frame.
   const xFormat = payload?.x_format ?? plot.x_format ?? null;
 
-  return {
+  const spec: PlotCardSpec = {
     key: plot.plot_id,
     stream: plot.stream,
     title: plot.title,
@@ -91,7 +98,7 @@ export function documentPlotSpec({
     unit: plot.unit ?? commonUnit(series),
     colors: series.map((_, index) => plotColor(title, position + index, plotPalette)),
     referenceLines: resolveReferenceLines(plot.reference_lines ?? [], plot, telemetry, parameters),
-    referenceBands: plot.reference_bands ?? [],
+    referenceBands: resolveReferenceBands(plot.reference_bands ?? [], plot, telemetry, parameters),
     stateLabel: state.label,
     stateDetail: state.detail,
     contextSummary: plotContextSummary({ stream: plot.stream, telemetry, context: payload?.context }),
@@ -108,6 +115,7 @@ export function documentPlotSpec({
     summaries: payload?.summaries ?? null,
     summaryPending: false,
   };
+  return scalePresentation(spec, plot.scale ?? 1);
 }
 
 /**
@@ -140,6 +148,38 @@ export { plotColor };
 
 /* === Private Functions === */
 
+/** Shared by live snapshots, zoom summaries and frozen HTML; never mutates query payloads. */
+function scalePresentation(plot: PlotCardSpec, scale: number): PlotCardSpec {
+  if (scale === 1) return plot;
+  const scaled = (value: number | null | undefined) => (value == null ? value : value * scale);
+  const cartesian = plot.cartesian;
+  return {
+    ...plot,
+    booleanAxis: false,
+    series: plot.series.map((series) => ({
+      ...series,
+      points: series.points.map((point) => ({ ...point, y: point.y === null ? null : point.y * scale })),
+    })),
+    cartesian: cartesian
+      ? {
+          ...cartesian,
+          series: cartesian.series.map((series) => ({ ...series, y: series.y.map((value) => (value === null ? null : value * scale)) })),
+          y_domain: cartesian.y_domain ? { min: cartesian.y_domain.min * scale, max: cartesian.y_domain.max * scale } : cartesian.y_domain,
+          signature: `${cartesian.signature}:scale:${scale}`,
+        }
+      : cartesian,
+    summaries: plot.summaries?.map((summary) =>
+      Object.fromEntries(
+        Object.entries(summary).map(([key, value]) => [key, key !== "count" && typeof value === "number" ? value * scale : value]),
+      ),
+    ) as PlotCardSpec["summaries"],
+    referenceLines: plot.referenceLines.map((line) => (line.axis === "y" ? { ...line, value: scaled(line.value) } : line)),
+    referenceBands: plot.referenceBands.map((band) =>
+      band.axis === "y" ? { ...band, min: scaled(band.min), max: scaled(band.max) } : band,
+    ),
+  };
+}
+
 /** An RFC3339 payload timestamp as epoch seconds, or `null` when absent or unparseable. */
 function epochSecondsOf(timestamp: string | null | undefined): number | null {
   if (!timestamp) {
@@ -164,7 +204,7 @@ function resolveReferenceLines(
     if (Number.isFinite(line.value)) {
       return line;
     }
-    const value = referenceLineSourceValue(line, plot, telemetry, parameters);
+    const value = referenceSourceValue(line.source, plot, telemetry, parameters);
     if (value === null) {
       return line;
     }
@@ -173,13 +213,27 @@ function resolveReferenceLines(
   });
 }
 
-function referenceLineSourceValue(
-  line: DocumentReferenceLine,
+function resolveReferenceBands(
+  bands: DocumentReferenceBand[],
+  plot: DocumentViewPlot,
+  telemetry: Record<string, TelemetryStream> | null | undefined,
+  parameters: Record<string, unknown> | null | undefined,
+): DocumentReferenceBand[] {
+  return bands.map((band) => {
+    if (Number.isFinite(band.min) && Number.isFinite(band.max)) return band;
+    const center = referenceSourceValue(band.center, plot, telemetry, parameters);
+    const tolerance = referenceSourceValue(band.tolerance, plot, telemetry, parameters);
+    if (center === null || tolerance === null) return band;
+    return { ...band, min: center - Math.abs(tolerance), max: center + Math.abs(tolerance) };
+  });
+}
+
+function referenceSourceValue(
+  source: DocumentReferenceLine["source"],
   plot: DocumentViewPlot,
   telemetry: Record<string, TelemetryStream> | null | undefined,
   parameters: Record<string, unknown> | null | undefined,
 ): number | null {
-  const source = line.source;
   if (!isRecord(source)) {
     return null;
   }

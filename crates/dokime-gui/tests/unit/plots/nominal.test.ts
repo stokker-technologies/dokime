@@ -1730,6 +1730,89 @@ test("Report Metadata Subtitles", () => {
   assert.ok(html.includes("fixture-network"));
 });
 
+test("Display Scale Converts Returned Points Statistics and References Without Mutating Evidence", () => {
+  const descriptor = {
+    plot_id: "distance",
+    title: "Distance Delta",
+    stream: "distance",
+    plot_type: "time_series",
+    y: ["delta_m"],
+    unit: "mm",
+    scale: 1000,
+    reference_lines: [
+      { axis: "y", value: 0.004, color: "red" },
+      { axis: "x", value: 2, color: "blue" },
+      { axis: "y", source: { source: { type: "parameter", name: "target_m" } }, source_scale: 2, color: "green" },
+    ],
+    reference_bands: [
+      { axis: "y", min: -0.002, max: 0.003, color: "red" },
+      { axis: "x", min: 1, max: 3, color: "blue" },
+      {
+        axis: "y",
+        center: { source: { type: "parameter", name: "target_m" } },
+        tolerance: { source: { type: "parameter", name: "tolerance_m" } },
+        color: "green",
+      },
+    ],
+  } as DocumentViewPlot;
+  const payload = hostFrame([1, 2, 3], [[-0.002, null, 0.004]], { keys: ["delta_m"] });
+  if (payload.cartesian) payload.cartesian.y_domain = { min: -0.002, max: 0.004 };
+  payload.summaries = [
+    {
+      series_id: "delta_m",
+      count: 2,
+      min: -0.002,
+      max: 0.004,
+      mean: 0.001,
+      median: 0.001,
+      std: 0.003,
+      rms: 0.003162,
+      window: { from: 1, to: 3 },
+    },
+  ];
+  const original = structuredClone({ payload, descriptor });
+  const present = (frame: PlotPayload) =>
+    documentPlotSpec({
+      plot: descriptor,
+      payload: frame,
+      parameters: { target_m: 0.005, tolerance_m: 0.001 },
+      title: descriptor.title,
+      position: 0,
+    });
+  const plot = present(payload);
+  assert.deepEqual(
+    plot.series[0].points.map(({ x, y }) => [x, y]),
+    [
+      [1, -2],
+      [2, null],
+      [3, 4],
+    ],
+  );
+  assert.deepEqual(plot.cartesian?.series[0], { x: [1, 2, 3], y: [-2, null, 4] });
+  assert.deepEqual(plot.cartesian?.y_domain, { min: -2, max: 4 });
+  assert.deepEqual(plot.summaries, [
+    { series_id: "delta_m", count: 2, min: -2, max: 4, mean: 1, median: 1, std: 3, rms: 3.162, window: { from: 1, to: 3 } },
+  ]);
+  assert.deepEqual(
+    plot.referenceBands.map(({ min, max }) => [min, max]),
+    [
+      [-2, 3],
+      [1, 3],
+      [4, 6],
+    ],
+  );
+  assert.deepEqual(
+    plot.referenceLines.map(({ value }) => value),
+    [4, 2, 10],
+  );
+  // Repeated frames and frozen JSON take the same conversion path once.
+  assert.deepEqual(present(JSON.parse(JSON.stringify(payload))), plot);
+  assert.deepEqual({ payload, descriptor }, original);
+  const unscaled = documentPlotSpec({ plot: { ...descriptor, scale: undefined }, payload, title: descriptor.title, position: 0 });
+  assert.equal(unscaled.cartesian, payload.cartesian);
+  assert.equal(unscaled.summaries, payload.summaries);
+});
+
 test("Generated Plot Series Labels Respect Word Positions", () => {
   const keys = ["number_of_rows", "wait_until_chamber_is_ready", "log_in", "turn_off_the_heater"];
   const descriptor = {
