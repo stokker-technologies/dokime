@@ -86,7 +86,7 @@ async fn run_server(args: host::Args, config: dokime::config::Config) -> host::R
     let _guards = host::install_logging(&paths, terminal.color_enabled())?;
     let network = network.with_trace_journal(_guards.journal());
 
-    let start = host::Session::start(&args, config, network, |name| emit_phase(args.dev_control, name));
+    let start = host::Session::start(&args, config, network, Vec::new(), |name| emit_phase(args.dev_control, name));
     let starting: Pin<Box<dyn Future<Output = host::Result<host::Session>> + '_>> = Box::pin(start);
     let mut session = starting.await?;
     let endpoint = session.endpoint();

@@ -19,20 +19,14 @@ proto = true
 # === === Languages === === #
 
 [languages.rust]
-roots = ["crates", "plugins"]
+roots = ["crates", "plugins", "sdk/python"]
 # The domain crate also builds for the browser.
 targets = ["wasm32-unknown-unknown"]
 # The GUI's Node dependencies and the starter templates are not workspace Rust sources.
 exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
 
 [languages.python]
-build_target = "any"
-roots = ["tools/python", "packages"]
-generated = [
-  "packages/dokime-client/src/dokime_client/_wire",
-  "packages/dokime-client/src/dokime_client/operation.py",
-  "packages/dokime-client/src/dokime_client/dynamic.py",
-]
+roots = ["tools/python", "sdk/python"]
 
 [languages.typescript]
 roots = ["crates/dokime-gui"]
@@ -117,7 +111,7 @@ jobs = ["check:repository"]
 # --- Stage / Check --- #
 
 [[ci.jobs]]
-id = "check:python:generated"
+id = "check:python:bindings"
 inputs = ["build:python#python"]
 
 [[ci.jobs]]
@@ -128,7 +122,7 @@ inputs = ["build#clients"]
 
 [[ci.jobs]]
 id = "build"
-inputs = ["build:python#python"]
+inputs = []
 
 [[ci.jobs]]
 id = "build:rust:tests"
@@ -137,8 +131,8 @@ outputs.tests = ["target/build/{profile}/{target}/tests", "target/build/{profile
 
 [[ci.jobs]]
 id = "build:python"
-inputs = []
-outputs.python = ["target/build/{profile}/any/python"]
+inputs = ["build#cli", "build#packaging"]
+outputs.python = ["target/build/{profile}/{target}/python"]
 
 [[ci.jobs]]
 id = "build"
@@ -290,7 +284,7 @@ outputs.package = ["target/package/{profile}/{target}/rust"]
 [[ci.jobs]]
 id = "package:python"
 inputs = ["build:python#python"]
-outputs.package = ["target/package/{profile}/any/python"]
+outputs.package = ["target/package/{profile}/{target}/python"]
 
 [[ci.jobs]]
 id = "package:rust"
@@ -355,7 +349,13 @@ integration = 120
 acceptance = 900
 system = 900
 
+[conventions.rust]
+# The Owner-Locked SDK Lives Beside The Other SDKs And Depends On The Facade And Server.
+bindings = ["dokime-python"]
+
 [conventions.rust.source_roots]
+# Owner-Locked Layout Exception To The crates/<project>-python Convention.
+dokime-python = "sdk/python/src"
 # Validate the authored source that this compile-only crate renders and includes.
 dokime-starter-check = "crates/cargo-dokime/templates"
 
@@ -363,7 +363,7 @@ dokime-starter-check = "crates/cargo-dokime/templates"
 # Audit Native Sources And Cargo/CI Policy Skeletons.
 include = ["**/*.rs", "**/*.py", "**/Cargo.toml", "mise.toml", ".stkr/project.toml"]
 # Generated RPC output is owned and checked by the binding generators.
-exclude = ["packages/dokime-client/src/dokime_client/client/_generated/**", "crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
+exclude = ["crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 
 [barrels]
 # Deliberate public façades, not accidental re-export files: the authoring
@@ -371,7 +371,7 @@ exclude = ["packages/dokime-client/src/dokime_client/client/_generated/**", "cra
 exclude = ["crates/dokime-runtime/src/prelude.rs", "crates/dokime-runtime/src/plugin/sidecar.rs"]
 
 [markdown]
-include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**", "openspec/**"]
+include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**", "openspec/**", "docs/**/*.md"]
 
 # === === Templates === === #
 
@@ -561,8 +561,6 @@ lock_commands = [
     "sync",
     "--locked",
     "--all-groups",
-    "--no-install-package",
-    "dokime-client",
   ],
 ]
 targets = ["linux-x86_64", "windows-x86_64"]
@@ -632,8 +630,7 @@ value = "0.1.2"
 files = [
   "Cargo.toml",
   "pyproject.toml",
-  "packages/dokime-client/pyproject.toml",
-  "packages/dokime-client/examples/remote/python/pyproject.toml",
+  "sdk/python/examples/remote/python/pyproject.toml",
   "crates/dokime-gui/package.json",
   "crates/dokime-gui/src-tauri/tauri.conf.json",
 ]
@@ -655,3 +652,15 @@ targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-
 release = true
 verify = ["--version"]
 installers = ["mise"]
+
+# === === PyO3 === === #
+
+[[pyo3.modules]]
+name = "_native"
+crate = "dokime-python"
+module_rename = "_native"
+rust = "sdk/python/src"
+stub = "sdk/python/python/dokime/_native.pyi"
+import = "dokime._native"
+root = true
+state_exceptions = { PyOperationInstance = "The owned running invocation is single-use behind an async mutex; cancellation, immutable identity and response schema belong to that one scoped handle.", PyStream = "The Python stream coordinates one incoming Rust stream, a bounded input sender, opening task and cancellation; its Client is the existing cloneable handle.", PyBackend = "The session is shared through one async mutex; an admission flag closes export synchronously before shutdown is awaited, and endpoint/root are immutable startup snapshots." }

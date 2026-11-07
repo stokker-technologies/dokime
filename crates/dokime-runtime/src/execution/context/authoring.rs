@@ -188,6 +188,11 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
         self.environment.raw_parameters()
     }
 
+    #[cfg(feature = "native")]
+    pub fn execution_scope(&self) -> crate::execution::ExecutionScope {
+        crate::execution::ExecutionScope::execution(self.environment.identity().execution_id.clone()).staged(&self.call_stage)
+    }
+
     pub fn parameter<T: DeserializeOwned>(&self, id: &str) -> crate::Result<T> {
         self.environment.parameter(id)
     }
@@ -332,6 +337,13 @@ impl<C, O, I> Context<'_, C, O, I, Cleanup> {
 }
 
 impl<'a, C, I> CriterionContext<'a, C, I> {
+    #[cfg(feature = "native")]
+    pub fn execution_scope(&self) -> Option<crate::execution::ExecutionScope> {
+        let execution = self.operation_binding.as_ref()?.identity.execution_id.clone();
+        let stage = self.log.map_or_else(String::new, |(_, criterion)| format!("criterion/{criterion}"));
+        Some(crate::execution::ExecutionScope::execution(execution).staged(stage))
+    }
+
     pub fn new(parameters: &'a I, raw: &'a BTreeMap<String, Value>, evidence: &'a ExecutionEvidence) -> Self {
         Self {
             calls: std::marker::PhantomData,

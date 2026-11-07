@@ -1,0 +1,244 @@
+# Design
+
+Foundation, client, backend and authoring decisions describe the delivered native SDK. Steps and observers use the unified `ctx.operation` API.
+
+## Flow
+
+```python
+import asyncio, dokime
+async def main():
+    async with dokime.Backend(port=0) as backend:
+        backend.export_pairing("lab.dokime-remote", label="Bench 3")
+asyncio.run(main())
+```
+
+## Layout
+
+`sdk/python/` holds Cargo/maturin manifests (private `_native`, abi3), native `src/{client,backend}/`, public `python/dokime/` with `py.typed` and hand-written stubs, `tests/{unit,integration,acceptance,system}/`, and `examples/`. Rust modules mirror public modules; stubs live at public paths, never private Rust paths.
+
+The backend reuses `dokime_server::host::Session`, the managed remote pairing controller, `local.lock` and the normal installed-plugin store. Embedded templates use host-level `dokime.template.*` operations; task 4.1 extends `runtime/embedded.rs::EmbeddedProvider` instead of adding another path.
+
+## Rust to Python Calls
+
+Tokio owns the runtime; Rust releases the interpreter while waiting. Async callbacks run on the starting loop; synchronous callbacks run on workers. Operation deadlines remain authoritative; cancellation cancels the Python task and ignored cancellation is reported. Exceptions become operation failures with tracebacks. Shutdown failures are logged and cannot start new work.
+
+## Fast Streams
+
+`push` serves low-rate data. `await ctx.stream(Measurement).into(Samples).push_columns({"timestamp": timestamps, "voltage_v": voltages})` accepts NumPy or Arrow columns in one crossing with the interpreter released. Fast Stream Support owns and measures throughput targets separately.
+
+## Macro Mapping
+
+| Rust | Python | Why It Differs |
+| --- | --- | --- |
+| `#[dokime::parameters]`, `#[parameter(...)]` | `@dokime.parameters`, `dokime.parameter(...)` | |
+| `#[dokime::template(...)]` on `impl` | `@dokime.template(...)` on a class | |
+| `step`, `observer`, `criterion`, `prompt`, `record`, `stream`, `section`, `suite`, `operation` attributes | Same decorator names and arguments | |
+| `#[dokime::catalog] enum` | Lists | No enum dispatch |
+| `#[dokime::message]`, `#[dokime::harmos]` | Dropped or dataclass | Binding owns serialization |
+| `ctx.stream::<T>()` | `ctx.stream(T)` | Python syntax |
+| `Result<(), Error>` | Raised exceptions | Python convention |
+| `Plugin::Requires` catalog | `Plugin(requires=[...])` | Native required contracts are still derived and admitted in Rust. |
+| Typed response wrapper | Await returns the decoded response value | Python carries the native failure as an exception. |
+| Static observer and criterion methods | `@staticmethod` with `ctx` only | Observers share initializer resources; criteria run after instance cleanup. |
+| `CriterionContext::evidence()` | `ctx.evidence()` returns a native-shaped mapping | A bounded 64 MiB snapshot crosses the interpreter boundary. |
+
+## Storage Format Identity
+
+Clean-break development keeps v1. The identity must not depend on manually bumping a constant.
+
+- Derive a build-time digest from declared stored schemas, starting with Harmos schema graphs and SQLite layout.
+- Record the digest and writer commit before the first evidence write.
+- A different digest or a populated root without a marker refuses with `StorageFormatMismatch`, naming root and both builds.
+- Refusal rewrites, migrates and deletes nothing.
+
+The coverage audit found JSON state snapshots, journals, settings, history and previews, custom SQLite object frames, and Arrow IPC outside the message graphs. Graphs alone cannot satisfy task 1.1.
+
+Owner decision (2026-11-06): include normalized codec source, removing comments and whitespace between tokens while preserving literal contents and token boundaries. An edit that leaves stored bytes unchanged can occasionally refuse a root.
+
+The explicit inputs in `crates/dokime-runtime/build/mod.rs` and `crates/dokime-domain/src/storage_format.rs` cover the SQLite layout and stored JSON, object-frame and Arrow IPC codecs, including native execution-context and report-publication frames, persisted query contract cuts, and transitive snapshot and journal types; unrelated source files are excluded. The build also hashes the Harmos graphs for application settings and the two stored history summaries. The writer commit is recorded separately and never contributes to format identity.
+
+## Foundation Decisions
+
+- `sdk/python` and its `dokime` plus `dokime-server` dependencies are owner-locked exceptions to the bindings skill. Native policy declares the source root and binding mapping.
+- The provisional local distribution is `dokime-python`, importing `dokime`. `Private :: Do Not Upload` and the release publisher refuse registry upload until naming is settled.
+- Maturin builds one `cp313-abi3` wheel per native platform. Cargo defaults and Product/Tests/Bench builds exclude the explicit Python producer.
+- Product precedes Python in CI. Both use the normal Cargo target tree and profile; the wheel enables the server's media feature for release. Different resolved feature sets can still produce separate Cargo units.
+- The updated workstation guidance removes the build lock; Python retains the existing machine/cache wrapper and compiler-output preflight.
+- Package copies native wheels without compilation. CI, simulation and release inputs use native paths; releases collect both wheels. No pure wheel or source distribution remains in this producer.
+- Windows dev measurement: wheel 227,830 bytes; wheel task 42.97 s, including 19.35 s Clippy and 11.59 s native compilation after the server-library baseline; all 516 pre-existing Rust archives retained their size and modification time, and three PyO3 archives were added. This slice's import surface is version metadata only. Its wheel size does not predict the completed client/backend SDK size. Client code, tests and wire generation remain owned by tasks 2.1–2.5.
+
+## Client Parity Decisions
+
+- Rust `Client` owns the live connection, negotiation, identity checks, request deadlines and cancellation. PyO3 async futures release Python while waiting and propagate asyncio cancellation by dropping the Rust future. Closing the Python connection closes the shared Rust handle without stopping admitted backend work.
+- Python retains its language-specific owned async contexts, lazy finite readers, immutable value views and optional dataframe conversion. These compose Rust client operations and retain the existing lifecycle and bounded-materialization contracts; no Python gRPC transport remains.
+- The client identity snapshot stays at `dokime.client.Backend`; `dokime.Backend` owns the backend async context.
+- Private interpreter message classes are reflected from the Rust catalog through Harmos. No generated Python wire tree, descriptor asset, schema projection implementation or Python contract exporter remains. `dokime.client.contracts.operation(service, method)` replaces generated root operation constants; live plugin discovery still uses the authorized Rust catalog.
+- A connection reuses reflected message classes for identical complete contracts and provider generations in its current catalog. Rediscovery still fetches Rust's authorized entries and refreshes grants/availability, while retired contracts leave the cache. This preserves request-class identity across rediscovery and avoids reconstructing every descriptor pool for each newly used method; no historical or unbounded reflection cache is added.
+- Raw Rust client calls authorize external gRPC paths through that same live catalog; product methods retain the negotiated availability check. Streaming input uses a one-frame bounded channel, with explicit finish/cancel and final-status observation.
+- The Rust raw-stream response accessor retains initial metadata for Python stream errors. Native causes and binary status details survive exception translation. Bridge-only mutex acquisition is interpreter-aware; native guards are released before Python conversion, and explicit stream close drains cancellation before returning.
+- Error classifications and input refusals follow the Rust client; exception prose is not a compatibility contract. Socket fixtures now advertise both Backend and Runtime discovery methods and use their distinct response contracts, plus the authorized Host catalog.
+- A malformed remote operation catalog raises `ProtocolError`; exceeding the Rust catalog budget raises `RpcError` with `RESOURCE_EXHAUSTED`. Neither is classified as a local argument error.
+- Pairing and profile reading, validation, candidate selection and remembered-endpoint writes use the Rust implementations. Python profile objects are snapshots. Keyring-backed profiles retain the explicit pairing-file path required by the former Python client.
+- Python checks an explicitly empty profile-path environment override before calling Rust: Windows removes an empty process environment variable while Python retains the assigned mapping entry. Profile selection and remembered-endpoint writes use the same resolved path.
+- Foreign-operation socket fixtures are exported by a test-only Rust example through the authoritative schema and fingerprint constructors. Tests use valid differing contracts for drift and separately reject corrupted fingerprints; no Python digest implementation or validation exception is introduced.
+- The standalone tutorial creates its lock after adding the matching native wheel. Its old platform-independent wheel lock and digest are removed rather than preserving a nonexistent artifact. Distribution naming remains provisional; no registry upload is enabled.
+- Hand-maintained stubs mirror public modules and the private built extension. Built-wheel stubtest is the `check:python:bindings` task; generated-Python checks are retired. Removed Python transport retry/certificate internals and the settings codec round-trip test are already owned by Rust transport/domain tests; socket-level Python connection, cancellation, pairing and lifecycle tests remain.
+- Stubtest uses pinned mypy 2.4.1 with Python 3.15 typing metadata support. The strict stubtest entry adapts its alias comparison to unwrap PEP 695 targets and compare equivalent multi-value Literal forms; it delegates every comparison to the original checker and preserves modern Python source conventions. Generic stubs declare their interpreter-provided type-parameter tuples, native handles are final, and constructor defaults match runtime; no stubtest allowlist or ignored errors are used.
+- `build:python:fixtures` is the recurring focused producer for native Python acceptance: CLI, collector, host plugin and OBC, with no desktop or test archive. Its isolated fixture root can be selected with `test:python:acceptance --artifacts`; CI retains its existing Product/Tests inputs.
+- Windows dev client wheel: 5,645,209 bytes (`cp313-abi3-win_amd64`), built in 277.78 s with 6 local compiler-cache hits and 4 misses. The run included Cargo waiting alongside `check:rust`; this measures the client surface, not the later backend and authoring wrappers.
+- Windows moved-client measurements: 176 unit tests in 24.24 s, 295 integration tests in 42.10 s and two native acceptance stories in 552.49 s, using the focused CLI/plugin fixtures. Installed-wheel import and strict stubtest passed for all 39 shipped modules on CPython 3.15.
+
+## Inherited Mechanisms
+
+The gRPC service, Harmos sidecar lifecycle, `local.lock`, reports and Python-client behaviour remain. Client parity replaced `packages/dokime-client`, generated Python wire code and descriptors. Native platform wheels replace the pure `Build / Product / Python (any)` producer.
+
+## Backend Decisions
+
+- `Session::start` accepts native embedded providers; existing CLI/GUI callers pass an empty list. Python owns one session through an async mutex, released before Python exception construction. Shutdown closes pairing admission synchronously, then uses the server's retained drain; cancelled startup retains the existing rollback. Endpoint/root are immutable startup snapshots. The extension uses the product executable crates' recursion limit of 256: native code generation exceeded Rust's default while computing an inherited runtime-query future layout; check and Clippy did not evaluate that layout.
+- `Backend(port=None, root=None, application_root=None, plugins=())` uses the server resolver and default port; zero requests an available local port. `root` selects execution storage, `application_root` selects distribution settings. Installed plugins always load. `client()` returns an independent local client context.
+- Synchronous `export_pairing(path, label=...)` releases Python while awaiting the Rust controller and atomically publishing its pairing file. Enabled remote settings remain authoritative; a disabled listener is enabled with TLS and per-client keys at `127.0.0.1:0`, avoiding a second configured-port collision. No network scope is widened implicitly.
+- Startup preserves native cause chains and maps owned roots, address conflicts, format identities and installed-ID conflicts to structured Python errors. Classification explicitly unwraps transparent runtime variants and shared native error payloads rather than parsing messages. Installed IDs remain reserved while disabled; removal-pending entries do not reserve IDs. Refusal happens before installed admission can prune a conflicting bundle. The small runtime plugin-admission edit does not touch invocation dispatch.
+- Task 3 uses private `_native.EmbeddedProvider(id, version, description)` handles for real metadata-only catalogs with no templates or callbacks. This supports composition and collision proof without defining decorators or an invocation API. Task 4 owns executable authoring and callback support; this handle's `inner` already owns the native provider abstraction.
+- Windows dev backend wheel: 40,543,716 bytes (`cp313-abi3-win_amd64`), final task 50.03 s including Clippy, native compilation 25.03 s, three local cache hits and no misses. The preceding contended build took 462.79 s; the first attempt took 1,387.30 s and exposed the repaired native recursion limit. Focused CLI/host/OBC fixture production took 1,675.45 s including queueing; these are workstation measurements, not isolated build benchmarks.
+- Windows backend proof on CPython 3.15: nine installed-wheel cases in 57.89 s cover pairing/identity, ordered stop, port/root refusals and cleanup, three unchanged-root format refusals, installed-plugin loading and ephemeral catalog removal, and enabled/disabled installed-ID clashes. Built-wheel import and strict stubtest passed for all 40 shipped modules; Rust and repository checks passed. Later authoring/system proof remains open.
+
+## Authoring Integration
+
+- The native callback implementation exposed missing facade names for Harmos's existing native factory types. Harmos PR #170 adds only the public re-exports and is squash-merged as `7b189844ebbacd459ec8786b4f973e6d8e2d6bc7`; four focused binding cases and `check:rust` pass. This is the adopted feature-branch pin, including PR #169. The callback wrapper implements the existing `OperationHost` and uses the existing `Invocation`; it resolves native registered definitions and sends the canonical encoded call with per-call retry settings, never a Python operation scheduler.
+
+- Owner disposition (2026-11-07): implement the minimal additive Harmos runtime-defined encoded binding, per-call encoded retry override and public plugin-scoped observer staging on fresh Harmos dev. The paired worktree is `harmos.wt/runtime-bindings`, branch `feat/runtime-defined-operations`. Preserve existing Invocation/OperationHost admission, authorization, deadlines, cancellation and child metadata; unknown replay safety still refuses retries and attempts remain recorded. Publish one Harmos PR and squash immediately, then pin its published revision only on `feat/dokime-python`. The paired worktree was retired after adoption; the current delivery authorization supersedes that earlier slice's publication limits.
+- Upstream disposition: Harmos PR #169 is squash-merged as `934cbcb11cd43190444358b114cb22b20c2dda2e`. Its 50 focused operation-wire cases, `check:rust` and Python lint pass; no full simulation ran. `EncodedBinding` stages runtime-owned unary canonical contracts through prepared-native admission. `Contract::from_schema` derives identity in Harmos. Manager/caller/context encoded submissions and retained callbacks accept per-call retry overrides. Plugin-scoped observer staging and matching resource-scope activation are public. Endpoint streaming and gRPC projection remain outside this minimal runtime binding. Only this feature branch adopts the published revision; Dokime dev is untouched.
+
+- Fresh `origin/dev` is merged before this slice, including unified `OperationHost` invocation. Python uses `ctx.operation(request)` with builder overrides for one call; declarations retain default policy ownership. Removed generated Python wire files stay removed; the Rust-reflected client consumes updated contracts.
+- GUI availability uses the existing live suite catalog after a successful read, matching the execution's template identity. An absent template marks the terminal control card and removes its new-attempt action, while captured evidence continues through the existing document path. Pending or failed catalog queries make no absence claim, and active execution controls remain independent. This applies equally to ephemeral Python and removed native templates; admission still rechecks availability at the backend.
+- Windows GUI proof: all 15 selected cycle unit tests and all eight selected lifecycle integration tests pass, including terminal-state availability, pending-catalog behavior, retained running controls and rendering without a new-attempt button. `check:rust`, `check:repository`, TypeScript formatting/lint and `check:typescript:generated --source` pass. The candidate diff's required-term scan is empty. Overlapping GUI task invocations initially corrupted their shared compiler report; both affected selections passed when rerun sequentially. No full simulation ran. That checkpoint preceded executable Python authoring; the current README now describes the implemented surface.
+- Source inventory for tasks 4.1–4.4 and 4.6: native embedded-provider composition and telemetry publication; execution identity and callback ownership passed into native observers; `sdk/python/src/authoring/{schema,provider,template,callback,context,columns}.rs`; Python declarations and callback scheduling; matching root, backend and native stubs; installed-wheel stories and the native batch example; dependency pins, optional arrays dependencies and affected plugin documentation. The later delivery includes tests, documentation and specification retirement.
+- Callback admission and closure share one gate. The existing native `Callbacks` tracker owns child-call and publication settlement, including cancellation before an execution seals; its existing cancel operation is public for this binding. Native invocation futures remain the operation owner. Python workers are cooperative and report ignored cancellation after the callee's grace; abandoned worker errors are consumed without reviving a closed context. Native template observers inherit the real execution identity and the same callback tracker as steps.
+- Runtime contract lookup uses native registered definitions, not `host.catalog`, which a plugin does not implicitly have permission to call. Python validates the expected request/response fingerprint against that definition; native submission still owns grants and admission. Plugin and operation background publication use the admitted plugin stream scope; inherited execution metadata does not grant execution publication rights.
+- Settings sections share native flat setting identities and one native status operation. Native builders own parameter defaults and units. Template initializer resources are shared with static observers; criteria are static, run after cleanup and inspect the bounded native evidence snapshot. The root `dokime.operation` name is the authoring decorator after client-module imports; direct imports from the existing `dokime.operation` client-contract module remain available.
+- `push(row)` uses the native portable row codec, including nested and repeated fields. `push_columns` snapshots one-dimensional NumPy/Arrow columns, then runs native Arrow encoding and admitted publication outside the interpreter. Scalar columns include binary values; repeated and nested batch columns refuse explicitly. Both paths use the same native publication lease, storage payload and ingestion acknowledgment as Rust.
+- Windows authoring proof on CPython 3.15: four installed-wheel stories pass in 25.66 s against the 41,984,681-byte `cp313-abi3-win_amd64` wheel. They exercise local and cross-plugin calls, grouped settings, async-loop and sync-worker callbacks, traceback propagation, unknown-replay retry refusal, explicit cancellation and ignored worker cancellation, real template execution and observer resources, inherited child execution identity, unjoined-child settlement, record units, criterion evidence and persisted NumPy/Arrow, nested-row and binary publication. The focused native embedded workflow regression passes, as does the native codec comparison/refusal case. Strict built-wheel stubtest passes for all 42 shipped modules; source typing has no errors and retains 330 configured reflection/test warnings. `check:rust`, Python formatting/lint and `check:repository` pass. The native source-policy audit still fails with skeleton, declaration-mapping and document-structure findings; task 6.1 retains that repair obligation. No full simulation ran.
+- Batch comparison uses 10,000 rows in batches of 1,000, with one `i64` and one `f64` field, dev builds and temporary native storage on this Windows workstation. Input arrays/rows are prepared before timing; timings include row encoding, admitted publication and ingestion acknowledgment. Separate installed-wheel and native measurements without another active build in this worktree report NumPy 3,428 rows/s, Arrow 3,508 rows/s and plain Rust 6,706 rows/s (1.491106 s). The Rust example uses the same admitted stream path. These are observed end-to-end workstation rates; Fast Stream Support owns throughput targets separately.
+- Harmos's owned worktree target and focused fixture targets were cleaned with native Cargo cleanup after the two merges; the owned worktree and task branch were retired. Foreign Harmos worktrees and its primary worktree's existing `mise.lock` edit were retained. Dokime's dev dependency pin is unchanged; only this feature branch adopts the published Harmos commit. Tasks 4.1–4.4 and 4.6 are checked off; later tasks and the policy audit remain open.
+- Upstream capability request at the Harmos pin `371108ecfca78d3fe2432f503dd3c355e140ad20`: `Bindings::register` and `Registration::operation` accept compile-time `Executable` types only. `OperationFactory::validate` rejects definitions differing from the compiled declaration, and its contract/handler constructors are private. Python decorators need runtime-owned schemas, policies and handlers. `Manager::submit_encoded` and `PluginCallback::submit_with` do not accept a retry override. `Manager::stage_plugin_observers` is crate-private; the public `stage_observers` uses the root resource scope instead of the admitted plugin generation. The smallest upstream additions are a generation-scoped encoded binding for a validated owned contract, encoded invocation accepting a per-call retry override, and scoped embedded-observer staging. They must reuse Harmos admission, policy, authorization, cancellation and settlement. Fixed-policy adapters, root-scoped plugin observers or a separate Python operation dispatcher would violate the locked semantics. The approved upstream work is merged in PRs #169 and #170, as recorded above; the feature branch pins the published revision without a local override.
+
+
+## Tests, Starter and Installation
+
+The tasks 5.x slice merges fresh dev before implementation. `sdk/python/examples/starter/` is the single runnable Python starter embedded by `dokime new <directory> --lang python`. It creates `main.py`, a uv project and plugin-owned operation and suite modules, refuses an existing destination, and performs no compilation or dependency installation. Driver work stays inside operation handlers; steps build named requests and use `ctx.operation(operation)`.
+
+The system story consumes the built CLI and native wheel. It generates the starter, runs its Python plugin, exports pairing, connects through the file, answers a prompt, captures exact rows, seals and downloads a report, stops, then reopens the same root without the plugin and verifies identical report bytes and retained samples. Nightly alone selects this job on Windows and Linux; its declared inputs are the native CLI and Python wheel, not the desktop, sidecars or test archive. Nightly's final report includes its verdict. Windows and Linux container execution are recorded under Delivery Audit and Proof.
+
+New focused value, callback ownership and installed-wheel column stories assert conversion, shared resource identity, decoded-response independence, closure, cancellation, exception propagation and atomic refusal. Nullable fields follow native query semantics: absent nullable values are absent keys, and publication timestamps are separate native metadata. Performance is removed from acceptance assertions and measured with pytest-benchmark. The Python measurement separates synchronous snapshot/encoding/value preparation from awaited admitted ingestion; the Rust example retains the same workload and acknowledgment boundary.
+
+The install guide uses uv with a candidate Git reference (Rust provided by mise) or the task-built native wheel. Naming still blocks registry upload. Installed-wheel proof now creates a separate uv project and runs `uv add` with the documented native artifact path before isolated import and strict stubtest.
+
+`check:repository` is separate from the native `stkr project check`. SDK audit repairs and inherited policy findings are distinguished under Delivery Audit and Proof.
+
+
+## Historical Measurements Before the Ingest Fix
+
+These measurements predate PR #332 and must not be attributed to the ingest fix. The feature tree included dev PRs #328 (saved file windows from indexed descriptors) and #329, `61a5447fe70cb18d054b9d52797fc5aa0553978a` (indexed sealed-output retirement), merged before the final measurement.
+
+Windows CPython 3.15 proof: two focused portable-value unit cases; 35 selected profile/callback integration cases, including the two new ownership/shutdown stories; four selected installed-wheel acceptance cases; and one generated-project system story on the final merged tree. All pass. The final system story takes 18.83 s, including restart without the plugin and byte-identical sealed report retrieval. The refreshed `cp313-abi3-win_amd64` wheel is 42,173,168 bytes. Installation into a separate uv project with `uv add`, isolated native import and strict stubtest all pass (42 shipped modules). SDK source typing has no errors and retains 333 configured reflection/test warnings. `check:rust`, Python formatting/lint and `check:repository` pass; strict OpenSpec validation and the full candidate's required-term scan pass. These are targeted proofs, not full-lane counts or a simulation.
+
+The same 10,000 rows in batches of 1,000, one i64 counter and one f64 value, are measured after validation stops, using development-profile artifacts and temporary native storage. Both start timing after backend readiness and prepare input arrays/rows before timing. The native Rust example reports 6,316 rows/s (1.583370 s). Three Python rounds report NumPy 6,754 rows/s (0.036920 s bridge preparation plus 1.443699 s admitted publication), and Arrow 6,945 rows/s (0.035056 s plus 1.404885 s). The native pytest-benchmark JSON retains the separate timing fields under `target/benchmarks/python/`; the workload median also includes backend startup/shutdown, while `rows_s` excludes that lifecycle cost.
+
+No material Python penalty is measured against Rust in this run; the earlier roughly twofold gap is not reproduced. Synchronous bridge snapshot, encoding and value conversion account for about 2.5% of the Python publication time. Awaited native publication/ingestion accounts for the remainder, so this evidence points to the shared backend/storage path, not interpreter crossings, as the dominant cost. Workstation variability and the corrected readiness boundary prevent attributing the earlier gap to a single fix solely from these observations. Fast Stream Support still owns throughput targets.
+
+That checkpoint preceded the final native export/ownership audit repairs and Linux container proof recorded below. The inherited repository-wide native policy audit remains a separately reported failure.
+
+## Delivery Audit and Proof
+
+The delivery normally merges dev through `2d7b30d3c` in `8a5c42bba`, including
+#332 ingest throughput, #334 admission, #335 hang guards, #337 retained seals,
+#338 starter formatting, #339 bounded forward pages, #340 lint-only Clippy and
+#341 Linux desktop prerequisites. Dev's newer Harmos revision includes the
+runtime-defined Python binding additions and is retained. Python's file-watch
+surface is unchanged.
+
+The full diff review found stale release preparation exclusions for the removed
+Python distribution and a new Rust doc comment prohibited by project policy;
+both are removed. Disk and subprocess stories move from unit to integration.
+The SDK Ruff ownership entry moves with its package, using the Hub refresh's
+rendered receipt. Broader refresh changes are excluded from this delivery.
+
+The native export audit missed private Rust child modules sharing one Python
+namespace, and rejected underscore-prefixed constants. Hub checkpoint
+`fef8b92b6a733e8624eea2ecee3dd270ad7ebad5` fixes traversal without crossing
+separately mapped public modules and recognizes `__version__`. Its focused
+binding workflow passes, and `prepare:override` installs the checkpoint. The
+strict installed-wheel stubtest passes for all 42 shipped modules. The final
+native audit has no SDK-path or binding mapping findings; its overall exit is
+still 1 for 1,583 baseline policy findings. Those remain follow-up work under
+the recorded baseline-sweep ownership; this delivery does not claim a passing
+repository-wide native audit. Hub publication remains a separate owner action.
+
+Windows proof: Python unit 174, integration 301, acceptance 15 and system one
+all pass. The acceptance story retains live two-row sample pages and now also
+compares one-row sealed replay in order. The system story uses two-row pages
+before shutdown and one-row pages after restart without the plugin. Thus the
+new SDK uses the same native paging path as the former client's hang; #339's
+native row bounds and retained-seal fixes carry over and the regression passes.
+Python checks, wheel import and strict binding checks exit 0.
+
+The existing `ci-managed:683cb0ff0be68071e272277ecf658ae12b173e7c79fc94b7bd0ed6d60f0ccd22`
+Ubuntu 24.04 container image and cached Rust 1.99.0/CPython 3.15 toolchain need no
+new runner provisioning. Normal package sync supplies wheel/test dependencies.
+The source snapshot supplies `DOKIME_BUILD_COMMIT=8a5c42bba` as a full revision
+because it has no Git metadata. The Linux dev wheel is 79,771,078 bytes with a
+`manylinux_2_39_x86_64` tag; wheel build and focused fixture production exit 0.
+Its generated-project pairing/prompt/capture/report/restart system story passes
+(one case, exit 0). This proves that container, without claiming execution on
+the distinct hosted Ubuntu 22.04 image. Nightly's Linux/Windows-only system graph,
+native CLI/wheel inputs and final-report inclusion are reviewed.
+
+Bench measurement uses normal `cargo build --profile bench` artifacts. Maturin's
+`cargo rustc --profile bench` instead selects a test harness and emitted an
+unimportable wheel; that attempted artifact is rejected and never measured.
+The benchmark loads the normal bench extension explicitly, uses the matching
+wheel's Python modules and records its native writer commit. Shipping wheel
+production stays restricted to dev/release. The workload and timing boundaries
+remain the same: 10,000 rows, batches of 1,000, prepared i64/f64 inputs, backend
+readiness before timing, separate Python bridge preparation and admitted
+publication. Initial native comparison and desktop check attempts exhausted
+Windows allocation capacity; subsequent compilation uses two Cargo jobs.
+
+### Final Bench Measurements
+
+All measured native artifacts identify writer commit
+`648d589ade230f996fedd4375f0d35a0c6a3274b`, which includes the #332 ingest fix
+through the normal dev merge. The reproducible bench harness is committed in
+`452aa2bde`. Final measurements run after this task's compilation stops, on a
+shared Windows workstation whose other activity is uncontrolled. NumPy/Arrow
+figures are means over three rounds; Rust uses the reciprocal of the mean elapsed
+time over three matching 10,000-row runs.
+
+| Path | Native Profile | Bridge Preparation (s) | Admitted Publication (s) | Rows/s |
+| --- | --- | --- | --- | --- |
+| NumPy | bench | 0.016827 | 0.595019 | 16,344 |
+| Arrow | bench | 0.020266 | 0.778063 | 12,526 |
+| Rust | bench | Included Below | 0.419492 | 23,838 |
+
+Rust's combined encoding/publication times are 0.484947, 0.390530 and 0.382999 s
+(all exits 0). Python's benchmark task exits 0 with two cases passed. Its overall
+story timer also includes backend lifecycle; the old Arrow lifecycle baseline
+reports a +184.2% regression warning. That older baseline lacks exact native
+profile tracking, so it is not a controlled comparison with these bench artifacts.
+The publication rates above use only the separately recorded bridge and admitted
+publication intervals. The earlier loader diagnostic, under owned compilation,
+observed 18,194 NumPy and 20,756 Arrow rows/s; those are not substituted for the
+final measurements.
+
+These observations show substantial shared-host variation. Python spends most
+of the measured interval awaiting native publication/ingestion. The different
+profile and later ingest code prevent attributing the change from the historical
+dev measurements to #332 alone. Fast Stream Support retains throughput targets.
+
+Final `check:rust` exits 0 after the two-job allocation retry, including all three
+lint selections and cargo-machete. Final `check:python`, source typing,
+`check:repository`, Rust/TOML formatting and strict OpenSpec validation exit 0.
+No full simulation runs, per the delivery instruction. The final fresh dev merge
+adds #350 (`f98e6e127`), limited to plot tables, embedded report presentation and
+its guide; SDK interfaces and Python's watch surface are unchanged. SDK execution
+proof and measurements above identify their actual artifact/source checkpoints.

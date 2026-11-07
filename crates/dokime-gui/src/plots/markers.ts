@@ -8,7 +8,7 @@
  */
 
 /**
- * Share Marker Kinds, Legend Rows And Canvas Glyphs.
+ * Share Marker Kinds And Canvas Glyphs.
  */
 
 /* === Imports === */
@@ -19,7 +19,6 @@
 import type uPlot from "uplot";
 
 // Local Imports
-import { SERIES_STATISTICS, type SeriesLegendRow } from "@/lib/statistics";
 import type { PlotMarker } from "@/lib/types";
 import { xValue } from "@/plots/axis";
 import { type PromptMarker, promptMarkerLabel } from "@/plots/prompt-markers";
@@ -32,12 +31,9 @@ import { type PromptMarker, promptMarkerLabel } from "@/plots/prompt-markers";
 
 export type MarkerKind = {
   key: string;
-  label: string;
-  glyph: NonNullable<SeriesLegendRow["glyph"]>;
+  glyph: "event" | "asked" | "answered";
   moments: Array<{ x: number; label: string }>;
 };
-
-export type MarkerRange = { min: number; max: number } | null;
 
 export type MarkerTooltip = { key: string; label: string; left: number; width: number };
 
@@ -51,7 +47,7 @@ export function markerKinds(markers: readonly PlotMarker[], prompts: readonly Pr
     const x = xValue(marker.x, Number.NaN);
     if (!Number.isFinite(x)) continue;
     const key = `event:${marker.record_type}`;
-    const kind = kinds.get(key) ?? { key, label: marker.record_type, glyph: "event", moments: [] };
+    const kind = kinds.get(key) ?? { key, glyph: "event", moments: [] };
     kind.moments.push({ x, label: marker.label });
     kinds.set(key, kind);
   }
@@ -60,7 +56,6 @@ export function markerKinds(markers: readonly PlotMarker[], prompts: readonly Pr
     const key = `prompt:${marker.kind}`;
     const kind = kinds.get(key) ?? {
       key,
-      label: marker.kind === "asked" ? "Prompt Asked" : "Prompt Answered",
       glyph: marker.kind,
       moments: [],
     };
@@ -70,37 +65,13 @@ export function markerKinds(markers: readonly PlotMarker[], prompts: readonly Pr
   return [...kinds.values()];
 }
 
-export function markerLegendRows(
-  kinds: readonly MarkerKind[],
-  hidden: ReadonlySet<string>,
-  range: MarkerRange,
-  colors: readonly string[],
-): SeriesLegendRow[] {
-  return kinds.map((kind, index) => ({
-    key: kind.key,
-    label: kind.label,
-    color: colors[index] ?? "currentColor",
-    glyph: kind.glyph,
-    hidden: hidden.has(kind.key),
-    xCursor: "",
-    yCursor: "",
-    cells: Object.fromEntries(
-      SERIES_STATISTICS.map(([id]) => [
-        id,
-        id === "count" ? String(kind.moments.filter(({ x }) => !range || (x >= range.min && x <= range.max)).length) : "",
-      ]),
-    ) as SeriesLegendRow["cells"],
-  }));
-}
-
-export function drawMarkerKinds(plot: uPlot, kinds: readonly MarkerKind[], hidden: ReadonlySet<string>, colors: readonly string[]) {
+export function drawMarkerKinds(plot: uPlot, kinds: readonly MarkerKind[], colors: readonly string[]) {
   const { ctx, bbox } = plot;
   const ratio = window.devicePixelRatio || 1;
   const cap = 4 * ratio;
   ctx.save();
   ctx.lineWidth = 1.5 * ratio;
   kinds.forEach((kind, index) => {
-    if (hidden.has(kind.key)) return;
     ctx.strokeStyle = colors[index] ?? "currentColor";
     ctx.fillStyle = ctx.strokeStyle;
     for (const marker of kind.moments) {
@@ -128,14 +99,12 @@ export function drawMarkerKinds(plot: uPlot, kinds: readonly MarkerKind[], hidde
 export function nearestMarker(
   plot: uPlot,
   kinds: readonly MarkerKind[],
-  hidden: ReadonlySet<string>,
   left: number,
 ): { key: string; label: string; left: number } | null {
   let best: { key: string; label: string; left: number } | null = null;
   let distance = 6;
   let event = false;
   for (const kind of kinds) {
-    if (hidden.has(kind.key)) continue;
     for (const marker of kind.moments) {
       const position = plot.valToPos(marker.x, "x");
       const gap = Math.abs(position - left);
@@ -151,15 +120,10 @@ export function nearestMarker(
 }
 
 /** Both Marker Kinds Share Hit Testing And A Card-Bounded Tooltip Box. */
-export function markerTooltip(
-  plot: uPlot,
-  kinds: readonly MarkerKind[],
-  hidden: ReadonlySet<string>,
-  card: Pick<DOMRect, "left" | "width">,
-): MarkerTooltip | null {
+export function markerTooltip(plot: uPlot, kinds: readonly MarkerKind[], card: Pick<DOMRect, "left" | "width">): MarkerTooltip | null {
   const cursor = plot.cursor.left;
   if (cursor == null || cursor < 0 || cursor > plot.over.clientWidth) return null;
-  const marker = nearestMarker(plot, kinds, hidden, cursor);
+  const marker = nearestMarker(plot, kinds, cursor);
   if (!marker) return null;
 
   const inset = Math.min(4, card.width / 2);

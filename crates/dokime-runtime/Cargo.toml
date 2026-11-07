@@ -17,7 +17,7 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
-include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/dist-report/report.html", "/dist-brand/**"]
+include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/build/**", "/Cargo.toml", "/dist-report/report.html", "/dist-brand/**"]
 
 # === Package Targets === #
 
@@ -163,6 +163,22 @@ nokhwa = { workspace = true, optional = true, features = ["input-native"] }
 
 # === Build Dependencies === #
 
+[build-dependencies]
+# Local
+dokime-domain = { version = "0.1.2", path = "../dokime-domain", features = ["storage-format"] }
+
+# Git
+harmos = { workspace = true }
+
+# Utilities
+sha2 = { workspace = true }
+
+# Serialization
+serde_json = { workspace = true }
+
+# Parsing
+proc-macro2 = { workspace = true }
+
 # === Dev Dependencies === #
 
 [dev-dependencies]
@@ -191,6 +207,7 @@ serde_json = { workspace = true, features = ["float_roundtrip"] }
 tempfile = { workspace = true }
 
 # Parsing
+proc-macro2 = { workspace = true }
 
 # Concurrency
 

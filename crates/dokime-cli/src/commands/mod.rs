@@ -18,6 +18,7 @@ mod execution;
 mod gui;
 mod id_file;
 mod interrupt;
+mod new;
 mod operation;
 mod plan;
 mod plugin;
@@ -47,6 +48,9 @@ use crate::version;
 
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
+    #[command(about = "Create a Python Backend and Embedded Plugin Project.")]
+    New(new::Args),
+
     #[command(about = "Check Backend Identity, Authentication And Readiness With A Deadline.")]
     Status(status::Args),
 
@@ -96,6 +100,7 @@ pub(crate) async fn run(command: Command, configuration: dokime::config::Config)
     let preferences = dokime::domain::model::settings::application::ClientPreferences::default();
     let settings = &preferences;
     match command {
+        Command::New(args) => new::run(args),
         Command::Status(args) => status::run(args, settings).await,
         Command::Backend(command) => backend::run(command).await,
         Command::Cycle(command) => cycle::run(command, settings).await,

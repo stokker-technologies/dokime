@@ -238,9 +238,11 @@ impl State {
             .filter(|count| *count as usize <= Semaphore::MAX_PERMITS)
             .ok_or_else(|| Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "SQLite reader count exceeds its range")))?;
         tokio::task::spawn_blocking(move || {
-            std::fs::create_dir_all(&root)?;
+            super::format::check(&root)?;
+            harmos::filesystem::publication::create_dir_all(&root)?;
             let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
             acquire_lease(&lease)?;
+            super::format::record(&root)?;
             let mut connection = Connection::open(root.join("local.sqlite"))?;
             let fresh = check_layout(&connection)?;
             connection.execute_batch(

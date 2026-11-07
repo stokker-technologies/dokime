@@ -16,10 +16,7 @@
 // Standard Library Imports
 use std::path::PathBuf;
 // Third Party Imports
-use harmos_packaging::{
-    proto::{self, Artifacts},
-    python::{self, Settings},
-};
+use harmos_packaging::proto;
 // Local Imports
 
 /* === Constants === */
@@ -42,35 +39,12 @@ pub struct ProtoArgs {
     output: PathBuf,
 }
 
-#[derive(clap::Args)]
-pub struct PythonArgs {
-    #[arg(long, help = "The Cargo OUT_DIR Contract Export Of The Selected Build.")]
-    export: PathBuf,
-    #[arg(long)]
-    output: PathBuf,
-    #[arg(long)]
-    distribution: String,
-    #[arg(long)]
-    module: String,
-    #[arg(long)]
-    package_version: semver::Version,
-    #[arg(long)]
-    description: String,
-    #[arg(long)]
-    license: String,
-    #[arg(long, default_value = "protoc")]
-    protoc: PathBuf,
-}
-
 /* === Enums === */
 
 #[derive(clap::Subcommand)]
 enum Command {
     #[command(about = "Export Protobuf Contracts")]
     Proto(ProtoArgs),
-
-    #[command(about = "Generate the Python Client Package from One Contract Export")]
-    Python(PythonArgs),
 }
 
 /* === Traits === */
@@ -80,31 +54,13 @@ enum Command {
 /* === Public Functions === */
 
 pub fn run(args: Args) -> Result<(), crate::error::Error> {
-    let args = match args.command {
+    match args.command {
         Command::Proto(args) => {
             let contracts = dokime::harmos::operations::Contracts::of::<dokime::operations::Operations>()?;
             let output = proto::generate(&contracts, &args.output)?;
             println!("{}", output.display());
-            return Ok(());
         }
-        Command::Python(args) => args,
-    };
-    let artifacts = Artifacts::read(&args.export).map_err(python::Error::from)?;
-    let contracts = artifacts.operation_contracts().map_err(python::Error::from)?;
-    let settings = Settings {
-        distribution: args.distribution,
-        module: args.module,
-        version: args.package_version,
-        description: args.description,
-        license: args.license,
-        operations: Vec::new(),
-    };
-    let catalog = python::Catalog {
-        contracts: &contracts,
-        settings: &settings,
-        protoc: &args.protoc,
-    };
-    println!("{}", python::generate(catalog, &args.output)?.display());
+    }
     Ok(())
 }
 

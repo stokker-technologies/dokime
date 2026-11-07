@@ -44,7 +44,6 @@ export type SeriesLegendTrace = {
 
 /** A legend table row: the trace, its visibility, and its formatted cells. */
 export type SeriesLegendRow = SeriesLegendTrace & {
-  glyph?: "event" | "asked" | "answered";
   hidden: boolean;
   xCursor: string;
   yCursor: string;

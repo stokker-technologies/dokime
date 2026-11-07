@@ -209,6 +209,18 @@ impl PluginHost {
     async fn install_plugins_with(&mut self, progress: &Operation) -> Result<()> {
         let config = self.handle.config();
         let store = self.handle.plugin_store();
+        if !self.embedded.is_empty() {
+            for entry in store.list().await.map_err(operation)? {
+                if entry.installation.state == crate::plugins::PluginState::RemovalPending {
+                    continue;
+                }
+                if let Some(metadata) = entry.metadata
+                    && let Some(plugin) = metadata.owners.into_iter().find(|owner| self.embedded.contains_key(owner))
+                {
+                    return Err(Error::PluginIdConflict { plugin });
+                }
+            }
+        }
         store.sweep().await.map_err(operation)?;
         let mut inputs = config.plugins.clone();
         if let Some(directory) = &config.plugin_lookup {

@@ -233,6 +233,9 @@ impl Adapter<'_> {
                 package.running.retain(|live| &live.source != source);
             }
             self.handle.remove_action_dispatcher(&crate::Identifier::new(source).map_err(operation)?);
+            if let Some(provider) = self.embedded.get_mut(source) {
+                provider.exposed = false;
+            }
         }
         Ok(())
     }

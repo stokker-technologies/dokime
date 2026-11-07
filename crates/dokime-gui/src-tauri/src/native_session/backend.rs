@@ -93,7 +93,7 @@ pub async fn start(backend: &Backend, on_phase: impl FnMut(&str) + Send) -> Resu
         if let Some(journal) = &backend.trace_journal {
             network = network.with_trace_journal(journal.clone());
         }
-        host::Session::start(&backend.arguments, config, network, on_phase).await
+        host::Session::start(&backend.arguments, config, network, Vec::new(), on_phase).await
     };
     let started = tokio::time::timeout(Duration::from_millis(DESKTOP_READINESS_TIMEOUT_MS), launch).await;
     let result = match started {

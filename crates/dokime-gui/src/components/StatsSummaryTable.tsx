@@ -145,11 +145,7 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
   return (
     <DataTable
       aria-label="Trace Statistics"
-      className={cn(
-        "transition-opacity",
-        legend.pending && "opacity-50",
-        legend.rows.some((row) => row.glyph) && "[&_table]:table-auto [&_td:first-child]:min-w-44",
-      )}
+      className={cn("transition-opacity", legend.pending && "opacity-50")}
       columns={columns}
       data={legend.rows}
       emptyText="No Traces Recorded"
@@ -163,30 +159,11 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
 function TraceCell({ row }: { row: SeriesLegendRow }) {
   return (
     <span className={cn("flex min-w-0 items-center gap-2", row.hidden && "opacity-50")} data-trace-hidden={row.hidden ? "true" : undefined}>
-      {row.glyph ? (
-        <svg aria-hidden="true" className="size-3 shrink-0" viewBox="0 0 12 16" style={{ color: row.color }}>
-          <path
-            d={row.glyph === "event" ? "M6 0V16" : "M6 5V16"}
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeDasharray={row.glyph === "answered" ? undefined : "3 3"}
-          />
-          {row.glyph !== "event" ? (
-            <path
-              d="M2 1H10L6 5Z"
-              fill={row.glyph === "answered" && !row.hidden ? "currentColor" : "none"}
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-          ) : null}
-        </svg>
-      ) : (
-        <span
-          aria-hidden="true"
-          className="size-2.5 shrink-0 rounded-full border-2"
-          style={{ backgroundColor: row.hidden ? "transparent" : row.color, borderColor: row.color }}
-        />
-      )}
+      <span
+        aria-hidden="true"
+        className="size-2.5 shrink-0 rounded-full border-2"
+        style={{ backgroundColor: row.hidden ? "transparent" : row.color, borderColor: row.color }}
+      />
       <span className="truncate" title={row.label}>
         {row.label}
       </span>

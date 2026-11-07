@@ -226,14 +226,26 @@ jobs:
         bootstrap: "[]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: package-${{ env.PROFILE }}-python-any
+        name: package-${{ env.PROFILE }}-python-unix
+        path: target/ci
+        run-id: ${{ needs.validated.outputs.review_run }}
+        github-token: ${{ github.token }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ env.PROFILE }}-python-windows
         path: target/ci
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
     - name: Extract package:python / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/package-${{
+          env.PROFILE }}-python-unix.tar.zst","--profile","${{ env.PROFILE }}","--target","linux-x86_64"]'
+    - name: Extract package:python / package
+      uses: ./.github/actions/extract-build
+      with:
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/package-${{
+          env.PROFILE }}-python-windows.tar.zst","--profile","${{ env.PROFILE }}","--target","windows-x86_64"]'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-unix
@@ -320,13 +332,11 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
-      MISE_TASK_SKIP: package:python,package:rust
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: >-
-        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
-        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+      COMPILER_CACHE_MODE: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) && 'READ_WRITE'
+        || 'READ_ONLY' }}
       PROFILE: ${{ needs.validated.outputs.review_profile }}
       RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}
       RELEASE_BUILD_SHA: ${{ needs.validated.outputs.review_sha }}
@@ -374,7 +384,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       with:
         release: "true"
-        packages: "[\"package-PROFILE-python-any\",\"package-PROFILE-rust-unix\",\"package-PROFILE-rust-windows\"]"
+        packages: "[\"package-PROFILE-python-unix\",\"package-PROFILE-python-windows\",\"package-PROFILE-rust-unix\",\"package-PROFILE-rust-windows\"]"
         builds: "[\"build-cli-PROFILE-windows\",\"build-generator-PROFILE-windows\",\"build-gui-PROFILE-windows\",\"build-packaging-PROFILE-windows\",\"build-plugins-PROFILE-windows\"]"
         required: "true"
     permissions:
@@ -592,9 +602,7 @@ jobs:
       needs.validated.outputs.stable_release == 'true')
     environment: release
     env:
-      MISE_ENABLE_TOOLS: >-
-        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
-      MISE_TASK_SKIP: build
+      MISE_ENABLE_TOOLS: aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
       PROFILE: release
     strategy:
       fail-fast: false
@@ -630,21 +638,33 @@ jobs:
         'refs/tags/v'))) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: package-${{ env.PROFILE }}-python-any
+        name: package-${{ env.PROFILE }}-python-unix
         path: target/ci
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
-      if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+      if: matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+        'refs/tags/v'))) && (true)
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ env.PROFILE }}-python-windows
+        path: target/ci
+        run-id: ${{ needs.validated.outputs.review_run }}
+        github-token: ${{ github.token }}
+      if: matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - name: Extract package:python / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
-      if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/package-${{
+          env.PROFILE }}-python-unix.tar.zst","--profile","${{ env.PROFILE }}","--target","linux-x86_64"]'
+      if: matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+        'refs/tags/v'))) && (true)
+    - name: Extract package:python / package
+      uses: ./.github/actions/extract-build
+      with:
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/package-${{
+          env.PROFILE }}-python-windows.tar.zst","--profile","${{ env.PROFILE }}","--target","windows-x86_64"]'
+      if: matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -742,21 +762,33 @@ jobs:
         'refs/tags/v'))) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: package-${{ env.PROFILE }}-python-any
+        name: package-${{ env.PROFILE }}-python-unix
         path: target/ci
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
-      if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+      if: matrix.platform == 'windows' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+        'refs/tags/v'))) && (true)
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ env.PROFILE }}-python-windows
+        path: target/ci
+        run-id: ${{ needs.validated.outputs.review_run }}
+        github-token: ${{ github.token }}
+      if: matrix.platform == 'windows' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - name: Extract package:python / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
-      if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/package-${{
+          env.PROFILE }}-python-unix.tar.zst","--profile","${{ env.PROFILE }}","--target","linux-x86_64"]'
+      if: matrix.platform == 'windows' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+        'refs/tags/v'))) && (true)
+    - name: Extract package:python / package
+      uses: ./.github/actions/extract-build
+      with:
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/package-${{
+          env.PROFILE }}-python-windows.tar.zst","--profile","${{ env.PROFILE }}","--target","windows-x86_64"]'
+      if: matrix.platform == 'windows' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -843,7 +875,6 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
-      MISE_TASK_SKIP: package:python,package:rust
       PROFILE: ${{ needs.validated.outputs.review_profile }}
       RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}
       RELEASE_BUILD_SHA: ${{ needs.validated.outputs.review_sha }}

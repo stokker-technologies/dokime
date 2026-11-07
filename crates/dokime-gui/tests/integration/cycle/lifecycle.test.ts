@@ -20,7 +20,7 @@ import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
 import { ControlCard } from "@/features/cycle/ControlCard";
-import { cycleControlState } from "@/features/cycle/control-model";
+import { cycleControlState, executionControlState } from "@/features/cycle/control-model";
 import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import {
   appendNativeCaseAttempt,
@@ -204,7 +204,30 @@ test("Container Seal Controls", () => {
   assert.deepEqual(cycleControlState({ phase: "seal_failed", running: null }).actions, ["Retry Seal", "Archive"]);
 });
 
-test("Stream Refreshes Documents and Preserves Sealed Detail", async () => {
+test("Finished Execution Without Its Plugin Has No New Attempt Button", () => {
+  const state = executionControlState({
+    controls: null,
+    pluginAvailable: false,
+    progress: null,
+    promptWaiting: false,
+    status: "passed",
+    stopping: false,
+  });
+  const html = renderToStaticMarkup(
+    createElement(ControlCard, {
+      actions: state.actions.map((action) => createElement("button", { key: action, type: "button" }, action)),
+      detail: state.detail,
+      label: "Execution Controls",
+      state: state.line,
+    }),
+  );
+  assert.equal(state.phase, "ended");
+  assert.equal((html.match(/<button/g) ?? []).length, 0);
+  assert.equal((html.match(/data-control-state/g) ?? []).length, 1);
+  assert.ok(state.detail);
+});
+
+test("Stream Refreshes Documents And Preserves Sealed Detail", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   const calls = { document: 0, sealed: 0, active: 0 };
   const keys = {

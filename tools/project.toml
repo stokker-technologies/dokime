@@ -65,7 +65,7 @@ jobs = ["check:repository"]
 name = "prose"
 
 [[ci.jobs]]
-id = "check:python:generated"
+id = "check:python:bindings"
 inputs = ["build:python#python"]
 
 [[ci.jobs]]
@@ -74,7 +74,7 @@ inputs = ["build#clients"]
 
 [[ci.jobs]]
 id = "build"
-inputs = ["build:python#python"]
+inputs = []
 
 [[ci.jobs]]
 id = "build:rust:tests"
@@ -85,10 +85,10 @@ tests = ["target/build/{profile}/{target}/tests", "target/build/{profile}/{targe
 
 [[ci.jobs]]
 id = "build:python"
-inputs = []
+inputs = ["build#cli", "build#packaging"]
 
 [ci.jobs.outputs]
-python = ["target/build/{profile}/any/python"]
+python = ["target/build/{profile}/{target}/python"]
 
 [[ci.jobs]]
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
@@ -182,6 +182,11 @@ id = "test:python:acceptance"
 inputs = ["build:python#python", "build#cli", "build#plugins", "build:rust:tests#tests"]
 
 [[ci.jobs]]
+id = "test:python:system"
+inputs = ["build:python#python", "build#cli"]
+pipelines = ["nightly"]
+
+[[ci.jobs]]
 id = "test:python:coverage"
 inputs = ["build:python#python", "build#cli", "build#plugins", "build:rust:tests#tests"]
 
@@ -244,7 +249,7 @@ id = "package:python"
 inputs = ["build:python#python"]
 
 [ci.jobs.outputs]
-package = ["target/package/{profile}/any/python"]
+package = ["target/package/{profile}/{target}/python"]
 
 [[ci.jobs]]
 bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
@@ -300,17 +305,11 @@ system = 64
 unit = 512
 
 [languages.python]
-build_target = "any"
-generated = [
-  "packages/dokime-client/src/dokime_client/_wire",
-  "packages/dokime-client/src/dokime_client/operation.py",
-  "packages/dokime-client/src/dokime_client/dynamic.py",
-]
-roots = ["tools/python", "packages"]
+roots = ["tools/python", "sdk/python"]
 
 [languages.rust]
 exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
-roots = ["crates", "plugins"]
+roots = ["crates", "plugins", "sdk/python"]
 targets = ["wasm32-unknown-unknown"]
 
 [languages.typescript]
@@ -372,8 +371,6 @@ lock_commands = [
     "sync",
     "--locked",
     "--all-groups",
-    "--no-install-package",
-    "dokime-client",
   ],
 ]
 plugin_extension = "dokime"
@@ -449,8 +446,7 @@ windows-x86_64 = "x86_64-pc-windows-msvc"
 files = [
   "Cargo.toml",
   "pyproject.toml",
-  "packages/dokime-client/pyproject.toml",
-  "packages/dokime-client/examples/remote/python/pyproject.toml",
+  "sdk/python/examples/remote/python/pyproject.toml",
   "crates/dokime-gui/package.json",
   "crates/dokime-gui/src-tauri/tauri.conf.json",
 ]

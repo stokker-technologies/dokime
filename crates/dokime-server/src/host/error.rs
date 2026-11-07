@@ -51,6 +51,9 @@ pub enum Error {
     #[error("{0}")]
     Setup(String),
 
+    #[error("backend is not accepting calls")]
+    NotAccepting,
+
     #[error("another instance's backend owns the data folder {}; close that instance and retry, or connect to another backend", .root.display())]
     BackendRunning { root: PathBuf },
 
@@ -60,7 +63,12 @@ pub enum Error {
          Move or delete that directory, or point DOKIME_OUTPUT_ROOT at a fresh directory.",
         .root.display()
     )]
-    IncompatibleStorage { root: PathBuf, reason: String },
+    IncompatibleStorage {
+        root: PathBuf,
+        reason: String,
+        #[source]
+        source: Box<dokime::runtime::Error>,
+    },
 
     #[error("I/O failed: {0}")]
     Io(#[source] std::io::Error),
@@ -114,7 +122,7 @@ impl Error {
             Some(refusal) if incompatible(refusal) => refusal.to_string(),
             _ => return Self::Runtime(error),
         };
-        Self::IncompatibleStorage { root, reason }
+        Self::IncompatibleStorage { root, reason, source: Box::new(error) }
     }
     pub(crate) fn shutdown(server: std::result::Result<(), crate::grpc::Error>, runtime: dokime::runtime::Result<()>) -> Result<()> {
         match (server, runtime) {
@@ -147,7 +155,7 @@ fn storage_refusal(error: &dokime::runtime::Error) -> Option<&dokime::storage::s
 fn incompatible(error: &dokime::storage::sqlite::Error) -> bool {
     use dokime::storage::sqlite::{Error, rusqlite::ErrorCode};
     match error {
-        Error::Incompatible(_) | Error::Conflict(_) | Error::Corrupt(_) => true,
+        Error::StorageFormatMismatch { .. } | Error::Incompatible(_) | Error::Conflict(_) | Error::Corrupt(_) => true,
         Error::Sqlite(error) => matches!(error.sqlite_error_code(), Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt)),
         _ => false,
     }

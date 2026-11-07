@@ -63,6 +63,13 @@ retains the original files even when their metadata cannot be decoded.
 
 ## Cycle Lists and Restart Recovery
 
+Finished executions whose template is absent from the connected backend's live
+catalog show **Plugin Unavailable** in Control. Their saved evidence stays
+readable; the execution card and its menu offer no re-run. A Python plugin is
+available only while its registering backend runs. Start that backend again,
+or install the original native plugin revision, before running its cases again.
+The catalog's pending or failed read never asserts that a plugin is absent.
+
 The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
 current live cycles and durable sealed cycle headers as one list, with the same
 filter, ordering and continuation rules. A live cycle supersedes its saved
@@ -206,14 +213,11 @@ Numeric time series and histograms show numeric statistics. XY scatter, XY line,
 XY interval, trajectory and heatmap plots omit the statistics block in both the
 desktop and report renderer. XY traces keep their ordinary legend.
 
-Event markers join the plot's legend table after the traces, one row per record
-type, with a matching dashed-line glyph and the number of markers in the shown
-x window. Prompt Asked and Prompt Answered have their own rows, with hollow and
-filled caps matching the canvas. Marker rows leave cursor and statistics cells
-empty. Clicking a row hides or restores only that kind; visibility belongs to
-the plot card, like trace visibility. Frozen HTML reports retain these toggles.
-Marker colors come from the theme's plot palette, and hovering a visible marker
-shows its recorded label through the same tooltip for events and prompts; markers
+Plot legend tables list traces only. Clicking a trace row hides or restores that
+trace within its plot card. Event and prompt markers always remain drawn on the
+canvas, with no legend rows or visibility controls. Marker colors come from the
+theme's plot palette, and hovering a marker shows its recorded label through the
+same tooltip for events and prompts; markers
 never draw permanent canvas labels. The tooltip stays inside the plot card,
 and prompt labels take precedence over event labels at the same position. It
 wraps long labels and ellipsizes after three lines while retaining the start.
