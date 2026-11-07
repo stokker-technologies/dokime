@@ -22,7 +22,7 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use super::content::UploadGate;
+use super::transfer::UploadGate;
 use super::*;
 use dokime::domain::model;
 
