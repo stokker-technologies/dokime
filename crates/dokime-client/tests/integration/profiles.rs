@@ -35,6 +35,7 @@ use dokime_client::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 struct Secrets {
     values: Mutex<BTreeMap<String, String>>,
@@ -53,6 +54,7 @@ struct Case {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SecretStore for Secrets {
     fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
         if self.unavailable {
@@ -81,6 +83,7 @@ impl SecretStore for Secrets {
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[dokime_tracing::trace_test]
 #[test]
 fn profiles() {

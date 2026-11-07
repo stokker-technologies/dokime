@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::io::Read;
 use std::path::Path;
@@ -26,6 +27,7 @@ use crate::service_support::system_reports::Runtime;
 use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
 
 /* === Constants === */
+
 const WATCHED_CONTENT: &[u8] = b"the chamber log, rewritten in place\n";
 const SETTLED_CONTENT: &[u8] = b"produced after the abandoned transfers\n";
 const ROWS: u32 = 2;
@@ -35,124 +37,15 @@ const ROWS: u32 = 2;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 /* === Public Functions === */
 
-/* === Private Functions === */
-async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokime_domain::model::execution::result::CycleView) {
-    let provider = Smoke::new(Behaviour::new(ROWS, 0, false).artifacts(abandoned));
-    let (runtime, handle) = started(config(root).register(Arc::new(provider))).await;
-    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap();
-    let cycle_id = start_cases(&handle, metadata("artifact.cycle", "Artifact Cycle"), materialize_cases(SUITE, &suite.suite)).await;
-    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
-    wait_for_run_settled(&handle, &receipt.command_id).await;
-    let cycle = super::published_cycle(&handle, &cycle_id).await;
-    assert_eq!(cycle.test_executions.len(), 1);
-    assert_eq!(
-        cycle.test_executions[0].status,
-        dokime_domain::model::execution::result::ExecutionStatus::Passed,
-        "{:?}",
-        cycle.test_executions[0]
-    );
-    (runtime, handle, cycle)
-}
-
-fn spill_removed(root: &Path) {
-    for entry in std::fs::read_dir(root).unwrap() {
-        assert!(!entry.unwrap().file_name().to_string_lossy().starts_with("dokime-sidecar-artifact-"));
-    }
-}
-
-// These Export Fixtures Run On The Current-Thread Executor. The Newly Spawned
-// Accepted Read Cannot Run Until This First Poll Releases The Caller.
-async fn cancel_export_read(bundle: &mut dokime_runtime::domains::exports::evidence::Bundle, maximum: std::num::NonZeroUsize) {
-    use std::{future::Future, task::Poll};
-    let read = bundle.next_chunk(maximum);
-    tokio::pin!(read);
-    std::future::poll_fn(|context| {
-        assert!(read.as_mut().poll(context).is_pending());
-        Poll::Ready(())
-    })
-    .await;
-}
-
-async fn export_zip(
-    runtime: &RuntimeHandle, subject: dokime_domain::model::exports::EvidenceSubject, destination: &Path,
-) -> serde_json::Value {
-    use sha2::{Digest, Sha256};
-    use std::io::{Read, Write};
-    let maximum = match &subject {
-        dokime_domain::model::exports::EvidenceSubject::Execution(_) => 2 * 1024 * 1024,
-        dokime_domain::model::exports::EvidenceSubject::Cycle(_) => crate::service_support::budgets::settings::EXPORT_CHUNK_BYTES,
-    };
-    let maximum = std::num::NonZeroUsize::new(maximum).unwrap();
-    let mut bundle = runtime.export_evidence(subject.clone()).await.unwrap();
-    cancel_export_read(&mut bundle, maximum).await;
-    assert!(matches!(
-        bundle.next_chunk(std::num::NonZeroUsize::new(maximum.get() + 1).unwrap()).await,
-        Err(dokime_runtime::domains::exports::evidence::Error::Invalid(_))
-    ));
-    assert_eq!(bundle.metadata().subject.as_ref(), Some(&subject));
-    let metadata = bundle.metadata().clone();
-    assert!(matches!(runtime.export_evidence(subject).await, Err(dokime_runtime::domains::exports::evidence::Error::Busy)));
-    let mut output = std::fs::File::create_new(destination).unwrap();
-    let mut digest = Sha256::new();
-    let mut offset = 0;
-    while let Some(chunk) = bundle.next_chunk(maximum).await.unwrap() {
-        assert_eq!(chunk.offset, offset);
-        assert!(!chunk.data.is_empty());
-        assert!(chunk.data.len() <= maximum.get());
-        offset += chunk.data.len() as u64;
-        digest.update(&chunk.data);
-        output.write_all(&chunk.data).unwrap();
-    }
-    assert_eq!(offset, metadata.size_bytes);
-    assert_eq!(digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>(), metadata.sha256);
-    drop(output);
-    drop(bundle);
-
-    let mut zip = zip::ZipArchive::new(std::fs::File::open(destination).unwrap()).unwrap();
-    let manifest: serde_json::Value = serde_json::from_reader(zip.by_name("manifest.json").unwrap()).unwrap();
-    assert_eq!(manifest["schema_version"], 1);
-    assert_eq!(manifest["complete"], true);
-    for payload in manifest["payloads"].as_array().unwrap() {
-        let mut entry = zip.by_name(payload["path"].as_str().unwrap()).unwrap();
-        assert_eq!(entry.size(), payload["size_bytes"].as_u64().unwrap());
-        let mut hasher = Sha256::new();
-        let mut buffer = [0_u8; 65_536];
-        loop {
-            let read = entry.read(&mut buffer).unwrap();
-            if read == 0 {
-                break;
-            }
-            hasher.update(&buffer[..read]);
-        }
-        let sha256 = hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-        assert_eq!(sha256, payload["sha256"].as_str().unwrap());
-    }
-    manifest
-}
-
-async fn verify_arrow_archive(path: &Path) {
-    let manifest = std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory");
-    let project = std::path::PathBuf::from(manifest).join("../..");
-    let python = project.join(if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" });
-    let proof = tokio::process::Command::from(dokime_domain::process::command(python))
-        .kill_on_drop(true)
-        .arg(project.join("sdk/python/tests/integration/client/arrow_archive.py"))
-        .arg(path)
-        .output()
-        .await
-        .expect("project Python environment runs the independent Arrow export proof");
-    assert!(proof.status.success(), "{}\n{}", String::from_utf8_lossy(&proof.stdout), String::from_utf8_lossy(&proof.stderr));
-}
-
-/* === Tests === */
 pub(crate) async fn saved_evidence_export() {
     use dokime_domain::model::exports::EvidenceSubject;
     let root = tempfile::tempdir().unwrap();
@@ -383,3 +276,116 @@ pub(crate) async fn abandoned_transfer_slots() {
     owner.shutdown().await.unwrap();
     spill_removed(root.path());
 }
+
+/* === Private Functions === */
+
+async fn execute(root: &Path, abandoned: bool) -> (Runtime, RuntimeHandle, dokime_domain::model::execution::result::CycleView) {
+    let provider = Smoke::new(Behaviour::new(ROWS, 0, false).artifacts(abandoned));
+    let (runtime, handle) = started(config(root).register(Arc::new(provider))).await;
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap();
+    let cycle_id = start_cases(&handle, metadata("artifact.cycle", "Artifact Cycle"), materialize_cases(SUITE, &suite.suite)).await;
+    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    let cycle = super::published_cycle(&handle, &cycle_id).await;
+    assert_eq!(cycle.test_executions.len(), 1);
+    assert_eq!(
+        cycle.test_executions[0].status,
+        dokime_domain::model::execution::result::ExecutionStatus::Passed,
+        "{:?}",
+        cycle.test_executions[0]
+    );
+    (runtime, handle, cycle)
+}
+
+fn spill_removed(root: &Path) {
+    for entry in std::fs::read_dir(root).unwrap() {
+        assert!(!entry.unwrap().file_name().to_string_lossy().starts_with("dokime-sidecar-artifact-"));
+    }
+}
+
+// These Export Fixtures Run On The Current-Thread Executor. The Newly Spawned
+// Accepted Read Cannot Run Until This First Poll Releases The Caller.
+async fn cancel_export_read(bundle: &mut dokime_runtime::domains::exports::evidence::Bundle, maximum: std::num::NonZeroUsize) {
+    use std::{future::Future, task::Poll};
+    let read = bundle.next_chunk(maximum);
+    tokio::pin!(read);
+    std::future::poll_fn(|context| {
+        assert!(read.as_mut().poll(context).is_pending());
+        Poll::Ready(())
+    })
+    .await;
+}
+
+async fn export_zip(
+    runtime: &RuntimeHandle, subject: dokime_domain::model::exports::EvidenceSubject, destination: &Path,
+) -> serde_json::Value {
+    use sha2::{Digest, Sha256};
+    use std::io::{Read, Write};
+    let maximum = match &subject {
+        dokime_domain::model::exports::EvidenceSubject::Execution(_) => 2 * 1024 * 1024,
+        dokime_domain::model::exports::EvidenceSubject::Cycle(_) => crate::service_support::budgets::settings::EXPORT_CHUNK_BYTES,
+    };
+    let maximum = std::num::NonZeroUsize::new(maximum).unwrap();
+    let mut bundle = runtime.export_evidence(subject.clone()).await.unwrap();
+    cancel_export_read(&mut bundle, maximum).await;
+    assert!(matches!(
+        bundle.next_chunk(std::num::NonZeroUsize::new(maximum.get() + 1).unwrap()).await,
+        Err(dokime_runtime::domains::exports::evidence::Error::Invalid(_))
+    ));
+    assert_eq!(bundle.metadata().subject.as_ref(), Some(&subject));
+    let metadata = bundle.metadata().clone();
+    assert!(matches!(runtime.export_evidence(subject).await, Err(dokime_runtime::domains::exports::evidence::Error::Busy)));
+    let mut output = std::fs::File::create_new(destination).unwrap();
+    let mut digest = Sha256::new();
+    let mut offset = 0;
+    while let Some(chunk) = bundle.next_chunk(maximum).await.unwrap() {
+        assert_eq!(chunk.offset, offset);
+        assert!(!chunk.data.is_empty());
+        assert!(chunk.data.len() <= maximum.get());
+        offset += chunk.data.len() as u64;
+        digest.update(&chunk.data);
+        output.write_all(&chunk.data).unwrap();
+    }
+    assert_eq!(offset, metadata.size_bytes);
+    assert_eq!(digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>(), metadata.sha256);
+    drop(output);
+    drop(bundle);
+
+    let mut zip = zip::ZipArchive::new(std::fs::File::open(destination).unwrap()).unwrap();
+    let manifest: serde_json::Value = serde_json::from_reader(zip.by_name("manifest.json").unwrap()).unwrap();
+    assert_eq!(manifest["schema_version"], 1);
+    assert_eq!(manifest["complete"], true);
+    for payload in manifest["payloads"].as_array().unwrap() {
+        let mut entry = zip.by_name(payload["path"].as_str().unwrap()).unwrap();
+        assert_eq!(entry.size(), payload["size_bytes"].as_u64().unwrap());
+        let mut hasher = Sha256::new();
+        let mut buffer = [0_u8; 65_536];
+        loop {
+            let read = entry.read(&mut buffer).unwrap();
+            if read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..read]);
+        }
+        let sha256 = hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        assert_eq!(sha256, payload["sha256"].as_str().unwrap());
+    }
+    manifest
+}
+
+async fn verify_arrow_archive(path: &Path) {
+    let manifest = std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory");
+    let project = std::path::PathBuf::from(manifest).join("../..");
+    let python = project.join(if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" });
+    let proof = tokio::process::Command::from(dokime_domain::process::command(python))
+        .kill_on_drop(true)
+        .arg(project.join("sdk/python/tests/integration/client/arrow_archive.py"))
+        .arg(path)
+        .output()
+        .await
+        .expect("project Python environment runs the independent Arrow export proof");
+    assert!(proof.status.success(), "{}\n{}", String::from_utf8_lossy(&proof.stdout), String::from_utf8_lossy(&proof.stderr));
+}
+
+/* === Tests === */

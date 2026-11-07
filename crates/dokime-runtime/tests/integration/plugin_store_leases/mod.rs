@@ -10,11 +10,13 @@
 // The plugin store installs, activates and leases plugins end to end.
 
 /* === Modules === */
+
 pub(crate) mod activation;
 pub(crate) mod leases;
 pub(crate) mod store;
 
 /* === Re-Exports === */
+
 pub(crate) use crate::service_support::prelude::*;
 
 /* === Imports === */
@@ -42,8 +44,6 @@ pub(crate) use crate::service_support::prelude::*;
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -74,3 +74,5 @@ async fn plugin_store_leases_concurrent() {
     leases::two_holds_reading().await;
     leases::foreign_stream_refuses().await;
 }
+
+/* === Tests === */

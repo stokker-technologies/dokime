@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod directory;
 
 /* === Re-Exports === */
@@ -39,22 +40,6 @@ use dokime_runtime::transport::recording::RecordingSink;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-fn grant(token: &str) -> (Artifacts, Arc<RecordingSink>) {
-    let sink = Arc::new(RecordingSink::default());
-
-    (Artifacts::new(token, sink.clone()), sink)
-}
-
-fn io_kind(error: dokime_runtime::Error) -> std::io::ErrorKind {
-    match error {
-        dokime_runtime::Error::Artifact(source) => source.kind(),
-        other => panic!("expected an artifact error, got {other}"),
-    }
-}
-
-/* === Tests === */
 
 pub(crate) fn importing_file_whole() {
     let (artifacts, sink) = grant("import-test");
@@ -96,3 +81,20 @@ pub(crate) fn import_fails_opened() {
     assert!(chunks[0].last && chunks[0].aborted, "the host is told to drop the transfer rather than left holding it");
     assert!(chunks[0].bytes.is_empty());
 }
+
+/* === Private Functions === */
+
+fn grant(token: &str) -> (Artifacts, Arc<RecordingSink>) {
+    let sink = Arc::new(RecordingSink::default());
+
+    (Artifacts::new(token, sink.clone()), sink)
+}
+
+fn io_kind(error: dokime_runtime::Error) -> std::io::ErrorKind {
+    match error {
+        dokime_runtime::Error::Artifact(source) => source.kind(),
+        other => panic!("expected an artifact error, got {other}"),
+    }
+}
+
+/* === Tests === */

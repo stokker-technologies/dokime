@@ -16,13 +16,13 @@
 // Standard Library Imports
 
 // Third Party Imports
+use model::execution::notes::NoteOwner;
 
 // Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model;
 use dokime_domain::model::identity::CommandId;
 use dokime_runtime::domains::evidence::notes::{CreateNote, EditNote, NoteError};
-use model::execution::notes::NoteOwner;
 
 /* === Constants === */
 
@@ -40,9 +40,6 @@ use model::execution::notes::NoteOwner;
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-
-/* === Tests === */
 // operator notes are editable by their author until the seal freezes them.
 pub(super) async fn notes_until_seal() {
     let root = tempfile::tempdir().unwrap();
@@ -186,3 +183,7 @@ pub(super) async fn undeclared_records_settle() {
     // The Failed Seal Is Settled; Only An Explicit Retry Seals It Again.
     owner.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

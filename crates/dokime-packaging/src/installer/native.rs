@@ -53,7 +53,7 @@ struct DistributionMetadata {
     updater_signed: bool,
 }
 
-/// Installed Payload Collected While Staging: Windows Resources, Linux Files And Their Digests.
+// Installed Payload Collected While Staging: Windows Resources, Linux Files And Their Digests.
 struct Staging {
     resources: HashMap<String, String>,
     linux_files: HashMap<PathBuf, PathBuf>,
@@ -344,16 +344,6 @@ pub fn assemble(
     Ok(outputs)
 }
 
-#[cfg(any(windows, test))]
-fn resource_path(path: &Path, root: &Path) -> Result<String, Error> {
-    let relative = path.strip_prefix(root).map_err(|_| Error::Invalid("installer resource is outside its staging root".into()))?;
-    if relative.as_os_str().is_empty() || relative.components().any(|component| !matches!(component, std::path::Component::Normal(_))) {
-        return Err(Error::Invalid("installer resource has an invalid staging path".into()));
-    }
-    let relative = relative.to_str().ok_or_else(|| Error::Invalid("installer resource path is not UTF-8".into()))?;
-    Ok(relative.to_owned())
-}
-
 pub fn validate_signing(manifest: &Manifest, requested: bool) -> Result<(), Error> {
     let rpm_variables = ["TAURI_SIGNING_RPM_KEY", "TAURI_SIGNING_RPM_KEY_PASSPHRASE"];
     let inherited_rpm_key = manifest.installer.formats.contains(&Format::Rpm)
@@ -405,7 +395,17 @@ pub(crate) fn validate_label(label: &str) -> Result<(), Error> {
 
 /* === Private Functions === */
 
-/// Stages Dokime's `LICENSE` And Any Pack Terms; Returns The Package License And License Page File.
+#[cfg(any(windows, test))]
+fn resource_path(path: &Path, root: &Path) -> Result<String, Error> {
+    let relative = path.strip_prefix(root).map_err(|_| Error::Invalid("installer resource is outside its staging root".into()))?;
+    if relative.as_os_str().is_empty() || relative.components().any(|component| !matches!(component, std::path::Component::Normal(_))) {
+        return Err(Error::Invalid("installer resource has an invalid staging path".into()));
+    }
+    let relative = relative.to_str().ok_or_else(|| Error::Invalid("installer resource path is not UTF-8".into()))?;
+    Ok(relative.to_owned())
+}
+
+// Stages Dokime's `LICENSE` And Any Pack Terms; Returns The Package License And License Page File.
 fn stage_licenses(
     manifest: &Manifest, source: &Path, scratch: &Path, prefix: &str, staging: &mut Staging,
 ) -> Result<(String, PathBuf), Error> {
@@ -435,9 +435,9 @@ fn stage_licenses(
     Ok((expression, staged))
 }
 
-/// Stages The DEP-5 Debian Copyright File At `/usr/share/doc/<package>/copyright`.
-///
-/// Tauri Names The Linux Package After The Product Name, Which Is The Distribution Slug.
+// Stages The DEP-5 Debian Copyright File At `/usr/share/doc/<package>/copyright`.
+//
+// Tauri Names The Linux Package After The Product Name, Which Is The Distribution Slug.
 fn stage_copyright(
     manifest: &Manifest, pack: &dokime::config::organization::ResolvedPack, source: &Path, scratch: &Path, package: &str,
     staging: &mut Staging,
@@ -464,7 +464,7 @@ fn stage_copyright(
     Ok(())
 }
 
-/// Reads The Pack's Terms As UTF-8 Text For The Debian Copyright File.
+// Reads The Pack's Terms As UTF-8 Text For The Debian Copyright File.
 fn terms_text(terms: &super::manifest::License) -> Result<(&str, String), Error> {
     let (spdx, file) = terms.terms()?;
     let bytes = std::fs::read(file)?;

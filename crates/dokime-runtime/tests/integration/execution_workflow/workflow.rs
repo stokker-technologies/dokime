@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod callbacks;
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::fmt;
@@ -39,6 +41,7 @@ use dokime_runtime::transport::*;
 use {dokime_domain::model::traceability::TraceabilityRow, dokime_domain::model::traceability::TraceabilitySection};
 
 /* === Constants === */
+
 const WORKFLOW: &str = "probe.checks";
 const TEMPLATE: &str = "probe.checks.pulse";
 const STREAM: &str = "probe.pulse";
@@ -63,9 +66,11 @@ static LATE_SAMPLE: AtomicBool = AtomicBool::new(false);
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type PublishedRow = (String, String, BTreeMap<String, Value>);
 
 /* === Structs === */
+
 struct Probe;
 
 struct ProbeResources {
@@ -109,6 +114,7 @@ struct UnitConnected {
 struct Confirm;
 
 /* === Enums === */
+
 #[derive(Debug)]
 enum ProbeError {
     Declined(String),
@@ -119,6 +125,7 @@ enum ProbeError {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl dokime_runtime::execution::EmbeddedPublisher for PublishedExecutionRows {
     fn publish<'a>(
         &'a self, execution: &'a str, stream: &'a dokime_runtime::Identifier, rows: Vec<dokime_runtime::execution::StampedRow>,
@@ -645,6 +652,7 @@ impl Probe {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn streamed_evidence() -> Vec<u8> {
     (0..dokime_runtime::transport::MAX_ARTIFACT_CHUNK_BYTES + 321).map(|index| (index % 251) as u8).collect()
 }

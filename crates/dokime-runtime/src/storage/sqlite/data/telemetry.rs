@@ -21,9 +21,6 @@ mod reader;
 
 #[cfg(feature = "native")]
 pub(crate) mod report;
-
-#[cfg(test)]
-mod tests;
 mod writer;
 
 /* === Re-Exports === */
@@ -450,3 +447,6 @@ fn selection_scan(at: u64, selection: &StreamSelection, page: ScanPage) -> Resul
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests;

@@ -10,6 +10,7 @@
 #![cfg(feature = "storage")]
 
 /* === Modules === */
+
 pub(crate) mod cancellation;
 pub(crate) mod nominal;
 pub(crate) mod objects;
@@ -35,6 +36,7 @@ use {
 };
 
 /* === Constants === */
+
 const FRAME_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
@@ -50,28 +52,6 @@ const FRAME_BYTES: usize = 1024 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-fn entry(sequence: u64, volts: f64) -> RecordEntry {
-    let mut record = RecordPublishRequest::new(Identifier::new("charger.measurement").unwrap(), RecordSeverity::Info).into_record(
-        RecordId::from_seed(sequence.to_string()),
-        1,
-        Timestamp::new("2026-10-04T12:00:00Z"),
-        "bench.charger",
-    );
-    record.scope = Some(RecordScope::session(SessionId::from_seed("bench")));
-    record.details = BTreeMap::from([
-        ("voltage".into(), Value::Number(volts)),
-        ("current".into(), Value::Number(3.25)),
-        ("ready".into(), Value::Bool(true)),
-        ("limits".into(), Value::Array(vec![Value::Integer(-2), Value::Unsigned(u64::MAX)])),
-    ]);
-    let mut entry = RecordEntry::from_record(sequence, record);
-    entry.ordinal = sequence;
-    entry
-}
-
-/* === Tests === */
 
 pub(crate) async fn portable_records_identity() {
     let root = tempfile::tempdir().unwrap();
@@ -155,3 +135,26 @@ pub(crate) async fn portable_records_identity() {
     reader.release_snapshot(&snapshot).await.unwrap();
     reader.close().await.unwrap();
 }
+
+/* === Private Functions === */
+
+fn entry(sequence: u64, volts: f64) -> RecordEntry {
+    let mut record = RecordPublishRequest::new(Identifier::new("charger.measurement").unwrap(), RecordSeverity::Info).into_record(
+        RecordId::from_seed(sequence.to_string()),
+        1,
+        Timestamp::new("2026-10-04T12:00:00Z"),
+        "bench.charger",
+    );
+    record.scope = Some(RecordScope::session(SessionId::from_seed("bench")));
+    record.details = BTreeMap::from([
+        ("voltage".into(), Value::Number(volts)),
+        ("current".into(), Value::Number(3.25)),
+        ("ready".into(), Value::Bool(true)),
+        ("limits".into(), Value::Array(vec![Value::Integer(-2), Value::Unsigned(u64::MAX)])),
+    ]);
+    let mut entry = RecordEntry::from_record(sequence, record);
+    entry.ordinal = sequence;
+    entry
+}
+
+/* === Tests === */

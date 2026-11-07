@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::{Duration, Instant};
 
@@ -29,6 +30,7 @@ use dokime_runtime::{Identifier, Metadata, ValueType};
 use dokime_runtime::{InstalledPlugin, Runtime, RuntimeConfig};
 
 /* === Constants === */
+
 const OWNER: &str = "bench_plot";
 const STREAM: &str = "bench.plot";
 
@@ -37,6 +39,7 @@ const STREAM: &str = "bench.plot";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(super) struct PlotRow {
@@ -51,6 +54,7 @@ pub(super) struct PlotRow {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     if std::env::var_os("DOKIME_PLOT_ALL_MEASURE").is_some() {
@@ -92,6 +96,54 @@ pub fn benchmark(criterion: &mut Criterion) {
 
     drop(runtime);
     executor.block_on(owner.shutdown()).unwrap();
+}
+
+pub(super) fn config(root: &std::path::Path) -> RuntimeConfig {
+    let schema = harmos::schema::graph::Schema::from_declaration(PlotRow::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
+    let plugin = InstalledPlugin {
+        source: OWNER.into(),
+        version: "bench".into(),
+        description: "Stored plot visibility benchmark".into(),
+        enabled: true,
+        telemetry_contracts: vec![TelemetryContract {
+            stream: identifier(STREAM),
+            schema_version: 1,
+            metadata: metadata(STREAM, "Plot Bench"),
+            template_id: None,
+            owner: None,
+            storage_schema: Some(schema),
+            columns: vec![TelemetryColumn::new(metadata("value", "Value"), ValueType::Number, TelemetryRole::Value)],
+            default_x: Some("timestamp".to_owned()),
+            interval: None,
+            allow_extra_fields: false,
+            scalar: false,
+            validation_mode: None,
+            foreign: false,
+        }],
+        ..Default::default()
+    };
+    RuntimeConfig::new(root, metadata("bench.plots", "Plot Bench")).with_installed_plugins([plugin])
+}
+
+pub(super) fn batch(rows: usize) -> TelemetryBatch {
+    let stream = identifier(STREAM);
+    let samples = (0..rows)
+        .map(|index| {
+            let timestamp = dokime_runtime::model::time::now_utc();
+            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, timestamp.clone(), OWNER);
+            let value = index as f64;
+            sample.values.insert("value".to_owned(), value.into());
+            sample.storage_payload = Some(
+                PlotRow {
+                    timestamp: timestamp.as_str().to_owned(),
+                    value: Some(value),
+                }
+                .encode(),
+            );
+            sample
+        })
+        .collect();
+    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)
 }
 
 /* === Private Functions === */
@@ -166,54 +218,6 @@ async fn measure_queries() {
     }
     drop(runtime);
     owner.shutdown().await.unwrap();
-}
-
-pub(super) fn config(root: &std::path::Path) -> RuntimeConfig {
-    let schema = harmos::schema::graph::Schema::from_declaration(PlotRow::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
-    let plugin = InstalledPlugin {
-        source: OWNER.into(),
-        version: "bench".into(),
-        description: "Stored plot visibility benchmark".into(),
-        enabled: true,
-        telemetry_contracts: vec![TelemetryContract {
-            stream: identifier(STREAM),
-            schema_version: 1,
-            metadata: metadata(STREAM, "Plot Bench"),
-            template_id: None,
-            owner: None,
-            storage_schema: Some(schema),
-            columns: vec![TelemetryColumn::new(metadata("value", "Value"), ValueType::Number, TelemetryRole::Value)],
-            default_x: Some("timestamp".to_owned()),
-            interval: None,
-            allow_extra_fields: false,
-            scalar: false,
-            validation_mode: None,
-            foreign: false,
-        }],
-        ..Default::default()
-    };
-    RuntimeConfig::new(root, metadata("bench.plots", "Plot Bench")).with_installed_plugins([plugin])
-}
-
-pub(super) fn batch(rows: usize) -> TelemetryBatch {
-    let stream = identifier(STREAM);
-    let samples = (0..rows)
-        .map(|index| {
-            let timestamp = dokime_runtime::model::time::now_utc();
-            let mut sample = TelemetrySample::new(dokime_runtime::model::identity::new_id(), stream.clone(), 0, timestamp.clone(), OWNER);
-            let value = index as f64;
-            sample.values.insert("value".to_owned(), value.into());
-            sample.storage_payload = Some(
-                PlotRow {
-                    timestamp: timestamp.as_str().to_owned(),
-                    value: Some(value),
-                }
-                .encode(),
-            );
-            sample
-        })
-        .collect();
-    TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)
 }
 
 fn metadata(identifier: &str, label: &str) -> Metadata {

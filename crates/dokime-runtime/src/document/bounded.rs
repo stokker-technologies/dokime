@@ -104,8 +104,8 @@ impl<'a> SharedBindings<'a> {
         Ok(())
     }
 
-    /// Captures the definition; repeats resolved ahead of it, if given, expand
-    /// over those values instead of over this capture's own rows.
+    // Captures the definition; repeats resolved ahead of it, if given, expand
+    // over those values instead of over this capture's own rows.
     pub(crate) fn capture(
         &self, definition: &'a DocumentDefinition, repeats: Option<&super::resolve::RepeatValues>,
     ) -> crate::Result<crate::document::capture::Capture> {
@@ -218,8 +218,6 @@ pub(crate) fn capture_document_borrowed(
     SharedBindings::new(input.selection, input.data, limits)?.capture(input.definition, None)
 }
 
-/* === Private Functions === */
-
 pub(crate) fn card_size<T: Serialize + ?Sized>(value: &T, maximum: usize, depth: usize, card: &str) -> crate::Result<()> {
     let reached = document_size(value, usize::MAX, depth).map_err(|error| match error {
         DocumentLimit::Depth { limit, reached } => super::DocumentFailure::Budget {
@@ -254,6 +252,8 @@ pub(crate) fn check_payload(payload: DocumentPayload, limits: DocumentLimits) ->
     document_size(&payload, limits.materialized_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
     Ok(payload)
 }
+
+/* === Private Functions === */
 
 /* === Tests === */
 

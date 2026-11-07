@@ -35,15 +35,12 @@ use dokime_runtime::transport::{
 };
 
 /* === Constants === */
+
 pub const SOURCE: &str = "fixture_suites";
 pub const SUITE: &str = "fixture.checks";
-
 pub const PULSE_STREAM: &str = "fixture_suites.pulse";
-
 pub const PULSE_PLOT: &str = "fixture.checks.smoke.pulse";
-
 pub const PULSE_DISPLAY_POINTS: u32 = 400;
-
 pub const SPECTRUM_SAMPLE_RATE_HZ: f64 = 100.0;
 
 /* === Macros === */
@@ -51,6 +48,7 @@ pub const SPECTRUM_SAMPLE_RATE_HZ: f64 = 100.0;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Observed<T: SidecarTemplate> {
     pub workflow: Workflow<T>,
     pub watched: tokio::sync::watch::Sender<bool>,
@@ -115,6 +113,7 @@ struct PulseProduced {
 }
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 enum Streams {
     Pulse(Pulse),
@@ -134,6 +133,7 @@ enum Templates {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Behaviour {
     pub fn new(pulse_rows: u32, spectrum_rows: u32, hold: bool) -> Self {
         Self {
@@ -347,6 +347,7 @@ impl<T: SidecarTemplate> Runnable for Observed<T> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn declaration<R>() -> StreamDeclaration
 where
     R: harmos::StreamSpec + harmos::RowMetadata + Described,

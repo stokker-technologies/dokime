@@ -61,6 +61,16 @@ macro_rules! serve {
     };
 }
 
+serve!(ListExecutions, ExecutionPage, query_list_executions);
+
+serve!(ListCycles, CyclePage, query_list_cycles);
+
+serve!(ListRecords, RecordPage, query_list_records);
+
+serve!(ListSamples, SamplePage, query_list_samples);
+
+serve!(AggregateSamples, Statistics, query_aggregate_samples);
+
 /* === Type Aliases === */
 
 /* === Structs === */
@@ -86,12 +96,6 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-serve!(ListExecutions, ExecutionPage, query_list_executions);
-serve!(ListCycles, CyclePage, query_list_cycles);
-serve!(ListRecords, RecordPage, query_list_records);
-serve!(ListSamples, SamplePage, query_list_samples);
-serve!(AggregateSamples, Statistics, query_aggregate_samples);
 
 impl Queries {
     async fn admit(&self, operation: &str) -> Result<SemaphorePermit<'_>, Status> {

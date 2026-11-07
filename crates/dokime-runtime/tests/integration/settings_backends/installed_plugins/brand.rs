@@ -18,13 +18,14 @@ use std::{fs, path::Path};
 
 // Third Party Imports
 use base64::Engine as _;
-use dokime_runtime::domains::{ThemeActivationPolicy, ThemeCornerRadii, ThemeModePolicy};
 use tempfile::tempdir;
 
 // Local Imports
 use dokime_runtime::domains::installed_plugins::load_brand;
+use dokime_runtime::domains::{ThemeActivationPolicy, ThemeCornerRadii, ThemeModePolicy};
 
 /* === Constants === */
+
 const NEUTRAL_BRAND: &str = r##"
 [app]
 label = "Stokker Technologies Test Hub"
@@ -56,7 +57,6 @@ xl = "0.5rem"
 3xl = "1rem"
 4xl = "1.25rem"
 "##;
-
 const REQUIRED_TEST_TYPOGRAPHY: &[&str] = &[
     "brand-font-sans",
     "brand-font-heading",
@@ -110,33 +110,6 @@ const REQUIRED_TEST_PALETTE: &[&str] = &[
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-fn write_brand(dir: &Path, manifest: &str) {
-    fs::write(dir.join("organization.toml"), manifest).unwrap();
-    let logos = dir.join("logos");
-    fs::create_dir_all(&logos).unwrap();
-    for variant in ["transparent-on-light", "transparent-on-dark", "contained-on-light", "contained-on-dark"] {
-        fs::write(logos.join(format!("{variant}.svg")), format!("<svg id='{variant}'/>")).unwrap();
-    }
-    fs::create_dir_all(dir.join("theme")).unwrap();
-    let typography = REQUIRED_TEST_TYPOGRAPHY.iter().map(|name| format!("--{name}: sample;")).collect::<Vec<_>>().join("\n");
-    fs::write(dir.join("theme/typography.css"), format!(":root {{ {typography} }}")).unwrap();
-    fs::write(dir.join("theme/base.css"), "::selection { color: currentColor; }").unwrap();
-    let palette = |selector: &str, color: &str| {
-        let semantic = REQUIRED_TEST_PALETTE
-            .iter()
-            .map(|name| format!("--{name}: {color};"))
-            .chain((1..=8).map(|index| format!("--chart-{index}: {color};")))
-            .collect::<Vec<_>>()
-            .join("\n");
-        format!("{selector} {{ {semantic} }}")
-    };
-    fs::write(dir.join("theme/light.css"), palette(":root", "#111111")).unwrap();
-    fs::write(dir.join("theme/dark.css"), palette(".dark", "#eeeeee")).unwrap();
-}
-
-/* === Tests === */
 
 pub(crate) fn organization_overlay() {
     use dokime_runtime::config::organization::resolve_with_base;
@@ -408,3 +381,31 @@ pub(crate) async fn runtime_appearance_brand() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
+
+fn write_brand(dir: &Path, manifest: &str) {
+    fs::write(dir.join("organization.toml"), manifest).unwrap();
+    let logos = dir.join("logos");
+    fs::create_dir_all(&logos).unwrap();
+    for variant in ["transparent-on-light", "transparent-on-dark", "contained-on-light", "contained-on-dark"] {
+        fs::write(logos.join(format!("{variant}.svg")), format!("<svg id='{variant}'/>")).unwrap();
+    }
+    fs::create_dir_all(dir.join("theme")).unwrap();
+    let typography = REQUIRED_TEST_TYPOGRAPHY.iter().map(|name| format!("--{name}: sample;")).collect::<Vec<_>>().join("\n");
+    fs::write(dir.join("theme/typography.css"), format!(":root {{ {typography} }}")).unwrap();
+    fs::write(dir.join("theme/base.css"), "::selection { color: currentColor; }").unwrap();
+    let palette = |selector: &str, color: &str| {
+        let semantic = REQUIRED_TEST_PALETTE
+            .iter()
+            .map(|name| format!("--{name}: {color};"))
+            .chain((1..=8).map(|index| format!("--chart-{index}: {color};")))
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!("{selector} {{ {semantic} }}")
+    };
+    fs::write(dir.join("theme/light.css"), palette(":root", "#111111")).unwrap();
+    fs::write(dir.join("theme/dark.css"), palette(".dark", "#eeeeee")).unwrap();
+}
+
+/* === Tests === */

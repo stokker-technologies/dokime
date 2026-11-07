@@ -12,9 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
+
 // Local Imports
 use super::*;
 
@@ -33,8 +35,6 @@ use super::*;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn orchestrator_frames_exposed() {
     let root = tempdir().unwrap();
@@ -236,6 +236,8 @@ pub(crate) async fn telemetry_batch_receipts_and_order() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
 
 fn telemetry_config(root: impl Into<std::path::PathBuf>) -> RuntimeConfig {
     let artifact = dokime_runtime::InstalledPlugin {

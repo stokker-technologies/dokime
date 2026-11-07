@@ -14,17 +14,17 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
+use async_trait::async_trait;
+use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
 use crate::service_support::prelude::*;
-use async_trait::async_trait;
 use dokime_domain::model;
 use dokime_runtime::execution::Runnable;
 use dokime_runtime::runtime::EmbeddedProvider;
-use harmos::sidecar::StreamDeclaration;
-use std::sync::Arc;
 use {dokime_runtime::InstalledPlugin, dokime_runtime::ValueType};
 use {
     dokime_runtime::records::RecordContract, dokime_runtime::records::RecordField, dokime_runtime::records::RecordPublication,
@@ -38,6 +38,7 @@ use {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Publisher;
 
 /* === Enums === */
@@ -45,6 +46,7 @@ struct Publisher;
 /* === Traits === */
 
 /* === Implementations === */
+
 #[async_trait]
 impl EmbeddedProvider for Publisher {
     fn catalog(&self) -> InstalledPlugin {
@@ -79,10 +81,6 @@ impl EmbeddedProvider for Publisher {
 }
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(super) async fn native_publications_order(owner: &mut Runtime) {
     owner.register(Arc::new(Publisher)).await.unwrap();
@@ -144,3 +142,7 @@ pub(super) async fn native_publications_order(owner: &mut Runtime) {
     }
     drop(records);
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

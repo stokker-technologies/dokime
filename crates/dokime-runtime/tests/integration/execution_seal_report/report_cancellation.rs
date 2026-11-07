@@ -22,13 +22,13 @@ use std::sync::{
 };
 
 // Third Party Imports
+
+// Local Imports
+use crate::service_support::prelude::*;
 use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 use dokime_runtime::domains::telemetry::{Sampler, SamplerSession, SettlementError};
 use dokime_runtime::telemetry::{SamplingScope, TelemetrySamplingRequest, TelemetrySourceKind};
-
-// Local Imports
-use crate::service_support::prelude::*;
 
 /* === Constants === */
 
@@ -37,6 +37,7 @@ use crate::service_support::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 struct QueuedSamples {
     ready: tokio::sync::watch::Sender<bool>,
@@ -48,12 +49,14 @@ struct QueuedSamples {
 struct CollectedQueue {
     state: Arc<CollectedQueueState>,
 }
+
 #[derive(Default)]
 struct CollectedQueueState {
     queued: tokio::sync::watch::Sender<bool>,
     delivered: AtomicU64,
     samples: Mutex<Option<TelemetryBatch>>,
 }
+
 struct CollectedSession {
     state: Arc<CollectedQueueState>,
     settling: bool,
@@ -64,6 +67,7 @@ struct CollectedSession {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionFixture for QueuedSamples {
     fn run_cycle<'a>(
         &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
@@ -112,6 +116,7 @@ impl Sampler for CollectedQueue {
         }))
     }
 }
+
 impl SamplerSession for CollectedSession {
     fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<()> {
         std::task::Poll::Pending
@@ -150,6 +155,7 @@ impl SamplerSession for CollectedSession {
 }
 
 /* === Public Functions === */
+
 pub(crate) async fn stopped_report_boundary() {
     let root = tempdir().unwrap();
     let executor = Arc::new(QueuedSamples::default());

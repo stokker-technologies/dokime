@@ -26,7 +26,6 @@ use dokime_server::host;
 
 const DESKTOP_READINESS_TIMEOUT_MS: u64 = 60_000;
 const DESKTOP_STARTUP_DIAGNOSTIC_BYTES: u64 = 65_536;
-
 const REDACTED: &str = "<redacted>";
 const BEARER: &str = "bearer";
 const AUTHORIZATION: &str = "authorization";

@@ -43,41 +43,6 @@ use super::storage::id;
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-fn metadata(name: &str) -> FileMetadata {
-    FileMetadata {
-        id: id(name),
-        scope: None,
-        media_type: "text/plain".into(),
-        expected_length: None,
-        expected_sha256: None,
-    }
-}
-
-fn bound(value: usize) -> NonZeroUsize {
-    NonZeroUsize::new(value).unwrap()
-}
-fn checkpoint(metadata: FileMetadata, file: &StagedFile, generation: u64, bytes: &[u8]) -> FileCheckpoint {
-    let hash = Sha256::new().chain_update(bytes);
-    FileCheckpoint {
-        metadata,
-        session: FileSession {
-            history: file.history.clone(),
-            id: file.id.clone(),
-            generation,
-        },
-        length: bytes.len() as u64,
-        hash_format: 1,
-        hash_state: hash.serialize().to_vec(),
-    }
-}
-
-fn limits() -> ReadLimits {
-    ReadLimits { rows: bound(8), bytes: bound(32 * 1024) }
-}
-
-/* === Tests === */
-
 pub(crate) async fn file_retry_checks_entire_overlap_before_append() {
     let root = tempfile::tempdir().unwrap();
     let store = Store::<()>::open(root.path()).await;
@@ -421,3 +386,40 @@ pub(crate) async fn late_checkpoints_settle() {
     assert_eq!(recovered, [longer]);
     backend.close().await.unwrap();
 }
+
+/* === Private Functions === */
+
+fn metadata(name: &str) -> FileMetadata {
+    FileMetadata {
+        id: id(name),
+        scope: None,
+        media_type: "text/plain".into(),
+        expected_length: None,
+        expected_sha256: None,
+    }
+}
+
+fn bound(value: usize) -> NonZeroUsize {
+    NonZeroUsize::new(value).unwrap()
+}
+
+fn checkpoint(metadata: FileMetadata, file: &StagedFile, generation: u64, bytes: &[u8]) -> FileCheckpoint {
+    let hash = Sha256::new().chain_update(bytes);
+    FileCheckpoint {
+        metadata,
+        session: FileSession {
+            history: file.history.clone(),
+            id: file.id.clone(),
+            generation,
+        },
+        length: bytes.len() as u64,
+        hash_format: 1,
+        hash_state: hash.serialize().to_vec(),
+    }
+}
+
+fn limits() -> ReadLimits {
+    ReadLimits { rows: bound(8), bytes: bound(32 * 1024) }
+}
+
+/* === Tests === */

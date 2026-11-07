@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize, ser::SerializeSeq};
 
 /* === Structs === */
 
-/// An Immutable Sequence Of Owned Rows Or Shared Native Pages.
+// An Immutable Sequence Of Owned Rows Or Shared Native Pages.
 pub struct ReadRows<T> {
     source: Rows<T>,
 }

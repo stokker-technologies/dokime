@@ -37,6 +37,7 @@ use super::*;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn capture(days: u64, per_day: u64) {
     let mut rows = EvidenceRows::<(u64, String)>::default();
     let mut previous_bytes = 0;

@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{Arc, Mutex};
+
 // Third Party Imports
 use harmos::Message;
+
 // Local Imports
 use super::*;
 use crate::service_support::system_reports::Runtime;
@@ -26,56 +29,12 @@ use dokime_runtime::transport::{ExecutionSignal, SignalReply};
 use dokime_runtime::{Identifier, TestExecutionId, Value, ValueType};
 
 /* === Constants === */
+
 // One attribute line: rustfmt re-indents a continued attribute inside a macro body on every pass.
 const DELIVERY_POLICY: harmos::OperationPolicy = <Signal<()> as harmos::OperationDeclaration>::POLICY;
 
 /* === Macros === */
 
-/* === Type Aliases === */
-
-/* === Structs === */
-#[harmos::message]
-#[derive(Clone, PartialEq)]
-struct GatewayRow {
-    rssi: f64,
-}
-
-#[derive(Default)]
-struct RecordingSidecar {
-    calls: Mutex<Vec<(String, Vec<u8>)>>,
-}
-
-struct Recorders(std::collections::BTreeMap<&'static str, Arc<RecordingSidecar>>);
-
-/* === Enums === */
-#[harmos::catalog]
-enum Deliveries {
-    Gateway(GatewayDelivery),
-    Bench(BenchDelivery),
-    Probe(ProbeDelivery),
-}
-
-/* === Traits === */
-
-/* === Implementations === */
-impl RecordingSidecar {
-    fn delivered(&self) -> Vec<TelemetrySample> {
-        self.calls
-            .lock()
-            .expect("the fixture's calls are readable")
-            .iter()
-            .filter(|(method, _)| method.ends_with(".signal"))
-            .filter_map(|(_, params)| ExecutionSignal::decode(params.as_slice()).ok())
-            .filter_map(|signal| signal.samples)
-            .flat_map(|request| request.samples)
-            .filter_map(|encoded| serde_json::from_str::<TelemetrySample>(&encoded).ok())
-            .collect()
-    }
-}
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 macro_rules! delivery_fixture {
     ($operation:ident, $id:literal) => {
         #[harmos::operation(id = $id, response = SignalReply, policy = DELIVERY_POLICY, visibility = Host, resources = [Recorders])]
@@ -100,160 +59,59 @@ macro_rules! delivery_fixture {
         }
     };
 }
+
 delivery_fixture!(GatewayDelivery, "fixture.template.t2.signal");
+
 delivery_fixture!(BenchDelivery, "fixture.template.t0.signal");
+
 delivery_fixture!(ProbeDelivery, "fixture.template.t1.signal");
 
-fn sidecars(sidecars: &[(&str, &Arc<RecordingSidecar>)]) -> dokime_runtime::app::Composition {
-    let recorders = Arc::new(Recorders(
-        sidecars
+/* === Type Aliases === */
+
+/* === Structs === */
+
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+struct GatewayRow {
+    rssi: f64,
+}
+
+#[derive(Default)]
+struct RecordingSidecar {
+    calls: Mutex<Vec<(String, Vec<u8>)>>,
+}
+
+struct Recorders(std::collections::BTreeMap<&'static str, Arc<RecordingSidecar>>);
+
+/* === Enums === */
+
+#[harmos::catalog]
+enum Deliveries {
+    Gateway(GatewayDelivery),
+    Bench(BenchDelivery),
+    Probe(ProbeDelivery),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+
+impl RecordingSidecar {
+    fn delivered(&self) -> Vec<TelemetrySample> {
+        self.calls
+            .lock()
+            .expect("the fixture's calls are readable")
             .iter()
-            .map(|(owner, resource)| {
-                let operation = match *owner {
-                    "gateway" => "fixture.template.t2.signal",
-                    "bench" => "fixture.template.t0.signal",
-                    "probe" => "fixture.template.t1.signal",
-                    _ => panic!("unknown fixture owner"),
-                };
-                (operation, (*resource).clone())
-            })
-            .collect(),
-    ));
-    dokime_runtime::app::Composition {
-        prepare: Arc::new(move |setup, _, _| {
-            setup.resource::<Recorders>(recorders.clone());
-            setup.operations::<Deliveries>(dokime_runtime::app::Lanes::Open);
-            Ok(())
-        }),
-        ..Default::default()
+            .filter(|(method, _)| method.ends_with(".signal"))
+            .filter_map(|(_, params)| ExecutionSignal::decode(params.as_slice()).ok())
+            .filter_map(|signal| signal.samples)
+            .flat_map(|request| request.samples)
+            .filter_map(|encoded| serde_json::from_str::<TelemetrySample>(&encoded).ok())
+            .collect()
     }
 }
 
-async fn runtime(root: &std::path::Path) -> Runtime {
-    let configuration = config(root).with_plugins([crate::service_support::bundles::host_plugin()]);
-    started(configuration).await.0
-}
-
-async fn runtime_with(
-    root: &std::path::Path, artifacts: impl IntoIterator<Item = InstalledPlugin>, composition: Option<dokime_runtime::app::Composition>,
-) -> Runtime {
-    let mut configuration = config(root).with_installed_plugins(artifacts);
-    configuration.composition.extend(composition);
-    started(configuration).await.0
-}
-
-fn stream() -> Identifier {
-    Identifier::new("host.system").expect("a host stream is addressable")
-}
-
-fn foreign_stream() -> Identifier {
-    Identifier::new("gateway.rssi").expect("a fixture stream is addressable")
-}
-
-// Published Without A Sampling Declaration Or Observer: Nothing Leases It.
-fn published_stream() -> Identifier {
-    Identifier::new("gateway.status").expect("a fixture stream is addressable")
-}
-
-fn gateway_artifact() -> InstalledPlugin {
-    InstalledPlugin {
-        source: "gateway".to_owned(),
-        version: "0.1.0".to_owned(),
-        description: "Owns the gateway radio stream.".to_owned(),
-        enabled: true,
-        telemetry_contracts: vec![
-            TelemetryContract::declared("gateway.rssi", "Gateway signal")
-                .typed::<GatewayRow>()
-                .column(TelemetryColumn::declared("rssi", "RSSI", ValueType::Number, TelemetryRole::Value))
-                .every(200),
-            TelemetryContract::declared("gateway.status", "Gateway status").typed::<GatewayRow>().column(TelemetryColumn::declared(
-                "rssi",
-                "RSSI",
-                ValueType::Number,
-                TelemetryRole::Value,
-            )),
-        ],
-        ..Default::default()
-    }
-}
-
-fn bench_artifact() -> InstalledPlugin {
-    reader_artifact("bench")
-}
-
-fn probe_artifact() -> InstalledPlugin {
-    reader_artifact("probe")
-}
-
-fn reader_artifact(source: &str) -> InstalledPlugin {
-    InstalledPlugin {
-        source: source.to_owned(),
-        version: "0.1.0".to_owned(),
-        description: "Runs a template that reads the gateway's stream.".to_owned(),
-        enabled: true,
-        ..Default::default()
-    }
-}
-
-async fn stored(handle: &dokime_runtime::RuntimeHandle, execution: Option<&TestExecutionId>) -> usize {
-    handle
-        .selected_telemetry(dokime_runtime::domains::evidence::TelemetrySelection {
-            streams: vec![foreign_stream().into()],
-            scope: dokime_runtime::domains::evidence::ScopeSelection {
-                test_execution_id: execution.cloned(),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .iter()
-        .filter(|sample| sample.stream == foreign_stream())
-        .count()
-}
-
-fn gateway_batch(rssi: f64) -> TelemetryBatch {
-    let mut sample = TelemetrySample::new(
-        dokime_runtime::model::identity::new_id(),
-        foreign_stream(),
-        0,
-        dokime_runtime::model::time::now_utc(),
-        "gateway",
-    );
-    sample.values.insert("rssi".to_owned(), Value::from(rssi));
-
-    TelemetryBatch::new(
-        dokime_runtime::model::identity::new_id(),
-        foreign_stream(),
-        vec![sample.with_storage_payload(harmos::Message::encode(&GatewayRow { rssi }))],
-    )
-}
-
-async fn admitted_execution(handle: &RuntimeHandle, index: usize) -> TestExecutionId {
-    let mut suite = fixture_suite(&["passed"; 3]);
-    let template = format!("fixture.template.t{index}");
-    suite.test_case_templates.retain(|candidate| candidate.metadata.identifier.as_str() == template);
-    let suite_id = format!("fixture.registration.{index}");
-    handle
-        .set_suites(
-            &format!("fixture.{index}"),
-            dokime_runtime::definition::SuiteSet::new([
-                dokime_runtime::domains::TestSuiteDefinition::new(&suite_id, suite.clone()).unwrap()
-            ]),
-        )
-        .await
-        .unwrap();
-    let id = start_cases(handle, metadata("lease.owner", "Lease Owner"), materialize_cases(&suite_id, &suite)).await;
-    cycle_snapshot(handle, &id).await.test_executions[0].test_execution_id.clone()
-}
-
-fn scope_of(execution: &TestExecutionId) -> SamplingScope {
-    SamplingScope {
-        test_cycle_id: None,
-        test_case_id: None,
-        test_execution_id: Some(execution.to_string()),
-    }
-}
+/* === Public Functions === */
 
 pub(crate) async fn failed_group_holds() {
     let root = tempdir().expect("a temporary root");
@@ -419,21 +277,6 @@ pub(crate) async fn two_holds_reading() {
     runtime.shutdown().await.expect("the runtime stops");
 }
 
-async fn host_rows(handle: &RuntimeHandle) -> usize {
-    handle
-        .collect_telemetry(&dokime_runtime::domains::evidence::TelemetrySelection {
-            streams: vec![stream().into()],
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .len()
-}
-
-async fn wait_for_rows(handle: &RuntimeHandle, count: usize) {
-    crate::service_support::waits::until_telemetry(handle, || async { (host_rows(handle).await >= count).then_some(()) }).await;
-}
-
 pub(crate) async fn foreign_stream_refuses() {
     let root = tempdir().expect("a temporary root");
     let owner = Arc::new(RecordingSidecar::default());
@@ -499,5 +342,174 @@ pub(crate) async fn foreign_stream_refuses() {
     runtime.shutdown().await.expect("the runtime stops");
 }
 
+/* === Private Functions === */
+
+fn sidecars(sidecars: &[(&str, &Arc<RecordingSidecar>)]) -> dokime_runtime::app::Composition {
+    let recorders = Arc::new(Recorders(
+        sidecars
+            .iter()
+            .map(|(owner, resource)| {
+                let operation = match *owner {
+                    "gateway" => "fixture.template.t2.signal",
+                    "bench" => "fixture.template.t0.signal",
+                    "probe" => "fixture.template.t1.signal",
+                    _ => panic!("unknown fixture owner"),
+                };
+                (operation, (*resource).clone())
+            })
+            .collect(),
+    ));
+    dokime_runtime::app::Composition {
+        prepare: Arc::new(move |setup, _, _| {
+            setup.resource::<Recorders>(recorders.clone());
+            setup.operations::<Deliveries>(dokime_runtime::app::Lanes::Open);
+            Ok(())
+        }),
+        ..Default::default()
+    }
+}
+
+async fn runtime(root: &std::path::Path) -> Runtime {
+    let configuration = config(root).with_plugins([crate::service_support::bundles::host_plugin()]);
+    started(configuration).await.0
+}
+
+async fn runtime_with(
+    root: &std::path::Path, artifacts: impl IntoIterator<Item = InstalledPlugin>, composition: Option<dokime_runtime::app::Composition>,
+) -> Runtime {
+    let mut configuration = config(root).with_installed_plugins(artifacts);
+    configuration.composition.extend(composition);
+    started(configuration).await.0
+}
+
+fn stream() -> Identifier {
+    Identifier::new("host.system").expect("a host stream is addressable")
+}
+
+fn foreign_stream() -> Identifier {
+    Identifier::new("gateway.rssi").expect("a fixture stream is addressable")
+}
+
+// Published Without A Sampling Declaration Or Observer: Nothing Leases It.
+fn published_stream() -> Identifier {
+    Identifier::new("gateway.status").expect("a fixture stream is addressable")
+}
+
+fn gateway_artifact() -> InstalledPlugin {
+    InstalledPlugin {
+        source: "gateway".to_owned(),
+        version: "0.1.0".to_owned(),
+        description: "Owns the gateway radio stream.".to_owned(),
+        enabled: true,
+        telemetry_contracts: vec![
+            TelemetryContract::declared("gateway.rssi", "Gateway signal")
+                .typed::<GatewayRow>()
+                .column(TelemetryColumn::declared("rssi", "RSSI", ValueType::Number, TelemetryRole::Value))
+                .every(200),
+            TelemetryContract::declared("gateway.status", "Gateway status").typed::<GatewayRow>().column(TelemetryColumn::declared(
+                "rssi",
+                "RSSI",
+                ValueType::Number,
+                TelemetryRole::Value,
+            )),
+        ],
+        ..Default::default()
+    }
+}
+
+fn bench_artifact() -> InstalledPlugin {
+    reader_artifact("bench")
+}
+
+fn probe_artifact() -> InstalledPlugin {
+    reader_artifact("probe")
+}
+
+fn reader_artifact(source: &str) -> InstalledPlugin {
+    InstalledPlugin {
+        source: source.to_owned(),
+        version: "0.1.0".to_owned(),
+        description: "Runs a template that reads the gateway's stream.".to_owned(),
+        enabled: true,
+        ..Default::default()
+    }
+}
+
+async fn stored(handle: &dokime_runtime::RuntimeHandle, execution: Option<&TestExecutionId>) -> usize {
+    handle
+        .selected_telemetry(dokime_runtime::domains::evidence::TelemetrySelection {
+            streams: vec![foreign_stream().into()],
+            scope: dokime_runtime::domains::evidence::ScopeSelection {
+                test_execution_id: execution.cloned(),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .iter()
+        .filter(|sample| sample.stream == foreign_stream())
+        .count()
+}
+
+fn gateway_batch(rssi: f64) -> TelemetryBatch {
+    let mut sample = TelemetrySample::new(
+        dokime_runtime::model::identity::new_id(),
+        foreign_stream(),
+        0,
+        dokime_runtime::model::time::now_utc(),
+        "gateway",
+    );
+    sample.values.insert("rssi".to_owned(), Value::from(rssi));
+
+    TelemetryBatch::new(
+        dokime_runtime::model::identity::new_id(),
+        foreign_stream(),
+        vec![sample.with_storage_payload(harmos::Message::encode(&GatewayRow { rssi }))],
+    )
+}
+
+async fn admitted_execution(handle: &RuntimeHandle, index: usize) -> TestExecutionId {
+    let mut suite = fixture_suite(&["passed"; 3]);
+    let template = format!("fixture.template.t{index}");
+    suite.test_case_templates.retain(|candidate| candidate.metadata.identifier.as_str() == template);
+    let suite_id = format!("fixture.registration.{index}");
+    handle
+        .set_suites(
+            &format!("fixture.{index}"),
+            dokime_runtime::definition::SuiteSet::new([
+                dokime_runtime::domains::TestSuiteDefinition::new(&suite_id, suite.clone()).unwrap()
+            ]),
+        )
+        .await
+        .unwrap();
+    let id = start_cases(handle, metadata("lease.owner", "Lease Owner"), materialize_cases(&suite_id, &suite)).await;
+    cycle_snapshot(handle, &id).await.test_executions[0].test_execution_id.clone()
+}
+
+fn scope_of(execution: &TestExecutionId) -> SamplingScope {
+    SamplingScope {
+        test_cycle_id: None,
+        test_case_id: None,
+        test_execution_id: Some(execution.to_string()),
+    }
+}
+
+async fn host_rows(handle: &RuntimeHandle) -> usize {
+    handle
+        .collect_telemetry(&dokime_runtime::domains::evidence::TelemetrySelection {
+            streams: vec![stream().into()],
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .len()
+}
+
+async fn wait_for_rows(handle: &RuntimeHandle, count: usize) {
+    crate::service_support::waits::until_telemetry(handle, || async { (host_rows(handle).await >= count).then_some(()) }).await;
+}
+
 /* === Tests === */
+
 // template record demand captures startup and releases on cancellation.

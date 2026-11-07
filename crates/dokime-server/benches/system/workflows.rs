@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     path::Path,
@@ -22,8 +23,6 @@ use std::{
 
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
-use dokime::harmos::domain::Portable;
-use dokime::harmos::grpc::{Transcoded, Wire};
 use harmos_packaging::bundle::{Bundle, Limits, Source};
 use sha2::{Digest, Sha256};
 
@@ -32,8 +31,11 @@ use super::server::{Server, StorageCounters};
 use dokime::Value;
 use dokime::client::{Client, ResponseStream, Target, contracts};
 use dokime::domain::model;
+use dokime::harmos::domain::Portable;
+use dokime::harmos::grpc::{Transcoded, Wire};
 
 /* === Constants === */
+
 const CAPTURE_SUITE: &str = "obc.benchmarks";
 const CAPTURE_TEMPLATE: &str = "obc.benchmarks.capture";
 const RECOVERY_SUITE: &str = "obc.charger.recovery";
@@ -45,9 +47,11 @@ const SETTLE: Duration = Duration::from_secs(900);
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Changes = ResponseStream<model::observation::wire::RuntimeStateFrame>;
 
 /* === Structs === */
+
 struct Session {
     client: Client,
     changes: Changes,
@@ -59,6 +63,7 @@ struct Session {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Session {
     async fn open(server: &Server) -> Self {
         let client = Client::connect(Target::local(server.endpoint()).unwrap(), None, None).await.unwrap();
@@ -233,6 +238,7 @@ impl Session {
 }
 
 /* === Public Functions === */
+
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(4).enable_all().build().unwrap();
     let bundle = super::server::plugin_bundle().expect("the bench build stages the OBC plugin bundle");

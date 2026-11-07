@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 
@@ -53,532 +54,6 @@ use {dokime_domain::model::traceability::TraceabilityEntry, dokime_domain::model
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-fn fixture_input(cycle_label: &str) -> CycleReportInput {
-    let test_cycle_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestCycleId>();
-    let case_id = dokime_runtime::model::identity::new_id::<dokime_runtime::CaseId>();
-    let template_id = dokime_runtime::model::identity::new_id::<TemplateId>();
-    let cycle_metadata = metadata("cycle.fixture", cycle_label);
-
-    let case = TestCase {
-        suite_id: "fixture.registration".to_owned(),
-        test_case_id: case_id,
-        test_case_template_id: template_id,
-        suite: None,
-        metadata: metadata("case.fixture", "Fixture Case"),
-        parameters: BTreeMap::from([("fixture.result".to_owned(), Value::from("passed"))]),
-        generation_index: 0,
-        label_number: 0,
-    };
-    let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
-    let mut execution = fixture_test_execution(
-        test_execution_id.clone(),
-        case.test_case_id.clone(),
-        RecordScope::default()
-            .with_cycle(test_cycle_id.clone())
-            .with_test_case(case.test_case_id.clone())
-            .with_test_execution(test_execution_id),
-        ExecutionStatus::Skipped,
-    );
-    execution.started_at = None;
-    execution.snapshot = dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
-        &case,
-        None,
-        Default::default(),
-        None,
-        Default::default(),
-    )
-    .unwrap();
-
-    CycleReportInput {
-        session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::SessionId>(),
-        cycle: CycleView {
-            saved: None,
-            test_cycle_id: test_cycle_id.clone(),
-            session_id: None,
-            metadata: cycle_metadata,
-            lifecycle: CycleStatus::Ready,
-            phase: Default::default(),
-            created_at: dokime_runtime::model::time::now_utc(),
-            started_at: None,
-            updated_at: dokime_runtime::model::time::now_utc(),
-            test_executions: vec![execution],
-            records: TestRecordSet::default(),
-            continue_automatically: false,
-            result: None,
-        },
-        documents: BTreeMap::new(),
-        plots: BTreeMap::new(),
-        case_documents: Vec::new(),
-        records: Default::default(),
-        telemetry: Vec::new().into(),
-        traceability: Vec::new(),
-        artifact_links: Vec::new(),
-        appearance: None,
-        generated_at: dokime_runtime::model::time::now_utc(),
-    }
-}
-
-fn insert_report_document(input: &mut CycleReportInput, document_id_value: &str, document: DocumentPayload) {
-    input.documents.insert(document_id(document_id_value), report_document(document));
-}
-
-fn document_id(value: &str) -> dokime_runtime::DocumentId {
-    dokime_runtime::DocumentId::from_identifier(value).unwrap()
-}
-
-fn report_document(document: DocumentPayload) -> Capture {
-    use dokime_runtime::document::capture::{CardBinding, CardBindingResult};
-    use dokime_runtime::document::{
-        DocumentCardBody, DocumentCardDefinition, DocumentDefinition, DocumentLayout, DocumentNode, DocumentSectionNode,
-    };
-    let mut definitions = Vec::new();
-    let mut bindings = Vec::new();
-    for card in document.cards {
-        let (body, result) = match card.body {
-            DocumentCardBodyPayload::TelemetrySummary { groups } => {
-                let definitions = groups
-                    .iter()
-                    .map(|group| dokime_runtime::document::TelemetrySummaryGroupDefinition {
-                        metadata: group.metadata.clone(),
-                        tiles: group
-                            .tiles
-                            .iter()
-                            .map(|tile| dokime_runtime::document::TelemetrySummaryTileDefinition {
-                                metadata: tile.metadata.clone(),
-                                value: dokime_runtime::expressions::telemetry("progress", "distance"),
-                                filters: Vec::new(),
-                                stat: tile.stat.clone(),
-                                format: tile.format.clone(),
-                                presentation: tile.presentation.clone(),
-                                unit: tile.unit.clone(),
-                                conditions: Vec::new(),
-                            })
-                            .collect(),
-                    })
-                    .collect();
-                (
-                    DocumentCardBody::TelemetrySummary {
-                        summary: dokime_runtime::document::TelemetrySummaryDefinition { groups: definitions },
-                    },
-                    CardBindingResult::Summary { groups },
-                )
-            }
-            DocumentCardBodyPayload::Plot { descriptor } => {
-                let mut value = serde_json::to_value(&descriptor.input).unwrap();
-                value["metadata"] = serde_json::to_value(&descriptor.metadata).unwrap();
-                value["y"] = value["series_fields"].clone();
-                value["x"] = if descriptor.plot_type == PlotType::TimeSeries { serde_json::Value::Null } else { value["x_field"].clone() };
-                let plot = serde_json::from_value(value).unwrap();
-                (DocumentCardBody::Plot { plot: Box::new(plot) }, CardBindingResult::Plot { descriptor })
-            }
-            body => {
-                let body = match body {
-                    DocumentCardBodyPayload::Text { markdown } => DocumentCardBody::Text { markdown },
-                    DocumentCardBodyPayload::Table { rows } => DocumentCardBody::Table { rows },
-                    DocumentCardBodyPayload::Steps => DocumentCardBody::Steps,
-                    DocumentCardBodyPayload::Criteria => DocumentCardBody::Criteria,
-                    DocumentCardBodyPayload::Traceability => DocumentCardBody::Traceability,
-                    DocumentCardBodyPayload::Notes => DocumentCardBody::Notes,
-                    DocumentCardBodyPayload::Records => DocumentCardBody::Records,
-                    DocumentCardBodyPayload::Artifacts { .. } => DocumentCardBody::Artifacts,
-                    DocumentCardBodyPayload::Media { .. } => DocumentCardBody::Media,
-                    DocumentCardBodyPayload::Health => DocumentCardBody::Health,
-                    DocumentCardBodyPayload::TelemetryContext => DocumentCardBody::TelemetryContext,
-                    _ => unreachable!(),
-                };
-                (body, CardBindingResult::Static)
-            }
-        };
-        definitions.push(DocumentCardDefinition {
-            metadata: card.metadata.clone(),
-            filters: Vec::new(),
-            body,
-        });
-        bindings.push(CardBinding {
-            source_id: card.metadata.identifier.clone(),
-            metadata: card.metadata,
-            result,
-        });
-    }
-    fn layout(nodes: Vec<DocumentNodePayload>, sections: &mut BTreeMap<Identifier, SectionBinding>) -> Vec<DocumentNode> {
-        nodes
-            .into_iter()
-            .map(|node| match node {
-                DocumentNodePayload::Card(card) => DocumentNode::Card(dokime_runtime::document::DocumentCardPlacement {
-                    card_id: card.card_id,
-                    layout: card.layout,
-                }),
-                DocumentNodePayload::Section(section) => {
-                    sections.insert(
-                        section.node_id.clone(),
-                        SectionBinding {
-                            metadata: section.metadata.clone(),
-                            unavailable: None,
-                        },
-                    );
-                    DocumentNode::Section(Box::new(DocumentSectionNode {
-                        node_id: section.node_id,
-                        metadata: section.metadata,
-                        repeat: None,
-                        children: layout(section.children, sections),
-                    }))
-                }
-            })
-            .collect()
-    }
-    let mut sections = BTreeMap::new();
-    let layout = DocumentLayout {
-        nodes: layout(document.layout.nodes, &mut sections),
-    };
-    Capture {
-        definition: DocumentDefinition {
-            document_id: document.document_id,
-            metadata: document.metadata,
-            cards: definitions,
-            layout,
-            sections: Vec::new(),
-        },
-        selection: document.selection,
-        cards: bindings,
-        repeats: BTreeMap::new(),
-        sections,
-        warnings: document.warnings,
-    }
-}
-
-fn materialization_shape_is_raw(value: &serde_json::Value) -> bool {
-    value.get("selected").is_none() && value.get("layout").is_none() && value["definition"].get("layout").is_some()
-}
-
-fn fixture_plot_payload(stream: &str, series_key: &str, y_value: f64, raw_points: usize) -> dokime_runtime::report::value::Value {
-    dokime_runtime::report::value::Value::from_serializable(
-        &serde_json::json!({
-            "stream": stream,
-            "x_key": "timestamp",
-            "series_by": serde_json::Value::Null,
-            "context": {},
-            "series": [{
-                "key": series_key,
-                "label": series_key,
-                "unit": serde_json::Value::Null,
-                "points": [{"x": "2026-01-01T00:00:00Z", "y": y_value}],
-                "raw_points": raw_points,
-                "downsampled": raw_points > 1,
-            }],
-            "cartesian": serde_json::Value::Null,
-            "markers": [],
-            "max_points": 2048,
-            "window_s": serde_json::Value::Null,
-            "generated_at": "2026-01-01T00:00:00Z",
-        }),
-        128_usize,
-    )
-    .unwrap()
-}
-
-fn fixture_test_execution(
-    test_execution_id: dokime_runtime::TestExecutionId, test_case_id: dokime_runtime::CaseId, scope: RecordScope, status: ExecutionStatus,
-) -> TestExecution {
-    let case = dokime_runtime::definition::TestCase {
-        suite_id: "fixture.registration".to_owned(),
-        test_case_id: test_case_id.clone(),
-        test_case_template_id: dokime_runtime::TemplateId::from_seed("fixture.template"),
-        metadata: dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("fixture.case").unwrap(), "Fixture Case", None),
-        suite: None,
-        parameters: Default::default(),
-        generation_index: 0,
-        label_number: 0,
-    };
-
-    TestExecution {
-        saved: None,
-        mode: Default::default(),
-        active_step_attempt: None,
-        capture_phase: Default::default(),
-        step_attempts: Vec::new(),
-        test_cycle_id: scope.test_cycle_id.clone().expect("fixture execution has an owning cycle"),
-        test_execution_id,
-        test_case_id,
-        suite: None,
-        status,
-        scope,
-        snapshot: dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
-            &case,
-            None,
-            Default::default(),
-            None,
-            Default::default(),
-        )
-        .unwrap(),
-        invalidation: None,
-        output_parameters: BTreeMap::new(),
-        documents: BTreeMap::new(),
-        records: TestRecordSet::default(),
-        started_at: Some(Timestamp::new("2026-01-01T00:00:00Z")),
-        finished_at: None,
-        steps: Vec::new(),
-        traceability: Vec::new(),
-        result: None,
-    }
-}
-
-fn fixture_plot_input(plot_id: Identifier, scope: RecordScope, plot_type: PlotType) -> PlotInput {
-    PlotInput {
-        plot_id,
-        scope,
-        plot_type,
-        x_field: Some("timestamp".to_owned()),
-        series_fields: Vec::new(),
-        z_stream: None,
-        z_field: None,
-        stream: None,
-        series_by: None,
-        x_expression: None,
-        y_expressions: Vec::new(),
-        z_expression: None,
-        series_by_expression: None,
-        filters: Vec::new(),
-        unit: None,
-        style: PlotStyle::Line,
-        scale: None,
-        x_scale: Default::default(),
-        y_scale: Default::default(),
-        analysis: None,
-        fft: Default::default(),
-        interval: Default::default(),
-        histogram: Default::default(),
-        marker_record_types: Vec::new(),
-        reference_lines: Vec::new(),
-        reference_bands: Vec::new(),
-        display_points: None,
-        downsample: Default::default(),
-        x_format: None,
-        y_format: None,
-        x_axis: None,
-        available_streams: Vec::new(),
-        marker_count: 0,
-    }
-}
-
-fn fixture_plot_document(
-    document_identifier: &str, document_label: &str, section_identifier: &str, section_label: &str, card_label: &str,
-    descriptor: PlotDescriptor, scope: RecordScope,
-) -> DocumentPayload {
-    let cards = vec![document_card(
-        &format!("{}.card", descriptor.plot_id),
-        card_label,
-        DocumentCardBodyPayload::Plot { descriptor: Box::new(descriptor) },
-    )];
-
-    DocumentPayload {
-        document_id: dokime_runtime::model::identity::new_id::<dokime_runtime::DocumentId>(),
-        metadata: metadata(document_identifier, document_label),
-        selection: DocumentSelection { scope },
-        cards: cards.clone(),
-        layout: document_layout(section_identifier, section_label, &cards),
-        plot_descriptors: Vec::new(),
-        plot_inputs: Vec::new(),
-        record_markers: Vec::new(),
-        artifact_lists: Vec::new(),
-        warnings: Vec::new(),
-    }
-}
-
-fn fixture_document(test_cycle_id: dokime_runtime::TestCycleId) -> DocumentPayload {
-    let scope = RecordScope::default().with_cycle(test_cycle_id);
-    let plot_id = Identifier::new("cycle.telemetry").unwrap();
-    let artifact_descriptor = ArtifactListDescriptor {
-        scope: scope.clone(),
-        artifact_count: 3,
-        completed_count: 2,
-    };
-    let cards = vec![
-        document_card("summary.text", "Summary", DocumentCardBodyPayload::Text { markdown: "Cycle summary".to_owned() }),
-        document_card(
-            "summary.telemetry",
-            "Telemetry Summary",
-            DocumentCardBodyPayload::TelemetrySummary {
-                groups: vec![TelemetrySummaryGroupPayload {
-                    metadata: metadata("summary.telemetry", "Telemetry Summary"),
-                    tiles: vec![TelemetrySummaryTilePayload {
-                        metadata: metadata("distance.max", "Max Distance"),
-                        value: Some(Value::from(12.5)),
-                        unavailable: None,
-                        stat: TelemetrySummaryStat::Latest,
-                        format: TelemetrySummaryFormat::Number,
-                        presentation: TelemetrySummaryPresentation::Value,
-                        unit: Some("m".to_owned()),
-                        state: None,
-                    }],
-                }],
-            },
-        ),
-        document_card(
-            "cycle.telemetry.card",
-            "Cycle Telemetry",
-            DocumentCardBodyPayload::Plot {
-                descriptor: Box::new(PlotDescriptor {
-                    plot_id: plot_id.clone(),
-                    metadata: metadata("cycle.telemetry", "Cycle Telemetry"),
-                    plot_type: PlotType::TimeSeries,
-                    input: PlotInput {
-                        series_fields: vec!["distance".to_owned()],
-                        available_streams: vec![Identifier::new("progress").unwrap()],
-                        marker_count: 1,
-                        // A duration x column: what the frozen report has to
-                        // carry for its axis to read as elapsed seconds.
-                        x_axis: Some(PlotAxisKind::Elapsed { unit: "s".to_owned() }),
-                        ..fixture_plot_input(plot_id, scope.clone(), PlotType::TimeSeries)
-                    },
-                }),
-            },
-        ),
-        document_card(
-            "artifacts",
-            "Artifacts",
-            DocumentCardBodyPayload::Artifacts {
-                descriptor: Box::new(artifact_descriptor.clone()),
-            },
-        ),
-    ];
-
-    DocumentPayload {
-        document_id: dokime_runtime::model::identity::new_id::<dokime_runtime::DocumentId>(),
-        metadata: metadata("document.fixture", "Fixture Document"),
-        selection: DocumentSelection { scope: scope.clone() },
-        cards: cards.clone(),
-        layout: document_layout("result", "Summary", &cards),
-        plot_descriptors: Vec::new(),
-        plot_inputs: Vec::new(),
-        record_markers: Vec::new(),
-        artifact_lists: vec![artifact_descriptor],
-        warnings: vec![DocumentWarning {
-            code: Identifier::new("document.plot.no_telemetry").unwrap(),
-            message: "Telemetry is not available yet.".to_owned(),
-        }],
-    }
-}
-
-fn fixture_wifi_document(test_cycle_id: dokime_runtime::TestCycleId) -> DocumentPayload {
-    let scope = RecordScope::default().with_cycle(test_cycle_id);
-    let plot_id = Identifier::new("wifi.channel_occupancy").unwrap();
-
-    fixture_plot_document(
-        "document.wifi",
-        "WiFi Document",
-        "wifi",
-        "WiFi",
-        "WiFi Channel Occupancy",
-        PlotDescriptor {
-            plot_id: plot_id.clone(),
-            metadata: metadata("wifi.channel_occupancy", "WiFi Channel Occupancy"),
-            plot_type: PlotType::WifiChannelOccupancy,
-            input: PlotInput {
-                series_fields: vec!["network_count".to_owned()],
-                stream: Some("host.wifi.scan".to_owned()),
-                series_by: Some("wifi_channel".to_owned()),
-                available_streams: vec![Identifier::new("host.wifi.scan").unwrap()],
-                ..fixture_plot_input(plot_id, scope.clone(), PlotType::WifiChannelOccupancy)
-            },
-        },
-        scope,
-    )
-}
-
-fn fixture_tracking_case_document(scope: RecordScope) -> DocumentPayload {
-    let plot_id = Identifier::new("tracking.distance").unwrap();
-
-    fixture_plot_document(
-        "document.tracking_case",
-        "Tracking Case Document",
-        "position",
-        "Position",
-        "Tracking Distance",
-        PlotDescriptor {
-            plot_id: plot_id.clone(),
-            metadata: metadata("tracking.distance", "Tracking Distance"),
-            plot_type: PlotType::TimeSeries,
-            input: PlotInput {
-                series_fields: vec!["distance_m".to_owned()],
-                stream: Some("plt400.ract.tracking.tracking".to_owned()),
-                unit: Some("m".to_owned()),
-                available_streams: vec![Identifier::new("plt400.ract.tracking.tracking").unwrap()],
-                ..fixture_plot_input(plot_id, scope.clone(), PlotType::TimeSeries)
-            },
-        },
-        scope,
-    )
-}
-
-fn fixture_evidence_case_document(scope: RecordScope) -> DocumentPayload {
-    let records = document_card("events.timeline", "Records", DocumentCardBodyPayload::Records);
-    let media = document_card(
-        "traceability.media",
-        "Media",
-        DocumentCardBodyPayload::Media {
-            descriptor: Box::new(ArtifactListDescriptor {
-                scope: scope.clone(),
-                artifact_count: 1,
-                completed_count: 1,
-            }),
-        },
-    );
-
-    DocumentPayload {
-        document_id: document_id("default"),
-        metadata: metadata("document.evidence", "Evidence"),
-        selection: DocumentSelection { scope: scope.clone() },
-        cards: vec![records.clone(), media.clone()],
-        layout: DocumentLayoutPayload {
-            nodes: vec![
-                document_section_node("execution.events", "Records", &[records]),
-                document_section_node("execution.traceability.media", "Media", &[media]),
-            ],
-        },
-        plot_descriptors: Vec::new(),
-        plot_inputs: Vec::new(),
-        record_markers: Vec::new(),
-        artifact_lists: Vec::new(),
-        warnings: Vec::new(),
-    }
-}
-
-fn metadata(identifier: &str, label: &str) -> Metadata {
-    Metadata::new(Identifier::new(identifier).unwrap(), label, None)
-}
-
-fn document_card(identifier: &str, label: &str, body: DocumentCardBodyPayload) -> DocumentCardPayload {
-    DocumentCardPayload {
-        metadata: metadata(identifier, label),
-        body,
-    }
-}
-
-fn document_layout(section_identifier: &str, section_label: &str, cards: &[DocumentCardPayload]) -> DocumentLayoutPayload {
-    DocumentLayoutPayload {
-        nodes: vec![document_section_node(section_identifier, section_label, cards)],
-    }
-}
-
-fn document_section_node(section_identifier: &str, section_label: &str, cards: &[DocumentCardPayload]) -> DocumentNodePayload {
-    DocumentNodePayload::Section(DocumentSectionNodePayload {
-        node_id: Identifier::new(section_identifier).unwrap(),
-        metadata: metadata(section_identifier, section_label),
-        children: cards
-            .iter()
-            .map(|card| {
-                DocumentNodePayload::Card(DocumentCardPlacementPayload {
-                    card_id: card.metadata.identifier.clone(),
-                    layout: DocumentCardLayout::default(),
-                })
-            })
-            .collect(),
-    })
-}
-
-/* === Tests === */
 
 pub(super) async fn rendered_html_data() {
     let input = fixture_input("<script>alert('x')</script>");
@@ -1398,3 +873,530 @@ pub(super) async fn telemetry_index_endpoints() {
     assert_eq!(samples.last().unwrap()["ordinal"], 2_000);
     assert_eq!(stream["updated_at"], serde_json::to_value(&time).unwrap());
 }
+
+/* === Private Functions === */
+
+fn fixture_input(cycle_label: &str) -> CycleReportInput {
+    let test_cycle_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestCycleId>();
+    let case_id = dokime_runtime::model::identity::new_id::<dokime_runtime::CaseId>();
+    let template_id = dokime_runtime::model::identity::new_id::<TemplateId>();
+    let cycle_metadata = metadata("cycle.fixture", cycle_label);
+
+    let case = TestCase {
+        suite_id: "fixture.registration".to_owned(),
+        test_case_id: case_id,
+        test_case_template_id: template_id,
+        suite: None,
+        metadata: metadata("case.fixture", "Fixture Case"),
+        parameters: BTreeMap::from([("fixture.result".to_owned(), Value::from("passed"))]),
+        generation_index: 0,
+        label_number: 0,
+    };
+    let test_execution_id = dokime_runtime::model::identity::new_id::<dokime_runtime::TestExecutionId>();
+    let mut execution = fixture_test_execution(
+        test_execution_id.clone(),
+        case.test_case_id.clone(),
+        RecordScope::default()
+            .with_cycle(test_cycle_id.clone())
+            .with_test_case(case.test_case_id.clone())
+            .with_test_execution(test_execution_id),
+        ExecutionStatus::Skipped,
+    );
+    execution.started_at = None;
+    execution.snapshot = dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
+        &case,
+        None,
+        Default::default(),
+        None,
+        Default::default(),
+    )
+    .unwrap();
+
+    CycleReportInput {
+        session_id: dokime_runtime::model::identity::new_id::<dokime_runtime::SessionId>(),
+        cycle: CycleView {
+            saved: None,
+            test_cycle_id: test_cycle_id.clone(),
+            session_id: None,
+            metadata: cycle_metadata,
+            lifecycle: CycleStatus::Ready,
+            phase: Default::default(),
+            created_at: dokime_runtime::model::time::now_utc(),
+            started_at: None,
+            updated_at: dokime_runtime::model::time::now_utc(),
+            test_executions: vec![execution],
+            records: TestRecordSet::default(),
+            continue_automatically: false,
+            result: None,
+        },
+        documents: BTreeMap::new(),
+        plots: BTreeMap::new(),
+        case_documents: Vec::new(),
+        records: Default::default(),
+        telemetry: Vec::new().into(),
+        traceability: Vec::new(),
+        artifact_links: Vec::new(),
+        appearance: None,
+        generated_at: dokime_runtime::model::time::now_utc(),
+    }
+}
+
+fn insert_report_document(input: &mut CycleReportInput, document_id_value: &str, document: DocumentPayload) {
+    input.documents.insert(document_id(document_id_value), report_document(document));
+}
+
+fn document_id(value: &str) -> dokime_runtime::DocumentId {
+    dokime_runtime::DocumentId::from_identifier(value).unwrap()
+}
+
+fn report_document(document: DocumentPayload) -> Capture {
+    use dokime_runtime::document::capture::{CardBinding, CardBindingResult};
+    use dokime_runtime::document::{
+        DocumentCardBody, DocumentCardDefinition, DocumentDefinition, DocumentLayout, DocumentNode, DocumentSectionNode,
+    };
+    let mut definitions = Vec::new();
+    let mut bindings = Vec::new();
+    for card in document.cards {
+        let (body, result) = match card.body {
+            DocumentCardBodyPayload::TelemetrySummary { groups } => {
+                let definitions = groups
+                    .iter()
+                    .map(|group| dokime_runtime::document::TelemetrySummaryGroupDefinition {
+                        metadata: group.metadata.clone(),
+                        tiles: group
+                            .tiles
+                            .iter()
+                            .map(|tile| dokime_runtime::document::TelemetrySummaryTileDefinition {
+                                metadata: tile.metadata.clone(),
+                                value: dokime_runtime::expressions::telemetry("progress", "distance"),
+                                filters: Vec::new(),
+                                stat: tile.stat.clone(),
+                                format: tile.format.clone(),
+                                presentation: tile.presentation.clone(),
+                                unit: tile.unit.clone(),
+                                conditions: Vec::new(),
+                            })
+                            .collect(),
+                    })
+                    .collect();
+                (
+                    DocumentCardBody::TelemetrySummary {
+                        summary: dokime_runtime::document::TelemetrySummaryDefinition { groups: definitions },
+                    },
+                    CardBindingResult::Summary { groups },
+                )
+            }
+            DocumentCardBodyPayload::Plot { descriptor } => {
+                let mut value = serde_json::to_value(&descriptor.input).unwrap();
+                value["metadata"] = serde_json::to_value(&descriptor.metadata).unwrap();
+                value["y"] = value["series_fields"].clone();
+                value["x"] = if descriptor.plot_type == PlotType::TimeSeries { serde_json::Value::Null } else { value["x_field"].clone() };
+                let plot = serde_json::from_value(value).unwrap();
+                (DocumentCardBody::Plot { plot: Box::new(plot) }, CardBindingResult::Plot { descriptor })
+            }
+            body => {
+                let body = match body {
+                    DocumentCardBodyPayload::Text { markdown } => DocumentCardBody::Text { markdown },
+                    DocumentCardBodyPayload::Table { rows } => DocumentCardBody::Table { rows },
+                    DocumentCardBodyPayload::Steps => DocumentCardBody::Steps,
+                    DocumentCardBodyPayload::Criteria => DocumentCardBody::Criteria,
+                    DocumentCardBodyPayload::Traceability => DocumentCardBody::Traceability,
+                    DocumentCardBodyPayload::Notes => DocumentCardBody::Notes,
+                    DocumentCardBodyPayload::Records => DocumentCardBody::Records,
+                    DocumentCardBodyPayload::Artifacts { .. } => DocumentCardBody::Artifacts,
+                    DocumentCardBodyPayload::Media { .. } => DocumentCardBody::Media,
+                    DocumentCardBodyPayload::Health => DocumentCardBody::Health,
+                    DocumentCardBodyPayload::TelemetryContext => DocumentCardBody::TelemetryContext,
+                    _ => unreachable!(),
+                };
+                (body, CardBindingResult::Static)
+            }
+        };
+        definitions.push(DocumentCardDefinition {
+            metadata: card.metadata.clone(),
+            filters: Vec::new(),
+            body,
+        });
+        bindings.push(CardBinding {
+            source_id: card.metadata.identifier.clone(),
+            metadata: card.metadata,
+            result,
+        });
+    }
+    fn layout(nodes: Vec<DocumentNodePayload>, sections: &mut BTreeMap<Identifier, SectionBinding>) -> Vec<DocumentNode> {
+        nodes
+            .into_iter()
+            .map(|node| match node {
+                DocumentNodePayload::Card(card) => DocumentNode::Card(dokime_runtime::document::DocumentCardPlacement {
+                    card_id: card.card_id,
+                    layout: card.layout,
+                }),
+                DocumentNodePayload::Section(section) => {
+                    sections.insert(
+                        section.node_id.clone(),
+                        SectionBinding {
+                            metadata: section.metadata.clone(),
+                            unavailable: None,
+                        },
+                    );
+                    DocumentNode::Section(Box::new(DocumentSectionNode {
+                        node_id: section.node_id,
+                        metadata: section.metadata,
+                        repeat: None,
+                        children: layout(section.children, sections),
+                    }))
+                }
+            })
+            .collect()
+    }
+    let mut sections = BTreeMap::new();
+    let layout = DocumentLayout {
+        nodes: layout(document.layout.nodes, &mut sections),
+    };
+    Capture {
+        definition: DocumentDefinition {
+            document_id: document.document_id,
+            metadata: document.metadata,
+            cards: definitions,
+            layout,
+            sections: Vec::new(),
+        },
+        selection: document.selection,
+        cards: bindings,
+        repeats: BTreeMap::new(),
+        sections,
+        warnings: document.warnings,
+    }
+}
+
+fn materialization_shape_is_raw(value: &serde_json::Value) -> bool {
+    value.get("selected").is_none() && value.get("layout").is_none() && value["definition"].get("layout").is_some()
+}
+
+fn fixture_plot_payload(stream: &str, series_key: &str, y_value: f64, raw_points: usize) -> dokime_runtime::report::value::Value {
+    dokime_runtime::report::value::Value::from_serializable(
+        &serde_json::json!({
+            "stream": stream,
+            "x_key": "timestamp",
+            "series_by": serde_json::Value::Null,
+            "context": {},
+            "series": [{
+                "key": series_key,
+                "label": series_key,
+                "unit": serde_json::Value::Null,
+                "points": [{"x": "2026-01-01T00:00:00Z", "y": y_value}],
+                "raw_points": raw_points,
+                "downsampled": raw_points > 1,
+            }],
+            "cartesian": serde_json::Value::Null,
+            "markers": [],
+            "max_points": 2048,
+            "window_s": serde_json::Value::Null,
+            "generated_at": "2026-01-01T00:00:00Z",
+        }),
+        128_usize,
+    )
+    .unwrap()
+}
+
+fn fixture_test_execution(
+    test_execution_id: dokime_runtime::TestExecutionId, test_case_id: dokime_runtime::CaseId, scope: RecordScope, status: ExecutionStatus,
+) -> TestExecution {
+    let case = dokime_runtime::definition::TestCase {
+        suite_id: "fixture.registration".to_owned(),
+        test_case_id: test_case_id.clone(),
+        test_case_template_id: dokime_runtime::TemplateId::from_seed("fixture.template"),
+        metadata: dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("fixture.case").unwrap(), "Fixture Case", None),
+        suite: None,
+        parameters: Default::default(),
+        generation_index: 0,
+        label_number: 0,
+    };
+
+    TestExecution {
+        saved: None,
+        mode: Default::default(),
+        active_step_attempt: None,
+        capture_phase: Default::default(),
+        step_attempts: Vec::new(),
+        test_cycle_id: scope.test_cycle_id.clone().expect("fixture execution has an owning cycle"),
+        test_execution_id,
+        test_case_id,
+        suite: None,
+        status,
+        scope,
+        snapshot: dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
+            &case,
+            None,
+            Default::default(),
+            None,
+            Default::default(),
+        )
+        .unwrap(),
+        invalidation: None,
+        output_parameters: BTreeMap::new(),
+        documents: BTreeMap::new(),
+        records: TestRecordSet::default(),
+        started_at: Some(Timestamp::new("2026-01-01T00:00:00Z")),
+        finished_at: None,
+        steps: Vec::new(),
+        traceability: Vec::new(),
+        result: None,
+    }
+}
+
+fn fixture_plot_input(plot_id: Identifier, scope: RecordScope, plot_type: PlotType) -> PlotInput {
+    PlotInput {
+        plot_id,
+        scope,
+        plot_type,
+        x_field: Some("timestamp".to_owned()),
+        series_fields: Vec::new(),
+        z_stream: None,
+        z_field: None,
+        stream: None,
+        series_by: None,
+        x_expression: None,
+        y_expressions: Vec::new(),
+        z_expression: None,
+        series_by_expression: None,
+        filters: Vec::new(),
+        unit: None,
+        style: PlotStyle::Line,
+        scale: None,
+        x_scale: Default::default(),
+        y_scale: Default::default(),
+        analysis: None,
+        fft: Default::default(),
+        interval: Default::default(),
+        histogram: Default::default(),
+        marker_record_types: Vec::new(),
+        reference_lines: Vec::new(),
+        reference_bands: Vec::new(),
+        display_points: None,
+        downsample: Default::default(),
+        x_format: None,
+        y_format: None,
+        x_axis: None,
+        available_streams: Vec::new(),
+        marker_count: 0,
+    }
+}
+
+fn fixture_plot_document(
+    document_identifier: &str, document_label: &str, section_identifier: &str, section_label: &str, card_label: &str,
+    descriptor: PlotDescriptor, scope: RecordScope,
+) -> DocumentPayload {
+    let cards = vec![document_card(
+        &format!("{}.card", descriptor.plot_id),
+        card_label,
+        DocumentCardBodyPayload::Plot { descriptor: Box::new(descriptor) },
+    )];
+
+    DocumentPayload {
+        document_id: dokime_runtime::model::identity::new_id::<dokime_runtime::DocumentId>(),
+        metadata: metadata(document_identifier, document_label),
+        selection: DocumentSelection { scope },
+        cards: cards.clone(),
+        layout: document_layout(section_identifier, section_label, &cards),
+        plot_descriptors: Vec::new(),
+        plot_inputs: Vec::new(),
+        record_markers: Vec::new(),
+        artifact_lists: Vec::new(),
+        warnings: Vec::new(),
+    }
+}
+
+fn fixture_document(test_cycle_id: dokime_runtime::TestCycleId) -> DocumentPayload {
+    let scope = RecordScope::default().with_cycle(test_cycle_id);
+    let plot_id = Identifier::new("cycle.telemetry").unwrap();
+    let artifact_descriptor = ArtifactListDescriptor {
+        scope: scope.clone(),
+        artifact_count: 3,
+        completed_count: 2,
+    };
+    let cards = vec![
+        document_card("summary.text", "Summary", DocumentCardBodyPayload::Text { markdown: "Cycle summary".to_owned() }),
+        document_card(
+            "summary.telemetry",
+            "Telemetry Summary",
+            DocumentCardBodyPayload::TelemetrySummary {
+                groups: vec![TelemetrySummaryGroupPayload {
+                    metadata: metadata("summary.telemetry", "Telemetry Summary"),
+                    tiles: vec![TelemetrySummaryTilePayload {
+                        metadata: metadata("distance.max", "Max Distance"),
+                        value: Some(Value::from(12.5)),
+                        unavailable: None,
+                        stat: TelemetrySummaryStat::Latest,
+                        format: TelemetrySummaryFormat::Number,
+                        presentation: TelemetrySummaryPresentation::Value,
+                        unit: Some("m".to_owned()),
+                        state: None,
+                    }],
+                }],
+            },
+        ),
+        document_card(
+            "cycle.telemetry.card",
+            "Cycle Telemetry",
+            DocumentCardBodyPayload::Plot {
+                descriptor: Box::new(PlotDescriptor {
+                    plot_id: plot_id.clone(),
+                    metadata: metadata("cycle.telemetry", "Cycle Telemetry"),
+                    plot_type: PlotType::TimeSeries,
+                    input: PlotInput {
+                        series_fields: vec!["distance".to_owned()],
+                        available_streams: vec![Identifier::new("progress").unwrap()],
+                        marker_count: 1,
+                        // A duration x column: what the frozen report has to
+                        // carry for its axis to read as elapsed seconds.
+                        x_axis: Some(PlotAxisKind::Elapsed { unit: "s".to_owned() }),
+                        ..fixture_plot_input(plot_id, scope.clone(), PlotType::TimeSeries)
+                    },
+                }),
+            },
+        ),
+        document_card(
+            "artifacts",
+            "Artifacts",
+            DocumentCardBodyPayload::Artifacts {
+                descriptor: Box::new(artifact_descriptor.clone()),
+            },
+        ),
+    ];
+
+    DocumentPayload {
+        document_id: dokime_runtime::model::identity::new_id::<dokime_runtime::DocumentId>(),
+        metadata: metadata("document.fixture", "Fixture Document"),
+        selection: DocumentSelection { scope: scope.clone() },
+        cards: cards.clone(),
+        layout: document_layout("result", "Summary", &cards),
+        plot_descriptors: Vec::new(),
+        plot_inputs: Vec::new(),
+        record_markers: Vec::new(),
+        artifact_lists: vec![artifact_descriptor],
+        warnings: vec![DocumentWarning {
+            code: Identifier::new("document.plot.no_telemetry").unwrap(),
+            message: "Telemetry is not available yet.".to_owned(),
+        }],
+    }
+}
+
+fn fixture_wifi_document(test_cycle_id: dokime_runtime::TestCycleId) -> DocumentPayload {
+    let scope = RecordScope::default().with_cycle(test_cycle_id);
+    let plot_id = Identifier::new("wifi.channel_occupancy").unwrap();
+
+    fixture_plot_document(
+        "document.wifi",
+        "WiFi Document",
+        "wifi",
+        "WiFi",
+        "WiFi Channel Occupancy",
+        PlotDescriptor {
+            plot_id: plot_id.clone(),
+            metadata: metadata("wifi.channel_occupancy", "WiFi Channel Occupancy"),
+            plot_type: PlotType::WifiChannelOccupancy,
+            input: PlotInput {
+                series_fields: vec!["network_count".to_owned()],
+                stream: Some("host.wifi.scan".to_owned()),
+                series_by: Some("wifi_channel".to_owned()),
+                available_streams: vec![Identifier::new("host.wifi.scan").unwrap()],
+                ..fixture_plot_input(plot_id, scope.clone(), PlotType::WifiChannelOccupancy)
+            },
+        },
+        scope,
+    )
+}
+
+fn fixture_tracking_case_document(scope: RecordScope) -> DocumentPayload {
+    let plot_id = Identifier::new("tracking.distance").unwrap();
+
+    fixture_plot_document(
+        "document.tracking_case",
+        "Tracking Case Document",
+        "position",
+        "Position",
+        "Tracking Distance",
+        PlotDescriptor {
+            plot_id: plot_id.clone(),
+            metadata: metadata("tracking.distance", "Tracking Distance"),
+            plot_type: PlotType::TimeSeries,
+            input: PlotInput {
+                series_fields: vec!["distance_m".to_owned()],
+                stream: Some("plt400.ract.tracking.tracking".to_owned()),
+                unit: Some("m".to_owned()),
+                available_streams: vec![Identifier::new("plt400.ract.tracking.tracking").unwrap()],
+                ..fixture_plot_input(plot_id, scope.clone(), PlotType::TimeSeries)
+            },
+        },
+        scope,
+    )
+}
+
+fn fixture_evidence_case_document(scope: RecordScope) -> DocumentPayload {
+    let records = document_card("events.timeline", "Records", DocumentCardBodyPayload::Records);
+    let media = document_card(
+        "traceability.media",
+        "Media",
+        DocumentCardBodyPayload::Media {
+            descriptor: Box::new(ArtifactListDescriptor {
+                scope: scope.clone(),
+                artifact_count: 1,
+                completed_count: 1,
+            }),
+        },
+    );
+
+    DocumentPayload {
+        document_id: document_id("default"),
+        metadata: metadata("document.evidence", "Evidence"),
+        selection: DocumentSelection { scope: scope.clone() },
+        cards: vec![records.clone(), media.clone()],
+        layout: DocumentLayoutPayload {
+            nodes: vec![
+                document_section_node("execution.events", "Records", &[records]),
+                document_section_node("execution.traceability.media", "Media", &[media]),
+            ],
+        },
+        plot_descriptors: Vec::new(),
+        plot_inputs: Vec::new(),
+        record_markers: Vec::new(),
+        artifact_lists: Vec::new(),
+        warnings: Vec::new(),
+    }
+}
+
+fn metadata(identifier: &str, label: &str) -> Metadata {
+    Metadata::new(Identifier::new(identifier).unwrap(), label, None)
+}
+
+fn document_card(identifier: &str, label: &str, body: DocumentCardBodyPayload) -> DocumentCardPayload {
+    DocumentCardPayload {
+        metadata: metadata(identifier, label),
+        body,
+    }
+}
+
+fn document_layout(section_identifier: &str, section_label: &str, cards: &[DocumentCardPayload]) -> DocumentLayoutPayload {
+    DocumentLayoutPayload {
+        nodes: vec![document_section_node(section_identifier, section_label, cards)],
+    }
+}
+
+fn document_section_node(section_identifier: &str, section_label: &str, cards: &[DocumentCardPayload]) -> DocumentNodePayload {
+    DocumentNodePayload::Section(DocumentSectionNodePayload {
+        node_id: Identifier::new(section_identifier).unwrap(),
+        metadata: metadata(section_identifier, section_label),
+        children: cards
+            .iter()
+            .map(|card| {
+                DocumentNodePayload::Card(DocumentCardPlacementPayload {
+                    card_id: card.metadata.identifier.clone(),
+                    layout: DocumentCardLayout::default(),
+                })
+            })
+            .collect(),
+    })
+}
+
+/* === Tests === */

@@ -113,5 +113,7 @@ pub struct ReportArtifactLink {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 /* === Private Functions === */
+
 /* === Tests === */

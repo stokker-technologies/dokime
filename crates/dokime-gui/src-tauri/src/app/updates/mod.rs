@@ -28,6 +28,7 @@ use std::time::Duration;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
+
 #[cfg(feature = "updater")]
 use tauri_plugin_updater::UpdaterExt;
 
@@ -40,6 +41,7 @@ use super::organization::{
 /* === Constants === */
 
 const DESKTOP_UPDATE_SETTINGS_BYTES: u64 = 16_384;
+
 #[cfg(feature = "updater")]
 const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
 
@@ -63,6 +65,7 @@ struct Inner {
     error: Option<String>,
     last: Option<UpdateCheck>,
     plugin: Vec<plugins::Candidate>,
+
     #[cfg(feature = "updater")]
     candidate: Option<Candidate>,
 }

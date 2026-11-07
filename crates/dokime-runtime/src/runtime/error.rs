@@ -178,7 +178,7 @@ impl From<harmos::filesystem::Error> for Error {
 }
 
 impl Error {
-    /// Returns the recovery action supplied by the evidence or finalization owner.
+    // Returns the recovery action supplied by the evidence or finalization owner.
     pub fn report_evidence_message(&self) -> Option<String> {
         match self {
             Self::Storage(
@@ -243,7 +243,7 @@ impl From<std::io::Error> for Error {
 
 /* === Public Functions === */
 
-/// The error with every cause its own message does not already state, for durable failure records.
+// The error with every cause its own message does not already state, for durable failure records.
 pub(crate) fn chain_message(error: &(dyn std::error::Error + 'static)) -> String {
     let mut message = error.to_string();
     for cause in std::iter::successors(error.source(), |cause| cause.source()) {

@@ -28,11 +28,11 @@ pub(crate) use input::Input;
 // Standard Library Imports
 
 // Third Party Imports
+use harmos::storage::ReadBatch;
 
 // Local Imports
 use super::{PlotAnalysis, PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotWindow, analyses, cartesian};
 use crate::{document::PlotType, runtime::Result};
-use harmos::storage::ReadBatch;
 use input::Read;
 use series::Series;
 
@@ -262,8 +262,8 @@ mod tests {
         GroupedFixture { input, samples, records }
     }
 
-    /// Every series' `(key, label)` from the eager and the spilled projection,
-    /// which must agree.
+    // Every series' `(key, label)` from the eager and the spilled projection,
+    // which must agree.
     fn grouped_traces(fixture: &GroupedFixture, request: &PlotPayloadRequest) -> Vec<(String, String)> {
         let context = PlotPayloadContext {
             default_max_points: 31,

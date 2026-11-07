@@ -104,8 +104,6 @@ fn signed(cut: &Cut) -> Token {
     Token::Snapshot(cut.clone())
 }
 
-/* === Tests === */
-
 #[tokio::test]
 async fn live_writes_keep_history_values_and_seek_pages_at_the_admitted_cut() {
     let root = tempfile::tempdir().unwrap();
@@ -281,20 +279,6 @@ async fn tokens_are_bounded_authenticated_expiring_and_scoped() {
     state.close().await.unwrap();
 }
 
-#[test]
-fn seek_binding_ignores_page_sizes_and_conjunction_order_but_preserves_projection_order() {
-    let first = json!({"scope":"a","where":[{"field":"value","operator":"gte","values":[1]},{"field":"status","operator":"eq","values":["failed"]}],"fields":["cpu.load","memory.used"],"page":{"rows":1},"at":null});
-    let mut reordered = first.clone();
-    reordered["where"].as_array_mut().unwrap().reverse();
-    reordered["page"] = json!({"rows":12,"bytes":8192,"after":"opaque"});
-    let operation = "dokime.query.list_samples";
-    let binding = tokens::binding(&first, 8192, operation).unwrap();
-    assert_eq!(binding, tokens::binding(&reordered, 8192, operation).unwrap());
-    reordered["fields"].as_array_mut().unwrap().reverse();
-    assert_ne!(binding, tokens::binding(&reordered, 8192, operation).unwrap());
-    assert_ne!(binding, tokens::binding(&first, 8192, "dokime.query.list_records").unwrap());
-}
-
 #[tokio::test]
 async fn runtime_snapshot_pages_bind_selection_and_allow_size_changes_during_writes() {
     use crate::{Runtime, config::RuntimeConfig, transactions::CycleDefinition};
@@ -417,4 +401,20 @@ async fn captured_contracts_are_immutable_bounded_and_available_after_restart() 
     state.call(move |connection| connection.execute("DELETE FROM query_contract_cuts WHERE identity=?1", [identity])).await.unwrap();
     assert!(!state.snapshot_available(cut).await.unwrap());
     state.close().await.unwrap();
+}
+
+/* === Tests === */
+
+#[test]
+fn seek_binding_ignores_page_sizes_and_conjunction_order_but_preserves_projection_order() {
+    let first = json!({"scope":"a","where":[{"field":"value","operator":"gte","values":[1]},{"field":"status","operator":"eq","values":["failed"]}],"fields":["cpu.load","memory.used"],"page":{"rows":1},"at":null});
+    let mut reordered = first.clone();
+    reordered["where"].as_array_mut().unwrap().reverse();
+    reordered["page"] = json!({"rows":12,"bytes":8192,"after":"opaque"});
+    let operation = "dokime.query.list_samples";
+    let binding = tokens::binding(&first, 8192, operation).unwrap();
+    assert_eq!(binding, tokens::binding(&reordered, 8192, operation).unwrap());
+    reordered["fields"].as_array_mut().unwrap().reverse();
+    assert_ne!(binding, tokens::binding(&reordered, 8192, operation).unwrap());
+    assert_ne!(binding, tokens::binding(&first, 8192, "dokime.query.list_records").unwrap());
 }

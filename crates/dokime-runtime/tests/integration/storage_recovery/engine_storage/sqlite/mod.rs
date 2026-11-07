@@ -10,22 +10,24 @@
 #![cfg(feature = "storage")]
 
 /* === Modules === */
+
 pub(crate) mod catalog;
 pub(crate) mod contract;
 pub(crate) mod production;
-pub(crate) use crate::engine_support::local_storage as storage;
 
 /* === Re-Exports === */
+
+pub(crate) use crate::engine_support::local_storage as storage;
 
 /* === Imports === */
 
 // Standard Library Imports
 
 // Third Party Imports
+use rusqlite::Connection;
 
 // Local Imports
 use dokime_runtime::storage::sqlite::*;
-use rusqlite::Connection;
 
 /* === Constants === */
 
@@ -42,9 +44,6 @@ use rusqlite::Connection;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-/* === Tests === */
 
 pub(crate) async fn preserves_unrelated_tables() {
     let root = tempfile::tempdir().unwrap();
@@ -216,3 +215,7 @@ pub(crate) async fn close_drains_clones() {
     reopened.call(|connection| connection.execute_batch("DROP TABLE closed_probe;")).await.unwrap();
     reopened.close().await.unwrap();
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

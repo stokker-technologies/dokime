@@ -12,14 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-
-// Local Imports
-use super::*;
-use dokime_domain::model;
-use dokime_runtime::domains::evidence::RecordSelection;
 use model::execution::HealthSeverity;
 use {
     model::records::product::ProductCalibrationDetails, model::records::product::ProductCalibrationKind,
@@ -27,12 +23,19 @@ use {
     model::records::product::ProductConnectionState, model::records::product::ProductRecordDraft,
 };
 
+// Local Imports
+use super::*;
+use dokime_domain::model;
+use dokime_runtime::domains::evidence::RecordSelection;
+
 /* === Constants === */
+
 const WIFI: &str = "host.wifi.scan";
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type JournalRecords = dokime_runtime::runtime::RecordSubscription;
 
 /* === Structs === */
@@ -44,8 +47,6 @@ type JournalRecords = dokime_runtime::runtime::RecordSubscription;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(super) async fn evidence_write_revision(runtime: &RuntimeHandle) {
     let revision = || async { runtime.runtime_overview().await.expect("runtime overview query succeeds").revision };
@@ -200,6 +201,8 @@ pub(super) async fn telemetry_refuses_partial(runtime: &RuntimeHandle) {
     assert!(error.to_string().contains("acquisition"), "{error}");
     assert!(runtime.evidence_snapshot().await.unwrap().telemetry.is_empty());
 }
+
+/* === Private Functions === */
 
 fn product_connection(connection_state: ProductConnectionState) -> ProductRecordDraft {
     ProductConnectionDetails::new("plt400-1", connection_state).into_draft("python.product")

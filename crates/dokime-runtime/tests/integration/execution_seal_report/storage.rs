@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -28,6 +29,7 @@ use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, Exec
 use {dokime_domain::model::execution::result::CycleView, dokime_domain::model::execution::result::TestExecution};
 
 /* === Constants === */
+
 const UNENCODABLE: &str = "fixture report cannot be encoded";
 
 /* === Macros === */
@@ -35,6 +37,7 @@ const UNENCODABLE: &str = "fixture report cannot be encoded";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct UnencodableReport(FakePythonExecutor, Arc<std::sync::atomic::AtomicBool>);
 
 /* === Enums === */
@@ -42,6 +45,7 @@ struct UnencodableReport(FakePythonExecutor, Arc<std::sync::atomic::AtomicBool>)
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ExecutionFixture for UnencodableReport {
     fn run_cycle<'a>(
         &'a self, context: ExecutionFixtureContext, cycle: &'a CycleView, target: &'a ExecutionProviderTarget,
@@ -55,10 +59,6 @@ impl ExecutionFixture for UnencodableReport {
 }
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) async fn execution_save_sealing() {
     let root = tempdir().unwrap();
@@ -374,6 +374,8 @@ pub(crate) async fn permanent_finalization_settles() {
     owner.shutdown().await.unwrap();
 }
 
+/* === Private Functions === */
+
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stop_report_retry() {
@@ -472,3 +474,5 @@ async fn stop_report_retry() {
     drop((inspection, checkpoint, report));
     fixture.close().await;
 }
+
+/* === Tests === */

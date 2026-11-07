@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -39,12 +40,12 @@ use dokime_runtime::state::RuntimeState;
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-
-/* === Tests === */
-
 pub(crate) fn declaration_boots_runtime() {
     let origin = RuntimeState::new(dokime_runtime::model::identity::new_id::<SessionId>());
 
     app::simulate(origin, 42).expect("Dokime's catalogs are simulable");
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

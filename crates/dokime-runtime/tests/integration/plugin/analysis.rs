@@ -39,9 +39,13 @@ static FINISHED: AtomicUsize = AtomicUsize::new(0);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Host;
+
 struct Scale;
+
 struct Held;
+
 struct Scaled {
     axis: Vec<f64>,
     values: Vec<f64>,
@@ -54,6 +58,7 @@ struct Parameters {
 }
 
 /* === Enums === */
+
 #[harmos::catalog]
 enum Analyses {
     Scale(Operation<Scale>),
@@ -69,6 +74,7 @@ enum Lanes {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ResultData for Scaled {
     fn outputs() -> Vec<Output> {
         vec![Output {
@@ -162,6 +168,7 @@ impl harmos::Lifecycle for Host {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn request(parameters: BTreeMap<String, Value>) -> Request {
     Request {
         samples: Some(Samples {
@@ -180,24 +187,6 @@ async fn serve() -> harmos::Runtime<Host> {
 
 async fn call<A: Analysis>(operations: &harmos::operations::OperationManager<Lanes>, request: Request) -> harmos::Result<Response> {
     operations.operation::<Operation<A>>(Operation::new(request)).await.map(|response| response.into_owned())
-}
-
-/* === Tests === */
-
-#[dokime_tracing::trace_test]
-#[test]
-fn named_analysis_params() {
-    let mut registrar = harmos::plugin::Registrar::new();
-    dokime_runtime::Evidence::<(), Analyses>::register(&mut registrar).unwrap();
-    let registrations = registrar.finish();
-    let declaration =
-        registrations.iter().find(|entry| entry.namespace == dokime_runtime::plugin::registration::ANALYSES_NAMESPACE).unwrap();
-    let definitions: Vec<Definition> = serde_json::from_slice(&declaration.payload).unwrap();
-    assert_eq!(definitions.len(), 2);
-    assert_eq!(definitions[0].id, Scale::ID);
-    assert_eq!(definitions[0].version, 1);
-    assert_eq!(definitions[0].parameters[0].metadata.identifier.as_str(), "factor");
-    assert_eq!(definitions[0].outputs[0].axis.as_ref().unwrap().key, "time");
 }
 
 #[dokime_tracing::trace_test]
@@ -234,4 +223,22 @@ async fn cancelled_analysis_shutdown() {
     shutdown.await.unwrap();
     assert_eq!(CALLS.load(Ordering::SeqCst), 1, "cancelled work must not replay");
     assert_eq!(FINISHED.load(Ordering::SeqCst), 1);
+}
+
+/* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[test]
+fn named_analysis_params() {
+    let mut registrar = harmos::plugin::Registrar::new();
+    dokime_runtime::Evidence::<(), Analyses>::register(&mut registrar).unwrap();
+    let registrations = registrar.finish();
+    let declaration =
+        registrations.iter().find(|entry| entry.namespace == dokime_runtime::plugin::registration::ANALYSES_NAMESPACE).unwrap();
+    let definitions: Vec<Definition> = serde_json::from_slice(&declaration.payload).unwrap();
+    assert_eq!(definitions.len(), 2);
+    assert_eq!(definitions[0].id, Scale::ID);
+    assert_eq!(definitions[0].version, 1);
+    assert_eq!(definitions[0].parameters[0].metadata.identifier.as_str(), "factor");
+    assert_eq!(definitions[0].outputs[0].axis.as_ref().unwrap().key, "time");
 }

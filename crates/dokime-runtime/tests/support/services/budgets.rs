@@ -8,6 +8,7 @@
  */
 
 // Each test binary includes this file and uses its own subset.
+
 #![allow(dead_code)]
 
 /* === Modules === */
@@ -20,8 +21,10 @@ pub mod settings;
 pub use settings::CADENCE_MS;
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::PathBuf;
+
 // Third Party Imports
 
 // Local Imports
@@ -46,6 +49,7 @@ use dokime_runtime::harmos::operations::RetryPolicy;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn runtime_config(root: impl Into<PathBuf>, hub_metadata: Metadata) -> RuntimeConfig {
     let mut config = RuntimeConfig::new(root, hub_metadata)
         .with_credential_store(keyring_core::mock::Store::new().expect("isolated fixture credential store"));
@@ -60,4 +64,5 @@ pub fn story_settings() -> StorageSettings {
 }
 
 /* === Private Functions === */
+
 /* === Tests === */

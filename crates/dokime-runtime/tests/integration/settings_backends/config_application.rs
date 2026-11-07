@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
+use dokime_runtime::config::ApplicationOptions;
 
 /* === Constants === */
 
@@ -33,11 +35,6 @@
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-use dokime_runtime::config::ApplicationOptions;
 
 // an explicit application root keeps settings, plugins and default data local.
 
@@ -64,6 +61,7 @@ pub(crate) fn explicit_root_local() {
 }
 
 // a data root keeps one identity across launches, so its first and later
+
 // opens resolve and reopen the same storage.
 
 pub(crate) async fn data_root_reopens() {
@@ -95,3 +93,7 @@ pub(crate) async fn data_root_reopens() {
         runtime.shutdown().await.unwrap();
     }
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

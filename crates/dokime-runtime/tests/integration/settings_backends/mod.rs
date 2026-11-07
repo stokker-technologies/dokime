@@ -10,6 +10,7 @@
 // Settings, identity, installed-plugin settings, branding, themes and secret transfer persist and reopen through the real backends.
 
 /* === Modules === */
+
 pub(crate) mod config_application;
 mod distribution;
 pub(crate) mod identity;
@@ -44,8 +45,6 @@ pub(crate) mod secrets_transfer;
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -91,3 +90,5 @@ async fn settings_backends() {
 async fn settings_backends_concurrent() {
     identity::concurrent_creators_identity().await;
 }
+
+/* === Tests === */

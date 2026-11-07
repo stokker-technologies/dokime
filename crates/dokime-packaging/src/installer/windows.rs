@@ -33,6 +33,7 @@ use crate::Error;
 
 const ICON: u16 = 3;
 const GROUP_ICON: u16 = 14;
+
 // Tauri Loads Its Default Window Icon From This Application Resource.
 const APPLICATION_ICON_ID: u16 = tauri_utils::platform::WINDOWS_APP_ICON_RESOURCE_ID;
 

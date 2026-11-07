@@ -37,13 +37,14 @@ use tauri_plugin_dialog::DialogExt;
 
 const DESKTOP_ORGANIZATION_ARCHIVE_BYTES: u64 = 20_971_520;
 const DESKTOP_ORGANIZATION_ENTRIES: u64 = 200;
-
 const MANIFEST: &str = "organization.toml";
 const ACTIVE: &str = "active";
 const PENDING: &str = "pending";
-/// Applied by the shell at runtime: identity, logos, theme CSS and fonts.
+
+// Applied by the shell at runtime: identity, logos, theme CSS and fonts.
 const RUNTIME_EXTENSIONS: [&str; 5] = ["toml", "css", "woff2", "svg", "png"];
-/// Licence and readme text beside fonts and logos; skipped, never applied.
+
+// Licence and readme text beside fonts and logos; skipped, never applied.
 const IGNORED_EXTENSIONS: [&str; 2] = ["txt", "md"];
 const THEME_FILES: [&str; 4] = ["theme/typography.css", "theme/base.css", "theme/light.css", "theme/dark.css"];
 const LOGO_VARIANTS: [(&str, &str, &str); 4] = [
@@ -59,7 +60,7 @@ const LOGO_VARIANTS: [(&str, &str, &str); 4] = [
 
 /* === Structs === */
 
-/// What the shell resolved at boot and what the operator changed since.
+// What the shell resolved at boot and what the operator changed since.
 pub(crate) struct OrganizationState {
     root: PathBuf,
     boot: Boot,
@@ -78,17 +79,20 @@ struct Boot {
     active: bool,
 }
 
-/// The pack as the frontend applies it before it renders.
+// The pack as the frontend applies it before it renders.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LoadedPack {
     label: String,
     title_template: String,
     organization: Option<Organization>,
-    /// Logo variant to `data:` URI.
+
+    // Logo variant to `data:` URI.
     logos: BTreeMap<String, String>,
+
     css: String,
     pub(crate) updates: Option<policy::UpdatePolicy>,
+
     #[serde(skip)]
     application_icon: Option<Vec<u8>>,
 
@@ -99,8 +103,10 @@ pub(crate) struct LoadedPack {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Organization {
     name: String,
+
     #[serde(default)]
     unit: Option<String>,
+
     #[serde(default)]
     website: Option<String>,
 }
@@ -115,13 +121,16 @@ pub(crate) struct PackSummary {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct OrganizationStatus {
-    /// The pack this process applied at boot, unless removed since.
+    // The pack this process applied at boot, unless removed since.
     active: Option<PackSummary>,
-    /// A validated pack that applies on the next start.
+
+    // A validated pack that applies on the next start.
     pending: Option<PackSummary>,
-    /// Packs were removed this session; the compiled brand applies on the next start.
+
+    // Packs were removed this session; the compiled brand applies on the next start.
     removed: bool,
-    /// Why the active pack could not be applied at boot.
+
+    // Why the active pack could not be applied at boot.
     error: Option<String>,
 }
 
@@ -135,8 +144,10 @@ struct BootScript<'a> {
 #[derive(Deserialize)]
 struct Manifest {
     app: AppSection,
+
     #[serde(default)]
     theme: Option<ThemeSection>,
+
     #[serde(default)]
     updates: Option<policy::UpdatePolicy>,
 }
@@ -144,10 +155,13 @@ struct Manifest {
 #[derive(Deserialize)]
 struct AppSection {
     label: String,
+
     #[serde(default)]
     title_template: Option<String>,
+
     #[serde(default)]
     organization: Option<Organization>,
+
     #[serde(default)]
     logos: BTreeMap<String, BTreeMap<String, String>>,
 }
@@ -196,7 +210,7 @@ impl OrganizationState {
         }
     }
 
-    /// The script every main window runs before the frontend loads.
+    // The script every main window runs before the frontend loads.
     pub(crate) fn initialization_script(&self) -> String {
         let boot = BootScript {
             pack: self.boot.pack.as_ref(),
@@ -218,7 +232,7 @@ impl LoadedPack {
 
 /* === Public Functions === */
 
-/// Promotes a pending pack and loads the active one before any window exists.
+// Promotes a pending pack and loads the active one before any window exists.
 pub(crate) fn setup(app: &tauri::App) -> tauri::Result<()> {
     let root = app.state::<dokime::paths::ApplicationPaths>().root.join("organization");
     let boot = boot(&root);
@@ -375,7 +389,7 @@ fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
     Err(error.to_string())
 }
 
-/// Validates an archive, extracts it beside the packs and replaces the pending pack only when it loads.
+// Validates an archive, extracts it beside the packs and replaces the pending pack only when it loads.
 fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
     let metadata = std::fs::metadata(archive).map_err(|error| error.to_string())?;
     if metadata.len() > DESKTOP_ORGANIZATION_ARCHIVE_BYTES {
@@ -398,7 +412,7 @@ fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
     Ok(summary)
 }
 
-/// The runtime files of an organization folder zipped as is, keyed by their path inside the pack.
+// The runtime files of an organization folder zipped as is, keyed by their path inside the pack.
 fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
     if bytes.len() as u64 > DESKTOP_ORGANIZATION_ARCHIVE_BYTES {
         return Err(format!("the organization pack exceeds {} MiB", DESKTOP_ORGANIZATION_ARCHIVE_BYTES / 1024 / 1024));
@@ -480,7 +494,7 @@ fn manifest_location<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Re
     Ok((prefix.clone(), *manifest))
 }
 
-/// Reads an extracted pack the way the frontend applies it; any missing or unsafe reference fails it whole.
+// Reads an extracted pack the way the frontend applies it; any missing or unsafe reference fails it whole.
 fn load(dir: &Path) -> Result<LoadedPack, String> {
     let pack = dokime::config::organization::resolve(Some(dir))?;
     loaded(pack)
@@ -562,7 +576,7 @@ fn corner_radii(theme: Option<&ThemeSection>) -> String {
     css
 }
 
-/// Inlines local font and image references; the theme never reaches the network or leaves the pack.
+// Inlines local font and image references; the theme never reaches the network or leaves the pack.
 fn inline_urls(dir: &Path, file: &str, css: &str) -> Result<String, String> {
     let stripped = strip_comments(css)?;
     let css = stripped.as_str();
@@ -594,7 +608,7 @@ fn inline_urls(dir: &Path, file: &str, css: &str) -> Result<String, String> {
     Ok(output)
 }
 
-/// Comments may mention `url()` and `@import`; only declarations count.
+// Comments may mention `url()` and `@import`; only declarations count.
 fn strip_comments(css: &str) -> Result<String, String> {
     let mut output = String::with_capacity(css.len());
     let mut rest = css;
@@ -607,7 +621,7 @@ fn strip_comments(css: &str) -> Result<String, String> {
     Ok(output)
 }
 
-/// Reads a pack-relative path that cannot escape the pack folder.
+// Reads a pack-relative path that cannot escape the pack folder.
 fn read_inside(dir: &Path, relative: &str) -> Result<Vec<u8>, String> {
     let path = Path::new(relative);
     if relative.contains(':') || path.components().any(|component| !matches!(component, Component::Normal(_))) {

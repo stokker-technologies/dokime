@@ -17,10 +17,10 @@
 use std::{path::Path, sync::Arc};
 
 // Third Party Imports
-use dokime_runtime::{Identifier, Metadata};
 use tokio::sync::Barrier;
 
 // Local Imports
+use dokime_runtime::{Identifier, Metadata};
 use dokime_runtime::{Runtime, RuntimeConfig};
 
 /* === Constants === */
@@ -38,14 +38,6 @@ use dokime_runtime::{Runtime, RuntimeConfig};
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-fn config(root: &Path, application: &Path) -> RuntimeConfig {
-    crate::service_support::budgets::runtime_config(root, Metadata::new(Identifier::new("fixture.identity").unwrap(), "Identity", None))
-        .with_application_root(application)
-}
-
-/* === Tests === */
 
 pub(crate) async fn concurrent_creators_identity() {
     let root = tempfile::tempdir().unwrap();
@@ -95,3 +87,12 @@ pub(crate) async fn legacy_files_ignored() {
     assert_eq!(std::fs::read(&config_path).unwrap(), b"legacy");
     assert_eq!(std::fs::read(&path).unwrap(), b"broken");
 }
+
+/* === Private Functions === */
+
+fn config(root: &Path, application: &Path) -> RuntimeConfig {
+    crate::service_support::budgets::runtime_config(root, Metadata::new(Identifier::new("fixture.identity").unwrap(), "Identity", None))
+        .with_application_root(application)
+}
+
+/* === Tests === */

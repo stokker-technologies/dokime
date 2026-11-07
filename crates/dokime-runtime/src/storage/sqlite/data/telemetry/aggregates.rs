@@ -27,6 +27,7 @@ use crate::storage::Error;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
+
 pub(in crate::storage::sqlite) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_numeric_summaries (
     execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL, moments BLOB NOT NULL,
@@ -42,6 +43,7 @@ CREATE TABLE IF NOT EXISTS storage_numeric_checkpoints (
 /* === Macros === */
 
 /* === Type Aliases === */
+
 #[cfg(feature = "native")]
 type Key = (String, String, String);
 
@@ -449,6 +451,98 @@ pub(crate) fn numeric_summaries(connection: &Connection, execution: String) -> R
     Ok(summaries)
 }
 
+pub(super) fn exact_percentiles(
+    connection: &Connection, root: &std::path::Path, execution: &str, through: &harmos::storage::StorageCursor,
+    summaries: &mut [NumericSummary], requested: &std::collections::BTreeSet<(String, String, u8)>,
+) -> Result<(), Error> {
+    let fields = super::previews::report_previews(connection, execution.into(), through.clone())?;
+    let mut streams = BTreeMap::<String, Vec<usize>>::new();
+    for (index, summary) in summaries.iter().enumerate() {
+        streams.entry(summary.stream.clone()).or_default().push(index);
+    }
+    for (stream, indices) in streams {
+        let keys: Vec<_> = indices.iter().map(|index| summaries[*index].field.clone()).collect();
+        let retained: Vec<_> = keys
+            .iter()
+            .map(|key| fields.iter().find(|field| field.stream == stream && field.field == *key && field.exact.len() as u64 == field.total))
+            .collect();
+        if retained.iter().all(Option::is_some) {
+            for (index, field) in indices.iter().zip(retained) {
+                let mut values: Vec<_> = field
+                    .expect("retained field")
+                    .exact
+                    .iter()
+                    .filter_map(|(_, value)| dokime_domain::model::values::numeric_value(value).filter(|value| value.is_finite()))
+                    .collect();
+                values.sort_by(f64::total_cmp);
+                add_percentiles(&mut summaries[*index], requested, values.len() as u64, |ordinal| Ok(values[ordinal as usize]))?;
+            }
+            continue;
+        }
+        // The Read Path Owns This Disposable External Sort; Ingestion Retains No Rank History.
+        let scratch = tempfile::tempdir()?;
+        let mut replay = Connection::open(scratch.path().join("percentiles.sqlite"))?;
+        replay.execute_batch(
+            "PRAGMA cache_size=-2048; PRAGMA temp_store=FILE; PRAGMA mmap_size=0;
+            CREATE TABLE values_replay (field INTEGER NOT NULL,value BLOB NOT NULL);",
+        )?;
+        let mut counts = vec![0u64; keys.len()];
+        {
+            let transaction = replay.transaction()?;
+            let mut insert = transaction.prepare("INSERT INTO values_replay VALUES (?1,?2)")?;
+            let mut after = 0;
+            let bytes_per_row = keys.len().saturating_mul(std::mem::size_of::<Option<f64>>()).saturating_add(128);
+            let page_rows = (8 * 1024 * 1024 / bytes_per_row).clamp(1, 65_536);
+            loop {
+                let scan = super::super::Scan::new(
+                    "stream",
+                    through.sequence,
+                    0,
+                    harmos::storage::ScanPage {
+                        after,
+                        rows: page_rows.try_into().unwrap(),
+                        bytes: (8 * 1024 * 1024).try_into().unwrap(),
+                    },
+                )
+                .filter("execution", Some(execution.into()))
+                .filter("stream", Some(stream.clone()));
+                let rows = super::reader::numeric(connection, root, &scan, &keys, &Default::default())?;
+                if rows.is_empty() {
+                    break;
+                }
+                for (position, row) in rows {
+                    if position <= after {
+                        return Err(Error::Corrupt("numeric replay did not advance"));
+                    }
+                    after = position;
+                    for (field, value) in row.values.into_iter().enumerate() {
+                        if let Some(value) = value {
+                            let key = ordered(value).to_be_bytes();
+                            insert.execute(params![field as i64, key.as_slice()])?;
+                            counts[field] += 1;
+                        }
+                    }
+                }
+            }
+            drop(insert);
+            transaction.commit()?;
+        }
+        replay.execute_batch("CREATE INDEX values_order ON values_replay(field,value)")?;
+        let mut rank = replay.prepare("SELECT value FROM values_replay WHERE field=?1 ORDER BY value LIMIT 1 OFFSET ?2")?;
+        for (field, index) in indices.into_iter().enumerate() {
+            add_percentiles(&mut summaries[index], requested, counts[field], |ordinal| {
+                let bytes: Vec<u8> = rank
+                    .query_row(params![field as i64, i64::try_from(ordinal).map_err(|_| Error::Data("numeric rank overflow"))?], |row| {
+                        row.get(0)
+                    })?;
+                let key = u64::from_be_bytes(bytes.try_into().map_err(|_| Error::Corrupt("numeric replay key width differs"))?);
+                Ok(f64::from_bits(if key >> 63 != 0 { key ^ (1 << 63) } else { !key }))
+            })?;
+        }
+    }
+    Ok(())
+}
+
 /* === Private Functions === */
 
 #[cfg(feature = "native")]
@@ -735,98 +829,6 @@ fn document_median(
         Some(Value::Unsigned(value)) if moments.signed && i64::try_from(value).is_ok() => Some(Value::Integer(value as i64)),
         value => value,
     })
-}
-
-pub(super) fn exact_percentiles(
-    connection: &Connection, root: &std::path::Path, execution: &str, through: &harmos::storage::StorageCursor,
-    summaries: &mut [NumericSummary], requested: &std::collections::BTreeSet<(String, String, u8)>,
-) -> Result<(), Error> {
-    let fields = super::previews::report_previews(connection, execution.into(), through.clone())?;
-    let mut streams = BTreeMap::<String, Vec<usize>>::new();
-    for (index, summary) in summaries.iter().enumerate() {
-        streams.entry(summary.stream.clone()).or_default().push(index);
-    }
-    for (stream, indices) in streams {
-        let keys: Vec<_> = indices.iter().map(|index| summaries[*index].field.clone()).collect();
-        let retained: Vec<_> = keys
-            .iter()
-            .map(|key| fields.iter().find(|field| field.stream == stream && field.field == *key && field.exact.len() as u64 == field.total))
-            .collect();
-        if retained.iter().all(Option::is_some) {
-            for (index, field) in indices.iter().zip(retained) {
-                let mut values: Vec<_> = field
-                    .expect("retained field")
-                    .exact
-                    .iter()
-                    .filter_map(|(_, value)| dokime_domain::model::values::numeric_value(value).filter(|value| value.is_finite()))
-                    .collect();
-                values.sort_by(f64::total_cmp);
-                add_percentiles(&mut summaries[*index], requested, values.len() as u64, |ordinal| Ok(values[ordinal as usize]))?;
-            }
-            continue;
-        }
-        // The Read Path Owns This Disposable External Sort; Ingestion Retains No Rank History.
-        let scratch = tempfile::tempdir()?;
-        let mut replay = Connection::open(scratch.path().join("percentiles.sqlite"))?;
-        replay.execute_batch(
-            "PRAGMA cache_size=-2048; PRAGMA temp_store=FILE; PRAGMA mmap_size=0;
-            CREATE TABLE values_replay (field INTEGER NOT NULL,value BLOB NOT NULL);",
-        )?;
-        let mut counts = vec![0u64; keys.len()];
-        {
-            let transaction = replay.transaction()?;
-            let mut insert = transaction.prepare("INSERT INTO values_replay VALUES (?1,?2)")?;
-            let mut after = 0;
-            let bytes_per_row = keys.len().saturating_mul(std::mem::size_of::<Option<f64>>()).saturating_add(128);
-            let page_rows = (8 * 1024 * 1024 / bytes_per_row).clamp(1, 65_536);
-            loop {
-                let scan = super::super::Scan::new(
-                    "stream",
-                    through.sequence,
-                    0,
-                    harmos::storage::ScanPage {
-                        after,
-                        rows: page_rows.try_into().unwrap(),
-                        bytes: (8 * 1024 * 1024).try_into().unwrap(),
-                    },
-                )
-                .filter("execution", Some(execution.into()))
-                .filter("stream", Some(stream.clone()));
-                let rows = super::reader::numeric(connection, root, &scan, &keys, &Default::default())?;
-                if rows.is_empty() {
-                    break;
-                }
-                for (position, row) in rows {
-                    if position <= after {
-                        return Err(Error::Corrupt("numeric replay did not advance"));
-                    }
-                    after = position;
-                    for (field, value) in row.values.into_iter().enumerate() {
-                        if let Some(value) = value {
-                            let key = ordered(value).to_be_bytes();
-                            insert.execute(params![field as i64, key.as_slice()])?;
-                            counts[field] += 1;
-                        }
-                    }
-                }
-            }
-            drop(insert);
-            transaction.commit()?;
-        }
-        replay.execute_batch("CREATE INDEX values_order ON values_replay(field,value)")?;
-        let mut rank = replay.prepare("SELECT value FROM values_replay WHERE field=?1 ORDER BY value LIMIT 1 OFFSET ?2")?;
-        for (field, index) in indices.into_iter().enumerate() {
-            add_percentiles(&mut summaries[index], requested, counts[field], |ordinal| {
-                let bytes: Vec<u8> = rank
-                    .query_row(params![field as i64, i64::try_from(ordinal).map_err(|_| Error::Data("numeric rank overflow"))?], |row| {
-                        row.get(0)
-                    })?;
-                let key = u64::from_be_bytes(bytes.try_into().map_err(|_| Error::Corrupt("numeric replay key width differs"))?);
-                Ok(f64::from_bits(if key >> 63 != 0 { key ^ (1 << 63) } else { !key }))
-            })?;
-        }
-    }
-    Ok(())
 }
 
 fn add_percentiles(

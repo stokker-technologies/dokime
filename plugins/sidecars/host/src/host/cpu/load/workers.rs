@@ -41,11 +41,13 @@ pub(super) struct Workers {
     shared: Arc<Shared>,
     threads: Vec<JoinHandle<()>>,
 }
+
 struct Shared {
     state: Mutex<State>,
     wake: Condvar,
     operations: AtomicU64,
 }
+
 struct State {
     stopped: bool,
     duty: f64,
@@ -125,6 +127,7 @@ impl Workers {
         Ok(())
     }
 }
+
 impl Drop for Workers {
     fn drop(&mut self) {
         let _ = self.stop();

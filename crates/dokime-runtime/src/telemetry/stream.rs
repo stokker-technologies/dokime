@@ -38,6 +38,7 @@ use dokime_domain::model::values::Value;
 #[derive(Clone)]
 pub struct Streams {
     sink: Arc<dyn SampleSink>,
+
     #[cfg(feature = "native")]
     admission: Option<Arc<Admission>>,
 

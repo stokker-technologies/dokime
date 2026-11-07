@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::{Arc, Mutex};
 
@@ -38,6 +39,7 @@ use {
 };
 
 /* === Constants === */
+
 const SOURCE: &str = "fixture_sessions";
 const TEMPLATE: &str = "fixture.sessions.cancel";
 const PHASE: &str = "fixture.sessions.stream";
@@ -49,6 +51,7 @@ const SCAN_INTERVAL: &str = "minimum_scan_interval_s";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Probe {
     mode: Settlement,
     entered: tokio::sync::Notify,
@@ -70,6 +73,7 @@ struct Probe {
 struct Provider(Arc<Probe>);
 
 /* === Enums === */
+
 #[derive(Clone, Copy, PartialEq)]
 enum Settlement {
     Complete,
@@ -89,6 +93,7 @@ enum Settlement {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Probe {
     fn new(mode: Settlement) -> Self {
         Self {
@@ -401,135 +406,6 @@ impl EmbeddedProvider for Provider {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-async fn save_scan_interval(runtime: &RuntimeHandle, seconds: u32) -> PluginRestart {
-    let host = identifier(HOST);
-    let values = std::collections::BTreeMap::from([(SCAN_INTERVAL.into(), dokime_runtime::Value::Number(f64::from(seconds)))]);
-    runtime.save_plugin_settings(&host, PluginSettingsUpdate { values }).await.unwrap().restart
-}
-
-// What The Running Host Generation Was Prepared With, And What Is Saved.
-async fn prepared_scan_interval(owner: &dokime_runtime::Runtime) -> (Option<PluginGeneration>, Value, Value) {
-    let status = owner.fixture_plugin_status(HOST).await.expect("the host plugin is admitted");
-    let definition = status.active_definition.expect("the host plugin runs a generation");
-    let configuration: dokime_runtime::plugin::Configuration = serde_json::from_slice(&definition.configuration).unwrap();
-    let saved = owner.handle().plugin_settings(&identifier(HOST)).await.unwrap().values[SCAN_INTERVAL].clone();
-    (status.generation, configuration.settings[SCAN_INTERVAL].clone(), saved)
-}
-
-async fn execution_log(runtime: &RuntimeHandle, execution: &dokime_domain::model::identity::TestExecutionId) -> String {
-    let files = runtime.execution_files(execution).await.unwrap();
-    let Some(file) = files.iter().find(|file| file.relative_path == "artifacts/execution.log") else { return String::new() };
-    let content = runtime.execution_file_content(execution, file.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
-    String::from_utf8_lossy(&content.bytes).into_owned()
-}
-
-async fn host_rows(runtime: &RuntimeHandle) -> usize {
-    let selection = dokime_runtime::domains::evidence::TelemetrySelection {
-        streams: vec![identifier("host.system").into()],
-        ..Default::default()
-    };
-    runtime.collect_telemetry(&selection).await.unwrap().len()
-}
-
-fn cancellation_log() -> Vec<Entry> {
-    vec![
-        Entry::new(Level::Trace, "trace detail"),
-        Entry::new(Level::Debug, "debug detail"),
-        Entry::new(Level::Info, "fixture cancellation settled"),
-        Entry::new(Level::Warn, "warning\ncontinued"),
-        Entry::new(Level::Error, "error detail"),
-        Entry::new(Level::Info, ""),
-        Entry {
-            level: 99,
-            message: "unknown detail".into(),
-            timestamp: dokime_runtime::execution::log::timestamp(),
-        },
-    ]
-}
-
-fn without_timestamps(log: &str) -> String {
-    log.lines()
-        .map(|line| {
-            let (timestamp, message) = line.split_once(' ').unwrap();
-            assert_eq!(timestamp.len(), 24);
-            assert!(timestamp.ends_with('Z'));
-            assert!(Timestamp::new(timestamp).unix_millis().is_some());
-            format!("{message}\n")
-        })
-        .collect()
-}
-
-/* === Tests === */
-
-#[dokime_tracing::trace_test]
-#[tokio::test]
-async fn settled_run_fenced() {
-    let root = tempdir().unwrap();
-    let probe = Arc::new(Probe::new(Settlement::Ignored));
-    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
-    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
-    let first = start_cases(&handle, metadata("session.old", "Old Run"), materialize_cases(SOURCE, &suite)).await;
-    let receipt = handle.start_next_execution(first.clone(), CommandContext::default()).await;
-    assert_eq!(receipt.status, CommandStatus::Accepted);
-    probe.entered.notified().await;
-    let old_token = probe.token.lock().unwrap().clone();
-    let old_host = probe.hosts.lock().unwrap()[&old_token].clone();
-
-    tokio::time::pause();
-    let stop = {
-        let handle = handle.clone();
-        let first = first.clone();
-        tokio::spawn(async move { handle.seal_cycle(first, CommandContext::default()).await.unwrap() })
-    };
-    probe.cancelled.notified().await;
-    // Auto-Advance Only While Idle, So In-Flight Storage Keeps Its Own Deadlines.
-    tokio::time::sleep(dokime_runtime::operations::STOP_SETTLEMENT.timeout + Duration::from_secs(1)).await;
-    tokio::time::resume();
-    stop.await.unwrap();
-    wait_for_run_settled(&handle, &receipt.command_id).await;
-    let closed_id = TestExecutionId::from_uuid(old_token.clone()).unwrap();
-    let checkpoint = handle.execution_saved_checkpoint(closed_id.clone()).await.unwrap();
-    let closed = crate::service_support::native::open(&handle, &checkpoint).await;
-    assert_eq!(closed.execution().status, ExecutionStatus::Cancelled);
-    drop(closed);
-    probe.cancellation.send_replace(false);
-
-    let following = start_cases(&handle, metadata("session.next", "Following Run"), materialize_cases(SOURCE, &suite)).await;
-    let receipt = handle.start_next_execution(following.clone(), CommandContext::default()).await;
-    assert_eq!(receipt.status, CommandStatus::Accepted);
-    probe.entered.notified().await;
-    let following_token = probe.token.lock().unwrap().clone();
-    assert_ne!(following_token, old_token);
-    let following_host = probe.hosts.lock().unwrap()[&following_token].clone();
-    let late = EvidenceBatch {
-        cursor: 2,
-        phase: PHASE.into(),
-        diagnostics: vec![Entry::new(Level::Info, "late old run")],
-        ..Default::default()
-    };
-    assert!(
-        following_host
-            .push(EvidenceBatch {
-                cursor: 2,
-                diagnostics: vec![Entry::new(Level::Info, "following run remains active")],
-                ..Default::default()
-            })
-            .await
-            .is_ok()
-    );
-    let before = cycle_snapshot(&handle, &following).await;
-    assert!(old_host.push(late).await.is_err());
-    assert_eq!(cycle_snapshot(&handle, &following).await, before);
-    assert_eq!(handle.execution_saved_checkpoint(closed_id).await.unwrap(), checkpoint);
-    assert!(!execution_log(&handle, &before.test_executions[0].test_execution_id).await.contains("late old run"));
-    probe.released.send_replace(true);
-    probe.cancellation.send_replace(true);
-    wait_for_run_settled(&handle, &receipt.command_id).await;
-    probe.hosts.lock().unwrap().clear();
-    owner.shutdown().await.unwrap();
-}
-
 // The Host Preserves Cancellation Verdicts And All Diagnostic Levels From Its Provider.
 pub(crate) async fn cancellation_retains_verdict() {
     for mode in [Settlement::Complete, Settlement::Deferred, Settlement::Refused] {
@@ -641,54 +517,6 @@ pub(crate) async fn ignored_run_identity() {
 
 pub(crate) async fn ignored_signal_identity() {
     ignored_stop(Settlement::IgnoredSignal).await;
-}
-
-async fn ignored_stop(mode: Settlement) {
-    let root = tempdir().unwrap();
-    let probe = Arc::new(Probe::new(mode));
-    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
-    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
-    let cycle_id = start_cases(&handle, metadata("session.ignored", "Ignored Stop"), materialize_cases(SOURCE, &suite)).await;
-    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    assert_eq!(receipt.status, CommandStatus::Accepted);
-    probe.entered.notified().await;
-    let original = cycle_snapshot(&handle, &cycle_id).await.test_executions.remove(0);
-
-    tokio::time::pause();
-    let stopping = {
-        let handle = handle.clone();
-        let cycle_id = cycle_id.clone();
-        tokio::spawn(async move { handle.seal_cycle(cycle_id, CommandContext::default()).await.unwrap() })
-    };
-    probe.cancelled.notified().await;
-    // The paused clock reaches the stop budget only while the runtime is idle: forcing it forward
-    // with `advance` also expired storage deadlines of writes still in flight on a slow machine,
-    // failing the journal capture and leaving the run unsettled.
-    tokio::time::sleep(dokime_runtime::operations::STOP_SETTLEMENT.timeout + Duration::from_secs(1)).await;
-    tokio::time::resume();
-    stopping.await.unwrap();
-    wait_for_run_settled(&handle, &receipt.command_id).await;
-    let cycle = cycle_snapshot(&handle, &cycle_id).await;
-    assert_eq!(cycle.lifecycle, CycleStatus::Stopped);
-    assert_eq!(cycle.test_executions.len(), 1);
-    let execution = &cycle.test_executions[0];
-    assert_eq!(execution.test_execution_id, original.test_execution_id);
-    assert_eq!(execution.scope, original.scope);
-    assert_eq!(execution.snapshot, original.snapshot);
-    assert_eq!(execution.steps[0].step_id, original.steps[0].step_id);
-    assert_eq!(execution.status, ExecutionStatus::Cancelled);
-    assert!(cycle.saved.is_some(), "host settlement seals the final cycle report");
-    assert!(handle.pending_prompt_projection().await.is_empty());
-    let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
-    let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
-    let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
-    assert!(std::str::from_utf8(&log.bytes).unwrap().contains(&format!(
-        "the run did not answer its stop within {} seconds",
-        dokime_runtime::operations::STOP_SETTLEMENT.timeout.as_secs()
-    )));
-    probe.released.send_replace(true);
-    drop(handle);
-    owner.shutdown().await.unwrap();
 }
 
 // A Refused Settling Page Still Closes The Run's Inputs, So It Winds Down Instead Of Waiting Out The Stop Budget.
@@ -924,103 +752,6 @@ pub(crate) async fn reload_waits_for_cycle() {
     probe.runtime.lock().unwrap().take();
     drop(handle);
     owner.shutdown().await.unwrap();
-}
-
-// A Cycle That Runs Its Case Twice, Continuing Automatically, Held In Its First Execution.
-async fn held_cycle(runtime: &RuntimeHandle, probe: &Probe, metadata: Metadata) -> TestCycleId {
-    let suite = runtime.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
-    let case = materialize_cases(SOURCE, &suite).remove(0);
-    let cycle_id = start_cases(runtime, metadata, vec![case.clone(), case]).await;
-    let receipt = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-    assert_eq!(receipt.status, CommandStatus::Accepted);
-    probe.entered.notified().await;
-    cycle_id
-}
-
-// Release The Held Execution; The Cycle Continues With Its Next Case, Which Holds In Turn.
-async fn next_case(probe: &Probe) {
-    probe.released.send_replace(true);
-    probe.entered.notified().await;
-}
-
-// What The Store Says About One Installation, With What The Running Backend Does With It.
-async fn installation(runtime: &RuntimeHandle, install: uuid::Uuid) -> PluginEntry {
-    let mut entry = runtime.plugin_store().get(install).await.unwrap();
-    runtime.plugin_process_state(&mut entry);
-    entry
-}
-
-// Install `bytes` Into The Running Backend And Wait Until It Applied Them.
-async fn installed(runtime: &RuntimeHandle, bytes: Vec<u8>) -> PluginEntry {
-    let entry = runtime.install_plugin(bytes, |_| Ok(())).await.unwrap();
-    runtime.plugin_bundle_settled(&entry.metadata.as_ref().unwrap().identity.name).await;
-    installation(runtime, entry.installation.install_id).await
-}
-
-async fn settled(runtime: &RuntimeHandle, entry: &PluginEntry) -> PluginEntry {
-    runtime.plugin_bundle_settled(&entry.metadata.as_ref().unwrap().identity.name).await;
-    installation(runtime, entry.installation.install_id).await
-}
-
-// The Ready Generation Of The Host Program, If It Runs.
-async fn running_generation(owner: &dokime_runtime::Runtime) -> Option<PluginGeneration> {
-    let status = owner.fixture_plugin_status(HOST).await?;
-    (status.state == dokime_runtime::harmos::plugin::PluginState::Ready).then_some(status.generation).flatten()
-}
-
-// Whether The Admitted Catalog Lists The Host Program.
-async fn admits_host(runtime: &RuntimeHandle) -> bool {
-    let view = runtime
-        .query_runtime_view(RuntimeViewQuery {
-            topic: RuntimeViewTopic::InstalledPlugins,
-            scope: None,
-            window: RuntimeWindow::Full,
-            resolution: RuntimeResolution::Raw,
-            cursor: None,
-        })
-        .await
-        .unwrap();
-    let RuntimeViewPayload::InstalledPlugins { frame } = view.payload else { panic!("unexpected payload") };
-    frame.installed_plugins.iter().any(|plugin| plugin.plugin_id.as_str() == HOST)
-}
-
-fn host_bundle() -> Vec<u8> {
-    std::fs::read(crate::service_support::bundles::host_plugin_bundle()).unwrap()
-}
-
-// A Bundle Whose Program Requires A Secret Nobody Stored.
-fn secret_bundle(package: &str, owner: &str) -> Vec<u8> {
-    use dokime_domain::model::settings::{SecretSetting, Settings, SettingsEntry};
-    let token = SecretSetting {
-        id: "token".into(),
-        title: "Access Token".into(),
-        description: None,
-        required: true,
-    };
-    let settings = Settings {
-        contributions: vec![SettingsEntry::Secret(token)],
-    };
-    crate::service_support::bundles::bundle_with_settings(package, owner, settings)
-}
-
-// Saved Values The Program's Catalog Refuses, So Reading Its Settings Fails.
-async fn save_unresolvable(runtime: &RuntimeHandle, install: uuid::Uuid, refused: bool) {
-    let values = refused.then(|| dokime_runtime::plugins::ProgramValues {
-        values: [("undeclared".to_owned(), Value::Bool(true))].into_iter().collect(),
-        saved: ["undeclared".to_owned()].into_iter().collect(),
-    });
-    runtime
-        .settings()
-        .edit(move |document| {
-            let programs = &mut document.plugins.get_mut(&install).expect("the installation is stored").programs;
-            match values {
-                Some(values) => programs.insert(HOST.to_owned(), values),
-                None => programs.remove(HOST),
-            };
-            Ok::<_, dokime_runtime::plugins::PluginError>(())
-        })
-        .await
-        .unwrap();
 }
 
 // Installing, Replacing, Retrying, Disabling And Removing A Bundle Apply In The Running Backend.
@@ -1340,3 +1071,278 @@ pub(crate) async fn reload_restarts_one_plugin() {
     drop(handle);
     owner.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
+
+async fn save_scan_interval(runtime: &RuntimeHandle, seconds: u32) -> PluginRestart {
+    let host = identifier(HOST);
+    let values = std::collections::BTreeMap::from([(SCAN_INTERVAL.into(), dokime_runtime::Value::Number(f64::from(seconds)))]);
+    runtime.save_plugin_settings(&host, PluginSettingsUpdate { values }).await.unwrap().restart
+}
+
+// What The Running Host Generation Was Prepared With, And What Is Saved.
+async fn prepared_scan_interval(owner: &dokime_runtime::Runtime) -> (Option<PluginGeneration>, Value, Value) {
+    let status = owner.fixture_plugin_status(HOST).await.expect("the host plugin is admitted");
+    let definition = status.active_definition.expect("the host plugin runs a generation");
+    let configuration: dokime_runtime::plugin::Configuration = serde_json::from_slice(&definition.configuration).unwrap();
+    let saved = owner.handle().plugin_settings(&identifier(HOST)).await.unwrap().values[SCAN_INTERVAL].clone();
+    (status.generation, configuration.settings[SCAN_INTERVAL].clone(), saved)
+}
+
+async fn execution_log(runtime: &RuntimeHandle, execution: &dokime_domain::model::identity::TestExecutionId) -> String {
+    let files = runtime.execution_files(execution).await.unwrap();
+    let Some(file) = files.iter().find(|file| file.relative_path == "artifacts/execution.log") else { return String::new() };
+    let content = runtime.execution_file_content(execution, file.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
+    String::from_utf8_lossy(&content.bytes).into_owned()
+}
+
+async fn host_rows(runtime: &RuntimeHandle) -> usize {
+    let selection = dokime_runtime::domains::evidence::TelemetrySelection {
+        streams: vec![identifier("host.system").into()],
+        ..Default::default()
+    };
+    runtime.collect_telemetry(&selection).await.unwrap().len()
+}
+
+fn cancellation_log() -> Vec<Entry> {
+    vec![
+        Entry::new(Level::Trace, "trace detail"),
+        Entry::new(Level::Debug, "debug detail"),
+        Entry::new(Level::Info, "fixture cancellation settled"),
+        Entry::new(Level::Warn, "warning\ncontinued"),
+        Entry::new(Level::Error, "error detail"),
+        Entry::new(Level::Info, ""),
+        Entry {
+            level: 99,
+            message: "unknown detail".into(),
+            timestamp: dokime_runtime::execution::log::timestamp(),
+        },
+    ]
+}
+
+fn without_timestamps(log: &str) -> String {
+    log.lines()
+        .map(|line| {
+            let (timestamp, message) = line.split_once(' ').unwrap();
+            assert_eq!(timestamp.len(), 24);
+            assert!(timestamp.ends_with('Z'));
+            assert!(Timestamp::new(timestamp).unix_millis().is_some());
+            format!("{message}\n")
+        })
+        .collect()
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn settled_run_fenced() {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(Settlement::Ignored));
+    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let first = start_cases(&handle, metadata("session.old", "Old Run"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(first.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    let old_token = probe.token.lock().unwrap().clone();
+    let old_host = probe.hosts.lock().unwrap()[&old_token].clone();
+
+    tokio::time::pause();
+    let stop = {
+        let handle = handle.clone();
+        let first = first.clone();
+        tokio::spawn(async move { handle.seal_cycle(first, CommandContext::default()).await.unwrap() })
+    };
+    probe.cancelled.notified().await;
+    // Auto-Advance Only While Idle, So In-Flight Storage Keeps Its Own Deadlines.
+    tokio::time::sleep(dokime_runtime::operations::STOP_SETTLEMENT.timeout + Duration::from_secs(1)).await;
+    tokio::time::resume();
+    stop.await.unwrap();
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    let closed_id = TestExecutionId::from_uuid(old_token.clone()).unwrap();
+    let checkpoint = handle.execution_saved_checkpoint(closed_id.clone()).await.unwrap();
+    let closed = crate::service_support::native::open(&handle, &checkpoint).await;
+    assert_eq!(closed.execution().status, ExecutionStatus::Cancelled);
+    drop(closed);
+    probe.cancellation.send_replace(false);
+
+    let following = start_cases(&handle, metadata("session.next", "Following Run"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(following.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    let following_token = probe.token.lock().unwrap().clone();
+    assert_ne!(following_token, old_token);
+    let following_host = probe.hosts.lock().unwrap()[&following_token].clone();
+    let late = EvidenceBatch {
+        cursor: 2,
+        phase: PHASE.into(),
+        diagnostics: vec![Entry::new(Level::Info, "late old run")],
+        ..Default::default()
+    };
+    assert!(
+        following_host
+            .push(EvidenceBatch {
+                cursor: 2,
+                diagnostics: vec![Entry::new(Level::Info, "following run remains active")],
+                ..Default::default()
+            })
+            .await
+            .is_ok()
+    );
+    let before = cycle_snapshot(&handle, &following).await;
+    assert!(old_host.push(late).await.is_err());
+    assert_eq!(cycle_snapshot(&handle, &following).await, before);
+    assert_eq!(handle.execution_saved_checkpoint(closed_id).await.unwrap(), checkpoint);
+    assert!(!execution_log(&handle, &before.test_executions[0].test_execution_id).await.contains("late old run"));
+    probe.released.send_replace(true);
+    probe.cancellation.send_replace(true);
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    probe.hosts.lock().unwrap().clear();
+    owner.shutdown().await.unwrap();
+}
+
+async fn ignored_stop(mode: Settlement) {
+    let root = tempdir().unwrap();
+    let probe = Arc::new(Probe::new(mode));
+    let (mut owner, handle) = started(config(root.path()).register(Arc::new(Provider(probe.clone())))).await;
+    let suite = handle.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let cycle_id = start_cases(&handle, metadata("session.ignored", "Ignored Stop"), materialize_cases(SOURCE, &suite)).await;
+    let receipt = handle.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    let original = cycle_snapshot(&handle, &cycle_id).await.test_executions.remove(0);
+
+    tokio::time::pause();
+    let stopping = {
+        let handle = handle.clone();
+        let cycle_id = cycle_id.clone();
+        tokio::spawn(async move { handle.seal_cycle(cycle_id, CommandContext::default()).await.unwrap() })
+    };
+    probe.cancelled.notified().await;
+    // The paused clock reaches the stop budget only while the runtime is idle: forcing it forward
+    // with `advance` also expired storage deadlines of writes still in flight on a slow machine,
+    // failing the journal capture and leaving the run unsettled.
+    tokio::time::sleep(dokime_runtime::operations::STOP_SETTLEMENT.timeout + Duration::from_secs(1)).await;
+    tokio::time::resume();
+    stopping.await.unwrap();
+    wait_for_run_settled(&handle, &receipt.command_id).await;
+    let cycle = cycle_snapshot(&handle, &cycle_id).await;
+    assert_eq!(cycle.lifecycle, CycleStatus::Stopped);
+    assert_eq!(cycle.test_executions.len(), 1);
+    let execution = &cycle.test_executions[0];
+    assert_eq!(execution.test_execution_id, original.test_execution_id);
+    assert_eq!(execution.scope, original.scope);
+    assert_eq!(execution.snapshot, original.snapshot);
+    assert_eq!(execution.steps[0].step_id, original.steps[0].step_id);
+    assert_eq!(execution.status, ExecutionStatus::Cancelled);
+    assert!(cycle.saved.is_some(), "host settlement seals the final cycle report");
+    assert!(handle.pending_prompt_projection().await.is_empty());
+    let files = handle.execution_files(&execution.test_execution_id).await.unwrap();
+    let log = files.iter().find(|file| file.relative_path == "artifacts/execution.log").unwrap();
+    let log = handle.execution_file_content(&execution.test_execution_id, log.relative_path.clone(), 0, 4096).await.unwrap().unwrap();
+    assert!(std::str::from_utf8(&log.bytes).unwrap().contains(&format!(
+        "the run did not answer its stop within {} seconds",
+        dokime_runtime::operations::STOP_SETTLEMENT.timeout.as_secs()
+    )));
+    probe.released.send_replace(true);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// A Cycle That Runs Its Case Twice, Continuing Automatically, Held In Its First Execution.
+async fn held_cycle(runtime: &RuntimeHandle, probe: &Probe, metadata: Metadata) -> TestCycleId {
+    let suite = runtime.test_suites().await.into_iter().find(|suite| suite.source == SOURCE).unwrap().suite;
+    let case = materialize_cases(SOURCE, &suite).remove(0);
+    let cycle_id = start_cases(runtime, metadata, vec![case.clone(), case]).await;
+    let receipt = runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    probe.entered.notified().await;
+    cycle_id
+}
+
+// Release The Held Execution; The Cycle Continues With Its Next Case, Which Holds In Turn.
+async fn next_case(probe: &Probe) {
+    probe.released.send_replace(true);
+    probe.entered.notified().await;
+}
+
+// What The Store Says About One Installation, With What The Running Backend Does With It.
+async fn installation(runtime: &RuntimeHandle, install: uuid::Uuid) -> PluginEntry {
+    let mut entry = runtime.plugin_store().get(install).await.unwrap();
+    runtime.plugin_process_state(&mut entry);
+    entry
+}
+
+// Install `bytes` Into The Running Backend And Wait Until It Applied Them.
+async fn installed(runtime: &RuntimeHandle, bytes: Vec<u8>) -> PluginEntry {
+    let entry = runtime.install_plugin(bytes, |_| Ok(())).await.unwrap();
+    runtime.plugin_bundle_settled(&entry.metadata.as_ref().unwrap().identity.name).await;
+    installation(runtime, entry.installation.install_id).await
+}
+
+async fn settled(runtime: &RuntimeHandle, entry: &PluginEntry) -> PluginEntry {
+    runtime.plugin_bundle_settled(&entry.metadata.as_ref().unwrap().identity.name).await;
+    installation(runtime, entry.installation.install_id).await
+}
+
+// The Ready Generation Of The Host Program, If It Runs.
+async fn running_generation(owner: &dokime_runtime::Runtime) -> Option<PluginGeneration> {
+    let status = owner.fixture_plugin_status(HOST).await?;
+    (status.state == dokime_runtime::harmos::plugin::PluginState::Ready).then_some(status.generation).flatten()
+}
+
+// Whether The Admitted Catalog Lists The Host Program.
+async fn admits_host(runtime: &RuntimeHandle) -> bool {
+    let view = runtime
+        .query_runtime_view(RuntimeViewQuery {
+            topic: RuntimeViewTopic::InstalledPlugins,
+            scope: None,
+            window: RuntimeWindow::Full,
+            resolution: RuntimeResolution::Raw,
+            cursor: None,
+        })
+        .await
+        .unwrap();
+    let RuntimeViewPayload::InstalledPlugins { frame } = view.payload else { panic!("unexpected payload") };
+    frame.installed_plugins.iter().any(|plugin| plugin.plugin_id.as_str() == HOST)
+}
+
+fn host_bundle() -> Vec<u8> {
+    std::fs::read(crate::service_support::bundles::host_plugin_bundle()).unwrap()
+}
+
+// A Bundle Whose Program Requires A Secret Nobody Stored.
+fn secret_bundle(package: &str, owner: &str) -> Vec<u8> {
+    use dokime_domain::model::settings::{SecretSetting, Settings, SettingsEntry};
+    let token = SecretSetting {
+        id: "token".into(),
+        title: "Access Token".into(),
+        description: None,
+        required: true,
+    };
+    let settings = Settings {
+        contributions: vec![SettingsEntry::Secret(token)],
+    };
+    crate::service_support::bundles::bundle_with_settings(package, owner, settings)
+}
+
+// Saved Values The Program's Catalog Refuses, So Reading Its Settings Fails.
+async fn save_unresolvable(runtime: &RuntimeHandle, install: uuid::Uuid, refused: bool) {
+    let values = refused.then(|| dokime_runtime::plugins::ProgramValues {
+        values: [("undeclared".to_owned(), Value::Bool(true))].into_iter().collect(),
+        saved: ["undeclared".to_owned()].into_iter().collect(),
+    });
+    runtime
+        .settings()
+        .edit(move |document| {
+            let programs = &mut document.plugins.get_mut(&install).expect("the installation is stored").programs;
+            match values {
+                Some(values) => programs.insert(HOST.to_owned(), values),
+                None => programs.remove(HOST),
+            };
+            Ok::<_, dokime_runtime::plugins::PluginError>(())
+        })
+        .await
+        .unwrap();
+}
+
+/* === Tests === */

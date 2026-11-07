@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,8 +37,6 @@ use dokime_runtime::runtime::query::execution_history::ExecutionBrowseLifecycle;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn container_request_outcomes() {
     use dokime_domain::model::execution::request::RunPhase;
@@ -456,5 +455,7 @@ pub(crate) async fn execution_retry_receipt() {
     drop(handle);
     rebooted.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
 
 /* === Tests === */

@@ -43,38 +43,6 @@ use super::{Backend, Error, State};
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-// A Store Holding The Fixture Schema And Records `2..=last`.
-async fn seeded(root: &std::path::Path, last: u64) -> (Store, Vec<StoredRecord>) {
-    let store = Store::<()>::open(root).await;
-    store.backend.write_schemas(store.batch(vec![store.schema()])).await.unwrap();
-    let records = (2..=last).map(|sequence| store.record(sequence)).collect::<Vec<_>>();
-    store.backend.write_records(store.batch(records.clone())).await.unwrap();
-    (store, records)
-}
-
-async fn exact_retry(store: &Store, records: &[StoredRecord], through: u64) {
-    let saved = store.backend.write_records(store.batch(records.to_vec())).await.unwrap();
-    assert_eq!(saved, store.at(through));
-    let mut conflicting = records.to_vec();
-    conflicting[1].payload = vec![8, 99];
-    assert!(store.backend.write_records(store.batch(conflicting)).await.is_err());
-    assert_eq!(store.backend.cursor_saved().await.unwrap(), store.at(through));
-    assert_eq!(store.records(through).await, records);
-}
-
-fn file_metadata(name: &str, bytes: &[u8]) -> FileMetadata {
-    FileMetadata {
-        id: id(name),
-        scope: Some(id("execution")),
-        media_type: "text/plain".into(),
-        expected_length: Some(bytes.len() as u64),
-        expected_sha256: Some(Sha256::digest(bytes).into()),
-    }
-}
-
-/* === Tests === */
-
 // Pages ascend by position, always carry at least one entry, and an empty page
 // means the selection is exhausted at the snapshot's frontier.
 pub(crate) async fn paged_records_ascend() {
@@ -438,3 +406,36 @@ pub(crate) async fn close_releases_owner() {
     drop(store);
     State::open(root.path()).await.unwrap().close().await.unwrap();
 }
+
+/* === Private Functions === */
+
+// A Store Holding The Fixture Schema And Records `2..=last`.
+async fn seeded(root: &std::path::Path, last: u64) -> (Store, Vec<StoredRecord>) {
+    let store = Store::<()>::open(root).await;
+    store.backend.write_schemas(store.batch(vec![store.schema()])).await.unwrap();
+    let records = (2..=last).map(|sequence| store.record(sequence)).collect::<Vec<_>>();
+    store.backend.write_records(store.batch(records.clone())).await.unwrap();
+    (store, records)
+}
+
+async fn exact_retry(store: &Store, records: &[StoredRecord], through: u64) {
+    let saved = store.backend.write_records(store.batch(records.to_vec())).await.unwrap();
+    assert_eq!(saved, store.at(through));
+    let mut conflicting = records.to_vec();
+    conflicting[1].payload = vec![8, 99];
+    assert!(store.backend.write_records(store.batch(conflicting)).await.is_err());
+    assert_eq!(store.backend.cursor_saved().await.unwrap(), store.at(through));
+    assert_eq!(store.records(through).await, records);
+}
+
+fn file_metadata(name: &str, bytes: &[u8]) -> FileMetadata {
+    FileMetadata {
+        id: id(name),
+        scope: Some(id("execution")),
+        media_type: "text/plain".into(),
+        expected_length: Some(bytes.len() as u64),
+        expected_sha256: Some(Sha256::digest(bytes).into()),
+    }
+}
+
+/* === Tests === */

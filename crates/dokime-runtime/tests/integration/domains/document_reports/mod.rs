@@ -19,6 +19,7 @@ mod report_payloads;
 mod reports;
 
 /* === Re-Exports === */
+
 pub(crate) use crate::service_support::prelude::*;
 
 /* === Imports === */
@@ -46,8 +47,6 @@ pub(crate) use crate::service_support::prelude::*;
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -1015,3 +1014,5 @@ async fn checkpoint_preserves_inflight_seal() {
     drop(durable);
     owner.shutdown().await.unwrap();
 }
+
+/* === Tests === */

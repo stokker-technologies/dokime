@@ -13,10 +13,6 @@
 
 pub(crate) mod work;
 
-#[cfg(test)]
-#[path = "history_tests.rs"]
-mod tests;
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -94,6 +90,7 @@ pub struct Key {
 struct ExecutionProjection {
     #[serde(flatten)]
     summary: ExecutionSummary,
+
     suite_id: Option<SuiteId>,
     case: Option<crate::runtime::query::cases::CaseHeader>,
 }
@@ -443,6 +440,14 @@ pub(super) fn execution_plan(selection: &ExecutionSelection, read: &Read) -> Res
     Ok(plan)
 }
 
+pub(crate) fn timestamp(time: &dokime_domain::model::time::Timestamp) -> Result<Timestamp, Error> {
+    let time = time.to_datetime()?;
+    Ok(Timestamp {
+        seconds: time.unix_timestamp(),
+        nanos: time.nanosecond() as i32,
+    })
+}
+
 /* === Private Functions === */
 
 fn advance(connection: &Connection) -> Result<i64, Error> {
@@ -451,14 +456,6 @@ fn advance(connection: &Connection) -> Result<i64, Error> {
         [],
         |row| row.get(0),
     )?)
-}
-
-pub(crate) fn timestamp(time: &dokime_domain::model::time::Timestamp) -> Result<Timestamp, Error> {
-    let time = time.to_datetime()?;
-    Ok(Timestamp {
-        seconds: time.unix_timestamp(),
-        nanos: time.nanosecond() as i32,
-    })
 }
 
 fn time_key(time: Option<Timestamp>) -> Vec<u8> {
@@ -636,3 +633,7 @@ fn page<T>(connection: &Connection, plan: Plan, read: &Read, decode: impl Fn(&[u
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+#[path = "history_tests.rs"]
+mod tests;

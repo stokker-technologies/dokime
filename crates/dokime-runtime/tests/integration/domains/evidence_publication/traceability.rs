@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,7 +36,6 @@ use super::*;
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 // resource records project into instance groups without mutating parameters.
 
 pub(super) async fn resource_records_absent(runtime: &RuntimeHandle) {
@@ -115,6 +115,8 @@ pub(super) async fn resource_records_absent(runtime: &RuntimeHandle) {
         assert!(!ours.test_executions[0].output_parameters.contains_key(key));
     }
 }
+
+/* === Private Functions === */
 
 async fn publish_tooling_resource(runtime: &RuntimeHandle, scope: &RecordScope, record_type: &str, serial_number: Option<&str>) {
     let mut request = RecordPublishRequest::new(identifier(record_type), RecordSeverity::Info);

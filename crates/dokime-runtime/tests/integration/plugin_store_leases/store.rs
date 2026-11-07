@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeSet, fs, path::Path};
+
 // Third Party Imports
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
+
 // Local Imports
 use crate::service_support::bundles::bundle;
 use dokime_runtime::config::Settings;
@@ -36,292 +39,6 @@ use dokime_runtime::plugins::{PluginError, PluginLastBoot, PluginState, PluginSt
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-async fn store(root: &Path) -> (PluginStore, dokime_runtime::storage::sqlite::State) {
-    let database = dokime_runtime::storage::sqlite::State::open(&root.join("data")).await.unwrap();
-    let settings = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root), database.clone()).await.unwrap();
-    (PluginStore::with_archive_limit(settings, Default::default(), 285_212_672), database)
-}
-
-fn saved_metadata(root: &Path) -> serde_json::Value {
-    let connection =
-        rusqlite::Connection::open_with_flags(root.join("data/local.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
-    let body: Vec<u8> = connection.query_row("SELECT body FROM application_metadata WHERE id=1", [], |row| row.get(0)).unwrap();
-    serde_json::from_slice(&body).unwrap()
-}
-
-fn installer_metadata(path: &Path, version: &str, bytes: &[u8]) {
-    use sha2::{Digest, Sha256};
-    let digest = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-    let files = serde_json::json!({"plugins/plugin-host.dokime": digest});
-    let metadata = serde_json::json!({"schema":1,"version":version,"files":files});
-    fs::write(path, serde_json::to_vec(&metadata).unwrap()).unwrap();
-}
-
-fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize) -> Vec<u8> {
-    let identity = Identity {
-        name: package.into(),
-        version: version.parse().unwrap(),
-        description: "A fixture.".into(),
-        package: Default::default(),
-    };
-    let declaration =
-        serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
-    let policy = crate::service_support::budgets::settings::FIXTURE_POLICY;
-    // Inert artifact metadata names each lifecycle action's identity scheme rather than its fingerprint.
-    let lifecycle = serde_json::json!([
-        {"action": "initialize", "identity": "harmos.operation.v1", "policy": policy},
-        {"action": "shutdown", "identity": "harmos.operation.v1", "policy": policy},
-    ]);
-    let contracts =
-        serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"entry":{"direction":"lifecycle","lifecycle":lifecycle}});
-    let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});
-    let publications = serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
-    let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
-    let executable = format!(
-        "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
-    );
-    let resource = vec![0xABu8; resource_bytes];
-    Bundle::build(
-        identity,
-        &[
-            Source {
-                path: "bin/fixture",
-                bytes: executable.as_bytes(),
-                executable: Some(Executable {
-                    facility: Facility::Sidecar,
-                    target: env!("DOKIME_NATIVE_TARGET").into(),
-                    registrations: vec![],
-                }),
-            },
-            Source {
-                path: "resources/payload.bin",
-                bytes: &resource,
-                executable: None,
-            },
-        ],
-        Limits::default(),
-    )
-    .unwrap()
-    .bytes()
-    .to_vec()
-}
-
-/* === Tests === */
-
-#[dokime_tracing::trace_test]
-#[tokio::test]
-async fn boot_failure_persists_plugin_and_carrier() {
-    let root = tempfile::tempdir().unwrap();
-    let (store, database) = store(root.path()).await;
-    let id = store.install(&bundle("fixture", "fixture", "1.0.0"), &[], &BTreeSet::new()).await.unwrap().installation.install_id;
-    let carrier = dokime_runtime::harmos::domain::Failure::new(dokime_runtime::harmos::operations::FailureKind::Permanent, "api_token")
-        .with_detail("dokime.secret", "api_token")
-        .encode();
-    let failure = dokime_domain::model::plugins::wire::PluginStartFailure {
-        plugin_id: "fixture".into(),
-        plugin_name: "Fixture".into(),
-        message: String::new(),
-        code: Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()),
-        missing_secret: Some("api_token".into()),
-        consequences: vec!["workflow is unavailable".into()],
-        carrier: carrier.clone(),
-    };
-    store.record_boot(id, Some(failure.clone())).await.unwrap();
-    database.close().await.unwrap();
-    let (reopened, database) = self::store(root.path()).await;
-    let row = reopened.get(id).await.unwrap();
-    let Some(PluginLastBoot::Failed { failure: retained, .. }) = row.installation.last_boot else { panic!() };
-    assert_eq!(retained, failure);
-    assert_eq!(retained.plugin_id, "fixture");
-    assert_eq!(retained.missing_secret.as_deref(), Some("api_token"));
-    assert_eq!(
-        dokime_runtime::harmos::domain::Failure::decode(&retained.carrier).unwrap().code(),
-        dokime_runtime::harmos::operations::FailureKind::Permanent
-    );
-    database.close().await.unwrap();
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test]
-async fn schema_budget_installation() {
-    use dokime_runtime::config::{Config, RuntimeConfig, schema_defaults};
-    use std::num::NonZeroUsize;
-    let root = tempfile::tempdir().unwrap();
-    let database = dokime_runtime::storage::sqlite::State::open(&root.path().join("data")).await.unwrap();
-    let saved = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root.path()), database.clone()).await.unwrap();
-    let defaults = schema_defaults();
-    assert_eq!(Config::local(root.path()).schema.preparation_bytes, defaults.preparation_bytes);
-    let config = RuntimeConfig::new(
-        root.path(),
-        dokime_domain::model::identity::Metadata::new(dokime_domain::model::identity::Identifier::new("fixture").unwrap(), "Fixture", None),
-    );
-    assert_eq!(config.schema.preparation_work, defaults.preparation_work);
-    let bytes = bundle("budget-fixture", "fixture", "1.0.0");
-    for budget in ["memory bytes", "work"] {
-        let mut schema = defaults;
-        if budget == "work" {
-            schema.preparation_work = NonZeroUsize::new(1).unwrap();
-        } else {
-            schema.preparation_bytes = NonZeroUsize::new(1).unwrap();
-        }
-        let store = PluginStore::new(saved.clone(), schema);
-        let error = store.install(&bytes, &[], &BTreeSet::new()).await.unwrap_err().to_string();
-        assert!(error.contains("budget-fixture") && error.contains(budget) && error.contains("allowed 1"), "{error}");
-        assert!(store.list().await.unwrap().is_empty());
-        assert!(!store.root().exists());
-    }
-    let store = PluginStore::new(saved, defaults);
-    let installed = store.install(&bytes, &[], &BTreeSet::new()).await.unwrap();
-    assert_eq!(installed.metadata.unwrap().identity.name, "budget-fixture");
-    drop(store);
-    database.close().await.unwrap();
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test]
-async fn bundled_upgrades() {
-    let root = tempfile::tempdir().unwrap();
-    let (store, database) = store(root.path()).await;
-    let first_bytes = bundle("organization-host", "host", "1.0.0");
-    let first = store.install_bundled(&first_bytes, &[], &BTreeSet::new()).await.unwrap();
-    let first_id = first.installation.install_id;
-    assert_eq!(first.metadata.unwrap().identity.name, "organization-host");
-    assert_eq!(fs::read(store.path(first_id)).unwrap(), first_bytes);
-    let repeated = store.install_bundled(&first_bytes, &[], &BTreeSet::new()).await.unwrap();
-    assert_eq!(repeated.installation.install_id, first_id);
-    let settings = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root.path()), database.clone()).await.unwrap();
-    settings
-        .edit(move |document| {
-            let plugin = document.plugins.get_mut(&first_id).unwrap();
-            plugin.programs.entry("host".into()).or_default().saved.insert("calibration".into());
-            Ok::<_, PluginError>(())
-        })
-        .await
-        .unwrap();
-    drop(settings);
-
-    let upgraded_bytes = bundle("organization-host", "host", "2.0.0");
-    let upgraded = store.install_bundled(&upgraded_bytes, &[], &BTreeSet::new()).await.unwrap();
-    let upgraded_id = upgraded.installation.install_id;
-    assert_ne!(upgraded_id, first_id);
-    assert_eq!(store.get(first_id).await.unwrap().installation.state, PluginState::RemovalPending);
-    assert_eq!(store.get(upgraded_id).await.unwrap().metadata.unwrap().identity.version, "2.0.0");
-    assert_eq!(
-        saved_metadata(root.path())["plugins"][upgraded_id.to_string()]["programs"]["host"]["saved"],
-        serde_json::json!(["calibration"])
-    );
-    store.set_enabled(upgraded_id, false).await.unwrap();
-    drop(store);
-    database.close().await.unwrap();
-
-    // A Fresh Application Start Retains A Newer Installed Version And Its Disabled State.
-    let (store, database) = self::store(root.path()).await;
-    let kept = store.install_bundled(&first_bytes, &[], &BTreeSet::new()).await.unwrap();
-    assert_eq!(kept.installation.install_id, upgraded_id);
-    assert_eq!(kept.installation.state, PluginState::Disabled);
-    assert_eq!(fs::read(store.path(upgraded_id)).unwrap(), upgraded_bytes);
-    let newer = bundle("organization-host", "host", "3.0.0");
-    let upgraded = store.install_bundled(&newer, &[], &BTreeSet::new()).await.unwrap();
-    assert_eq!(upgraded.installation.state, PluginState::Disabled);
-    assert_eq!(upgraded.metadata.unwrap().identity.version, "3.0.0");
-
-    let fourth = bundle("organization-host", "host", "4.0.0");
-    let fifth = bundle("organization-host", "host", "5.0.0");
-    let sources = BTreeSet::new();
-    let (left, right) = tokio::join!(store.install_bundled(&fifth, &[], &sources), store.install_bundled(&fourth, &[], &sources));
-    left.unwrap();
-    right.unwrap();
-    let current = store.list().await.unwrap().into_iter().find(|entry| entry.installation.state == PluginState::Disabled).unwrap();
-    assert_eq!(current.metadata.unwrap().identity.version, "5.0.0");
-    database.close().await.unwrap();
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test]
-async fn bundled_sources_survive() {
-    for identifier in [dokime_runtime::paths::DEFAULT_APPLICATION_ID, "com.example.testhub"] {
-        let root = tempfile::tempdir().unwrap();
-        let application = root.path().join(identifier);
-        let plugins = application.join("plugins");
-        fs::create_dir_all(&plugins).unwrap();
-        let source = plugins.join("plugin-host.dokime");
-        let bytes = bundle("organization-host", "host", "1.0.0");
-        fs::write(&source, &bytes).unwrap();
-        let metadata = application.join("installer.json");
-        let mut installation = None;
-        for version in ["1.0.0", "2.0.0"] {
-            installer_metadata(&metadata, version, &bytes);
-            let (store, database) = self::store(&application).await;
-            assert_eq!(store.root(), application.join("data/plugins"));
-            store.sweep().await.unwrap();
-            store.install_distribution(&plugins, &[], &BTreeSet::new()).await.unwrap();
-            let installed = store.installed().await.unwrap();
-            assert_eq!(installed.len(), 1);
-            assert_eq!(installed[0].path.parent(), Some(store.root()));
-            assert_eq!(fs::read(&installed[0].path).unwrap(), bytes);
-            assert!(source.is_file());
-            assert_eq!(fs::read(&source).unwrap(), bytes);
-            let current = store.list().await.unwrap().pop().unwrap();
-            assert_eq!(current.metadata.unwrap().identity.name, "organization-host");
-            if let Some(previous) = installation {
-                assert_eq!(current.installation.install_id, previous);
-            }
-            installation = Some(current.installation.install_id);
-            drop(store);
-            database.close().await.unwrap();
-        }
-    }
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test]
-async fn bundled_distribution() {
-    let root = tempfile::tempdir().unwrap();
-    let installer = tempfile::tempdir().unwrap();
-    let plugins = installer.path().join("plugins");
-    fs::create_dir(&plugins).unwrap();
-    let distribution = installer.path().join("installer.json");
-    fs::write(installer.path().join("distribution.json"), br#"{"schema":1,"identifier":"com.example.testhub"}"#).unwrap();
-    let bytes = bundle("organization-host", "host", "1.0.0");
-    installer_metadata(&distribution, "1.0.0", &bytes);
-    fs::write(plugins.join("plugin-host.dokime"), &bytes).unwrap();
-    fs::write(plugins.join("leftover.dokime"), b"unindexed older installer resource").unwrap();
-    let sources = BTreeSet::new();
-    let (store, database) = self::store(root.path()).await;
-    store.install_distribution(&plugins, &[], &sources).await.unwrap();
-    let first = store.installed().await.unwrap();
-    assert_eq!(first.len(), 1);
-    let first = store.list().await.unwrap().pop().unwrap();
-    store.remove(first.installation.install_id).await.unwrap();
-    store.sweep().await.unwrap();
-    drop(store);
-    database.close().await.unwrap();
-
-    let (store, database) = self::store(root.path()).await;
-    store.install_distribution(&plugins, &[], &sources).await.unwrap();
-    assert!(store.installed().await.unwrap().is_empty());
-    installer_metadata(&distribution, "2.0.0", &bytes);
-    store.install_distribution(&plugins, &[], &sources).await.unwrap();
-    assert_eq!(store.installed().await.unwrap().len(), 1);
-    let newer = store.install(&bundle("organization-host", "host", "3.0.0"), &[], &sources).await.unwrap();
-    installer_metadata(&distribution, "3.0.0", &bytes);
-    store.install_distribution(&plugins, &[], &sources).await.unwrap();
-    assert_eq!(fs::read(store.path(newer.installation.install_id)).unwrap(), bundle("organization-host", "host", "3.0.0"));
-
-    let before = saved_metadata(root.path())["bundled_distribution"].clone();
-    installer_metadata(&distribution, "4.0.0", &bytes);
-    fs::write(plugins.join("plugin-host.dokime"), b"modified archive").unwrap();
-    let refused = store.install_distribution(&plugins, &[], &sources).await.unwrap_err();
-    assert!(refused.to_string().contains("plugin-host.dokime"));
-    assert_eq!(saved_metadata(root.path())["bundled_distribution"], before);
-    fs::write(plugins.join("plugin-host.dokime"), &bytes).unwrap();
-    store.install_distribution(&plugins, &[], &sources).await.unwrap();
-    assert_ne!(saved_metadata(root.path())["bundled_distribution"], before);
-    database.close().await.unwrap();
-}
 
 pub(crate) async fn direct_installation() {
     let bytes = large_bundle("fixture", "fixture", "1.0.0", 70 * 1024 * 1024);
@@ -585,3 +302,290 @@ pub(crate) async fn unauthorized_files_kept() {
     assert_eq!(body, b"{");
     database.close().await.unwrap();
 }
+
+/* === Private Functions === */
+
+async fn store(root: &Path) -> (PluginStore, dokime_runtime::storage::sqlite::State) {
+    let database = dokime_runtime::storage::sqlite::State::open(&root.join("data")).await.unwrap();
+    let settings = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root), database.clone()).await.unwrap();
+    (PluginStore::with_archive_limit(settings, Default::default(), 285_212_672), database)
+}
+
+fn saved_metadata(root: &Path) -> serde_json::Value {
+    let connection =
+        rusqlite::Connection::open_with_flags(root.join("data/local.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    let body: Vec<u8> = connection.query_row("SELECT body FROM application_metadata WHERE id=1", [], |row| row.get(0)).unwrap();
+    serde_json::from_slice(&body).unwrap()
+}
+
+fn installer_metadata(path: &Path, version: &str, bytes: &[u8]) {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let files = serde_json::json!({"plugins/plugin-host.dokime": digest});
+    let metadata = serde_json::json!({"schema":1,"version":version,"files":files});
+    fs::write(path, serde_json::to_vec(&metadata).unwrap()).unwrap();
+}
+
+fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize) -> Vec<u8> {
+    let identity = Identity {
+        name: package.into(),
+        version: version.parse().unwrap(),
+        description: "A fixture.".into(),
+        package: Default::default(),
+    };
+    let declaration =
+        serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
+    let policy = crate::service_support::budgets::settings::FIXTURE_POLICY;
+    // Inert artifact metadata names each lifecycle action's identity scheme rather than its fingerprint.
+    let lifecycle = serde_json::json!([
+        {"action": "initialize", "identity": "harmos.operation.v1", "policy": policy},
+        {"action": "shutdown", "identity": "harmos.operation.v1", "policy": policy},
+    ]);
+    let contracts =
+        serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"entry":{"direction":"lifecycle","lifecycle":lifecycle}});
+    let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});
+    let publications = serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
+    let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
+    let executable = format!(
+        "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
+        prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
+    );
+    let resource = vec![0xABu8; resource_bytes];
+    Bundle::build(
+        identity,
+        &[
+            Source {
+                path: "bin/fixture",
+                bytes: executable.as_bytes(),
+                executable: Some(Executable {
+                    facility: Facility::Sidecar,
+                    target: env!("DOKIME_NATIVE_TARGET").into(),
+                    registrations: vec![],
+                }),
+            },
+            Source {
+                path: "resources/payload.bin",
+                bytes: &resource,
+                executable: None,
+            },
+        ],
+        Limits::default(),
+    )
+    .unwrap()
+    .bytes()
+    .to_vec()
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn boot_failure_persists_plugin_and_carrier() {
+    let root = tempfile::tempdir().unwrap();
+    let (store, database) = store(root.path()).await;
+    let id = store.install(&bundle("fixture", "fixture", "1.0.0"), &[], &BTreeSet::new()).await.unwrap().installation.install_id;
+    let carrier = dokime_runtime::harmos::domain::Failure::new(dokime_runtime::harmos::operations::FailureKind::Permanent, "api_token")
+        .with_detail("dokime.secret", "api_token")
+        .encode();
+    let failure = dokime_domain::model::plugins::wire::PluginStartFailure {
+        plugin_id: "fixture".into(),
+        plugin_name: "Fixture".into(),
+        message: String::new(),
+        code: Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE.to_string()),
+        missing_secret: Some("api_token".into()),
+        consequences: vec!["workflow is unavailable".into()],
+        carrier: carrier.clone(),
+    };
+    store.record_boot(id, Some(failure.clone())).await.unwrap();
+    database.close().await.unwrap();
+    let (reopened, database) = self::store(root.path()).await;
+    let row = reopened.get(id).await.unwrap();
+    let Some(PluginLastBoot::Failed { failure: retained, .. }) = row.installation.last_boot else { panic!() };
+    assert_eq!(retained, failure);
+    assert_eq!(retained.plugin_id, "fixture");
+    assert_eq!(retained.missing_secret.as_deref(), Some("api_token"));
+    assert_eq!(
+        dokime_runtime::harmos::domain::Failure::decode(&retained.carrier).unwrap().code(),
+        dokime_runtime::harmos::operations::FailureKind::Permanent
+    );
+    database.close().await.unwrap();
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn schema_budget_installation() {
+    use dokime_runtime::config::{Config, RuntimeConfig, schema_defaults};
+    use std::num::NonZeroUsize;
+    let root = tempfile::tempdir().unwrap();
+    let database = dokime_runtime::storage::sqlite::State::open(&root.path().join("data")).await.unwrap();
+    let saved = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root.path()), database.clone()).await.unwrap();
+    let defaults = schema_defaults();
+    assert_eq!(Config::local(root.path()).schema.preparation_bytes, defaults.preparation_bytes);
+    let config = RuntimeConfig::new(
+        root.path(),
+        dokime_domain::model::identity::Metadata::new(dokime_domain::model::identity::Identifier::new("fixture").unwrap(), "Fixture", None),
+    );
+    assert_eq!(config.schema.preparation_work, defaults.preparation_work);
+    let bytes = bundle("budget-fixture", "fixture", "1.0.0");
+    for budget in ["memory bytes", "work"] {
+        let mut schema = defaults;
+        if budget == "work" {
+            schema.preparation_work = NonZeroUsize::new(1).unwrap();
+        } else {
+            schema.preparation_bytes = NonZeroUsize::new(1).unwrap();
+        }
+        let store = PluginStore::new(saved.clone(), schema);
+        let error = store.install(&bytes, &[], &BTreeSet::new()).await.unwrap_err().to_string();
+        assert!(error.contains("budget-fixture") && error.contains(budget) && error.contains("allowed 1"), "{error}");
+        assert!(store.list().await.unwrap().is_empty());
+        assert!(!store.root().exists());
+    }
+    let store = PluginStore::new(saved, defaults);
+    let installed = store.install(&bytes, &[], &BTreeSet::new()).await.unwrap();
+    assert_eq!(installed.metadata.unwrap().identity.name, "budget-fixture");
+    drop(store);
+    database.close().await.unwrap();
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn bundled_upgrades() {
+    let root = tempfile::tempdir().unwrap();
+    let (store, database) = store(root.path()).await;
+    let first_bytes = bundle("organization-host", "host", "1.0.0");
+    let first = store.install_bundled(&first_bytes, &[], &BTreeSet::new()).await.unwrap();
+    let first_id = first.installation.install_id;
+    assert_eq!(first.metadata.unwrap().identity.name, "organization-host");
+    assert_eq!(fs::read(store.path(first_id)).unwrap(), first_bytes);
+    let repeated = store.install_bundled(&first_bytes, &[], &BTreeSet::new()).await.unwrap();
+    assert_eq!(repeated.installation.install_id, first_id);
+    let settings = Settings::open(dokime_runtime::paths::ApplicationPaths::new(root.path()), database.clone()).await.unwrap();
+    settings
+        .edit(move |document| {
+            let plugin = document.plugins.get_mut(&first_id).unwrap();
+            plugin.programs.entry("host".into()).or_default().saved.insert("calibration".into());
+            Ok::<_, PluginError>(())
+        })
+        .await
+        .unwrap();
+    drop(settings);
+
+    let upgraded_bytes = bundle("organization-host", "host", "2.0.0");
+    let upgraded = store.install_bundled(&upgraded_bytes, &[], &BTreeSet::new()).await.unwrap();
+    let upgraded_id = upgraded.installation.install_id;
+    assert_ne!(upgraded_id, first_id);
+    assert_eq!(store.get(first_id).await.unwrap().installation.state, PluginState::RemovalPending);
+    assert_eq!(store.get(upgraded_id).await.unwrap().metadata.unwrap().identity.version, "2.0.0");
+    assert_eq!(
+        saved_metadata(root.path())["plugins"][upgraded_id.to_string()]["programs"]["host"]["saved"],
+        serde_json::json!(["calibration"])
+    );
+    store.set_enabled(upgraded_id, false).await.unwrap();
+    drop(store);
+    database.close().await.unwrap();
+
+    // A Fresh Application Start Retains A Newer Installed Version And Its Disabled State.
+    let (store, database) = self::store(root.path()).await;
+    let kept = store.install_bundled(&first_bytes, &[], &BTreeSet::new()).await.unwrap();
+    assert_eq!(kept.installation.install_id, upgraded_id);
+    assert_eq!(kept.installation.state, PluginState::Disabled);
+    assert_eq!(fs::read(store.path(upgraded_id)).unwrap(), upgraded_bytes);
+    let newer = bundle("organization-host", "host", "3.0.0");
+    let upgraded = store.install_bundled(&newer, &[], &BTreeSet::new()).await.unwrap();
+    assert_eq!(upgraded.installation.state, PluginState::Disabled);
+    assert_eq!(upgraded.metadata.unwrap().identity.version, "3.0.0");
+
+    let fourth = bundle("organization-host", "host", "4.0.0");
+    let fifth = bundle("organization-host", "host", "5.0.0");
+    let sources = BTreeSet::new();
+    let (left, right) = tokio::join!(store.install_bundled(&fifth, &[], &sources), store.install_bundled(&fourth, &[], &sources));
+    left.unwrap();
+    right.unwrap();
+    let current = store.list().await.unwrap().into_iter().find(|entry| entry.installation.state == PluginState::Disabled).unwrap();
+    assert_eq!(current.metadata.unwrap().identity.version, "5.0.0");
+    database.close().await.unwrap();
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn bundled_sources_survive() {
+    for identifier in [dokime_runtime::paths::DEFAULT_APPLICATION_ID, "com.example.testhub"] {
+        let root = tempfile::tempdir().unwrap();
+        let application = root.path().join(identifier);
+        let plugins = application.join("plugins");
+        fs::create_dir_all(&plugins).unwrap();
+        let source = plugins.join("plugin-host.dokime");
+        let bytes = bundle("organization-host", "host", "1.0.0");
+        fs::write(&source, &bytes).unwrap();
+        let metadata = application.join("installer.json");
+        let mut installation = None;
+        for version in ["1.0.0", "2.0.0"] {
+            installer_metadata(&metadata, version, &bytes);
+            let (store, database) = self::store(&application).await;
+            assert_eq!(store.root(), application.join("data/plugins"));
+            store.sweep().await.unwrap();
+            store.install_distribution(&plugins, &[], &BTreeSet::new()).await.unwrap();
+            let installed = store.installed().await.unwrap();
+            assert_eq!(installed.len(), 1);
+            assert_eq!(installed[0].path.parent(), Some(store.root()));
+            assert_eq!(fs::read(&installed[0].path).unwrap(), bytes);
+            assert!(source.is_file());
+            assert_eq!(fs::read(&source).unwrap(), bytes);
+            let current = store.list().await.unwrap().pop().unwrap();
+            assert_eq!(current.metadata.unwrap().identity.name, "organization-host");
+            if let Some(previous) = installation {
+                assert_eq!(current.installation.install_id, previous);
+            }
+            installation = Some(current.installation.install_id);
+            drop(store);
+            database.close().await.unwrap();
+        }
+    }
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn bundled_distribution() {
+    let root = tempfile::tempdir().unwrap();
+    let installer = tempfile::tempdir().unwrap();
+    let plugins = installer.path().join("plugins");
+    fs::create_dir(&plugins).unwrap();
+    let distribution = installer.path().join("installer.json");
+    fs::write(installer.path().join("distribution.json"), br#"{"schema":1,"identifier":"com.example.testhub"}"#).unwrap();
+    let bytes = bundle("organization-host", "host", "1.0.0");
+    installer_metadata(&distribution, "1.0.0", &bytes);
+    fs::write(plugins.join("plugin-host.dokime"), &bytes).unwrap();
+    fs::write(plugins.join("leftover.dokime"), b"unindexed older installer resource").unwrap();
+    let sources = BTreeSet::new();
+    let (store, database) = self::store(root.path()).await;
+    store.install_distribution(&plugins, &[], &sources).await.unwrap();
+    let first = store.installed().await.unwrap();
+    assert_eq!(first.len(), 1);
+    let first = store.list().await.unwrap().pop().unwrap();
+    store.remove(first.installation.install_id).await.unwrap();
+    store.sweep().await.unwrap();
+    drop(store);
+    database.close().await.unwrap();
+
+    let (store, database) = self::store(root.path()).await;
+    store.install_distribution(&plugins, &[], &sources).await.unwrap();
+    assert!(store.installed().await.unwrap().is_empty());
+    installer_metadata(&distribution, "2.0.0", &bytes);
+    store.install_distribution(&plugins, &[], &sources).await.unwrap();
+    assert_eq!(store.installed().await.unwrap().len(), 1);
+    let newer = store.install(&bundle("organization-host", "host", "3.0.0"), &[], &sources).await.unwrap();
+    installer_metadata(&distribution, "3.0.0", &bytes);
+    store.install_distribution(&plugins, &[], &sources).await.unwrap();
+    assert_eq!(fs::read(store.path(newer.installation.install_id)).unwrap(), bundle("organization-host", "host", "3.0.0"));
+
+    let before = saved_metadata(root.path())["bundled_distribution"].clone();
+    installer_metadata(&distribution, "4.0.0", &bytes);
+    fs::write(plugins.join("plugin-host.dokime"), b"modified archive").unwrap();
+    let refused = store.install_distribution(&plugins, &[], &sources).await.unwrap_err();
+    assert!(refused.to_string().contains("plugin-host.dokime"));
+    assert_eq!(saved_metadata(root.path())["bundled_distribution"], before);
+    fs::write(plugins.join("plugin-host.dokime"), &bytes).unwrap();
+    store.install_distribution(&plugins, &[], &sources).await.unwrap();
+    assert_ne!(saved_metadata(root.path())["bundled_distribution"], before);
+    database.close().await.unwrap();
+}
+
+/* === Tests === */

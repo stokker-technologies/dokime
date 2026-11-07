@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos::state::Transaction;
+
 // Local Imports
 use dokime_runtime::domains::evidence::RecordPublishRequest;
 use dokime_runtime::records::RecordSeverity;
@@ -38,29 +40,6 @@ use dokime_runtime::{Identifier, Timestamp};
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-fn plugin_state(declarations: &[(&str, &str)]) -> dokime_runtime::state::RuntimeState {
-    let mut state = dokime_runtime::state::RuntimeState::new(dokime_runtime::model::identity::new_id());
-    let bundles = declarations
-        .iter()
-        .map(|(source, record_type)| dokime_runtime::state::BundleCatalog {
-            package: (*source).to_owned(),
-            path: "fixture.dokime".into(),
-            installation: None,
-            content_digest: "fixture-digest".to_owned(),
-            plugins: vec![dokime_runtime::InstalledPlugin {
-                source: (*source).to_owned(),
-                enabled: true,
-                record_contracts: vec![dokime_runtime::records::RecordContract::declared(*record_type, "Fixture record")],
-                ..Default::default()
-            }],
-        })
-        .collect::<Vec<_>>();
-    state.reconcile_providers(&bundles).expect("the fixture catalog is admitted");
-    state
-}
-
-/* === Tests === */
 // a plugin may only narrate the records its own catalog declares.
 
 pub(crate) fn plugin_may_declares() {
@@ -114,3 +93,28 @@ pub(crate) fn admission_order_publishers() {
     // one fold admits them one after another, in the order it received them.
     assert_eq!(state.record_count, 3);
 }
+
+/* === Private Functions === */
+
+fn plugin_state(declarations: &[(&str, &str)]) -> dokime_runtime::state::RuntimeState {
+    let mut state = dokime_runtime::state::RuntimeState::new(dokime_runtime::model::identity::new_id());
+    let bundles = declarations
+        .iter()
+        .map(|(source, record_type)| dokime_runtime::state::BundleCatalog {
+            package: (*source).to_owned(),
+            path: "fixture.dokime".into(),
+            installation: None,
+            content_digest: "fixture-digest".to_owned(),
+            plugins: vec![dokime_runtime::InstalledPlugin {
+                source: (*source).to_owned(),
+                enabled: true,
+                record_contracts: vec![dokime_runtime::records::RecordContract::declared(*record_type, "Fixture record")],
+                ..Default::default()
+            }],
+        })
+        .collect::<Vec<_>>();
+    state.reconcile_providers(&bundles).expect("the fixture catalog is admitted");
+    state
+}
+
+/* === Tests === */

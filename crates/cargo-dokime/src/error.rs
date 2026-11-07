@@ -33,6 +33,7 @@
 pub enum Error {
     #[error("development child exited with status {0}")]
     DevelopmentExit(i32),
+
     #[error("cancelled")]
     Cancelled,
 

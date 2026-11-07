@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -34,8 +35,6 @@ use super::*;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
 
 // A cycle is created empty, refuses to run until cases are appended, then
 // runs the appended cases to completion.
@@ -113,5 +112,7 @@ pub(crate) async fn empty_cycle_seals() {
     );
     assert!(payload["test_executions"].as_array().is_none_or(|executions| executions.is_empty()));
 }
+
+/* === Private Functions === */
 
 /* === Tests === */

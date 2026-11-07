@@ -22,7 +22,6 @@ use std::io::{Read, Seek, SeekFrom};
 
 #[cfg(feature = "native")]
 use std::path::Path;
-
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
@@ -45,7 +44,6 @@ use crate::transport::{ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYT
 
 #[cfg(feature = "native")]
 const GROWTH_FLOOR: u64 = 64 * 1024;
-
 const ARTIFACTS: &str = "artifacts";
 
 // The registration name of the whole artifacts folder.

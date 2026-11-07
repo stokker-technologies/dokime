@@ -37,6 +37,7 @@ use dokime_runtime::{
 };
 
 /* === Constants === */
+
 const PAGE: u64 = 512;
 const START: u64 = 1_788_220_800;
 
@@ -45,6 +46,7 @@ const START: u64 = 1_788_220_800;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Fixture {
     owner: dokime_runtime::Runtime,
     runtime: RuntimeHandle,

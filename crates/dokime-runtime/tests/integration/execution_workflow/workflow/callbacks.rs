@@ -12,17 +12,21 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Mutex;
+
 // Third Party Imports
 use tokio::sync::Notify;
+
 // Local Imports
 use super::*;
 use dokime_runtime::execution::{CallbackTask, Callbacks, TemplateDefinition};
 
 /* === Constants === */
+
 static DRIVEN: Mutex<Option<Arc<Loop>>> = Mutex::new(None);
 
 /* === Macros === */
@@ -30,6 +34,7 @@ static DRIVEN: Mutex<Option<Arc<Loop>>> = Mutex::new(None);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Foreign;
 
 struct Resource(Arc<Loop>);
@@ -49,6 +54,7 @@ struct Loop {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Loop {
     fn new(stage: &'static str) -> Self {
         Self {
@@ -160,11 +166,6 @@ impl SidecarTemplate for Foreign {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-fn driven() -> Arc<Loop> {
-    DRIVEN.lock().unwrap().clone().expect("a case names the loop it drives before it starts the workflow")
-}
-
 pub(crate) async fn shutdown_joins_owners() {
     for (stage, expected) in [
         ("initialization", vec!["joined"]),
@@ -256,6 +257,12 @@ pub(crate) async fn interrupted_join_teardown() {
     assert_eq!(failures[0].message, "foreign finalizer failed");
     assert_eq!(*foreign.events.lock().unwrap(), ["joined"]);
     assert_eq!(*other.events.lock().unwrap(), ["joined"]);
+}
+
+/* === Private Functions === */
+
+fn driven() -> Arc<Loop> {
+    DRIVEN.lock().unwrap().clone().expect("a case names the loop it drives before it starts the workflow")
 }
 
 /* === Tests === */

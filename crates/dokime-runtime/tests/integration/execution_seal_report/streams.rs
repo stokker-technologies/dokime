@@ -12,25 +12,27 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-use crate::service_support::suites::ExecutionFixtureStart;
 
 // Standard Library Imports
+use std::sync::{Arc, Mutex};
 
 // Third Party Imports
+use async_trait::async_trait;
+use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
+use crate::service_support::suites::ExecutionFixtureStart;
 use crate::service_support::waits::until_telemetry;
-use async_trait::async_trait;
 use dokime_runtime::InstalledPlugin;
 use dokime_runtime::execution::Runnable;
 use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::runtime::Result;
 use dokime_runtime::schema::Described;
 use dokime_runtime::{Identifier, Value};
-use harmos::sidecar::StreamDeclaration;
-use std::sync::{Arc, Mutex};
 
 /* === Constants === */
+
+static SIGNALLED: Mutex<Option<Signals>> = Mutex::new(None);
 
 /* === Macros === */
 
@@ -38,26 +40,12 @@ use std::sync::{Arc, Mutex};
 
 /* === Structs === */
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-
 #[derive(Clone, Default)]
 struct Signals {
     entered: Arc<tokio::sync::Notify>,
     release: Arc<tokio::sync::Notify>,
     events: Arc<Mutex<Vec<String>>>,
 }
-
-static SIGNALLED: Mutex<Option<Signals>> = Mutex::new(None);
 
 #[dokime_runtime::stream(id = "fixture.embedded.reading", window = 32, label = "Reading")]
 struct Reading {
@@ -70,6 +58,19 @@ struct Reading {
 }
 
 struct Checks;
+
+struct Pulse;
+
+struct Probe {
+    label: &'static str,
+    fail: bool,
+    block_start: bool,
+    events: Arc<Mutex<Vec<String>>>,
+    signals: Signals,
+}
+
+/* === Enums === */
+
 #[dokime_runtime::catalog]
 enum Templates {
     Pulse(Pulse),
@@ -80,10 +81,13 @@ enum Streams {
     Reading(Reading),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 #[dokime_runtime::suite(id = "fixture.embedded.checks", label = "Checks", templates = Templates)]
 impl Checks {}
 
-struct Pulse;
 #[dokime_runtime::template(id = "fixture.embedded.checks.pulse", label = "Pulse", streams = Streams)]
 impl Pulse {
     async fn initialize(_: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> {
@@ -111,18 +115,6 @@ impl Pulse {
         signalled().events.lock().unwrap().push("execution:cleanup".into());
         Ok(())
     }
-}
-
-fn signalled() -> Signals {
-    SIGNALLED.lock().unwrap().clone().expect("a case names what its execution signals through")
-}
-
-struct Probe {
-    label: &'static str,
-    fail: bool,
-    block_start: bool,
-    events: Arc<Mutex<Vec<String>>>,
-    signals: Signals,
 }
 
 #[async_trait]
@@ -171,6 +163,8 @@ impl EmbeddedProvider for Probe {
         Ok(())
     }
 }
+
+/* === Public Functions === */
 
 // live rows and reload use the shared execution and capture paths.
 
@@ -260,3 +254,11 @@ pub(crate) async fn live_rows_paths() {
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
+
+fn signalled() -> Signals {
+    SIGNALLED.lock().unwrap().clone().expect("a case names what its execution signals through")
+}
+
+/* === Tests === */

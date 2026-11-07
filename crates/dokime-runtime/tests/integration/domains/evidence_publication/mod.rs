@@ -20,6 +20,7 @@ mod records;
 mod traceability;
 
 /* === Re-Exports === */
+
 pub(crate) use crate::service_support::prelude::*;
 
 /* === Imports === */
@@ -47,8 +48,6 @@ pub(crate) use crate::service_support::prelude::*;
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 // One runtime with the host wifi contracts carries the publication stages. The refusals run
 // first because they assert an empty evidence set; later stages scope their counts to what
@@ -89,3 +88,5 @@ async fn evidence_model_traceability() {
 async fn evidence_telemetry_batches() {
     publication::telemetry_batches_sample().await;
 }
+
+/* === Tests === */

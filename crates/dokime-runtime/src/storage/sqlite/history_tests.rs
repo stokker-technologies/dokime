@@ -92,6 +92,31 @@ fn insert(connection: &Connection, id: &str, revision: i64, time: Option<i64>, s
     connection.execute("UPDATE query_history_head SET revision=MAX(revision,?1)", [revision]).unwrap();
 }
 
+#[tokio::test]
+async fn archive_changes_are_atomic_versioned_and_recoverable() {
+    let root = tempfile::tempdir().unwrap();
+    let state = State::open(root.path()).await.unwrap();
+    state
+        .call(|connection| {
+            connection.execute_batch(SCHEMA)?;
+            insert(connection, "a", 1, Some(10), wire::ExecutionStatus::Failed);
+            Ok(())
+        })
+        .await
+        .unwrap();
+    state.history_archives(vec!["cycle".into()], vec![]).await.unwrap();
+    let old = state.history_executions(selection(), read(1)).await.unwrap();
+    assert_eq!(old.rows.len(), 1);
+    let current = state.history_revision().await.unwrap();
+    assert!(state.history_executions(selection(), read(current)).await.unwrap().rows.is_empty());
+    let mut archived = selection();
+    archived.archive = Some(ArchiveScope::Archived);
+    assert!(state.history_executions(archived, read(current)).await.unwrap().rows[0].archived);
+    state.history_archives(vec![], vec![]).await.unwrap();
+    assert_eq!(state.history_executions(selection(), read(state.history_revision().await.unwrap())).await.unwrap().rows.len(), 1);
+    state.close().await.unwrap();
+}
+
 /* === Tests === */
 
 #[test]
@@ -163,31 +188,6 @@ fn rollback_and_restart_expose_only_committed_revisions() {
     assert!(page.rows[0].status == wire::ExecutionStatus::Running);
     connection.execute_batch("DROP TABLE query_history").unwrap();
     assert!(matches!(check_format(&connection), Err(Error::Incompatible(_))));
-}
-
-#[tokio::test]
-async fn archive_changes_are_atomic_versioned_and_recoverable() {
-    let root = tempfile::tempdir().unwrap();
-    let state = State::open(root.path()).await.unwrap();
-    state
-        .call(|connection| {
-            connection.execute_batch(SCHEMA)?;
-            insert(connection, "a", 1, Some(10), wire::ExecutionStatus::Failed);
-            Ok(())
-        })
-        .await
-        .unwrap();
-    state.history_archives(vec!["cycle".into()], vec![]).await.unwrap();
-    let old = state.history_executions(selection(), read(1)).await.unwrap();
-    assert_eq!(old.rows.len(), 1);
-    let current = state.history_revision().await.unwrap();
-    assert!(state.history_executions(selection(), read(current)).await.unwrap().rows.is_empty());
-    let mut archived = selection();
-    archived.archive = Some(ArchiveScope::Archived);
-    assert!(state.history_executions(archived, read(current)).await.unwrap().rows[0].archived);
-    state.history_archives(vec![], vec![]).await.unwrap();
-    assert_eq!(state.history_executions(selection(), read(state.history_revision().await.unwrap())).await.unwrap().rows.len(), 1);
-    state.close().await.unwrap();
 }
 
 #[test]

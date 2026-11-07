@@ -27,6 +27,7 @@ use std::{
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+
 static REPORT_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);
 
 static REPORT_WAIT_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);

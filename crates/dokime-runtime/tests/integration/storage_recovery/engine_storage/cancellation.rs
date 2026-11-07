@@ -37,9 +37,6 @@ use super::sqlite::storage::Store;
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-
-/* === Tests === */
 pub(crate) async fn cancellation() {
     let root = tempfile::tempdir().unwrap();
     let store = Store::<()>::open(root.path()).await;
@@ -82,3 +79,7 @@ pub(crate) async fn cancellation() {
     assert_eq!(store.records(65).await, records);
     store.backend.close().await.unwrap();
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

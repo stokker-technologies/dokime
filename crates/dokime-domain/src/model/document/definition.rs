@@ -373,13 +373,6 @@ pub struct HistogramOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ReferenceValue {
-    Constant(f64),
-    Expression(DataExpression),
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReferenceLine {
     pub value: ReferenceValue,
 
@@ -509,6 +502,13 @@ pub struct DocumentDatasetWarning {
 pub struct Plot;
 
 /* === Enums === */
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReferenceValue {
+    Constant(f64),
+    Expression(DataExpression),
+}
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -1748,17 +1748,17 @@ impl PlotDefinition {
         self.metadata.identifier = Identifier::new(identifier.as_ref()).unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
     }
 
-    /// Set the display unit label only; this does not convert values.
+    // Set the display unit label only; this does not convert values.
     pub fn unit(&mut self, unit: impl Into<String>) {
         self.unit = Some(unit.into());
     }
 
-    /// Multiply returned time-series y values, statistics and y references for display only.
-    ///
-    /// Defaults to 1.0. Document validation requires a positive finite constant and
-    /// refuses other plot kinds, custom analyses and x axes. Filters such as `.only(column.gt(...))`
-    /// and section repeats still use stored units. Evidence, exports, criteria,
-    /// query plans and expressions are unchanged; `unit` is only a label.
+    // Multiply returned time-series y values, statistics and y references for display only.
+    //
+    // Defaults to 1.0. Document validation requires a positive finite constant and
+    // refuses other plot kinds, custom analyses and x axes. Filters such as `.only(column.gt(...))`
+    // and section repeats still use stored units. Evidence, exports, criteria,
+    // query plans and expressions are unchanged; `unit` is only a label.
     pub fn scale(&mut self, scale: f64) {
         self.scale = Some(scale);
     }
@@ -1857,7 +1857,7 @@ impl PlotDefinition {
         self.marker_record_types.extend(records.into_iter().map(|record| record.into().into_record_type()));
     }
 
-    /// Add a Y-axis reference in stored units. `scale` converts it with the plot data.
+    // Add a Y-axis reference in stored units. `scale` converts it with the plot data.
     pub fn reference_line(&mut self, label: impl Into<String>, value: impl Into<ReferenceValue>) {
         self.reference_lines.push(ReferenceLine {
             value: value.into(),
@@ -1866,7 +1866,7 @@ impl PlotDefinition {
         });
     }
 
-    /// Add Y-axis bounds in stored units. `scale` converts them with the plot data.
+    // Add Y-axis bounds in stored units. `scale` converts them with the plot data.
     pub fn reference_band(&mut self, label: impl Into<String>, min: impl Into<ReferenceValue>, max: impl Into<ReferenceValue>) {
         self.reference_bands.push(ReferenceBand {
             min: Some(min.into()),
@@ -1878,7 +1878,7 @@ impl PlotDefinition {
         });
     }
 
-    /// Add a Y-axis center ± tolerance in stored units. `scale` converts both with the plot data.
+    // Add a Y-axis center ± tolerance in stored units. `scale` converts both with the plot data.
     pub fn reference_tolerance(
         &mut self, label: impl Into<String>, center: impl Into<ReferenceValue>, tolerance: impl Into<ReferenceValue>,
     ) {
@@ -2011,6 +2011,30 @@ pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
 pub(crate) fn plot_validation_issue_bytes(plot: &PlotDefinition) -> Option<usize> {
     validate_plot_definition_with(plot, &crate::model::validation::diagnostic::size).err()
 }
+
+pub(crate) fn plot_type_label(plot_type: &PlotType) -> &'static str {
+    match plot_type {
+        PlotType::TimeSeries => "time_series",
+        PlotType::Bar => "bar",
+        PlotType::GroupedBar => "grouped_bar",
+        PlotType::StackedBar => "stacked_bar",
+        PlotType::Pie => "pie",
+        PlotType::Donut => "donut",
+        PlotType::Pareto => "pareto",
+        PlotType::Xy => "xy",
+        PlotType::XyInterval => "xy_interval",
+        PlotType::Trajectory => "trajectory",
+        PlotType::Heatmap => "heatmap",
+        PlotType::XyValueHeatmap => "xy_value_heatmap",
+        PlotType::WifiChannelOccupancy => "wifi_channel_occupancy",
+        PlotType::FrequencySeries => "frequency_series",
+        PlotType::Histogram => "histogram",
+        PlotType::BoxSummary => "box_summary",
+        PlotType::AggregateTable => "aggregate_table",
+    }
+}
+
+/* === Private Functions === */
 
 fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
     if let Some(scale) = plot.scale {
@@ -2163,30 +2187,6 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
 
     Ok(())
 }
-
-pub(crate) fn plot_type_label(plot_type: &PlotType) -> &'static str {
-    match plot_type {
-        PlotType::TimeSeries => "time_series",
-        PlotType::Bar => "bar",
-        PlotType::GroupedBar => "grouped_bar",
-        PlotType::StackedBar => "stacked_bar",
-        PlotType::Pie => "pie",
-        PlotType::Donut => "donut",
-        PlotType::Pareto => "pareto",
-        PlotType::Xy => "xy",
-        PlotType::XyInterval => "xy_interval",
-        PlotType::Trajectory => "trajectory",
-        PlotType::Heatmap => "heatmap",
-        PlotType::XyValueHeatmap => "xy_value_heatmap",
-        PlotType::WifiChannelOccupancy => "wifi_channel_occupancy",
-        PlotType::FrequencySeries => "frequency_series",
-        PlotType::Histogram => "histogram",
-        PlotType::BoxSummary => "box_summary",
-        PlotType::AggregateTable => "aggregate_table",
-    }
-}
-
-/* === Private Functions === */
 
 fn document_nodes_memory(nodes: &Vec<DocumentNode>, depth: usize) -> usize {
     if depth > 64 {

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 #[cfg(feature = "fault-injection")]
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -36,8 +37,6 @@ use super::*;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn node_identity_restart() {
     let root = tempdir().unwrap();
@@ -130,8 +129,6 @@ pub(crate) async fn old_incompatible_startup() {
     assert!(!root.path().join(dokime_runtime::storage::format::RECORD).exists());
 }
 
-/* === Tests === */
-
 pub(crate) async fn boot_reboots_intact() {
     let root = tempfile::tempdir().unwrap();
     let metadata = Metadata::new(Identifier::new("runtime.hub").unwrap(), "Runtime Hub", None);
@@ -144,8 +141,12 @@ pub(crate) async fn boot_reboots_intact() {
     start_bundled_composition(root.path(), metadata).await.shutdown().await.unwrap();
 }
 
+/* === Private Functions === */
+
 async fn start_bundled_composition(root: &std::path::Path, metadata: Metadata) -> Runtime {
     let config =
         crate::service_support::budgets::runtime_config(root, metadata).with_plugins([crate::service_support::bundles::host_plugin()]);
     Runtime::start(config).await.expect("the shipped composition boots")
 }
+
+/* === Tests === */

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -26,6 +27,7 @@ use crate::telemetry::{TelemetryCondition, TelemetryConditionOperator};
 use dokime_domain::model::identity::Identifier;
 
 /* === Constants === */
+
 const MAX_DEPTH: usize = 64;
 
 /* === Macros === */
@@ -33,11 +35,13 @@ const MAX_DEPTH: usize = 64;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(super) struct Condition {
     nodes: Vec<Node>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Node {
@@ -57,6 +61,7 @@ struct Node {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Condition {
     pub(super) fn encoding_memory(value: &RuntimeCondition) -> Result<usize> {
         let mut count = 0;
@@ -111,6 +116,7 @@ impl Serialize for Condition {
         value.serialize(serializer)
     }
 }
+
 impl<'de> Deserialize<'de> for Condition {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let source = crate::definition::RuntimeCondition::deserialize(deserializer)?;
@@ -121,6 +127,7 @@ impl<'de> Deserialize<'de> for Condition {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn encoding_memory(value: &RuntimeCondition, depth: usize, count: &mut usize) -> Result<usize> {
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("condition exceeds depth limit"));

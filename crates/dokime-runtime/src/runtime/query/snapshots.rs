@@ -11,10 +11,6 @@
 
 /* === Modules === */
 
-#[cfg(test)]
-#[path = "snapshot_tests.rs"]
-mod tests;
-
 /* === Re-Exports === */
 
 pub use super::tokens::Seek;
@@ -452,3 +448,7 @@ fn unavailable(operation: &str) -> Box<Failure> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+#[path = "snapshot_tests.rs"]
+mod tests;

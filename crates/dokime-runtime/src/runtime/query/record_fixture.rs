@@ -287,8 +287,6 @@ impl Fixture {
 
 /* === Private Functions === */
 
-/* === Tests === */
-
 #[tokio::test]
 async fn temporary_fixture_cleanup() {
     for failure in [false, true] {
@@ -302,3 +300,5 @@ async fn temporary_fixture_cleanup() {
         assert!(!path.exists(), "fixture storage survived teardown: {}", path.display());
     }
 }
+
+/* === Tests === */

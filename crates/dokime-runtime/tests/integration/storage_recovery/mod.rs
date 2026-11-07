@@ -10,6 +10,7 @@
 // Evidence storage saves, reopens, recovers from a restart midway and honours cancellation through the real backends.
 
 /* === Modules === */
+
 pub(crate) mod engine_storage;
 pub(crate) mod runtime_storage;
 
@@ -40,8 +41,6 @@ pub(crate) mod runtime_storage;
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -122,3 +121,5 @@ async fn storage_recovery_sqlite_production() {
     engine_storage::sqlite::production::checkpoints_advance_boundaries().await;
     engine_storage::sqlite::production::late_checkpoints_settle().await;
 }
+
+/* === Tests === */

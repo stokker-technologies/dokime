@@ -68,7 +68,7 @@ pub struct Plugin {
     pub path: Option<PathBuf>,
 }
 
-/// Organization Pack Terms Installed In Addition To Dokime's Apache-2.0 License.
+// Organization Pack Terms Installed In Addition To Dokime's Apache-2.0 License.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct License {
@@ -122,7 +122,7 @@ impl Artifact {
 }
 
 impl License {
-    /// Returns The Validated SPDX Expression And Terms File.
+    // Returns The Validated SPDX Expression And Terms File.
     pub(super) fn terms(&self) -> Result<(&str, &Path), Error> {
         let (Some(spdx), Some(file)) = (self.spdx.as_deref(), self.file.as_deref()) else {
             let field = if self.spdx.is_none() { "spdx" } else { "file" };
@@ -133,7 +133,7 @@ impl License {
         Ok((spdx, file))
     }
 
-    /// Resolves The Terms File Inside The Pack Folder That Holds The Manifest.
+    // Resolves The Terms File Inside The Pack Folder That Holds The Manifest.
     fn resolve(&mut self, base: &Path) -> Result<(), Error> {
         let (_, file) = self.terms()?;
         let text = file.to_str().ok_or_else(|| file_error("must be UTF-8"))?;

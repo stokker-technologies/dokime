@@ -13,8 +13,6 @@
 
 /* === Imports === */
 
-use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
-
 // Standard Library Imports
 use std::path::{Path, PathBuf};
 
@@ -27,16 +25,17 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use super::content;
 use super::desktop::{ArtifactSource, ensure_generation_token, ensure_main_window, ensure_private_directory, set_private_file};
 use crate::connection::ConnectionSession;
+use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
 
 /* === Constants === */
 
 const DESKTOP_MEDIA_CACHE_BYTES: u64 = 4_294_967_296;
 const DESKTOP_MEDIA_RANGE_BYTES: u64 = 4_194_304;
+
 // Even An Incompressible RGBA PNG Fits Within One Native Range Response.
 const IMAGE_PREVIEW_EDGE: u32 = 960;
 const IMAGE_DECODE_BYTES: u64 = 128 * 1024 * 1024;
 const MEDIA_CACHE_HEADER: &str = "preview-v1\n";
-
 pub const MEDIA_SCHEME: &str = "dokime-media";
 
 /* === Macros === */

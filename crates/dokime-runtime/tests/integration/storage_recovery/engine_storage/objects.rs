@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -32,25 +33,27 @@ use {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Reader;
+
+#[derive(Default, serde::Deserialize)]
+struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<dokime_runtime::storage::Manager>,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Application for Reader {
     type Lanes = dokime_runtime::app::Lanes;
     type State = ();
     type Transaction = Never;
     type Record = Never;
     type Streams = ();
-}
-
-#[derive(Default, serde::Deserialize)]
-struct StorageConfig {
-    #[serde(skip)]
-    storage: Option<dokime_runtime::storage::Manager>,
 }
 
 impl harmos::Lifecycle for Reader {
@@ -65,10 +68,6 @@ impl harmos::Lifecycle for Reader {
 }
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) async fn materialized_cases_reader() {
     let root = tempfile::tempdir().unwrap();
@@ -380,3 +379,7 @@ pub(crate) async fn executions_reopen_results() {
     drop(saved);
     runtime.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

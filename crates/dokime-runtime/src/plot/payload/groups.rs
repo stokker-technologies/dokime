@@ -211,6 +211,48 @@ pub(super) fn contains(actual: &str, expected: &Value) -> bool {
     }
 }
 
+// One grouped trace's key and label parts. Several y inputs name the input
+// with the group, key `<input>:<group>` and label `<input> <group>`, so every
+// trace stays distinct. One input labels its traces by the bare group, and
+// keys them so too unless `named_key` keeps the input's name in the key.
+pub(super) fn trace_names<'a>(input: &'a str, group: &'a str, inputs: usize, named_key: bool) -> ([&'a str; 3], [&'a str; 3]) {
+    let bare = [group, "", ""];
+    let key = [input, ":", group];
+    match inputs {
+        1 if named_key => (key, bare),
+        1 => (bare, bare),
+        _ => (key, [input, " ", group]),
+    }
+}
+
+pub(super) fn join(parts: &[&str]) -> Result<String> {
+    let mut value = String::new();
+    value.try_reserve_exact(parts_length(parts)?).map_err(|_| memory())?;
+    for part in parts {
+        value.push_str(part);
+    }
+    Ok(value)
+}
+
+pub(super) fn is_key(value: &Value) -> bool {
+    borrowed(value).is_some()
+        || matches!(value, Value::Integer(_) | Value::Unsigned(_))
+        || matches!(value, Value::Number(value) if value.is_finite())
+}
+
+pub(super) fn key(value: &Value) -> Result<Option<Cow<'_, str>>> {
+    if let Some(value) = borrowed(value) {
+        return Ok(Some(Cow::Borrowed(value)));
+    }
+    let value = match value {
+        Value::Integer(value) => try_display_owned(value)?,
+        Value::Unsigned(value) => try_display_owned(value)?,
+        Value::Number(value) if value.is_finite() => try_display_owned(value)?,
+        _ => return Ok(None),
+    };
+    Ok(Some(Cow::Owned(value)))
+}
+
 /* === Private Functions === */
 
 fn operation(request: &PlotPayloadRequest) -> Option<Operation<'_>> {
@@ -366,48 +408,6 @@ fn labels<'a>(input: Input<'a>, group: &'a str, inputs: usize) -> ([&'a str; 3],
 
 fn parts_length(parts: &[&str]) -> Result<usize> {
     parts.iter().try_fold(0usize, |length, part| length.checked_add(part.len()).ok_or_else(memory))
-}
-
-/// One grouped trace's key and label parts. Several y inputs name the input
-/// with the group, key `<input>:<group>` and label `<input> <group>`, so every
-/// trace stays distinct. One input labels its traces by the bare group, and
-/// keys them so too unless `named_key` keeps the input's name in the key.
-pub(super) fn trace_names<'a>(input: &'a str, group: &'a str, inputs: usize, named_key: bool) -> ([&'a str; 3], [&'a str; 3]) {
-    let bare = [group, "", ""];
-    let key = [input, ":", group];
-    match inputs {
-        1 if named_key => (key, bare),
-        1 => (bare, bare),
-        _ => (key, [input, " ", group]),
-    }
-}
-
-pub(super) fn join(parts: &[&str]) -> Result<String> {
-    let mut value = String::new();
-    value.try_reserve_exact(parts_length(parts)?).map_err(|_| memory())?;
-    for part in parts {
-        value.push_str(part);
-    }
-    Ok(value)
-}
-
-pub(super) fn is_key(value: &Value) -> bool {
-    borrowed(value).is_some()
-        || matches!(value, Value::Integer(_) | Value::Unsigned(_))
-        || matches!(value, Value::Number(value) if value.is_finite())
-}
-
-pub(super) fn key(value: &Value) -> Result<Option<Cow<'_, str>>> {
-    if let Some(value) = borrowed(value) {
-        return Ok(Some(Cow::Borrowed(value)));
-    }
-    let value = match value {
-        Value::Integer(value) => try_display_owned(value)?,
-        Value::Unsigned(value) => try_display_owned(value)?,
-        Value::Number(value) if value.is_finite() => try_display_owned(value)?,
-        _ => return Ok(None),
-    };
-    Ok(Some(Cow::Owned(value)))
 }
 
 fn display_length(value: impl fmt::Display) -> usize {

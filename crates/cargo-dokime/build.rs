@@ -33,6 +33,7 @@ use std::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Asset {
     source: PathBuf,
     text: bool,
@@ -47,6 +48,7 @@ struct Asset {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() -> io::Result<()> {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies the manifest directory"));
     // Only This Directory Ships. Product Task Overrides And Export Registration Live Outside It.

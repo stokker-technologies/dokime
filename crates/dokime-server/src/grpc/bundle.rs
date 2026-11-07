@@ -19,7 +19,6 @@ use std::io::{Seek, Write};
 use std::path::PathBuf;
 
 // Third Party Imports
-use dokime::harmos::storage::{ByteRange, FileReader, FrozenFile, ReadBatch};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use tonic::Status;
@@ -28,6 +27,7 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 // Local Imports
 use super::redaction;
 use dokime::domain::model::time::Timestamp;
+use dokime::harmos::storage::{ByteRange, FileReader, FrozenFile, ReadBatch};
 
 /* === Constants === */
 
@@ -239,6 +239,22 @@ pub(super) async fn build(parts: Parts, context: Value, generated_at: Timestamp,
     let handle = file.as_file().try_clone().map_err(|error| archive_failure(error, maximum))?;
     let reader = session.read_opened_file(handle, ByteRange { offset: 0, limit: Some(size_bytes) }).await.map_err(native_failure)?;
     Ok(Bundle { metadata, reader, _file: file })
+}
+
+pub(super) fn native_failure(error: dokime::harmos::storage::Error) -> Status {
+    match error {
+        dokime::harmos::storage::Error::ResourceExhausted { .. } => Status::resource_exhausted("diagnostics archive memory exhausted"),
+        error => {
+            let mut cause: &dyn std::error::Error = &error;
+            while let Some(source) = cause.source() {
+                cause = source;
+            }
+            Status::internal(format!(
+                "The diagnostics bundle could not be read: {}. Check access to the backend's temporary folder and retry.",
+                redaction::text(&cause.to_string())
+            ))
+        }
+    }
 }
 
 /* === Private Functions === */
@@ -484,22 +500,6 @@ fn zip_failure(error: zip::result::ZipError) -> std::io::Error {
 
 fn allocation() -> dokime::harmos::storage::Error {
     dokime::harmos::storage::Error::ResourceExhausted { resource: "diagnostics archive metadata" }
-}
-
-pub(super) fn native_failure(error: dokime::harmos::storage::Error) -> Status {
-    match error {
-        dokime::harmos::storage::Error::ResourceExhausted { .. } => Status::resource_exhausted("diagnostics archive memory exhausted"),
-        error => {
-            let mut cause: &dyn std::error::Error = &error;
-            while let Some(source) = cause.source() {
-                cause = source;
-            }
-            Status::internal(format!(
-                "The diagnostics bundle could not be read: {}. Check access to the backend's temporary folder and retry.",
-                redaction::text(&cause.to_string())
-            ))
-        }
-    }
 }
 
 fn too_large(maximum: usize) -> Status {

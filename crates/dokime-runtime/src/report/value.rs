@@ -47,7 +47,8 @@ pub enum Value {
     String(String),
     Array(Vec<Value>),
     Object(BTreeMap<String, Value>),
-    /// An Immutable Tree Serialized With The Same JSON As Its Owned Value.
+
+    // An Immutable Tree Serialized With The Same JSON As Its Owned Value.
     Shared(Arc<Value>),
 }
 

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,6 +26,8 @@ use super::*;
 
 /* === Type Aliases === */
 
+type LabelEdit = (Option<TestCycleId>, Option<TestExecutionId>, Value, Value);
+
 /* === Structs === */
 
 /* === Enums === */
@@ -34,40 +37,6 @@ use super::*;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-async fn stored_cycle(
-    runtime: &RuntimeHandle, test_cycle_id: &TestCycleId,
-) -> (dokime_domain::model::execution::result::TestCycle, harmos::storage::StorageCursor) {
-    let stored = dokime_runtime::storage::objects::cycle::read(runtime.storage(), test_cycle_id, harmos::storage::ObjectVersion::Latest)
-        .await
-        .unwrap()
-        .unwrap();
-    (stored.value.clone(), stored.position.clone())
-}
-
-type LabelEdit = (Option<TestCycleId>, Option<TestExecutionId>, Value, Value);
-
-async fn label_edits(subscription: &mut dokime_runtime::runtime::RecordSubscription, count: usize) -> Vec<LabelEdit> {
-    let mut edits = Vec::new();
-    {
-        while edits.len() < count {
-            let record =
-                subscription.next().await.expect("the record subscription stays open").expect("the record subscription stays readable");
-            if record.record_type.as_str() != "operator.label_edited" {
-                continue;
-            }
-            let scope = record.scope.clone().unwrap_or_default();
-            edits.push((
-                scope.test_cycle_id,
-                scope.test_execution_id,
-                record.details["old_label"].clone(),
-                record.details["new_label"].clone(),
-            ));
-        }
-    }
-    edits
-}
 
 pub(crate) async fn cycle_container_lifecycle() {
     use dokime_domain::model::execution::result::CyclePhase;
@@ -459,8 +428,6 @@ pub(crate) async fn pause_blocks_boundaries() {
     assert!(resume.is_ok());
 }
 
-/* === Tests === */
-
 #[cfg(feature = "testing")]
 pub(crate) async fn continuation_follows_drain() {
     let root = tempdir().unwrap();
@@ -592,3 +559,38 @@ pub(crate) async fn continuation_after_failure() {
     assert!(idle.test_executions[2].started_at.is_none() && idle.test_executions[2].finished_at.is_none());
     assert_eq!(runtime.watch_state().latest().state().run_requests.len(), requests);
 }
+
+/* === Private Functions === */
+
+async fn stored_cycle(
+    runtime: &RuntimeHandle, test_cycle_id: &TestCycleId,
+) -> (dokime_domain::model::execution::result::TestCycle, harmos::storage::StorageCursor) {
+    let stored = dokime_runtime::storage::objects::cycle::read(runtime.storage(), test_cycle_id, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap();
+    (stored.value.clone(), stored.position.clone())
+}
+
+async fn label_edits(subscription: &mut dokime_runtime::runtime::RecordSubscription, count: usize) -> Vec<LabelEdit> {
+    let mut edits = Vec::new();
+    {
+        while edits.len() < count {
+            let record =
+                subscription.next().await.expect("the record subscription stays open").expect("the record subscription stays readable");
+            if record.record_type.as_str() != "operator.label_edited" {
+                continue;
+            }
+            let scope = record.scope.clone().unwrap_or_default();
+            edits.push((
+                scope.test_cycle_id,
+                scope.test_execution_id,
+                record.details["old_label"].clone(),
+                record.details["new_label"].clone(),
+            ));
+        }
+    }
+    edits
+}
+
+/* === Tests === */

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,7 +37,6 @@ use dokime_domain::model;
 
 /* === Public Functions === */
 
-/* === Private Functions === */
 // the default document shows every section in one composed order.
 
 pub(super) async fn default_document_order(runtime: &RuntimeHandle) {
@@ -986,6 +986,53 @@ pub(super) async fn repeated_sections_freeze() {
     owner.shutdown().await.unwrap();
 }
 
+pub(super) async fn saved_report_evidence(runtime: &RuntimeHandle) {
+    use dokime_runtime::document::{DocumentDefinition, DocumentSection, PlotDefinition, PlotType};
+    let mut suite = custom_suite();
+    let mut document = DocumentDefinition::new("Analysis");
+    let mut section = DocumentSection::new("Samples");
+    let mut plot = PlotDefinition::with_type("Mean Distance", PlotType::TimeSeries);
+    plot.id("analysis.mean-distance");
+    plot.stream = Some("tracking".into());
+    plot.x = Some("timestamp".into());
+    plot.y = vec!["distance_m".into()];
+    plot.analysis = Some(dokime_runtime::analysis::Selection {
+        id: "dokime.analysis.mean".into(),
+        version: 1,
+        parameters: Default::default(),
+    });
+    section.plot(plot);
+    document.section(section);
+    suite.test_case_templates[0].document = Some(document);
+    register_custom_suite(runtime, suite.clone()).await;
+    let admitted =
+        runtime.test_suites().await.into_iter().find(|entry| entry.suite.metadata.identifier == suite.metadata.identifier).unwrap().suite;
+    let cycle_id = start_cycle(runtime, admitted).await;
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+
+    let cycle = wait_for_cycle_outcome(runtime, &cycle_id, ResultStatus::Passed).await;
+    let execution = &cycle.test_executions[0];
+    let html = crate::service_support::native::report(runtime, &execution.test_execution_id).await;
+    let json = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1.split_once("</script>").unwrap().0;
+    let payload: serde_json::Value = serde_json::from_str(json).unwrap();
+    assert_eq!(payload["plots"], serde_json::json!({}));
+    assert_eq!(payload["documents"], serde_json::json!({}));
+    let computed = payload["case_runs"][0]["plots"]
+        .as_object()
+        .unwrap()
+        .values()
+        .find_map(|plot| plot.get("computed"))
+        .expect("saved analysis result");
+    assert_eq!(computed["selection"]["id"], "dokime.analysis.mean");
+    assert_eq!(computed["selection"]["version"], 1);
+    assert_eq!(computed["series"][0]["input_samples"], 1);
+    assert_eq!(computed["series"][0]["output"]["outputs"][0]["values"][0], 1.0);
+    assert!(computed["source"]["position"]["sequence"].as_u64().is_some_and(|sequence| sequence > 0));
+    assert!(computed["source"].get("cursor").is_none());
+}
+
+/* === Private Functions === */
+
 fn section_metadata(document: &dokime_runtime::document::capture::Capture) -> Vec<&Metadata> {
     let mut pending = document.definition.layout.nodes.iter().rev().collect::<Vec<_>>();
     let mut ordered = Vec::new();
@@ -1042,48 +1089,3 @@ fn suite_with_authored_document() -> TestSuite {
 }
 
 /* === Tests === */
-
-pub(super) async fn saved_report_evidence(runtime: &RuntimeHandle) {
-    use dokime_runtime::document::{DocumentDefinition, DocumentSection, PlotDefinition, PlotType};
-    let mut suite = custom_suite();
-    let mut document = DocumentDefinition::new("Analysis");
-    let mut section = DocumentSection::new("Samples");
-    let mut plot = PlotDefinition::with_type("Mean Distance", PlotType::TimeSeries);
-    plot.id("analysis.mean-distance");
-    plot.stream = Some("tracking".into());
-    plot.x = Some("timestamp".into());
-    plot.y = vec!["distance_m".into()];
-    plot.analysis = Some(dokime_runtime::analysis::Selection {
-        id: "dokime.analysis.mean".into(),
-        version: 1,
-        parameters: Default::default(),
-    });
-    section.plot(plot);
-    document.section(section);
-    suite.test_case_templates[0].document = Some(document);
-    register_custom_suite(runtime, suite.clone()).await;
-    let admitted =
-        runtime.test_suites().await.into_iter().find(|entry| entry.suite.metadata.identifier == suite.metadata.identifier).unwrap().suite;
-    let cycle_id = start_cycle(runtime, admitted).await;
-    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
-
-    let cycle = wait_for_cycle_outcome(runtime, &cycle_id, ResultStatus::Passed).await;
-    let execution = &cycle.test_executions[0];
-    let html = crate::service_support::native::report(runtime, &execution.test_execution_id).await;
-    let json = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1.split_once("</script>").unwrap().0;
-    let payload: serde_json::Value = serde_json::from_str(json).unwrap();
-    assert_eq!(payload["plots"], serde_json::json!({}));
-    assert_eq!(payload["documents"], serde_json::json!({}));
-    let computed = payload["case_runs"][0]["plots"]
-        .as_object()
-        .unwrap()
-        .values()
-        .find_map(|plot| plot.get("computed"))
-        .expect("saved analysis result");
-    assert_eq!(computed["selection"]["id"], "dokime.analysis.mean");
-    assert_eq!(computed["selection"]["version"], 1);
-    assert_eq!(computed["series"][0]["input_samples"], 1);
-    assert_eq!(computed["series"][0]["output"]["outputs"][0]["values"][0], 1.0);
-    assert!(computed["source"]["position"]["sequence"].as_u64().is_some_and(|sequence| sequence > 0));
-    assert!(computed["source"].get("cursor").is_none());
-}

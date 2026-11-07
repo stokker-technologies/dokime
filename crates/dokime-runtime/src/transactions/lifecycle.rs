@@ -651,15 +651,15 @@ pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Di
     dokime_domain::model::diagnostics::Diagnostic::of("step runner ended without a completion receipt").redacted()
 }
 
-/// Whether cycle work can still reach a plugin. Completion means provider cleanup and stream
-/// drain have settled and report context and plugin analysis results are frozen durably.
-/// Durable report publication and sealing do not keep plugins live.
-/// Provider tasks separately protect draining work and the gap before automatic continuation.
+// Whether cycle work can still reach a plugin. Completion means provider cleanup and stream
+// drain have settled and report context and plugin analysis results are frozen durably.
+// Durable report publication and sealing do not keep plugins live.
+// Provider tasks separately protect draining work and the gap before automatic continuation.
 pub(crate) fn cycle_has_plugin_work(cycle: &dokime_domain::model::execution::result::TestCycle) -> bool {
     matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping)
 }
 
-/// The truthful outcome a closing cycle settles on: its members' aggregate once any ran, Stopped otherwise.
+// The truthful outcome a closing cycle settles on: its members' aggregate once any ran, Stopped otherwise.
 pub(crate) fn closed_lifecycle(
     cycle: &dokime_domain::model::execution::result::TestCycle, executions: &Map<TestExecutionId, TestExecution>,
 ) -> CycleStatus {

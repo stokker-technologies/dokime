@@ -80,6 +80,7 @@ pub enum CurrentDocumentEvent {
 enum PreparationFailure {
     #[error("document selection not found")]
     Missing,
+
     #[error("selected evidence capture is incomplete")]
     IncompleteCapture,
 }

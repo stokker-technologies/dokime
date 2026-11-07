@@ -12,8 +12,11 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
+
 // Local Imports
 use super::*;
 
@@ -32,30 +35,6 @@ use super::*;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-async fn provider_runtime(root: &Path) -> (crate::service_support::system_reports::Runtime, RuntimeHandle) {
-    let executor = Arc::new(FakePythonExecutor::fixed("passed"));
-    let (owner, runtime) = booted_with_fixture(root, executor).await;
-    register_python_suite(&runtime, fixture_suite(&["passed"])).await;
-    (owner, runtime)
-}
-
-async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
-    until_state(runtime, |state| state.cycle_views().all(|cycle| cycle.lifecycle != CycleStatus::Running)).await;
-    let registration = runtime
-        .test_suites()
-        .await
-        .into_iter()
-        .find(|entry| entry.suite.metadata.identifier.as_str() == "fixture.suite")
-        .expect("fixture suite registered");
-    start_cases(
-        runtime,
-        metadata(&format!("fixture.cycle.{suffix}"), &format!("Fixture Cycle {suffix}")),
-        materialize_cases(&registration.suite_id, &registration.suite),
-    )
-    .await
-}
 
 pub(crate) async fn start_receipt_identity() {
     let root = tempdir().unwrap();
@@ -116,7 +95,6 @@ pub(crate) async fn refusals_refuses_processor() {
     assert!(revision().await >= accepted.runtime_revision);
 }
 
-/* === Tests === */
 pub(crate) async fn idempotency_survives_restart() {
     let root = tempdir().unwrap();
     let context = CommandContext {
@@ -156,3 +134,30 @@ pub(crate) async fn idempotency_survives_restart() {
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
+
+async fn provider_runtime(root: &Path) -> (crate::service_support::system_reports::Runtime, RuntimeHandle) {
+    let executor = Arc::new(FakePythonExecutor::fixed("passed"));
+    let (owner, runtime) = booted_with_fixture(root, executor).await;
+    register_python_suite(&runtime, fixture_suite(&["passed"])).await;
+    (owner, runtime)
+}
+
+async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
+    until_state(runtime, |state| state.cycle_views().all(|cycle| cycle.lifecycle != CycleStatus::Running)).await;
+    let registration = runtime
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|entry| entry.suite.metadata.identifier.as_str() == "fixture.suite")
+        .expect("fixture suite registered");
+    start_cases(
+        runtime,
+        metadata(&format!("fixture.cycle.{suffix}"), &format!("Fixture Cycle {suffix}")),
+        materialize_cases(&registration.suite_id, &registration.suite),
+    )
+    .await
+}
+
+/* === Tests === */

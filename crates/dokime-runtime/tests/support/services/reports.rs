@@ -18,6 +18,8 @@ use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
 use harmos::storage::FileReference;
+use harmos::storage::StorageBackends;
+use model::execution::{HealthItem, OperatorNote};
 use sha2::Digest;
 
 // Local Imports
@@ -27,8 +29,6 @@ use dokime_runtime::records::RecordContract;
 use dokime_runtime::report::{CycleReportInput, saved::CapturedExecutionReportInput};
 use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};
 use dokime_runtime::telemetry::contract::TelemetryContract;
-use harmos::storage::StorageBackends;
-use model::execution::{HealthItem, OperatorNote};
 
 /* === Constants === */
 
@@ -37,14 +37,22 @@ use model::execution::{HealthItem, OperatorNote};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReportOwner;
+
+#[derive(Default, serde::Deserialize)]
+pub struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<dokime_runtime::storage::Manager>,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::Application for ReportOwner {
     type Lanes = ReportOwner;
     type State = ();
@@ -68,12 +76,6 @@ impl harmos::operations::Lane for ReportOwner {
     }
 }
 
-#[derive(Default, serde::Deserialize)]
-pub struct StorageConfig {
-    #[serde(skip)]
-    storage: Option<dokime_runtime::storage::Manager>,
-}
-
 impl harmos::Lifecycle for ReportOwner {
     type Config = StorageConfig;
     type Error = harmos::Error;
@@ -90,6 +92,7 @@ impl harmos::Lifecycle for ReportOwner {
 }
 
 /* === Public Functions === */
+
 pub async fn storage_runtime(manager: &Manager) -> harmos::Runtime<ReportOwner> {
     harmos::Runtime::<ReportOwner>::launch((), StorageConfig { storage: Some(manager.clone()) }).await.unwrap()
 }

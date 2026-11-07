@@ -540,9 +540,10 @@ fn interval_slots<T>(count: usize) -> Result<Vec<T>, &'static str> {
     Ok(values)
 }
 
-#[cfg(feature = "storage")]
-#[cfg(feature = "storage")]
 /* === Tests === */
+
+#[cfg(feature = "storage")]
+#[cfg(feature = "storage")]
 #[cfg(all(test, feature = "fft"))]
 mod tests {
     use super::*;

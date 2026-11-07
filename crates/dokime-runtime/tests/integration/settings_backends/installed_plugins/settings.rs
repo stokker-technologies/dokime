@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,7 +20,6 @@
 // Local Imports
 use super::*;
 use dokime_domain::model;
-
 use dokime_runtime::domains::installed_plugins::PluginSettingsUpdate;
 
 /* === Constants === */
@@ -29,6 +29,7 @@ use dokime_runtime::domains::installed_plugins::PluginSettingsUpdate;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::settings]
 #[derive(Clone, Debug, Default, PartialEq)]
 struct FixtureSettings {
@@ -52,8 +53,6 @@ struct FixtureConnection {
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn boot_health_transaction() {
     let root = tempdir().unwrap();
@@ -220,6 +219,8 @@ pub(crate) async fn composed_plugin_process() {
     rebooted.shutdown().await.unwrap();
 }
 
+/* === Private Functions === */
+
 fn settings_artifact() -> dokime_runtime::InstalledPlugin {
     use dokime_runtime::plugin::settings::PluginSettings;
     dokime_runtime::InstalledPlugin {
@@ -231,8 +232,6 @@ fn settings_artifact() -> dokime_runtime::InstalledPlugin {
         ..Default::default()
     }
 }
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -309,3 +308,5 @@ async fn non_admitted_settings() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 }
+
+/* === Tests === */

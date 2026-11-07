@@ -8,9 +8,11 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod analysis;
 pub(crate) mod authoring;
 pub(crate) mod calls;
+
 #[cfg(feature = "testing")]
 mod capture_stop;
 pub(crate) mod demand;

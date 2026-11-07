@@ -233,8 +233,6 @@ impl Fixture {
 
 /* === Private Functions === */
 
-/* === Tests === */
-
 #[cfg(feature = "native")]
 #[tokio::test]
 async fn time_series_views_share_field_state_and_preserve_exact_rows() {
@@ -1264,3 +1262,5 @@ async fn native_inventory_uses_the_execution_numeric_summary() {
     assert!(numeric[0].statistics.contains(&("sum".into(), summary.sum)));
     fixture.finish().await;
 }
+
+/* === Tests === */

@@ -22,7 +22,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 // Third Party Imports
-use dokime::harmos::operations::{Response, StreamOutput};
 use serde_json::Value;
 use tokio::io::{AsyncReadExt as _, AsyncSeekExt as _};
 use tokio::sync::broadcast;
@@ -32,6 +31,7 @@ use tonic::Status;
 use super::redaction;
 use dokime::domain::model::backend::wire::{LogFrame, LogFrameFieldsEntry, LogLevel};
 use dokime::domain::model::identity::wire::Timestamp;
+use dokime::harmos::operations::{Response, StreamOutput};
 
 /* === Constants === */
 
@@ -50,7 +50,7 @@ const LEVELS: usize = LogLevel::Error as usize + 1;
 
 /* === Structs === */
 
-/// One Log File's Shared Tail: A Single Reader, Bounded Replay Rings And A Bounded Live Fan-Out.
+// One Log File's Shared Tail: A Single Reader, Bounded Replay Rings And A Bounded Live Fan-Out.
 pub(super) struct Tail {
     path: PathBuf,
     poll_interval: Duration,
@@ -59,7 +59,7 @@ pub(super) struct Tail {
     shared: std::sync::Mutex<Shared>,
 }
 
-/// What One Subscriber Asks Of The Shared Tail.
+// What One Subscriber Asks Of The Shared Tail.
 pub(super) struct Watch {
     pub(super) min_level: LogLevel,
     pub(super) replay_lines: u32,

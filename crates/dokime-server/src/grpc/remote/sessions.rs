@@ -36,13 +36,13 @@ const SERVER_REMOTE_PAGE_BYTES: u64 = 1_048_576;
 const SERVER_REMOTE_PAGE_ITEMS: u64 = 100;
 const SERVER_REMOTE_SESSIONS: u64 = 500;
 
-// The log keeps the most recent sessions only.
-
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
+// The log keeps the most recent sessions only.
 
 // Remote sessions as the authenticator sees them, persisted beside the listener security.
 pub(crate) struct SessionLog {

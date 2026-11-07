@@ -45,6 +45,7 @@ use {
 };
 
 /* === Constants === */
+
 const MAX_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
@@ -52,7 +53,9 @@ const MAX_BYTES: usize = 1024 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct App;
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct Waveform {
@@ -67,6 +70,7 @@ struct Details {
     label: String,
     samples: Vec<f64>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 struct TypedWave {
@@ -81,7 +85,14 @@ struct Subject {
     stopped: bool,
 }
 
+#[derive(Default, serde::Deserialize)]
+struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<harmos::storage::StorageManager<Objects>>,
+}
+
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 enum Objects {
     Subject(Subject),
@@ -90,6 +101,7 @@ enum Objects {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Application for App {
     type Lanes = dokime_runtime::app::Lanes;
     type State = ();
@@ -113,12 +125,6 @@ impl StoredObject for Subject {
     }
 }
 
-#[derive(Default, serde::Deserialize)]
-struct StorageConfig {
-    #[serde(skip)]
-    storage: Option<harmos::storage::StorageManager<Objects>>,
-}
-
 impl harmos::Lifecycle for App {
     type Config = StorageConfig;
     type Error = harmos::Error;
@@ -132,14 +138,6 @@ impl harmos::Lifecycle for App {
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-
-fn retention(schema: &SchemaKey) -> harmos::domain::Result<ObjectRetention> {
-    let definition = harmos::domain::model::storage::catalog::definition::<Objects>(schema)?;
-    Ok(definition.retention())
-}
-
-/* === Tests === */
 pub(crate) async fn nominal() {
     // Configure and Start the Production SQLite Adapter
     let root = tempfile::tempdir().unwrap();
@@ -553,3 +551,12 @@ pub(crate) async fn nominal() {
     assert_eq!(releases, 1, "the lifecycle release survives restart");
     backend.close().await.unwrap();
 }
+
+/* === Private Functions === */
+
+fn retention(schema: &SchemaKey) -> harmos::domain::Result<ObjectRetention> {
+    let definition = harmos::domain::model::storage::catalog::definition::<Objects>(schema)?;
+    Ok(definition.retention())
+}
+
+/* === Tests === */

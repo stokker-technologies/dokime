@@ -7,7 +7,7 @@
  * ***
  */
 
-//! Owned Telemetry Fan-Out And Its Native Transient Admission.
+// Owned Telemetry Fan-Out And Its Native Transient Admission.
 
 /* === Modules === */
 

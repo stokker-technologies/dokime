@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -36,13 +37,6 @@ use dokime_domain::model;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-fn whole() -> harmos::storage::ByteRange {
-    harmos::storage::ByteRange { offset: 0, limit: None }
-}
-
-/* === Tests === */
 
 pub(super) async fn report_save_receipt() {
     use dokime_domain::model::execution::saved::ExecutionRevision;
@@ -480,48 +474,6 @@ pub(super) async fn open_report_repeatedly() {
     owner.shutdown().await.unwrap();
 }
 
-fn stable(mut value: serde_json::Value) -> serde_json::Value {
-    match &mut value {
-        serde_json::Value::Object(fields) => {
-            // Warning Text Includes The Advancing Storage Frontier Of Live Reports.
-            if fields.contains_key("code") && fields.contains_key("message") {
-                fields.remove("message");
-            }
-            for key in ["generated_at", "started_at", "finished_at", "updated_at", "captured_at"] {
-                fields.remove(key);
-            }
-            for field in fields.values_mut() {
-                *field = stable(field.take());
-            }
-        }
-        serde_json::Value::Array(items) => {
-            for item in items.iter_mut() {
-                *item = stable(item.take());
-            }
-        }
-        _ => {}
-    }
-    value
-}
-
-fn remove_named(directory: &std::path::Path, name: &str) -> bool {
-    let Ok(entries) = std::fs::read_dir(directory) else {
-        return false;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            if remove_named(&path, name) {
-                return true;
-            }
-        } else if path.file_name().is_some_and(|file| file == name) {
-            std::fs::remove_file(&path).unwrap();
-            return true;
-        }
-    }
-    false
-}
-
 pub(super) async fn cycle_report_reboot() {
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
@@ -636,3 +588,53 @@ pub(super) async fn cycle_report_reboot() {
     drop(handle);
     rebooted.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
+
+fn whole() -> harmos::storage::ByteRange {
+    harmos::storage::ByteRange { offset: 0, limit: None }
+}
+
+fn stable(mut value: serde_json::Value) -> serde_json::Value {
+    match &mut value {
+        serde_json::Value::Object(fields) => {
+            // Warning Text Includes The Advancing Storage Frontier Of Live Reports.
+            if fields.contains_key("code") && fields.contains_key("message") {
+                fields.remove("message");
+            }
+            for key in ["generated_at", "started_at", "finished_at", "updated_at", "captured_at"] {
+                fields.remove(key);
+            }
+            for field in fields.values_mut() {
+                *field = stable(field.take());
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items.iter_mut() {
+                *item = stable(item.take());
+            }
+        }
+        _ => {}
+    }
+    value
+}
+
+fn remove_named(directory: &std::path::Path, name: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if remove_named(&path, name) {
+                return true;
+            }
+        } else if path.file_name().is_some_and(|file| file == name) {
+            std::fs::remove_file(&path).unwrap();
+            return true;
+        }
+    }
+    false
+}
+
+/* === Tests === */

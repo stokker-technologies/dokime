@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,8 +36,6 @@ use dokime_domain::model;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn cycle_exposes_rows() {
     let root = tempdir().unwrap();
@@ -417,5 +416,7 @@ pub(crate) async fn group_continues_after_failure() {
     assert_eq!(cycle.test_executions[1].status, ExecutionStatus::Passed);
     assert!(cycle.test_executions[1].started_at.is_some());
 }
+
+/* === Private Functions === */
 
 /* === Tests === */

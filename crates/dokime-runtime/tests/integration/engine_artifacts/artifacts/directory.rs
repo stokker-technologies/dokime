@@ -34,27 +34,16 @@ use dokime_runtime::{
 
 /* === Constants === */
 
+const GROWTH_FLOOR: u64 = 64 * 1024;
+const TEMPLATE: &str = "artifacts.capture";
+const WORKFLOW: &str = "artifacts";
+const BARRIER: &str = "zz-scan-barrier/tick.bin";
+
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
-const GROWTH_FLOOR: u64 = 64 * 1024;
-const TEMPLATE: &str = "artifacts.capture";
-const WORKFLOW: &str = "artifacts";
-const BARRIER: &str = "zz-scan-barrier/tick.bin";
 
 #[derive(Default)]
 struct State {
@@ -76,6 +65,12 @@ struct DirectoryRun {
     notes: Vec<String>,
     terminal: bool,
 }
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
 
 impl SidecarTemplate for Capture {
     const RUN: &'static str = "artifacts.capture.run";
@@ -198,45 +193,7 @@ impl DirectoryRun {
     }
 }
 
-async fn watching(token: &str) -> (DirectoryRun, Arc<RecordingSink>, PathBuf) {
-    let state = Arc::new(State::default());
-    let workflow = Workflow::<Capture>::new(WORKFLOW, "fixture").bound(state.clone());
-    workflow
-        .start(RunExecution {
-            publication_rows: 1024,
-            publication_bytes: 1024 * 1024,
-            publication_delay_micros: 0,
-            mode: "automatic".into(),
-            execution_token: token.to_owned(),
-            test_cycle_id: dokime_runtime::TestCycleId::from_seed(token).to_string(),
-            test_execution_id: dokime_runtime::TestExecutionId::from_seed(token).to_string(),
-            template_identifier: TEMPLATE.to_owned(),
-            workflow: WORKFLOW.to_owned(),
-            secrets_json: "{}".to_owned(),
-            parameters_json: "{}".to_owned(),
-        })
-        .unwrap();
-    let sink = Arc::new(RecordingSink::new());
-    let mut run = DirectoryRun {
-        workflow,
-        state,
-        sink: sink.clone(),
-        token: token.to_owned(),
-        cursor: 0,
-        barrier: 0,
-        observed_barrier: 0,
-        notes: Vec::new(),
-        terminal: false,
-    };
-    run.until(|run| run.state.paths.lock().unwrap().len() >= 2).await;
-    let path = run.directory("capture").unwrap();
-
-    (run, sink, path)
-}
-
-fn grown(length: usize, fill: u8) -> Vec<u8> {
-    vec![fill; length]
-}
+/* === Public Functions === */
 
 pub(crate) async fn file_sent_piece() {
     let (mut directories, sink, path) = watching("growth").await;
@@ -455,3 +412,47 @@ pub(crate) async fn closed_backlog_tick() {
     assert_eq!(sink.assembled("capture/evidence.bin"), vec![7u8; 70 * 1024]);
     assert!(run.sweep().await.is_empty());
 }
+
+/* === Private Functions === */
+
+async fn watching(token: &str) -> (DirectoryRun, Arc<RecordingSink>, PathBuf) {
+    let state = Arc::new(State::default());
+    let workflow = Workflow::<Capture>::new(WORKFLOW, "fixture").bound(state.clone());
+    workflow
+        .start(RunExecution {
+            publication_rows: 1024,
+            publication_bytes: 1024 * 1024,
+            publication_delay_micros: 0,
+            mode: "automatic".into(),
+            execution_token: token.to_owned(),
+            test_cycle_id: dokime_runtime::TestCycleId::from_seed(token).to_string(),
+            test_execution_id: dokime_runtime::TestExecutionId::from_seed(token).to_string(),
+            template_identifier: TEMPLATE.to_owned(),
+            workflow: WORKFLOW.to_owned(),
+            secrets_json: "{}".to_owned(),
+            parameters_json: "{}".to_owned(),
+        })
+        .unwrap();
+    let sink = Arc::new(RecordingSink::new());
+    let mut run = DirectoryRun {
+        workflow,
+        state,
+        sink: sink.clone(),
+        token: token.to_owned(),
+        cursor: 0,
+        barrier: 0,
+        observed_barrier: 0,
+        notes: Vec::new(),
+        terminal: false,
+    };
+    run.until(|run| run.state.paths.lock().unwrap().len() >= 2).await;
+    let path = run.directory("capture").unwrap();
+
+    (run, sink, path)
+}
+
+fn grown(length: usize, fill: u8) -> Vec<u8> {
+    vec![fill; length]
+}
+
+/* === Tests === */

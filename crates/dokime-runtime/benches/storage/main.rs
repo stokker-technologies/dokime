@@ -28,13 +28,15 @@ use std::convert::Infallible;
 use std::num::{NonZeroU32, NonZeroUsize};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
+
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-// Local Imports
 use harmos::storage::*;
 use harmos::{Identifier, Runtime, state::Envelope};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+// Local Imports
 
 /* === Constants === */
 
@@ -72,6 +74,14 @@ struct Observed {
 }
 
 struct Projection;
+
+#[derive(Default, serde::Deserialize)]
+struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<StorageManager>,
+
+    mode: Option<String>,
+}
 
 /* === Enums === */
 
@@ -149,13 +159,6 @@ impl RecordProjection for Projection {
             Ok(())
         })
     }
-}
-
-#[derive(Default, serde::Deserialize)]
-struct StorageConfig {
-    #[serde(skip)]
-    storage: Option<StorageManager>,
-    mode: Option<String>,
 }
 
 impl harmos::Lifecycle for Model {

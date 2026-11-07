@@ -12,14 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
-use dokime_runtime::definition::ParameterSource;
-use dokime_runtime::{Identifier, Metadata, RecordScope, Value};
 use harmos::state::Transaction;
 use tempfile::tempdir;
+
 // Local Imports
+use dokime_runtime::definition::ParameterSource;
 use dokime_runtime::transactions::UpsertScopedParameter;
+use dokime_runtime::{Identifier, Metadata, RecordScope, Value};
 
 /* === Constants === */
 
@@ -36,32 +39,6 @@ use dokime_runtime::transactions::UpsertScopedParameter;
 /* === Implementations === */
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-
-fn identifier(value: impl Into<String>) -> Identifier {
-    Identifier::new(value).unwrap()
-}
-
-/* === Tests === */
-#[tokio::test]
-async fn wait_until_shutdown() {
-    let root = tempdir().unwrap();
-    let mut runtime_owner = {
-        let runtime_config =
-            crate::service_support::budgets::runtime_config(root.path(), Metadata::new(identifier("runtime.wait"), "Runtime Wait", None));
-        dokime_runtime::Runtime::start(runtime_config)
-    }
-    .await
-    .unwrap();
-    let runtime = runtime_owner.handle();
-    let mut state = runtime.watch_state();
-
-    let shutdown = tokio::spawn(async move { runtime_owner.shutdown().await });
-    state.wait_until(|snapshot| snapshot.state().shutting_down).await.unwrap();
-    drop(runtime);
-    shutdown.await.unwrap().unwrap();
-}
 
 pub(crate) fn scoped_parameter_values() {
     let mut state = dokime_runtime::state::RuntimeState::new(dokime_runtime::model::identity::new_id());
@@ -101,3 +78,30 @@ pub(crate) fn scoped_parameter_values() {
     assert_eq!(parameter.group_id.as_ref().map(Identifier::as_str), Some("traceability.runtime"));
     assert_eq!(parameter.value, Value::from("SN-123"));
 }
+
+/* === Private Functions === */
+
+fn identifier(value: impl Into<String>) -> Identifier {
+    Identifier::new(value).unwrap()
+}
+
+#[tokio::test]
+async fn wait_until_shutdown() {
+    let root = tempdir().unwrap();
+    let mut runtime_owner = {
+        let runtime_config =
+            crate::service_support::budgets::runtime_config(root.path(), Metadata::new(identifier("runtime.wait"), "Runtime Wait", None));
+        dokime_runtime::Runtime::start(runtime_config)
+    }
+    .await
+    .unwrap();
+    let runtime = runtime_owner.handle();
+    let mut state = runtime.watch_state();
+
+    let shutdown = tokio::spawn(async move { runtime_owner.shutdown().await });
+    state.wait_until(|snapshot| snapshot.state().shutting_down).await.unwrap();
+    drop(runtime);
+    shutdown.await.unwrap().unwrap();
+}
+
+/* === Tests === */

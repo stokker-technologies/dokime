@@ -36,25 +36,27 @@ use {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Reader;
+
+#[derive(Default, serde::Deserialize)]
+struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<dokime_runtime::storage::Manager>,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Application for Reader {
     type Lanes = dokime_runtime::app::Lanes;
     type State = ();
     type Transaction = Never;
     type Record = Never;
     type Streams = ();
-}
-
-#[derive(Default, serde::Deserialize)]
-struct StorageConfig {
-    #[serde(skip)]
-    storage: Option<dokime_runtime::storage::Manager>,
 }
 
 impl harmos::Lifecycle for Reader {
@@ -69,10 +71,6 @@ impl harmos::Lifecycle for Reader {
 }
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) async fn report_publication_reopens() {
     let root = tempfile::tempdir().unwrap();
@@ -179,3 +177,7 @@ pub(crate) async fn report_publication_reopens() {
     assert!(published(reports::Owner::Cycle(&other), None).await.iter().all(|batch| batch.is_empty()));
     runtime.shutdown().await.unwrap();
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

@@ -259,8 +259,6 @@ pub(crate) fn value_key(value: &Value) -> Result<[u8; 32], Error> {
     Ok(Sha256::digest(encoded).into())
 }
 
-/* === Private Functions === */
-
 pub(crate) fn posted_value(bytes: &[u8], kind: u8) -> Result<Value, Error> {
     let original: Value = serde_json::from_slice(bytes)?;
     let value = match (kind, &original) {
@@ -282,6 +280,29 @@ pub(crate) fn posted_value(bytes: &[u8], kind: u8) -> Result<Value, Error> {
     }
     Ok(value)
 }
+
+pub(crate) fn sort_key(value: &Value) -> Result<Vec<u8>, Error> {
+    if let Some(key) = numeric_key(value) {
+        return Ok(key);
+    }
+    let mut key = vec![match value {
+        Value::Bool(_) => 4,
+        Value::Datetime(_) => 5,
+        Value::Array(_) => 6,
+        Value::Object(_) => 7,
+        _ => 3,
+    }];
+    match value {
+        Value::Text(text) => key.extend_from_slice(text.as_bytes()),
+        Value::Null => (),
+        Value::Bool(value) => key.extend_from_slice(if *value { b"true" } else { b"false" }),
+        Value::Datetime(value) => key.extend_from_slice(&((value.unix_timestamp_nanos() as u128) ^ (1 << 127)).to_be_bytes()),
+        value => key.extend_from_slice(&serde_json::to_vec(value)?),
+    }
+    Ok(key)
+}
+
+/* === Private Functions === */
 
 #[cfg(feature = "native")]
 fn read_page(
@@ -491,27 +512,6 @@ fn schema_field(alias: &str, path: usize) -> String {
         WHERE {alias}.kind='telemetry' AND s.file_id={alias}.file_id
         AND json_extract(c.value,'$.metadata.identifier')=json_extract(?{path},'$[0]'))"
     )
-}
-
-pub(crate) fn sort_key(value: &Value) -> Result<Vec<u8>, Error> {
-    if let Some(key) = numeric_key(value) {
-        return Ok(key);
-    }
-    let mut key = vec![match value {
-        Value::Bool(_) => 4,
-        Value::Datetime(_) => 5,
-        Value::Array(_) => 6,
-        Value::Object(_) => 7,
-        _ => 3,
-    }];
-    match value {
-        Value::Text(text) => key.extend_from_slice(text.as_bytes()),
-        Value::Null => (),
-        Value::Bool(value) => key.extend_from_slice(if *value { b"true" } else { b"false" }),
-        Value::Datetime(value) => key.extend_from_slice(&((value.unix_timestamp_nanos() as u128) ^ (1 << 127)).to_be_bytes()),
-        value => key.extend_from_slice(&serde_json::to_vec(value)?),
-    }
-    Ok(key)
 }
 
 // Exact Binary Scientific Notation Gives Integers And Floats The Same Equality And Order.

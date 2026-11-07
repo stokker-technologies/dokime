@@ -98,7 +98,7 @@ pub enum Owner<'a> {
 /* === Implementations === */
 
 impl Prepared {
-    /// Uses a manager whose publication schema has been declared.
+    // Uses a manager whose publication schema has been declared.
     pub fn new(manager: &Manager, input: &Input<'_>) -> Result<Self> {
         if !manager.cursor_saved().covers(input.dependencies_saved)? {
             return Err(Error::Invalid("report dependencies are not durable in this manager"));
@@ -338,7 +338,7 @@ impl Publication {
 
 /* === Public Functions === */
 
-/// Declares the publication schema before saving reports with this manager.
+// Declares the publication schema before saving reports with this manager.
 pub async fn declare(manager: &Manager, settings: &harmos::config::SchemaSettings) -> Result<StorageCursor> {
     let graph = harmos::schema::graph::Schema::from_declaration(Publication::DEFINITION, settings)
         .map_err(|error| harmos::Error::backend("prepare report schema", harmos::BackendFailure::Permanent, error))?;

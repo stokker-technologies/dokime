@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use harmos::state::Transaction;
+
 // Local Imports
 use dokime_domain::model;
 use dokime_domain::model::identity::CommandId;
@@ -40,6 +43,7 @@ use {
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 struct FixtureAppend {
     admission_identifier: CommandId,
@@ -54,6 +58,7 @@ struct FixtureAppend {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl FixtureAppend {
     fn execution_ids(&self) -> Vec<dokime_runtime::TestExecutionId> {
         self.cases
@@ -104,241 +109,6 @@ impl FixtureAppend {
 }
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-fn metadata(id: &str) -> Metadata {
-    Metadata::new(Identifier::new(id).unwrap(), id, None)
-}
-
-fn identity(digest: &str) -> ExecutionPluginIdentity {
-    ExecutionPluginIdentity {
-        source: "fixture_plugin".into(),
-        version: Some("1.0.0".into()),
-        implementation: dokime_domain::model::execution::snapshot::ExecutionImplementation::Bundle { content_digest: digest.into() },
-    }
-}
-
-fn parameter(value: i64, source: ParameterSource) -> MaterializedParameter {
-    MaterializedParameter {
-        metadata: metadata("voltage"),
-        group_id: None,
-        source,
-        value: Value::from(value),
-        unit: None,
-    }
-}
-
-// Exercise the same case materialization used by authored edits, before dispatch.
-fn materialize_cases(
-    state: &mut RuntimeState, cycle_id: &TestCycleId, cases: Vec<TestCase>, settings: BTreeMap<String, Value>,
-) -> Result<(), String> {
-    let mut planned = state.clone();
-    planned.run_requests.clear();
-    planned.run_queue.clear();
-    let mut cycle = planned.cycle_view(cycle_id).unwrap();
-    cycle.test_executions.clear();
-    cycle.lifecycle = CycleStatus::Ready;
-    planned.replace_cycle(cycle).unwrap();
-    let append = FixtureAppend {
-        test_cycle_id: cycle_id.clone(),
-        admission_identifier: dokime_runtime::model::identity::new_id::<CommandId>(),
-        cases,
-        settings: BTreeMap::from([("fixture_plugin".into(), settings)]),
-        occurred_at: dokime_runtime::model::time::now_utc(),
-    };
-    append.check(&planned)?;
-    append.apply(&mut planned);
-    *state = planned;
-    Ok(())
-}
-
-fn admitted() -> (RuntimeState, TestCycleId) {
-    let mut state = RuntimeState::new(dokime_runtime::model::identity::new_id());
-    let template: TestCaseTemplate = serde_json::from_value(serde_json::json!({
-        "test_case_template_id": TemplateId::from_seed("snapshot.template"),
-        "metadata": metadata("snapshot.template"), "parameters": [],
-        "criteria": [{"criterion_id": dokime_runtime::CriterionId::from_seed("criterion"),
-            "metadata": metadata("criterion"),
-            "expected": Value::from(42_i64)}]
-    }))
-    .unwrap();
-    let suite = TestSuite {
-        metadata: metadata("snapshot.suite"),
-        tags: vec![],
-        parameter_groups: vec![],
-        test_case_templates: vec![template.clone()],
-    };
-    let case = TestCase {
-        suite_id: "snapshot.suite".to_owned(),
-        test_case_id: CaseId::from_seed("snapshot.case"),
-        test_case_template_id: template.test_case_template_id,
-        metadata: metadata("snapshot.case"),
-        suite: Some(suite.metadata.clone()),
-        parameters: BTreeMap::from([("voltage".into(), Value::from(12_i64))]),
-        generation_index: 0,
-        label_number: 0,
-    };
-    let mut definition = TestSuiteDefinition::new("snapshot.suite", suite).unwrap();
-    definition.workflow = Some("fixture.workflow".into());
-    state.suites.set("fixture_plugin", SuiteSet::new([definition])).unwrap();
-    let now = dokime_runtime::model::time::now_utc();
-    let id = TestCycleId::from_seed("snapshot.cycle");
-    create_cycle(&mut state, &id, "snapshot.cycle");
-    state.plugin_owners.insert(
-        "fixture_plugin".into(),
-        dokime_runtime::state::PluginOwner::Bundle {
-            path: "fixture.dokime".into(),
-            package: "fixture".into(),
-            installation: None,
-            content_digest: "old".into(),
-        },
-    );
-    state.installed_plugins.insert(
-        "fixture_plugin".into(),
-        dokime_runtime::InstalledPlugin {
-            source: "fixture_plugin".into(),
-            version: "1.0.0".into(),
-            ..Default::default()
-        },
-    );
-    materialize_cases(&mut state, &id, vec![case], BTreeMap::from([("station".into(), Value::from("A"))])).unwrap();
-    let run = RunProvider {
-        mode: Default::default(),
-        test_cycle_id: id.clone(),
-        test_execution_id: Some(state.cycles[&id].execution_ids[0].clone()),
-        context: Default::default(),
-        command_id: CommandId::from_seed("snapshot.run"),
-        accepted_at: now,
-    };
-    run.check(&state).unwrap();
-    run.apply(&mut state);
-    dispatch_request(&mut state, &run.command_id);
-    (state, id)
-}
-
-fn planned() -> (RuntimeState, TestCycleId) {
-    let (mut state, existing) = admitted();
-    state.run_requests.clear();
-    state.run_queue.clear();
-    let id = dokime_runtime::model::identity::new_id::<TestCycleId>();
-    create_cycle(&mut state, &id, "queued.cycle");
-    let append = FixtureAppend {
-        admission_identifier: dokime_runtime::model::identity::new_id::<CommandId>(),
-        test_cycle_id: id.clone(),
-        cases: state.cycle_view(&existing).unwrap().cases().cloned().collect(),
-        settings: BTreeMap::new(),
-        occurred_at: dokime_runtime::model::time::now_utc(),
-    };
-    append.check(&state).unwrap();
-    append.apply(&mut state);
-    (state, id)
-}
-
-fn create_cycle(state: &mut RuntimeState, id: &TestCycleId, identifier: &str) {
-    let create = dokime_runtime::transactions::CreateCycle {
-        definition: dokime_runtime::transactions::CycleDefinition {
-            metadata: metadata(identifier),
-            continue_automatically: false,
-        },
-        test_cycle_id: id.clone(),
-        occurred_at: dokime_runtime::model::time::now_utc(),
-    };
-    create.check(state).unwrap();
-    create.apply(state);
-}
-
-fn queued() -> (RuntimeState, TestCycleId, CommandId) {
-    let (mut state, cycle_id) = planned();
-    let run = RunProvider {
-        mode: Default::default(),
-        test_cycle_id: cycle_id.clone(),
-        test_execution_id: Some(state.cycles[&cycle_id].execution_ids[0].clone()),
-        context: Default::default(),
-        command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
-        accepted_at: dokime_runtime::model::time::now_utc(),
-    };
-    run.check(&state).unwrap();
-    run.apply(&mut state);
-    (state, cycle_id, run.command_id)
-}
-
-fn dispatch_request(state: &mut RuntimeState, id: &CommandId) {
-    while !state.run_requests[id].pending.is_empty() {
-        let transaction = dokime_runtime::transactions::PrepareAttempt {
-            request_id: id.clone(),
-            ordinal: state.run_requests[id].summary.prepared,
-            at: dokime_runtime::model::time::now_utc(),
-        };
-        transaction.check(state).unwrap();
-        transaction.apply(state);
-    }
-    let transaction = dokime_runtime::transactions::DispatchProvider {
-        request_id: id.clone(),
-        at: dokime_runtime::model::time::now_utc(),
-    };
-    transaction.check(state).unwrap();
-    transaction.apply(state);
-}
-
-fn provider_outcome(execution: &TestExecution) -> dokime_runtime::transport::ProviderCycleOutcome {
-    serde_json::from_value(serde_json::json!({
-        "status": "passed", "dependency_imports": [],
-        "provider": { "status": "ready",
-            "domain_registration_count": 1,
-            "test_suite_count": 1,
-            "test_suite_identifiers": [],
-            "error": null },
-        "executions": [{ "case_id": execution.test_case_id, "test_execution_id": execution.test_execution_id,
-            "template_identifier": "snapshot.template",
-                "label": "snapshot",
-                "module": "fixture",
-                "status": "passed",
-                "phases": [],
-                "records": [],
-                "telemetry": [],
-                "criteria": [],
-                "failures": [] }],
-        "failures": []
-    }))
-    .unwrap()
-}
-
-fn settle_request(state: &mut RuntimeState, id: &CommandId) {
-    let settle = dokime_runtime::transactions::SettleRun {
-        request_id: id.clone(),
-        at: dokime_runtime::model::time::now_utc(),
-    };
-    settle.check(state).unwrap();
-    settle.apply(state);
-    let unsealed = dokime_runtime::transactions::Unsealed {
-        cause: "state-only fixture has no report storage".into(),
-        execution_ids: state.run_requests[id].selected_execution_ids.clone(),
-    };
-    let complete = dokime_runtime::transactions::CompleteRun {
-        request_id: id.clone(),
-        at: settle.at,
-        unsealed: Some(unsealed),
-    };
-    complete.check(state).unwrap();
-    complete.apply(state);
-}
-
-fn projected_status(state: &RuntimeState, cycle: &TestCycleId, execution: &TestExecution) -> Value {
-    assert!(!execution.output_parameters.contains_key("execution.status"));
-    dokime_runtime::traceability::execution_traceability(
-        &state.cycle_view(cycle).unwrap(),
-        execution,
-        dokime_runtime::model::time::now_utc(),
-    )
-    .unwrap()
-    .into_iter()
-    .flat_map(|snapshot| snapshot.entries)
-    .find(|entry| entry.metadata.identifier.as_str() == "execution.status")
-    .expect("execution status is projected from its row")
-    .value
-}
-
-/* === Tests === */
 
 pub(crate) fn catalog_reconciliation_preserves_execution_evidence() {
     use dokime_runtime::state::ProviderCatalog;
@@ -1853,12 +1623,6 @@ pub(crate) fn canonical_execution_recovery() {
     assert_invalid_snapshot(&wrong_cycle, "cycle identity");
 }
 
-fn assert_invalid_snapshot(state: &RuntimeState, detail: &str) {
-    let bytes = serde_json::to_vec(state).unwrap();
-    let error = serde_json::from_slice::<RuntimeState>(&bytes).unwrap_err();
-    assert!(error.to_string().contains(detail), "{error}");
-}
-
 pub(crate) fn cycle_projection_atomic() {
     let (mut state, cycle_id) = admitted();
     let original = state.cycle_view(&cycle_id).unwrap();
@@ -1922,3 +1686,245 @@ pub(crate) fn reset_plan_matches_applied_reset() {
     assert!(!removed.is_empty());
     assert!(removed.iter().all(|id| !state.executions.contains_key(id) && state.retired_executions.contains(id)));
 }
+
+/* === Private Functions === */
+
+fn metadata(id: &str) -> Metadata {
+    Metadata::new(Identifier::new(id).unwrap(), id, None)
+}
+
+fn identity(digest: &str) -> ExecutionPluginIdentity {
+    ExecutionPluginIdentity {
+        source: "fixture_plugin".into(),
+        version: Some("1.0.0".into()),
+        implementation: dokime_domain::model::execution::snapshot::ExecutionImplementation::Bundle { content_digest: digest.into() },
+    }
+}
+
+fn parameter(value: i64, source: ParameterSource) -> MaterializedParameter {
+    MaterializedParameter {
+        metadata: metadata("voltage"),
+        group_id: None,
+        source,
+        value: Value::from(value),
+        unit: None,
+    }
+}
+
+// Exercise the same case materialization used by authored edits, before dispatch.
+fn materialize_cases(
+    state: &mut RuntimeState, cycle_id: &TestCycleId, cases: Vec<TestCase>, settings: BTreeMap<String, Value>,
+) -> Result<(), String> {
+    let mut planned = state.clone();
+    planned.run_requests.clear();
+    planned.run_queue.clear();
+    let mut cycle = planned.cycle_view(cycle_id).unwrap();
+    cycle.test_executions.clear();
+    cycle.lifecycle = CycleStatus::Ready;
+    planned.replace_cycle(cycle).unwrap();
+    let append = FixtureAppend {
+        test_cycle_id: cycle_id.clone(),
+        admission_identifier: dokime_runtime::model::identity::new_id::<CommandId>(),
+        cases,
+        settings: BTreeMap::from([("fixture_plugin".into(), settings)]),
+        occurred_at: dokime_runtime::model::time::now_utc(),
+    };
+    append.check(&planned)?;
+    append.apply(&mut planned);
+    *state = planned;
+    Ok(())
+}
+
+fn admitted() -> (RuntimeState, TestCycleId) {
+    let mut state = RuntimeState::new(dokime_runtime::model::identity::new_id());
+    let template: TestCaseTemplate = serde_json::from_value(serde_json::json!({
+        "test_case_template_id": TemplateId::from_seed("snapshot.template"),
+        "metadata": metadata("snapshot.template"), "parameters": [],
+        "criteria": [{"criterion_id": dokime_runtime::CriterionId::from_seed("criterion"),
+            "metadata": metadata("criterion"),
+            "expected": Value::from(42_i64)}]
+    }))
+    .unwrap();
+    let suite = TestSuite {
+        metadata: metadata("snapshot.suite"),
+        tags: vec![],
+        parameter_groups: vec![],
+        test_case_templates: vec![template.clone()],
+    };
+    let case = TestCase {
+        suite_id: "snapshot.suite".to_owned(),
+        test_case_id: CaseId::from_seed("snapshot.case"),
+        test_case_template_id: template.test_case_template_id,
+        metadata: metadata("snapshot.case"),
+        suite: Some(suite.metadata.clone()),
+        parameters: BTreeMap::from([("voltage".into(), Value::from(12_i64))]),
+        generation_index: 0,
+        label_number: 0,
+    };
+    let mut definition = TestSuiteDefinition::new("snapshot.suite", suite).unwrap();
+    definition.workflow = Some("fixture.workflow".into());
+    state.suites.set("fixture_plugin", SuiteSet::new([definition])).unwrap();
+    let now = dokime_runtime::model::time::now_utc();
+    let id = TestCycleId::from_seed("snapshot.cycle");
+    create_cycle(&mut state, &id, "snapshot.cycle");
+    state.plugin_owners.insert(
+        "fixture_plugin".into(),
+        dokime_runtime::state::PluginOwner::Bundle {
+            path: "fixture.dokime".into(),
+            package: "fixture".into(),
+            installation: None,
+            content_digest: "old".into(),
+        },
+    );
+    state.installed_plugins.insert(
+        "fixture_plugin".into(),
+        dokime_runtime::InstalledPlugin {
+            source: "fixture_plugin".into(),
+            version: "1.0.0".into(),
+            ..Default::default()
+        },
+    );
+    materialize_cases(&mut state, &id, vec![case], BTreeMap::from([("station".into(), Value::from("A"))])).unwrap();
+    let run = RunProvider {
+        mode: Default::default(),
+        test_cycle_id: id.clone(),
+        test_execution_id: Some(state.cycles[&id].execution_ids[0].clone()),
+        context: Default::default(),
+        command_id: CommandId::from_seed("snapshot.run"),
+        accepted_at: now,
+    };
+    run.check(&state).unwrap();
+    run.apply(&mut state);
+    dispatch_request(&mut state, &run.command_id);
+    (state, id)
+}
+
+fn planned() -> (RuntimeState, TestCycleId) {
+    let (mut state, existing) = admitted();
+    state.run_requests.clear();
+    state.run_queue.clear();
+    let id = dokime_runtime::model::identity::new_id::<TestCycleId>();
+    create_cycle(&mut state, &id, "queued.cycle");
+    let append = FixtureAppend {
+        admission_identifier: dokime_runtime::model::identity::new_id::<CommandId>(),
+        test_cycle_id: id.clone(),
+        cases: state.cycle_view(&existing).unwrap().cases().cloned().collect(),
+        settings: BTreeMap::new(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
+    };
+    append.check(&state).unwrap();
+    append.apply(&mut state);
+    (state, id)
+}
+
+fn create_cycle(state: &mut RuntimeState, id: &TestCycleId, identifier: &str) {
+    let create = dokime_runtime::transactions::CreateCycle {
+        definition: dokime_runtime::transactions::CycleDefinition {
+            metadata: metadata(identifier),
+            continue_automatically: false,
+        },
+        test_cycle_id: id.clone(),
+        occurred_at: dokime_runtime::model::time::now_utc(),
+    };
+    create.check(state).unwrap();
+    create.apply(state);
+}
+
+fn queued() -> (RuntimeState, TestCycleId, CommandId) {
+    let (mut state, cycle_id) = planned();
+    let run = RunProvider {
+        mode: Default::default(),
+        test_cycle_id: cycle_id.clone(),
+        test_execution_id: Some(state.cycles[&cycle_id].execution_ids[0].clone()),
+        context: Default::default(),
+        command_id: dokime_runtime::model::identity::new_id::<CommandId>(),
+        accepted_at: dokime_runtime::model::time::now_utc(),
+    };
+    run.check(&state).unwrap();
+    run.apply(&mut state);
+    (state, cycle_id, run.command_id)
+}
+
+fn dispatch_request(state: &mut RuntimeState, id: &CommandId) {
+    while !state.run_requests[id].pending.is_empty() {
+        let transaction = dokime_runtime::transactions::PrepareAttempt {
+            request_id: id.clone(),
+            ordinal: state.run_requests[id].summary.prepared,
+            at: dokime_runtime::model::time::now_utc(),
+        };
+        transaction.check(state).unwrap();
+        transaction.apply(state);
+    }
+    let transaction = dokime_runtime::transactions::DispatchProvider {
+        request_id: id.clone(),
+        at: dokime_runtime::model::time::now_utc(),
+    };
+    transaction.check(state).unwrap();
+    transaction.apply(state);
+}
+
+fn provider_outcome(execution: &TestExecution) -> dokime_runtime::transport::ProviderCycleOutcome {
+    serde_json::from_value(serde_json::json!({
+        "status": "passed", "dependency_imports": [],
+        "provider": { "status": "ready",
+            "domain_registration_count": 1,
+            "test_suite_count": 1,
+            "test_suite_identifiers": [],
+            "error": null },
+        "executions": [{ "case_id": execution.test_case_id, "test_execution_id": execution.test_execution_id,
+            "template_identifier": "snapshot.template",
+                "label": "snapshot",
+                "module": "fixture",
+                "status": "passed",
+                "phases": [],
+                "records": [],
+                "telemetry": [],
+                "criteria": [],
+                "failures": [] }],
+        "failures": []
+    }))
+    .unwrap()
+}
+
+fn settle_request(state: &mut RuntimeState, id: &CommandId) {
+    let settle = dokime_runtime::transactions::SettleRun {
+        request_id: id.clone(),
+        at: dokime_runtime::model::time::now_utc(),
+    };
+    settle.check(state).unwrap();
+    settle.apply(state);
+    let unsealed = dokime_runtime::transactions::Unsealed {
+        cause: "state-only fixture has no report storage".into(),
+        execution_ids: state.run_requests[id].selected_execution_ids.clone(),
+    };
+    let complete = dokime_runtime::transactions::CompleteRun {
+        request_id: id.clone(),
+        at: settle.at,
+        unsealed: Some(unsealed),
+    };
+    complete.check(state).unwrap();
+    complete.apply(state);
+}
+
+fn projected_status(state: &RuntimeState, cycle: &TestCycleId, execution: &TestExecution) -> Value {
+    assert!(!execution.output_parameters.contains_key("execution.status"));
+    dokime_runtime::traceability::execution_traceability(
+        &state.cycle_view(cycle).unwrap(),
+        execution,
+        dokime_runtime::model::time::now_utc(),
+    )
+    .unwrap()
+    .into_iter()
+    .flat_map(|snapshot| snapshot.entries)
+    .find(|entry| entry.metadata.identifier.as_str() == "execution.status")
+    .expect("execution status is projected from its row")
+    .value
+}
+
+fn assert_invalid_snapshot(state: &RuntimeState, detail: &str) {
+    let bytes = serde_json::to_vec(state).unwrap();
+    let error = serde_json::from_slice::<RuntimeState>(&bytes).unwrap_err();
+    assert!(error.to_string().contains(detail), "{error}");
+}
+
+/* === Tests === */

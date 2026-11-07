@@ -48,7 +48,6 @@ use tokio::sync::{Mutex, Semaphore};
 /* === Constants === */
 
 pub const SCHEMA_VERSION: i64 = 1;
-
 static COMMITTED_TRANSACTIONS: AtomicU64 = AtomicU64::new(0);
 static DATA_BATCHES: AtomicU64 = AtomicU64::new(0);
 static DURABLE_FILES: AtomicU64 = AtomicU64::new(0);
@@ -94,7 +93,7 @@ pub struct StorageCounters {
     pub telemetry_anchor_rows: u64,
     pub data_scan_rows: u64,
 
-    /// SQLite VM Instructions Spent Selecting Object Retention Candidates.
+    // SQLite VM Instructions Spent Selecting Object Retention Candidates.
     pub object_retention_steps: u64,
 }
 

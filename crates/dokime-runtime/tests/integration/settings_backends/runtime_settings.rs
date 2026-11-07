@@ -15,15 +15,16 @@
 
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
+
 // Third Party Imports
-use dokime_runtime::domains::{ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, StatusResponse};
-use dokime_runtime::{HostCardBlock, HostCardTone, Identifier, Metadata, Value};
+
 // Local Imports
 use dokime_runtime::RuntimeHandle;
-use dokime_runtime::domains::settings::RuntimeSettingsCardState;
-
 use dokime_runtime::domains::installed_plugins::PluginSettingsUpdate;
+use dokime_runtime::domains::settings::RuntimeSettingsCardState;
+use dokime_runtime::domains::{ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, StatusResponse};
 use dokime_runtime::settings::{SecretSetting, Settings, SettingsEntry, TextArea};
+use dokime_runtime::{HostCardBlock, HostCardTone, Identifier, Metadata, Value};
 
 /* === Constants === */
 
@@ -32,6 +33,7 @@ use dokime_runtime::settings::{SecretSetting, Settings, SettingsEntry, TextArea}
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone)]
 struct FixtureStatusDispatcher {
     status: Result<StatusResponse, ActionDispatcherError>,
@@ -42,6 +44,7 @@ struct FixtureStatusDispatcher {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ActionDispatcher for FixtureStatusDispatcher {
     fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, StatusResponse> {
         Box::pin(async move { self.status.clone() })
@@ -53,70 +56,6 @@ impl ActionDispatcher for FixtureStatusDispatcher {
 }
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-fn saved_metadata(handle: &RuntimeHandle) -> String {
-    let connection =
-        rusqlite::Connection::open_with_flags(handle.storage_root().join("local.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .unwrap();
-    let body: Vec<u8> = connection.query_row("SELECT body FROM application_metadata WHERE id=1", [], |row| row.get(0)).unwrap();
-    String::from_utf8(body).unwrap()
-}
-
-async fn fixture_runtime(module: Option<dokime_runtime::InstalledPlugin>) -> (tempfile::TempDir, dokime_runtime::Runtime, RuntimeHandle) {
-    fixture_runtime_with_dispatcher(module, None).await
-}
-
-async fn fixture_runtime_with_dispatcher(
-    module: Option<dokime_runtime::InstalledPlugin>, dispatcher: Option<Arc<dyn ActionDispatcher>>,
-) -> (tempfile::TempDir, dokime_runtime::Runtime, RuntimeHandle) {
-    let root = tempfile::tempdir().unwrap();
-    let artifact_id = module.as_ref().map(|module| Identifier::new(&module.source).unwrap());
-    let mut config =
-        crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.fixture", "Runtime")).with_installed_plugins(module);
-    if let (Some(artifact_id), Some(dispatcher)) = (artifact_id, dispatcher) {
-        config = config.with_action_dispatcher(artifact_id, dispatcher);
-    }
-    let runtime = {
-        let runtime_config = config;
-        dokime_runtime::Runtime::start(runtime_config)
-    }
-    .await
-    .unwrap();
-    let handle = runtime.handle();
-    (root, runtime, handle)
-}
-
-fn fixture_module() -> dokime_runtime::InstalledPlugin {
-    let mut module = installed_plugin("fixture_artifact");
-    module.settings_status = Some(dokime_runtime::domains::PluginEntrypoint { name: "fixture.status".into() });
-    module
-}
-
-fn installed_plugin(identifier: &str) -> dokime_runtime::InstalledPlugin {
-    dokime_runtime::InstalledPlugin {
-        source: identifier.to_owned(),
-        version: "test".to_owned(),
-        description: "Fixture Settings".to_owned(),
-        enabled: true,
-        settings: dokime_runtime::settings::Settings {
-            contributions: vec![dokime_runtime::settings::SettingsEntry::TextArea(dokime_runtime::settings::TextArea {
-                id: "workspace".to_owned(),
-                title: "Workspace".to_owned(),
-                description: None,
-                default: "declared-workspace".to_owned(),
-                required: true,
-            })],
-        },
-        ..Default::default()
-    }
-}
-
-fn metadata(identifier: &str, label: &str) -> Metadata {
-    Metadata::new(Identifier::new(identifier).unwrap(), label, None)
-}
-
-/* === Tests === */
 
 // live status supplies the state and every row the probe answered.
 
@@ -426,6 +365,69 @@ pub(crate) async fn application_preferences_reopen_and_reject_stale_or_invalid_u
     reopened.shutdown().await.unwrap();
 }
 
+/* === Private Functions === */
+
+fn saved_metadata(handle: &RuntimeHandle) -> String {
+    let connection =
+        rusqlite::Connection::open_with_flags(handle.storage_root().join("local.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .unwrap();
+    let body: Vec<u8> = connection.query_row("SELECT body FROM application_metadata WHERE id=1", [], |row| row.get(0)).unwrap();
+    String::from_utf8(body).unwrap()
+}
+
+async fn fixture_runtime(module: Option<dokime_runtime::InstalledPlugin>) -> (tempfile::TempDir, dokime_runtime::Runtime, RuntimeHandle) {
+    fixture_runtime_with_dispatcher(module, None).await
+}
+
+async fn fixture_runtime_with_dispatcher(
+    module: Option<dokime_runtime::InstalledPlugin>, dispatcher: Option<Arc<dyn ActionDispatcher>>,
+) -> (tempfile::TempDir, dokime_runtime::Runtime, RuntimeHandle) {
+    let root = tempfile::tempdir().unwrap();
+    let artifact_id = module.as_ref().map(|module| Identifier::new(&module.source).unwrap());
+    let mut config =
+        crate::service_support::budgets::runtime_config(root.path(), metadata("runtime.fixture", "Runtime")).with_installed_plugins(module);
+    if let (Some(artifact_id), Some(dispatcher)) = (artifact_id, dispatcher) {
+        config = config.with_action_dispatcher(artifact_id, dispatcher);
+    }
+    let runtime = {
+        let runtime_config = config;
+        dokime_runtime::Runtime::start(runtime_config)
+    }
+    .await
+    .unwrap();
+    let handle = runtime.handle();
+    (root, runtime, handle)
+}
+
+fn fixture_module() -> dokime_runtime::InstalledPlugin {
+    let mut module = installed_plugin("fixture_artifact");
+    module.settings_status = Some(dokime_runtime::domains::PluginEntrypoint { name: "fixture.status".into() });
+    module
+}
+
+fn installed_plugin(identifier: &str) -> dokime_runtime::InstalledPlugin {
+    dokime_runtime::InstalledPlugin {
+        source: identifier.to_owned(),
+        version: "test".to_owned(),
+        description: "Fixture Settings".to_owned(),
+        enabled: true,
+        settings: dokime_runtime::settings::Settings {
+            contributions: vec![dokime_runtime::settings::SettingsEntry::TextArea(dokime_runtime::settings::TextArea {
+                id: "workspace".to_owned(),
+                title: "Workspace".to_owned(),
+                description: None,
+                default: "declared-workspace".to_owned(),
+                required: true,
+            })],
+        },
+        ..Default::default()
+    }
+}
+
+fn metadata(identifier: &str, label: &str) -> Metadata {
+    Metadata::new(Identifier::new(identifier).unwrap(), label, None)
+}
+
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn saved_preferences_without_plugins_start_backend() {
@@ -462,3 +464,5 @@ async fn saved_preferences_without_plugins_start_backend() {
     assert!(!reopened.handle().runtime_overview().await.unwrap().shutting_down);
     reopened.shutdown().await.unwrap();
 }
+
+/* === Tests === */

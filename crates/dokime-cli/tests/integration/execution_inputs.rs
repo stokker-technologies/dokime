@@ -43,7 +43,6 @@ use dokime_cli::{Cli, Error};
 
 /* === Private Functions === */
 
-/* === Tests === */
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_inputs() {
@@ -254,3 +253,5 @@ async fn execution_inputs() {
         assert!(matches!(args.run(configuration.clone()).await, Err(Error::Client(_))));
     }
 }
+
+/* === Tests === */

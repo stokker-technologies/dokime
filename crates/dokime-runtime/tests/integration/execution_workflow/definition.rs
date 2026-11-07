@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -29,6 +30,7 @@ use dokime_runtime::definition::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 /* === Doc Example: Template Authoring === */
 
 // --8<-- [start:template]
@@ -44,6 +46,7 @@ struct MatrixTemplate;
 /* === Traits === */
 
 /* === Implementations === */
+
 impl RustTemplate for TrackingTestTemplate {
     fn define(&self, ctx: &mut TemplateContext) {
         ctx.set_metadata(metadata(
@@ -90,6 +93,7 @@ impl RustTemplate for MatrixTemplate {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 pub(crate) fn doc_example_contract() -> Result<(), Box<dyn std::error::Error>> {
     // --8<-- [start:compile]
     let template = TrackingTestTemplate.to_test_case_template()?;
@@ -104,6 +108,7 @@ pub(crate) fn doc_example_contract() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /* === Tests === */
+
 // --8<-- [end:parameter-spaces]
 
 // --8<-- [start:parameter-spaces-expand]

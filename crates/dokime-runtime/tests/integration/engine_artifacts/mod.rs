@@ -10,6 +10,7 @@
 // The artifact directory and diagnostics publish, list and read back through the engine.
 
 /* === Modules === */
+
 pub(crate) mod artifacts;
 pub(crate) mod diagnostics;
 
@@ -41,8 +42,6 @@ pub(crate) mod diagnostics;
 
 /* === Private Functions === */
 
-/* === Tests === */
-
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn engine_artifacts() {
@@ -68,3 +67,5 @@ async fn engine_artifacts_paused() {
     artifacts::directory::one_directory_cleanup().await;
     artifacts::directory::closed_backlog_tick().await;
 }
+
+/* === Tests === */

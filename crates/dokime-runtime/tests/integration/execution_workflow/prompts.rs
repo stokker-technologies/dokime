@@ -12,10 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 use tempfile::tempdir;
+
 // Local Imports
 use super::*;
 use crate::service_support::prompts::{assert_late_answer_refused, settlement_records};
@@ -47,6 +50,10 @@ struct Hold;
 #[dokime_runtime::prompt(id = "fixture.asking.hold", label = "Hold the charger")]
 struct HoldQuestion;
 
+struct Asking;
+
+/* === Enums === */
+
 #[dokime_runtime::catalog]
 enum AskingTemplates {
     Hold(Hold),
@@ -56,6 +63,10 @@ enum AskingTemplates {
 enum HoldPrompts {
     HoldQuestion(HoldQuestion),
 }
+
+/* === Traits === */
+
+/* === Implementations === */
 
 #[dokime_runtime::suite(id = "fixture.asking.checks", label = "Asking", templates = AskingTemplates)]
 impl AskingChecks {}
@@ -72,8 +83,6 @@ impl Hold {
         Ok(())
     }
 }
-
-struct Asking;
 
 #[async_trait::async_trait]
 impl dokime_runtime::runtime::EmbeddedProvider for Asking {
@@ -101,15 +110,7 @@ impl dokime_runtime::runtime::EmbeddedProvider for Asking {
     }
 }
 
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
 /* === Public Functions === */
-
-/* === Private Functions === */
 
 pub(crate) async fn prompt_commands_records() {
     let root = tempdir().unwrap();
@@ -445,94 +446,6 @@ pub(crate) async fn interruption_settles_prompts() {
     owner.shutdown().await.unwrap();
 }
 
-async fn inspection_runtime(
-    root: &std::path::Path, executor: Arc<dyn ExecutionFixture>,
-) -> (crate::service_support::system_reports::Runtime, RuntimeHandle) {
-    let config = config(root).with_declared_plugin("prompt_fixture", "1.0.0", "Questions", prompts([inspection_definition()])).unwrap();
-    started_with_fixture(config, executor).await
-}
-
-fn inspection_suite(mut suite: TestSuite) -> TestSuite {
-    suite.test_case_templates[0].prompt_definitions.push(inspection_definition());
-    suite
-}
-
-fn inspection_definition() -> dokime_runtime::prompts::PromptDefinition {
-    use dokime_runtime::prompts::{FormPrompt, Prompt};
-    let mut definition = FormPrompt::<BTreeMap<String, bool>>::new("test.prompt.inspect", "Inspect Charging State")
-        .field(PromptField {
-            metadata: Metadata::new(Identifier::new("charging").unwrap(), "Charging", None),
-            value_type: ValueType::Boolean,
-            kind: PromptFieldKind::Boolean,
-            multiple: false,
-            required: true,
-            default: None,
-            choices: Vec::new(),
-            validation: Default::default(),
-        })
-        .definition();
-    definition.actions.retain(|action| action.id != "cancel");
-    definition
-}
-
-async fn ask_inspection(runtime: &RuntimeHandle, cycle: &dokime_domain::model::execution::result::CycleView, index: usize) -> PromptId {
-    let execution = &cycle.test_executions[index];
-    let request = PromptRequest {
-        prompt_id: dokime_runtime::model::identity::new_id::<PromptId>(),
-        prompt_type: Identifier::new("test.prompt.inspect").unwrap(),
-        values: BTreeMap::new(),
-        scope: RecordScope::default().with_cycle(cycle.test_cycle_id.clone()).with_test_execution(execution.test_execution_id.clone()),
-    };
-    let id = request.prompt_id.clone();
-    runtime.request_prompt(request).await.unwrap();
-    id
-}
-
-async fn cycle_pending(runtime: &RuntimeHandle, cycle: &TestCycleId) -> usize {
-    runtime.pending_prompt_projection().await.iter().filter(|prompt| prompt.scope.test_cycle_id.as_ref() == Some(cycle)).count()
-}
-
-fn prompt_definition() -> dokime_runtime::prompts::PromptDefinition {
-    use dokime_runtime::prompts::{FormPrompt, Prompt};
-    FormPrompt::<BTreeMap<String, bool>>::new("test.prompt.confirm", "Confirm Test Prompt")
-        .field(PromptField {
-            metadata: Metadata::new(Identifier::new("confirmed").unwrap(), "Confirmed", None),
-            value_type: ValueType::Boolean,
-            kind: PromptFieldKind::Boolean,
-            multiple: false,
-            required: true,
-            default: Some(Value::Bool(true)),
-            choices: Vec::new(),
-            validation: Default::default(),
-        })
-        .definition()
-}
-
-fn prompt_request() -> PromptRequest {
-    PromptRequest {
-        prompt_id: dokime_runtime::model::identity::new_id::<PromptId>(),
-        prompt_type: Identifier::new("test.prompt.confirm").unwrap(),
-        values: BTreeMap::new(),
-        scope: RecordScope::default(),
-    }
-}
-
-fn question_config(root: &std::path::Path, definition: dokime_runtime::prompts::PromptDefinition) -> RuntimeConfig {
-    let domains = prompts([definition]);
-    config(root).with_installed_plugins([]).with_declared_plugin("prompt_fixture", "1.0.0", "Questions", domains).unwrap()
-}
-
-fn prompt_config(root: impl Into<std::path::PathBuf>) -> RuntimeConfig {
-    config(root).with_declared_plugin("prompt_fixture", "1.0.0", "Questions", prompts([prompt_definition()])).unwrap()
-}
-
-fn prompts(definitions: impl IntoIterator<Item = dokime_runtime::prompts::PromptDefinition>) -> harmos::sidecar::Registrar {
-    use dokime_runtime::plugin::registration::{PROMPTS_NAMESPACE, domain_schema};
-    let mut registrar = harmos::sidecar::Registrar::new();
-    registrar.register(PROMPTS_NAMESPACE, domain_schema(PROMPTS_NAMESPACE), &definitions.into_iter().collect::<Vec<_>>()).unwrap();
-    registrar
-}
-
 pub(crate) async fn answer_rules_commit() {
     use dokime_runtime::expressions::{BooleanExpression, Expression, ExpressionBinaryOp};
     use dokime_runtime::prompts::{FormPrompt, Prompt, TextPrompt};
@@ -692,6 +605,96 @@ pub(crate) async fn stopped_execution_question() {
 // stopping the cycle whose step waits on an operator settles the question.
 pub(crate) async fn stopped_cycle_question() {
     check_stopped_question(true).await;
+}
+
+/* === Private Functions === */
+
+async fn inspection_runtime(
+    root: &std::path::Path, executor: Arc<dyn ExecutionFixture>,
+) -> (crate::service_support::system_reports::Runtime, RuntimeHandle) {
+    let config = config(root).with_declared_plugin("prompt_fixture", "1.0.0", "Questions", prompts([inspection_definition()])).unwrap();
+    started_with_fixture(config, executor).await
+}
+
+fn inspection_suite(mut suite: TestSuite) -> TestSuite {
+    suite.test_case_templates[0].prompt_definitions.push(inspection_definition());
+    suite
+}
+
+fn inspection_definition() -> dokime_runtime::prompts::PromptDefinition {
+    use dokime_runtime::prompts::{FormPrompt, Prompt};
+    let mut definition = FormPrompt::<BTreeMap<String, bool>>::new("test.prompt.inspect", "Inspect Charging State")
+        .field(PromptField {
+            metadata: Metadata::new(Identifier::new("charging").unwrap(), "Charging", None),
+            value_type: ValueType::Boolean,
+            kind: PromptFieldKind::Boolean,
+            multiple: false,
+            required: true,
+            default: None,
+            choices: Vec::new(),
+            validation: Default::default(),
+        })
+        .definition();
+    definition.actions.retain(|action| action.id != "cancel");
+    definition
+}
+
+async fn ask_inspection(runtime: &RuntimeHandle, cycle: &dokime_domain::model::execution::result::CycleView, index: usize) -> PromptId {
+    let execution = &cycle.test_executions[index];
+    let request = PromptRequest {
+        prompt_id: dokime_runtime::model::identity::new_id::<PromptId>(),
+        prompt_type: Identifier::new("test.prompt.inspect").unwrap(),
+        values: BTreeMap::new(),
+        scope: RecordScope::default().with_cycle(cycle.test_cycle_id.clone()).with_test_execution(execution.test_execution_id.clone()),
+    };
+    let id = request.prompt_id.clone();
+    runtime.request_prompt(request).await.unwrap();
+    id
+}
+
+async fn cycle_pending(runtime: &RuntimeHandle, cycle: &TestCycleId) -> usize {
+    runtime.pending_prompt_projection().await.iter().filter(|prompt| prompt.scope.test_cycle_id.as_ref() == Some(cycle)).count()
+}
+
+fn prompt_definition() -> dokime_runtime::prompts::PromptDefinition {
+    use dokime_runtime::prompts::{FormPrompt, Prompt};
+    FormPrompt::<BTreeMap<String, bool>>::new("test.prompt.confirm", "Confirm Test Prompt")
+        .field(PromptField {
+            metadata: Metadata::new(Identifier::new("confirmed").unwrap(), "Confirmed", None),
+            value_type: ValueType::Boolean,
+            kind: PromptFieldKind::Boolean,
+            multiple: false,
+            required: true,
+            default: Some(Value::Bool(true)),
+            choices: Vec::new(),
+            validation: Default::default(),
+        })
+        .definition()
+}
+
+fn prompt_request() -> PromptRequest {
+    PromptRequest {
+        prompt_id: dokime_runtime::model::identity::new_id::<PromptId>(),
+        prompt_type: Identifier::new("test.prompt.confirm").unwrap(),
+        values: BTreeMap::new(),
+        scope: RecordScope::default(),
+    }
+}
+
+fn question_config(root: &std::path::Path, definition: dokime_runtime::prompts::PromptDefinition) -> RuntimeConfig {
+    let domains = prompts([definition]);
+    config(root).with_installed_plugins([]).with_declared_plugin("prompt_fixture", "1.0.0", "Questions", domains).unwrap()
+}
+
+fn prompt_config(root: impl Into<std::path::PathBuf>) -> RuntimeConfig {
+    config(root).with_declared_plugin("prompt_fixture", "1.0.0", "Questions", prompts([prompt_definition()])).unwrap()
+}
+
+fn prompts(definitions: impl IntoIterator<Item = dokime_runtime::prompts::PromptDefinition>) -> harmos::sidecar::Registrar {
+    use dokime_runtime::plugin::registration::{PROMPTS_NAMESPACE, domain_schema};
+    let mut registrar = harmos::sidecar::Registrar::new();
+    registrar.register(PROMPTS_NAMESPACE, domain_schema(PROMPTS_NAMESPACE), &definitions.into_iter().collect::<Vec<_>>()).unwrap();
+    registrar
 }
 
 async fn check_stopped_question(stop_cycle: bool) {

@@ -44,6 +44,7 @@ pub enum Error {
     Process {
         #[source]
         source: Box<dyn std::error::Error + Send + Sync>,
+
         exit_code: ExitCode,
     },
 

@@ -75,6 +75,7 @@ pub struct RuntimeConfig {
 
     #[serde(skip, default = "super::query_defaults")]
     pub query: super::QuerySettings,
+
     pub session_id: SessionId,
     pub storage_root: PathBuf,
     pub application: crate::paths::ApplicationPaths,
@@ -196,7 +197,7 @@ impl RuntimeConfig {
         self
     }
 
-    /// Supply Credential Storage As A Live Composition Resource, Separate From Settings.
+    // Supply Credential Storage As A Live Composition Resource, Separate From Settings.
     #[cfg(feature = "native")]
     pub fn with_credential_store(mut self, store: Arc<keyring_core::CredentialStore>) -> Self {
         self.credential_store = Some(store);

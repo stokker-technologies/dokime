@@ -11,8 +11,6 @@
 
 /* === Re-Exports === */
 
-use super::{ResolvedBrand, policy};
-
 /* === Imports === */
 
 // Standard Library Imports
@@ -25,6 +23,7 @@ use std::{
 
 // Local Imports
 use super::theme::{Bundled, Source};
+use super::{ResolvedBrand, policy};
 
 /* === Constants === */
 
@@ -36,7 +35,7 @@ const DEFAULT_INSTALLER_SIDEBAR_COLOR: [u8; 3] = [0x1b, 0x19, 0x15];
 
 /* === Structs === */
 
-/// A Validated Organization With All Inherited Files Included.
+// A Validated Organization With All Inherited Files Included.
 #[derive(Clone, Debug)]
 pub struct ResolvedPack {
     pub manifest: toml::Value,
@@ -54,7 +53,7 @@ impl ResolvedPack {
         self.manifest.get("app").and_then(|app| app.get("label")).and_then(toml::Value::as_str).unwrap_or("")
     }
 
-    /// Returns The Pack's `[app.organization] name`, When It Names One.
+    // Returns The Pack's `[app.organization] name`, When It Names One.
     pub fn organization_name(&self) -> Option<&str> {
         let organization = self.manifest.get("app")?.get("organization")?;
         organization.get("name")?.as_str()
@@ -135,7 +134,7 @@ pub fn brand() -> Option<ResolvedBrand> {
     super::compiled_brand()
 }
 
-/// Overlay Authored Files And Manifest Fields Before Validating The Complete Pack.
+// Overlay Authored Files And Manifest Fields Before Validating The Complete Pack.
 pub fn resolve(override_dir: Option<&Path>) -> Result<ResolvedPack, String> {
     let base = installation_directory();
     resolve_with_base(base.as_deref(), override_dir)

@@ -19,17 +19,18 @@ use std::sync::{Arc, Mutex};
 
 // Third Party Imports
 use async_trait::async_trait;
-use dokime_runtime::Identifier;
-use dokime_runtime::Message;
-use dokime_runtime::execution::Runnable;
-use dokime_runtime::transport::{ExecutionSignal, SignalReply, TransportFuture};
 use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
+use dokime_runtime::Identifier;
 use dokime_runtime::InstalledPlugin;
+use dokime_runtime::Message;
+use dokime_runtime::execution::Runnable;
 use dokime_runtime::runtime::EmbeddedProvider;
+use dokime_runtime::transport::{ExecutionSignal, SignalReply, TransportFuture};
 
 /* === Constants === */
+
 const TEMPLATE: &str = "fixture.template.t0";
 
 /* === Macros === */
@@ -60,11 +61,22 @@ struct Probe {
     signals: Signals,
 }
 
+struct ShutdownProbe {
+    calls: std::sync::atomic::AtomicUsize,
+    refuse_first: bool,
+    start_failure: bool,
+    refuse: std::sync::atomic::AtomicBool,
+    block: std::sync::atomic::AtomicBool,
+    entered: tokio::sync::Notify,
+    release: tokio::sync::Notify,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Runnable for Idle {
     fn template_identifier(&self) -> &str {
         TEMPLATE
@@ -150,34 +162,47 @@ impl EmbeddedProvider for Probe {
     }
 }
 
-/* === Public Functions === */
+#[async_trait]
+impl EmbeddedProvider for ShutdownProbe {
+    fn catalog(&self) -> InstalledPlugin {
+        InstalledPlugin {
+            source: "fixture_shutdown".into(),
+            version: "0.1.0".into(),
+            enabled: true,
+            ..Default::default()
+        }
+    }
 
-/* === Private Functions === */
+    fn streams(&self) -> Vec<StreamDeclaration> {
+        Vec::new()
+    }
 
-fn run_route() -> String {
-    format!("host.{}", <dokime_runtime::execution::Run<()> as harmos::OperationDeclaration>::ID)
-}
+    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
+        if self.start_failure {
+            return Err(dokime_runtime::runtime::Error::Operation("initialization refused".into()));
+        }
+        Ok(Vec::new())
+    }
 
-// The refusal code a failed host-level template run answers.
-fn refusal(answer: harmos::Result<Vec<u8>>) -> i64 {
-    let Err(harmos::Error::OperationFailed { source, .. }) = answer else {
-        panic!("the template run must fail: {answer:?}");
-    };
-    source.downcast_ref::<dokime_runtime::Refusal>().expect("the template run answers a refusal").code()
-}
+    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
+        let call = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.entered.notify_one();
 
-fn run_request(token: &str) -> dokime_runtime::transport::RunExecution {
-    dokime_runtime::transport::RunExecution {
-        publication_rows: 1024,
-        publication_bytes: 1024 * 1024,
-        publication_delay_micros: 0,
-        execution_token: token.into(),
-        template_identifier: TEMPLATE.into(),
-        ..Default::default()
+        if self.refuse.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(dokime_runtime::runtime::Error::Operation("cleanup refused".into()));
+        }
+        if self.refuse_first && call == 0 {
+            return Err(dokime_runtime::runtime::Error::Operation("cleanup refused once".into()));
+        }
+        while self.block.load(std::sync::atomic::Ordering::SeqCst) {
+            self.release.notified().await;
+        }
+        Ok(())
     }
 }
 
-/* === Tests === */
+/* === Public Functions === */
+
 pub(crate) async fn admitted_catalog_is_durable_before_exposure() {
     let root = tempfile::tempdir().unwrap();
     let metadata = dokime_runtime::Metadata::new(Identifier::new("fixture.catalog.host").unwrap(), "Catalog Host", None);
@@ -360,62 +385,6 @@ pub(crate) async fn replacement_settles_generation() {
     assert_eq!(*events.lock().unwrap(), ["start:old", "stop:old", "start:new", "stop:new"]);
 }
 
-struct ShutdownProbe {
-    calls: std::sync::atomic::AtomicUsize,
-    refuse_first: bool,
-    start_failure: bool,
-    refuse: std::sync::atomic::AtomicBool,
-    block: std::sync::atomic::AtomicBool,
-    entered: tokio::sync::Notify,
-    release: tokio::sync::Notify,
-}
-
-#[async_trait]
-impl EmbeddedProvider for ShutdownProbe {
-    fn catalog(&self) -> InstalledPlugin {
-        InstalledPlugin {
-            source: "fixture_shutdown".into(),
-            version: "0.1.0".into(),
-            enabled: true,
-            ..Default::default()
-        }
-    }
-
-    fn streams(&self) -> Vec<StreamDeclaration> {
-        Vec::new()
-    }
-
-    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
-        if self.start_failure {
-            return Err(dokime_runtime::runtime::Error::Operation("initialization refused".into()));
-        }
-        Ok(Vec::new())
-    }
-
-    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
-        let call = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        self.entered.notify_one();
-
-        if self.refuse.load(std::sync::atomic::Ordering::SeqCst) {
-            return Err(dokime_runtime::runtime::Error::Operation("cleanup refused".into()));
-        }
-        if self.refuse_first && call == 0 {
-            return Err(dokime_runtime::runtime::Error::Operation("cleanup refused once".into()));
-        }
-        while self.block.load(std::sync::atomic::Ordering::SeqCst) {
-            self.release.notified().await;
-        }
-        Ok(())
-    }
-}
-
-fn shutdown_config(root: &std::path::Path) -> dokime_runtime::RuntimeConfig {
-    crate::service_support::budgets::runtime_config(
-        root,
-        dokime_runtime::Metadata::new(Identifier::new("fixture.shutdown.host").unwrap(), "Shutdown Host", None),
-    )
-}
-
 pub(crate) async fn shutdown_retains_owner() {
     let root = tempfile::tempdir().unwrap();
     let provider = Arc::new(ShutdownProbe {
@@ -555,3 +524,37 @@ pub(crate) async fn cancelled_startup_owned() {
     assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), before + 1);
     assert_eq!(Arc::strong_count(&provider), 1);
 }
+
+/* === Private Functions === */
+
+fn run_route() -> String {
+    format!("host.{}", <dokime_runtime::execution::Run<()> as harmos::OperationDeclaration>::ID)
+}
+
+// The refusal code a failed host-level template run answers.
+fn refusal(answer: harmos::Result<Vec<u8>>) -> i64 {
+    let Err(harmos::Error::OperationFailed { source, .. }) = answer else {
+        panic!("the template run must fail: {answer:?}");
+    };
+    source.downcast_ref::<dokime_runtime::Refusal>().expect("the template run answers a refusal").code()
+}
+
+fn run_request(token: &str) -> dokime_runtime::transport::RunExecution {
+    dokime_runtime::transport::RunExecution {
+        publication_rows: 1024,
+        publication_bytes: 1024 * 1024,
+        publication_delay_micros: 0,
+        execution_token: token.into(),
+        template_identifier: TEMPLATE.into(),
+        ..Default::default()
+    }
+}
+
+fn shutdown_config(root: &std::path::Path) -> dokime_runtime::RuntimeConfig {
+    crate::service_support::budgets::runtime_config(
+        root,
+        dokime_runtime::Metadata::new(Identifier::new("fixture.shutdown.host").unwrap(), "Shutdown Host", None),
+    )
+}
+
+/* === Tests === */

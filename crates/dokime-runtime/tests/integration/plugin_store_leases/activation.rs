@@ -12,9 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 use tempfile::tempdir;
+
 // Local Imports
 use super::*;
 use dokime_runtime::Runtime;
@@ -36,9 +39,6 @@ use dokime_runtime::plugins::PluginBundle;
 
 /* === Public Functions === */
 
-/* === Private Functions === */
-
-/* === Tests === */
 pub(crate) async fn broken_configured_loud() {
     let root = tempdir().unwrap();
     let invalid = root.path().join("invalid-sidecar");
@@ -52,3 +52,7 @@ pub(crate) async fn broken_configured_loud() {
 
     assert!(result.is_err());
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

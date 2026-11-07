@@ -32,9 +32,9 @@ use {
 };
 
 /* === Constants === */
+
 const SUITE: &str = "steps.checks";
 const TAIL: &str = "steps.checks.tail";
-
 const BEFORE: &[u8] = b"before the capture\n";
 const APPENDED: &[u8] = b"temp=41.5 state=charging\nFAULT E7\n";
 
@@ -43,6 +43,7 @@ const APPENDED: &[u8] = b"temp=41.5 state=charging\nFAULT E7\n";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Checks;
 
 struct TailDevice;
@@ -87,12 +88,15 @@ struct TailParameters {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime_runtime::Error),
+
     #[error("host: {0}")]
     Host(#[from] dokime_runtime::harmos::sidecar::CallError),
+
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -122,6 +126,7 @@ enum Records {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[dokime_runtime::suite(id = SUITE, label = "Step Built-Ins", templates = Templates)]
 impl Checks {}
 
@@ -205,11 +210,67 @@ impl AcrossSteps {
     }
 }
 
+#[dokime_runtime::template(id = "steps.checks.tree", label = "Capture Log Tree", parameters = TailParameters)]
+impl CaptureTree {
+    async fn initialize(_: &TailParameters, _: &mut InitializationContext<'_>) -> Result<Self, Error> {
+        Ok(Self)
+    }
+
+    #[dokime_runtime::step(label = "Capture Log Tree")]
+    async fn capture(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
+        let root = std::path::PathBuf::from(&ctx.parameters().path);
+        let logs = || FileSource::tree(&root, [FileRule::include("Logs/**/*.log")]);
+
+        // Capture An Untouched Tree
+        let request = StartCapture::new(logs(), "logs", StreamCapture::plain());
+        let untouched = ctx.operation(request).await?;
+        let request = StopCapture { capture_id: untouched.capture_id };
+        assert!(ctx.operation(request).await?.artifacts.is_empty());
+
+        // Stream A Growing Tree
+        let request = StartCapture::new(logs(), "logs", StreamCapture::plain());
+        let stream = ctx.operation(request).await?;
+        std::fs::OpenOptions::new().append(true).open(root.join("Logs/existing.log"))?.write_all(b"after\n")?;
+        std::fs::create_dir_all(root.join("Logs/next-day"))?;
+        std::fs::write(root.join("Logs/next-day/new.log"), b"new\n")?;
+        std::fs::write(root.join("Logs/next-day/empty.log"), b"")?;
+        std::fs::write(root.join("Logs/next-day/ignored.zip"), b"ignored")?;
+        let request = StopCapture { capture_id: stream.capture_id };
+        let outcome = ctx.operation(request).await?.into_owned();
+        assert_eq!(outcome.artifacts.len(), 3);
+        ctx.artifacts().write("same/device.log", b"first")?;
+        ctx.artifacts().write("same/device.log", b"second")?;
+
+        // Mirror Archives
+        let source = FileSource::tree(&root, [FileRule::include("**/*.zip")]);
+        let request = StartCapture::new(source, "logs", MirrorCapture::every(3600));
+        let mirror = ctx.operation(request).await?;
+        std::fs::write(root.join("bundle.zip"), b"updated archive")?;
+        std::fs::create_dir_all(root.join("deep"))?;
+        std::fs::write(root.join("deep/new.zip"), b"new archive")?;
+        std::fs::write(root.join("deep/ignored.log"), b"ignored")?;
+        let request = StopCapture { capture_id: mirror.capture_id };
+        let outcome = ctx.operation(request).await?.into_owned();
+        assert_eq!(outcome.artifacts.len(), 3);
+
+        // Copy Files With Ordinary Extensions, Refusing Unsafe Names
+        for extension in ["diag", "hpl30"] {
+            let name = format!("capture.{extension}");
+            let source = FileSource::file(root.join(&name));
+            ctx.operation(CopyFiles::new(source.clone(), name)).await?;
+            for unsafe_name in ["../escape.diag", "/absolute.hpl30", "C:/escape.diag", "logs/CON.diag", "NUL.hpl30"] {
+                assert!(ctx.operation(CopyFiles::new(source.clone(), unsafe_name)).await.is_err(), "{unsafe_name}");
+                assert!(ctx.artifacts().write(unsafe_name, b"refused").is_err());
+            }
+        }
+
+        // Copy Everything
+        ctx.operation(CopyFiles::new(FileSource::tree(&root, []), "all")).await?;
+        Ok(())
+    }
+}
+
 /* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Tests === */
 
 pub(crate) async fn harness_mirror_arms_before_rotation_and_retains_both_segments() {
     let directory = tempfile::tempdir().unwrap();
@@ -282,65 +343,7 @@ pub(crate) async fn capture_spans_steps() {
     assert_eq!(report.artifact("logs/device.log").bytes, APPENDED);
 }
 
-#[dokime_runtime::template(id = "steps.checks.tree", label = "Capture Log Tree", parameters = TailParameters)]
-impl CaptureTree {
-    async fn initialize(_: &TailParameters, _: &mut InitializationContext<'_>) -> Result<Self, Error> {
-        Ok(Self)
-    }
-
-    #[dokime_runtime::step(label = "Capture Log Tree")]
-    async fn capture(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        let root = std::path::PathBuf::from(&ctx.parameters().path);
-        let logs = || FileSource::tree(&root, [FileRule::include("Logs/**/*.log")]);
-
-        // Capture An Untouched Tree
-        let request = StartCapture::new(logs(), "logs", StreamCapture::plain());
-        let untouched = ctx.operation(request).await?;
-        let request = StopCapture { capture_id: untouched.capture_id };
-        assert!(ctx.operation(request).await?.artifacts.is_empty());
-
-        // Stream A Growing Tree
-        let request = StartCapture::new(logs(), "logs", StreamCapture::plain());
-        let stream = ctx.operation(request).await?;
-        std::fs::OpenOptions::new().append(true).open(root.join("Logs/existing.log"))?.write_all(b"after\n")?;
-        std::fs::create_dir_all(root.join("Logs/next-day"))?;
-        std::fs::write(root.join("Logs/next-day/new.log"), b"new\n")?;
-        std::fs::write(root.join("Logs/next-day/empty.log"), b"")?;
-        std::fs::write(root.join("Logs/next-day/ignored.zip"), b"ignored")?;
-        let request = StopCapture { capture_id: stream.capture_id };
-        let outcome = ctx.operation(request).await?.into_owned();
-        assert_eq!(outcome.artifacts.len(), 3);
-        ctx.artifacts().write("same/device.log", b"first")?;
-        ctx.artifacts().write("same/device.log", b"second")?;
-
-        // Mirror Archives
-        let source = FileSource::tree(&root, [FileRule::include("**/*.zip")]);
-        let request = StartCapture::new(source, "logs", MirrorCapture::every(3600));
-        let mirror = ctx.operation(request).await?;
-        std::fs::write(root.join("bundle.zip"), b"updated archive")?;
-        std::fs::create_dir_all(root.join("deep"))?;
-        std::fs::write(root.join("deep/new.zip"), b"new archive")?;
-        std::fs::write(root.join("deep/ignored.log"), b"ignored")?;
-        let request = StopCapture { capture_id: mirror.capture_id };
-        let outcome = ctx.operation(request).await?.into_owned();
-        assert_eq!(outcome.artifacts.len(), 3);
-
-        // Copy Files With Ordinary Extensions, Refusing Unsafe Names
-        for extension in ["diag", "hpl30"] {
-            let name = format!("capture.{extension}");
-            let source = FileSource::file(root.join(&name));
-            ctx.operation(CopyFiles::new(source.clone(), name)).await?;
-            for unsafe_name in ["../escape.diag", "/absolute.hpl30", "C:/escape.diag", "logs/CON.diag", "NUL.hpl30"] {
-                assert!(ctx.operation(CopyFiles::new(source.clone(), unsafe_name)).await.is_err(), "{unsafe_name}");
-                assert!(ctx.artifacts().write(unsafe_name, b"refused").is_err());
-            }
-        }
-
-        // Copy Everything
-        ctx.operation(CopyFiles::new(FileSource::tree(&root, []), "all")).await?;
-        Ok(())
-    }
-}
+/* === Private Functions === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -450,3 +453,5 @@ async fn harness_live_capture() {
     assert!(chunks.last().unwrap().last);
     assert!(chunks.iter().all(|chunk| chunk.transfer_id == first[0].transfer_id));
 }
+
+/* === Tests === */
