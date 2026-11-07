@@ -183,6 +183,9 @@ pub struct PlotPresentation {
         description = "The unit an elapsed x axis counts in, as the column declared it: \"s\", \"ms\", \"us\", \"min\", \"h\". Absent for a wall-time axis."
     )]
     pub x_axis_unit: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
 }
 
 #[harmos::message]

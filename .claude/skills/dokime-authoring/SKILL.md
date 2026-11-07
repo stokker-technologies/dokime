@@ -18,6 +18,14 @@ Plot definitions declare their data and presentation, never a time window. The
 live viewer selects one window for all plots in the view, defaulting to All.
 Reports always include the full captured sample range with bounded previews.
 
+Plot `unit` is only a label. `plot.scale(1e3)` converts returned time-series y
+values, statistics (except count), cursor/tooltips and y references for display
+in live plots and frozen HTML. It defaults to 1.0 and is omitted when absent.
+Validation requires a positive finite constant and refuses other plot kinds,
+custom analyses and alternate x axes, naming the plot. Filters and section repeats
+keep stored units; evidence, exports, criteria, query plans and expressions stay
+unchanged. Arithmetic expressions such as `column * 1e3` remain unsupported.
+
 Secret declarations read shared Secret Storage identifiers directly: a field
 `api_token: dokime::plugin::Secret` requires the identifier `api_token`;
 `Option<Secret>` permits absence. No secret defaults, `from_environment`, saved

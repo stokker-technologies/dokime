@@ -109,6 +109,7 @@ export type DocumentViewPlot = {
   series_by?: string | null;
   unit?: string | null;
   description?: string | null;
+  scale?: number | null;
   marker_record_types?: string[];
   filters?: DocumentFilter[];
   reference_lines?: DocumentReferenceLine[];

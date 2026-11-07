@@ -520,6 +520,7 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
     x: request.xKey,
     series_by: request.seriesBy,
     unit: request.unit ?? null,
+    scale: presentation?.scale,
     description: metadata?.description ?? null,
     marker_record_types: [...request.markerRecordTypes],
     filters: request.filters.map(mapNativeFilter),

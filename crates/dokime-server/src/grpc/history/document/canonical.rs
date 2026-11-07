@@ -118,6 +118,7 @@ pub(in crate::grpc) fn historical_plot(
     };
     let (x_axis, x_axis_unit) = enums::plot_axis(value.x_axis.as_ref());
     let presentation = dokime::domain::model::documents::wire::PlotPresentation {
+        scale: value.scale,
         style: enums::plot_style(&value.style),
         fft: Some(fft_options(&value.fft)?),
         interval: Some(interval_options(&value.interval)?),

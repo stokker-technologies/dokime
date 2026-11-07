@@ -268,6 +268,9 @@ pub struct PlotDefinition {
     #[serde(default)]
     pub unit: Option<String>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
+
     #[serde(default)]
     pub style: PlotStyle,
 
@@ -462,6 +465,10 @@ pub struct PlotInput {
     pub filters: Vec<DocumentFilter>,
 
     pub unit: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
+
     pub style: PlotStyle,
     pub x_scale: AxisScale,
     pub y_scale: AxisScale,
@@ -1630,6 +1637,7 @@ impl PartialEq for PlotDefinition {
             series_by_expression,
             filters,
             unit,
+            scale,
             style,
             x_scale,
             y_scale,
@@ -1660,6 +1668,7 @@ impl PartialEq for PlotDefinition {
             && series_by_expression == &other.series_by_expression
             && filters == &other.filters
             && unit == &other.unit
+            && scale == &other.scale
             && style == &other.style
             && x_scale == &other.x_scale
             && y_scale == &other.y_scale
@@ -1699,6 +1708,7 @@ impl PlotDefinition {
             series_by_expression: None,
             filters: Vec::new(),
             unit: None,
+            scale: None,
             style: PlotStyle::Line,
             x_scale: AxisScale::Linear,
             y_scale: AxisScale::Linear,
@@ -1746,8 +1756,19 @@ impl PlotDefinition {
         self.metadata.identifier = Identifier::new(identifier.as_ref()).unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
     }
 
+    /// Set the display unit label only; this does not convert values.
     pub fn unit(&mut self, unit: impl Into<String>) {
         self.unit = Some(unit.into());
+    }
+
+    /// Multiply returned time-series y values, statistics and y references for display only.
+    ///
+    /// Defaults to 1.0. Document validation requires a positive finite constant and
+    /// refuses other plot kinds, custom analyses and x axes. Filters such as `.only(column.gt(...))`
+    /// and section repeats still use stored units. Evidence, exports, criteria,
+    /// query plans and expressions are unchanged; `unit` is only a label.
+    pub fn scale(&mut self, scale: f64) {
+        self.scale = Some(scale);
     }
 
     pub fn stream(&mut self, stream: impl Into<String>) {
@@ -2007,6 +2028,22 @@ pub(crate) fn plot_validation_issue_bytes(plot: &PlotDefinition) -> Option<usize
 }
 
 fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
+    if let Some(scale) = plot.scale {
+        if !scale.is_finite() || scale <= 0.0 {
+            return Err(error(format_args!("plot {}: scale must be a positive finite constant", plot.metadata.label)));
+        }
+        let timestamp_axis = plot.x_expression.is_none()
+            && plot.x.as_deref().is_none_or(|field| field == "timestamp")
+            && !matches!(plot.x_axis, Some(PlotAxisKind::Elapsed { .. }));
+        if plot.plot_type != PlotType::TimeSeries || !timestamp_axis || plot.analysis.is_some() {
+            return Err(error(format_args!(
+                "plot {}: scale supports only time_series y values against the row timestamp; {} with custom analyses or other x axes is unsupported",
+                plot.metadata.label,
+                plot_type_label(&plot.plot_type)
+            )));
+        }
+    }
+
     if matches!(
         plot.plot_type,
         PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pie | PlotType::Donut | PlotType::Pareto | PlotType::AggregateTable

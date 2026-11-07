@@ -342,6 +342,7 @@ fn fixture_plot_input(plot_id: Identifier, scope: RecordScope, plot_type: PlotTy
         filters: Vec::new(),
         unit: None,
         style: PlotStyle::Line,
+        scale: None,
         x_scale: Default::default(),
         y_scale: Default::default(),
         analysis: None,

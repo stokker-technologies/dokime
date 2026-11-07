@@ -69,6 +69,7 @@ pub fn plot_input_for_definition(
         series_by_expression: plot.series_by_expression.clone(),
         filters: plot.filters.clone(),
         unit: plot.unit.clone(),
+        scale: plot.scale,
         style: plot.style.clone(),
         x_scale: plot.x_scale.clone(),
         y_scale: plot.y_scale.clone(),

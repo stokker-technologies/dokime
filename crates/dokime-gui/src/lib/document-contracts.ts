@@ -185,6 +185,7 @@ export type PlotDefinition = {
   group?: string;
   unit?: string | null;
   style?: PlotStyle;
+  scale?: number | null;
   x_scale?: AxisScale;
   y_scale?: AxisScale;
   fft?: FftOptions;
@@ -225,6 +226,7 @@ export type PlotInput = {
   filters?: DocumentFilter[];
   unit: string | null;
   style: PlotStyle;
+  scale?: number | null;
   x_scale: AxisScale;
   y_scale: AxisScale;
   fft: FftOptions;
