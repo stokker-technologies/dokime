@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+pub(crate) mod commands;
 pub(crate) mod definition;
 pub(crate) mod embedded;
 pub(crate) mod handle;
@@ -20,7 +21,6 @@ pub(crate) mod session;
 #[cfg(feature = "simulation")]
 pub(crate) mod simulation;
 pub(crate) mod steps;
-pub(crate) mod commands;
 
 /* === Re-Exports === */
 
