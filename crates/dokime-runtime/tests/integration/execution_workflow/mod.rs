@@ -159,8 +159,15 @@ async fn plugin_settings_restart() {
 async fn plugin_hot_reload() {
     session::installs_apply_live().await;
     session::replacement_waits_for_cycle().await;
-    session::refused_replacement_keeps_running().await;
     session::reload_restarts_one_plugin().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test(flavor = "multi_thread")]
+async fn plugin_installation_replacement() {
+    session::failed_installation_is_replaced().await;
+    session::failed_installations_can_be_removed().await;
+    session::refused_replacement_keeps_running().await;
 }
 
 // These Stages Serve An Embedded Template Whose Initialization Fails In This Environment Even Alone.
