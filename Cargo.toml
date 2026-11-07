@@ -73,9 +73,9 @@ dokime-tracing = { version = "0.1.2", path = "crates/dokime-tracing" }
 plugin-host = { path = "plugins/sidecars/host", default-features = false }
 
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "6bdada5605584ad82a18ebd7035cc9cd90365aaf" }
-harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "6bdada5605584ad82a18ebd7035cc9cd90365aaf" }
-harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "6bdada5605584ad82a18ebd7035cc9cd90365aaf" }
+harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "a41e00fd0ba867b79986f3a75ac5a8b32b6ac0dc" }
+harmos-packaging = { git = "https://github.com/stokker-technologies/harmos", rev = "a41e00fd0ba867b79986f3a75ac5a8b32b6ac0dc" }
+harmos-sdk = { git = "https://github.com/stokker-technologies/harmos", rev = "a41e00fd0ba867b79986f3a75ac5a8b32b6ac0dc" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }
