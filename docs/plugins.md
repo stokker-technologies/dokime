@@ -561,7 +561,11 @@ Use `?` by default for operation failures in a step.
   Repeat steps rather than extract a helper. Keep indentation shallow and loop
   bodies a plain sequence of steps.
 - Build documents one statement at a time: create a plot, configure it, then
-  attach it.
+  attach it. `Document::new("Hold at Temperature")` derives `hold.at.temperature`;
+  set `document.id("hold");` when label edits must keep the key. Validation
+  refuses invalid or empty derived keys and collisions in one registry, naming
+  the labels and directing authors to `.id(...)`. The runtime owns the internal
+  `default` view and merges template content into it.
 - Suffix field names with their unit (`duration_s`, `distance_m`); separate
   attributed fields with a blank line.
 - Use the same type names in every template file: `Template`, `Parameters`,
