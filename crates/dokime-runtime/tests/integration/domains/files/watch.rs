@@ -1299,7 +1299,28 @@ async fn live_media_upload() {
         std::fs::write(destination, &content.bytes).unwrap();
         assert_eq!(artifact["downloadHref"], href);
     }
-    bench.stop().await;
+    let Bench { _root: root, mut owner, handle, .. } = bench;
+    drop(handle);
+    owner.shutdown().await.unwrap();
+    let (mut owner, handle) = started(config(root.path())).await;
+    for name in &names {
+        let path = format!("media/{name}");
+        let content = handle.execution_file_snapshot(&execution, path.clone()).await.unwrap().unwrap();
+        assert_eq!(content.bytes, png);
+        for offset in (0..png.len()).step_by(3) {
+            let content = handle.execution_file_content(&execution, path.clone(), offset as u64, 3).await.unwrap().unwrap();
+            assert_eq!(content.offset, offset as u64);
+            assert_eq!(content.bytes, png[offset..(offset + 3).min(png.len())]);
+            assert_eq!(content.size_bytes, png.len() as u64);
+            assert_eq!(content.content_type.as_deref(), Some("image/png"));
+        }
+        let end = handle.execution_file_content(&execution, path, u64::MAX, 3).await.unwrap().unwrap();
+        assert_eq!(end.offset, png.len() as u64);
+        assert!(end.bytes.is_empty());
+    }
+    assert!(handle.execution_file_content(&execution, "media/missing.png".into(), 0, 3).await.unwrap().is_none());
+    assert!(handle.execution_file_content(&execution, "../missing.png".into(), 0, 3).await.unwrap().is_none());
+    owner.shutdown().await.unwrap();
 }
 
 #[cfg(feature = "testing")]
