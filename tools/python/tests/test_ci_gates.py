@@ -137,6 +137,21 @@ class ImpactTests(unittest.TestCase):
         selected = impact.select(plan, {"CONTRIBUTING.md"})
         self.assertEqual(impact.scope(plan, selected, "build"), set())
 
+    def test_release_scope(self):
+        plan = simulate.PLAN["impact"]
+        bump = {"Cargo.toml", "Cargo.lock", "tools/project.toml", "crates/dokime-gui/package.json", "uv.lock"}
+        release = impact.scope(plan, impact.select(plan, bump), "release", bump)
+        self.assertTrue(
+            {"build", "build:python", "check:rust", "package:rust", "package:python", "release:publish:dry", "release:rehearse"} <= release
+        )
+        self.assertFalse(any(job.startswith(("test:", "bench:")) or job == "build:rust:tests" for job in release))
+        for job in release - {"release:publish:dry", "release:rehearse"}:
+            self.assertTrue(set(plan["dependencies"][job]) <= release)
+        self.assertEqual(impact.scope(plan, set(), "release", bump | {"crates/dokime/src/lib.rs"}), set(plan["dependencies"]))
+        self.assertEqual(impact.scope(plan, set(), "release", None), set(plan["dependencies"]))
+        action = runpy.run_path(str(ROOT / ".github/actions/plan-impact/run.py"))
+        self.assertEqual(action["scope"](plan, set(), "release", bump), release)
+
     def test_conservative_scope(self):
         plan = {"dependencies": {"build": ["producer"], "package:rust": ["build"], "producer": []}, "rules": []}
         self.assertEqual(impact.close(plan["dependencies"], {"unknown"}), set(plan["dependencies"]))
