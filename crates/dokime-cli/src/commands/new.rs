@@ -25,6 +25,7 @@ use std::{fs, path::PathBuf};
 /* === Constants === */
 
 const FILES: &[(&str, &[u8])] = &[
+    (".gitattributes", include_bytes!("../../../../sdk/python/examples/starter/.gitattributes")),
     (".gitignore", include_bytes!("../../../../sdk/python/examples/starter/.gitignore")),
     ("pyproject.toml", include_bytes!("../../../../sdk/python/examples/starter/pyproject.toml")),
     ("main.py", include_bytes!("../../../../sdk/python/examples/starter/main.py")),
