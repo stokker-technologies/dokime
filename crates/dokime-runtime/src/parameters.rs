@@ -670,6 +670,12 @@ impl ParameterHandle {
     }
 }
 
+impl From<ParameterHandle> for crate::document::ReferenceValue {
+    fn from(value: ParameterHandle) -> Self {
+        Self::Expression(value.into())
+    }
+}
+
 impl From<ParameterHandle> for DataExpression {
     fn from(handle: ParameterHandle) -> Self {
         handle.expression()
