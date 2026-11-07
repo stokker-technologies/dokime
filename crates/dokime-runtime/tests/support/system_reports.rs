@@ -174,7 +174,7 @@ async fn save_cycle(handle: &RuntimeHandle, cycle: dokime_runtime::CycleView, ro
     (saved, artifacts)
 }
 
-async fn save_execution(handle: &RuntimeHandle, id: &dokime_runtime::TestExecutionId, root: &Path) -> usize {
+pub(crate) async fn save_execution(handle: &RuntimeHandle, id: &dokime_runtime::TestExecutionId, root: &Path) -> usize {
     let checkpoint = handle.execution_saved_checkpoint(id.clone()).await.unwrap();
     let view = dokime_runtime::runtime::ExecutionView::open_checkpoint(handle.storage(), &checkpoint).await.unwrap().unwrap();
     let seal = view.execution().saved.as_ref().expect("final execution seal").clone();

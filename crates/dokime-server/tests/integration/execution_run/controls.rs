@@ -205,6 +205,47 @@ pub(crate) async fn cycle_edits_state() {
         .unwrap();
     client.unary::<contracts::execution::SetCycleArchived>(authenticated(archive(&id, false))).await.unwrap();
     assert!(listed(&mut client, &id, None).await);
+    let sealed_cases = client
+        .unary::<contracts::execution::ListCases>(authenticated(contracts::execution::ListCases {
+            cycle_id: id.clone(),
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .cases;
+    let mut sealed_summary = client
+        .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.clone() }))
+        .await
+        .unwrap()
+        .into_inner();
+    client.unary::<contracts::execution::CreateCycle>(authenticated(create())).await.unwrap();
+    assert!(
+        !owner
+            .handle()
+            .watch_state()
+            .latest()
+            .state()
+            .cycles
+            .contains_key(&dokime::domain::model::identity::TestCycleId::from_uuid(id.clone()).unwrap())
+    );
+    let historical_cases = client
+        .unary::<contracts::execution::ListCases>(authenticated(contracts::execution::ListCases {
+            cycle_id: id.clone(),
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .cases;
+    let historical_summary = client
+        .unary::<contracts::execution::GetCycle>(authenticated(contracts::execution::GetCycle { cycle_id: id.clone() }))
+        .await
+        .unwrap()
+        .into_inner();
+    sealed_summary.observed_cursor = historical_summary.observed_cursor.clone();
+    assert_eq!(historical_cases, sealed_cases);
+    assert_eq!(historical_summary, sealed_summary);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }

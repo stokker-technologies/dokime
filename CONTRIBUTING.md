@@ -407,6 +407,18 @@ Run measurements without concurrent validation and preserve the original executa
 before changing production source. A running execution uses Stop; Cancel skips an
 execution that has not started and retains its own report/evidence boundary.
 
+Set `DOKIME_HEAVY_PATHS=cycles`, `files`, `finalizer` or `all` to measure the
+cycle summaries, saved 64 KiB windows and report verification paths. The cycle
+fixture uses 128 members; file paging and finalizer probes use one member with
+a 2 MiB log to isolate its reads and verification. Each prints seven samples
+and checks the returned data. A smaller sealed cycle compares historical inspection
+within the existing working-memory limit. Use an absolute `DOKIME_TEST_TRACE_DIR`
+to retain runtime and rendering spans beside the timing samples.
+
+```sh
+mise run build:rust:focused -- bench --locked -p dokime-runtime --features testing --bench integration-runtime -- heavy_paths
+```
+
 ## Pull Requests
 
 Target `dev`. Describe the user-visible change and its verification, and keep
