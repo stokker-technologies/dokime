@@ -1125,6 +1125,113 @@ pub(crate) async fn replacement_waits_for_cycle() {
     owner.shutdown().await.unwrap();
 }
 
+// A Successful Replacement Retires Failed Boots, Including After Startup Recovery.
+pub(crate) async fn failed_installation_is_replaced() {
+    for restart in [false, true] {
+        // Install A Package Whose Executable Cannot Start.
+        let root = tempdir().unwrap();
+        let (mut owner, mut handle) = started(config(root.path())).await;
+        let unprepared = installed(&handle, secret_bundle("plugin-host", HOST)).await;
+        assert!(unprepared.boot_failed && !unprepared.active);
+        let mut failed = installed(&handle, crate::service_support::bundles::bundle("plugin-host", HOST, "2.0.0")).await;
+        let failed_id = failed.installation.install_id;
+        assert!(failed.boot_failed && !failed.active);
+        assert!(matches!(failed.installation.last_boot, Some(PluginLastBoot::Failed { .. })));
+
+        // Recover The Failed Installation Before Replacing It.
+        if restart {
+            drop(handle);
+            owner.shutdown().await.unwrap();
+            (owner, handle) = started(config(root.path())).await;
+            assert!(installation(&handle, failed_id).await.boot_failed);
+        }
+
+        // Activate A Newer Bundle Of The Same Package Through The Live Install Path.
+        let replacement = installed(&handle, crate::service_support::bundles::host_plugin_version("99.0.0")).await;
+        let store = handle.plugin_store();
+        let listed = store.list().await.unwrap();
+        assert_eq!(listed.len(), 1);
+        let active = installation(&handle, listed[0].installation.install_id).await;
+        assert_eq!(active.installation.install_id, replacement.installation.install_id);
+        assert!(active.active && !active.boot_failed);
+        assert!(matches!(active.installation.last_boot, Some(PluginLastBoot::Loaded { .. })));
+        assert!(!store.path(failed_id).exists());
+        assert!(!store.path(unprepared.installation.install_id).exists());
+        handle.plugin_process_state(&mut failed);
+        assert!(!failed.boot_failed, "the discarded installation has no process boot failure");
+
+        // Reopening Retains Only The Working Installation.
+        drop(store);
+        drop(handle);
+        owner.shutdown().await.unwrap();
+        let (mut owner, handle) = started(config(root.path())).await;
+        assert_eq!(handle.plugin_store().list().await.unwrap().len(), 1);
+        assert!(installation(&handle, replacement.installation.install_id).await.active);
+        drop(handle);
+        owner.shutdown().await.unwrap();
+    }
+
+    // Recover A Replacement Published To The Store Before Live Activation Ran.
+    let root = tempdir().unwrap();
+    let (mut owner, handle) = started(config(root.path())).await;
+    let failed = installed(&handle, crate::service_support::bundles::bundle("plugin-host", HOST, "0.0.1")).await;
+    assert!(failed.boot_failed);
+    let store = handle.plugin_store();
+    let replacement =
+        store.install(&crate::service_support::bundles::host_plugin_version("99.0.0"), &[], &Default::default()).await.unwrap();
+    assert_eq!(store.list().await.unwrap().len(), 2);
+    assert!(store.path(failed.installation.install_id).is_file());
+    drop(store);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+    let (mut owner, handle) = started(config(root.path())).await;
+    assert_eq!(handle.plugin_store().list().await.unwrap().len(), 1);
+    let active = installation(&handle, replacement.installation.install_id).await;
+    assert!(active.active && !active.boot_failed);
+    assert!(matches!(active.installation.last_boot, Some(PluginLastBoot::Loaded { .. })));
+    assert!(!handle.plugin_store().path(failed.installation.install_id).exists());
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// Failed Or Refused Installations Can Be Removed Without Stopping A Working Version.
+pub(crate) async fn failed_installations_can_be_removed() {
+    let root = tempdir().unwrap();
+    let (mut owner, handle) = started(config(root.path())).await;
+
+    // Remove A Package That Never Started.
+    let failed = installed(&handle, crate::service_support::bundles::bundle("equipment", "equipment", "1.0.0")).await;
+    assert!(failed.boot_failed);
+    handle.remove_plugin(failed.installation.install_id).await.unwrap();
+    handle.plugin_bundle_settled("equipment").await;
+    assert!(handle.plugin_store().list().await.unwrap().is_empty());
+    assert!(!handle.plugin_store().path(failed.installation.install_id).exists());
+
+    // Remove A Refused Replacement While The Previous Version Keeps Running.
+    let active = installed(&handle, host_bundle()).await;
+    let package = active.metadata.as_ref().unwrap().identity.name.clone();
+    let generation = running_generation(&owner).await.unwrap();
+    let refused = installed(&handle, secret_bundle(&package, HOST)).await;
+    assert!(refused.boot_failed && refused.installation.state == PluginState::RemovalPending);
+    handle.remove_plugin(refused.installation.install_id).await.unwrap();
+    handle.plugin_bundle_settled(&package).await;
+    assert_eq!(handle.plugin_store().list().await.unwrap().len(), 1);
+    assert!(!handle.plugin_store().path(refused.installation.install_id).exists());
+    assert!(installation(&handle, active.installation.install_id).await.active);
+    assert_eq!(running_generation(&owner).await, Some(generation));
+
+    // An Unreadable Failed Bundle Is Also Removable Without A Verified Package Name.
+    let unreadable = installed(&handle, crate::service_support::bundles::bundle("equipment", "equipment", "1.0.0")).await;
+    let store = handle.plugin_store();
+    std::fs::write(store.path(unreadable.installation.install_id), b"invalid bundle").unwrap();
+    handle.remove_plugin(unreadable.installation.install_id).await.unwrap();
+    assert!(!store.path(unreadable.installation.install_id).exists());
+    assert_eq!(store.list().await.unwrap().len(), 1);
+    drop(store);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
 // A Refused Replacement Keeps The Previous Installation Running And Installed.
 pub(crate) async fn refused_replacement_keeps_running() {
     let root = tempdir().unwrap();
@@ -1154,14 +1261,14 @@ pub(crate) async fn refused_replacement_keeps_running() {
     assert!(running_generation(&owner).await.is_some() && admits_host(&handle).await);
     let runnable: Vec<_> = handle.plugin_store().installed().await.unwrap();
     assert_eq!(runnable.len(), 1, "a restart runs the kept installation alone");
-    // A Later Successful Apply Still Leaves Both Refusal Diagnostics Visible.
+    // A Later Successful Apply Retires Both Refused Replacements And Their Diagnostics.
     let replacement = installed(&handle, crate::service_support::bundles::host_plugin_version("99.0.0")).await;
     assert!(replacement.active);
-    for refused in [&unprepared, &unstarted] {
-        let row = installation(&handle, refused.installation.install_id).await;
-        assert_eq!(row.installation.state, PluginState::RemovalPending);
-        assert_eq!(row.installation.last_boot, refused.installation.last_boot);
-        assert!(handle.plugin_store().path(refused.installation.install_id).is_file());
+    assert_eq!(handle.plugin_store().list().await.unwrap().len(), 1);
+    for mut refused in [unprepared, unstarted] {
+        assert!(!handle.plugin_store().path(refused.installation.install_id).exists());
+        handle.plugin_process_state(&mut refused);
+        assert!(!refused.boot_failed);
     }
     drop(handle);
     owner.shutdown().await.unwrap();

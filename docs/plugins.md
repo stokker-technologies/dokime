@@ -410,7 +410,7 @@ or changed bundle bytes remain visible by UUID and error, without displaying
 unverified author metadata.
 
 Installation checks configured and installed owner collisions before publication. Replacing an installed
-package marks its previous version for next-boot removal; package names identify
+package marks its previous version for removal after successful activation; package names identify
 installations, while executable IDs identify dependencies. Boot selects native
 files for the current platform, verifies frozen and live registrations before
 initialization, and admits catalogs only after every surviving package initializes.
@@ -674,11 +674,15 @@ generation running untouched. Harmos stops a generation before starting its
 replacement, so a replacement whose new program then fails to start brings the
 previous bundle back as a fresh generation. Either way the previous installation
 stays installed with its saved values, and the refused one is listed as
-**Refused** with its failure, reported like a failed startup, until the next start
-deletes its file. A first installation that fails stays installed with its
-failure; **Reload** starts it again once the cause is fixed. Removal stops the
+**Refused** with its failure, reported like a failed startup, until it is deleted,
+a later replacement succeeds, or the next start deletes its file. A first installation
+that fails stays installed with its failure; **Reload** starts it again once the cause
+is fixed. Failed and refused installations always offer **Delete**; a refused
+replacement offers neither **Reload** nor an enable switch. Removal stops the
 plugin live once no work can reach a plugin, then discards its row and managed file.
-Successful replacements discard the old installation in the same way. If deletion
-fails, the row and its error stay visible until startup retries. Unreferenced
+Successful replacements discard every earlier installation of the same package,
+including failed boots, along with their boot failures and startup notifications.
+If deletion fails, the row and its error stay visible and **Delete** can retry;
+startup retries too. Unreferenced
 files are swept only at startup, so live cleanup cannot race an installation
 publishing its bundle before its settings commit.

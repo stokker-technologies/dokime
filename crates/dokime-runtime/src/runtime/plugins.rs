@@ -373,7 +373,7 @@ impl PluginHost {
             if let PluginProvenance::Installed { install_id, .. } = input.provenance {
                 self.handle.plugin_boot.write().expect("plugin boot lock poisoned").insert(install_id, true);
             }
-            record(&store, &input, None).await;
+            self.record_loaded(&store, &input).await;
         }
         self.expose_plugins()?;
         self.publish_hosted();
@@ -592,6 +592,16 @@ impl PluginHost {
             tracing::error!(changed, %error, "admitted catalogs were not reconciled after a plugin change");
         } else if let Err(error) = self.capture_ready_catalogs().await {
             tracing::error!(changed, %error, "changed catalogs were not captured");
+        }
+    }
+
+    // Startup And Live Activation Retire Superseded Installations Through The Same Store Path.
+    async fn record_loaded(&mut self, store: &PluginStore, input: &PluginBundle) {
+        record(store, input, None).await;
+        let Some(install) = input.install_id() else { return };
+        match store.discard_replaced(install).await {
+            Ok(removed) => self.handle.plugin_boot.write().expect("plugin boot lock poisoned").retain(|id, _| !removed.contains(id)),
+            Err(error) => tracing::error!(%install, %error, "replaced plugin installations could not be discarded"),
         }
     }
 
