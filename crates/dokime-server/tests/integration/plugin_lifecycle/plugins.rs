@@ -729,12 +729,14 @@ pub(crate) async fn bounded_installed_metadata() {
     assert_eq!(entry.sha256, installed.sha256);
     assert_eq!(entry.state, model::plugins::wire::PluginInstallationState::Installed);
     assert!(entry.metadata.is_none());
+    owner.handle().plugin_bundle_settled("grpc-fixture").await;
     let removed = client
         .unary::<contracts::plugins::Remove>(authenticated(contracts::plugins::Remove { install_id: installed.install_id }))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(removed.installation.unwrap().state, model::plugins::wire::PluginInstallationState::RemovalPending);
+    assert!(removed.installation.is_none());
+    assert!(owner.handle().plugin_store().list().await.unwrap().is_empty());
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
