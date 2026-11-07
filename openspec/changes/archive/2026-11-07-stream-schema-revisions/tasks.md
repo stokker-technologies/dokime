@@ -9,5 +9,5 @@
 
 ## Final Validation
 
-- [ ] 2.1 Run the owner-selected clean workspace build and TypeScript build, focused changed-behavior tests and required diff scan; repair failures.
-- [ ] 2.2 Validate and archive this specification before authorized publication.
+- [x] 2.1 Run the owner-selected clean workspace build and TypeScript build, focused changed-behavior tests and required diff scan; repair failures.
+- [x] 2.2 Validate and archive this specification before authorized publication.
