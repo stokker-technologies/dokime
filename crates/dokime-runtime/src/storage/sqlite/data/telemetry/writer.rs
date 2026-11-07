@@ -63,6 +63,7 @@ struct Stream {
 struct Context<'a> {
     through: u64,
     values: BTreeMap<&'a str, &'a Value>,
+    indexed: std::collections::BTreeSet<String>,
 }
 
 /* === Enums === */
@@ -316,7 +317,15 @@ impl Store {
                             .filter_map(|scope| scope.test_execution_id.as_ref())
                             .collect();
                         for execution in owners {
-                            let context = contexts.entry(execution).or_insert_with(Context::default);
+                            if !contexts.contains_key(execution) {
+                                let indexed = super::super::distinct::telemetry_fields(
+                                    &transaction,
+                                    execution.as_str(),
+                                    entry.sample.stream.as_str(),
+                                )?;
+                                contexts.insert(execution, Context { indexed, ..Default::default() });
+                            }
+                            let context = contexts.get_mut(execution).expect("loaded execution context");
                             context.through = *position;
                             for (field, value) in &entry.sample.values {
                                 if !matches!(value, Value::Null) {
@@ -330,6 +339,9 @@ impl Store {
                                 time: *time,
                             };
                             aggregates.push(&transaction, input, &entry.sample, &mut previews)?;
+                            if context.indexed.is_empty() {
+                                continue;
+                            }
                             let timestamp = Value::Datetime(
                                 time::OffsetDateTime::from_unix_timestamp_nanos(*time)
                                     .map_err(|_| Error::Invalid("telemetry timestamp is outside supported range"))?,
@@ -338,8 +350,12 @@ impl Store {
                                 .sample
                                 .values
                                 .iter()
+                                .filter(|(name, _)| context.indexed.contains(name.as_str()))
                                 .map(|(name, value)| (name.as_str(), value))
-                                .chain((!entry.sample.values.contains_key("timestamp")).then_some(("timestamp", &timestamp)));
+                                .chain(
+                                    (context.indexed.contains("timestamp") && !entry.sample.values.contains_key("timestamp"))
+                                        .then_some(("timestamp", &timestamp)),
+                                );
                             let scope = entry
                                 .sample
                                 .captured_scopes

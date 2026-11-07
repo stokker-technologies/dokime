@@ -352,10 +352,28 @@ impl crate::storage::sqlite::State {
                     Some((through, bytes)) => (through, Moments::decode(&bytes)?),
                     None => (super::super::position(0), Moments::default()),
                 };
+                let path = serde_json::to_string(&[&field])?;
+                let indexed: bool = connection.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM storage_distinct_values WHERE execution=?1 AND kind='telemetry' AND source=?2 AND path=?3)",
+                    params![execution, stream, path], |row| row.get(0),
+                )?;
+                if !indexed {
+                    if aggregate == harmos::Aggregate::Median && moments.count != 0 {
+                        return Ok(None);
+                    }
+                    let partial: bool = connection.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM streams s JOIN stream_batches b ON b.file_id=s.file_id
+                        WHERE s.stream=?2 AND b.last_position>?3 AND b.first_position<=?4
+                        AND (b.file_id,b.batch) IN (SELECT file_id,batch FROM stream_captures WHERE execution=?1))",
+                        params![execution, stream, through, super::super::position(at.sequence)], |row| row.get(0),
+                    )?;
+                    if partial {
+                        return Ok(None);
+                    }
+                }
                 let mut tail = connection.prepare("SELECT v.value,p.value_type FROM storage_value_postings p JOIN storage_distinct_values v
                     USING(execution,kind,source,path,value_key) WHERE p.execution=?1 AND p.kind='telemetry' AND p.source=?2
                     AND p.path=?3 AND p.position>?4 AND p.position<=?5 ORDER BY p.position")?;
-                let path = serde_json::to_string(&[&field])?;
                 let mut rows = tail.query(params![execution, stream, path, through, super::super::position(at.sequence)])?;
                 while let Some(row) = rows.next()? {
                     work.check().map_err(|error| Error::Sqlite(rusqlite::Error::UserFunctionError(error)))?;

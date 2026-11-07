@@ -164,10 +164,11 @@ Captured contracts include retained Arrow versions from the selected execution o
 
 Live document summaries use finite storage queries at their captured saved boundary.
 Compatible unfiltered telemetry statistics reuse typed numeric prefix checkpoints.
-Count, min, max, mean and RMS are maintained during ingest; a cut within a saved
-batch reads only the bounded remainder after its checkpoint. Integer extrema and
+Count, min, max, mean and RMS are maintained during ingest. Checkpoint cuts reuse
+those moments; other cuts consume exact projected Arrow pages. Integer extrema and
 totals remain lossless. Median selects exact ranks from the ordered distinct-value
-dictionary and its occurrence index at the same cut. Other folds consume bounded
+dictionary when that field is indexed, and otherwise uses exact projected replay
+at the same cut. Other folds consume bounded
 typed pages, with exact order statistics spilling scratch where required.
 Null telemetry roots do not create occurrence rows; their saved schema preserves
 field presence, alias precedence and null predicates across contract versions.
@@ -179,7 +180,9 @@ estimate or document source-row ceiling. Encoded output and actual expansion hav
 presentation budgets independently of raw evidence retention.
 
 Repeated sections enumerate indexed distinct values, including row-local filters
-and ordering, through authenticated pages at one saved cut. Their persisted
+and ordering, through authenticated pages at one saved cut. Before capture, document
+definitions select the telemetry fields needed by repeats, filters and ordering;
+unrelated numeric and payload fields create no distinct postings. Their persisted
 continuation context contains the authored definition, scalar execution context
 and traversal position. It contains no raw evidence or in-memory capture registry.
 The capture stream emits a Page frame with current and optional next tokens;

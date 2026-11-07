@@ -282,6 +282,14 @@ async fn time_series_views_share_field_state_and_preserve_exact_rows() {
         .await
         .unwrap();
     assert_eq!((plans, views, fields, shared), (1, 64, 1, 1));
+    let postings = fixture
+        .local
+        .read(|connection| {
+            connection.query_row("SELECT count(*) FROM storage_value_postings WHERE kind='telemetry'", [], |row| row.get::<_, u64>(0))
+        })
+        .await
+        .unwrap();
+    assert_eq!(postings, 0, "plot fields must not create distinct postings");
     let checkpoints = fixture
         .local
         .read(move |connection| Ok(crate::plot::preview::index::checkpoints(connection, &execution, at.sequence)))
@@ -297,6 +305,37 @@ async fn time_series_views_share_field_state_and_preserve_exact_rows() {
         payload.series[0].points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(),
         points.iter().map(|(_, value)| *value as f64).collect::<Vec<_>>()
     );
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn distinct_fields_retain_only_registered_values_across_reopen() {
+    let fixture = Fixture::new(2).await;
+    fixture
+        .local
+        .register_distinct_fields(
+            fixture.execution.to_string(),
+            std::collections::BTreeMap::from([("arrow.fixture".into(), std::collections::BTreeSet::from(["value".into()]))]),
+        )
+        .await
+        .unwrap();
+    let points = [(1, 1), (2, 2), (3, 3)];
+    let at = fixture.admit(&points).await;
+    fixture.storage.flush_until(&at).await.unwrap();
+    let root = fixture.stop().await;
+    let fixture = Fixture::with_root(root, 2).await;
+    let at = fixture.admit(&[(4, 4)]).await;
+    fixture.storage.flush_until(&at).await.unwrap();
+    let paths = fixture
+        .local
+        .read(|connection| {
+            let mut statement = connection
+                .prepare("SELECT path,count(*) FROM storage_value_postings WHERE kind='telemetry' GROUP BY path ORDER BY path")?;
+            statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()
+        })
+        .await
+        .unwrap();
+    assert_eq!(paths, vec![("[\"value\"]".into(), points.len() as u64 + 1)]);
     fixture.finish().await;
 }
 

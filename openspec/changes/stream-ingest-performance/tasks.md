@@ -13,9 +13,11 @@
 - [x] 1.8 Evaluate each requested trim against repeated measurements, retaining supported changes as separate commits: IPC buffering/hash work; duplicate normalization; Tail allocations; sample identity representation and exact receipt queries. Preserve durability, cadence, exact retry/replay and storage v1; no migrations.
 - [x] 1.9 Update CONTRIBUTING.md and docs/product-guide.md with measurement definitions, spread and decisions; README claims reviewed. Refresh measurements after integrating dev's per-row distinct index.
 
+- [ ] 1.10 Measure the two-table rowid candidate first; then evaluate selective document repeat/paging field indexing, flush batching and lazy sealed postings in that order as needed. Own storage distinct/telemetry writers and readers, document binding field selection, focused tests and affected guides. Preserve exact live/sealed query and report behavior, storage v1, cadence and durability; no migrations, deadlines or budget changes.
+
 ## Final Validation
 
-- [ ] 2.1 Run focused storage/telemetry tests, exact report replay, repeated benchmark runs and check:rust; inspect the forbidden-term diff. Resolve the native wide-case deadline failure after dev added per-row distinct indexing; index-repair scope requires the owner's decision. No deadline or budget changes. No full simulation, as explicitly requested.
+- [ ] 2.1 Run focused storage/telemetry and unchanged document query/report parity tests, exact report replay, repeated all-shape ingest benchmarks, document query scaling and check:rust; inspect the forbidden-term diff. No full simulation, as explicitly requested.
 - [x] 2.2 Rebase the combined candidate on fresh origin/dev and revalidate affected behavior before authorized delivery.
 
 ## Workflow Follow-Up

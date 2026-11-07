@@ -40,3 +40,19 @@ Numeric ingestion SHALL keep bounded state per field. Exact percentile results S
 
 - **WHEN** a report requests a percentile beyond the retained exact-input cap
 - **THEN** the result is computed exactly from its saved raw evidence cut with bounded memory
+
+### Requirement: Document-Selected Distinct Indexing
+
+Telemetry ingestion SHALL maintain distinct postings only for fields needed by captured document repeats and their filters or ordering. Unrelated continuous numeric and payload fields SHALL NOT create distinct entries. Exact summary, live document, fixed-cut paging and frozen report results SHALL remain available.
+
+#### Scenario: Plots and Summaries Without Repeats
+
+- **WHEN** scalar, wide or payload streams feed plots and summaries without repeated sections
+- **THEN** ingestion creates no telemetry distinct postings
+- **AND** bounded numeric checkpoints and exact projected replay preserve all summary results
+
+#### Scenario: Nested Repeats With Aliases
+
+- **WHEN** a captured document repeats by selected fields with aliases, filters and ordering
+- **THEN** those fields remain indexed across durable reopen
+- **AND** all pages and frozen reports preserve the original cut, typed equality and null-versus-missing behavior

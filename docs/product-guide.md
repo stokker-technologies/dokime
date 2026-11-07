@@ -1205,10 +1205,12 @@ repeat identities use the typed value rather than its display label.
 
 Live summary tiles query saved evidence at a fixed capture boundary. Numeric folds
 use ingest-maintained count, min, max, mean and RMS checkpoints where applicable.
-A boundary inside a saved batch folds only its bounded remainder. Integer extrema
+Checkpoint boundaries reuse those moments; other boundaries read exact projected pages. Integer extrema
 and totals retain their exact representation, including values above f64 precision.
-Median selects exact ranks from the ordered distinct-value dictionary and its
-occurrence index. Other numeric folds retain bounded working state, and exact
+Median selects exact ranks from the ordered distinct-value dictionary when indexed,
+or uses exact projected Arrow replay. Telemetry distinct postings cover fields selected
+by document repeats, filters and ordering, rather than every numeric or payload field.
+Other numeric folds retain bounded working state, and exact
 order statistics spill scratch where required instead of collecting a run's
 samples into the document. Record summaries seek
 indexed record pages. Building a document no longer estimates evaluation cost from
