@@ -88,6 +88,7 @@ pub(crate) async fn current_document_rows() {
             .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
                 structure_only: false,
                 card_ids: Vec::new(),
+                page: None,
                 scope: Some(selected.clone()),
                 document_id: "default".into(),
             })
@@ -102,6 +103,7 @@ pub(crate) async fn current_document_rows() {
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
             structure_only: false,
             card_ids: Vec::new(),
+            page: None,
             scope: Some(model::documents::wire::DocumentScope {
                 cycle_id: cycle.to_string(),
                 execution_id: String::new(),
@@ -126,6 +128,7 @@ pub(crate) async fn current_document_rows() {
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
             structure_only: false,
             card_ids: Vec::new(),
+            page: None,
             scope: Some(selected.clone()),
             document_id: "default".into(),
         }))
@@ -171,6 +174,7 @@ pub(crate) async fn current_document_rows() {
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
             structure_only: false,
             card_ids: Vec::new(),
+            page: None,
             scope: Some(selected),
             document_id: "missing".into(),
         }))
@@ -254,6 +258,7 @@ pub(crate) async fn summary_complete_telemetry() {
         .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
             structure_only: false,
             card_ids: Vec::new(),
+            page: None,
             scope: Some(model::documents::wire::DocumentScope {
                 cycle_id: cycle.to_string(),
                 execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string(),
@@ -291,6 +296,7 @@ pub(crate) async fn summary_complete_telemetry() {
         .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
             structure_only: true,
             card_ids: Vec::new(),
+            page: None,
             scope: scope.clone(),
             document_id: "default".into(),
         })
@@ -316,6 +322,7 @@ pub(crate) async fn summary_complete_telemetry() {
         .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
             structure_only: false,
             card_ids: vec![id.clone()],
+            page: None,
             scope,
             document_id: "default".into(),
         })
@@ -408,6 +415,7 @@ pub(crate) async fn duration_x_axis() {
         .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
             structure_only: false,
             card_ids: Vec::new(),
+            page: None,
             scope: Some(model::documents::wire::DocumentScope {
                 cycle_id: cycle.to_string(),
                 execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string(),

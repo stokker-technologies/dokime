@@ -37,7 +37,7 @@ pub mod selection;
 pub mod snapshots;
 pub mod statistics;
 pub(crate) mod telemetry;
-mod tokens;
+pub(crate) mod tokens;
 
 /* === Re-Exports === */
 

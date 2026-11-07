@@ -13,10 +13,10 @@
 
 ## Slice 3: Indexed Evaluation
 
-- [ ] 3.1 Record/query ownership: replace nested TimeBetween and PerCase scans with linear sorted merge/partition evaluation and deterministic tests.
-- [ ] 3.2 Storage ingest/query and document runtime ownership: distinct-value index and paged repeat expansion, domain/operation/server continuations and GUI page controls; preserve complete distinct values and fixed cuts.
-- [ ] 3.3 Reuse/extend maintained count/min/max/mean/RMS at ingest; exact median query; prove raw-row equivalence and update affected guides.
-- [ ] 3.4 Focused tests, check:rust, GUI tests/bindings if touched and diff scan.
+- [x] 3.1 Record/query ownership: replace nested TimeBetween and PerCase scans with linear sorted merge/partition evaluation and deterministic tests.
+- [x] 3.2 Storage ingest/query and document runtime ownership: distinct-value index and paged repeat expansion, domain/operation/server continuations and GUI page controls; preserve complete distinct values and fixed cuts.
+- [x] 3.3 Reuse/extend maintained count/min/max/mean/RMS at ingest; exact median query; prove raw-row equivalence and update affected guides.
+- [x] 3.4 Focused tests, check:rust, GUI tests/bindings if touched and diff scan.
 
 ## Slice 4: Frozen Reports and Benchmark
 

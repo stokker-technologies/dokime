@@ -72,13 +72,17 @@ struct DocumentMaterializer<'a> {
     selection: &'a crate::document::input::DocumentSelection,
     evidence: Evidence<'a>,
     repeats: Option<&'a RepeatValues>,
+    repeat_position: usize,
     summary_queries: Option<&'a mut Vec<DocumentCardDefinition>>,
 }
 
 /// The distinct values each repeated section expands over, resolved ahead of a
 /// capture whose own rows are a bounded preview of the evidence.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct RepeatValues(Vec<(DocumentSectionRepeat, Vec<Value>)>);
+pub(crate) struct RepeatValues {
+    definitions: Vec<(DocumentSectionRepeat, Vec<Value>)>,
+    path: Option<Vec<Value>>,
+}
 
 /// Folds the distinct values of every repeat of a document across evidence
 /// pages, in evidence order, as one complete read would.
@@ -365,10 +369,11 @@ impl DocumentMaterializer<'_> {
         let Some(repeat) = section.repeat.as_ref() else {
             return vec![section];
         };
-        let values = match self.repeats.and_then(|repeats| repeats.get(repeat)) {
+        let values = match self.repeats.and_then(|repeats| repeats.get(repeat, self.repeat_position)) {
             Some(values) => values.to_vec(),
             None => repeat_values(repeat, self.evidence),
         };
+        self.repeat_position += 1;
         if let Some(capture) = self.capture.as_mut()
             && capture.repeats.insert(section.node_id.clone(), Vec::with_capacity(values.len())).is_some()
         {
@@ -396,9 +401,14 @@ impl DocumentMaterializer<'_> {
         values
             .into_iter()
             .map(|value| {
-                let suffix = identifier_segment(&value_label(&value));
+                let key = crate::storage::sqlite::data::distinct::value_key(&value).expect("typed repeat values are serializable");
+                let suffix = key[..16].iter().map(|byte| format!("{byte:02x}")).collect::<String>();
                 let label = render_template(&repeat.label_template, &repeat.value, &value);
-                let identifier = render_template(&identifier_template, &repeat.value, &value);
+                let identifier = if repeat.id_template.is_some() {
+                    render_template(&identifier_template, &repeat.value, &value)
+                } else {
+                    format!("{}.{}", section.node_id, suffix)
+                };
                 let repeat_filter = DocumentFilter {
                     expression: repeat.value.clone(),
                     operator: FilterOperator::Eq,
@@ -474,8 +484,18 @@ impl DocumentMaterializer<'_> {
 }
 
 impl RepeatValues {
-    fn get(&self, repeat: &DocumentSectionRepeat) -> Option<&[Value]> {
-        self.0.iter().find(|(candidate, _)| candidate == repeat).map(|(_, values)| values.as_slice())
+    pub(crate) fn path(values: Vec<Value>) -> Self {
+        Self {
+            definitions: Vec::new(),
+            path: Some(values),
+        }
+    }
+
+    fn get(&self, repeat: &DocumentSectionRepeat, position: usize) -> Option<&[Value]> {
+        if let Some(path) = &self.path {
+            return Some(path.get(position).map_or(&[], std::slice::from_ref));
+        }
+        self.definitions.iter().find(|(candidate, _)| candidate == repeat).map(|(_, values)| values.as_slice())
     }
 }
 
@@ -561,15 +581,17 @@ impl RepeatScan {
     }
 
     pub(crate) fn finish(self) -> RepeatValues {
-        RepeatValues(
-            self.repeats
+        RepeatValues {
+            definitions: self
+                .repeats
                 .into_iter()
                 .map(|(repeat, values)| {
                     let values = values.finish(&repeat);
                     (repeat, values)
                 })
                 .collect(),
-        )
+            path: None,
+        }
     }
 }
 
@@ -677,6 +699,7 @@ pub(crate) fn capture_with_queries(
             selection: Some(input.selection),
         },
         repeats,
+        repeat_position: 0,
         summary_queries,
     };
     materializer.capture_nodes(definition.layout.nodes.clone())?;
@@ -779,6 +802,7 @@ pub(crate) fn resolve_normalized(
                 selection: Some(&selection),
             },
             repeats: None,
+            repeat_position: 0,
             summary_queries: None,
         };
         let layout = materializer.materialize_layout(layout_definition)?;
@@ -954,7 +978,7 @@ pub(super) fn row_matches_filters<'a>(
     })
 }
 
-pub(super) fn value_matches_operator(actual: Option<&Value>, operator: FilterOperator, expected: Option<&Value>) -> bool {
+pub(crate) fn value_matches_operator(actual: Option<&Value>, operator: FilterOperator, expected: Option<&Value>) -> bool {
     match operator {
         FilterOperator::Exists => actual.is_some_and(traceable_value),
         FilterOperator::Eq => expected.is_some_and(|expected| actual.is_some_and(|actual| values_equal(actual, expected))),

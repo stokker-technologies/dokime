@@ -179,18 +179,6 @@ pub(crate) fn telemetry_needed(definition: &DocumentDefinition, context: Context
     bindings_need(definition, |expression| expression_needs_telemetry(expression, context))
 }
 
-pub(crate) fn repeat_telemetry_needed(definition: &DocumentDefinition, context: Context<'_>) -> bool {
-    let needs = |expression: &DataExpression| expression_needs_telemetry(expression, context);
-    definition.sections.iter().filter_map(|section| section.repeat.as_ref()).any(|repeat| repeat_needs(repeat, needs))
-        || nodes_need(&definition.layout.nodes, needs)
-}
-
-pub(crate) fn repeat_records_needed(definition: &DocumentDefinition) -> bool {
-    let needs = |expression: &DataExpression| matches!(expression.source, DataSource::Record { .. });
-    definition.sections.iter().filter_map(|section| section.repeat.as_ref()).any(|repeat| repeat_needs(repeat, needs))
-        || nodes_need(&definition.layout.nodes, needs)
-}
-
 pub(crate) fn repeat_artifacts_needed(definition: &DocumentDefinition) -> bool {
     let needs = |expression: &DataExpression| matches!(expression.source, DataSource::Artifact { .. });
     definition.sections.iter().filter_map(|section| section.repeat.as_ref()).any(|repeat| repeat_needs(repeat, needs))

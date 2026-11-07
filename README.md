@@ -287,6 +287,7 @@ Live summary tiles fold finite saved-evidence queries with bounded memory. Docum
 capture no longer rejects estimated work based on retained source-row count.
 The page shows its structure first, then each data card loads and refreshes
 independently. A failed card leaves the others available.
+Repeated sections use indexed pages; page navigation keeps one saved evidence cut.
 
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.

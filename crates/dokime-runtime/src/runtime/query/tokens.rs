@@ -39,7 +39,7 @@ use dokime_domain::model::{
 
 /* === Structs === */
 
-pub(super) struct Tokens {
+pub(crate) struct Tokens {
     pub key: [u8; 32],
     pub maximum: usize,
 }
@@ -56,11 +56,12 @@ pub enum Seek {
     History(Key),
     Evidence { position: u64, occurrence: String },
     Bucket { start: Timestamp, partition: String },
+    Document,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) enum Token {
+pub(crate) enum Token {
     Snapshot(Cut),
     Continuation { cut: Cut, selection: [u8; 32], last: Seek },
 }

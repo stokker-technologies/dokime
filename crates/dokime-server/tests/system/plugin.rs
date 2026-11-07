@@ -1031,6 +1031,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
         .stream(contracts::documents::CaptureCurrentDocument {
             structure_only: false,
             card_ids: Vec::new(),
+            page: None,
             scope: Some(model::documents::wire::DocumentScope {
                 cycle_id: cycle_id.clone(),
                 execution_id: execution_id.clone(),

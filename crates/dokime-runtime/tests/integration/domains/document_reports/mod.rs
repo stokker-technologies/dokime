@@ -649,7 +649,14 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     let structure = runtime
         .prepare_current_document(&cycle_id, execution_id, &document_id)
         .unwrap()
-        .query_stream(dokime_runtime::CurrentDocumentQuery { structure_only: true, cards: Vec::new() }, events)
+        .query_stream(
+            dokime_runtime::CurrentDocumentQuery {
+                structure_only: true,
+                cards: Vec::new(),
+                page: None,
+            },
+            events,
+        )
         .await
         .unwrap();
     assert!(
@@ -900,6 +907,12 @@ async fn document_report_payloads() {
 #[tokio::test]
 async fn document_query_scale() {
     construction::summary_queries().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn document_repeat_pages() {
+    construction::repeated_pages_keep_their_cut().await;
 }
 
 // Each of these needs its own executor, configuration or cycle held open, so each boots its own runtime.

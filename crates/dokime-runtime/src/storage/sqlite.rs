@@ -183,7 +183,7 @@ impl Drop for Interruption {
 impl Reader {
     fn open(database: &Path) -> Result<Self, Error> {
         let connection = Connection::open(database)?;
-        connection.execute_batch("PRAGMA query_only=ON; PRAGMA temp_store=MEMORY;")?;
+        connection.execute_batch("PRAGMA query_only=ON; PRAGMA temp_store=FILE;")?;
         let slot = Arc::new(ReaderSlot {
             interrupt: connection.get_interrupt_handle(),
             running: std::sync::Mutex::new(0),

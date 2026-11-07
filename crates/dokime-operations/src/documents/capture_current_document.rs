@@ -41,6 +41,9 @@ pub struct CaptureCurrentDocument {
     pub structure_only: bool,
     #[serde(default)]
     pub card_ids: Vec<String>,
+
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 /* === Enums === */

@@ -1197,9 +1197,20 @@ The document page shows its authored structure immediately. Data cards load and
 refresh independently, so a slow median or a failing card leaves the others
 available. An error stays inside its affected card and can be retried there.
 
+Repeated sections read a durable index of distinct values and fill one page at a
+time. Previous Page and Next Page keep the same captured evidence and authored
+definition; Latest returns to live refresh. Page cursors retain scalar execution
+context, without keeping raw telemetry or a document registry in memory. Generated
+repeat identities use the typed value rather than its display label.
+
 Live summary tiles query saved evidence at a fixed capture boundary. Numeric folds
-retain bounded working state, and exact median/percentile values spill rank scratch
-instead of collecting a run's samples into the document. Record summaries seek
+use ingest-maintained count, min, max, mean and RMS checkpoints where applicable.
+A boundary inside a saved batch folds only its bounded remainder. Integer extrema
+and totals retain their exact representation, including values above f64 precision.
+Median selects exact ranks from the ordered distinct-value dictionary and its
+occurrence index. Other numeric folds retain bounded working state, and exact
+order statistics spill scratch where required instead of collecting a run's
+samples into the document. Record summaries seek
 indexed record pages. Building a document no longer estimates evaluation cost from
 its definition size multiplied by source rows, and there is no document source-row
 ceiling. Limits apply to actual encoded output and expanded nodes; an exceeded
@@ -2123,7 +2134,7 @@ the preview cap. Medians and percentiles use those inputs when available;
 longer captures replay the selected stream's numeric Arrow columns through
 the saved frontier and sort them in disposable SQLite storage. The replay
 uses bounded pages and a bounded SQLite cache; it does not build a permanent
-rank index during ingestion. Raw evidence remains unchanged. Development roots
+rank counts during ingestion. Raw evidence remains unchanged. Development roots
 with older evidence indexes need a fresh storage root and are never reset
 automatically.
 

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Durable Moments And Exact Order Statistics Replayed From Evidence.
+// Durable Moments And Exact Order Statistics Updated In The Evidence Transaction.
 
 /* === Modules === */
 
@@ -24,31 +24,44 @@ use rusqlite::{Connection, OptionalExtension, params};
 // Local Imports
 use super::super::blob;
 use crate::storage::Error;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
-const EXACT_INTEGER_RANGE: f64 = 9_007_199_254_740_992.0;
-
 pub(in crate::storage::sqlite) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_numeric_summaries (
     execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL, moments BLOB NOT NULL,
     PRIMARY KEY(execution,stream,field)
+) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS storage_numeric_checkpoints (
+    execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL,
+    first_position TEXT NOT NULL, through TEXT NOT NULL, moments BLOB NOT NULL,
+    PRIMARY KEY(execution,stream,field,through)
 ) WITHOUT ROWID;
 ";
 
 /* === Macros === */
 
 /* === Type Aliases === */
+#[cfg(feature = "native")]
+type Key = (String, String, String);
 
 /* === Structs === */
 
 #[derive(Default)]
 pub(in crate::storage::sqlite) struct Batch {
-    fields: BTreeMap<String, BTreeMap<String, BTreeMap<String, Moments>>>,
+    fields: BTreeMap<String, BTreeMap<String, BTreeMap<String, Prefix>>>,
+}
+
+struct Prefix {
+    moments: Moments,
+    first: u64,
+    through: u64,
 }
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct Moments {
     pub(crate) count: u64,
+    present: u64,
     sum: f64,
     mean: f64,
     lowest: f64,
@@ -57,6 +70,15 @@ pub(crate) struct Moments {
     first: f64,
     last: f64,
     max_abs: f64,
+    scale: f64,
+    squares: f64,
+    integer_low: i128,
+    integer_high: i128,
+    integer_total: u128,
+    negative: bool,
+    signed: bool,
+    floating: bool,
+    integers: bool,
 }
 
 pub(crate) struct NumericSummary {
@@ -74,56 +96,68 @@ pub(crate) struct NumericSummary {
 impl Batch {
     #[tracing::instrument(level = "debug", name = "ingest.numeric", skip_all)]
     pub(in crate::storage::sqlite) fn push(
-        &mut self, connection: &Connection, execution: &str, position: u64, time: i128, sample: &crate::telemetry::TelemetrySample,
+        &mut self, connection: &Connection, input: super::previews::Input<'_>, sample: &crate::telemetry::TelemetrySample,
         previews: &mut super::previews::Batch,
     ) -> Result<(), Error> {
+        let super::previews::Input { execution, stream, position, .. } = input;
         if !self.fields.contains_key(execution) {
             self.fields.insert(execution.to_owned(), BTreeMap::new());
         }
         let streams = self.fields.get_mut(execution).expect("loaded execution");
-        if !streams.contains_key(sample.stream.as_str()) {
-            streams.insert(sample.stream.to_string(), BTreeMap::new());
+        if !streams.contains_key(stream) {
+            streams.insert(stream.to_owned(), BTreeMap::new());
         }
-        let fields = streams.get_mut(sample.stream.as_str()).expect("loaded stream");
-        let input = super::previews::Input {
-            execution,
-            stream: sample.stream.as_str(),
-            position,
-            time,
-        };
+        let fields = streams.get_mut(stream).expect("loaded stream");
         for (field, typed) in &sample.values {
-            let value = dokime_domain::model::values::numeric_value(typed).filter(|value| value.is_finite());
-            if value.is_none() && !matches!(typed, dokime_domain::model::values::Value::Null) {
-                continue;
-            }
-            previews.push(connection, input, field, value, typed)?;
-            let Some(value) = value else { continue };
             if !fields.contains_key(field) {
-                let existing: Option<Vec<u8>> = connection
-                    .query_row(
-                        "SELECT moments FROM storage_numeric_summaries WHERE execution=?1 AND stream=?2 AND field=?3",
-                        params![execution, sample.stream.as_str(), field],
-                        |row| row.get(0),
-                    )
-                    .optional()?;
+                let existing: Option<Vec<u8>> = connection.query_row(
+                    "SELECT moments FROM storage_numeric_checkpoints WHERE execution=?1 AND stream=?2 AND field=?3 ORDER BY through DESC LIMIT 1",
+                    params![execution, stream, field], |row| row.get(0),
+                ).optional()?;
                 let moments = existing.as_deref().map(Moments::decode).transpose()?.unwrap_or_default();
-                fields.insert(field.clone(), moments);
+                fields.insert(
+                    field.to_owned(),
+                    Prefix {
+                        moments,
+                        first: position,
+                        through: position,
+                    },
+                );
             }
-            fields.get_mut(field).expect("loaded moments").push(value)?;
+            let prefix = fields.get_mut(field).expect("loaded moments");
+            prefix.first = prefix.first.min(position);
+            prefix.through = prefix.through.max(position);
+            prefix.moments.push_value(typed)?;
+            let numeric = dokime_domain::model::values::numeric_value(typed).filter(|value| value.is_finite());
+            if numeric.is_some() || matches!(typed, Value::Null) {
+                previews.push(connection, input, field, numeric, typed)?;
+            }
         }
         Ok(())
     }
 
     #[tracing::instrument(level = "debug", name = "ingest.numeric.save", skip_all)]
     pub(in crate::storage::sqlite) fn save(self, connection: &Connection) -> Result<(), Error> {
-        let mut fields = connection.prepare_cached(
+        let mut current = connection.prepare_cached(
             "INSERT INTO storage_numeric_summaries VALUES (?1,?2,?3,?4)
-             ON CONFLICT(execution,stream,field) DO UPDATE SET moments=excluded.moments",
+            ON CONFLICT(execution,stream,field) DO UPDATE SET moments=excluded.moments",
         )?;
+        let mut checkpoint = connection.prepare_cached("INSERT INTO storage_numeric_checkpoints VALUES (?1,?2,?3,?4,?5,?6)")?;
         for (execution, streams) in self.fields {
-            for (stream, values) in streams {
-                for (field, moments) in values {
-                    fields.execute(params![execution, stream, field, moments.encode()])?;
+            for (stream, fields) in streams {
+                for (field, prefix) in fields {
+                    let encoded = prefix.moments.encode();
+                    if prefix.moments.count != 0 {
+                        current.execute(params![execution, stream, field, encoded])?;
+                    }
+                    checkpoint.execute(params![
+                        execution,
+                        stream,
+                        field,
+                        super::super::position(prefix.first),
+                        super::super::position(prefix.through),
+                        encoded
+                    ])?;
                 }
             }
         }
@@ -145,12 +179,40 @@ impl Moments {
             Aggregate::Min => self.lowest,
             Aggregate::Max => self.highest,
             Aggregate::Std => std,
-            Aggregate::Rms => self.mean.hypot(std),
+            Aggregate::Rms => self.scale * (self.squares / self.count as f64).sqrt(),
             _ => return None,
         })
     }
 
     pub(crate) fn push(&mut self, value: f64) -> Result<(), Error> {
+        if !value.is_finite() {
+            return Err(Error::Data("numeric summary contains a nonfinite value"));
+        }
+        self.push_value(&Value::Number(value))
+    }
+
+    fn push_value(&mut self, original: &Value) -> Result<(), Error> {
+        if matches!(original, Value::Null) {
+            return Ok(());
+        }
+        self.present = self.present.checked_add(1).ok_or(Error::Data("value summary count overflow"))?;
+        let value = match original {
+            Value::Number(value) if value.is_finite() => {
+                self.floating = true;
+                *value
+            }
+            Value::Integer(value) => {
+                self.signed = true;
+                self.push_integer(i128::from(*value))?;
+                *value as f64
+            }
+            Value::Unsigned(value) => {
+                self.push_integer(i128::from(*value))?;
+                *value as f64
+            }
+            Value::Number(_) => return Ok(()),
+            _ => return Ok(()),
+        };
         let before = self.mean;
         self.count = self.count.checked_add(1).ok_or(Error::Data("numeric summary count overflow"))?;
         self.sum += value;
@@ -163,6 +225,13 @@ impl Moments {
         self.lowest = self.lowest.min(value);
         self.highest = self.highest.max(value);
         self.max_abs = self.max_abs.max(value.abs());
+        let magnitude = value.abs();
+        if magnitude > self.scale {
+            self.squares = 1.0 + self.squares * (self.scale / magnitude).powi(2);
+            self.scale = magnitude;
+        } else if magnitude != 0.0 {
+            self.squares += (magnitude / self.scale).powi(2);
+        }
         let n = self.count as f64;
         self.mean = if self.count == 1 {
             value
@@ -175,29 +244,63 @@ impl Moments {
         Ok(())
     }
 
+    fn push_integer(&mut self, value: i128) -> Result<(), Error> {
+        if !self.integers {
+            self.integer_low = value;
+            self.integer_high = value;
+            self.integers = true;
+        }
+        self.integer_low = self.integer_low.min(value);
+        self.integer_high = self.integer_high.max(value);
+        let negative = value < 0;
+        let magnitude = value.unsigned_abs();
+        if self.negative == negative {
+            self.integer_total = self.integer_total.checked_add(magnitude).ok_or(Error::Data("integer summary total overflow"))?;
+        } else if self.integer_total >= magnitude {
+            self.integer_total -= magnitude;
+        } else {
+            self.integer_total = magnitude - self.integer_total;
+            self.negative = negative;
+        }
+        if self.integer_total == 0 {
+            self.negative = false;
+        }
+        Ok(())
+    }
+
     fn encode(self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(72);
+        let mut bytes = Vec::with_capacity(149);
+        bytes.extend_from_slice(b"DQ1\0");
         bytes.extend_from_slice(&self.count.to_le_bytes());
-        for value in [self.sum, self.mean, self.lowest, self.highest, self.deviations, self.first, self.last, self.max_abs] {
+        for value in
+            [self.sum, self.mean, self.lowest, self.highest, self.deviations, self.first, self.last, self.max_abs, self.scale, self.squares]
+        {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
+        bytes.extend_from_slice(&self.integer_low.to_le_bytes());
+        bytes.extend_from_slice(&self.integer_high.to_le_bytes());
+        bytes.extend_from_slice(&self.integer_total.to_le_bytes());
+        bytes
+            .push(u8::from(self.negative) | (u8::from(self.signed) << 1) | (u8::from(self.floating) << 2) | (u8::from(self.integers) << 3));
+        bytes.extend_from_slice(&self.present.to_le_bytes());
         bytes
     }
 
     pub(super) fn decode(bytes: &[u8]) -> Result<Self, Error> {
-        if bytes.len() != 72 {
-            return Err(Error::Corrupt("numeric summary width differs"));
+        if bytes.len() != 149 || &bytes[..4] != b"DQ1\0" {
+            return Err(Error::Corrupt("numeric summary format differs; use a fresh storage root"));
         }
-        let (count, floats) = bytes.split_at(8);
-        let count = u64::from_le_bytes(count.try_into().unwrap());
-        let values = floats.as_chunks::<8>().0;
-        let values: [f64; 8] = std::array::from_fn(|index| f64::from_le_bytes(values[index]));
-        let [sum, mean, lowest, highest, deviations, first, last, max_abs] = values;
-        if count == 0 {
-            return Err(Error::Corrupt("numeric summary has no observations"));
+        let count = u64::from_le_bytes(bytes[4..12].try_into().unwrap());
+        let values = bytes[12..92].as_chunks::<8>().0;
+        let values: [f64; 10] = std::array::from_fn(|index| f64::from_le_bytes(values[index]));
+        let [sum, mean, lowest, highest, deviations, first, last, max_abs, scale, squares] = values;
+        let flags = bytes[140];
+        if flags & !15 != 0 {
+            return Err(Error::Corrupt("numeric summary flags differ"));
         }
         Ok(Self {
             count,
+            present: u64::from_le_bytes(bytes[141..149].try_into().unwrap()),
             sum,
             mean,
             lowest,
@@ -206,71 +309,70 @@ impl Moments {
             first,
             last,
             max_abs,
+            scale,
+            squares,
+            integer_low: i128::from_le_bytes(bytes[92..108].try_into().unwrap()),
+            integer_high: i128::from_le_bytes(bytes[108..124].try_into().unwrap()),
+            integer_total: u128::from_le_bytes(bytes[124..140].try_into().unwrap()),
+            negative: flags & 1 != 0,
+            signed: flags & 2 != 0,
+            floating: flags & 4 != 0,
+            integers: flags & 8 != 0,
         })
     }
 }
 
 impl crate::storage::sqlite::State {
+    #[cfg(feature = "native")]
     pub(crate) async fn document_statistic(
         &self, execution: String, stream: String, field: String, at: harmos::storage::StorageCursor, aggregate: harmos::Aggregate,
-        integer: bool,
-    ) -> Result<Option<dokime_domain::model::values::Value>, Error> {
-        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
+        mut work: crate::storage::sqlite::QueryWork,
+    ) -> Result<Option<Option<Value>>, Error> {
+        let _cancel = work.cancellation();
+        let work = std::sync::Arc::new(work);
         self.read(move |connection| {
-            Ok((|| {
+            let checking = work.clone();
+            connection.create_scalar_function("document_alive", 0, rusqlite::functions::FunctionFlags::SQLITE_UTF8, move |_| {
+                checking.check().map(|()| true).map_err(|error| rusqlite::Error::UserFunctionError(error))
+            })?;
+            let result = (|| {
+                work.check().map_err(|error| Error::Sqlite(rusqlite::Error::UserFunctionError(error)))?;
                 let head = super::super::saved(connection)?;
                 if head.history != at.history || head.sequence < at.sequence {
                     return Ok(None);
                 }
-                let newer: bool = connection.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM streams WHERE execution=?1 AND stream=?2 AND last_position>?3)",
-                    params![execution, stream, super::super::position(at.sequence)],
-                    |row| row.get(0),
-                )?;
-                if newer {
-                    return Ok(None);
-                }
-                let shared: bool = connection.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM streams s WHERE s.stream=?2 AND s.execution IS NOT ?1
-                     AND EXISTS(SELECT 1 FROM stream_captures c WHERE c.execution=?1 AND c.file_id=s.file_id))",
-                    params![execution, stream],
-                    |row| row.get(0),
-                )?;
-                if shared {
-                    return Ok(None);
-                }
-                let bytes: Option<Vec<u8>> = connection
+                let checkpoint: Option<(String, Vec<u8>)> = connection
                     .query_row(
-                        "SELECT moments FROM storage_numeric_summaries WHERE execution=?1 AND stream=?2 AND field=?3",
-                        params![execution, stream, field],
-                        |row| row.get(0),
+                        "SELECT through,moments FROM storage_numeric_checkpoints WHERE execution=?1 AND stream=?2 AND field=?3 AND through<=?4 ORDER BY through DESC LIMIT 1",
+                        params![execution, stream, field, super::super::position(at.sequence)],
+                        |row| Ok((row.get(0)?, row.get(1)?)),
                     )
                     .optional()?;
-                let Some(bytes) = bytes else {
-                    return Ok(None);
+                let (through, mut moments) = match checkpoint {
+                    Some((through, bytes)) => (through, Moments::decode(&bytes)?),
+                    None => (super::super::position(0), Moments::default()),
                 };
-                let moments = Moments::decode(&bytes)?;
-                let captured: i64 = connection.query_row(
-                    "SELECT COALESCE(SUM(s.rows),0) FROM streams s WHERE s.execution=?1 AND s.stream=?2",
-                    params![execution, stream],
-                    |row| row.get(0),
-                )?;
-                if u64::try_from(captured).ok() != Some(moments.count) {
+                let mut tail = connection.prepare("SELECT v.value,p.value_type FROM storage_value_postings p JOIN storage_distinct_values v
+                    USING(execution,kind,source,path,value_key) WHERE p.execution=?1 AND p.kind='telemetry' AND p.source=?2
+                    AND p.path=?3 AND p.position>?4 AND p.position<=?5 ORDER BY p.position")?;
+                let path = serde_json::to_string(&[&field])?;
+                let mut rows = tail.query(params![execution, stream, path, through, super::super::position(at.sequence)])?;
+                while let Some(row) = rows.next()? {
+                    work.check().map_err(|error| Error::Sqlite(rusqlite::Error::UserFunctionError(error)))?;
+                    let value = super::super::distinct::posted_value(super::super::blob(row, 0)?, row.get(1)?)?;
+                    moments.push_value(&value)?;
+                }
+                if aggregate != harmos::Aggregate::Count && moments.present != moments.count {
                     return Ok(None);
                 }
-                let median = if aggregate == harmos::Aggregate::Median && (!integer || moments.max_abs < EXACT_INTEGER_RANGE) {
-                    let mut summaries = [NumericSummary {
-                        stream,
-                        field,
-                        statistics: vec![("count".into(), moments.count as f64)],
-                    }];
-                    exact_percentiles(connection, &root, &execution, &at, &mut summaries, &Default::default())?;
-                    summaries[0].statistics.iter().find(|(name, _)| name == "median").map(|(_, value)| *value)
-                } else {
-                    None
-                };
-                document_value(moments, aggregate, integer, median)
-            })())
+                if aggregate == harmos::Aggregate::Median && moments.count != 0 {
+                    return document_median(connection, &(execution, stream, field), &at, moments).map(Some);
+                }
+                if matches!(aggregate, harmos::Aggregate::Percentile(_)) { return Ok(None); }
+                document_value(moments, aggregate).map(Some)
+            })();
+            connection.remove_function("document_alive", 0)?;
+            Ok(result)
         })
         .await?
     }
@@ -330,45 +432,90 @@ pub(crate) fn numeric_summaries(connection: &Connection, execution: String) -> R
 
 /* === Private Functions === */
 
-fn document_value(
-    moments: Moments, aggregate: harmos::Aggregate, integer: bool, median: Option<f64>,
-) -> Result<Option<dokime_domain::model::values::Value>, Error> {
-    use dokime_domain::model::values::Value;
+#[cfg(feature = "native")]
+fn document_value(moments: Moments, aggregate: harmos::Aggregate) -> Result<Option<Value>, Error> {
     use harmos::Aggregate;
     if aggregate == Aggregate::Count {
-        return Ok(Some(Value::Unsigned(moments.count)));
+        return Ok(Some(Value::Unsigned(moments.present)));
     }
-    // Outside The Exactly Representable Range, Typed Queries Own Integer Statistics.
-    if integer {
-        let safe = match aggregate {
-            Aggregate::Min | Aggregate::Max | Aggregate::Median => moments.max_abs < EXACT_INTEGER_RANGE,
-            Aggregate::Mean | Aggregate::Sum => moments.max_abs * (moments.count as f64) < EXACT_INTEGER_RANGE,
-            Aggregate::Rms | Aggregate::Std => true,
-            _ => false,
+    if moments.count == 0 {
+        return Ok((aggregate == Aggregate::Sum).then_some(Value::Unsigned(0)));
+    }
+    if !moments.floating {
+        let exact = match aggregate {
+            Aggregate::Min => Some((moments.integer_low < 0, moments.integer_low.unsigned_abs(), 1)),
+            Aggregate::Max => Some((moments.integer_high < 0, moments.integer_high.unsigned_abs(), 1)),
+            Aggregate::Sum => Some((moments.negative, moments.integer_total, 1)),
+            Aggregate::Mean => Some((moments.negative, moments.integer_total, u128::from(moments.count))),
+            _ => None,
         };
-        if !safe {
-            return Ok(None);
+        if let Some((negative, magnitude, denominator)) = exact {
+            return exact_value(negative, magnitude, denominator, moments.signed).map(Some);
         }
     }
-    let value = match aggregate {
-        Aggregate::Median => {
-            let Some(value) = median else { return Ok(None) };
-            value
-        }
-        Aggregate::Mean if integer => moments.sum / moments.count as f64,
-        aggregate => {
-            let Some(value) = moments.value(aggregate) else { return Ok(None) };
-            value
-        }
-    };
-    if !value.is_finite() {
-        return Ok(None);
+    Ok(moments.value(aggregate).filter(|value| value.is_finite()).map(Value::Number))
+}
+
+#[cfg(feature = "native")]
+fn exact_value(negative: bool, magnitude: u128, denominator: u128, signed: bool) -> Result<Value, Error> {
+    let mut a = magnitude;
+    let mut b = denominator;
+    while b != 0 {
+        (a, b) = (b, a % b);
     }
-    Ok(Some(if integer && !matches!(aggregate, Aggregate::Rms | Aggregate::Std) && value.fract() == 0.0 {
-        Value::Integer(value as i64)
-    } else {
-        Value::Number(value)
-    }))
+    let magnitude = magnitude / a;
+    let denominator = denominator / a;
+    if denominator != 1 {
+        let value = magnitude as f64 / denominator as f64;
+        return Ok(Value::Number(if negative { -value } else { value }));
+    }
+    if negative {
+        let magnitude = i128::try_from(magnitude).map_err(|_| Error::Data("signed aggregate is out of range"))?;
+        return i64::try_from(-magnitude).map(Value::Integer).map_err(|_| Error::Data("signed aggregate is out of range"));
+    }
+    if signed && let Ok(value) = i64::try_from(magnitude) {
+        return Ok(Value::Integer(value));
+    }
+    u64::try_from(magnitude).map(Value::Unsigned).map_err(|_| Error::Data("unsigned aggregate is out of range"))
+}
+
+#[cfg(feature = "native")]
+fn document_median(
+    connection: &Connection, key: &Key, at: &harmos::storage::StorageCursor, moments: Moments,
+) -> Result<Option<Value>, Error> {
+    let expression = crate::expressions::telemetry(&key.1, &key.2).median();
+    let mut fold = crate::document::frame::Fold::new(&expression).map_err(|_| Error::Invalid("median fold is invalid"))?;
+    // Keep The Ordered Dictionary Outer: Reversing This Join Scans Every Value For Each Posting.
+    // Equal Numeric Values Need No Position Tie-Breaker, Which Would Sort Large Duplicate Groups.
+    let mut statement = connection.prepare(
+        "SELECT d.value_key,p.value_type FROM storage_distinct_values d INDEXED BY storage_distinct_order
+        CROSS JOIN storage_value_postings p INDEXED BY storage_value_numeric USING(execution,kind,source,path,value_key)
+        WHERE d.execution=?1 AND d.kind='telemetry' AND d.source=?2 AND d.path=?3 AND p.position<=?4
+        AND p.value_type IN (1,2,3) AND document_alive()
+        ORDER BY d.sort_key,d.value_key LIMIT 1 OFFSET ?5",
+    )?;
+    let path = serde_json::to_string(&[&key.2])?;
+    for (index, ordinal) in [(moments.count - 1) / 2, moments.count / 2].into_iter().enumerate() {
+        let ordinal = i64::try_from(ordinal).map_err(|_| Error::Data("median rank exceeds SQLite range"))?;
+        let (selected, kind): (Vec<u8>, u8) = statement
+            .query_row(params![key.0, key.1, path, super::super::position(at.sequence), ordinal], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let bytes: Vec<u8> = connection.query_row(
+            "SELECT value FROM storage_distinct_values WHERE execution=?1 AND kind='telemetry' AND source=?2 AND path=?3 AND value_key=?4",
+            params![key.0, key.1, path, selected],
+            |row| row.get(0),
+        )?;
+        let mut value = super::super::distinct::posted_value(&bytes, kind)?;
+        if moments.floating {
+            value =
+                Value::Number(dokime_domain::model::values::numeric_value(&value).ok_or(Error::Corrupt("median posting is not numeric"))?);
+        }
+        fold.push_at(index as u64, Some(&value)).map_err(|_| Error::Corrupt("median posting cannot be reduced"))?;
+    }
+    let value = fold.finish_checked(&mut || Ok(())).map_err(|_| Error::Data("median is outside its numeric range"))?;
+    Ok(match value {
+        Some(Value::Unsigned(value)) if moments.signed && i64::try_from(value).is_ok() => Some(Value::Integer(value as i64)),
+        value => value,
+    })
 }
 
 pub(super) fn exact_percentiles(
@@ -456,7 +603,7 @@ pub(super) fn exact_percentiles(
                         row.get(0)
                     })?;
                 let key = u64::from_be_bytes(bytes.try_into().map_err(|_| Error::Corrupt("numeric replay key width differs"))?);
-                Ok(unordered(key))
+                Ok(f64::from_bits(if key >> 63 != 0 { key ^ (1 << 63) } else { !key }))
             })?;
         }
     }
@@ -516,15 +663,115 @@ fn ordered(value: f64) -> u64 {
     if bits >> 63 != 0 { !bits } else { bits ^ (1 << 63) }
 }
 
-fn unordered(value: u64) -> f64 {
-    f64::from_bits(if value >> 63 != 0 { value ^ (1 << 63) } else { !value })
-}
-
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn document_checkpoints_match_nullable_rows_at_every_cut() {
+        use dokime_domain::model::{execution::RecordScope, identity::TestExecutionId};
+        use harmos::Aggregate;
+        let root = tempfile::tempdir().unwrap();
+        let state = crate::storage::sqlite::State::open(root.path()).await.unwrap();
+        let saved = state.data_open(None).await.unwrap();
+        let execution = TestExecutionId::from_seed("typed-prefix-owner");
+        let scope = RecordScope::default().with_test_execution(execution.clone());
+        let raw = vec![
+            Some(Value::Unsigned(9_007_199_254_740_993)),
+            Some(Value::Null),
+            Some(Value::Integer(-4)),
+            Some(Value::Unsigned(7)),
+            None,
+            Some(Value::Integer(7)),
+            Some(Value::Unsigned(9_007_199_254_740_995)),
+            Some(Value::Null),
+        ];
+        let admitted = raw.clone();
+        let owner = execution.to_string();
+        state
+            .call(move |connection| {
+                Ok((|| -> Result<(), Error> {
+                    let transaction = connection.transaction()?;
+                    transaction.execute("INSERT INTO files VALUES ('fixture','telemetry','fixture.arrow',0,zeroblob(32),'fixture')", [])?;
+                    let mut moments = Moments::default();
+                    for (index, value) in admitted.into_iter().enumerate() {
+                        let position = index as u64 + 1;
+                        if let Some(value) = value {
+                            moments.push_value(&value)?;
+                            super::super::super::distinct::insert(
+                                &transaction,
+                                super::super::super::distinct::Row {
+                                    kind: "telemetry",
+                                    source: "fixture",
+                                    position,
+                                    file: Some("fixture"),
+                                    record: false,
+                                    scope: &scope,
+                                },
+                                [("value", &value)],
+                            )?;
+                        }
+                        if position == 4 || position == 8 {
+                            transaction.execute(
+                                "INSERT INTO storage_numeric_checkpoints VALUES (?1,'fixture','value',?2,?3,?4)",
+                                params![
+                                    owner,
+                                    super::super::super::position(position - 3),
+                                    super::super::super::position(position),
+                                    moments.encode()
+                                ],
+                            )?;
+                        }
+                    }
+                    transaction.execute("UPDATE storage_data_head SET saved=?1", [super::super::super::position(8)])?;
+                    transaction.commit()?;
+                    Ok(())
+                })())
+            })
+            .await
+            .unwrap()
+            .unwrap();
+        let config =
+            crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
+        for through in 0..=raw.len() {
+            for aggregate in
+                [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Sum, Aggregate::Rms, Aggregate::Median]
+            {
+                let expression = crate::expressions::telemetry("fixture", "value").aggregate(aggregate);
+                let mut reference = crate::document::frame::Fold::new(&expression).unwrap();
+                for (index, value) in raw[..through].iter().enumerate() {
+                    reference.push_at(index as u64, value.as_ref()).unwrap();
+                }
+                let expected = reference.finish().unwrap();
+                let cut = harmos::storage::StorageCursor {
+                    history: saved.history.clone(),
+                    sequence: through as u64,
+                };
+                let actual = state
+                    .document_statistic(
+                        execution.to_string(),
+                        "fixture".into(),
+                        "value".into(),
+                        cut,
+                        aggregate,
+                        crate::storage::sqlite::QueryWork::document(config.clone(), "fixture"),
+                    )
+                    .await
+                    .unwrap()
+                    .expect("the maintained prefix covers the cut");
+                if aggregate == Aggregate::Rms
+                    && let (Some(Value::Number(actual)), Some(Value::Number(expected))) = (&actual, &expected)
+                {
+                    assert!((actual - expected).abs() <= expected.abs() * f64::EPSILON * 4.0);
+                } else {
+                    assert_eq!(actual, expected, "{aggregate:?} at {through}");
+                }
+            }
+        }
+        state.close().await.unwrap();
+    }
 
     #[test]
     fn document_integer_index_matches_typed_folds() {
@@ -533,51 +780,38 @@ mod tests {
         let rows = [-7, 3, 11, 0, 0, 3, 99];
         let mut moments = Moments::default();
         for value in rows {
-            moments.push(value as f64).unwrap();
+            moments.push_value(&Value::Integer(value)).unwrap();
         }
-        let mut ordered = rows;
-        ordered.sort_unstable();
-        let median = ordered[ordered.len() / 2] as f64;
-        for aggregate in
-            [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Sum, Aggregate::Rms, Aggregate::Median]
-        {
+        for aggregate in [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Sum, Aggregate::Rms] {
             let mut reference =
                 crate::document::frame::Fold::new(&crate::expressions::telemetry("fixture", "value").aggregate(aggregate)).unwrap();
             for (position, value) in rows.iter().enumerate() {
                 reference.push_at(position as u64, Some(&Value::Integer(*value))).unwrap();
             }
-            assert_eq!(document_value(moments, aggregate, true, Some(median)).unwrap(), reference.finish().unwrap());
+            let actual = document_value(moments, aggregate).unwrap();
+            let expected = reference.finish().unwrap();
+            if aggregate == Aggregate::Rms {
+                let (Some(Value::Number(actual)), Some(Value::Number(expected))) = (actual, expected) else { panic!("numeric RMS") };
+                assert!((actual - expected).abs() <= expected.abs() * f64::EPSILON * 4.0);
+            } else {
+                assert_eq!(actual, expected);
+            }
         }
     }
 
     #[test]
-    fn document_integer_index_preserves_lossless_fallback() {
+    fn document_integer_summary_preserves_large_values() {
         use harmos::Aggregate;
         let mut moments = Moments::default();
         for value in [9_007_199_254_740_993_u64, 9_007_199_254_740_995] {
-            moments.push(value as f64).unwrap();
+            moments.push_value(&Value::Unsigned(value)).unwrap();
+            moments = Moments::decode(&moments.encode()).unwrap();
         }
-        for aggregate in [Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Median] {
-            assert!(document_value(moments, aggregate, true, None).unwrap().is_none());
+        for (aggregate, expected) in
+            [(Aggregate::Min, 9_007_199_254_740_993), (Aggregate::Max, 9_007_199_254_740_995), (Aggregate::Mean, 9_007_199_254_740_994)]
+        {
+            assert_eq!(document_value(moments, aggregate).unwrap(), Some(Value::Unsigned(expected)));
         }
-    }
-
-    #[test]
-    fn replay_order_preserves_float_bits() {
-        let connection = Connection::open_in_memory().unwrap();
-        connection.execute("CREATE TABLE values_replay (value BLOB NOT NULL)", []).unwrap();
-        let mut values = [7.0, -0.0, 0.0, -1.25, f64::MIN, f64::MAX, 7.0];
-        for value in values {
-            connection.execute("INSERT INTO values_replay VALUES (?1)", [ordered(value).to_be_bytes().as_slice()]).unwrap();
-        }
-        values.sort_by(f64::total_cmp);
-        let mut query = connection.prepare("SELECT value FROM values_replay ORDER BY value").unwrap();
-        let actual: Vec<_> = query
-            .query_map([], |row| row.get::<_, Vec<u8>>(0))
-            .unwrap()
-            .map(|row| unordered(u64::from_be_bytes(row.unwrap().try_into().unwrap())).to_bits())
-            .collect();
-        assert_eq!(actual, values.map(f64::to_bits));
     }
 
     #[test]
@@ -598,9 +832,8 @@ mod tests {
     }
 
     #[test]
-    fn percentile_interpolation() {
-        assert_eq!(interpolate(f64::MIN, f64::MAX, 0.5), 0.0);
-        assert_eq!(interpolate(2.0, 10.0, 0.25), 4.0);
-        assert_eq!(interpolate(-10.0, -2.0, 0.75), -4.0);
+    fn numeric_key_order() {
+        let values = [f64::MIN, -100.0, -f64::MIN_POSITIVE, -0.0, 0.0, f64::MIN_POSITIVE, 100.0, f64::MAX];
+        assert!(values.windows(2).all(|pair| ordered(pair[0]) < ordered(pair[1])));
     }
 }

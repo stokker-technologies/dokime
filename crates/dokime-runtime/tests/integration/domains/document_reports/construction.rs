@@ -403,12 +403,23 @@ pub(super) async fn summary_queries() {
         capture::CardBindingResult,
     };
     use dokime_runtime::expressions::telemetry;
-    for (plot_count, total, text_bytes) in [(64, 301, 0), (0, 10_001, 32_768), (0, 3_001, 0), (0, 250_003, 0)] {
+    use harmos::Message;
+    for (plot_count, total, text_bytes, distinct) in
+        [(64, 301, 0, 301), (0, 10_001, 32_768, 10_001), (0, 3_001, 0, 3_001), (0, 250_003, 0, 1_024)]
+    {
         let root = tempdir().unwrap();
         let executor = Arc::new(BlockingPublishingExecutor::new());
-        let (mut owner, runtime) = started_with_fixture(wifi_config(root.path()), executor.clone()).await;
+        let settings = config(root.path()).with_installed_plugins([dokime_runtime::InstalledPlugin {
+            source: "fixture_documents".into(),
+            version: "test".into(),
+            description: "Document Fixture".into(),
+            enabled: true,
+            telemetry_contracts: vec![crate::service_support::contracts::fixture_telemetry_contract()],
+            ..Default::default()
+        }]);
+        let (mut owner, runtime) = started_with_fixture(settings, executor.clone()).await;
         let mut suite = fixture_suite(&["passed"]);
-        let field = telemetry("host.wifi.scan", "sample_index");
+        let field = telemetry("fixture.telemetry", "value");
         let mut group = TelemetrySummaryGroupDefinition::new("values", "Values");
         for (label, expression) in [
             ("Count", field.clone().count()),
@@ -447,10 +458,36 @@ pub(super) async fn summary_queries() {
         while raw.len() < total {
             let first = raw.len();
             let count = (total - first).min(2_000);
-            let batch = crate::service_support::evidence::samples_from("host.wifi.scan", first, count, Some(execution.scope.clone()));
-            raw.extend(batch.samples.iter().map(|sample| match sample.values["sample_index"] {
-                Value::Integer(value) => value as f64,
-                _ => panic!("integer fixture column"),
+            let samples = (first..first + count)
+                .map(|index| {
+                    let seconds = if distinct == total { index } else { first };
+                    let timestamp = Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(seconds as i64));
+                    let value = (index % distinct) as f64;
+                    let mut sample = TelemetrySample::new(
+                        dokime_runtime::model::identity::new_id(),
+                        identifier("fixture.telemetry"),
+                        index as u64,
+                        timestamp,
+                        "fixture_documents",
+                    );
+                    sample.scope = Some(execution.scope.clone());
+                    sample.values.insert("value".into(), Value::Number(value));
+                    sample.storage_payload = Some(
+                        crate::service_support::contracts::FixtureValueRow {
+                            timestamp: sample.timestamp.as_str().to_owned(),
+                            value: Some(value),
+                            sample_index: None,
+                            ordinal: None,
+                        }
+                        .encode(),
+                    );
+                    sample
+                })
+                .collect();
+            let batch = TelemetryBatch::new(dokime_runtime::model::identity::new_id(), identifier("fixture.telemetry"), samples);
+            raw.extend(batch.samples.iter().map(|sample| match sample.values["value"] {
+                Value::Number(value) => value,
+                _ => panic!("numeric fixture column"),
             }));
             runtime.publish_telemetry_batch(batch).await.unwrap();
         }
@@ -477,12 +514,14 @@ pub(super) async fn summary_queries() {
             })
             .collect::<Vec<_>>();
         let count = raw.len() as f64;
+        let mut ordered = raw.clone();
+        ordered.sort_by(f64::total_cmp);
         let expected = [
             count,
             raw.iter().copied().fold(f64::INFINITY, f64::min),
             raw.iter().copied().fold(f64::NEG_INFINITY, f64::max),
             raw.iter().sum::<f64>() / count,
-            raw[raw.len() / 2],
+            ordered[ordered.len() / 2],
             (raw.iter().map(|value| value * value).sum::<f64>() / count).sqrt(),
         ];
         for (value, expected) in values.iter().zip(expected) {
@@ -646,6 +685,177 @@ pub(super) async fn repeated_sections_follow() {
         .collect::<Vec<_>>();
     assert_eq!(labels, ["Channel 1", "Channel 6", "Channel 11"]);
 
+    executor.release();
+    wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
+pub(super) async fn repeated_pages_keep_their_cut() {
+    use dokime_runtime::document::{
+        DocumentCard, DocumentDefinition, DocumentSection, TelemetrySummaryDefinition, TelemetrySummaryGroupDefinition,
+        TelemetrySummaryTileDefinition, capture::CardBindingResult,
+    };
+    use dokime_runtime::{CurrentDocumentEvent, CurrentDocumentQuery};
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (mut owner, runtime) = started_with_fixture(wifi_config(root.path()), executor.clone()).await;
+    let network = dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_ssid");
+    let mut group = TelemetrySummaryGroupDefinition::new("fixture.values", "Values");
+    group.tile(TelemetrySummaryTileDefinition::new("Count", network.clone().count()));
+    let mut summary = TelemetrySummaryDefinition::new();
+    summary.group(group);
+    let mut count = DocumentCard::telemetry_summary(summary);
+    count.metadata.identifier = dokime_runtime::Identifier::new("fixture.count").unwrap();
+    let mut repeated = DocumentSection::new("Networks");
+    repeated.id("fixture.repeat");
+    repeated.each(network, "Network {value}");
+    repeated.card(DocumentCard::text("fixture.before", "Before", ""));
+    repeated.card(count);
+    repeated.card(DocumentCard::text("fixture.after", "After", ""));
+    let mut definition = DocumentDefinition::new("default", "Pages");
+    definition.section(repeated);
+    let (definitions, mut layout) = definition.normalized_parts();
+    let dokime_runtime::document::DocumentNode::Section(networks) = &mut layout.nodes[0] else { panic!("network section") };
+    let band = dokime_runtime::document::DocumentSectionNode {
+        node_id: dokime_runtime::Identifier::new("fixture.band").unwrap(),
+        metadata: dokime_runtime::Metadata::new(dokime_runtime::Identifier::new("fixture.band").unwrap(), "Bands", None),
+        repeat: Some(dokime_runtime::document::DocumentSectionRepeat {
+            value: dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_band"),
+            label_template: "Band {value}".into(),
+            id_template: None,
+            order_by: None,
+            filters: Vec::new(),
+        }),
+        children: std::mem::take(&mut networks.children),
+    };
+    networks.children.push(dokime_runtime::document::DocumentNode::Section(Box::new(band)));
+    definition.cards = definitions;
+    definition.layout = layout;
+    definition.sections.clear();
+    let mut healthy = DocumentSection::new("Context");
+    healthy.id("fixture.healthy.section");
+    healthy.card(DocumentCard::text("fixture.healthy", "Context", ""));
+    definition.section(healthy);
+    let mut suite = fixture_suite(&["passed"]);
+    suite.test_case_templates[0].document = Some(definition);
+    register_python_suite(&runtime, suite.clone()).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
+    runtime.start_next_execution(cycle_id.clone(), CommandContext::default()).await;
+    executor.wait_until_entered().await;
+    let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
+    let execution = &cycle.test_executions[0];
+    let expected = (0..75).map(|index| format!("network-{index:03}")).collect::<std::collections::BTreeSet<_>>();
+    let mut batch = samples("host.wifi.scan", expected.len(), Some(execution.scope.clone()));
+    for (index, (sample, network)) in batch.samples.iter_mut().zip(&expected).enumerate() {
+        sample.values.insert("wifi_ssid".into(), Value::Text(network.clone()));
+        sample.values.insert("wifi_band".into(), Value::Text(if index % 2 == 0 { "2.4" } else { "5" }.into()));
+        *sample = crate::service_support::contracts::typed_fixture_sample(sample.clone());
+    }
+    runtime.publish_telemetry_batch(batch).await.unwrap();
+    let document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
+    let mut page = None;
+    let mut values = std::collections::BTreeSet::new();
+    let mut pairs = std::collections::BTreeSet::new();
+    let mut cards = std::collections::BTreeSet::new();
+    let mut cut = None;
+    let mut appended = false;
+    loop {
+        let (events, mut received) = tokio::sync::mpsc::channel(8);
+        let captured = runtime
+            .prepare_current_document(&cycle_id, &execution.test_execution_id, &document_id)
+            .unwrap()
+            .query_stream(
+                CurrentDocumentQuery {
+                    structure_only: true,
+                    cards: Vec::new(),
+                    page: page.clone(),
+                },
+                events,
+            )
+            .await
+            .unwrap();
+        assert!(captured.capture.sections.keys().any(|id| id.as_str() == "fixture.healthy.section"));
+        if let Some(cut) = &cut {
+            assert_eq!(captured.evidence_cut.as_ref(), Some(cut));
+        } else {
+            cut = captured.evidence_cut.clone();
+        }
+        for instances in captured.capture.repeats.iter().filter(|(id, _)| id.as_str() == "fixture.repeat").map(|(_, instances)| instances) {
+            for instance in instances {
+                let Some(Value::Text(value)) = &instance.filter.value else { panic!("typed repeat value") };
+                values.insert(value.clone());
+                let child = dokime_runtime::Identifier::new(format!("fixture.band.{}", instance.suffix)).unwrap();
+                if let Some(bands) = captured.capture.repeats.get(&child) {
+                    for band in bands {
+                        let Some(Value::Text(band)) = &band.filter.value else { panic!("typed band value") };
+                        pairs.insert((value.clone(), band.clone()));
+                    }
+                }
+            }
+        }
+        cards.extend(
+            captured
+                .capture
+                .cards
+                .iter()
+                .filter(|card| ["fixture.before", "fixture.count", "fixture.after"].contains(&card.source_id.as_str()))
+                .map(|card| card.metadata.identifier.clone()),
+        );
+        let mut current = None;
+        let mut next = None;
+        while let Ok(event) = received.try_recv() {
+            if let CurrentDocumentEvent::Page { current: token, next: following } = event {
+                current = Some(token);
+                next = following;
+            }
+        }
+        assert!(current.is_some());
+        if !appended {
+            assert!(next.is_some());
+            let selected = captured.capture.cards.iter().find(|card| card.source_id.as_str() == "fixture.count").unwrap();
+            let mut later = crate::service_support::evidence::samples_from(
+                "host.wifi.scan",
+                expected.len(),
+                expected.len() + 1,
+                Some(execution.scope.clone()),
+            );
+            for (sample, network) in later.samples.iter_mut().zip(expected.iter().cloned().chain(std::iter::once("later-only".into()))) {
+                sample.values.insert("wifi_ssid".into(), Value::Text(network));
+                *sample = crate::service_support::contracts::typed_fixture_sample(sample.clone());
+            }
+            runtime.publish_telemetry_batch(later).await.unwrap();
+            let (events, _received) = tokio::sync::mpsc::channel(8);
+            let card = runtime
+                .prepare_current_document(&cycle_id, &execution.test_execution_id, &document_id)
+                .unwrap()
+                .query_stream(
+                    CurrentDocumentQuery {
+                        structure_only: false,
+                        cards: vec![selected.metadata.identifier.clone()],
+                        page: current,
+                    },
+                    events,
+                )
+                .await
+                .unwrap();
+            let result = card.capture.cards.iter().find(|card| card.metadata.identifier == selected.metadata.identifier).unwrap();
+            let CardBindingResult::Summary { groups } = &result.result else {
+                panic!("selected page card did not fill: {:?}", result.result)
+            };
+            assert_eq!(groups[0].tiles[0].value, Some(Value::Unsigned(1)));
+            appended = true;
+        }
+        let Some(next) = next else { break };
+        page = Some(next);
+    }
+    assert_eq!(values, expected);
+    let expected_pairs = expected
+        .iter()
+        .flat_map(|value| ["2.4", "5"].map(|band| (value.clone(), band.to_owned())))
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(pairs, expected_pairs);
+    assert_eq!(cards.len(), expected_pairs.len() * 3);
     executor.release();
     wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
     drop(runtime);

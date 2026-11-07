@@ -10,6 +10,7 @@
 /* === Modules === */
 
 mod backend;
+pub(crate) mod distinct;
 mod entry;
 mod files;
 mod mutations;
@@ -321,9 +322,10 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
         connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')", [], |row| row.get(0))?;
     if exists {
         let indexed: bool = connection.query_row(
-            "SELECT count(*)=7 FROM sqlite_master WHERE type='table' AND name IN
+            "SELECT count(*)=10 FROM sqlite_master WHERE type='table' AND name IN
                 ('files','streams','storage_record_visibility','storage_record_captures',
-                 'storage_numeric_summaries','storage_report_previews','stream_samples')",
+                 'storage_numeric_summaries','storage_numeric_checkpoints','storage_report_previews','stream_samples',
+                 'storage_distinct_values','storage_value_postings')",
             [],
             |row| row.get(0),
         )?;
@@ -351,6 +353,7 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
                 "SELECT execution,cycle,file_id,batch,first_row,rows,scope FROM stream_captures LIMIT 0",
                 "SELECT cycle,sequence,epoch FROM storage_record_captures LIMIT 0",
                 "SELECT sequence,epoch,scope FROM storage_record_visibility LIMIT 0",
+                "SELECT value_type,position,scope FROM storage_value_postings LIMIT 0",
             ] {
                 connection
                     .prepare(query)
@@ -482,6 +485,7 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     transaction.execute_batch(telemetry::previews::SCHEMA)?;
     transaction.execute_batch(crate::plot::preview::index::SCHEMA)?;
     transaction.execute_batch(records::SCHEMA)?;
+    transaction.execute_batch(distinct::SCHEMA)?;
     transaction.execute_batch(mutations::SCHEMA)?;
     transaction.execute_batch(super::history::SCHEMA)?;
     super::snapshots::initialize(&transaction)?;

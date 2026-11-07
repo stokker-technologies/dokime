@@ -33,6 +33,7 @@ import { MediaGallery } from "@/components/MediaGallery";
 import type { HubLiveState, PromptRequest, RecordScope, TestCyclePlan, TestExecution } from "@/lib/types";
 import { type CycleExecutionRow, isUnstartedExecution } from "./cycle-workspace-model";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
+import { DocumentPagination } from "./DocumentPagination";
 import { evidencePaneState } from "./document-query-model";
 import { ExecutionActionButton, type ExecutionActions, ExecutionControl, useExecutionActions } from "./ExecutionControl";
 import { ExecutionSectionsView } from "./ExecutionSectionsView";
@@ -165,7 +166,12 @@ export function ExecutionSections({
       titlePrefix={titlePrefix}
       label={label}
       onRename={onRename}
-      pageActions={pageActions}
+      pageActions={
+        <>
+          {pageActions}
+          <DocumentPagination navigation={documentQuery.navigation} />
+        </>
+      }
       trail={["Cycle", `Execution ${row.ordinal}`]}
       started={started}
       surface={surface}
