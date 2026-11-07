@@ -562,10 +562,15 @@ mod tests {
     use std::sync::atomic::AtomicBool;
 
     #[derive(Default)]
-    struct Evidence(Mutex<Vec<serde_json::Value>>);
+    struct Evidence {
+        entries: Mutex<Vec<serde_json::Value>>,
+        levels: Mutex<Vec<super::super::log::Level>>,
+    }
+
     impl Journal for Evidence {
-        fn log(&self, _: super::super::log::Level, message: String) {
-            self.0.lock().unwrap().push(serde_json::from_str(&message).unwrap());
+        fn log(&self, level: super::super::log::Level, message: String) {
+            self.entries.lock().unwrap().push(serde_json::from_str(&message).unwrap());
+            self.levels.lock().unwrap().push(level);
         }
         fn record(&self, _: dokime_domain::model::records::publication::RecordPublishRequest) {}
     }
@@ -612,10 +617,12 @@ mod tests {
         let mut later =
             LocalRun::spawn::<Read, _>(|_| std::future::pending(), false, None, Some(evidence.clone()), "step/read".into()).unwrap();
         assert!(later.join(Read::ID).await.is_err());
-        let entries = evidence.0.lock().unwrap();
+        let entries = evidence.entries.lock().unwrap();
         let attempts =
             entries.iter().map(|entry| (entry["attempt"].as_u64().unwrap(), entry["outcome"].as_str().unwrap())).collect::<Vec<_>>();
         assert_eq!(attempts, [(0, "timed_out"), (0, "timed_out"), (1, "succeeded"), (0, "timed_out")]);
+        use super::super::log::Level;
+        assert_eq!(*evidence.levels.lock().unwrap(), [Level::Warn, Level::Warn, Level::Info, Level::Warn]);
         assert_eq!(entries[1]["instance"], entries[2]["instance"]);
         assert_ne!(entries[0]["instance"], entries[1]["instance"]);
         assert!(entries.iter().all(|entry| entry["operation"] == Read::ID && entry["stage"] == "step/read"));
@@ -654,9 +661,10 @@ mod tests {
         handles.sweep().await;
         assert!(completed.load(Ordering::SeqCst));
         assert!(handles.sweep().await.is_empty());
-        let entries = evidence.0.lock().unwrap();
+        let entries = evidence.entries.lock().unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0]["outcome"], "cancelled");
+        assert_eq!(*evidence.levels.lock().unwrap(), [super::super::log::Level::Debug]);
     }
 
     #[tokio::test(start_paused = true)]
@@ -692,7 +700,7 @@ mod tests {
         assert!(completed.load(Ordering::SeqCst));
         assert_eq!(warnings.len(), 1);
         assert!(handles.sweep().await.is_empty());
-        let entries = evidence.0.lock().unwrap();
+        let entries = evidence.entries.lock().unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0]["outcome"], "cancelled");
     }
