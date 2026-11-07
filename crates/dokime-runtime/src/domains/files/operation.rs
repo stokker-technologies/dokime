@@ -7,10 +7,10 @@
  * ***
  */
 
-// `WatchFile`, the step's file watch: files watched for the calling step's
-// execution until the instance is cancelled, the bound elapses or the
-// execution seals. It settles with what it sealed and the gaps it saw; a
-// cancelled watch seals what it captured through `stop`.
+// The step's file operations. `CopyFiles` copies once and settles. `StartCapture`
+// returns once its baseline is taken and leaves the capture to a runtime-owned
+// task, so it outlives the step and any reply. That task seals on `StopCapture`,
+// when the execution asks, or at shutdown, and keeps its outcome for every stop.
 
 /* === Modules === */
 
@@ -24,20 +24,23 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 // Third Party Imports
 use harmos::Context;
+use tokio::sync::watch;
+use tonic::Status;
 
 // Local Imports
-use super::{FileWatch, WatchEvent};
+use super::{CaptureEvent, FileCapture};
 use crate::app::Lanes;
 use crate::operations::hosting::{Host, Serve, Served};
 use crate::runtime::operations::reports::status;
 use crate::{RuntimeHandle, runtime::Error};
-use dokime_domain::model::execution::result::CyclePhase;
-use dokime_domain::model::files::wire::FileWatchArmed;
-use dokime_domain::model::files::wire::FileWatchGap;
-use dokime_domain::model::files::wire::WatchFileOutcome;
-use dokime_domain::model::files::wire::WatchedArtifact;
-use dokime_operations::files::AwaitFileWatchArmed;
-use dokime_operations::files::WatchFile;
+use dokime_domain::model::files::wire::CaptureGap;
+use dokime_domain::model::files::wire::CaptureStarted;
+use dokime_domain::model::files::wire::CapturedArtifact;
+use dokime_domain::model::files::wire::CapturedFiles;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_operations::files::CopyFiles;
+use dokime_operations::files::StartCapture;
+use dokime_operations::files::StopCapture;
 
 /* === Constants === */
 
@@ -45,273 +48,194 @@ use dokime_operations::files::WatchFile;
 
 /* === Type Aliases === */
 
+type Outcome = Option<Result<CapturedFiles, Status>>;
+
 /* === Structs === */
 
 // Registered before any plugin attaches, bound to the runtime once it exists.
 pub struct Resources {
     runtime: OnceLock<RuntimeHandle>,
-    readiness: Mutex<BTreeMap<u64, Ready>>,
-    changed: tokio::sync::Notify,
+    captures: Mutex<BTreeMap<u64, Running>>,
 }
 
-struct Ready {
-    execution: Option<String>,
-    signal: tokio::sync::watch::Sender<Option<Result<FileWatchArmed, String>>>,
+// One capture of the registry, kept after sealing so a repeated stop can answer.
+struct Running {
+    execution: String,
+    stop: watch::Sender<bool>,
+    outcome: watch::Receiver<Outcome>,
 }
 
-// The host side of both operations.
+// The host side of the operations.
 struct Files(Arc<Resources>);
-
-// One running watch: its readiness registration, and the watch a cancelled
-// attempt still seals when this drops.
-struct Watching {
-    resources: Arc<Resources>,
-    watch: Option<FileWatch>,
-    ready: tokio::sync::watch::Sender<Option<Result<FileWatchArmed, String>>>,
-    ticket: Option<u64>,
-}
 
 /* === Enums === */
 
 #[harmos::catalog]
 enum PreparedOperations {
-    Operation0(WatchFile),
-    Operation1(AwaitFileWatchArmed),
+    Operation0(CopyFiles),
+    Operation1(StartCapture),
+    Operation2(StopCapture),
 }
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl Watching {
-    fn register(resources: &Arc<Resources>, ctx: &Context<'_, WatchFile>) -> Result<Self, Error> {
-        let execution = execution_of(ctx.call());
-        let ticket = ctx.call().value::<crate::execution::WatchTicket>().ok().flatten().map(|ticket| ticket.ticket);
-        let (ready, _) = tokio::sync::watch::channel(None);
-        if let Some(ticket) = ticket {
-            let mut entries = resources.readiness.lock().expect("watch readiness lock is healthy");
-            if entries.len() >= 256 {
-                return Err(super::capped("the configured file-watch readiness capacity is full"));
-            }
-            entries.insert(ticket, Ready { execution, signal: ready.clone() });
-            drop(entries);
-            resources.changed.notify_waiters();
-        }
-        Ok(Self {
-            resources: Arc::clone(resources),
-            watch: None,
-            ready,
-            ticket,
-        })
-    }
-
-    async fn run(&mut self, request: WatchFile, scoped: Option<&str>, ctx: &Context<'_, WatchFile>) -> Result<WatchFileOutcome, Error> {
-        let runtime =
-            self.resources.runtime.get().ok_or_else(|| Error::unavailable(super::UNREACHABLE, "the runtime is still starting"))?;
-        let watch = tokio::select! {
-            result = runtime.open_watch_file(&request, scoped) => result?,
-            () = ctx.cancelled() => return Err(Error::cancelled("file_watch_cancelled", "file watch was cancelled before it opened")),
-        };
-        let watch = self.watch.insert(watch);
-
-        // Poll Until Complete, Bounded, or Sealed by the Execution
-        let mut events = Vec::new();
-        let mut gaps = Vec::new();
-        let mut failure = None;
-        loop {
-            let polled = tokio::select! {
-                result = watch.poll(&mut events) => result,
-                () = ctx.cancelled() => break,
-            };
-            if let Err(source) = polled {
-                self.ready.send_replace(Some(Err(source.to_string())));
-                failure = Some(source);
-                break;
-            }
-            for event in &events {
-                if let WatchEvent::Armed { baseline } = event {
-                    self.ready.send_replace(Some(Ok(FileWatchArmed { baseline: baseline.clone() })));
-                }
-            }
-            collect_gaps(&mut events, &mut gaps);
-            if watch.is_complete() {
-                break;
-            }
-            let remaining = watch.remaining();
-            if remaining.is_some_and(|remaining| remaining.is_zero()) {
-                break;
-            }
-            let pause = remaining.map_or(watch.poll_interval(), |remaining| remaining.min(watch.poll_interval()));
-            tokio::select! {
-                sealed = watch.wait_for_poll(pause) => {
-                    if sealed { break; }
-                }
-                () = ctx.cancelled() => break,
-            }
-        }
-
-        // The Seal Survives Cancellation Or Release Of The Reply Waiter.
-        let mut watch = self.watch.take().expect("the running watch is owned until sealing");
-        let execution = watch.execution().clone();
-        let mut sealing = runtime.owned_work.spawn(async move {
-            let sealed = watch.seal(&mut events).await;
-            if let Err(error) = &sealed {
-                tracing::warn!(%error, "file watch did not seal every file");
-            }
-            collect_gaps(&mut events, &mut gaps);
-            sealed?;
-            let artifacts = watch
-                .sealed()
-                .iter()
-                .map(|record| WatchedArtifact {
-                    artifact: record.filename.clone(),
-                    size_bytes: record.size_bytes,
-                })
-                .collect();
-            Ok(WatchFileOutcome { artifacts, gaps })
-        });
-        let stopped = async {
-            ctx.cancelled().await;
-            let mut changes = runtime.watch_state();
-            changes
-                .wait_until(|snapshot| {
-                    let state = snapshot.state();
-                    state.shutting_down
-                        || state
-                            .run_requests
-                            .values()
-                            .any(|request| request.summary.stop_requested && request.selected_execution_ids.contains(&execution))
-                        || state
-                            .executions
-                            .get(&execution)
-                            .is_none_or(|view| state.cycles.get(&view.test_cycle_id).is_none_or(|cycle| cycle.phase != CyclePhase::Active))
-                })
-                .await;
-        };
-        let outcome = tokio::select! {
-            result = &mut sealing => result.map_err(|error| Error::Operation(format!("file watch seal task: {error}")))?,
-            () = stopped => {
-                #[cfg(feature = "testing")]
-                crate::domains::execution::run::testing::record(&execution, "watch_stop_reply");
-                return Err(failure.unwrap_or_else(|| Error::cancelled(
-                    "file_watch_cancelled", "file watch cancelled with its execution; captured files are still sealing",
-                )));
-            },
-        };
-        if let Some(source) = failure {
-            return Err(source);
-        }
-        if ctx.cancellation_requested() && self.ready.borrow().is_none() {
-            return Err(Error::cancelled("file_watch_cancelled", "file watch was cancelled before capture was armed"));
-        }
-        outcome
-    }
-}
-
-impl Drop for Watching {
-    fn drop(&mut self) {
-        if self.ready.borrow().is_none() {
-            self.ready.send_replace(Some(Err("file watch stopped before capture was armed; inspect its outcome".to_owned())));
-        }
-        if let Some(ticket) = self.ticket {
-            let mut entries = self.resources.readiness.lock().expect("watch readiness lock is healthy");
-            entries.remove(&ticket);
-            drop(entries);
-            self.resources.changed.notify_waiters();
-        }
-        // A cancelled or failed watch still seals what it captured, owned by the runtime so shutdown drains it.
-        if let (Some(mut watch), Some(runtime)) = (self.watch.take(), self.resources.runtime.get()) {
-            runtime.owned_work.spawn(async move {
-                if let Err(error) = watch.seal(&mut Vec::new()).await {
-                    tracing::warn!(error = %error, "cancelled file watch did not seal every file");
-                }
-            });
-        }
-    }
-}
-
-impl Serve<WatchFile> for Files {
-    fn serve<'a>(&'a self, request: WatchFile, ctx: Context<'a, WatchFile>) -> Served<'a, WatchFileOutcome> {
-        Box::pin(async move {
-            // A Step's Call Carries Its Execution
-            let scoped = execution_of(ctx.call());
-            let mut watching = Watching::register(&self.0, &ctx).map_err(status)?;
-            watching.run(request, scoped.as_deref(), &ctx).await.map(Into::into).map_err(|error| {
-                if error.code() == Some("file_watch_cancelled") {
-                    let failure = harmos::Failure::new(harmos::operations::FailureKind::Cancelled, error.to_string());
-                    let mut status = tonic::Status::cancelled(failure.to_string());
-                    status.set_source(Arc::new(failure));
-                    return status;
-                }
-                status(error)
-            })
-        })
-    }
-}
-
-impl Serve<AwaitFileWatchArmed> for Files {
-    fn serve<'a>(&'a self, request: AwaitFileWatchArmed, ctx: Context<'a, AwaitFileWatchArmed>) -> Served<'a, FileWatchArmed> {
-        Box::pin(async move {
-            let execution = execution_of(ctx.call());
-            self.0.armed(request.instance_id, execution).await.map(Into::into).map_err(status)
-        })
-    }
-}
-
 impl Resources {
     pub fn bind(&self, runtime: &RuntimeHandle) {
         let _ = self.runtime.set(runtime.clone());
     }
 
-    async fn armed(&self, ticket: u64, execution: Option<String>) -> Result<FileWatchArmed, Error> {
-        let readiness = async {
-            let registration = async {
-                loop {
-                    let changed = self.changed.notified();
-                    {
-                        let entries = self.readiness.lock().expect("watch readiness lock is healthy");
-                        if let Some(entry) = entries.get(&ticket) {
-                            if entry.execution != execution {
-                                return Err(super::invalid("file watch belongs to another execution"));
-                            }
-                            return Ok(entry.signal.subscribe());
-                        }
-                    }
-                    changed.await;
-                }
-            };
-            let mut signal = tokio::time::timeout(std::time::Duration::from_secs(30), registration)
-                .await
-                .map_err(|_| super::invalid("file watch instance was not registered"))??;
-            loop {
-                let value = signal.borrow_and_update().clone();
-                if let Some(value) = value {
-                    return value.map_err(|message| Error::conflict(super::UNREACHABLE, message));
-                }
-                signal.changed().await.map_err(|_| Error::conflict(super::UNREACHABLE, "file watch closed before arming"))?;
-            }
+    fn runtime(&self) -> Result<&RuntimeHandle, Error> {
+        self.runtime.get().ok_or_else(|| Error::unavailable(super::UNREACHABLE, "the runtime is still starting"))
+    }
+
+    // Forgets sealed captures of finished executions, then admits one more
+    // running capture within the configured capacity.
+    fn admit(&self, runtime: &RuntimeHandle) -> Result<(), Error> {
+        let mut captures = self.captures.lock().expect("capture registry lock is healthy");
+        {
+            let state = runtime.state_read();
+            captures.retain(|_, capture| {
+                let sealed = capture.outcome.borrow().is_some();
+                let finished = TestExecutionId::from_uuid(capture.execution.as_str())
+                    .ok()
+                    .and_then(|execution| state.executions.get(&execution))
+                    .is_none_or(|view| view.finished_at.is_some());
+                !(sealed && finished)
+            });
+        }
+        let running = captures.values().filter(|capture| capture.outcome.borrow().is_none()).count();
+        if running >= runtime.config().file_capture.maximum_captures {
+            return Err(super::capped("the configured file capture capacity is full"));
+        }
+        Ok(())
+    }
+
+    async fn start(&self, request: StartCapture, ctx: &Context<'_, StartCapture>) -> Result<CaptureStarted, Error> {
+        let execution = execution_of(ctx.call()).ok_or_else(|| super::invalid("a file capture requires an execution"))?;
+        let runtime = self.runtime()?;
+        self.admit(runtime)?;
+        let mut capture = tokio::select! {
+            result = runtime.open_file_capture(&request, &execution) => result?,
+            () = ctx.cancelled() => return Err(cancelled()),
         };
-        tokio::time::timeout(std::time::Duration::from_secs(86_400), readiness)
-            .await
-            .map_err(|_| Error::conflict(super::UNREACHABLE, "file watch readiness deadline elapsed"))?
+
+        // Take The Baseline; A Refused First Pass Still Seals What It Gave
+        let mut events = Vec::new();
+        let first = tokio::select! {
+            result = capture.poll(&mut events) => result,
+            () = ctx.cancelled() => Err(cancelled()),
+        };
+        if let Err(source) = first {
+            runtime.owned_work.spawn(async move {
+                if let Err(error) = capture.seal(&mut Vec::new()).await {
+                    tracing::warn!(%error, "file capture refused at its start did not seal");
+                }
+            });
+            return Err(source);
+        }
+        let mut gaps = Vec::new();
+        collect_gaps(&mut events, &mut gaps);
+
+        // The Runtime Owns The Capture From Here
+        let capture_id = uuid::Uuid::now_v7().as_u64_pair().1;
+        let (stop, stopping) = watch::channel(false);
+        let (finished, outcome) = watch::channel(None);
+        let driven = runtime.clone();
+        runtime.owned_work.spawn(async move {
+            let answer = drive(driven, capture, stopping, gaps).await;
+            finished.send_replace(Some(answer));
+        });
+        let running = Running { execution, stop, outcome };
+        self.captures.lock().expect("capture registry lock is healthy").insert(capture_id, running);
+        Ok(CaptureStarted { capture_id })
+    }
+
+    async fn stop(&self, request: &StopCapture, ctx: &Context<'_, StopCapture>) -> Result<CapturedFiles, Status> {
+        let execution = execution_of(ctx.call()).ok_or_else(|| status(super::invalid("a file capture requires an execution")))?;
+        let mut outcome = {
+            let captures = self.captures.lock().expect("capture registry lock is healthy");
+            let Some(capture) = captures.get(&request.capture_id) else {
+                return Err(status(Error::not_found("file_capture_unknown", "no such file capture")));
+            };
+            if capture.execution != execution {
+                return Err(status(super::invalid("the file capture belongs to another execution")));
+            }
+            capture.stop.send_replace(true);
+            capture.outcome.clone()
+        };
+
+        // Abandoning This Wait Abandons Only The Reply; Sealing Continues
+        tokio::select! {
+            answer = outcome.wait_for(Option::is_some) => match answer {
+                Ok(answer) => answer.clone().expect("the wait ends on an outcome"),
+                Err(_) => Err(status(Error::unavailable(super::UNREACHABLE, "the file capture ended without an outcome"))),
+            },
+            () = ctx.cancelled() => Err(failure(cancelled())),
+        }
+    }
+
+    async fn copy(&self, request: CopyFiles, ctx: &Context<'_, CopyFiles>) -> Result<CapturedFiles, Error> {
+        let execution = execution_of(ctx.call()).ok_or_else(|| super::invalid("a file copy requires an execution"))?;
+        let runtime = self.runtime()?;
+        let mut capture = tokio::select! {
+            result = runtime.open_file_copy(&request, &execution) => result?,
+            () = ctx.cancelled() => return Err(cancelled()),
+        };
+        let mut events = Vec::new();
+        let copied = tokio::select! {
+            result = capture.poll(&mut events) => result,
+            () = ctx.cancelled() => Err(cancelled()),
+        };
+        let mut gaps = Vec::new();
+        collect_gaps(&mut events, &mut gaps);
+
+        // The Seal Survives Cancellation Of The Reply
+        let sealing = runtime.owned_work.spawn(async move {
+            let sealed = capture.seal(&mut events).await;
+            collect_gaps(&mut events, &mut gaps);
+            sealed.map(|()| outcome_of(&capture, gaps))
+        });
+        let outcome = sealing.await.map_err(|error| Error::Operation(format!("file copy seal task: {error}")))?;
+        copied?;
+        outcome
+    }
+}
+
+impl Serve<CopyFiles> for Files {
+    fn serve<'a>(&'a self, request: CopyFiles, ctx: Context<'a, CopyFiles>) -> Served<'a, CapturedFiles> {
+        Box::pin(async move { self.0.copy(request, &ctx).await.map(Into::into).map_err(failure) })
+    }
+}
+
+impl Serve<StartCapture> for Files {
+    fn serve<'a>(&'a self, request: StartCapture, ctx: Context<'a, StartCapture>) -> Served<'a, CaptureStarted> {
+        Box::pin(async move { self.0.start(request, &ctx).await.map(Into::into).map_err(failure) })
+    }
+}
+
+impl Serve<StopCapture> for Files {
+    fn serve<'a>(&'a self, request: StopCapture, ctx: Context<'a, StopCapture>) -> Served<'a, CapturedFiles> {
+        Box::pin(async move { self.0.stop(&request, &ctx).await.map(Into::into) })
     }
 }
 
 /* === Public Functions === */
 
-// Registers the step built-ins, the Harmos instance controls, `WatchFile` and
-// `AwaitFileWatchArmed`, before any plugin that requires them attaches.
+// Registers the step built-ins and the Harmos instance controls before any
+// plugin that requires them attaches.
 pub fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>) -> harmos::Result<Arc<Resources>> {
     setup.operations::<harmos::builtins::Lifecycle>(Lanes::Open);
     let resources = Arc::new(Resources {
         runtime: OnceLock::new(),
-        readiness: Mutex::new(BTreeMap::new()),
-        changed: tokio::sync::Notify::new(),
+        captures: Mutex::new(BTreeMap::new()),
     });
     let files = Arc::new(Files(Arc::clone(&resources)));
 
-    setup.resource::<Host<WatchFile>>(Host::<WatchFile>::new(files.clone()));
-    setup.resource::<Host<AwaitFileWatchArmed>>(Host::<AwaitFileWatchArmed>::new(files));
+    setup.resource::<Host<CopyFiles>>(Host::<CopyFiles>::new(files.clone()));
+    setup.resource::<Host<StartCapture>>(Host::<StartCapture>::new(files.clone()));
+    setup.resource::<Host<StopCapture>>(Host::<StopCapture>::new(files));
 
     setup.operations::<PreparedOperations>(Lanes::Open);
     Ok(resources)
@@ -319,56 +243,77 @@ pub fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>) -> harmos::Result<
 
 /* === Private Functions === */
 
+// Passes until something asks for the seal, then seals. A capture that fails
+// records why, because nothing may ever stop it to ask.
+async fn drive(
+    runtime: RuntimeHandle, mut capture: FileCapture, mut stopping: watch::Receiver<bool>, mut gaps: Vec<CaptureGap>,
+) -> Result<CapturedFiles, Status> {
+    let mut events = Vec::new();
+    let mut failure = None;
+    let mut changes = runtime.watch_state();
+    loop {
+        let sealing = tokio::select! {
+            _ = stopping.wait_for(|stopped| *stopped) => true,
+            _ = changes.wait_until(|snapshot| snapshot.state().shutting_down) => true,
+            asked = capture.wait_for_poll() => asked,
+        };
+        if sealing {
+            break;
+        }
+        if let Err(source) = capture.poll(&mut events).await {
+            failure = Some(source);
+            break;
+        }
+        collect_gaps(&mut events, &mut gaps);
+    }
+    let sealed = capture.seal(&mut events).await;
+    collect_gaps(&mut events, &mut gaps);
+    if let Err(error) = &sealed {
+        tracing::warn!(%error, "file capture did not seal every file");
+    }
+    if let Some(source) = failure.or(sealed.err()) {
+        capture.record_failure(&source).await;
+        return Err(status(source));
+    }
+    Ok(outcome_of(&capture, gaps))
+}
+
+fn outcome_of(capture: &FileCapture, gaps: Vec<CaptureGap>) -> CapturedFiles {
+    let artifacts = capture
+        .sealed()
+        .iter()
+        .map(|record| CapturedArtifact {
+            artifact: record.filename.clone(),
+            size_bytes: record.size_bytes,
+        })
+        .collect();
+    CapturedFiles { artifacts, gaps }
+}
+
 fn execution_of(call: &harmos::operations::CallContext) -> Option<String> {
     call.value::<crate::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution)
 }
 
-fn collect_gaps(events: &mut Vec<WatchEvent>, gaps: &mut Vec<FileWatchGap>) {
+fn cancelled() -> Error {
+    Error::cancelled("file_capture_cancelled", "the file operation was cancelled")
+}
+
+fn failure(error: Error) -> Status {
+    if error.code() == Some("file_capture_cancelled") {
+        let failure = harmos::Failure::new(harmos::operations::FailureKind::Cancelled, error.to_string());
+        let mut status = Status::cancelled(failure.to_string());
+        status.set_source(Arc::new(failure));
+        return status;
+    }
+    status(error)
+}
+
+fn collect_gaps(events: &mut Vec<CaptureEvent>, gaps: &mut Vec<CaptureGap>) {
     for event in events.drain(..) {
-        if let WatchEvent::Gap { path, offset, reason } = event {
-            gaps.push(FileWatchGap { path, offset, reason });
+        if let CaptureEvent::Gap { path, offset, reason } = event {
+            gaps.push(CaptureGap { path, offset, reason });
         }
     }
 }
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn settling_releases_registration_and_preserves_the_subscribed_outcome() {
-        let state = Resources {
-            runtime: OnceLock::new(),
-            readiness: Mutex::new(BTreeMap::new()),
-            changed: tokio::sync::Notify::new(),
-        };
-        let resources = Arc::new(state);
-        let outcomes = [None, Some(Ok(FileWatchArmed { baseline: Vec::new() })), Some(Err("source refused".to_owned()))];
-        for outcome in outcomes {
-            let (ready, signal) = tokio::sync::watch::channel(outcome.clone());
-            let entry = Ready {
-                execution: Some("execution".to_owned()),
-                signal: ready.clone(),
-            };
-            resources.readiness.lock().unwrap().insert(1, entry);
-            let watching = Watching {
-                resources: resources.clone(),
-                watch: None,
-                ready,
-                ticket: Some(1),
-            };
-
-            drop(watching);
-
-            assert!(resources.readiness.lock().unwrap().is_empty());
-            let received = signal.borrow().clone().expect("every settled watcher has a readiness outcome");
-            match outcome {
-                Some(expected) => assert_eq!(received, expected),
-                None => assert!(received.unwrap_err().contains("stopped before capture was armed")),
-            }
-            assert!(signal.has_changed().is_err(), "settlement releases every readiness sender");
-        }
-    }
-}

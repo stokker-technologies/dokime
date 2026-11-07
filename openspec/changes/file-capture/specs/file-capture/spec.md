@@ -4,6 +4,10 @@
 
 Dokime SHALL offer steps a `CopyFiles` operation that copies its source into execution artifacts once, settles with what it copied, and needs no later call.
 
+#### Scenario: Cancelled Copy Seals
+- **WHEN** a `CopyFiles` call is cancelled while its files are sealing
+- **THEN** it answers once they have sealed, within its attempt deadline rather than the shorter run-stop reply budget
+
 #### Scenario: Newest File Is Copied at Start
 - **WHEN** a step calls `CopyFiles` with a `Newest` source over a folder holding several matching files
 - **THEN** only the newest match by modification time, breaking ties by path, becomes an artifact under the output prefix and the response lists it
@@ -23,6 +27,10 @@ Dokime SHALL offer `StartCapture` and `StopCapture` as ordinary request and resp
 #### Scenario: Stop Returns the Outcome After a Slow Seal
 - **WHEN** a capture over many files is stopped and sealing outlasts the operation's `cancellation_timeout`
 - **THEN** `StopCapture` returns the complete outcome rather than a cancellation
+
+#### Scenario: Seal Failure Reaches the Caller
+- **WHEN** sealing fails during `StopCapture`
+- **THEN** the call returns that failure and what was captured is retained
 
 #### Scenario: Repeated Stop
 - **WHEN** `StopCapture` is called again for a capture that has already stopped
@@ -123,6 +131,14 @@ Every source gap SHALL be published as a warning record of type `dokime.files.ca
 #### Scenario: Stop Reports Gaps
 - **WHEN** a capture with gaps is stopped
 - **THEN** `StopCapture` also lists those gaps in its response
+
+### Requirement: Capture Failures Are Evidence
+
+A capture that ends early SHALL publish a warning record of type `dokime.files.capture_failed` in the capture's execution scope carrying the reason, whether or not any caller stops it. `StopCapture` SHALL also return the failure.
+
+#### Scenario: Capture Fails With No Stop
+- **WHEN** a running capture exceeds a limit and nothing stops it
+- **THEN** the execution's evidence holds a failure record with the reason, and what the capture held seals
 
 ### Requirement: FTP Behind a Feature
 

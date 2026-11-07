@@ -8,20 +8,21 @@ Everything here is proposed behavior unless labelled as landed.
 
 ```rust
 // Copy Newest Log
-let source = FileSource::newest(&log_folder).include("*.log");
+let source = FileSource::newest(&log_folder, [FileRule::include("*.log")]);
 let request = CopyFiles::new(source, "logs");
 let copied = ctx.operation(request).await?;
 ```
 
 A step that wants to follow that file instead passes the same source to
-`StartCapture::stream`.
+`StartCapture::new` with a `StreamCapture`.
 
 ### Live Log Stream
 
 ```rust
 // Start Log Stream
 let source = FileSource::file(&self.log);
-let request = StartCapture::stream(source, "device/device.log").matcher(LineMatcher::publishing::<DeviceLog>(PATTERN));
+let matcher = LineMatcher::publishing::<DeviceLog>(PATTERN);
+let request = StartCapture::new(source, "device/device.log", StreamCapture::plain().matcher(matcher));
 let capture = ctx.operation(request).await?;
 
 // Produce Readings
@@ -37,7 +38,7 @@ let captured = ctx.operation(request).await?;
 ```rust
 // Start Archive Mirror
 let source = FileSource::file(&self.archive);
-let request = StartCapture::mirror(source, "device/results.zip").interval_s(ctx.parameters().archive_interval_s);
+let request = StartCapture::new(source, "device/results.zip", MirrorCapture::every(ctx.parameters().archive_interval_s));
 let capture = ctx.operation(request).await?;
 ```
 
@@ -86,13 +87,13 @@ pub struct FileSelection {
 }
 
 pub enum FileLocation {
-    Local { path: String },
-    Ftp { url: String, secret_id: Option<String> },
+    Local(LocalLocation), // path
+    Ftp(FtpLocation),     // url, secret_id
 }
 
 pub enum CaptureMode {
-    Stream { matchers: Vec<LineMatcher>, markers: Vec<LineMarker> },
-    Mirror { interval_s: Option<u32> },
+    Stream(StreamCapture), // matchers, markers
+    Mirror(MirrorCapture), // interval_s
 }
 
 pub struct CaptureStarted {
@@ -105,9 +106,8 @@ pub struct CapturedFiles {
 }
 ```
 
-`CopyFiles` and `StopCapture` both answer `CapturedFiles`. Authors build requests only
-through constructors, so a wrapper that `harmos::message` needs for a data-carrying enum
-stays out of their code.
+`CopyFiles` and `StopCapture` both answer `CapturedFiles`. Data-carrying enums are plain
+message fields, so the `payload` wrappers of the old shape are gone.
 
 `output` is the full artifact name for `File`. For `Tree` and `Newest` it is the prefix
 under which relative paths are preserved, and empty means the artifact root.
@@ -138,13 +138,18 @@ StartCapture ── baseline taken ──> CaptureStarted { capture_id }
 ```
 
 - **`StartCapture`** returns once the baseline is taken, replacing `armed()`. It declares
-  no replay, because a replay would start a second capture.
+  no replay, because a replay would start a second capture. `StartCapture` and `CopyFiles`
+  use `FOLLOW` too, because a first Mirror pass and a copy transfer whole files.
 - **`StopCapture`** takes the final pass, seals and answers. It is idempotent: a repeat
   returns the same outcome, and it declares that replay safety.
 - **Stop deadline:** `StopCapture` uses `FOLLOW`. Capture limits bound a seal, not a wall
-  clock, matching the rule for transfers. Sealing is runtime-owned work, so cancelling
+  clock, matching the rule for transfers. It waits for sealing within its attempt
+  deadline and returns any seal failure. Sealing is runtime-owned work, so cancelling
   the call or passing its deadline abandons only the reply. A later `StopCapture` still
   returns the outcome, and a run stop still waits on the execution's capture barrier.
+- **Copy deadline:** a cancelled `CopyFiles` is the one call that still waits for its seal
+  while cancelled, so its `cancellation_timeout` equals `FOLLOW.attempt_timeout`, the
+  budget landed `WatchFile` took in #336.
 - **Ownership:** a capture belongs to the calling step's execution. Without an execution
   in the context, the call is refused, as is a stop from another execution. A
   capture left running seals at execution end without a warning, because "during the
@@ -176,6 +181,10 @@ engines will publish a warning record of a new built-in type,
 `dokime.files.capture_gap`, in the capture's execution scope, carrying path, offset and
 reason. `CapturedFiles.gaps` still reports them to a caller that stops the capture.
 
+Because nothing may ever stop a capture, one that ends early also publishes a warning
+`dokime.files.capture_failed` record with its reason. `StopCapture` still returns the
+failure to a caller that stops it.
+
 ## FTP Feature
 
 ```toml
@@ -204,11 +213,15 @@ with one default, carrying over today's values unless noted:
 | `maximum_bytes` | 256 MiB | Request override and literal |
 | `maximum_captures` | 256 | Readiness capacity literal |
 | `mirror_interval` | 10 s, new | `poll_interval_ms` for Mirror |
+| `minimum_mirror_interval`, `maximum_mirror_interval` | 1 s, 1 h, new | Literal poll bounds |
+| `maximum_line_rules`, `maximum_pattern_bytes`, `maximum_regex_bytes`, `maximum_line_bytes` | 32, 1 KiB, 1 MiB, 64 KiB | Literals |
+| `maximum_failed_passes` | 10 | Literal |
+| `secret_timeout` | 5 s | Literal |
 | `storage.filesystem.poll_interval` | Unchanged | `poll_interval_ms` for Stream |
 
-Removing `AwaitFileWatchArmed` also removes its literal 30 s and 86,400 s waits. The
-remaining literal limits in `watch_settings` and the harness move into the same section
-during implementation; their bounds are validated once, at configuration load.
+These live in `RuntimeConfig::file_capture`. The harness reads their defaults, so both
+roads share one default. Removing `AwaitFileWatchArmed` also removes its literal 30 s and
+86,400 s waits.
 
 A file over `maximum_bytes` still fails explicitly and keeps what was captured. A bench
 mirroring a larger zip raises the configured value.
@@ -216,8 +229,8 @@ mirroring a larger zip raises the configured value.
 ## Harness Road
 
 The harness keeps its own local engine. `served` routes all three operations for an
-unhosted call. Its registry lives on the binding and seals at run end, and the `Ready`
-parameter leaves `Serve`. Merging the two engines is out of scope: FTP keeps them apart.
+unhosted call. Its registry lives on the binding, shared across stages through the
+environment, and seals at run end after cleanup, and the `Ready` parameter leaves `Serve`. Merging the two engines is out of scope: FTP keeps them apart.
 
 ## Removal Inventory
 

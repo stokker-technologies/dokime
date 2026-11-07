@@ -7,7 +7,7 @@
  * ***
  */
 
-// Hosted Watches Settle Under Their Execution Barrier
+// Hosted Captures Settle Under Their Execution Barrier
 
 /* === Modules === */
 
@@ -24,16 +24,14 @@ use harmos::plugin::Declared;
 // Local Imports
 use crate::domains::files::{Bench, append, write};
 use crate::service_support::prelude::*;
-use dokime_domain::model::files::wire::{
-    FileRule, FileRuleAction, FileWatchPolicy, FileWatchSelection, FileWatchSource, FileWatchSourcePayload, LocalWatchSource,
-};
+use dokime_domain::model::files::wire::{FileRule, FileSource, MirrorCapture};
 use dokime_runtime::execution::{Run, Signal};
-use dokime_runtime::operations::files::WatchFile;
+use dokime_runtime::operations::files::StartCapture;
 use dokime_runtime::prelude::{InitializationContext, StepContext};
 use dokime_runtime::transport::ExecutionSignal;
 
 /* === Constants === */
-const TEMPLATE: &str = "watch_stop.checks.capture";
+const TEMPLATE: &str = "capture_stop.checks.capture";
 static STEP_WAITING: tokio::sync::Notify = tokio::sync::Notify::const_new();
 
 /* === Macros === */
@@ -49,9 +47,6 @@ struct Capture;
 struct Parameters {
     #[parameter(label = "Path", default = "")]
     path: String,
-
-    #[parameter(label = "Execution", default = "")]
-    execution: String,
 }
 
 /* === Enums === */
@@ -73,7 +68,7 @@ impl harmos::builtins::lifecycle::Policy for Plugin {
     const SHUTDOWN_POLICY: harmos::operations::OperationPolicy = super::native::POLICY;
 }
 
-#[dokime_runtime::plugin(id = "watch_stop", requires(), contributions(dokime_runtime::Suites<Suites>), restart = "never", description = "Stops a hosted watch mid-step.")]
+#[dokime_runtime::plugin(id = "capture_stop", requires(), contributions(dokime_runtime::Suites<Suites>), restart = "never", description = "Stops a hosted watch mid-step.")]
 impl dokime_runtime::Plugin for Plugin {
     const CATALOGS: &'static [harmos::Catalog] = &[];
 }
@@ -88,7 +83,7 @@ impl harmos::Lifecycle for Plugin {
     }
 }
 
-#[dokime_runtime::suite(id = "watch_stop.checks", label = "Watch Stop", templates = Templates)]
+#[dokime_runtime::suite(id = "capture_stop.checks", label = "Capture Across a Stop", templates = Templates)]
 impl Checks {}
 
 #[dokime_runtime::template(id = TEMPLATE, label = "Capture", parameters = Parameters)]
@@ -99,33 +94,11 @@ impl Capture {
 
     #[dokime_runtime::step(label = "Capture Files")]
     async fn capture(&mut self, ctx: &mut StepContext<'_>) -> Result<(), dokime_runtime::Error> {
-        let watch = ctx
-            .operation(WatchFile {
-                recursive: true,
-                rules: vec![FileRule {
-                    glob: "**/*.log".into(),
-                    action: FileRuleAction::Include,
-                }],
-                maximum_files: Some(64),
-                execution_id: Some(ctx.parameters().execution.clone()),
-                source: Some(FileWatchSource {
-                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: ctx.parameters().path.clone() })),
-                }),
-                output: "many".into(),
-                artifact: None,
-                policy: FileWatchPolicy::Mirror,
-                selection: FileWatchSelection::All,
-                wait_for_source_seconds: None,
-                poll_interval_ms: Some(60_000),
-                maximum_seconds: None,
-                maximum_bytes: None,
-                matchers: Vec::new(),
-                markers: Vec::new(),
-            })
-            .start()
-            .await?;
-        watch.armed().await?;
-        watch.detach();
+        // Start Capture
+        let source = FileSource::tree(ctx.parameters().path.as_str(), [FileRule::include("**/*.log")]);
+        let request = StartCapture::new(source, "many", MirrorCapture::every(3600));
+        ctx.operation(request).await?;
+
         STEP_WAITING.notify_one();
         std::future::pending().await
     }
@@ -139,7 +112,7 @@ impl Capture {
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
-async fn watched_stop_settles() {
+async fn captured_stop_settles() {
     let bench = Bench::start(|config, _| config).await;
     let tree = tempdir().unwrap();
     for index in 0..64 {
@@ -156,20 +129,16 @@ async fn watched_stop_settles() {
     *native.host.watch_runtime.lock().unwrap() = Some(bench.handle.clone());
     let request = super::native::run_request(
         &bench.execution,
-        "watch_stop.checks",
+        "capture_stop.checks",
         TEMPLATE,
-        serde_json::to_string(&BTreeMap::from([
-            ("path", Value::from(tree.path().to_str().unwrap())),
-            ("execution", Value::from(bench.execution.clone())),
-        ]))
-        .unwrap(),
+        serde_json::to_string(&BTreeMap::from([("path", Value::from(tree.path().to_str().unwrap()))])).unwrap(),
     );
     let run = {
         let mut context = harmos::operations::CallContext::default();
         context.insert_portable(dokime_runtime::execution::ExecutionScope::execution(bench.execution.clone())).unwrap();
         let operations = native.runtime.operations.with_context(context);
         tokio::spawn(async move {
-            let outcome = super::native::call_wire::<Run<Capture>>(&operations, "watch_stop", Run::new(request)).await.unwrap();
+            let outcome = super::native::call_wire::<Run<Capture>>(&operations, "capture_stop", Run::new(request)).await.unwrap();
             (outcome, std::time::Instant::now())
         })
     };
@@ -178,7 +147,7 @@ async fn watched_stop_settles() {
         append(&tree.path().join(format!("nested/{index}.log")), b"changed\n");
     }
     let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
-    let gate = dokime_runtime::testing::hold_watch_seal(&execution);
+    let gate = dokime_runtime::testing::hold_capture_seal(&execution);
     let stop = {
         let handle = bench.handle.clone();
         let execution = execution.clone();
@@ -191,7 +160,7 @@ async fn watched_stop_settles() {
     let started = std::time::Instant::now();
     super::native::call_wire::<Signal<Capture>>(
         &native.runtime.operations,
-        "watch_stop",
+        "capture_stop",
         Signal::new(ExecutionSignal {
             execution_token: bench.execution.clone(),
             cancel: true,
@@ -202,8 +171,7 @@ async fn watched_stop_settles() {
     .unwrap();
     gate.entered().await;
     let (outcome, settled_at) = run.await.unwrap();
-    eprintln!("watched_stop_settles: run stop reply {:?}", settled_at.duration_since(started));
-    assert_eq!(dokime_runtime::testing::drain_counts(&execution).get("watch_stop_reply"), Some(&1));
+    eprintln!("captured_stop_settles: run stop reply {:?}", settled_at.duration_since(started));
     assert!(!outcome.passed);
     let attempts = native
         .host

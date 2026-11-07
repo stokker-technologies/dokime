@@ -379,7 +379,7 @@ pub(crate) async fn permanent_finalization_settles() {
 async fn stop_report_retry() {
     use crate::domains::files;
     use crate::service_support::all_plots::AllPlots;
-    use dokime_domain::model::{diagnostics::Diagnostic, files::wire::FileWatchPolicy};
+    use dokime_domain::model::{diagnostics::Diagnostic, files::wire::FileRule};
 
     let root = tempdir().unwrap();
     // Deterministic Eight-Minute History Across Ten Streams And Twelve Plots.
@@ -391,12 +391,12 @@ async fn stop_report_retry() {
     for index in 0..16 {
         std::fs::write(tree.path().join(format!("{index}.log")), b"retained evidence\n").unwrap();
     }
-    let request = files::request(&execution.to_string(), files::local(tree.path()), vec![files::include("*.log")], FileWatchPolicy::Mirror);
-    let mut watch = runtime.open_file_watch(&request, None).await.unwrap();
-    files::poll(&mut watch).await;
+    let request = files::request(tree.path(), [FileRule::include("*.log")], files::mirror());
+    let mut mirror = runtime.open_file_capture(&request, &execution.to_string()).await.unwrap();
+    files::poll(&mut mirror).await;
     let capture = tokio::spawn(async move {
-        watch.seal_requested().await;
-        let events = files::seal(&mut watch).await;
+        mirror.seal_requested().await;
+        let events = files::seal(&mut mirror).await;
         let artifacts = files::sealed(&events);
         assert_eq!(artifacts.len(), 16);
         artifacts

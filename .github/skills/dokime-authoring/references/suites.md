@@ -47,11 +47,13 @@ Use the vocabulary in this order: initialize, steps, criteria, observers, cleanu
 
 Keep handles used only by steps in template state. Return observer-shared handles beside that state during initialize.
 
-## File Capture Readiness
+## File Capture
 
-After `ctx.operation(watch_request).start().await?` for `WatchFile`, await `watch.armed().await?` before starting the producer. Readiness means the baseline and capture were admitted; an accessible empty directory is a valid baseline for `All` and `New`. The streaming `FileWatch` API reports the same boundary through its `Armed` frame. Join or cancel the watcher within the owning step.
+Use `ctx.artifacts().import(path, name)` to keep one local file as it stands, and `CopyFiles` to copy a tree, the newest file of a folder or an FTP source once.
 
-Selection is independent of capture policy: `All` follows baseline files and arrivals, `Latest` selects the newest baseline file and follows its rotation, and `New` captures later discoveries from byte zero. Use `wait_for_source_seconds` only when an absent source is expected. Its deadline precedes the capture duration; cancellation, permission failures and invalid paths remain failures. An unavailable FTP root fails immediately because status 550 cannot distinguish absence from denied access.
+`StartCapture` returns once its baseline is taken, so start the producer after it. `StreamCapture` follows appended bytes and offers lines to matchers and markers; `MirrorCapture` keeps whole files, checked once per interval, with the interval from settings or parameters. `StopCapture` is an ordinary request that returns what sealed, and a repeat returns the same outcome. The execution owns the capture: another step may stop it, and one nothing stops seals when the execution ends.
+
+`FileSource::file` must exist at the start and `FileSource::newest` must match at the start; `FileSource::tree` over an accessible empty directory starts at once and captures later files from byte zero. Depth follows the rules. An unavailable FTP root fails immediately because status 550 cannot distinguish absence from denied access. Requests carry no limits: file and byte limits come from configuration.
 
 ## Layout
 

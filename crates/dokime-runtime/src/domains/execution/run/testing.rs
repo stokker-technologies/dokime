@@ -43,7 +43,7 @@ static REPORT_JOB_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> 
 
 static STREAM_DRAIN_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);
 
-static WATCH_SEAL_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);
+static CAPTURE_SEAL_GATES: LazyLock<Mutex<BTreeMap<TestExecutionId, ReportGate>>> = LazyLock::new(Default::default);
 
 static COUNTS: LazyLock<Mutex<BTreeMap<TestExecutionId, BTreeMap<&'static str, usize>>>> = LazyLock::new(Default::default);
 
@@ -127,16 +127,16 @@ pub fn hold_stream_drain(execution: &TestExecutionId) -> ReportGate {
     hold(&STREAM_DRAIN_GATES, execution)
 }
 
-pub fn hold_watch_seal(execution: &TestExecutionId) -> ReportGate {
-    hold(&WATCH_SEAL_GATES, execution)
+pub fn hold_capture_seal(execution: &TestExecutionId) -> ReportGate {
+    hold(&CAPTURE_SEAL_GATES, execution)
 }
 
-pub(crate) async fn before_watch_seal(execution: &TestExecutionId) {
-    let gate = WATCH_SEAL_GATES.lock().unwrap().get(execution).cloned();
+pub(crate) async fn before_capture_seal(execution: &TestExecutionId) {
+    let gate = CAPTURE_SEAL_GATES.lock().unwrap().get(execution).cloned();
     if let Some(gate) = gate {
         gate.entered.cancel();
         gate.release.cancelled().await;
-        WATCH_SEAL_GATES.lock().unwrap().remove(execution);
+        CAPTURE_SEAL_GATES.lock().unwrap().remove(execution);
     }
 }
 

@@ -176,10 +176,6 @@ export const executionSubmitExecutionCommand = (session: SessionIdentity, reques
 import { Row1Schema as executionUpdateCyclePolicyRequest } from "@generated/dokime/v1/ExecutionMessages/UpdateCyclePolicy/messages_pb.js";
 import { Row2Schema as executionUpdateCyclePolicyResponse } from "@generated/dokime/v1/ExecutionMessages/UpdateCyclePolicy/messages_pb.js";
 export const executionUpdateCyclePolicy = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionUpdateCyclePolicyRequest, typeof executionUpdateCyclePolicyResponse>>[4]) => unary("/dokime.v1.Execution/UpdateCyclePolicy", executionUpdateCyclePolicyRequest, executionUpdateCyclePolicyResponse, session, request, 10000);
-import { Row1Schema as filesFileWatchRequest } from "@generated/dokime/v1/FilesMessages/FileWatch/messages_pb.js";
-import { Row3Schema as filesFileWatchResponse } from "@generated/dokime/v1/FilesMessages/FileWatch/messages_pb.js";
-import { FilesFileWatchOutputSchema as filesFileWatchEnvelope } from "@generated/dokime/v1/Files_pb.js";
-export const filesFileWatch = (session: SessionIdentity, request: Parameters<typeof openStream<typeof filesFileWatchRequest, typeof filesFileWatchResponse>>[4]) => openStream("/dokime.v1.Files/FileWatch", filesFileWatchRequest, filesFileWatchResponse, session, request, filesFileWatchEnvelope, 86400000);
 import { Row1Schema as healthListHealthRequest } from "@generated/dokime/v1/HealthMessages/ListHealth/messages_pb.js";
 import { Row2Schema as healthListHealthResponse } from "@generated/dokime/v1/HealthMessages/ListHealth/messages_pb.js";
 export const healthListHealth = (session: SessionIdentity, request: Parameters<typeof unary<typeof healthListHealthRequest, typeof healthListHealthResponse>>[4]) => unary("/dokime.v1.Health/ListHealth", healthListHealthRequest, healthListHealthResponse, session, request, 10000);

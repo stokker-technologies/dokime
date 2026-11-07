@@ -45,9 +45,7 @@ native = [
   "dep:keyring",
   "dep:image",
   "dep:keyring-core",
-  "dep:rustls-platform-verifier",
   "dep:sha2",
-  "dep:suppaftp",
   "dep:tokio-util",
   "dep:tonic",
   "dep:tonic-types",
@@ -71,8 +69,10 @@ storage = [
   "dep:tempfile",
   "dep:tokio",
 ]
+# FTP capture sources. Shipped hosts enable it; plugin sidecars never need it.
+ftp = ["native", "dep:rustls-platform-verifier", "dep:suppaftp"]
 # Canonical Tests Enable This Fixture Surface; Product Never Does.
-testing = ["native"]
+testing = ["native", "ftp"]
 fault-injection = ["native"]
 fft = ["native", "harmos/signal-fft"]
 media-native = ["native", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:nokhwa", "dep:url", "dep:xcap"]

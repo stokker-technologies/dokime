@@ -44,10 +44,31 @@ pub struct StreamPublicationSettings {
     pub flush_delay: std::time::Duration,
 }
 
+// The limits and cadence every file capture runs under; requests carry none,
+// except a Mirror interval within its bounds.
+#[derive(Clone, Copy, Debug)]
+pub struct FileCaptureSettings {
+    pub maximum_files: usize,
+    pub maximum_bytes: u64,
+    pub maximum_captures: usize,
+    pub mirror_interval: std::time::Duration,
+    pub minimum_mirror_interval: std::time::Duration,
+    pub maximum_mirror_interval: std::time::Duration,
+    pub maximum_line_rules: usize,
+    pub maximum_pattern_bytes: usize,
+    pub maximum_regex_bytes: usize,
+    pub maximum_line_bytes: std::num::NonZeroUsize,
+    pub maximum_failed_passes: u64,
+    pub secret_timeout: std::time::Duration,
+}
+
 #[derive(Clone, serde::Deserialize)]
 pub struct RuntimeConfig {
     #[serde(skip, default)]
     pub stream_publication: StreamPublicationSettings,
+
+    #[serde(skip, default)]
+    pub file_capture: FileCaptureSettings,
 
     #[serde(skip, default = "super::schema_defaults")]
     pub schema: harmos::config::SchemaSettings,
@@ -104,6 +125,25 @@ pub struct RuntimeConfig {
 
 /* === Implementations === */
 
+impl Default for FileCaptureSettings {
+    fn default() -> Self {
+        Self {
+            maximum_files: 64,
+            maximum_bytes: 256 * 1024 * 1024,
+            maximum_captures: 256,
+            mirror_interval: std::time::Duration::from_secs(10),
+            minimum_mirror_interval: std::time::Duration::from_secs(1),
+            maximum_mirror_interval: std::time::Duration::from_secs(3600),
+            maximum_line_rules: 32,
+            maximum_pattern_bytes: 1024,
+            maximum_regex_bytes: 1 << 20,
+            maximum_line_bytes: std::num::NonZeroUsize::new(64 * 1024).expect("positive capacity"),
+            maximum_failed_passes: 10,
+            secret_timeout: std::time::Duration::from_secs(5),
+        }
+    }
+}
+
 impl Default for StreamPublicationSettings {
     fn default() -> Self {
         Self {
@@ -123,6 +163,7 @@ impl RuntimeConfig {
             session_id: crate::model::identity::new_id::<SessionId>(),
             storage: crate::config::storage_defaults(),
             stream_publication: Default::default(),
+            file_capture: Default::default(),
             local_storage: crate::config::local_storage_defaults(),
             managed_storage: super::managed_storage_defaults(),
             storage_state: super::storage_state_defaults(),

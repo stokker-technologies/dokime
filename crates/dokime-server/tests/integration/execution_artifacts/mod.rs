@@ -7,12 +7,11 @@
  * ***
  */
 
-// Artifact transfer, upload, report opening, operator media and file watches against a running execution.
+// Artifact transfer, upload, report opening and operator media against a running execution.
 
 /* === Modules === */
 
 mod content;
-mod file_watch;
 mod media;
 
 /* === Re-Exports === */
@@ -58,7 +57,6 @@ async fn execution_artifacts() {
     Box::pin(content::artifact_upload_completion()).await;
     Box::pin(content::open_report_states()).await;
     Box::pin(media::media_capture_artifacts()).await;
-    Box::pin(file_watch::file_watch_artifacts()).await;
 }
 
 #[dokime_tracing::trace_test]

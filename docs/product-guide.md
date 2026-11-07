@@ -1014,92 +1014,94 @@ obtain the choice from settings, parameters or configuration. Enabled retry
 overrides require declared replay safety, preserve operation deadlines and record
 each attempt in the execution log. Templates have no `.lane()` option.
 
-A step also reaches two built-in operations through `ctx.operation(request)`,
+A step also reaches four built-in operations through `ctx.operation(request)`,
 with nothing to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
 sends its output to the execution log or into an artifact, and records its exit.
-`WatchFile` captures a device log written during the step into an artifact and
-turns matching lines into rows and records. The
+`CopyFiles`, `StartCapture` and `StopCapture` bring files into the execution's evidence.
+
+### File Capture
+
+To keep one local file as it stands, import it. The plugin's own process reads
+the file, so there is no FTP and no capture limit:
+
+```rust
+ctx.artifacts().import(&self.log, "device/boot.log")?;
+```
+
+To pick up the newest file in a folder at the start, copy it. `CopyFiles` copies
+its source once and answers with what it sealed:
+
+```rust
+// Copy Newest Log
+let source = FileSource::newest(&log_folder, [FileRule::include("*.log")]);
+let request = CopyFiles::new(source, "logs");
+let copied = ctx.operation(request).await?;
+```
+
+To stream a live log, start a capture before the producer writes. `StartCapture`
+returns once its baseline is taken, so the producer needs no startup wait, and
+`StopCapture` answers once everything is sealed. The
 [startup template](../plugins/sidecars/obc/src/suites/startup/sequence.rs) tails the
 simulated charger's log this way:
 
 ```rust
-// Watch the Charger Log
-let operation = WatchFile {
-        execution_id: None,
-        source: Some(FileWatchSource {
-            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-                root: self.log.to_string_lossy().into_owned(),
-            })),
-        }),
-        recursive: false,
-        rules: Vec::new(),
-        maximum_files: None,
-        output: "charger".into(),
-        artifact: Some("charger/device.log".into()),
-        policy: FileWatchPolicy::Stream,
-        selection: FileWatchSelection::All,
-        wait_for_source_seconds: None,
-        poll_interval_ms: Some(FILE_POLL_MS),
-        maximum_seconds: Some(1),
-        maximum_bytes: None,
-        matchers: vec![LineMatcher::publishing::<ChargerLog>(
-            r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)",
-        )],
-        markers: Vec::new(),
-};
-let watch = ctx.operation(operation).start().await?;
-watch.armed().await?;
-// The baseline is established; the charger can now start logging its readings.
-let captured = watch.cancel().await?.into_owned();
+// Start Capture
+let matcher = LineMatcher::publishing::<ChargerLog>(PATTERN);
+let request = StartCapture::new(FileSource::file(&self.log), "charger/device.log", StreamCapture::plain().matcher(matcher));
+let capture = ctx.operation(request).await?;
+
+// Log Readings
+self.device.sample(0.0);
+
+// Stop Capture
+let request = StopCapture { capture_id: capture.capture_id };
+let captured = ctx.operation(request).await?.into_owned();
 ```
 
-For a directory source, set `recursive: true` or supply `rules`. Rules use the
-existing ordered `FileRule` include/exclude globs over forward-slash paths relative
-to the root; the last matching rule wins. Recursive discovery includes subfolders
-created after arming. Empty rules with recursion enabled include every file;
-`recursive: false` with rules scans only the root directory. Empty rules with
-recursion disabled retain the single-file behavior above.
-
-For example, a step can stream a vendor application's three log trees under
-`logs/<relative path>`, preserving directory and file names:
+To keep a file that is rewritten during the execution, such as a zip archive,
+mirror it. A Mirror checks the file for a change once per interval and ignores
+change notifications. Its final pass runs when the capture stops:
 
 ```rust
-let request = WatchFile {
-    execution_id: None,
-    source: Some(FileWatchSource {
-        payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-            root: vendor_root.to_string_lossy().into_owned(),
-        })),
-    }),
-    output: "logs".into(),
-    artifact: None,
-    recursive: true,
-    rules: ["Logs/**", "Logs_SSI/**", "Logs_Instruments/**"]
-        .into_iter()
-        .map(|glob| FileRule { glob: glob.into(), action: FileRuleAction::Include })
-        .collect(),
-    policy: FileWatchPolicy::Stream,
-    selection: FileWatchSelection::All,
-    wait_for_source_seconds: None,
-    poll_interval_ms: Some(250),
-    maximum_seconds: None,
-    maximum_files: Some(128),
-    maximum_bytes: None,
-    matchers: Vec::new(),
-    markers: Vec::new(),
-};
-let watch = ctx.operation(request.clone()).start().await?;
-watch.armed().await?;
-// Run the vendor application, then seal its captured logs.
-let captured = watch.cancel().await?.into_owned();
+// Start Archive Mirror
+let source = FileSource::file(&self.archive);
+let request = StartCapture::new(source, "device/results.zip", MirrorCapture::every(ctx.parameters().archive_interval_s));
+let capture = ctx.operation(request).await?;
 ```
 
-Stream captures existing files from their arm-point length and later arrivals
-from byte zero. Existing files that contribute no bytes produce no artifact;
-new empty files are retained. Captured Stream files appear immediately in the
-live artifact tree at `artifacts/<output>/<relative path>`, with their growing
-size and content available before sealing. Their viewer shows Finished after
-capture closes. UUIDs remain internal artifact identities.
+Take the interval from settings or parameters. `MirrorCapture::configured()` uses
+the configured interval. A mirrored artifact becomes visible when it seals, so an
+interim refetch can never expose a half-written archive; a failed refetch keeps
+the last whole copy.
+
+**Sources.** `FileSource::file` names one file, which must exist at the start.
+`FileSource::tree` names a directory and its ordered rules, and `FileSource::newest`
+selects the newest match of the same rules at the start, breaking ties by path, and
+follows it through rotation without switching to a later arrival. It fails when
+nothing matches. Rules use `FileRule::include` and `FileRule::exclude` over
+forward-slash paths relative to the root, and the last matching rule wins. Depth
+follows the rules: `*.log` stays at the top level, `**/*.log` descends, and empty
+rules select every file at any depth. A tree over an accessible empty directory
+starts at once and captures later files from byte zero, including a log the
+producer creates after the start. Use `FileLocation::ftp(url, secret_id)` in place
+of a local path for an FTP source. Unavailable FTP roots fail immediately because
+FTP status 550 cannot distinguish missing roots from denied access.
+
+**Output.** For a file source, `output` is the full artifact name. For a tree or
+newest source, it is a prefix under which relative paths are preserved; empty means
+the artifact root. Unknown extensions use `application/octet-stream`. Artifact paths
+must be relative, use forward slashes and contain no traversal, absolute path,
+reserved device name or invalid portable filename segment. The harness uses the same
+local discovery, glob matching and artifact-name validation as the native host.
+
+**Stream behavior.** Stream captures existing files from their baseline length and
+later arrivals from byte zero. Existing files that contribute no bytes produce no
+artifact; new empty files are retained. Captured Stream files appear immediately in
+the live artifact tree at `artifacts/<output>/<relative path>`, with their growing
+size and content available before sealing. Their viewer shows Finished after capture
+closes. UUIDs remain internal artifact identities. Detected replacement and
+copy-truncate boundaries retain separately named artifact segments; the file limit
+bounds simultaneous captures rather than the lifetime number of rotations.
 
 Step uploads use the same `artifacts/<requested path>` rule. Within one execution,
 paths are reserved in admission order: repeated `logs/device.log` becomes
@@ -1108,52 +1110,38 @@ Replacement and copy-truncate segments retain their `.segmentN` names before
 collision suffixing. This changes development stored paths without migration;
 existing storage is never silently reset.
 
-To mirror only ZIP archives anywhere below the same root,
-use `policy: FileWatchPolicy::Mirror` and
-`rules: vec![FileRule { glob: "**/*.zip".into(), action: FileRuleAction::Include }]`.
-Directory watches require `artifact: None`; `output` is the artifact prefix.
-The file cap defaults to 64 (maximum 256), and the byte cap applies across all
-files and sealed segments. Polling uses the request interval or host settings.
+**Ownership.** The execution owns a capture, so one step can start it and a later
+step can stop it. A capture nothing stops seals when the execution ends. `StopCapture`
+is an ordinary request, not a cancellation: it waits for sealing within its attempt
+deadline, returns any seal failure, a repeat returns the same outcome, and abandoning
+the call abandons only its reply. `CopyFiles` keeps sealing and answers when cancelled,
+within that same deadline. Stopping an execution still waits for all captured files
+and the durable execution seal.
 
-Single-file snapshots may use names such as `capture.diag` or `capture.hpl30`
-with `output: String::new()` to retain them at the artifact root. Unknown
-extensions use `application/octet-stream`. Artifact paths must be relative,
-use forward slashes and contain no traversal, absolute path, reserved device
-name or invalid portable filename segment. The harness uses the same local
-discovery, glob matching and artifact-name validation as the native host.
+**Evidence.** Every source gap becomes a `dokime.files.capture_gap` record with its
+path, offset and reason, and a capture that ends early becomes a
+`dokime.files.capture_failed` record, whether or not anything stops the capture.
+`StopCapture` also reports its gaps. A file whose artifact content cannot be captured
+is retained as a failed artifact with its error and no downloadable content. Reports
+list failed artifacts alongside the remaining evidence; the failure does not prevent
+Stop, provider completion or report saving. Storage failures outside artifact content
+capture still fail the save.
 
-`All` follows baseline files and later arrivals. `Latest` selects the newest
-baseline file by modification time, breaking ties by path, while `New` captures
-only files discovered after the baseline, from byte zero. Accessible empty
-directories arm immediately for `All` and `New`. Detected replacement and
-copy-truncate boundaries retain separately named artifact segments; the file
-limit bounds simultaneous captures rather than the lifetime number of rotations.
-Use `wait_for_source_seconds` for bounded waiting when a local source or an FTP
-file beneath an accessible root may appear later. Unavailable FTP roots fail
-immediately because FTP status 550 cannot distinguish missing roots from denied
-access. Permission and invalid-path failures remain immediate.
+**Limits.** Requests carry no limits. File and byte limits, the capture capacity, the
+Mirror interval and its bounds come from `RuntimeConfig::file_capture`, and Stream
+polling comes from `storage.filesystem.poll_interval`. Local Stream captures rescan on
+native directory notifications, with the poll interval as the fallback upper bound;
+FTP sources poll. Exceeding a limit fails explicitly and retains what was captured.
 
-Local watches rescan on native directory notifications. The configured poll
-interval remains the fallback upper bound when notifications are unavailable;
-FTP watches use that interval. Execution sealing and cancellation wake watches
-independently of either source.
-
-A file whose artifact content cannot be captured is retained as a failed artifact
-with its error and no downloadable content. Reports list failed artifacts alongside
-the remaining evidence; the failure does not prevent Stop, provider completion or
-report saving. Storage failures outside artifact content capture still fail the save.
+**FTP.** FTP sources compile only with the `ftp` feature. Shipped server, desktop and
+CLI builds enable it, and plugin sidecars do not need it because the host serves
+captures. A build without it refuses an FTP source with `file_capture_unsupported`.
 
 Use `instance.request_cancel().await?` to signal cancellation and retain the
 handle, or `instance.cancel().await?` to cancel and receive its final response.
-Processes return their exit status; cancelling a file watch on its own waits for
-captured files to seal before replying, retaining any seal failure. Its cancellation
-grace covers the existing `WatchFile` attempt deadline (`FOLLOW.attempt_timeout`);
-it does not extend that deadline or impose the shorter run-stop reply budget.
-When stopping an execution, cancelled watch calls acknowledge cancellation while
-their registered captures finish sealing under that execution's capture barrier.
-Stop still waits for all captured files and the durable execution seal.
+Processes return their exit status.
 Anything a step leaves running is cancelled when the step ends, with a warning
-record.
+record. A capture is not an instance and keeps running.
 
 ### Capture and Edit Traceability
 

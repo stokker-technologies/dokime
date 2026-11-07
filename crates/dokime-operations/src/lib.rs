@@ -79,7 +79,6 @@ pub const STOP_SETTLEMENT: OperationPolicy = policy(Duration::from_secs(5));
 // Operations A Remote Listener Never Serves: They Reach The Host's Filesystem, Screen,
 // Camera, Microphone Or Listener Settings. A Remote Call's Loopback Address Grants No Native Trust.
 pub const LOCAL_ONLY: &[&str] = &[
-    <files::FileWatch as OperationDeclaration>::ID,
     <media::Screenshot as OperationDeclaration>::ID,
     <media::Photo as OperationDeclaration>::ID,
     <media::AudioRecording as OperationDeclaration>::ID,
@@ -129,9 +128,6 @@ pub enum Operations {
 
     #[nested]
     Execution(execution::Operations),
-
-    #[nested]
-    Files(files::Operations),
 
     #[nested]
     History(history::Operations),

@@ -15,8 +15,8 @@
 pub use crate::domains::execution::outputs::tail::testing::early_log_stop;
 pub use crate::domains::execution::run::logs::testing::logs;
 pub use crate::domains::execution::run::testing::{
-    drain_counts, hold_execution_checkpoint, hold_execution_seal, hold_member_capture, hold_report, hold_report_job, hold_report_request,
-    hold_report_wait, hold_stream_drain, hold_watch_seal,
+    drain_counts, hold_capture_seal, hold_execution_checkpoint, hold_execution_seal, hold_member_capture, hold_report, hold_report_job,
+    hold_report_request, hold_report_wait, hold_stream_drain,
 };
 pub use crate::execution::evidence_rows::testing::capture;
 pub use crate::runtime::query::records::RecordQueryFixture;

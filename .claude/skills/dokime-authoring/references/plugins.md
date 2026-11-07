@@ -12,7 +12,7 @@ A template lists its calls in its `requires` catalog. Its plugin's own `Private`
 
 Use `ctx.operation(request).await?` on every authoring surface. Await returns
 `Response<T>`: read it through Deref, or call `into_owned()` to move the value.
-Use `.start().await?` to retain a scoped instance. Built-ins such as WatchFile and
+Use `.start().await?` to retain a scoped instance. Built-ins such as StartCapture and
 RunProcess use that method without a template `requires` entry. Redundant built-in requirements are compile errors.
 The operation macro owns default timeouts, delays and retries. A builder option overrides one
 call; retry choices come from settings, parameters or configuration and require

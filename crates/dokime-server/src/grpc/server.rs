@@ -73,7 +73,6 @@ impl Service {
         history::prepare(setup, live, config.max_message_bytes())?;
         reports::prepare(setup, live, config.max_message_bytes())?;
         content::prepare(setup, live, config.max_message_bytes())?;
-        super::files::prepare(setup, live)?;
         super::media::prepare(setup, live, config.max_message_bytes())?;
         super::notes::prepare(setup, live, config.max_message_bytes())?;
         super::prompts::prepare(setup, live, config.max_message_bytes())?;
@@ -94,7 +93,6 @@ impl Service {
         setup.operations::<dokime::operations::documents::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::evidence::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::execution::Operations>(dokime::app::Lanes::Open);
-        setup.operations::<dokime::operations::files::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::history::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::media::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::notes::Operations>(dokime::app::Lanes::Open);

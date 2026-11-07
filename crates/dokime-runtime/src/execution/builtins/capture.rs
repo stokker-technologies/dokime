@@ -7,11 +7,11 @@
  * ***
  */
 
-// `WatchFile` without a host, as a harness serves it: local files polled
-// in this process. Stream captures only what is written after the start into
-// the produced artifact and offers each line to the request's matchers and
-// markers; Mirror keeps the latest bytes and snapshots copy each file once. Like the
-// host's, cancellation seals captured evidence and returns its outcome.
+// The file operations without a host, as a harness serves them: local files
+// polled in this process. Stream captures only what is written after the start
+// into the produced artifact and offers each line to the request's matchers and
+// markers; Mirror keeps the latest bytes and a copy takes each file once. The
+// binding owns a running capture, which seals on `StopCapture` or at run end.
 
 /* === Modules === */
 
@@ -23,36 +23,55 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 // Third Party Imports
 use tokio::sync::watch;
-use tokio::time::Instant;
 
 // Local Imports
 use super::Binding;
-use crate::domains::files::{local::LocalSource, watch_file_source};
+use crate::config::FileCaptureSettings;
+use crate::domains::files::{Mode, Selected, gap_reason, local::LocalSource, mirror_interval, selected, validate_output};
 use crate::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
 use crate::records::RecordSeverity;
-use dokime_domain::model::files::wire::FileWatchGap;
-use dokime_domain::model::files::wire::FileWatchGapReason;
-use dokime_domain::model::files::wire::FileWatchSourcePayload;
-use dokime_domain::model::files::wire::WatchFileOutcome;
-use dokime_domain::model::files::wire::WatchedArtifact;
-use dokime_domain::model::files::wire::{FileWatchArmed, FileWatchPolicy, FileWatchSelection};
+use dokime_domain::model::files::wire::CaptureGap;
+use dokime_domain::model::files::wire::CaptureGapReason;
+use dokime_domain::model::files::wire::CaptureMode;
+use dokime_domain::model::files::wire::CaptureStarted;
+use dokime_domain::model::files::wire::CapturedArtifact;
+use dokime_domain::model::files::wire::CapturedFiles;
+use dokime_domain::model::files::wire::FileLocation;
+use dokime_domain::model::files::wire::FileSource;
 use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::records::BuiltinRecordType;
 use dokime_domain::model::records::publication::RecordPublishRequest;
-use dokime_operations::files::WatchFile;
+use dokime_domain::model::values::Value;
+use dokime_operations::files::CopyFiles;
+use dokime_operations::files::StartCapture;
+use dokime_operations::files::StopCapture;
 
 /* === Constants === */
 
-const CANCELLED: &str = "the file watch was cancelled; it sealed what it captured";
+const CANCELLED: &str = "the file operation was cancelled";
+const READ_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
+type Outcome = Option<Result<CapturedFiles, String>>;
+
 /* === Structs === */
+
+// The captures one run started; shared by every stage's binding.
+#[derive(Clone, Default)]
+pub(crate) struct LocalCaptures(Arc<Mutex<BTreeMap<u64, Running>>>);
+
+struct Running {
+    stop: watch::Sender<bool>,
+    outcome: watch::Receiver<Outcome>,
+}
 
 struct Tail {
     writer: Option<crate::artifacts::ArtifactWriter>,
@@ -70,30 +89,31 @@ struct Tail {
     modified: Option<std::time::SystemTime>,
     lines: LineBuffer,
     matchers: LineMatchers,
-    gaps: Vec<FileWatchGap>,
+    gaps: Vec<CaptureGap>,
     identity: Option<(u64, u64)>,
-    artifacts: Vec<WatchedArtifact>,
+    artifacts: Vec<CapturedArtifact>,
     base: String,
     maximum_bytes: u64,
     captured: u64,
-    read_bytes: usize,
 }
 
 struct Capture {
     root: PathBuf,
     source: LocalSource,
     matcher: FileMatcher,
-    request: WatchFile,
+    selection: Selected,
+    output: String,
+    mode: Mode,
     matchers: LineMatchers,
-    baseline: BTreeSet<String>,
     selected: Option<String>,
     tails: BTreeMap<String, Tail>,
     names: BTreeSet<String>,
     segments: BTreeMap<String, u64>,
     maximum_files: usize,
     maximum_bytes: u64,
+    line_bytes: std::num::NonZeroUsize,
     captured: u64,
-    outcome: WatchFileOutcome,
+    outcome: CapturedFiles,
 }
 
 /* === Enums === */
@@ -102,17 +122,34 @@ struct Capture {
 
 /* === Implementations === */
 
+impl LocalCaptures {
+    // Seals every capture still running and waits for it, at run end.
+    pub(crate) async fn seal_all(&self) {
+        let outcomes = {
+            let captures = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+            captures
+                .values()
+                .map(|capture| {
+                    capture.stop.send_replace(true);
+                    capture.outcome.clone()
+                })
+                .collect::<Vec<_>>()
+        };
+        for mut outcome in outcomes {
+            let _ = outcome.wait_for(Option::is_some).await;
+        }
+    }
+}
+
 impl Capture {
     async fn pass(&mut self, binding: &Binding, mut listing: crate::domains::files::source::Listing, first: bool) -> Result<(), String> {
-        match self.request.selection {
-            FileWatchSelection::All => {}
-            FileWatchSelection::Latest => listing.retain(|path, _| Some(path) == self.selected.as_ref()),
-            FileWatchSelection::New => listing.retain(|path, _| !self.baseline.contains(path)),
+        if self.selection.newest {
+            listing.retain(|path, _| Some(path) == self.selected.as_ref());
         }
         let vanished = self.tails.keys().filter(|path| !listing.contains_key(*path)).cloned().collect::<Vec<_>>();
         for path in vanished {
             let mut tail = self.tails.remove(&path).expect("listed tail");
-            tail.gap(FileWatchGapReason::Vanished);
+            tail.gap(binding, CaptureGapReason::Vanished);
             let outcome = tail.finish(binding).await?;
             self.outcome.artifacts.extend(outcome.artifacts);
             self.outcome.gaps.extend(outcome.gaps);
@@ -120,11 +157,15 @@ impl Capture {
         for (path, entry) in listing {
             if !self.tails.contains_key(&path) {
                 if self.tails.len() >= self.maximum_files {
-                    return Err(format!("file watch exceeds its {} file cap", self.maximum_files));
+                    return Err(format!("file capture exceeds its {} file limit", self.maximum_files));
                 }
-                let base = self.request.artifact.clone().unwrap_or_else(|| {
-                    if self.request.output.is_empty() { path.clone() } else { format!("{}/{path}", self.request.output) }
-                });
+                let base = if self.selection.single {
+                    self.output.clone()
+                } else if self.output.is_empty() {
+                    path.clone()
+                } else {
+                    format!("{}/{path}", self.output)
+                };
                 let segment = self.segments.entry(path.clone()).or_default();
                 let mut artifact = if *segment == 0 { base.clone() } else { crate::files::segment_name(&base, *segment + 1) };
                 while self.names.contains(&artifact) {
@@ -139,25 +180,24 @@ impl Capture {
                         writer: None,
                         path: self.root.join(&path),
                         relative: path.clone(),
-                        directory: self.request.recursive || !self.request.rules.is_empty(),
+                        directory: !self.selection.single,
                         artifact,
                         base,
-                        offset: if first && self.request.policy == FileWatchPolicy::Stream { entry.size } else { 0 },
+                        offset: if first && self.mode == Mode::Stream { entry.size } else { 0 },
                         written: 0,
                         spool: tempfile::NamedTempFile::new().map_err(|error| error.to_string())?,
                         active: true,
-                        sealable: self.request.policy == FileWatchPolicy::Stream && !first,
+                        sealable: self.mode == Mode::Stream && !first,
                         segment: *segment,
-                        mirror: self.request.policy != FileWatchPolicy::Stream,
+                        mirror: self.mode != Mode::Stream,
                         modified: None,
                         identity: entry.identity,
-                        lines: LineBuffer::new(std::num::NonZeroUsize::new(64 * 1024).expect("positive capacity")),
+                        lines: LineBuffer::new(self.line_bytes),
                         matchers: self.matchers.clone(),
                         gaps: Vec::new(),
                         artifacts: Vec::new(),
                         maximum_bytes: self.maximum_bytes,
                         captured: 0,
-                        read_bytes: 64 * 1024,
                     },
                 );
             }
@@ -173,7 +213,12 @@ impl Capture {
         Ok(())
     }
 
-    async fn finish(mut self, binding: &Binding) -> Result<WatchFileOutcome, String> {
+    async fn scan_pass(&mut self, binding: &Binding) -> Result<(), String> {
+        let listing = self.source.scan(&self.matcher).await.map_err(|error| error.to_string())?;
+        self.pass(binding, listing, false).await
+    }
+
+    async fn finish(mut self, binding: &Binding) -> Result<CapturedFiles, String> {
         for (_, tail) in self.tails {
             let outcome = tail.finish(binding).await?;
             self.outcome.artifacts.extend(outcome.artifacts);
@@ -190,7 +235,7 @@ impl Tail {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 if self.active {
-                    self.gap(FileWatchGapReason::Vanished);
+                    self.gap(binding, CaptureGapReason::Vanished);
                     self.seal(binding).await?;
                 }
                 return Ok(());
@@ -201,7 +246,7 @@ impl Tail {
         let replaced = matches!((self.identity, identity), (Some(before), Some(after)) if before != after);
         let truncated = metadata.len() < self.offset;
         if self.active && (replaced || truncated) {
-            self.gap(if replaced { FileWatchGapReason::Replaced } else { FileWatchGapReason::Truncated });
+            self.gap(binding, if replaced { CaptureGapReason::Replaced } else { CaptureGapReason::Truncated });
             self.seal(binding).await?;
         }
         if !self.active {
@@ -229,7 +274,7 @@ impl Tail {
         if self.mirror {
             let retained = self.captured - self.written;
             if retained.saturating_add(length) > self.maximum_bytes {
-                return Err(format!("file watch exceeds its {} byte capture cap", self.maximum_bytes));
+                return Err(format!("file capture exceeds its {} byte limit", self.maximum_bytes));
             }
             self.spool.as_file_mut().set_len(0).map_err(|error| error.to_string())?;
             self.spool.as_file_mut().seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
@@ -247,12 +292,12 @@ impl Tail {
             return Ok(());
         }
         if self.captured.saturating_add(length - self.offset) > self.maximum_bytes {
-            return Err(format!("file watch exceeds its {} byte capture cap", self.maximum_bytes));
+            return Err(format!("file capture exceeds its {} byte limit", self.maximum_bytes));
         }
         let mut file = std::fs::File::open(&self.path).map_err(|error| error.to_string())?;
         file.seek(SeekFrom::Start(self.offset)).map_err(|error| error.to_string())?;
         let mut source = file.take(length - self.offset);
-        let mut bytes = vec![0; self.read_bytes];
+        let mut bytes = vec![0; READ_BYTES];
         loop {
             let count = source.read(&mut bytes).map_err(|error| error.to_string())?;
             if count == 0 {
@@ -278,9 +323,9 @@ impl Tail {
         Ok(())
     }
 
-    async fn finish(mut self, binding: &Binding) -> Result<WatchFileOutcome, String> {
+    async fn finish(mut self, binding: &Binding) -> Result<CapturedFiles, String> {
         self.seal(binding).await?;
-        Ok(WatchFileOutcome {
+        Ok(CapturedFiles {
             artifacts: self.artifacts,
             gaps: self.gaps,
         })
@@ -308,7 +353,7 @@ impl Tail {
         } else {
             binding.artifacts.import(self.spool.path(), &self.artifact).map_err(|error| error.to_string())?;
         }
-        self.artifacts.push(WatchedArtifact {
+        self.artifacts.push(CapturedArtifact {
             artifact: self.artifact.clone(),
             size_bytes: self.written,
         });
@@ -316,145 +361,162 @@ impl Tail {
         Ok(())
     }
 
-    fn gap(&mut self, reason: FileWatchGapReason) {
+    // Reports one gap to the caller and into the execution's evidence.
+    fn gap(&mut self, binding: &Binding, reason: CaptureGapReason) {
         let path = self.relative.clone();
-        self.gaps.push(FileWatchGap { path, offset: self.written, reason });
+        let mut record = RecordPublishRequest::new(BuiltinRecordType::FileCaptureGap.identifier(), RecordSeverity::Warning);
+        record.details.insert("path".to_owned(), Value::Text(path.clone()));
+        record.details.insert("offset".to_owned(), Value::Integer(self.written.try_into().unwrap_or(i64::MAX)));
+        record.details.insert("reason".to_owned(), Value::Text(gap_reason(reason).to_owned()));
+        binding.journal.record(record);
+        self.gaps.push(CaptureGap { path, offset: self.written, reason });
     }
 }
 
 /* === Public Functions === */
 
-pub(super) async fn run(
-    binding: Binding, request: WatchFile, mut cancel: watch::Receiver<bool>, ready: super::Ready,
-) -> Result<WatchFileOutcome, String> {
-    let (source, rules, single) = watch_file_source(&request).map_err(|error| error.to_string())?;
-    let root = match source.payload {
-        Some(FileWatchSourcePayload::Local(local)) => PathBuf::from(local.root),
-        Some(FileWatchSourcePayload::Ftp(_)) => return Err("watching an FTP source needs the Dokime host".into()),
-        None => return Err("a file watch needs a local or FTP source".into()),
+pub(super) async fn copy(binding: Binding, request: CopyFiles, mut cancel: watch::Receiver<bool>) -> Result<CapturedFiles, String> {
+    let (mut capture, listing) = prepare(&request.source, &request.output, Mode::Copy, LineMatchers::default()).await?;
+    let passed = tokio::select! {
+        biased;
+        _ = cancel.wait_for(|cancelled| *cancelled) => Err(CANCELLED.to_owned()),
+        result = capture.pass(&binding, listing, true) => result,
     };
-    let matcher = FileMatcher::compile(&rules).map_err(|error| error.to_string())?;
-    let matchers = LineMatchers::compile(&request.matchers, &request.markers, 32, 1024, 1 << 20, &Default::default())
-        .map_err(|error| error.to_string())?;
-    let policy = request.policy;
-    if policy == FileWatchPolicy::Unspecified {
-        return Err("a file watch needs a policy".into());
-    }
-    if !matchers.is_empty() && policy != FileWatchPolicy::Stream {
-        return Err("line matchers and markers need the Stream policy".into());
-    }
-    if !request.output.is_empty() && !dokime_domain::model::artifacts::name::is_relative_path(&request.output) {
-        return Err("the output folder must be a relative path with forward slashes".into());
-    }
-    if let Some(artifact) = &request.artifact {
-        dokime_domain::model::artifacts::name::validate(artifact).map_err(|error| error.to_string())?;
-    }
-    let poll = request.poll_interval_ms.map_or(Duration::from_secs(1), |ms| Duration::from_millis(ms.into()));
-    let bound = request.maximum_seconds.map(|seconds| Duration::from_secs(seconds.into()));
-    let source_wait = request.wait_for_source_seconds.map(|seconds| Duration::from_secs(seconds.into()));
-    let maximum_bytes = request.maximum_bytes.unwrap_or(256 * 1024 * 1024);
-    let maximum_files = if single { 1 } else { request.maximum_files.unwrap_or(64) as usize };
-    let valid_duration = |duration: Duration| !duration.is_zero() && duration <= Duration::from_secs(86_400);
-    if !(Duration::from_millis(50)..=Duration::from_secs(60)).contains(&poll)
-        || bound.is_some_and(|duration| !valid_duration(duration))
-        || source_wait.is_some_and(|duration| !valid_duration(duration))
-        || maximum_bytes == 0
-        || maximum_bytes > 4 * 1024 * 1024 * 1024
-        || maximum_files == 0
-        || maximum_files > 256
-    {
-        return Err("invalid file watch poll interval, duration, file or byte cap".into());
-    }
-    let source = LocalSource::open(root.to_str().ok_or("watch root must be UTF-8")?, source_wait.is_some())
-        .await
-        .map_err(|error| error.to_string())?;
-    let source = if request.recursive { source } else { source.top_level() };
-    let waiting = Instant::now();
-    let listing = loop {
-        if source_wait.is_some_and(|wait| waiting.elapsed() >= wait) {
-            return Err("source wait deadline elapsed before a matching file appeared".into());
-        }
-        match source.scan(&matcher).await {
-            Ok(listing)
-                if !listing.is_empty() || (!single && !(request.selection == FileWatchSelection::Latest && source_wait.is_some())) =>
-            {
-                break listing;
-            }
-            Ok(_) if source_wait.is_none() => return Err("the watched source has no matching file".into()),
-            Ok(_) => {}
-            Err(error) if error.code() == Some("file_watch_missing") && source_wait.is_some() => {}
-            Err(error) => return Err(error.to_string()),
-        }
-        let pause = poll.min(source_wait.expect("waiting opted in").saturating_sub(waiting.elapsed()));
-        tokio::select! {
-            _ = cancel.wait_for(|cancelled| *cancelled) => return Err(CANCELLED.into()),
-            () = tokio::time::sleep(pause) => {}
+    let outcome = capture.finish(&binding).await?;
+    passed?;
+    Ok(outcome)
+}
+
+pub(super) async fn start(binding: Binding, request: StartCapture, mut cancel: watch::Receiver<bool>) -> Result<CaptureStarted, String> {
+    let limits = FileCaptureSettings::default();
+    let (mode, poll, matchers, markers) = match &request.mode {
+        CaptureMode::Stream(stream) => (
+            Mode::Stream,
+            crate::config::storage_defaults().filesystem.poll_interval,
+            stream.matchers.as_slice(),
+            stream.markers.as_slice(),
+        ),
+        CaptureMode::Mirror(mirror) => {
+            (Mode::Mirror, mirror_interval(mirror.interval_s, &limits).map_err(|error| error.to_string())?, &[][..], &[][..])
         }
     };
-    let baseline = listing.keys().cloned().collect::<BTreeSet<_>>();
-    let selected = listing.iter().max_by(|(lp, l), (rp, r)| l.modified.cmp(&r.modified).then_with(|| rp.cmp(lp))).map(|(p, _)| p.clone());
-    let mut capture = Capture {
+    let lines = LineMatchers::compile(
+        matchers,
+        markers,
+        limits.maximum_line_rules,
+        limits.maximum_pattern_bytes,
+        limits.maximum_regex_bytes,
+        &Default::default(),
+    )
+    .map_err(|error| error.to_string())?;
+    let (mut capture, listing) = prepare(&request.source, &request.output, mode, lines).await?;
+    let first = tokio::select! {
+        biased;
+        _ = cancel.wait_for(|cancelled| *cancelled) => Err(CANCELLED.to_owned()),
+        result = capture.pass(&binding, listing, true) => result,
+    };
+    if let Err(error) = first {
+        capture.finish(&binding).await?;
+        return Err(error);
+    }
+    let capture_id = uuid::Uuid::now_v7().as_u64_pair().1;
+    let (stop, stopping) = watch::channel(false);
+    let (finished, outcome) = watch::channel(None);
+    let captures = binding.captures.clone();
+    tokio::spawn(async move {
+        let answer = drive(&binding, capture, stopping, poll).await;
+        finished.send_replace(Some(answer));
+    });
+    captures.0.lock().unwrap_or_else(PoisonError::into_inner).insert(capture_id, Running { stop, outcome });
+    Ok(CaptureStarted { capture_id })
+}
+
+pub(super) async fn stop(binding: Binding, request: StopCapture, mut cancel: watch::Receiver<bool>) -> Result<CapturedFiles, String> {
+    let mut outcome = {
+        let captures = binding.captures.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let capture = captures.get(&request.capture_id).ok_or("no such file capture")?;
+        capture.stop.send_replace(true);
+        capture.outcome.clone()
+    };
+    tokio::select! {
+        biased;
+        answer = outcome.wait_for(Option::is_some) => match answer {
+            Ok(answer) => answer.clone().expect("the wait ends on an outcome"),
+            Err(_) => Err("the file capture ended without an outcome".to_owned()),
+        },
+        _ = cancel.wait_for(|cancelled| *cancelled) => Err(CANCELLED.to_owned()),
+    }
+}
+
+/* === Private Functions === */
+
+async fn prepare(
+    source: &FileSource, output: &str, mode: Mode, matchers: LineMatchers,
+) -> Result<(Capture, crate::domains::files::source::Listing), String> {
+    let limits = FileCaptureSettings::default();
+    let selection = selected(source).map_err(|error| error.to_string())?;
+    validate_output(output, selection.single).map_err(|error| error.to_string())?;
+    let root = match &selection.location {
+        FileLocation::Local(local) => PathBuf::from(&local.path),
+        FileLocation::Ftp(_) => return Err("capturing an FTP source needs the Dokime host".into()),
+    };
+    let matcher = FileMatcher::compile(&selection.rules).map_err(|error| error.to_string())?;
+    let source = LocalSource::open(root.to_str().ok_or("capture root must be UTF-8")?).await.map_err(|error| error.to_string())?;
+    let source = if selection.top_level { source.top_level() } else { source };
+    let listing = source.scan(&matcher).await.map_err(|error| error.to_string())?;
+    if listing.is_empty() && (selection.single || selection.newest) {
+        return Err("the source has no matching file".into());
+    }
+    let chosen = listing.iter().max_by(|(lp, l), (rp, r)| l.modified.cmp(&r.modified).then_with(|| rp.cmp(lp))).map(|(p, _)| p.clone());
+    let maximum_files = if selection.single { 1 } else { limits.maximum_files };
+    let capture = Capture {
         root,
         source,
         matcher,
-        request,
+        selection,
+        output: output.to_owned(),
+        mode,
         matchers,
-        baseline,
-        selected,
+        selected: chosen,
         tails: BTreeMap::new(),
         names: BTreeSet::new(),
         segments: BTreeMap::new(),
         maximum_files,
-        maximum_bytes,
+        maximum_bytes: limits.maximum_bytes,
+        line_bytes: limits.maximum_line_bytes,
         captured: 0,
-        outcome: WatchFileOutcome { artifacts: Vec::new(), gaps: Vec::new() },
+        outcome: CapturedFiles { artifacts: Vec::new(), gaps: Vec::new() },
     };
-    if policy != FileWatchPolicy::SnapshotAtStop
-        && let Err(error) = capture.pass(&binding, listing, true).await
-    {
-        capture.finish(&binding).await?;
-        return Err(error);
-    }
-    ready.send_replace(Some(Ok(FileWatchArmed {
-        baseline: capture.baseline.iter().cloned().collect(),
-    })));
-    if policy == FileWatchPolicy::SnapshotAtStart {
-        return capture.finish(&binding).await;
-    }
-    let started = Instant::now();
-    let result = loop {
-        let pause = bound.map_or(poll, |bound| bound.saturating_sub(started.elapsed()).min(poll));
-        if bound.is_some_and(|bound| started.elapsed() >= bound) || *cancel.borrow() {
-            break Ok(());
-        }
-        tokio::select! {
-            _ = cancel.wait_for(|cancelled| *cancelled) => break Ok(()),
-            () = tokio::time::sleep(pause) => {}
-        }
-        if policy != FileWatchPolicy::SnapshotAtStop {
-            let pass = match capture.source.scan(&capture.matcher).await {
-                Ok(listing) => capture.pass(&binding, listing, false).await,
-                Err(error) => Err(error.to_string()),
-            };
-            if let Err(error) = pass {
-                break Err(error);
-            }
-        }
-    };
-    let final_pass = if result.is_ok() {
-        match capture.source.scan(&capture.matcher).await {
-            Ok(listing) => capture.pass(&binding, listing, false).await,
-            Err(error) => Err(error.to_string()),
-        }
-    } else {
-        result
-    };
-    let outcome = capture.finish(&binding).await?;
-    final_pass?;
-    Ok(outcome)
+    Ok((capture, listing))
 }
 
-/* === Private Functions === */
+// Passes until stopped, then takes the final pass and seals. A capture that
+// fails records why, because nothing may ever stop it to ask.
+async fn drive(
+    binding: &Binding, mut capture: Capture, mut stopping: watch::Receiver<bool>, poll: Duration,
+) -> Result<CapturedFiles, String> {
+    let failed = loop {
+        tokio::select! {
+            _ = stopping.wait_for(|stopped| *stopped) => break None,
+            () = tokio::time::sleep(poll) => {}
+        }
+        if let Err(error) = capture.scan_pass(binding).await {
+            break Some(error);
+        }
+    };
+    let failed = match failed {
+        Some(error) => Some(error),
+        None => capture.scan_pass(binding).await.err(),
+    };
+    let outcome = capture.finish(binding).await;
+    let Some(error) = failed.or_else(|| outcome.as_ref().err().cloned()) else {
+        return outcome;
+    };
+    let mut record = RecordPublishRequest::new(BuiltinRecordType::FileCaptureFailed.identifier(), RecordSeverity::Warning);
+    record.details.insert("reason".to_owned(), Value::Text(error.clone()));
+    binding.journal.record(record);
+    Err(error)
+}
 
 // Rows reach the execution's streams; markers its records.
 async fn publish(binding: &Binding, matchers: &LineMatchers, lines: impl IntoIterator<Item = String>) {

@@ -24,13 +24,12 @@ use dokime::domain::model;
 
 /* === Constants === */
 
-const NATIVE_ONLY_METHODS: [&str; 6] = [
+const NATIVE_ONLY_METHODS: [&str; 5] = [
     "/dokime.v1.Media/Screenshot",
     "/dokime.v1.Media/Photo",
     "/dokime.v1.Media/AudioRecording",
     "/dokime.v1.Media/ScreenRecording",
     "/dokime.v1.Media/CameraRecording",
-    "/dokime.v1.Files/FileWatch",
 ];
 
 const STREAMING_CASES: &[Case] = &[
@@ -206,19 +205,6 @@ matrix! {
     "/dokime.v1.Execution/SetExecutionArchived", unary, contracts::execution::SetExecutionArchived;
     "/dokime.v1.Execution/SealCycle", unary, contracts::execution::SealCycle = contracts::execution::SealCycle { cycle_id: String::new(), context: None };
     "/dokime.v1.Execution/UpdateCyclePolicy", unary, contracts::execution::UpdateCyclePolicy;
-    "/dokime.v1.Files/FileWatch", download, contracts::files::FileWatch = contracts::files::FileWatch {
-        execution_id: None,
-        source: None,
-        rules: Vec::new(),
-        output: String::new(),
-        policy: model::files::wire::FileWatchPolicy::Unspecified,
-        selection: model::files::wire::FileWatchSelection::All,
-        wait_for_source_seconds: None,
-        poll_interval_ms: None,
-        maximum_seconds: None,
-        maximum_files: None,
-        maximum_bytes: None,
-    };
     "/dokime.v1.Health/ListHealth", unary, contracts::notes::ListHealth;
     "/dokime.v1.History/BrowseCycles", unary, contracts::history::BrowseCycles;
     "/dokime.v1.History/BrowseExecutions", unary, contracts::history::BrowseExecutions;
@@ -478,7 +464,7 @@ pub(crate) async fn remote_refuses_local() {
     let endpoint = endpoint.tls_config(tls).unwrap();
     let channel = endpoint.connect().await.unwrap();
 
-    // Media Capture, File Watches and Host Paths Stay on the Loopback Listener
+    // Media Capture and Host Paths Stay on the Loopback Listener
     let mut covered = 0;
     let served = cases();
     let native_cases = served.filter(|case| {

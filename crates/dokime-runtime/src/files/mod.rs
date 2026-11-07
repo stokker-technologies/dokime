@@ -7,8 +7,8 @@
  * ***
  */
 
-// The behaviour behind the file-watch declarations: which relative paths a
-// watch tracks, and the rows and records its captured lines become.
+// The behaviour behind the file capture declarations: which relative paths a
+// capture tracks, and the rows and records its captured lines become.
 
 /* === Modules === */
 

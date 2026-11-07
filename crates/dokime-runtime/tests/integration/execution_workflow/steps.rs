@@ -7,8 +7,8 @@
  * ***
  */
 
-// The file watch built-in through `ctx.operation(request)` with no host behind it: a
-// watch a step leaves running for the step-end sweep.
+// The file capture built-ins through `ctx.operation(request)` with no host behind
+// them, across steps and with or without a stop.
 
 /* === Modules === */
 
@@ -18,26 +18,24 @@
 
 // Standard Library Imports
 use std::io::Write;
-use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
 use dokime_domain::model;
-use dokime_runtime::host::StepHandleCancelled;
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::*;
 use {
-    dokime_runtime::operations::files::WatchFile, model::files::wire::FileWatchPolicy, model::files::wire::FileWatchSource,
-    model::files::wire::FileWatchSourcePayload, model::files::wire::LineMarker, model::files::wire::LineMatcher,
-    model::files::wire::LocalWatchSource,
+    dokime_runtime::operations::files::CopyFiles, dokime_runtime::operations::files::StartCapture,
+    dokime_runtime::operations::files::StopCapture, model::files::wire::FileRule, model::files::wire::FileSource,
+    model::files::wire::LineMarker, model::files::wire::LineMatcher, model::files::wire::MirrorCapture, model::files::wire::StreamCapture,
 };
 
 /* === Constants === */
 const SUITE: &str = "steps.checks";
 const TAIL: &str = "steps.checks.tail";
 
-const BEFORE: &[u8] = b"before the watch\n";
+const BEFORE: &[u8] = b"before the capture\n";
 const APPENDED: &[u8] = b"temp=41.5 state=charging\nFAULT E7\n";
 
 /* === Macros === */
@@ -47,9 +45,13 @@ const APPENDED: &[u8] = b"temp=41.5 state=charging\nFAULT E7\n";
 /* === Structs === */
 struct Checks;
 
-struct LeaveWatch;
+struct TailDevice;
 
-struct WatchTree;
+struct CaptureTree;
+
+struct AcrossSteps {
+    capture_id: u64,
+}
 
 #[dokime_runtime::stream(
     id = "steps.checks.device",
@@ -71,7 +73,7 @@ struct Fault {
 
 #[dokime_runtime::parameters]
 struct TailParameters {
-    #[parameter(label = "Watched File", default = "")]
+    #[parameter(label = "Captured File", default = "")]
     path: String,
 
     #[parameter(label = "Mirror and Rotate", default = false)]
@@ -80,8 +82,8 @@ struct TailParameters {
     #[parameter(label = "Copy Truncate", default = false)]
     copy_truncate: bool,
 
-    #[parameter(label = "Cancel and Collect", default = false)]
-    cancel: bool,
+    #[parameter(label = "Stop and Collect", default = false)]
+    stop: bool,
 }
 
 /* === Enums === */
@@ -102,8 +104,9 @@ enum Suites {
 
 #[dokime_runtime::catalog]
 enum Templates {
-    LeaveWatch(LeaveWatch),
-    WatchTree(WatchTree),
+    TailDevice(TailDevice),
+    CaptureTree(CaptureTree),
+    AcrossSteps(AcrossSteps),
 }
 
 #[dokime_runtime::catalog]
@@ -123,9 +126,9 @@ enum Records {
 impl Checks {}
 
 #[dokime_runtime::template(
-    id = TAIL, label = "Leave a Watch Running",
+    id = TAIL, label = "Capture a Device Log",
     parameters = TailParameters, streams = Streams, records = Records)]
-impl LeaveWatch {
+impl TailDevice {
     async fn initialize(_: &TailParameters, _ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
         Ok(Self)
     }
@@ -133,58 +136,71 @@ impl LeaveWatch {
     #[dokime_runtime::step(label = "Tail the Device Log")]
     async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let path = ctx.parameters().path.clone();
-        let mirror = ctx.parameters().mirror;
-        let matchers = if mirror {
-            Vec::new()
-        } else {
-            vec![LineMatcher::publishing::<DeviceLog>(r"temp=(?P<temperature_c>[\d.]+) state=(?P<state>\w+)")]
-        };
-        let markers = if mirror { Vec::new() } else { vec![LineMarker::new(r"FAULT (?P<code>\w+)", "steps.checks.fault")] };
-        let watch = ctx
-            .operation(WatchFile {
-                recursive: false,
-                rules: Vec::new(),
-                maximum_files: None,
-                execution_id: None,
-                source: Some(FileWatchSource {
-                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: path.clone() })),
-                }),
-                output: "logs".into(),
-                artifact: Some("logs/device.log".into()),
-                policy: if mirror { FileWatchPolicy::Mirror } else { FileWatchPolicy::Stream },
-                selection: dokime_domain::model::files::wire::FileWatchSelection::All,
-                wait_for_source_seconds: None,
-                poll_interval_ms: Some(50),
-                maximum_seconds: mirror.then_some(1),
-                maximum_bytes: None,
-                matchers,
-                markers,
-            })
-            .start()
-            .await?;
-        // The device writes once the watch has taken its baseline.
-        watch.armed().await?;
-        if mirror {
+        if ctx.parameters().mirror {
+            // Start Capture
+            let request = StartCapture::new(FileSource::file(&path), "logs/device.log", MirrorCapture::every(3600));
+            let capture = ctx.operation(request).await?;
+
+            // Rotate Or Truncate The Source
             if ctx.parameters().copy_truncate {
                 std::fs::write(&path, b"x\n")?;
             } else {
                 std::fs::rename(&path, format!("{path}.old"))?;
                 std::fs::write(&path, APPENDED)?;
             }
-            let captured = watch.join().await?.into_owned();
+
+            // Stop Capture
+            let request = StopCapture { capture_id: capture.capture_id };
+            let captured = ctx.operation(request).await?.into_owned();
             assert_eq!(captured.artifacts.len(), 2);
             return Ok(());
         }
+
+        // Start Capture
+        let matcher = LineMatcher::publishing::<DeviceLog>(r"temp=(?P<temperature_c>[\d.]+) state=(?P<state>\w+)");
+        let marker = LineMarker::new(r"FAULT (?P<code>\w+)", "steps.checks.fault");
+        let request = StartCapture::new(FileSource::file(&path), "logs/device.log", StreamCapture::plain().matcher(matcher).marker(marker));
+        let capture = ctx.operation(request).await?;
+
+        // Write To The Source
         std::fs::OpenOptions::new().append(true).open(&path)?.write_all(APPENDED)?;
-        tokio::time::sleep(Duration::from_millis(150)).await;
-        if ctx.parameters().cancel {
-            watch.request_cancel().await?;
-            let captured = watch.cancel().await?.into_owned();
+
+        // Stop Capture, Or Leave It To Run End
+        if ctx.parameters().stop {
+            let request = StopCapture { capture_id: capture.capture_id };
+            let captured = ctx.operation(request).await?.into_owned();
             assert_eq!(captured.artifacts.len(), 1);
-        } else {
-            // Left Running: The Step-End Sweep Cancels It.
-            watch.detach();
         }
+        Ok(())
+    }
+}
+
+#[dokime_runtime::template(id = "steps.checks.across", label = "Capture Across Steps", parameters = TailParameters)]
+impl AcrossSteps {
+    async fn initialize(_: &TailParameters, _: &mut InitializationContext<'_>) -> Result<Self, Error> {
+        Ok(Self { capture_id: 0 })
+    }
+
+    #[dokime_runtime::step(label = "Start Capture")]
+    async fn start(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
+        let source = FileSource::file(ctx.parameters().path.as_str());
+        let request = StartCapture::new(source, "logs/device.log", StreamCapture::plain());
+        self.capture_id = ctx.operation(request).await?.capture_id;
+        Ok(())
+    }
+
+    #[dokime_runtime::step(label = "Write Between Steps")]
+    async fn write(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
+        std::fs::OpenOptions::new().append(true).open(&ctx.parameters().path)?.write_all(APPENDED)?;
+        Ok(())
+    }
+
+    #[dokime_runtime::step(label = "Stop Capture")]
+    async fn stop(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
+        let request = StopCapture { capture_id: self.capture_id };
+        let captured = ctx.operation(request).await?.into_owned();
+        assert_eq!(captured.artifacts.len(), 1);
+        assert_eq!(captured.artifacts[0].size_bytes, APPENDED.len() as u64);
         Ok(())
     }
 }
@@ -226,34 +242,22 @@ pub(crate) async fn harness_copy_truncate_retains_the_previous_segment() {
     assert_eq!(report.artifact("logs/device.segment2.log").bytes, b"x\n");
 }
 
-// A watch left running past its step is cancelled by the sweep with a
-// warning; until then its matcher and marker turned the lines it captured
-// into a row and a record, and its artifact holds only what came after it.
-pub(crate) async fn swept_watch_warning() {
-    for cancel in [false, true] {
+// Whether a step stops a capture or leaves it to run end, its matcher and marker
+// turned the lines it captured into a row and a record, and its artifact holds
+// only what came after it.
+pub(crate) async fn capture_seals_with_or_without_a_stop() {
+    for stop in [false, true] {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("device.log");
         std::fs::write(&path, BEFORE).unwrap();
         let report = Harness::template(TAIL)
             .parameter("path", path.to_str().unwrap())
-            .parameter("cancel", cancel)
+            .parameter("stop", stop)
             .run::<Suites>()
             .await
             .expect("the run completes");
 
         assert!(report.passed(), "{}", report.diagnostics());
-        assert_eq!(
-            report.records::<StepHandleCancelled>(),
-            if cancel {
-                Vec::new()
-            } else {
-                vec![StepHandleCancelled {
-                    step: "tail".into(),
-                    kind: "watch".into(),
-                    name: "logs/device.log".into(),
-                }]
-            }
-        );
         let rows = report.samples::<DeviceLog>();
         assert_eq!(rows.len(), 1, "{}", report.diagnostics());
         assert_eq!(rows[0].temperature_c, 41.5);
@@ -265,128 +269,82 @@ pub(crate) async fn swept_watch_warning() {
     }
 }
 
+pub(crate) async fn capture_spans_steps() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("device.log");
+    std::fs::write(&path, BEFORE).unwrap();
+    let report = Harness::template("steps.checks.across")
+        .parameter("path", path.to_str().unwrap())
+        .run::<Suites>()
+        .await
+        .expect("the run completes");
+    assert!(report.passed(), "{}", report.diagnostics());
+    assert_eq!(report.artifact("logs/device.log").bytes, APPENDED);
+}
+
 #[dokime_runtime::template(id = "steps.checks.tree", label = "Capture Log Tree", parameters = TailParameters)]
-impl WatchTree {
+impl CaptureTree {
     async fn initialize(_: &TailParameters, _: &mut InitializationContext<'_>) -> Result<Self, Error> {
         Ok(Self)
     }
 
     #[dokime_runtime::step(label = "Capture Log Tree")]
     async fn capture(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        use model::files::wire::{FileRule, FileRuleAction, FileWatchSelection};
         let root = std::path::PathBuf::from(&ctx.parameters().path);
-        let request = WatchFile {
-            recursive: true,
-            rules: vec![FileRule {
-                glob: "Logs/**/*.log".into(),
-                action: FileRuleAction::Include,
-            }],
-            maximum_files: Some(4),
-            execution_id: None,
-            source: Some(FileWatchSource {
-                payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-                    root: root.to_string_lossy().into_owned(),
-                })),
-            }),
-            output: "logs".into(),
-            artifact: None,
-            policy: FileWatchPolicy::Stream,
-            selection: FileWatchSelection::All,
-            wait_for_source_seconds: None,
-            poll_interval_ms: Some(50),
-            maximum_seconds: None,
-            maximum_bytes: None,
-            matchers: Vec::new(),
-            markers: Vec::new(),
-        };
-        let untouched = ctx.operation(request.clone()).start().await?;
-        untouched.armed().await?;
-        assert!(untouched.cancel().await?.artifacts.is_empty());
-        let stream = ctx.operation(request.clone()).start().await?;
-        stream.armed().await?;
+        let logs = || FileSource::tree(&root, [FileRule::include("Logs/**/*.log")]);
+
+        // Capture An Untouched Tree
+        let request = StartCapture::new(logs(), "logs", StreamCapture::plain());
+        let untouched = ctx.operation(request).await?;
+        let request = StopCapture { capture_id: untouched.capture_id };
+        assert!(ctx.operation(request).await?.artifacts.is_empty());
+
+        // Stream A Growing Tree
+        let request = StartCapture::new(logs(), "logs", StreamCapture::plain());
+        let stream = ctx.operation(request).await?;
         std::fs::OpenOptions::new().append(true).open(root.join("Logs/existing.log"))?.write_all(b"after\n")?;
         std::fs::create_dir_all(root.join("Logs/next-day"))?;
         std::fs::write(root.join("Logs/next-day/new.log"), b"new\n")?;
         std::fs::write(root.join("Logs/next-day/empty.log"), b"")?;
         std::fs::write(root.join("Logs/next-day/ignored.zip"), b"ignored")?;
-        let outcome = stream.cancel().await?.into_owned();
+        let request = StopCapture { capture_id: stream.capture_id };
+        let outcome = ctx.operation(request).await?.into_owned();
         assert_eq!(outcome.artifacts.len(), 3);
         ctx.artifacts().write("same/device.log", b"first")?;
         ctx.artifacts().write("same/device.log", b"second")?;
 
-        let mirror_request = WatchFile {
-            rules: vec![FileRule {
-                glob: "**/*.zip".into(),
-                action: FileRuleAction::Include,
-            }],
-            policy: FileWatchPolicy::Mirror,
-            ..request.clone()
-        };
-        let mirror = ctx.operation(mirror_request).start().await?;
-        mirror.armed().await?;
+        // Mirror Archives
+        let source = FileSource::tree(&root, [FileRule::include("**/*.zip")]);
+        let request = StartCapture::new(source, "logs", MirrorCapture::every(3600));
+        let mirror = ctx.operation(request).await?;
         std::fs::write(root.join("bundle.zip"), b"updated archive")?;
         std::fs::create_dir_all(root.join("deep"))?;
         std::fs::write(root.join("deep/new.zip"), b"new archive")?;
         std::fs::write(root.join("deep/ignored.log"), b"ignored")?;
-        let outcome = mirror.cancel().await?.into_owned();
+        let request = StopCapture { capture_id: mirror.capture_id };
+        let outcome = ctx.operation(request).await?.into_owned();
         assert_eq!(outcome.artifacts.len(), 3);
 
+        // Copy Files With Ordinary Extensions, Refusing Unsafe Names
         for extension in ["diag", "hpl30"] {
             let name = format!("capture.{extension}");
-            let snapshot = WatchFile {
-                recursive: false,
-                rules: Vec::new(),
-                source: Some(FileWatchSource {
-                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-                        root: root.join(&name).to_string_lossy().into_owned(),
-                    })),
-                }),
-                output: String::new(),
-                policy: FileWatchPolicy::SnapshotAtStart,
-                ..request.clone()
-            };
-            ctx.operation(snapshot.clone()).start().await?.join().await?;
+            let source = FileSource::file(root.join(&name));
+            ctx.operation(CopyFiles::new(source.clone(), name)).await?;
             for unsafe_name in ["../escape.diag", "/absolute.hpl30", "C:/escape.diag", "logs/CON.diag", "NUL.hpl30"] {
-                let invalid = WatchFile {
-                    artifact: Some(unsafe_name.into()),
-                    ..snapshot.clone()
-                };
-                assert!(ctx.operation(invalid).start().await?.join().await.is_err(), "{unsafe_name}");
+                assert!(ctx.operation(CopyFiles::new(source.clone(), unsafe_name)).await.is_err(), "{unsafe_name}");
                 assert!(ctx.artifacts().write(unsafe_name, b"refused").is_err());
             }
         }
-        let all = WatchFile {
-            rules: Vec::new(),
-            policy: FileWatchPolicy::SnapshotAtStart,
-            output: "all".into(),
-            maximum_files: None,
-            ..request.clone()
-        };
-        ctx.operation(all).start().await?.join().await?;
-        let capped = WatchFile {
-            maximum_files: Some(1),
-            output: "capped-files".into(),
-            ..request.clone()
-        };
-        assert!(ctx.operation(capped).start().await?.join().await.is_err());
-        let capped = WatchFile {
-            maximum_bytes: Some(20),
-            output: "capped-bytes".into(),
-            rules: vec![FileRule {
-                glob: "**/*.zip".into(),
-                action: FileRuleAction::Include,
-            }],
-            policy: FileWatchPolicy::Mirror,
-            ..request
-        };
-        assert!(ctx.operation(capped).start().await?.join().await.is_err());
+
+        // Copy Everything
+        ctx.operation(CopyFiles::new(FileSource::tree(&root, []), "all")).await?;
         Ok(())
     }
 }
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
-async fn recursive_harness_watches() {
+async fn harness_captures_trees() {
     let tree = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(tree.path().join("Logs")).unwrap();
     std::fs::write(tree.path().join("Logs/existing.log"), b"before\n").unwrap();
@@ -472,29 +430,8 @@ async fn harness_live_capture() {
     );
     let mut transport = RecordingTransport::new();
     let ctx = environment.step(&mut transport);
-    let request = WatchFile {
-        recursive: true,
-        rules: Vec::new(),
-        maximum_files: None,
-        execution_id: None,
-        source: Some(FileWatchSource {
-            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-                root: tree.path().to_string_lossy().into_owned(),
-            })),
-        }),
-        output: "logs".into(),
-        artifact: None,
-        policy: FileWatchPolicy::Stream,
-        selection: model::files::wire::FileWatchSelection::All,
-        wait_for_source_seconds: None,
-        poll_interval_ms: Some(50),
-        maximum_seconds: None,
-        maximum_bytes: None,
-        matchers: Vec::new(),
-        markers: Vec::new(),
-    };
-    let watch = ctx.operation(request).start().await.unwrap();
-    watch.armed().await.unwrap();
+    let request = StartCapture::new(FileSource::tree(tree.path(), []), "logs", StreamCapture::plain());
+    let capture = ctx.operation(request).await.unwrap();
     assert!(captured.sink.chunks().is_empty());
     std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(b"one").unwrap();
     captured.length(3).await;
@@ -504,7 +441,8 @@ async fn harness_live_capture() {
     std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(b"two").unwrap();
     captured.length(6).await;
     assert_eq!(captured.sink.assembled("logs/device.log"), b"onetwo");
-    let outcome = watch.cancel().await.unwrap();
+    let request = StopCapture { capture_id: capture.capture_id };
+    let outcome = ctx.operation(request).await.unwrap();
     assert_eq!(outcome.artifacts.len(), 1);
     assert_eq!(outcome.artifacts[0].artifact, "logs/device.log");
     assert_eq!(outcome.artifacts[0].size_bytes, 6);

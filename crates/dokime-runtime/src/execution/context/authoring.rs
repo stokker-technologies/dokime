@@ -151,7 +151,11 @@ pub trait Called<C, Proof = Declared> {}
 
 impl<T: Required, O> Called<T> for O where T::Operations: crate::catalog::Contains<O> {}
 
-impl<T> Called<T, BuiltIn> for dokime_operations::files::WatchFile {}
+impl<T> Called<T, BuiltIn> for dokime_operations::files::CopyFiles {}
+
+impl<T> Called<T, BuiltIn> for dokime_operations::files::StartCapture {}
+
+impl<T> Called<T, BuiltIn> for dokime_operations::files::StopCapture {}
 
 impl<T> Called<T, BuiltIn> for dokime_operations::process::RunProcess {}
 
@@ -234,6 +238,7 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
             journal: self.transport.journal(),
             identity: self.environment.identity(),
             handles: self.environment.handles().clone(),
+            captures: self.environment.captures().clone(),
         };
         harmos::operations::Invocation::new(self.environment.caller().step_host(&self.call_stage, Some(binding)), request)
     }

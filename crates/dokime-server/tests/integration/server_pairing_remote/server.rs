@@ -305,23 +305,11 @@ pub(crate) async fn listener_policy_isolation() {
         .unwrap()
         .into_inner()
         .methods;
-    assert!(local_methods.iter().any(|path| path == "/dokime.v1.Files/FileWatch"));
-    assert!(!remote_methods.iter().any(|path| path == "/dokime.v1.Files/FileWatch"));
+    assert!(local_methods.iter().any(|path| path == "/dokime.v1.Media/Screenshot"));
+    assert!(!remote_methods.iter().any(|path| path == "/dokime.v1.Media/Screenshot"));
     assert_eq!(
         remote_client
-            .unary::<contracts::files::FileWatch>(authenticated(contracts::files::FileWatch {
-                execution_id: None,
-                source: None,
-                rules: vec![],
-                output: String::new(),
-                policy: model::files::wire::FileWatchPolicy::SnapshotAtStart,
-                selection: model::files::wire::FileWatchSelection::All,
-                wait_for_source_seconds: None,
-                poll_interval_ms: None,
-                maximum_seconds: None,
-                maximum_files: None,
-                maximum_bytes: None,
-            }))
+            .unary::<contracts::media::Screenshot>(authenticated(contracts::media::Screenshot { ..Default::default() }))
             .await
             .unwrap_err()
             .code(),
@@ -634,7 +622,7 @@ pub(crate) async fn tls_listener_clients() {
         .into_inner()
         .methods;
     assert!(
-        !methods.iter().any(|path| path == "/dokime.v1.Files/FileWatch"),
+        !methods.iter().any(|path| path == "/dokime.v1.Media/Screenshot"),
         "remote loopback traffic cannot inherit native host-path access"
     );
     server.shutdown().await.unwrap();
