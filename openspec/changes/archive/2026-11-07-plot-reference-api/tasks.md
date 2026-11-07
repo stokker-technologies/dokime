@@ -8,5 +8,5 @@
 
 ## Final Validation
 
-- [ ] 2.1 Run the owner-required focused workspace Rust check and GUI TypeScript build with CARGO_BUILD_JOBS=8.
-- [ ] 2.2 Inspect relevant hosted results and require the owner diff scanner to print CLEAN.
+- [x] 2.1 Run the owner-required focused workspace Rust check and GUI TypeScript build with CARGO_BUILD_JOBS=8.
+- [x] 2.2 Inspect relevant hosted results and require the owner diff scanner to print CLEAN.
