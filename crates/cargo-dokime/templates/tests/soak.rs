@@ -170,6 +170,8 @@ fn soak_document_wraps() {
     );
     // The band is the case's own parameters rather than a number the author
     // fixed, so the plot draws the band that case was held to.
-    assert!(plot.reference_bands[0].center.is_some());
-    assert!(plot.reference_bands[0].tolerance.is_some());
+    assert_eq!(plot.reference_bands[0].min, None);
+    assert_eq!(plot.reference_bands[0].max, None);
+    assert!(matches!(plot.reference_bands[0].center, Some(dokime::document::ReferenceValue::Expression(_))));
+    assert!(matches!(plot.reference_bands[0].tolerance, Some(dokime::document::ReferenceValue::Expression(_))));
 }

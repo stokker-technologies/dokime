@@ -12,7 +12,7 @@
 /* === Re-Exports === */
 
 pub use crate::Slot;
-pub use crate::document::{Band, Card, Document, Line, Plot, Section, format};
+pub use crate::document::{Card, Document, Plot, ReferenceValue, Section, format};
 pub use crate::domains::{OptionsResponse, StatusResponse};
 pub use crate::execution::{CleanupContext, CriterionContext, InitializationContext, ObserverContext, StepContext};
 pub use crate::execution::{ExecutionScope, Tick};

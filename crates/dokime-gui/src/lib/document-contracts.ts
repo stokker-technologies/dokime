@@ -280,23 +280,19 @@ export type RecordScope = {
   suite_id?: SuiteId | null;
 };
 
-export type ReferenceAxis = "x" | "y";
+export type ReferenceValue = number | DataExpression;
 
 export type ReferenceBand = {
-  axis: ReferenceAxis;
-  min?: number | null;
-  max?: number | null;
+  min?: ReferenceValue | null;
+  max?: ReferenceValue | null;
   label?: string | null;
   color?: string;
-  center?: DataExpression | null;
-  tolerance?: DataExpression | null;
+  center?: ReferenceValue | null;
+  tolerance?: ReferenceValue | null;
 };
 
 export type ReferenceLine = {
-  axis: ReferenceAxis;
-  value?: number | null;
-  source?: DataExpression | null;
-  source_scale?: number | null;
+  value: ReferenceValue;
   label?: string | null;
   color?: string;
 };

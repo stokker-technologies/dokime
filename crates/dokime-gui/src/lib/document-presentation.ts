@@ -184,7 +184,6 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
     reference_lines: (input.reference_lines ?? []).map((line) => ({
       ...line,
       color: nonEmptyString(line.color) ?? "#60706a",
-      source_scale: line.source_scale ?? 1,
     })),
     reference_bands: (input.reference_bands ?? []).map((band) => ({
       ...band,

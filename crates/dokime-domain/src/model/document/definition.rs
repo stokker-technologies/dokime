@@ -372,17 +372,15 @@ pub struct HistogramOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReferenceValue {
+    Constant(f64),
+    Expression(DataExpression),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReferenceLine {
-    pub axis: ReferenceAxis,
-
-    #[serde(default)]
-    pub value: Option<f64>,
-
-    #[serde(default)]
-    pub source: Option<DataExpression>,
-
-    #[serde(default = "default_reference_source_scale")]
-    pub source_scale: f64,
+    pub value: ReferenceValue,
 
     #[serde(default)]
     pub label: Option<String>,
@@ -393,40 +391,23 @@ pub struct ReferenceLine {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReferenceBand {
-    pub axis: ReferenceAxis,
-
-    #[serde(default)]
-    pub min: Option<f64>,
-
-    #[serde(default)]
-    pub max: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<ReferenceValue>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub center: Option<DataExpression>,
+    pub max: Option<ReferenceValue>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tolerance: Option<DataExpression>,
+    pub center: Option<ReferenceValue>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tolerance: Option<ReferenceValue>,
 
     #[serde(default)]
     pub label: Option<String>,
 
     #[serde(default = "default_reference_color")]
     pub color: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Band {
-    min: Option<f64>,
-    max: Option<f64>,
-    center: Option<DataExpression>,
-    tolerance: Option<DataExpression>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Line {
-    value: Option<f64>,
-    source: Option<DataExpression>,
-    scale: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -756,13 +737,6 @@ pub enum FftWindow {
     Rectangular,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ReferenceAxis {
-    X,
-    Y,
-}
-
 /* === Traits === */
 
 pub trait DocumentTagged {
@@ -958,7 +932,7 @@ impl harmos::MemorySize for HistogramOptions {
 impl harmos::MemorySize for ReferenceLine {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
             (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
             (harmos::MemorySize::memory_size(&self.color), std::mem::size_of_val(&self.color)),
         ];
@@ -971,6 +945,8 @@ impl harmos::MemorySize for ReferenceLine {
 impl harmos::MemorySize for ReferenceBand {
     fn memory_size(&self) -> usize {
         let fields = [
+            (harmos::MemorySize::memory_size(&self.min), std::mem::size_of_val(&self.min)),
+            (harmos::MemorySize::memory_size(&self.max), std::mem::size_of_val(&self.max)),
             (harmos::MemorySize::memory_size(&self.center), std::mem::size_of_val(&self.center)),
             (harmos::MemorySize::memory_size(&self.tolerance), std::mem::size_of_val(&self.tolerance)),
             (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
@@ -1865,36 +1841,39 @@ impl PlotDefinition {
         self.marker_record_types.extend(records.into_iter().map(|record| record.into().into_record_type()));
     }
 
-    pub fn reference_line(&mut self, label: impl Into<String>, quantity: impl Into<DataExpression>, line: Line) {
-        let axis = self.axis_of(quantity.into());
+    /// Add a Y-axis reference in stored units. `scale` converts it with the plot data.
+    pub fn reference_line(&mut self, label: impl Into<String>, value: impl Into<ReferenceValue>) {
         self.reference_lines.push(ReferenceLine {
-            axis,
-            value: line.value,
-            source: line.source,
-            source_scale: line.scale,
+            value: value.into(),
             label: Some(label.into()),
             color: default_reference_color(),
         });
     }
 
-    pub fn reference_band(&mut self, label: impl Into<String>, quantity: impl Into<DataExpression>, band: Band) {
-        let axis = self.axis_of(quantity.into());
+    /// Add Y-axis bounds in stored units. `scale` converts them with the plot data.
+    pub fn reference_band(&mut self, label: impl Into<String>, min: impl Into<ReferenceValue>, max: impl Into<ReferenceValue>) {
         self.reference_bands.push(ReferenceBand {
-            axis,
-            min: band.min,
-            max: band.max,
-            center: band.center,
-            tolerance: band.tolerance,
+            min: Some(min.into()),
+            max: Some(max.into()),
+            center: None,
+            tolerance: None,
             label: Some(label.into()),
             color: default_reference_color(),
         });
     }
 
-    fn axis_of(&self, quantity: DataExpression) -> ReferenceAxis {
-        match self.x_expression.as_ref().is_some_and(|x| x.source == quantity.source && x.transforms == quantity.transforms) {
-            true => ReferenceAxis::X,
-            false => ReferenceAxis::Y,
-        }
+    /// Add a Y-axis center ± tolerance in stored units. `scale` converts both with the plot data.
+    pub fn reference_tolerance(
+        &mut self, label: impl Into<String>, center: impl Into<ReferenceValue>, tolerance: impl Into<ReferenceValue>,
+    ) {
+        self.reference_bands.push(ReferenceBand {
+            min: None,
+            max: None,
+            center: Some(center.into()),
+            tolerance: Some(tolerance.into()),
+            label: Some(label.into()),
+            color: default_reference_color(),
+        });
     }
 }
 
@@ -1936,48 +1915,42 @@ impl Plot {
     }
 }
 
-impl Band {
-    pub fn between(min: f64, max: f64) -> Self {
-        Self {
-            min: Some(min),
-            max: Some(max),
-            center: None,
-            tolerance: None,
-        }
-    }
-
-    pub fn parameters(center: impl Into<String>, tolerance: impl Into<String>) -> Self {
-        Self::around(crate::model::expressions::parameter(center), crate::model::expressions::parameter(tolerance))
-    }
-
-    pub fn around(center: impl Into<DataExpression>, tolerance: impl Into<DataExpression>) -> Self {
-        Self {
-            min: None,
-            max: None,
-            center: Some(center.into()),
-            tolerance: Some(tolerance.into()),
-        }
+impl From<f64> for ReferenceValue {
+    fn from(value: f64) -> Self {
+        Self::Constant(value)
     }
 }
 
-impl Line {
-    pub fn at(value: f64) -> Self {
-        Self {
-            value: Some(value),
-            source: None,
-            scale: default_reference_source_scale(),
-        }
+impl From<DataExpression> for ReferenceValue {
+    fn from(value: DataExpression) -> Self {
+        Self::Expression(value)
     }
+}
 
-    pub fn parameter(name: impl Into<String>) -> Self {
-        Self::expression(crate::model::expressions::parameter(name))
+impl<R: crate::model::telemetry::TelemetryStream> From<super::column::Column<R>> for ReferenceValue {
+    fn from(value: super::column::Column<R>) -> Self {
+        Self::Expression(value.into())
     }
+}
 
-    pub fn expression(source: impl Into<DataExpression>) -> Self {
-        Self {
-            value: None,
-            source: Some(source.into()),
-            scale: default_reference_source_scale(),
+impl From<crate::model::expressions::RecordField> for ReferenceValue {
+    fn from(value: crate::model::expressions::RecordField) -> Self {
+        Self::Expression(value.into())
+    }
+}
+
+impl From<&crate::model::expressions::RecordField> for ReferenceValue {
+    fn from(value: &crate::model::expressions::RecordField) -> Self {
+        Self::Expression(value.into())
+    }
+}
+
+impl harmos::MemorySize for ReferenceValue {
+    fn memory_size(&self) -> usize {
+        match self {
+            Self::Constant(_) => std::mem::size_of::<Self>(),
+            Self::Expression(value) => std::mem::size_of::<Self>()
+                .saturating_add(harmos::MemorySize::memory_size(value).saturating_sub(std::mem::size_of::<DataExpression>())),
         }
     }
 }
@@ -2155,11 +2128,24 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
     {
         return Err(error(format_args!("FFT min_frequency_hz must be less than or equal to max_frequency_hz")));
     }
+    for line in &plot.reference_lines {
+        if matches!(line.value, ReferenceValue::Constant(value) if !value.is_finite()) {
+            return Err(error(format_args!("plot {}: reference line value must be finite", plot.metadata.label)));
+        }
+    }
     for band in &plot.reference_bands {
-        if let (Some(min), Some(max)) = (band.min, band.max)
+        for value in [&band.min, &band.max, &band.center, &band.tolerance].into_iter().flatten() {
+            if matches!(value, ReferenceValue::Constant(value) if !value.is_finite()) {
+                return Err(error(format_args!("plot {}: reference band values must be finite", plot.metadata.label)));
+            }
+        }
+        if matches!(band.tolerance, Some(ReferenceValue::Constant(value)) if value < 0.0) {
+            return Err(error(format_args!("plot {}: reference tolerance must be greater than or equal to zero", plot.metadata.label)));
+        }
+        if let (Some(ReferenceValue::Constant(min)), Some(ReferenceValue::Constant(max))) = (&band.min, &band.max)
             && min > max
         {
-            return Err(error(format_args!("reference band min must be less than or equal to max")));
+            return Err(error(format_args!("plot {}: reference band min must be less than or equal to max", plot.metadata.label)));
         }
     }
 
@@ -2380,10 +2366,6 @@ fn default_histogram_bins() -> usize {
 
 fn default_reference_color() -> String {
     "#60706a".to_owned()
-}
-
-fn default_reference_source_scale() -> f64 {
-    1.0
 }
 
 fn default_true() -> bool {

@@ -168,6 +168,13 @@ Use `?` by default for operation failures in a step.
   operation names.
 - Cleanup attempts everything and logs a warning for each failure.
 
+Plot references are plot-owned Y-axis values in stored units. Use
+`plot.reference_band("Limits", lower, upper)`,
+`plot.reference_tolerance("Target ± Band", center, tolerance)` and
+`plot.reference_line("Limit", value)` with literals or expression handles.
+`plot.scale(...)` scales them with the data in live views and frozen reports.
+Do not associate references with a quantity or select an X reference axis.
+
 Canonical examples contain no placeholders.
 
 A criterion fetches its data, computes one named check per

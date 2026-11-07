@@ -387,9 +387,7 @@ impl Template {
         temperature.y_format(fixed);
         let target_c = Parameters::target_c();
         let band_c = Parameters::band_c();
-        let band = Band::around(target_c, band_c);
-        let temperature_c = Row::column_temperature_c();
-        temperature.reference_band("Target ± Band", temperature_c, band);
+        temperature.reference_tolerance("Target ± Band", target_c, band_c);
         let marker = HoldReached::marker();
         temperature.marker_records([marker]);
 

@@ -1441,21 +1441,10 @@ function drawReferenceLines(plot: uPlot, lines: DocumentReferenceLine[], element
     ctx.strokeStyle = resolvePlotCssColor(line.color, element, fallbackColor);
     ctx.setLineDash([5, 3]);
     ctx.beginPath();
-    if (line.axis === "x") {
-      const left = Math.round(plot.valToPos(line.value, "x", true)) + 0.5;
-      if (left < bbox.left || left > right) {
-        return;
-      }
-      ctx.moveTo(left, bbox.top);
-      ctx.lineTo(left, bottom);
-    } else {
-      const top = Math.round(plot.valToPos(line.value, "y", true)) + 0.5;
-      if (top < bbox.top || top > bottom) {
-        return;
-      }
-      ctx.moveTo(bbox.left, top);
-      ctx.lineTo(right, top);
-    }
+    const top = Math.round(plot.valToPos(line.value, "y", true)) + 0.5;
+    if (top < bbox.top || top > bottom) return;
+    ctx.moveTo(bbox.left, top);
+    ctx.lineTo(right, top);
     ctx.stroke();
   });
   ctx.restore();
@@ -1464,7 +1453,6 @@ function drawReferenceLines(plot: uPlot, lines: DocumentReferenceLine[], element
 function drawReferenceBands(plot: uPlot, bands: DocumentReferenceBand[], element: Element, fallbackColor: string) {
   const { ctx, bbox } = plot;
   const bottomEdge = bbox.top + bbox.height;
-  const rightEdge = bbox.left + bbox.width;
   ctx.save();
   bands.forEach((band) => {
     if (!isNumber(band.min) || !isNumber(band.max)) {
@@ -1473,29 +1461,18 @@ function drawReferenceBands(plot: uPlot, bands: DocumentReferenceBand[], element
     ctx.fillStyle = resolvePlotCssColor(band.color, element, fallbackColor);
     const alpha = ctx.globalAlpha;
     ctx.globalAlpha = alpha * 0.15;
-    if (band.axis === "x") {
-      const left = plot.valToPos(band.min, "x", true);
-      const right = plot.valToPos(band.max, "x", true);
-      const clampedLeft = clamp(left, bbox.left, rightEdge);
-      const clampedRight = clamp(right, bbox.left, rightEdge);
-      ctx.fillRect(clampedLeft, bbox.top, clampedRight - clampedLeft, bbox.height);
-    } else {
-      const top = plot.valToPos(band.max, "y", true);
-      const bottom = plot.valToPos(band.min, "y", true);
-      const clampedTop = clamp(top, bbox.top, bottomEdge);
-      const clampedBottom = clamp(bottom, bbox.top, bottomEdge);
-      ctx.fillRect(bbox.left, clampedTop, bbox.width, clampedBottom - clampedTop);
-    }
+    const top = plot.valToPos(band.max, "y", true);
+    const bottom = plot.valToPos(band.min, "y", true);
+    const clampedTop = clamp(top, bbox.top, bottomEdge);
+    const clampedBottom = clamp(bottom, bbox.top, bottomEdge);
+    ctx.fillRect(bbox.left, clampedTop, bbox.width, clampedBottom - clampedTop);
     ctx.globalAlpha = alpha;
   });
   ctx.restore();
 }
 
 function referenceYValues(lines: DocumentReferenceLine[], bands: DocumentReferenceBand[], yScale: DocumentAxisScale): number[] {
-  const values = [
-    ...lines.filter((line) => line.axis === "y").map((line) => line.value),
-    ...bands.filter((band) => band.axis === "y").flatMap((band) => [band.min, band.max]),
-  ].filter(isNumber);
+  const values = [...lines.map((line) => line.value), ...bands.flatMap((band) => [band.min, band.max])].filter(isNumber);
   return yScale === "log" ? values.filter((value) => value > 0) : values;
 }
 
