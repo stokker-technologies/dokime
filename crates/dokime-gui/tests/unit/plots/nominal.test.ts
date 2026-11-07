@@ -1255,7 +1255,7 @@ test("XY Styles Reach the Native Request", () => {
     assert.equal(native.style?.HarmosVariant.case, { line: "Line", points: "Points", line_points: "LinePoints", step: "Step" }[style]);
     const spec = documentPlotSpec({ plot, payload: hostFrame([1, 2], [[3, 4]]), title: plot.title, position: 0 });
     assert.equal(spec.style, style);
-    const html = renderToStaticMarkup(createElement(PlotInteractionProvider, {}, createElement(XyPlot, { plot: spec })));
+    const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom: false }, createElement(XyPlot, { plot: spec })));
     assert.match(html, /plot-follow/);
   }
 });

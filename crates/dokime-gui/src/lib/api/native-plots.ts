@@ -78,16 +78,16 @@ type AxisScale = NonNullable<PlotRequest["xScale"]>;
 type DownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 type FilterOperator = NonNullable<PlotRequest["filters"][number]["operator"]>;
 type PlotCartesianMode = NonNullable<NativePlotCartesianFrame["mode"]>;
-const AnalysisSelectionSchema = plotWire.Row14Schema;
-const DataExpressionSchema = plotWire.Row8Schema;
-const DataTransformSchema = plotWire.Row43Schema;
+const AnalysisSelectionSchema = plotWire.Row15Schema;
+const DataExpressionSchema = plotWire.Row9Schema;
+const DataTransformSchema = plotWire.Row48Schema;
 
-const PlotFftOptionsSchema = plotWire.Row11Schema;
-const PlotFilterSchema = plotWire.Row7Schema;
-const PlotHistogramOptionsSchema = plotWire.Row13Schema;
-const PlotIntervalOptionsSchema = plotWire.Row12Schema;
+const PlotFftOptionsSchema = plotWire.Row12Schema;
+const PlotFilterSchema = plotWire.Row8Schema;
+const PlotHistogramOptionsSchema = plotWire.Row14Schema;
+const PlotIntervalOptionsSchema = plotWire.Row13Schema;
 const PlotRequestSchema = plotWire.Row3Schema;
-const PlotWindowSchema = plotWire.Row15Schema;
+const PlotWindowSchema = plotWire.Row16Schema;
 type PlotStreamFrame = Wire<WatchFrame>;
 type PlotStreamKind = PlotStreamFrame["kind"];
 
