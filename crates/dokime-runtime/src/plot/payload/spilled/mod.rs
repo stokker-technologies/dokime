@@ -400,7 +400,7 @@ mod tests {
         };
         for plot_type in [
             PlotType::TimeSeries,
-            PlotType::XyScatter,
+            PlotType::Xy,
             PlotType::Trajectory,
             PlotType::Histogram,
             PlotType::BoxSummary,

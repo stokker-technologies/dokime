@@ -195,7 +195,8 @@ async fn exact_numeric_outputs() {
     plot.id("fixture.numeric");
     plot.y(dokime_runtime::expressions::telemetry("tracking", "distance_m"));
     section.plot(plot);
-    let mut scatter = dokime_runtime::document::Plot::xy_scatter("Easting / Northing");
+    let mut scatter = dokime_runtime::document::Plot::xy("Easting / Northing");
+    scatter.style(dokime_runtime::document::PlotStyle::Points);
     scatter.id("fixture.scatter");
     scatter.x(dokime_runtime::expressions::telemetry("tracking", "distance_m"));
     scatter.y(dokime_runtime::expressions::telemetry("tracking", "distance_m"));

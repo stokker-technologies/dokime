@@ -256,6 +256,7 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime::domain::mod
         analysis: request.analysis.as_ref().map(super::analysis::selection_wire).transpose()?,
         plot_id: request.plot_id.clone(),
         plot_type: request.plot_type.as_ref().map_or(dokime::domain::model::plots::wire::PlotType::Unspecified, enums::plot_type),
+        style: enums::plot_style(&request.style),
         x_scale: enums::axis_scale(&request.x_scale),
         y_scale: enums::axis_scale(&request.y_scale),
         stream,

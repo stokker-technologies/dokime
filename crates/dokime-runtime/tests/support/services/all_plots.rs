@@ -252,7 +252,7 @@ fn definitions() -> Vec<PlotDefinition> {
             }
         }
         plots.push(scan);
-        let mut xy = PlotDefinition::with_type("XY Fields", PlotType::XyLine);
+        let mut xy = PlotDefinition::with_type("XY Fields", PlotType::Xy);
         xy.id(if expressions { "fixture.xy.expression" } else { "fixture.xy.stored" });
         xy.stream("fixture.plot.s9");
         if expressions {

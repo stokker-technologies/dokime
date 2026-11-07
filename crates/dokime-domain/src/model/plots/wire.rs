@@ -47,6 +47,7 @@ pub struct PlotSnapshotsReply {
 pub struct PlotRequest {
     pub plot_id: Option<String>,
     pub plot_type: PlotType,
+    pub style: crate::model::documents::wire::PlotStyle,
     pub x_scale: AxisScale,
     pub y_scale: AxisScale,
     pub stream: String,
@@ -585,8 +586,7 @@ pub enum PlotType {
     Pie,
     Donut,
     Pareto,
-    XyScatter,
-    XyLine,
+    Xy,
     XyInterval,
     Trajectory,
     Heatmap,

@@ -136,6 +136,7 @@ fn plot_request(request: dokime::domain::model::plots::wire::PlotRequest) -> Res
         analysis: request.analysis.map(super::analysis::selection).transpose()?,
         plot_id: request.plot_id,
         plot_type,
+        style: enums::plot_style_from_wire(request.style),
         x_scale,
         y_scale,
         stream: request.stream,

@@ -593,10 +593,8 @@ function mapNativePlotType(value: PlotType | undefined): DocumentViewCard["plots
     case "Pareto":
     case "AggregateTable":
       throw new Error(`Unsupported document plot type: ${value?.HarmosVariant.case}`);
-    case "XyScatter":
-      return "xy_scatter";
-    case "XyLine":
-      return "xy_line";
+    case "Xy":
+      return "xy";
     case "XyInterval":
       return "xy_interval";
     case "Trajectory":

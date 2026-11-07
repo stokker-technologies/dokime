@@ -143,6 +143,7 @@ pub fn request(max_points: u64) -> model::plots::wire::PlotRequest {
     model::plots::wire::PlotRequest {
         plot_id: Some("fixture.progress.plot".into()),
         plot_type: model::plots::wire::PlotType::TimeSeries,
+        style: model::documents::wire::PlotStyle::Unspecified,
         stream: "fixture.progress".into(),
         y_keys: vec!["progress".into()],
         max_points: Some(max_points),

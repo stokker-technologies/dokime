@@ -110,6 +110,7 @@ export type PlotPayloadRequestInput = {
   filters?: DocumentViewPlot["filters"];
   xKey?: string | null;
   plotType?: DocumentPlotType | null;
+  style?: DocumentViewPlot["style"];
   xScale?: DocumentAxisScale | null;
   yScale?: DocumentAxisScale | null;
   fft?: DocumentFftOptions;
@@ -175,6 +176,7 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
         })
       : undefined,
     plotType: plotType(input.plotType),
+    style: { HarmosVariant: { case: ({ line: "Line", points: "Points", line_points: "LinePoints", step: "Step" } as const)[input.style ?? "line"], value: {} } },
     xScale: axisScale(input.xScale),
     yScale: axisScale(input.yScale),
     ...(input.zExpression == null ? {} : { zExpression: dataExpression(input.zExpression) }),
@@ -509,10 +511,8 @@ function plotType(value?: DocumentPlotType | null): PlotType {
       return { HarmosVariant: { case: "TimeSeries" as const, value: {} } };
     case "bar":
       return { HarmosVariant: { case: "Bar" as const, value: {} } };
-    case "xy_scatter":
-      return { HarmosVariant: { case: "XyScatter" as const, value: {} } };
-    case "xy_line":
-      return { HarmosVariant: { case: "XyLine" as const, value: {} } };
+    case "xy":
+      return { HarmosVariant: { case: "Xy" as const, value: {} } };
     case "xy_interval":
       return { HarmosVariant: { case: "XyInterval" as const, value: {} } };
     case "trajectory":

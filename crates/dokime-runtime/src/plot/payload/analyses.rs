@@ -226,8 +226,10 @@ pub(super) fn summarize(series: &[PlotSeries], request: &PlotPayloadRequest) -> 
         .collect()
 }
 
-pub(super) fn summarizes(request: &PlotPayloadRequest) -> bool {
-    request.analysis.is_none() && matches!(request.plot_type, Some(PlotType::TimeSeries | PlotType::XyScatter))
+pub(crate) fn summarizes(request: &PlotPayloadRequest) -> bool {
+    request.analysis.is_none()
+        && (request.plot_type == Some(PlotType::TimeSeries)
+            || (request.plot_type == Some(PlotType::Xy) && request.style == crate::document::PlotStyle::Points))
 }
 
 pub(super) fn point_x(point: &PlotPoint) -> Option<f64> {

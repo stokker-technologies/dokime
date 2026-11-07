@@ -47,8 +47,7 @@ import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, serie
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
-import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
-import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
+import { XyPlot } from "@/plots/catalog/XyPlot";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
@@ -1261,7 +1260,7 @@ test("Plot Statistics", () => {
       renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom }, child));
     const time = render(createElement(TimeSeriesPlot, { plot }));
     assert.match(time, /<thead\b/);
-    for (const Component of [XyScatterPlot, XyLinePlot, TrajectoryPlot]) {
+    for (const Component of [XyPlot, TrajectoryPlot]) {
       const xy = render(createElement(Component, { plot: { ...plot, timeAxis: false } }));
       assert.match(xy, /plot-follow/);
       assert.doesNotMatch(xy, /<table\b/);

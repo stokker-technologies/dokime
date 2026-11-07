@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use super::{PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotPoint, PlotSeries};
-use crate::document::PlotType;
+use crate::document::{PlotStyle, PlotType};
 use crate::expressions::DataTransform;
 use crate::runtime::Result;
 use crate::storage::sqlite::data::telemetry::previews::{Envelope, Point};
@@ -276,9 +276,7 @@ impl Preview {
                 self.series.insert(key, other);
                 continue;
             };
-            if matches!(request.plot_type, Some(PlotType::XyScatter | PlotType::Trajectory | PlotType::XyValueHeatmap))
-                && trace.count + other.count > limits.exact_points
-            {
+            if uses_density_grid(request) && trace.count + other.count > limits.exact_points {
                 for point in trace.exact.iter().chain(&other.exact) {
                     if let (Some(x), Some(y)) = (axis(point), point.y) {
                         trace.grid.push(Cell { x, y, count: 1 }, limits);
@@ -443,7 +441,7 @@ impl Preview {
         };
         let payload = super::project_retained_plot_payload(samples, records.into(), &raw, "", &context)?;
         self.context.extend(payload.context.clone());
-        let scatter = matches!(request.plot_type, Some(PlotType::XyScatter | PlotType::Trajectory | PlotType::XyValueHeatmap));
+        let scatter = uses_density_grid(request);
         for series in &payload.series {
             let aggregate = aggregate_for(request, &series.key);
             if !self.series.contains_key(&series.key) && self.series.len() >= limits.groups {
@@ -847,6 +845,11 @@ fn aggregate_for(request: &PlotPayloadRequest, key: &str) -> Option<harmos::Aggr
         .find_map(|transform| if let DataTransform::Aggregate(method) = transform { Some(*method) } else { None })
 }
 
+fn uses_density_grid(request: &PlotPayloadRequest) -> bool {
+    matches!(request.plot_type, Some(PlotType::Trajectory | PlotType::XyValueHeatmap))
+        || (request.plot_type == Some(PlotType::Xy) && request.style == PlotStyle::Points)
+}
+
 fn record_plot(request: &PlotPayloadRequest) -> bool {
     request.y_expressions.iter().any(|expression| matches!(expression.source, crate::expressions::DataSource::Record { .. }))
 }
@@ -1002,10 +1005,11 @@ mod tests {
     }
 
     #[test]
-    fn scatter_density() {
+    fn xy_points_density() {
         let request = PlotPayloadRequest {
             stream: "tracking".into(),
-            plot_type: Some(PlotType::XyScatter),
+            plot_type: Some(PlotType::Xy),
+            style: PlotStyle::Points,
             x_key: Some("easting".into()),
             y_keys: vec!["northing".into()],
             ..Default::default()

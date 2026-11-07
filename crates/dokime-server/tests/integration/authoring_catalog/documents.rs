@@ -364,7 +364,7 @@ pub(crate) async fn duration_x_axis() {
     let mut owner = runtime(root.path(), &prepared_owner).await;
     let handle = owner.handle();
     let mut suite = support::fixture_suite(&["passed"]);
-    let mut voltage = Plot::xy_line("Voltage");
+    let mut voltage = Plot::xy("Voltage");
     voltage.id("bench.voltage");
     voltage.x(telemetry("bench.samples", "elapsed_s"));
     voltage.y(telemetry("bench.samples", "voltage_v"));

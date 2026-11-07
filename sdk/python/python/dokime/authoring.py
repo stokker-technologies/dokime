@@ -213,6 +213,12 @@ class StreamSelection:
 
 
 class Document:
+    """Document cards use native mappings: XY plots select ``plot_type="xy"``.
+
+    Their ``style`` defaults to ``"line"``; ``"points"`` uses density reduction,
+    while ``"line_points"`` and ``"step"`` retain the ordered envelope.
+    """
+
     def __init__(self, context: "Context") -> None:
         self._context = context
 

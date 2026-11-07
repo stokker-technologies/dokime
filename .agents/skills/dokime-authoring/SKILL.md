@@ -18,6 +18,13 @@ Plot definitions declare their data and presentation, never a time window. The
 live viewer selects one window for all plots in the view, defaulting to All.
 Reports always include the full captured sample range with bounded previews.
 
+Use `Plot::xy(label)` to choose both axes. It defaults to `PlotStyle::Line`;
+set `plot.style(PlotStyle::Points)` for independent points, or use `LinePoints`
+or `Step`. Above the exact preview limit, points use the existing density grid;
+the other styles retain the ordered envelope without a grid. `Trajectory` and
+`XyInterval` keep their own behavior. The document schema stays at v1; incompatible
+development documents require a fresh storage root, preserving existing data.
+
 Plot `unit` is only a label. `plot.scale(1e3)` converts returned time-series y
 values, statistics (except count), cursor/tooltips and y references for display
 in live plots and frozen HTML. It defaults to 1.0 and is omitted when absent.

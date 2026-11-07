@@ -150,7 +150,7 @@ async fn plugin_sealing() {
                 context: std::sync::Mutex::new(Some(context_sender)),
             };
             let (mut owner, mut runtime) = started_with_fixture(configuration, Arc::new(fixture)).await;
-            let mut plot = dokime_runtime::document::Plot::xy_line("Scaled Evidence");
+            let mut plot = dokime_runtime::document::Plot::xy("Scaled Evidence");
             plot.id("fixture.analysis");
             plot.stream("tracking");
             plot.x = Some("elapsed_s".into());

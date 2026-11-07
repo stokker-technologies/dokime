@@ -45,8 +45,7 @@ encode!(plot_type: PlotType -> dokime::domain::model::plots::wire::PlotType {
     Pie,
     Donut,
     Pareto,
-    XyScatter,
-    XyLine,
+    Xy,
     XyInterval,
     Trajectory,
     Heatmap,
@@ -142,8 +141,7 @@ pub(in crate::grpc) fn plot_type_from_wire(value: dokime::domain::model::plots::
         dokime::domain::model::plots::wire::PlotType::Pie => Some(PlotType::Pie),
         dokime::domain::model::plots::wire::PlotType::Donut => Some(PlotType::Donut),
         dokime::domain::model::plots::wire::PlotType::Pareto => Some(PlotType::Pareto),
-        dokime::domain::model::plots::wire::PlotType::XyScatter => Some(PlotType::XyScatter),
-        dokime::domain::model::plots::wire::PlotType::XyLine => Some(PlotType::XyLine),
+        dokime::domain::model::plots::wire::PlotType::Xy => Some(PlotType::Xy),
         dokime::domain::model::plots::wire::PlotType::XyInterval => Some(PlotType::XyInterval),
         dokime::domain::model::plots::wire::PlotType::Trajectory => Some(PlotType::Trajectory),
         dokime::domain::model::plots::wire::PlotType::Heatmap => Some(PlotType::Heatmap),
@@ -154,6 +152,16 @@ pub(in crate::grpc) fn plot_type_from_wire(value: dokime::domain::model::plots::
         dokime::domain::model::plots::wire::PlotType::BoxSummary => Some(PlotType::BoxSummary),
         dokime::domain::model::plots::wire::PlotType::AggregateTable => Some(PlotType::AggregateTable),
     })
+}
+
+pub(in crate::grpc) fn plot_style_from_wire(value: dokime::domain::model::documents::wire::PlotStyle) -> PlotStyle {
+    use dokime::domain::model::documents::wire::PlotStyle as Wire;
+    match value {
+        Wire::Unspecified | Wire::Line => PlotStyle::Line,
+        Wire::Points => PlotStyle::Points,
+        Wire::LinePoints => PlotStyle::LinePoints,
+        Wire::Step => PlotStyle::Step,
+    }
 }
 
 pub(in crate::grpc) fn axis_scale_from_wire(

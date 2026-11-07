@@ -168,6 +168,10 @@ Use `?` by default for operation failures in a step.
   operation names.
 - Cleanup attempts everything and logs a warning for each failure.
 
+Use `Plot::xy(label)` for explicit X and Y axes; style defaults to `Line`.
+Choose `PlotStyle::Points` for density-grid reduction, or `Line`, `LinePoints`
+or `Step` for the ordered envelope.
+
 Plot references are plot-owned Y-axis values in stored units. Use
 `plot.reference_band("Limits", lower, upper)`,
 `plot.reference_tolerance("Target ± Band", center, tolerance)` and

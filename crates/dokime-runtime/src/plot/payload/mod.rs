@@ -9,7 +9,7 @@
 
 /* === Modules === */
 
-mod analyses;
+pub(super) mod analyses;
 pub(crate) mod builtins;
 mod cartesian;
 mod groups;
@@ -317,6 +317,7 @@ pub fn declared_plot_request(
         analysis: descriptor.input.analysis.clone(),
         plot_id: Some(descriptor.plot_id.to_string()),
         plot_type: Some(descriptor.plot_type.clone()),
+        style: descriptor.input.style.clone(),
         x_scale: descriptor.input.x_scale.clone(),
         y_scale: descriptor.input.y_scale.clone(),
         stream: descriptor_stream(descriptor),
