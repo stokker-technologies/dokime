@@ -51,6 +51,7 @@ def test_batch_publication(benchmark: Any, library: str) -> None:
     measured: list[tuple[float, float]] = []
 
     async def story() -> None:
+        ready = asyncio.Event()
         completed = asyncio.Event()
         failure: list[BaseException] = []
 
@@ -61,6 +62,7 @@ def test_batch_publication(benchmark: Any, library: str) -> None:
 
         @dokime.observer(id="publish", interval_ms=100, streams=[Reading])
         async def publish(ctx: dokime.Context) -> None:
+            await ready.wait()
             if completed.is_set():
                 return
             bridge_s = 0.0
@@ -83,6 +85,7 @@ def test_batch_publication(benchmark: Any, library: str) -> None:
         plugin = dokime.Plugin("batch", "0.1.0", catalog=[Reading, publish])
         with TemporaryDirectory(prefix="dokime-batch-") as root:
             async with dokime.Backend(port=0, application_root=root, plugins=[plugin]):
+                ready.set()
                 await completed.wait()
         if failure:
             raise failure[0]
