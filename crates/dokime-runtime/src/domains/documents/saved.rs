@@ -46,8 +46,8 @@ pub(crate) struct SavedOutputs {
 }
 
 pub(crate) struct SavedOutputFile {
-    outputs: SavedOutputs,
-    index: usize,
+    session: Manager,
+    output: harmos::storage::ReadBatch<ExecutionOutput>,
 }
 
 /* === Enums === */
@@ -119,17 +119,31 @@ impl SavedOutputs {
         let Some(index) = self.outputs().iter().position(|output| output.relative_path == path && output.file.is_some()) else {
             return Ok(None);
         };
-        Ok(Some(SavedOutputFile { outputs: self, index }))
+        let output = self.revision.try_map(|mut revision| {
+            Ok::<_, Error>(revision.value.saved.as_mut().expect("sealed output selection").source.outputs.swap_remove(index))
+        })?;
+        Ok(Some(SavedOutputFile { session: self.session, output }))
     }
 }
 
 impl SavedOutputFile {
+    pub(crate) async fn open_indexed(
+        session: &Manager, local: &crate::storage::sqlite::State, id: &TestExecutionId, path: &str,
+    ) -> Result<Option<Self>> {
+        validate_relative_output_path(path).map_err(crate::storage::Error::from)?;
+        let Some(output) = local.execution_output(session.cursor_saved(), id.to_string(), path.to_owned()).await? else {
+            return Ok(None);
+        };
+        let output = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(output))?;
+        Ok(Some(Self { session: session.clone(), output }))
+    }
+
     pub(crate) fn descriptor(&self) -> &ExecutionOutput {
-        &self.outputs.outputs()[self.index]
+        &self.output
     }
 
     pub(crate) fn session(&self) -> &crate::storage::Manager {
-        &self.outputs.session
+        &self.session
     }
 
     pub(crate) fn metadata(&self) -> Result<harmos::storage::ReadBatch<ExecutionFileContent>> {
@@ -152,7 +166,6 @@ impl SavedOutputFile {
         let metadata = self.metadata()?;
         let length = usize::try_from((metadata.size_bytes - offset).min(limit)).map_err(|_| invalid("saved file extent overflows"))?;
         let reader = self
-            .outputs
             .session
             .read_file(FileRead {
                 source: harmos::storage::FileSource::Stored(self.descriptor().file().map_err(crate::storage::Error::from)?.clone()),

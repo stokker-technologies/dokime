@@ -253,7 +253,7 @@ defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
 Development roots without durable case registration revisions, or containing earlier telemetry layouts, plugin identities,
 or evidence indexes without incremental numeric summaries, shared field projections and plot bindings, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
-token identities, indexed record producer scopes, indexed telemetry sample identities, or sealed case headers require a fresh storage root.
+token identities, indexed record producer scopes, indexed telemetry sample identities, sealed case headers, or sealed output descriptors require a fresh storage root.
 Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
 Each root records a derived storage format digest and its writer commit before evidence writes.
 A mismatched or populated unmarked root refuses with `StorageFormatMismatch`, preserving its contents; choose a fresh root.
