@@ -118,9 +118,10 @@ struct Owner {
     files: std::sync::Mutex<std::collections::BTreeMap<harmos::Identifier, File>>,
     verification_prefix: std::sync::Mutex<data::VerifiedPrefix>,
     telemetry: std::sync::Mutex<data::telemetry::Store>,
+    telemetry_contracts: data::telemetry::RegisteredContracts,
     telemetry_tail: std::sync::Mutex<data::telemetry::Tail>,
     telemetry_tasks: tokio::sync::Mutex<Vec<tokio::task::JoinHandle<Result<(), Error>>>>,
-    previews: PreviewSettings,
+    settings: Settings,
     close: tokio::sync::Mutex<()>,
 }
 
@@ -207,7 +208,7 @@ impl State {
     }
 
     pub(crate) fn preview_settings(&self) -> PreviewSettings {
-        self.0.previews
+        self.0.settings.previews
     }
 
     pub async fn open_with(root: impl AsRef<Path>, settings: Settings) -> Result<Self, Error> {
@@ -269,9 +270,10 @@ impl State {
                 files: std::sync::Mutex::new(std::collections::BTreeMap::new()),
                 verification_prefix,
                 telemetry: std::sync::Mutex::new(data::telemetry::Store::new(root, settings)),
+                telemetry_contracts: Default::default(),
                 telemetry_tail: Default::default(),
                 telemetry_tasks: Default::default(),
-                previews: settings.previews,
+                settings,
                 close: Default::default(),
             })))
         })
