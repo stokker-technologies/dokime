@@ -47,7 +47,6 @@ pub(crate) struct Store {
     pub root: PathBuf,
     pub settings: super::super::super::Settings,
     open: BTreeMap<String, Stream>,
-    contracts: BTreeMap<String, (Arc<TypedCodec>, arrow_schema::FieldRef)>,
     #[cfg(test)]
     fail_sync: bool,
 }
@@ -78,23 +77,9 @@ impl Store {
             root,
             settings,
             open: BTreeMap::new(),
-            contracts: BTreeMap::new(),
             #[cfg(test)]
             fail_sync: false,
         }
-    }
-
-    pub(super) fn register(&mut self, contract: &TelemetryContract, codec: Arc<TypedCodec>) -> Result<()> {
-        let schema = ipc::contract_schema(contract, None)?;
-        self.contracts.insert(serde_json::to_string(codec.schema())?, (codec, schema.fields()[1].clone()));
-        Ok(())
-    }
-
-    pub(super) fn prepare_tail(&self, entry: &mut crate::storage::telemetry::TelemetryEntry) -> Result<()> {
-        let key = serde_json::to_string(&super::reader::key(entry)?)?;
-        let (_, field) = self.contracts.get(&key).ok_or(Error::Invalid("telemetry tail contract is not registered"))?;
-        let _span = tracing::debug_span!("ingest.normalize.tail").entered();
-        ipc::normalize_values(field, &mut entry.sample.values)
     }
 
     #[cfg(test)]
@@ -103,7 +88,9 @@ impl Store {
     }
 
     #[tracing::instrument(level = "debug", name = "ingest.writer", skip_all)]
-    pub(super) fn write(&mut self, connection: &mut Connection, batch: StorageBatch<StoredRow>) -> Result<SavedData> {
+    pub(super) fn write(
+        &mut self, connection: &mut Connection, batch: StorageBatch<StoredRow>, contracts: &super::RegisteredContracts,
+    ) -> Result<SavedData> {
         let rows = batch.as_slice();
         let mut head = saved(connection)?;
         let mut groups: BTreeMap<String, Vec<(u64, Admitted)>> = BTreeMap::new();
@@ -126,7 +113,7 @@ impl Store {
             }
             let id = identity(row);
             if !self.open.contains_key(&id) {
-                let stream = self.create(connection, &id, row)?;
+                let stream = self.create(connection, &id, row, contracts)?;
                 self.open.insert(id.clone(), stream);
             }
             let stream = self.open.get(&id).expect("telemetry writer was opened");
@@ -419,7 +406,7 @@ impl Store {
         result
     }
 
-    fn create(&self, connection: &mut Connection, id: &str, row: &StoredRow) -> Result<Stream> {
+    fn create(&self, connection: &mut Connection, id: &str, row: &StoredRow, contracts: &super::RegisteredContracts) -> Result<Stream> {
         let schema = catalog::composed(connection, &row.record.schema)?;
         let key = serde_json::to_string(&row.record.schema)?;
         let contract: Option<String> =
@@ -474,8 +461,9 @@ impl Store {
             }
             if path.try_exists()? { ipc::Writer::recover_empty(&path, arrow.clone())? } else { ipc::Writer::create(&path, arrow.clone())? }
         };
-        let codec = match self.contracts.get(&key) {
-            Some((codec, _)) => codec.clone(),
+        let codec = contracts.read().unwrap().get(&key).map(|(codec, _)| codec.clone());
+        let codec = match codec {
+            Some(codec) => codec,
             None => {
                 Arc::new(TypedCodec::from_stored(row.record.schema.clone(), schema.schema, &harmos::config::SchemaSettings::default())?)
             }

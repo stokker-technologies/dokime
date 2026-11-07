@@ -2639,6 +2639,42 @@ The existing three-day, 3,072,000-sample document with 30 streams/plots measured
 whole-process RSS peak was about 240 MiB; the resource probe's sampling caveat
 still applies.
 
+##### Admission Under Disk Contention
+
+Telemetry admission reads immutable settings and registered codec/Arrow field metadata
+without acquiring the durable writer. It normalizes the pending rows on a blocking
+worker and publishes their live tail without entering the SQLite write queue.
+The manager's saved cursor follows the durable catalog commit. Readers retain their
+existing ordering: capture the tail before establishing the catalog snapshot, then
+discard the tail's saved prefix. Arrow sync, catalog atomicity, configured flush
+cadence, capacity backpressure and explicit evidence barriers retain their contracts.
+
+The Windows document-scale diagnostic on 7 November 2026 retained all four fixtures
+and all six summary assertions. Its baseline took 120.18 seconds alone. The
+250,003-row fixture took 109.39 seconds: setup 0.29, row construction 2.12,
+admission 100.01, capture 3.20 and completion/shutdown 3.77 seconds. A separate
+profile observed 18.36 seconds waiting for the writer mutex merely to read settings,
+3.31 seconds in tail staging including its SQLite queue wait, and 52.37 seconds
+of writer activity (42.96 decoding/grouping, 5.39 Arrow work and 0.54 catalog
+commits). These inclusive clocks overlap and must not be added into a serial budget.
+The frozen Nightly 42338695354 Windows log recorded the 240.031-second timeout
+but no stage split.
+
+Two repaired scale-test repetitions took 77.20 and 86.71 seconds alone. With the
+42 document/telemetry tests selected at eight test threads, repetitions took
+96.58 and 106.34 seconds. The corresponding baseline selection took 105.98 seconds;
+its scale test and 39 other tests passed, while two host tests refused a missing
+compiled bundle. The repaired repetitions used the task-built host bundle and
+passed all 42 tests. These workstation observations vary with contention; the
+loaded range overlaps the baseline and does not establish a portable speedup.
+The first repaired 250,003-row fixture took 70.86 seconds: setup 0.26, construction
+1.89, admission 65.47, capture 1.38 and completion/shutdown 1.86 seconds.
+
+The regression story holds both durable writer resources while
+admission and live reads complete, then verifies the configured flush and combined
+saved/tail ordering. Raw local diagnostics are retained in the primary checkout at
+`target/benchmarks/document-scale-20261107/`.
+
 ## Remote Certificate Refresh
 
 The managed remote listener reloads its TLS leaf in place. Existing connections
