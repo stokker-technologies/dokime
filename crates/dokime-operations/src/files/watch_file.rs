@@ -25,7 +25,9 @@ use super::*;
 /* === Constants === */
 
 const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
-    cancellation_timeout: crate::STOP_SETTLEMENT.timeout,
+    // A Live Watch Seals Within Its Existing Attempt Deadline. Cancellation Must
+    // Not Impose The Shorter Run-Stop Reply Budget On That Same Work.
+    cancellation_timeout: FOLLOW.attempt_timeout,
     ..FOLLOW
 };
 
