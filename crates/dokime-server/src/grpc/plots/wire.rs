@@ -693,11 +693,13 @@ mod tests {
             assert_eq!(decoded[0].x_key, request.x_key);
             assert_eq!(decoded[0].y_keys, request.y_keys);
         }
-        let wire = dokime::domain::model::plots::wire::PlotRequest {
+        let mut wire = plot_request_wire(&PlotPayloadRequest {
             stream: "tracking".into(),
-            plot_type: dokime::domain::model::plots::wire::PlotType::Xy,
+            plot_type: Some(PlotType::Xy),
             ..Default::default()
-        };
+        })
+        .unwrap();
+        wire.style = dokime::domain::model::documents::wire::PlotStyle::Unspecified;
         let (decoded, _) = super::super::cursor::decode_plot_requests(vec![wire]).unwrap();
         assert_eq!(decoded[0].style, PlotStyle::Line);
     }
