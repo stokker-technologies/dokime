@@ -8,7 +8,7 @@
  */
 
 import type { SeriesSummary, StatsSummary } from "../statistics";
-import type { DocumentDataExpression, DocumentValueSource, JsonObject } from "../types";
+import type { JsonObject } from "../types";
 import type { ParameterDefinition } from "./test";
 import type {
   PlotCartesianFrame as NativePlotCartesianFrame,

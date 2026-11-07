@@ -55,9 +55,9 @@ __all__ = [
 
 # === Types === #
 
-# === Classes === #
-
 type ReferenceValue = float | Mapping[str, Any]
+
+# === Classes === #
 
 class ReferenceLine(TypedDict):
     label: NotRequired[str]

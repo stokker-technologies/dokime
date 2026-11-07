@@ -19,7 +19,6 @@ import type {
   TelemetryStream,
   ValueFormat,
 } from "@/lib/types";
-import { isRecord } from "@/lib/utils";
 import { elapsedColumnUnit } from "@/plots/axis";
 import { plotColor } from "@/plots/colors";
 import { histogramAxes } from "@/plots/histogram-axes";
@@ -408,10 +407,6 @@ function latestSample(telemetry: Record<string, TelemetryStream> | null | undefi
 
 function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function textValue(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function firstText(...values: unknown[]): string | undefined {
