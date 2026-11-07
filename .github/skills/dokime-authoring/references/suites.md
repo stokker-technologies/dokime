@@ -62,11 +62,17 @@ Keep `suites/mod.rs` as the suite catalog and module declarations. Put each temp
 Traceability is dynamic execution content, contributed through the step context like documents. No template `traceability()` lifecycle method, `TraceabilityContext` or `TraceabilityFuture` exists.
 
 ```rust
-let mut section = TraceabilitySection::new("dut", "Device Under Test");
-let serial_number = TraceabilityRow::text("serial_number", "Serial Number", &identity.serial_number);
+let mut section = TraceabilitySection::new("Device Under Test");
+let serial_number = TraceabilityRow::text("Serial Number", &identity.serial_number);
 section.row(serial_number);
 ctx.traceability().section(section);
 ```
+
+Constructors derive IDs from labels with document normalization, for example
+`Serial Number` becomes `serial.number`. A variable and its response field share
+one name; the traceability ID is independent. Set `section.id("dut");` or
+`TraceabilityRow::text("Serial Number", value).id("serial_number")` when edits
+must keep their identity across label changes.
 
 A section identifier replaces the complete section; a row identifier replaces a row within an existing section. Replacing preserves order and unrelated sections/rows. Add a section before its rows. Missing sections, duplicate row identifiers and host-derived section names are refused and logged without changing captured content. Repeated edits in one delivery apply in order, with the last edit winning. The execution index, buffered evidence delivery, durable transactions and report projections follow the document path; do not introduce an alternate publisher or storage mechanism.
 

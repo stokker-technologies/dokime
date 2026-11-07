@@ -466,11 +466,13 @@ impl Probe {
             return Ok(());
         }
 
-        let mut dut = TraceabilitySection::new("dut", "Device Under Test");
-        dut.row(TraceabilityRow::text("serial_number", "Serial number", "SN-7"));
-        dut.row(TraceabilityRow::number("target_c", "Target", 60.0).unit("°C"));
+        let mut dut = TraceabilitySection::new("Device Under Test");
+
+        dut.id("dut");
+        dut.row(TraceabilityRow::text("Serial number", "SN-7").id("serial_number"));
+        dut.row(TraceabilityRow::number("Target", 60.0).id("target_c").unit("°C"));
         ctx.traceability().section(dut);
-        ctx.traceability().row("dut", TraceabilityRow::text("serial_number", "Serial Number", "SN-8"));
+        ctx.traceability().row("dut", TraceabilityRow::text("Serial Number", "SN-8").id("serial_number"));
         Ok(())
     }
 

@@ -209,9 +209,8 @@ def test_existing_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     connection.__aenter__ = AsyncMock(return_value=client)
     connection.__aexit__ = AsyncMock(return_value=False)
     monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
-    monkeypatch.setitem(run.__globals__, "EXECUTION_ID", EXECUTION)
 
-    assert asyncio.run(run()) == 1
+    assert asyncio.run(run(EXECUTION)) == 1
     client.execution.assert_awaited_once_with(EXECUTION)
     execution.start.assert_awaited_once_with()
     response = (tmp_path / "execution.json").read_text(encoding="utf-8")

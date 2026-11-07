@@ -53,13 +53,13 @@ async def run() -> int:
         print("Before:", json.dumps(observed), flush=True)
         Path("before.json").write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8")
 
-        # Enable The Manual Device; This Is Separate From Test Evidence
+        # Enable the Manual Device; This Is Separate from Test Evidence
         reply = await client.call("obc.device.set_power", {"enabled": True})
         observed = MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
         print("Power On:", json.dumps(observed), flush=True)
         Path("power-on.json").write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8")
 
-        # Read Back The Powered State: 230 V RMS
+        # Read Back the Powered State: 230 V RMS
         reply = await client.call("obc.device.read", {})
         observed = MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
         print("Running:", json.dumps(observed), flush=True)
@@ -73,7 +73,7 @@ async def run() -> int:
         print("Power Off:", json.dumps(observed), flush=True)
         Path("power-off.json").write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8")
 
-        # Read Back The Powered-Off State: Zero Volts
+        # Read Back the Powered-Off State: Zero Volts
         reply = await client.call("obc.device.read", {})
         observed = MessageToDict(reply, preserving_proto_field_name=True, always_print_fields_with_no_presence=True)
         print("After:", json.dumps(observed), flush=True)

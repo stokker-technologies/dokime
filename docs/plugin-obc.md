@@ -29,7 +29,7 @@ the process system observer publishes monitoring data. Explicit subscriptions
 capture host observations for an execution.
 
 Pulse, steady-state and process observers use the short fixture cadences declared
-in `src/settings.rs`. Model sample intervals determine simulated waveform time;
+in `src/domain/model/settings.rs`. Model sample intervals determine simulated waveform time;
 sample-count completion follows publication notifications. Shipping host observers
 retain their separately configured collection intervals.
 
@@ -70,12 +70,12 @@ no external-effect inverse is necessary for a live CPU worker.
 ## Source Layout
 
 - `src/lib.rs`: the plugin owner, lifecycle, and complete catalogs.
-- `src/domain/`: what the plugin declares, kind first and domain second: `model/` for the replies and `operations/` for the requests it serves, each request its own operation.
-- `src/operations/`: each request's `impl Operation`, reaching the bench through its declared `Resources`.
+- `src/domain/`: shared plugin-owned data and serializable response wrappers.
+- `src/operations/`: one vertical slice per operation, with its request, policy, response and handler; native drivers stay behind this boundary.
 - `src/listeners/`, `src/observers/`: record listeners and process observation.
 - `src/analyses/`: the plot analyses the plugin contributes.
-- `src/suites/`: the `Suites` catalog and one self-contained folder per suite, each template file declaring its own parameters; `src/suites/common/` holds the shared measurement shape, bench parameter rules, host system section (including memory pressure and Memory Used [GiB] plots) and verdict helpers.
-- `src/prompts/` and `src/settings.rs`: operator checkpoints and bench configuration.
+- `src/suites/`: the `Suites` catalog and one self-contained folder per suite, each template file declaring its own parameters; shared measurement data and parameter rules live in `src/domain/model/`, and `src/domain/document.rs` owns host document defaults, including memory pressure and Memory Used [GiB] plots.
+- `src/domain/model/prompts/` and `src/domain/model/settings.rs`: operator checkpoints and bench configuration.
 - `runtime/`: the embedded Harmos bench application and deterministic device model.
 - `tests/integration/`: in-process lifecycle, confirmation, observer shutdown, and evidence checks.
 - `tests/acceptance/`: the built executable's inventory and live dispatch.
@@ -107,3 +107,11 @@ mise run build:rust:focused -- check --locked -p plugin-obc --all-targets
 The plugin stops execution observers before cleanup, settles its embedded
 Harmos runtime, and releases process resources. Shutdown, cancellation, and
 prompt cancellation are validated as well as successful measurements.
+
+Templates keep the procedure linear and call the vertical operation slices in
+`src/operations/`. Charger operations retain native devices in the plugin-owned
+`Chargers` resource and return plugin-owned snapshots and readings. Each opened
+device has its own handle; release stops it and removes its temporary log.
+The system observer reads through `operations/system/collect.rs`. The public
+manual-device operations retain their existing IDs and response fields.
+Traceability IDs derive from labels; this sample has no label-independent edit keys.

@@ -220,7 +220,7 @@ cannot leave generation running or persistent native state changed.
 intervals, including the final partial interval. Cancellation during publication
 also settles the workers and returns the final summary. The OBC Checks template
 `obc.checks.cpu_load` demonstrates the complete consumer sequence using the
-step host’s scoped `submit::<LoadHold>(request)` API to start its handle.
+step’s `ctx.operation(operation).start().await?` builder to start its handle.
 
 The runtime decodes these rows through the same codec as other plugins.
 `host.system` also exposes `memory_used_gib` (Memory Used [GiB]) and
@@ -501,23 +501,23 @@ async fn traceability(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     let diagnostics = ctx.operation(operation).await?;
 
     // === Device Under Test === //
-    let mut section = TraceabilitySection::new("dut", "Device Under Test");
+    let mut section = TraceabilitySection::new("Device Under Test");
 
-    let serial_number = TraceabilityRow::text("serial_number", "Serial Number", &diagnostics.serial_number);
+    let serial_number = TraceabilityRow::text("Serial Number", &diagnostics.serial_number);
     section.row(serial_number);
 
-    let firmware_version = TraceabilityRow::text("firmware_version", "Firmware Version", &diagnostics.firmware_version);
+    let firmware_version = TraceabilityRow::text("Firmware Version", &diagnostics.firmware_version);
     section.row(firmware_version);
 
     ctx.traceability().section(section);
 
     // === Test Bench === //
-    let mut section = TraceabilitySection::new("bench", "Test Bench");
+    let mut section = TraceabilitySection::new("Test Bench");
 
-    let chamber_id = TraceabilityRow::text("chamber_id", "Chamber ID", &diagnostics.chamber_id);
+    let chamber_id = TraceabilityRow::text("Chamber ID", &diagnostics.chamber_id);
     section.row(chamber_id);
 
-    let controller_version = TraceabilityRow::text("controller_version", "Controller Version", &diagnostics.controller_version);
+    let controller_version = TraceabilityRow::text("Controller Version", &diagnostics.controller_version);
     section.row(controller_version);
 
     ctx.traceability().section(section);
@@ -525,6 +525,14 @@ async fn traceability(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     Ok(())
 }
 ```
+
+Traceability constructors take the label first, like documents. The ID derives
+from that label; `.id(...)` overrides it. Sections use a separate
+`section.id("dut");` statement; rows support `row.id("serial_number")`.
+Use explicit IDs for label-independent edit keys. The starter pins `bench` and
+`target_c` because a later step updates that row. GUI stated groups are scoped
+by snapshot identity, and reports retain captured identifiers; neither compares
+authored section IDs across executions.
 
 Fetch first, then use the result: call the operation once at the top, name the
 result after what it holds, and only read that result in the rest of the step.
@@ -534,7 +542,9 @@ Use `?` by default for operation failures in a step.
   `// === Title Case === //` opens a group of actions.
 - Name before use: build a value on one line and hand it over on the next;
   never nest construction in the call that consumes it.
-- Keep one name throughout: the variable, row ID and response field share a name.
+- A variable and its response field share one name. Traceability IDs derive from
+  labels using document normalization unless explicitly set with `.id(...)`.
+  Pin an ID when edits or external consumers require identity across label changes.
 - Make blocks read alike: create a section, add its rows, then publish it at the
   end of that group. Reuse the name `section` in each group.
 - Use standard style-guide Title Case for comments and every human-facing label:
@@ -542,7 +552,9 @@ Use `?` by default for operation failures in a step.
   coordinating conjunctions and short prepositions in between (`a`, `an`, `the`,
   `and`, `but`, `or`, `nor`, `for`, `of`, `in`, `on`, `at`, `to`, `by`). This includes
   steps, criteria, records, parameters, streams, sections and rows. For example,
-  `Number of Rows` and `Wait Until Chamber Is Ready`. IDs use `snake_case`.
+  `Number of Rows` and `Wait Until Chamber Is Ready`. Declaration IDs keep their
+  established syntax; label-derived traceability IDs use dot-separated lowercase
+  components, for example `Serial Number` becomes `serial.number`.
 - Use `Group / Action` naming in comments and labels, such as
   `// Check / Number of Rows` and `Setup / Bench`. Descriptions stay sentences.
 - A template is the orchestration unit: read top to bottom as one linear flow.

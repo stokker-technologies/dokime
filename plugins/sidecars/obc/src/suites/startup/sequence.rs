@@ -20,11 +20,15 @@ use std::{path::PathBuf, time::Duration};
 
 // Local Imports
 use super::*;
-use crate::settings::FILE_POLL_MS;
-use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
-use crate::suites::common::{measurement, system, verdicts};
-use crate::{error::Error, prompts::checkpoint};
-use dokime::document::{self, PlotDefinition, PlotStyle};
+use crate::domain::model::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
+use crate::domain::model::charger::{Charger, Power};
+use crate::domain::model::measurement::Row;
+use crate::domain::model::settings::FILE_POLL_MS;
+use crate::domain::{Error, model::prompts::checkpoint};
+use crate::domain::{document as system, model::measurement};
+use crate::operations::charger::*;
+use crate::operations::wait::Wait;
+use dokime::document::{self, PlotStyle};
 use dokime::domain::model::files::wire::FileWatchPolicy;
 use dokime::domain::model::files::wire::FileWatchSelection;
 use dokime::domain::model::files::wire::FileWatchSource;
@@ -36,7 +40,6 @@ use dokime::expressions::telemetry;
 use dokime::host::ToolConnectionAcquired;
 use dokime::operations::files::WatchFile;
 use dokime::prelude::*;
-use obc_runtime::device::{Device, Power};
 
 /* === Constants === */
 
@@ -51,13 +54,13 @@ bench!(Parameters);
 
 /* === Structs === */
 
-// A type of its own rather than a home on [`InputMeasurement`]: four suites measure
+// A type of its own rather than a home on [`Row`]: four suites measure
 // the same physical thing and each owns the stream its evidence travels, so
 // the shape declares no home and every stream declares itself.
 #[dokime::stream(
     id = "obc.charger.startup.samples",
     window = 4096,
-    row = measurement::InputMeasurement,
+    row = Row,
     label = "Charger Input Samples"
 , description = "Measured AC voltage, current, and supply timing.")]
 pub struct Samples;
@@ -78,9 +81,9 @@ pub struct ChargerLog {
     pub input_power_w: f64,
 }
 
-pub struct Startup {
+pub struct Template {
     produced: u64,
-    device: Device,
+    device: Charger,
     log: PathBuf,
     accepted: bool,
     prompt_action: String,
@@ -103,7 +106,7 @@ pub struct Started {}
 
 #[dokime::record(
     id = "obc.charger.startup.checkpoint",
-    label = "Review the Charger Status Indicator and Start-up Trace",
+    label = "Review the Charger Status Indicator and Start-Up Trace",
     description = "The operator was asked to look at the bench."
 )]
 #[derive(Clone, Debug)]
@@ -117,7 +120,7 @@ pub struct Checkpoint {
 
 #[dokime::record(
     id = "obc.charger.startup.completed",
-    label = "Start-up Measurement and Operator Decision Captured",
+    label = "Start-Up Measurement and Operator Decision Captured",
     description = "The start-up measurement and the operator's decision, together."
 )]
 #[derive(Clone, Debug)]
@@ -137,7 +140,7 @@ pub struct Completed {
 
 #[dokime::parameters]
 pub struct Parameters {
-    #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
+    #[parameter(label = "AC RMS Voltage", unit = "V", default = 230.0)]
     pub ac_voltage_v: f64,
 
     #[parameter(label = "Load Impedance Magnitude", unit = "ohm", default = 100.0)]
@@ -201,12 +204,17 @@ pub enum Prompts {
 
 #[dokime::catalog]
 pub enum Required {
-    AskReadiness(crate::domain::operations::AskReadiness),
-    ListConnections(crate::domain::operations::ListConnections),
+    AskReadiness(crate::operations::AskReadiness),
+    InitializeCharger(InitializeCharger),
+    StartCharger(StartCharger),
+    SampleCharger(SampleCharger),
+    ReleaseCharger(ReleaseCharger),
+    EncodeChargerSummary(EncodeChargerSummary),
+    Wait(Wait),
+    ListConnections(crate::operations::ListConnections),
 }
 
-// `SystemInputs` and the unit's connection: a catalog names one list, so this
-// one repeats the six host streams `system::SystemInputs` declares.
+// Host Streams and the Unit Connection
 #[dokime::catalog]
 pub enum Subscriptions {
     ToolConnectionAcquired(ToolConnectionAcquired),
@@ -250,22 +258,19 @@ pub enum Streams {
     streams = Streams,
     attributes(path = "Testbench/Startup", provider = "sidecar"),
     parameters = Parameters, description = "Measure the AC start-up inrush, inspect the Charger, then observe settling.")]
-impl Startup {
+impl Template {
     async fn initialize(inputs: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
-        // The route rather than the handle: a template names no plugin at all,
-        // so `ctx.call` selecting the explicit route type is the only road
-        // to it — and the one that holds the answer to the timeout the route
-        // declared, which is what a host call would get.
-        if ctx.operation(crate::domain::operations::AskReadiness {}).await?.stopped {
-            return Err(Error::Device(obc_runtime::Error::Stopped));
+        // Check Bench Readiness
+        let operation = crate::operations::AskReadiness {};
+        let readiness = ctx.operation(operation).await?;
+        if readiness.stopped {
+            return Err(Error::Observation("the bench is stopped".into()));
         }
-        let mut device = Device::initialize(inputs.supply()).map_err(Error::Device)?;
-        let log = charger_log();
-        std::fs::File::create_new(&log).map_err(|error| {
-            let message = format!("charger log: {error}");
-            Error::Observation(message)
-        })?;
-        device.logging(&log);
+
+        // Initialize Charger and Its Log
+        let operation = InitializeCharger { supply: inputs.supply(), logging: true };
+        let device = ctx.operation(operation).await?.into_owned();
+        let log = PathBuf::from(device.log.as_ref().expect("logging initialization returns its file"));
         Ok(Self {
             produced: 0,
             device,
@@ -276,10 +281,6 @@ impl Startup {
         })
     }
 
-    fn document() -> Document {
-        startup_document()
-    }
-
     #[dokime::step(
         label = "Wait for the Unit",
         description = "Waits for the unit to say it is on the bench before energizing it.\nNothing this execution can produce: the connection is reported by whoever owns the fixture — another plugin, the host, or an operator — into this run's scope, and the run has no business guessing. The wait is bounded, and the SDK's timeout becomes this plugin's own error through the `From` on `Error::Awaited`.\nIt also reports what the bench was told *before* this run started, which is what the process-wide connection listener accumulated across every execution and every gap between them."
@@ -288,7 +289,9 @@ impl Startup {
         if !ctx.parameters().await_connection {
             return Ok(());
         }
-        let connections = ctx.operation(crate::domain::operations::ListConnections {}).await?;
+        // List Known Connections
+        let operation = crate::operations::ListConnections {};
+        let connections = ctx.operation(operation).await?;
         ctx.info(format!("record=bench_connections count={}", connections.resources.len()));
         // The host's own record type, so the step names no id and reads no
         // detail map: the unit's identity is a field of the fact it waited for.
@@ -305,15 +308,20 @@ impl Startup {
 
     #[dokime::step(label = "Initialize and Start Charger")]
     async fn setup(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        ctx.publish(Initialized {}).await;
-        self.device.start().map_err(Error::Device)?;
+        // Publish Initialized
+        let record = Initialized {};
+        ctx.publish(record).await;
+        // Start Charger
+        let operation = StartCharger { device_id: self.device.device_id };
+        self.device = ctx.operation(operation).await?.into_owned();
         ctx.info(format!(
             "record=started voltage_rms_v={} load_ohm={} duration_s={}",
             self.device.supply.voltage_rms_v,
             self.device.supply.load_ohm,
             ctx.parameters().duration_s
         ));
-        ctx.publish(Started {}).await;
+        let record = Started {};
+        ctx.publish(record).await;
         Ok(())
     }
 
@@ -322,38 +330,43 @@ impl Startup {
         description = "Watches the charger's log file while it reports its first readings.\nThe watch is the host's `WatchFile` operation: it captures only what the charger writes after the watch starts into the `charger/device.log` artifact, and its matcher turns every status line into a row of the charger log stream. The producer cancels and seals the bounded watch after writing its readings."
     )]
     async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        let watch = ctx
-            .operation(WatchFile {
-                recursive: false,
-                rules: Vec::new(),
-                maximum_files: None,
-                execution_id: None,
-                source: Some(FileWatchSource {
-                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-                        root: self.log.to_string_lossy().into_owned(),
-                    })),
-                }),
-                output: "charger".into(),
-                artifact: Some("charger/device.log".into()),
-                policy: FileWatchPolicy::Stream,
-                selection: FileWatchSelection::All,
-                wait_for_source_seconds: None,
-                poll_interval_ms: Some(FILE_POLL_MS),
-                maximum_seconds: Some(1),
-                maximum_bytes: None,
-                matchers: vec![LineMatcher::publishing::<ChargerLog>(
-                    r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)",
-                )],
-                markers: Vec::new(),
-            })
-            .start()
-            .await?;
+        // Watch the Charger Log
+        let operation = WatchFile {
+            recursive: false,
+            rules: Vec::new(),
+            maximum_files: None,
+            execution_id: None,
+            source: Some(FileWatchSource {
+                payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
+                    root: self.log.to_string_lossy().into_owned(),
+                })),
+            }),
+            output: "charger".into(),
+            artifact: Some("charger/device.log".into()),
+            policy: FileWatchPolicy::Stream,
+            selection: FileWatchSelection::All,
+            wait_for_source_seconds: None,
+            poll_interval_ms: Some(FILE_POLL_MS),
+            maximum_seconds: Some(1),
+            maximum_bytes: None,
+            matchers: vec![LineMatcher::publishing::<ChargerLog>(
+                r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)",
+            )],
+            markers: Vec::new(),
+        };
+        let watch = ctx.operation(operation).start().await?;
         // The watch takes its baseline first; the charger then logs its
         // readings while it runs.
         watch.armed().await?;
         let interval_s = ctx.parameters().sample_interval_s;
         for index in 0..5 {
-            self.device.sample(f64::from(index) * interval_s);
+            // Sample Charger Into Its Log
+            let operation = SampleCharger {
+                device_id: self.device.device_id,
+                elapsed_s: f64::from(index) * interval_s,
+            };
+            let sample = ctx.operation(operation).await?.into_owned();
+            self.device = sample.charger;
         }
         let captured = watch.cancel().await?.into_owned();
         ctx.info(format!("record=charger_log bytes={}", captured.artifacts.iter().map(|artifact| artifact.size_bytes).sum::<u64>()));
@@ -367,21 +380,71 @@ impl Startup {
         let checkpoint = (total / 2).max(1);
         let continuous = inputs.continuous;
         let realtime = inputs.realtime || continuous;
-        let interval = Duration::from_secs_f64(interval_s);
         if continuous {
             loop {
-                publish_runtime_sample(ctx, interval_s, &mut self.device, self.produced, total, checkpoint).await?;
+                // Sample Charger
+                let index = self.produced;
+                let operation = SampleCharger {
+                    device_id: self.device.device_id,
+                    elapsed_s: index as f64 * interval_s,
+                };
+                let sample = ctx.operation(operation).await?.into_owned();
+                self.device = sample.charger;
+                let phase = if self.device.power == Power::Faulted {
+                    "fault"
+                } else if index == 0 {
+                    "start"
+                } else if index + 1 == total {
+                    "complete"
+                } else if index + 1 == checkpoint {
+                    "checkpoint"
+                } else if index < checkpoint {
+                    "before_prompt"
+                } else {
+                    "after_prompt"
+                };
+
+                // Publish Measurement
+                let row = measurement::row(index, sample.reading, phase);
+                ctx.stream::<Row>().into::<Samples>().push(row).await;
                 self.produced += 1;
-                tokio::time::sleep(interval).await;
+                // Pace the Measurement
+                let operation = Wait { duration_s: interval_s };
+                ctx.operation(operation).await?;
             }
         } else {
             let remaining = sample_range(self.produced, checkpoint)?;
             for index in ctx.progress("Measuring start-up inrush", remaining) {
                 let index = index as u64;
-                publish_runtime_sample(ctx, interval_s, &mut self.device, index, total, checkpoint).await?;
+                // Sample Charger
+                let operation = SampleCharger {
+                    device_id: self.device.device_id,
+                    elapsed_s: index as f64 * interval_s,
+                };
+                let sample = ctx.operation(operation).await?.into_owned();
+                self.device = sample.charger;
+                let phase = if self.device.power == Power::Faulted {
+                    "fault"
+                } else if index == 0 {
+                    "start"
+                } else if index + 1 == total {
+                    "complete"
+                } else if index + 1 == checkpoint {
+                    "checkpoint"
+                } else if index < checkpoint {
+                    "before_prompt"
+                } else {
+                    "after_prompt"
+                };
+
+                // Publish Measurement
+                let row = measurement::row(index, sample.reading, phase);
+                ctx.stream::<Row>().into::<Samples>().push(row).await;
                 self.produced = index + 1;
                 if realtime {
-                    tokio::time::sleep(interval).await;
+                    // Pace the Measurement
+                    let operation = Wait { duration_s: interval_s };
+                    ctx.operation(operation).await?;
                 }
             }
         }
@@ -391,18 +454,18 @@ impl Startup {
 
     #[dokime::step(label = "Inspect Powered Charger")]
     async fn prompt(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        ctx.publish(Checkpoint {
+        let record = Checkpoint {
             sample_index: self.produced,
             prompt_type: "obc.charger.startup.check".into(),
-        })
-        .await;
+        };
+        ctx.publish(record).await;
         ctx.info("record=prompt_requested");
-        let response = ctx
-            .ask(checkpoint::StartupCheck {
-                operator_note: "charger status indicator steady".into(),
-                ..Default::default()
-            })
-            .await?;
+        // Ask for Operator Inspection
+        let prompt = checkpoint::StartupCheck {
+            operator_note: "charger status indicator steady".into(),
+            ..Default::default()
+        };
+        let response = ctx.ask(prompt).await?;
         self.accepted = response.accepted;
         self.operator_note = response.operator_note;
         self.prompt_action = if self.accepted { "continue" } else { "decline" }.into();
@@ -419,30 +482,58 @@ impl Startup {
             let remaining = sample_range(self.produced, total)?;
             for index in ctx.progress("Observing settling", remaining) {
                 let index = index as u64;
-                publish_runtime_sample(ctx, interval_s, &mut self.device, index, total, checkpoint).await?;
+                // Sample Charger
+                let operation = SampleCharger {
+                    device_id: self.device.device_id,
+                    elapsed_s: index as f64 * interval_s,
+                };
+                let sample = ctx.operation(operation).await?.into_owned();
+                self.device = sample.charger;
+                let phase = if self.device.power == Power::Faulted {
+                    "fault"
+                } else if index == 0 {
+                    "start"
+                } else if index + 1 == total {
+                    "complete"
+                } else if index + 1 == checkpoint {
+                    "checkpoint"
+                } else if index < checkpoint {
+                    "before_prompt"
+                } else {
+                    "after_prompt"
+                };
+
+                // Publish Measurement
+                let row = measurement::row(index, sample.reading, phase);
+                ctx.stream::<Row>().into::<Samples>().push(row).await;
                 self.produced = index + 1;
                 if inputs.realtime {
-                    tokio::time::sleep(Duration::from_secs_f64(interval_s)).await;
+                    // Pace the Measurement
+                    let operation = Wait { duration_s: interval_s };
+                    ctx.operation(operation).await?;
                 }
             }
         }
-        ctx.publish(Completed {
+        // Publish Completed
+        let record = Completed {
             sample_count: self.produced,
             prompt_action: self.prompt_action.clone(),
             operator_note: self.operator_note.clone(),
             accepted: self.accepted && self.device.fault.is_none(),
-        })
-        .await;
+        };
+        ctx.publish(record).await;
         if inputs.emit_artifact {
-            let summary = serde_json::to_vec_pretty(&serde_json::json!({
-                "supply": self.device.supply,
-                "sample_count": self.produced,
-                "duration_s": self.produced as f64 * interval_s,
-                "prompt_action": self.prompt_action,
-                "operator_note": self.operator_note,
-                "accepted": self.accepted,
-            }))?;
-            ctx.artifacts().write("charger/startup-summary.json", summary)?;
+            // Encode Measurement Summary
+            let operation = EncodeChargerSummary {
+                supply: self.device.supply,
+                sample_count: self.produced,
+                duration_s: Some(self.produced as f64 * interval_s),
+                prompt_action: self.prompt_action.clone(),
+                operator_note: Some(self.operator_note.clone()),
+                accepted: self.accepted,
+            };
+            let summary = ctx.operation(operation).await?.into_owned();
+            ctx.artifacts().write("charger/startup-summary.json", summary.json)?;
         }
         if inputs.attach_reference {
             let directory: PathBuf = ctx.parameter("images_directory").map_err(|error| Error::Image(error.to_string()))?;
@@ -458,16 +549,9 @@ impl Startup {
         Ok(())
     }
 
-    async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
-        self.device.stop();
-        let _ = std::fs::remove_file(&self.log);
-        ctx.info("Charger resources released");
-        Ok(())
-    }
-
     #[dokime::criterion(
         id = "obc.charger.startup.acceptance",
-        label = "Start-up Trace and Operator Inspection",
+        label = "Start-Up Trace and Operator Inspection",
         description = "Passed once the trace is unfaulted and, for a bounded run, the operator accepted it."
     )]
     fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
@@ -477,9 +561,116 @@ impl Startup {
             let Some(last) = samples.last() else {
                 return Ok(false);
             };
-            return Ok(last.phase != "fault");
+            // Check / Final Fault State
+            let fault_free = last.phase != "fault";
+            return Ok(fault_free);
         }
-        Ok(samples.len() as u64 >= ctx.parameters().sample_count()? && verdicts::decided(ctx.records::<Completed>(), |run| run.accepted)?)
+        let records = ctx.records::<Completed>()?;
+        let completed = records.last().ok_or_else(|| Error::MissingEvidence(Completed::RECORD_TYPE.into()))?;
+
+        // Check / Number of Rows
+        let number_ok = samples.len() as u64 >= ctx.parameters().sample_count()?;
+
+        // Check / Operator Acceptance
+        let accepted_ok = completed.accepted;
+        Ok(number_ok && accepted_ok)
+    }
+
+    async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
+        // Release Charger and Its Log
+        let operation = ReleaseCharger { device_id: self.device.device_id };
+        let result = ctx.operation(operation).await;
+        if let Err(error) = &result {
+            ctx.warn(format!("charger cleanup: {error}"));
+        }
+        result?;
+        ctx.info("Charger resources released");
+        Ok(())
+    }
+
+    fn document() -> Document {
+        let mut document = Document::new("default", "Start-Up Sequence");
+
+        // === What One Execution Shows === //
+
+        let mut voltage = Plot::time_series("AC Voltage");
+        voltage.id("obc.charger.startup.sequence.signals");
+        voltage.unit("V");
+        voltage.style(PlotStyle::LinePoints);
+        voltage.y(telemetry(STARTUP_STREAM, "voltage_v"));
+        voltage.y(telemetry(STARTUP_STREAM, "voltage_rms_v"));
+        // The prompt markers are the host's own records, so they are named by id;
+        // this suite's are named by their type.
+        voltage.marker_records([
+            Started::marker(),
+            document::marker("prompt.request.form"),
+            document::marker("prompt.response.submitted"),
+            Completed::marker(),
+        ]);
+
+        let mut timeline = Section::new("Signal Timeline");
+        timeline.plot(voltage);
+        document.section(timeline);
+
+        let mut distributions = Section::new("Signal Distributions");
+        let mut plot = Plot::histogram("Voltage Distribution");
+        plot.id("obc.charger.startup.sequence.voltage_distribution");
+        plot.unit("V");
+        plot.x(telemetry(STARTUP_STREAM, "voltage_v"));
+        distributions.plot(plot);
+        let mut plot = Plot::histogram("Current Distribution");
+        plot.id("obc.charger.startup.sequence.current_distribution");
+        plot.unit("A");
+        plot.x(telemetry(STARTUP_STREAM, "current_a"));
+        distributions.plot(plot);
+        let mut plot = Plot::box_summary("Voltage by Phase");
+        plot.id("obc.charger.startup.sequence.voltage_by_phase");
+        plot.unit("V");
+        plot.series_by(telemetry(STARTUP_STREAM, "phase"));
+        plot.y(telemetry(STARTUP_STREAM, "voltage_v"));
+        distributions.plot(plot);
+        document.section(distributions);
+
+        let mut phase_breakdown = Section::new("Phase Breakdown");
+        let mut plot = Plot::bar("Mean Signal by Phase");
+        plot.id("obc.charger.startup.sequence.mean_signal_by_phase");
+        plot.unit("V");
+        plot.x(telemetry(STARTUP_STREAM, "phase"));
+        plot.y(telemetry(STARTUP_STREAM, "voltage_v").mean());
+        plot.y(telemetry(STARTUP_STREAM, "voltage_rms_v").mean());
+        phase_breakdown.plot(plot);
+        let mut plot = Plot::bar("Sample Count by Phase");
+        plot.id("obc.charger.startup.sequence.sample_count_by_phase");
+        plot.unit("samples");
+        plot.x(telemetry(STARTUP_STREAM, "phase"));
+        plot.y(telemetry(STARTUP_STREAM, "sample_index").count());
+        phase_breakdown.plot(plot);
+        let mut plot = Plot::xy_scatter("Signal Correlation");
+        plot.id("obc.charger.startup.sequence.signal_correlation");
+        plot.style(PlotStyle::Points);
+        plot.x(telemetry(STARTUP_STREAM, "voltage_v"));
+        plot.y(telemetry(STARTUP_STREAM, "current_a"));
+        plot.series_by(telemetry(STARTUP_STREAM, "phase"));
+        phase_breakdown.plot(plot);
+        document.section(phase_breakdown);
+
+        // === Current and Host Measurements === //
+
+        let mut current = Plot::time_series("AC Current");
+        current.id("obc.charger.startup.sequence.current");
+        current.unit("A");
+        current.y(telemetry(STARTUP_STREAM, "current_a"));
+        current.y(telemetry(STARTUP_STREAM, "current_rms_a"));
+
+        let mut ac_current = Section::new("AC Current");
+        ac_current.plot(current);
+        document.section(ac_current);
+
+        let section = system::section(STARTUP_TEMPLATE);
+
+        document.section(section);
+
+        document
     }
 }
 
@@ -487,156 +678,10 @@ impl Startup {
 
 /* === Private Functions === */
 
-async fn publish_runtime_sample<T, O, I>(
-    ctx: &mut StepContext<'_, T, O, I>, interval_s: f64, device: &mut Device, index: u64, total: u64, checkpoint: u64,
-) -> Result<(), Error> {
-    let reading = device.sample(index as f64 * interval_s);
-    let phase = if device.power == Power::Faulted {
-        "fault"
-    } else if index == 0 {
-        "start"
-    } else if index + 1 == total {
-        "complete"
-    } else if index + 1 == checkpoint {
-        "checkpoint"
-    } else if index < checkpoint {
-        "before_prompt"
-    } else {
-        "after_prompt"
-    };
-    measurement::publish::<Samples, _, _, _>(ctx, index, reading, phase).await;
-
-    Ok(())
-}
-
-// The charger's log lives outside the execution's artifact folder, where only
-// the watch's capture of it becomes evidence.
-fn charger_log() -> PathBuf {
-    let started = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
-    std::env::temp_dir().join(format!("obc-charger-{}-{started}.log", std::process::id()))
-}
-
 fn sample_range(start: u64, end: u64) -> Result<std::ops::Range<usize>, Error> {
     let start = usize::try_from(start).map_err(|_| Error::Observation("sample index exceeds platform capacity".into()))?;
     let end = usize::try_from(end).map_err(|_| Error::Observation("sample count exceeds platform capacity".into()))?;
     Ok(start..end)
-}
-
-fn signal(field: &str) -> dokime::expressions::DataExpression {
-    telemetry(STARTUP_STREAM, field)
-}
-
-fn voltage_distribution(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::histogram("Voltage Distribution");
-    plot.id(identifier);
-    plot.unit("V");
-    plot.x(signal("voltage_v"));
-
-    plot
-}
-
-fn current_distribution(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::histogram("Current Distribution");
-    plot.id(identifier);
-    plot.unit("A");
-    plot.x(signal("current_a"));
-
-    plot
-}
-
-fn voltage_by_phase(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::box_summary("Voltage by Phase");
-    plot.id(identifier);
-    plot.unit("V");
-    plot.series_by(signal("phase"));
-    plot.y(signal("voltage_v"));
-
-    plot
-}
-
-fn mean_signal_by_phase(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::bar("Mean Signal by Phase");
-    plot.id(identifier);
-    plot.unit("V");
-    plot.x(signal("phase"));
-    plot.y(signal("voltage_v").mean());
-    plot.y(signal("voltage_rms_v").mean());
-
-    plot
-}
-
-fn sample_count_by_phase(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::bar("Sample Count by Phase");
-    plot.id(identifier);
-    plot.unit("samples");
-    plot.x(signal("phase"));
-    plot.y(signal("sample_index").count());
-
-    plot
-}
-
-fn signal_correlation(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::xy_scatter("Signal Correlation");
-    plot.id(identifier);
-    plot.style(PlotStyle::Points);
-    plot.x(signal("voltage_v"));
-    plot.y(signal("current_a"));
-    plot.series_by(signal("phase"));
-
-    plot
-}
-
-fn startup_document() -> Document {
-    let mut document = Document::new("default", "Start-Up Sequence");
-
-    // === What One Execution Shows === //
-
-    let mut voltage = Plot::time_series("AC Voltage");
-    voltage.id("obc.charger.startup.sequence.signals");
-    voltage.unit("V");
-    voltage.style(PlotStyle::LinePoints);
-    voltage.y(signal("voltage_v"));
-    voltage.y(signal("voltage_rms_v"));
-    // The prompt markers are the host's own records, so they are named by id;
-    // this suite's are named by their type.
-    voltage.marker_records([
-        Started::marker(),
-        document::marker("prompt.request.form"),
-        document::marker("prompt.response.submitted"),
-        Completed::marker(),
-    ]);
-
-    let mut timeline = Section::new("Signal Timeline");
-    timeline.plot(voltage);
-    document.section(timeline);
-
-    let mut distributions = Section::new("Signal Distributions");
-    distributions.plot(voltage_distribution("obc.charger.startup.sequence.voltage_distribution"));
-    distributions.plot(current_distribution("obc.charger.startup.sequence.current_distribution"));
-    distributions.plot(voltage_by_phase("obc.charger.startup.sequence.voltage_by_phase"));
-    document.section(distributions);
-
-    let mut phase_breakdown = Section::new("Phase Breakdown");
-    phase_breakdown.plot(mean_signal_by_phase("obc.charger.startup.sequence.mean_signal_by_phase"));
-    phase_breakdown.plot(sample_count_by_phase("obc.charger.startup.sequence.sample_count_by_phase"));
-    phase_breakdown.plot(signal_correlation("obc.charger.startup.sequence.signal_correlation"));
-    document.section(phase_breakdown);
-
-    // === The Current, And The Host Around It === //
-
-    let mut current = Plot::time_series("AC Current");
-    current.id("obc.charger.startup.sequence.current");
-    current.unit("A");
-    current.y(signal("current_a"));
-    current.y(signal("current_rms_a"));
-
-    let mut ac_current = Section::new("AC Current");
-    ac_current.plot(current);
-    document.section(ac_current);
-
-    document.section(system::section(STARTUP_TEMPLATE));
-
-    document
 }
 
 /* === Tests === */

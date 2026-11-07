@@ -88,7 +88,7 @@ async fn soak_holds_band() {
         .expect("the soak runs");
 
     assert!(report.passed(), "{}", report.diagnostics());
-    assert_eq!(report.traceability("dut").row("firmware_version").text(), "sim-1.0");
+    assert_eq!(report.traceability("device.under.test").row("firmware.version").text(), "sim-1.0");
     assert_eq!(report.traceability("bench").row("target_c").number(), 60.0);
     // The stream is the row type that declared it, so the test names no id and
     // reads the fields the declaration named.

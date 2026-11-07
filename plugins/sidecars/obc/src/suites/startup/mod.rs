@@ -13,7 +13,7 @@ mod sequence;
 
 /* === Re-Exports === */
 
-pub use sequence::{Samples, Startup};
+pub use sequence::{Samples, Template as Startup};
 
 /* === Imports === */
 
@@ -41,7 +41,7 @@ pub struct StartupSuite;
 
 #[dokime::catalog]
 pub enum Templates {
-    Startup(sequence::Startup),
+    Startup(sequence::Template),
 }
 
 /* === Traits === */

@@ -8,12 +8,12 @@ $PSNativeCommandUseErrorActionPreference = $true
 # Connection Parameters
 $BACKEND_IDENTIFIER = 'lab'
 
-# Case And Execution Parameters
+# Case and Execution Parameters
 $TEMPLATE = 'obc.checks.pulse'
 $CYCLE_LABEL = 'Remote Pulse Demonstration'
 $SAMPLE_COUNT = 8
 $EXECUTION_COUNT = 2
-$WAIT_SECONDS = 60
+$WAIT_S = 60
 
 # Observation Filters
 $RECORD_TYPES = 'obc.run.*'
@@ -23,10 +23,10 @@ $STREAMS = 'obc.pulse'
 $OUTPUT_DIRECTORY = 'test-evidence'
 $OVERWRITE = $false
 
-# Connect With The Explicit Parameters
+# Connect with the Explicit Parameters
 $Connection = @('--backend', $BACKEND_IDENTIFIER)
 
-# Uncaptured Commands Retain Native Ctrl+C Recovery; UUIDs Travel In A File.
+# Uncaptured Commands Retain Native Ctrl+C Recovery; UUIDs Travel in a File.
 $CycleId = ''
 $ExecutionId = ''
 $Completed = $false
@@ -35,7 +35,7 @@ $Export = @()
 if ($OVERWRITE) { $Export = @('--overwrite') }
 
 try {
-    if ($WAIT_SECONDS -le 0) { throw 'WAIT_SECONDS Must Be Positive' }
+    if ($WAIT_S -le 0) { throw 'WAIT_S Must Be Positive' }
     New-Item -ItemType Directory -Force -Path $OUTPUT_DIRECTORY | Out-Null
     $Recovery = Join-Path $OUTPUT_DIRECTORY 'recovery'
     New-Item -ItemType Directory -Force -Path $Recovery | Out-Null
@@ -50,7 +50,7 @@ try {
         throw 'Evidence File Exists: cycle.zip'
     }
 
-    # Materialize One Immutable Case; Its ID Is Reused By Independent Attempts.
+    # Materialize One Immutable Case; Its ID Is Reused by Independent Attempts.
     $Parameters = @{ sample_count = $SAMPLE_COUNT } | ConvertTo-Json -Compress
     $Cases = @(dokime plan materialize --template $TEMPLATE --parameters-json $Parameters --id-only @Connection)
     if ($Cases.Count -ne 1) { throw 'Expected One Case' }
@@ -74,19 +74,19 @@ try {
         [Console]::Out.WriteLine("Execution: $SecondId")
     }
 
-    # Run Attempt 1; The Command Waits For Its Saved Outcome And Listener Drain.
+    # Run Attempt 1; the Command Waits for Its Saved Outcome and Listener Drain.
     $ExecutionId = $FirstId
-    dokime execution run $FirstId --records --samples --record-type $RECORD_TYPES --stream $STREAMS --wait-seconds $WAIT_SECONDS --cancel-on-interrupt --owned-cycle $CycleId --recovery-directory $Recovery @Connection
+    dokime execution run $FirstId --records --samples --record-type $RECORD_TYPES --stream $STREAMS --wait-seconds $WAIT_S --cancel-on-interrupt --owned-cycle $CycleId --recovery-directory $Recovery @Connection
     dokime execution export $FirstId --output (Join-Path $OUTPUT_DIRECTORY 'execution-1.zip') @Export --cancel-on-interrupt --owned-cycle $CycleId --recovery-directory $Recovery @Connection
 
     if ($EXECUTION_COUNT -eq 2) {
-        # Run Attempt 2; The Command Waits For Its Saved Outcome And Listener Drain.
+        # Run Attempt 2; the Command Waits for Its Saved Outcome and Listener Drain.
         $ExecutionId = $SecondId
-        dokime execution run $SecondId --records --samples --record-type $RECORD_TYPES --stream $STREAMS --wait-seconds $WAIT_SECONDS --cancel-on-interrupt --owned-cycle $CycleId --recovery-directory $Recovery @Connection
+        dokime execution run $SecondId --records --samples --record-type $RECORD_TYPES --stream $STREAMS --wait-seconds $WAIT_S --cancel-on-interrupt --owned-cycle $CycleId --recovery-directory $Recovery @Connection
         dokime execution export $SecondId --output (Join-Path $OUTPUT_DIRECTORY 'execution-2.zip') @Export --cancel-on-interrupt --owned-cycle $CycleId --recovery-directory $Recovery @Connection
     }
 
-    # Seal The Cycle And Download All Members Into cycle.zip.
+    # Seal the Cycle and Download All Members into cycle.zip.
     dokime cycle seal $CycleId @Connection
     dokime cycle export $CycleId --output (Join-Path $OUTPUT_DIRECTORY 'cycle.zip') @Export @Connection
     $Completed = $true

@@ -5,12 +5,12 @@ set -eu
 # Connection Parameters
 BACKEND_IDENTIFIER="lab"
 
-# Case And Execution Parameters
+# Case and Execution Parameters
 TEMPLATE="obc.checks.pulse"
 CYCLE_LABEL="Remote Pulse Demonstration"
 SAMPLE_COUNT=8
 EXECUTION_COUNT=2
-WAIT_SECONDS=60
+WAIT_S=60
 
 # Observation Filters
 RECORD_TYPES="obc.run.*"
@@ -20,18 +20,18 @@ STREAMS="obc.pulse"
 OUTPUT_DIRECTORY="test-evidence"
 OVERWRITE=false
 
-# Select The Imported Profile Once; Each Call Below Shows Its Remote Command.
+# Select the Imported Profile Once; Each Call Below Shows Its Remote Command.
 set -- --backend "$BACKEND_IDENTIFIER"
 
 cycle=""
 execution=""
 destination=""
-case "$WAIT_SECONDS" in ''|*[!0-9]*|0) printf 'WAIT_SECONDS Must Be A Positive Integer\n' >&2; exit 2 ;; esac
+case "$WAIT_S" in ''|*[!0-9]*|0) printf 'WAIT_S Must Be A Positive Integer\n' >&2; exit 2 ;; esac
 mkdir -p "$OUTPUT_DIRECTORY/recovery"
 overwrite=""
 if [ "$OVERWRITE" = true ]; then overwrite="--overwrite"; fi
 
-# Recover Only This Script-Owned Cycle If The Shell Is Interrupted Between Calls.
+# Recover Only This Script-Owned Cycle If the Shell Is Interrupted Between Calls.
 trap '
     trap "" INT TERM
     if [ -z "$cycle" ]; then
@@ -51,7 +51,7 @@ trap '
     exit 130
 ' INT TERM
 
-# The Story Spells Out Two Attempts; Keep One To Study A Single Run.
+# The Story Spells Out Two Attempts; Keep One to Study a Single Run.
 case "$EXECUTION_COUNT" in 1|2) ;; *) printf 'EXECUTION_COUNT Must Be 1 Or 2\n' >&2; exit 2 ;; esac
 
 # Preserve Existing execution-1.zip Before Starting Device Work.
@@ -72,7 +72,7 @@ if [ "$OVERWRITE" != true ] && { [ -e "$OUTPUT_DIRECTORY/cycle.zip" ] || [ -L "$
     exit 2
 fi
 
-# Materialize The Immutable Case; Its ID Is Reused By Independent Attempts.
+# Materialize the Immutable Case; Its ID Is Reused by Independent Attempts.
 case_id=$(dokime plan materialize --template "$TEMPLATE" --parameters-json "{\"sample_count\":$SAMPLE_COUNT}" --id-only "$@")
 case "$case_id" in ''|*'
 '*) printf 'Expected One Case\n' >&2; exit 2 ;; esac
@@ -91,20 +91,20 @@ if [ "$EXECUTION_COUNT" = 2 ]; then
     printf 'Execution: %s\n' "$second"
 fi
 
-# Run Attempt 1; The Command Waits For Its Saved Outcome And Listener Drain.
+# Run Attempt 1; the Command Waits for Its Saved Outcome and Listener Drain.
 execution="$first"
 destination="$OUTPUT_DIRECTORY/execution-1.zip"
-dokime execution run "$first" --records --samples --record-type "$RECORD_TYPES" --stream "$STREAMS" --wait-seconds "$WAIT_SECONDS" --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
+dokime execution run "$first" --records --samples --record-type "$RECORD_TYPES" --stream "$STREAMS" --wait-seconds "$WAIT_S" --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
 dokime execution export "$first" --output "$OUTPUT_DIRECTORY/execution-1.zip" ${overwrite:+"$overwrite"} --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
 
 if [ "$EXECUTION_COUNT" = 2 ]; then
-    # Run Attempt 2; The Command Waits For Its Saved Outcome And Listener Drain.
+    # Run Attempt 2; the Command Waits for Its Saved Outcome and Listener Drain.
     execution="$second"
     destination="$OUTPUT_DIRECTORY/execution-2.zip"
-    dokime execution run "$second" --records --samples --record-type "$RECORD_TYPES" --stream "$STREAMS" --wait-seconds "$WAIT_SECONDS" --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
+    dokime execution run "$second" --records --samples --record-type "$RECORD_TYPES" --stream "$STREAMS" --wait-seconds "$WAIT_S" --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
     dokime execution export "$second" --output "$OUTPUT_DIRECTORY/execution-2.zip" ${overwrite:+"$overwrite"} --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
 fi
 
-# Seal The Cycle And Download All Members Into cycle.zip.
+# Seal the Cycle and Download All Members into cycle.zip.
 dokime cycle seal "$cycle" "$@"
 dokime cycle export "$cycle" --output "$OUTPUT_DIRECTORY/cycle.zip" ${overwrite:+"$overwrite"} "$@"
