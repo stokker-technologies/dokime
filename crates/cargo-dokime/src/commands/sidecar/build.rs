@@ -43,8 +43,8 @@ pub async fn run(args: Args) -> Result<(), crate::error::Error> {
         if args.json {
             println!("{}", serde_json::to_string(&collected)?);
         } else {
-            for (name, (path, _)) in &collected.executables {
-                println!("{name}: {}", path.display());
+            for artifact in &collected.build.artifacts {
+                println!("{}: {}", artifact.name, artifact.path.display());
             }
         }
         return Ok(());
