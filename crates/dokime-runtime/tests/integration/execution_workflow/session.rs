@@ -578,14 +578,38 @@ pub(crate) async fn cancellation_retains_verdict() {
         let log_path = log.relative_path.clone();
         let checkpoint = handle.execution_saved_checkpoint(execution.test_execution_id.clone()).await.unwrap();
         let log = without_timestamps(std::str::from_utf8(&content.bytes).unwrap());
+        let mut diagnostics = Vec::new();
+        let mut attempts = Vec::new();
+        for line in log.lines() {
+            let event = line.strip_prefix("[INFO] ").and_then(|message| serde_json::from_str::<serde_json::Value>(message).ok());
+            if let Some(attempt) = event.filter(|event| event["kind"] == "operation_attempt") {
+                attempts.push(attempt);
+            } else {
+                diagnostics.push(line);
+            }
+        }
+        let [attempt] = attempts.as_slice() else {
+            panic!("one provider invocation retains one operation attempt: {attempts:?}");
+        };
+        assert_eq!(attempt["operation"], "dokime.template.run");
+        assert_eq!(attempt["outcome"], if mode == Settlement::Refused { "failed" } else { "succeeded" });
+        assert!(attempt["instance"].as_u64().is_some());
+        assert!(attempt["generation"].as_u64().is_some());
         if mode == Settlement::Refused {
-            assert!(log.starts_with("[ERROR] "), "{log}");
-            assert!(log.contains("run refused during cancellation"), "{log}");
+            assert!(diagnostics[0].starts_with("[ERROR] "), "{log}");
+            assert!(diagnostics[0].contains("run refused during cancellation"), "{log}");
         } else {
-            assert_eq!(
-                log,
-                "[TRACE] trace detail\n[DEBUG] debug detail\n[INFO] fixture cancellation settled\n[WARN] warning\n[WARN] continued\n[ERROR] error detail\n[INFO] \n[UNKNOWN(99)] unknown detail\n"
-            );
+            let mut lines = diagnostics.into_iter();
+            for entry in cancellation_log() {
+                let level = Level::try_from(entry.level)
+                    .map(|level| format!("{level:?}").to_uppercase())
+                    .unwrap_or_else(|_| format!("UNKNOWN({})", entry.level));
+                for message in entry.message.split('\n') {
+                    let expected = format!("[{level}] {message}");
+                    assert_eq!(lines.next(), Some(expected.as_str()));
+                }
+            }
+            assert!(lines.next().is_none());
         }
         drop(handle);
         owner.shutdown().await.unwrap();
