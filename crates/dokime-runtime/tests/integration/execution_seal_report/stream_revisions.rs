@@ -180,8 +180,8 @@ async fn stream_revisions_reload_and_restart_reports() {
             drop(owner);
             owner = dokime_runtime::Runtime::start(config(root.path()).register(Arc::new(Provider(Variant::Initial)))).await.unwrap();
             handle = owner.handle();
-            let recovered = cycle_snapshot(&handle, &cycle).await;
-            assert_eq!(recovered.phase, dokime_domain::model::execution::result::CyclePhase::Sealed);
+            let recovered = handle.saved_cycle_header(&cycle).await.unwrap().unwrap();
+            assert_eq!(recovered.cycle.phase, dokime_domain::model::execution::result::CyclePhase::Sealed);
             Some(execution)
         } else {
             None
