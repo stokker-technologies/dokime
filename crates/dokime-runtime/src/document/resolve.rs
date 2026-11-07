@@ -723,6 +723,7 @@ pub(crate) fn resolve_normalized(
     definition: crate::document::DocumentDefinition, selection: crate::document::DocumentSelection, data: BorrowedData<'_>,
     materialize_plots: bool, limits: DocumentLimits,
 ) -> Result<DocumentPayload> {
+    definition.validate_identity().map_err(|issue| DocumentFailure::InvalidDefinition { issues: vec![issue] })?;
     let crate::document::DocumentDefinition {
         document_id,
         metadata,
