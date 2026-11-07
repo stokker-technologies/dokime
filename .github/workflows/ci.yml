@@ -1258,7 +1258,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_product
     - impact
@@ -1561,7 +1561,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_product
     - impact
@@ -4320,7 +4320,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
     needs:
     - build_product
     - build_tests
