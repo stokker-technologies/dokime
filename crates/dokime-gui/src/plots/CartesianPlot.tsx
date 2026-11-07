@@ -34,7 +34,7 @@ import { isNumber } from "@/lib/utils";
 import { formatBooleanState, formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
 import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
-import { drawMarkerKinds, type MarkerRange, type MarkerTooltip, markerKinds, markerLegendRows, markerTooltip } from "@/plots/markers";
+import { drawMarkerKinds, type MarkerTooltip, markerKinds, markerTooltip } from "@/plots/markers";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PromptMarker } from "@/plots/prompt-markers";
@@ -231,14 +231,8 @@ export const CartesianPlot = memo(function CartesianPlot({
   const kinds = useMemo(() => markerKinds(markers, promptMarkers), [markers, promptMarkers]);
   const kindsRef = useRef(kinds);
   kindsRef.current = kinds;
-  const [hiddenMarkers, setHiddenMarkers] = useState<ReadonlySet<string>>(EMPTY_TRACES);
-  const hiddenMarkersRef = useRef(hiddenMarkers);
-  hiddenMarkersRef.current = hiddenMarkers;
-  const [markerColors, setMarkerColors] = useState<string[]>([]);
-  const markerColorsRef = useRef(markerColors);
-  markerColorsRef.current = markerColors;
-  const [markerRange, setMarkerRange] = useState<MarkerRange>(null);
-  const tableLegend = legend !== null || kinds.length > 0;
+  const markerColorsRef = useRef<string[]>([]);
+  const tableLegend = legend !== null;
   const [following, setFollowing] = useState(true);
   const heldRangeRef = useRef<HeldViewport | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -349,7 +343,6 @@ export const CartesianPlot = memo(function CartesianPlot({
     const themeColors = resolvePlotThemeColors(root);
     const resolvedMarkerColors = kindsRef.current.map((_, index) => themeColors.palette[index % themeColors.palette.length]);
     markerColorsRef.current = resolvedMarkerColors;
-    setMarkerColors((current) => (current.join("|") === resolvedMarkerColors.join("|") ? current : resolvedMarkerColors));
     const plotFont = resolvePlotFont(root);
     const fallbackSeriesColor = themeColors.palette[0] ?? themeColors.foreground;
     const resolvedSeriesColors = renderedSeries.map((item) => {
@@ -405,7 +398,6 @@ export const CartesianPlot = memo(function CartesianPlot({
             const { min, max } = plot.scales.x;
             if (min == null || max == null) return;
             const range = { min, max };
-            setMarkerRange((current) => (current?.min === min && current.max === max ? current : range));
             if (windowServes(drawnRef.current, range)) return;
             queueMicrotask(() => {
               if (plotRef.current !== plot) return;
@@ -432,7 +424,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         setCursor: [
           (plot) => {
             const left = plot.cursor.left;
-            const nextTooltip = markerTooltip(plot, kindsRef.current, hiddenMarkersRef.current, root.getBoundingClientRect());
+            const nextTooltip = markerTooltip(plot, kindsRef.current, root.getBoundingClientRect());
             setHoveredMarker((current) => {
               if (!nextTooltip) return current ? null : current;
               return current?.key === nextTooltip.key &&
@@ -465,7 +457,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         draw: [
           (plot) => {
             drawIntervalRanges(plot, intervalRangesRef.current, resolvedSeriesColors[0] ?? fallbackSeriesColor);
-            drawMarkerKinds(plot, kindsRef.current, hiddenMarkersRef.current, markerColorsRef.current);
+            drawMarkerKinds(plot, kindsRef.current, markerColorsRef.current);
             drawReferenceLines(plot, referenceLinesRef.current, root, themeColors.foreground);
           },
         ],
@@ -754,23 +746,14 @@ export const CartesianPlot = memo(function CartesianPlot({
     xElapsedUnit,
     xFormat,
   ]);
-  const legendColumns = useMemo(() => {
-    const columns = seriesLegendColumns(unit);
-    return legend ? columns : columns.filter(({ id }) => id === "trace" || id === "count");
-  }, [unit, legend]);
-  const markerRows = useMemo(
-    () => markerLegendRows(kinds, hiddenMarkers, markerRange, markerColors),
-    [kinds, hiddenMarkers, markerRange, markerColors],
-  );
+  const legendColumns = useMemo(() => seriesLegendColumns(unit), [unit]);
 
   useEffect(() => {
-    hiddenMarkersRef.current = hiddenMarkers;
     const root = rootRef.current;
     if (root) {
       const theme = resolvePlotThemeColors(root);
       const colors = kinds.map((_, index) => theme.palette[index % theme.palette.length]);
       markerColorsRef.current = colors;
-      setMarkerColors((current) => (current.join("|") === colors.join("|") ? current : colors));
     }
     referenceLinesRef.current = referenceLines;
     referenceBandsRef.current = referenceBands;
@@ -785,7 +768,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         plot.redraw(true, true);
       }
     });
-  }, [intervalRanges, kinds, hiddenMarkers, referenceBands, referenceLines]);
+  }, [intervalRanges, kinds, referenceBands, referenceLines]);
 
   useEffect(() => {
     const plot = plotRef.current;
@@ -909,14 +892,9 @@ export const CartesianPlot = memo(function CartesianPlot({
         <StatsSummaryTable
           legend={{
             columns: legendColumns,
-            rows: [...legendRows, ...markerRows],
+            rows: legendRows,
             pending: legend?.pending ?? false,
-            onToggle: (key) => {
-              if (kinds.some((kind) => kind.key === key)) {
-                setHiddenMarkers((current) => toggleTrace(current, key));
-                setHoveredMarker(null);
-              } else setHiddenTraces((current) => toggleTrace(current, key));
-            },
+            onToggle: (key) => setHiddenTraces((current) => toggleTrace(current, key)),
           }}
         />
       ) : null}
