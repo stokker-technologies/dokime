@@ -198,23 +198,25 @@ impl Template {
         let reading = ctx.operation(operation).await?;
 
         // === Device Under Test === //
-        let mut section = TraceabilitySection::new("dut", "Device Under Test");
+        let mut section = TraceabilitySection::new("Device Under Test");
 
-        let serial_number = TraceabilityRow::text("serial_number", "Serial Number", &identity.serial_number);
+        let serial_number = TraceabilityRow::text("Serial Number", &identity.serial_number);
         section.row(serial_number);
 
-        let firmware_version = TraceabilityRow::text("firmware_version", "Firmware Version", &identity.firmware_version);
+        let firmware_version = TraceabilityRow::text("Firmware Version", &identity.firmware_version);
         section.row(firmware_version);
 
         ctx.traceability().section(section);
 
         // === Test Bench === //
-        let mut section = TraceabilitySection::new("bench", "Test Bench");
+        // Keep the edit key stable when the section label changes.
+        let mut section = TraceabilitySection::new("Test Bench");
+        section.id("bench");
 
-        let sensor = TraceabilityRow::text("sensor", "Sensor", &reading.sensor);
+        let sensor = TraceabilityRow::text("Sensor", &reading.sensor);
         section.row(sensor);
 
-        let target_c = TraceabilityRow::number("target_c", "Target", ctx.parameters().target_c);
+        let target_c = TraceabilityRow::number("Target", ctx.parameters().target_c).id("target_c");
         let target_c = target_c.unit("°C");
         section.row(target_c);
 
@@ -244,7 +246,7 @@ impl Template {
         dokime::info!(ctx, "heater set to {:.1} °C", ctx.parameters().target_c);
 
         // Update Target Traceability
-        let target_c = TraceabilityRow::number("target_c", "Target", ctx.parameters().target_c);
+        let target_c = TraceabilityRow::number("Target", ctx.parameters().target_c).id("target_c");
         let target_c = target_c.unit("°C");
         ctx.traceability().row("bench", target_c);
 

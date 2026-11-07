@@ -1114,10 +1114,12 @@ record.
 Steps contribute traceability through their context, alongside document additions:
 
 ```rust
-ctx.traceability().section(TraceabilitySection::new("dut", "Device Under Test"));
-ctx.traceability().row("dut", TraceabilityRow::text("serial", "Serial", "SN-7"));
+let mut section = TraceabilitySection::new("Device Under Test");
+section.id("dut"); // Keep the key stable across label changes.
+ctx.traceability().section(section);
+ctx.traceability().row("dut", TraceabilityRow::text("Serial", "SN-7"));
 // A later step can correct the same row without duplicating it.
-ctx.traceability().row("dut", TraceabilityRow::text("serial", "Serial", "SN-8"));
+ctx.traceability().row("dut", TraceabilityRow::text("Serial", "SN-8"));
 ```
 
 `section` adds or replaces the complete section by identifier. `row` adds or

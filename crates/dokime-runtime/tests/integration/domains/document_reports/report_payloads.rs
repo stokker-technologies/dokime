@@ -938,16 +938,16 @@ pub(super) async fn stated_section_wrote() {
         traceability_id: dokime_runtime::model::identity::new_id::<TraceabilityId>(),
         scope: execution_scope,
         created_at: dokime_runtime::model::time::now_utc(),
-        metadata: Some(metadata("dut", "Device Under Test")),
+        metadata: Some(metadata("device.under.test", "Device Under Test")),
         entries: vec![
             TraceabilityEntry {
-                metadata: metadata("instrument_serial", "Instrument serial"),
+                metadata: metadata("instrument.serial", "Instrument serial"),
                 value: Value::from("SN-7"),
                 source: Some("traceability.template.device".to_owned()),
                 unit: None,
             },
             TraceabilityEntry {
-                metadata: metadata("nominal_voltage_rms_v", "Nominal Supply"),
+                metadata: metadata("nominal.supply", "Nominal Supply"),
                 value: Value::from(230.0),
                 source: Some("traceability.template.device".to_owned()),
                 unit: Some("V".to_owned()),

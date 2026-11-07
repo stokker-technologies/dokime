@@ -235,17 +235,17 @@ impl Steady {
         let supply = ctx.resources().device.lock().map_err(|_| Error::DeviceResourcePoisoned)?.supply;
 
         // Device Under Test
-        let mut dut = TraceabilitySection::new("dut", "Device Under Test");
-        dut.row(TraceabilityRow::text("model", "Model", "ObcPlugin AC load"));
-        dut.row(TraceabilityRow::number("nominal_voltage_rms_v", "Nominal Supply", supply.voltage_rms_v).unit("V").source("device"));
-        dut.row(TraceabilityRow::number("load_ohm", "Load Impedance", supply.load_ohm).unit("ohm").source("device"));
-        dut.row(TraceabilityRow::number("frequency_hz", "Line Frequency", supply.frequency_hz).unit("Hz").source("device"));
-        dut.row(TraceabilityRow::number("current_limit_a", "Protection Limit", supply.current_limit_a).unit("A").source("device"));
+        let mut dut = TraceabilitySection::new("Device Under Test");
+        dut.row(TraceabilityRow::text("Model", "ObcPlugin AC load"));
+        dut.row(TraceabilityRow::number("Nominal Supply", supply.voltage_rms_v).unit("V").source("device"));
+        dut.row(TraceabilityRow::number("Load Impedance", supply.load_ohm).unit("ohm").source("device"));
+        dut.row(TraceabilityRow::number("Line Frequency", supply.frequency_hz).unit("Hz").source("device"));
+        dut.row(TraceabilityRow::number("Protection Limit", supply.current_limit_a).unit("A").source("device"));
 
         // Bench
-        let mut bench = TraceabilitySection::new("bench", "Bench");
-        bench.row(TraceabilityRow::text("application", "Application", "ObcPlugin testbench"));
-        bench.row(TraceabilityRow::number("sample_interval_s", "Sample Interval", ctx.resources().interval_s).unit("s"));
+        let mut bench = TraceabilitySection::new("Bench");
+        bench.row(TraceabilityRow::text("Application", "ObcPlugin testbench"));
+        bench.row(TraceabilityRow::number("Sample Interval", ctx.resources().interval_s).unit("s"));
 
         ctx.traceability().section(dut);
         ctx.traceability().section(bench);

@@ -21,9 +21,9 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::model::execution::RecordScope;
-use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::identity::TraceabilityId;
+use crate::model::identity::{Identifier, identifier_from_label};
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
 
@@ -140,12 +140,14 @@ impl harmos::MemorySize for TraceabilityRow {
 }
 
 impl TraceabilitySection {
-    pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        Self {
-            identifier: Identifier::declared(identifier, "traceability section"),
-            label: label.into(),
-            rows: Vec::new(),
-        }
+    pub fn new(label: impl Into<String>) -> Self {
+        let label = label.into();
+        let identifier = identifier_from_label(&label);
+        Self { identifier, label, rows: Vec::new() }
+    }
+
+    pub fn id(&mut self, identifier: impl AsRef<str>) {
+        self.identifier = Identifier::new(identifier.as_ref()).unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
     }
 
     // Sections grow by statements, as a document `Section` does; a row is
@@ -160,30 +162,38 @@ impl TraceabilitySection {
 }
 
 impl TraceabilityRow {
-    pub fn new(identifier: impl Into<String>, label: impl Into<String>, value: Value) -> Self {
+    pub fn new(label: impl Into<String>, value: Value) -> Self {
+        let label = label.into();
+        let identifier = identifier_from_label(&label);
         Self {
-            identifier: Identifier::declared(identifier, "traceability row"),
-            label: label.into(),
+            identifier,
+            label,
             value,
             unit: None,
             source: None,
         }
     }
 
-    pub fn text(identifier: impl Into<String>, label: impl Into<String>, value: impl Into<String>) -> Self {
-        Self::new(identifier, label, Value::Text(value.into()))
+    pub fn text(label: impl Into<String>, value: impl Into<String>) -> Self {
+        Self::new(label, Value::Text(value.into()))
     }
 
-    pub fn number(identifier: impl Into<String>, label: impl Into<String>, value: f64) -> Self {
-        Self::new(identifier, label, Value::Number(value))
+    pub fn number(label: impl Into<String>, value: f64) -> Self {
+        Self::new(label, Value::Number(value))
     }
 
-    pub fn integer(identifier: impl Into<String>, label: impl Into<String>, value: i64) -> Self {
-        Self::new(identifier, label, Value::Integer(value))
+    pub fn integer(label: impl Into<String>, value: i64) -> Self {
+        Self::new(label, Value::Integer(value))
     }
 
-    pub fn boolean(identifier: impl Into<String>, label: impl Into<String>, value: bool) -> Self {
-        Self::new(identifier, label, Value::Bool(value))
+    pub fn boolean(label: impl Into<String>, value: bool) -> Self {
+        Self::new(label, Value::Bool(value))
+    }
+
+    #[must_use]
+    pub fn id(mut self, identifier: impl AsRef<str>) -> Self {
+        self.identifier = Identifier::new(identifier.as_ref()).unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
+        self
     }
 
     #[must_use]
@@ -271,3 +281,52 @@ pub fn derived_traceability_group_named(identifier: &str) -> Option<DerivedTrace
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::document::DocumentSection;
+
+    #[test]
+    fn constructors_share_document_identity_normalization() {
+        for label in ["Supply RMS [V]", "  Mixed__Separators / Values  ", "", "---", "Étage 42"] {
+            let document = DocumentSection::new(label);
+            let section = TraceabilitySection::new(label);
+            assert_eq!(section.identifier, document.metadata.identifier);
+            let rows = [
+                TraceabilityRow::new(label, Value::Text("data".into())),
+                TraceabilityRow::text(label, "data"),
+                TraceabilityRow::number(label, 2.5),
+                TraceabilityRow::integer(label, 7),
+                TraceabilityRow::boolean(label, true),
+            ];
+            for row in rows {
+                assert_eq!(row.identifier, section.identifier);
+                assert_eq!(row.label, label);
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_ids_preserve_values_and_replace_across_labels() {
+        let mut section = TraceabilitySection::new("Initial");
+        section.id("fixture.stable");
+        section.row(TraceabilityRow::text("Initial Reading", "SN-1").id("serial_number").unit("V").source("fixture"));
+        let mut replacement = TraceabilitySection::new("Revised");
+        replacement.id("fixture.stable");
+        replacement.row(TraceabilityRow::number("Revised Reading", 3.5).id("serial_number").unit("V").source("fixture"));
+        let mut sections = vec![section, TraceabilitySection::new("Other")];
+        upsert_section(&mut sections, replacement.clone());
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0], replacement);
+        assert_eq!(sections[0].rows[0].value, Value::Number(3.5));
+        assert_eq!(sections[0].rows[0].unit.as_deref(), Some("V"));
+        assert_eq!(sections[0].rows[0].source.as_deref(), Some("fixture"));
+        let mut document = DocumentSection::new("Before");
+        document.id("Invalid / Explicit");
+        let mut section = TraceabilitySection::new("After");
+        section.id("Invalid / Explicit");
+        assert_eq!(section.identifier, document.metadata.identifier);
+        assert_eq!(TraceabilityRow::boolean("Flag", true).id("Invalid / Explicit").identifier, section.identifier);
+    }
+}
