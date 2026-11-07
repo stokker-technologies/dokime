@@ -115,6 +115,20 @@ Focused compilation retains compiler preflight; Clippy is an explicit choice wit
 `mise run build:rust:focused -- clippy <arguments>`.
 Use `mise run lint:rust --extended` for local compatibility lint coverage.
 
+For a compiler check covering the workspace targets and features selected by
+Build / Product and Build / Tests, including the Python SDK and its examples:
+
+```sh
+mise run build:rust:focused -- check --locked --workspace --all-targets --features plugin-host/runtime,dokime-runtime/testing,dokime-gui/testing,tauri/custom-protocol
+```
+
+An ordinary workspace check omits `plugin-host/runtime`: the host's default
+features expose definitions only, and its binary and integration tests require
+`runtime`. `--all-targets` includes test harnesses and examples. This compiler
+check does not link products, create test archives or run compile-contract cases;
+the canonical producers below own those outputs. Release builds additionally
+select `dokime-server/media-native`.
+
 Build matching artifacts, then run every test lane concurrently (the five-minute
 execution target is advisory and excludes compilation):
 
