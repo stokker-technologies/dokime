@@ -55,7 +55,7 @@ export function AboutSection() {
           Apache License 2.0
         </SettingsRow>
         <div className="flex justify-end px-4 py-3">
-          <Button variant="outline" disabled={!isTauriDesktop()} onClick={() => setUpdatesOpen(true)}>
+          <Button data-testid="desktop-updates-open" variant="outline" disabled={!isTauriDesktop()} onClick={() => setUpdatesOpen(true)}>
             Check for Updates
           </Button>
         </div>

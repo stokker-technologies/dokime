@@ -274,6 +274,7 @@ function ParameterEditorRow({
             <TooltipTrigger asChild>
               <Button
                 aria-label={`Reset to ${resetTargetLabel(row)}`}
+                data-testid="parameter-reset"
                 onClick={() => onResetRow(row.name)}
                 size="icon-sm"
                 type="button"
