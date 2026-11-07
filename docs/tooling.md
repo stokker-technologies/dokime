@@ -132,3 +132,30 @@ an explanation. Inspect those paths and establish that their owner has stopped
 before removing them manually. New versioned stable paths allow simulations to
 start while unverifiable legacy directories remain. Never delete a native lease
 file or redirect TEMP into the checkout.
+
+## Windows Boundary (Open Question)
+
+Linux and Windows are required equally on pull requests. Check / Rust, the Rust
+unit, integration, acceptance and system lanes, and the TypeScript system lane
+each run on both runners. Most platform-specific code concerns child processes:
+
+- `crates/dokime-packaging/src/process/owner.rs` owns a native process tree
+  (process group or session on Unix, a JobObject without a console on Windows)
+  for `cargo-dokime` development launches.
+- Harmos `crates/harmos-packaging/src/process.rs` owns Cargo build process trees
+  with the same `process_wrap` wrappers, synchronously.
+- `crates/dokime-domain/src/process/` is the one `Command` constructor that
+  starts Windows children without a console; Harmos `harmos-sidecar` sets the
+  same flag for sidecars.
+
+Two ways to shrink this boundary have been suggested. Neither has been chosen.
+
+1. **One child-process owner in Harmos.** Harmos exports a process-tree owner
+   and `process/owner.rs` is replaced by it, so the Windows spawn and kill logic
+   lives and is tested in one place.
+2. **A narrower Windows test selection on pull requests.** Windows runs the
+   system tests plus the integration tests of crates that touch files,
+   processes and pipes; Linux keeps the full set. This changes the current rule
+   that every test lane runs on Windows for pull requests.
+
+The two are independent: either, both or neither can apply.
