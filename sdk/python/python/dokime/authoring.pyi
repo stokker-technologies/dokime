@@ -59,25 +59,18 @@ __all__ = [
 
 type ReferenceValue = float | Mapping[str, Any]
 
-
 class ReferenceLine(TypedDict):
-    """A Y-axis reference in stored units, scaled with the plot data."""
-
     label: NotRequired[str]
     color: NotRequired[str]
     value: ReferenceValue
 
-
 class ReferenceBand(TypedDict, total=False):
-    """Y-axis bounds or center ± tolerance in stored units, scaled with the data."""
-
     label: str
     color: str
     min: ReferenceValue
     max: ReferenceValue
     center: ReferenceValue
     tolerance: ReferenceValue
-
 
 class RegistrationError(ValueError): ...
 

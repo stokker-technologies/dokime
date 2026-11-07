@@ -166,6 +166,27 @@ requires a positive finite constant and refuses other plot kinds, custom analyse
 and alternate x axes. Filters and section repeats still use stored units;
 evidence, exports, criteria, query plans and expressions remain unchanged.
 
+Reference bands and lines belong to the plot and always use its Y axis. Bounds,
+centers, tolerances and line values accept `f64` or an existing expression handle
+(or `DataExpression`); constants do not become data expressions, so
+`plot.y(10.0)` is still invalid. All reference values use stored units and scale
+with the data when `plot.scale(...)` is set:
+
+```rust
+plot.reference_band("Requirement", -10.0, 10.0);
+plot.reference_band("Limits", Parameters::lower_limit_c(), Parameters::upper_limit_c());
+plot.reference_tolerance("Requirement", 0.0, Parameters::angle_tolerance_arcsec());
+plot.reference_tolerance("Target ± Band", Parameters::target_c(), Parameters::band_c());
+plot.reference_line("Limit", Parameters::limit_c());
+```
+
+Each case resolves its captured parameter values through the same presentation
+path in live plots and frozen HTML. Missing or invalid dynamic bounds are undrawn.
+Document validation refuses reversed literal bounds and negative literal tolerance,
+naming the plot. The development document/storage format stays at v1; existing
+incompatible documents require an explicit fresh storage root, preserving old data.
+
+
 Live and frozen report plots retain samples from the selected execution,
 including shared streams captured by its leases. Authored stream aliases resolve
 to the captured producer streams. Running reports freeze one saved evidence cut;
@@ -382,26 +403,6 @@ from Inspect. Frozen HTML retains its original media and download links under
   with their session or subscription owner. Canceling a subscription does not stop
   the backend producer. WebView TLS requires platform-trusted certificates.
 
-
-Reference bands and lines belong to the plot and always use its Y axis. Bounds,
-centers, tolerances and line values accept `f64` or an existing expression handle
-(or `DataExpression`); constants do not become data expressions, so
-`plot.y(10.0)` is still invalid. All reference values use stored units and scale
-with the data when `plot.scale(...)` is set:
-
-```rust
-plot.reference_band("Requirement", -10.0, 10.0);
-plot.reference_band("Limits", Parameters::lower_limit_c(), Parameters::upper_limit_c());
-plot.reference_tolerance("Requirement", 0.0, Parameters::angle_tolerance_arcsec());
-plot.reference_tolerance("Target ± Band", Parameters::target_c(), Parameters::band_c());
-plot.reference_line("Limit", Parameters::limit_c());
-```
-
-Each case resolves its captured parameter values through the same presentation
-path in live plots and frozen HTML. Missing or invalid dynamic bounds are undrawn.
-Document validation refuses reversed literal bounds and negative literal tolerance,
-naming the plot. The development document/storage format stays at v1; existing
-incompatible documents require an explicit fresh storage root, preserving old data.
 
 ## Failure Presentation
 

@@ -257,13 +257,7 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
                       strokeDasharray="5 3"
                     />
                     {line.label ? (
-                      <text
-                        x={MARGIN.left + 4}
-                        y={Math.max(coordinate - 4, MARGIN.top + 14)}
-                        fill={color}
-                        fontSize={11}
-                        textAnchor={"start"}
-                      >
+                      <text x={MARGIN.left + 4} y={Math.max(coordinate - 4, MARGIN.top + 14)} fill={color} fontSize={11} textAnchor="start">
                         {line.label}
                       </text>
                     ) : null}

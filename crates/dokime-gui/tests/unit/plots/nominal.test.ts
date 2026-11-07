@@ -1066,7 +1066,7 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
   }
   for (const mode of ["light", "dark"] as const) {
     const html = renderToStaticMarkup(
-      createElement(ApplicationThemeProvider, { value: { resolvedTheme: mode, setTheme() {} } }, createElement(Palette)),
+      createElement(ApplicationThemeProvider, { value: { resolvedTheme: mode, setTheme() {} }, children: createElement(Palette) }),
     );
     assert.equal(html, renderToStaticMarkup(createElement("output", null, JSON.stringify(family[mode].plot_palette))));
   }
@@ -1790,7 +1790,7 @@ test("Report Metadata Subtitles", () => {
 
 test("Reference Values Resolve Constants Parameters and Tolerances Per Case in Live and Frozen Plots", () => {
   const parameter = (name: string) => ({ source: { type: "parameter" as const, name }, transforms: [] });
-  const descriptor: DocumentViewPlot = {
+  const descriptor = {
     plot_id: "reference-values",
     title: "Temperature",
     stream: "temperature",
@@ -1810,7 +1810,7 @@ test("Reference Values Resolve Constants Parameters and Tolerances Per Case in L
       { center: 0, tolerance: parameter("negative") },
       { min: parameter("upper_limit_c"), max: parameter("lower_limit_c") },
     ],
-  };
+  } as DocumentViewPlot;
   const original = structuredClone(descriptor);
   for (const target_c of [5, 20]) {
     const parameters = {
