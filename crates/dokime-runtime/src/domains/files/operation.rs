@@ -238,7 +238,10 @@ impl Serve<WatchFile> for Files {
             let mut watching = Watching::register(&self.0, &ctx).map_err(status)?;
             watching.run(request, scoped.as_deref(), &ctx).await.map(Into::into).map_err(|error| {
                 if error.code() == Some("file_watch_cancelled") {
-                    return tonic::Status::cancelled(error.to_string());
+                    let failure = harmos::Failure::new(harmos::operations::FailureKind::Cancelled, error.to_string());
+                    let mut status = tonic::Status::cancelled(failure.to_string());
+                    status.set_source(Arc::new(failure));
+                    return status;
                 }
                 status(error)
             })
