@@ -300,6 +300,9 @@ reads continue retrying, while other document failures retry once.
 
 Bug reports, focused fixes, clearer examples and equipment integrations are
 welcome. Read [Contributing](CONTRIBUTING.md) for setup and the review workflow.
+Frozen documents share the live card query path, retain complete authored tables
+and include every repeated-section page at the sealed evidence cut.
+
 The [storage benchmarks](CONTRIBUTING.md#storage-benchmarks) mirror Harmos's storage
 suite using Dokime's default settings and SQLite backend, including writes, reads,
 queries, filesystem operations and concurrent workloads.

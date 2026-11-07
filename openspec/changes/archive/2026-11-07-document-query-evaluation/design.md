@@ -21,6 +21,10 @@ failures identify budget, limit, reached amount and card.
 Record TimeBetween uses ordered correlation rather than one scan per record.
 PerCase partitions once before folding. Repeated sections enumerate distinct
 indexed values through continuation pages instead of replaying raw rows.
+Live record queries retain the prepared process epoch and journal revision in
+addition to the physical saved cursor. Their indexed pages and distinct selectors
+exclude later records in that epoch; resumed pages retain those same coordinates.
+Frozen reports already use their immutable sealed physical cursor.
 Record readers order bounded pages by execution/attempt and durable position;
 correlation state retains only the selected predecessor types for the current
 attempt. Distinct dictionaries share typed values with durable row postings,

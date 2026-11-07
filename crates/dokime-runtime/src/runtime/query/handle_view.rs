@@ -129,26 +129,6 @@ impl RuntimeHandle {
                     .await
                     .map_err(|error| crate::runtime::Error::Operation(format!("telemetry frame task failed: {error}")))?;
                 }
-                RuntimeViewTopic::Document { document_id } => {
-                    // Documents embed telemetry, which lives on async durable streams —
-                    // resolve it here so the live Document view stays byte-identical with
-                    // the on-demand `resolve_cycle_document` route (same data seam).
-                    let state = snapshot.state();
-                    let selection = crate::document::DocumentSelection {
-                        scope: query.scope.clone().unwrap_or_default(),
-                    };
-                    let data = self.document_data(&selection, snapshot).await?;
-
-                    RuntimeViewPayload::Document {
-                        frame: crate::queries::documents::resolved_document_frame(
-                            state,
-                            document_id,
-                            selection,
-                            data,
-                            crate::document::bounded::DocumentLimits::default(),
-                        )?,
-                    }
-                }
                 RuntimeViewTopic::Artifacts => {
                     let artifacts = self.scoped_artifacts(scope).await?;
 
@@ -258,7 +238,6 @@ fn state_payload(query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot) -> c
         RuntimeViewTopic::ExecutionFiles
         | RuntimeViewTopic::Records
         | RuntimeViewTopic::Telemetry { .. }
-        | RuntimeViewTopic::Document { .. }
         | RuntimeViewTopic::Artifacts
         | RuntimeViewTopic::Traceability => return Ok(None),
     }))

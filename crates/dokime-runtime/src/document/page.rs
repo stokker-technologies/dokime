@@ -159,17 +159,17 @@ pub(crate) async fn token(
 }
 
 pub(crate) async fn expand(
-    runtime: &crate::RuntimeHandle, input: BorrowedInput<'_>, at: &harmos::storage::StorageCursor, mut cursor: Cursor,
+    environment: super::query::Environment<'_>, input: BorrowedInput<'_>, at: &harmos::storage::StorageCursor, mut cursor: Cursor,
 ) -> crate::runtime::Result<Expansion> {
     let definition = super::resolve::normalize_definition(input.definition.clone());
     if cursor.stack.is_empty() && !cursor.complete {
         cursor.stack.push(Frame::default());
     }
-    let empty_repeats = super::resolve::RepeatScan::new([&definition])?.finish();
+    let empty_repeats = super::resolve::RepeatDefinitions::new([&definition])?.finish();
     let mut static_queries = Vec::new();
     let Capture { repeats, sections, .. } = super::resolve::capture_with_queries(
         BorrowedInput { definition: &definition, ..input },
-        DocumentLimits::default(),
+        environment.limits,
         Some(&empty_repeats),
         Some(&mut static_queries),
     )?;
@@ -196,7 +196,7 @@ pub(crate) async fn expand(
         if let Some(repeat) = section.and_then(|section| section.repeat.as_ref())
             && current.value.is_none()
         {
-            current.value = super::repeat::next(runtime, input.selection, at, repeat, input.data, &mut current.repeat).await?;
+            current.value = super::repeat::next(environment, input.selection, at, repeat, input.data, &mut current.repeat).await?;
             if current.value.is_none() {
                 if !current.repeat.saw_values() {
                     empty.push(repeat.clone());
@@ -228,13 +228,13 @@ pub(crate) async fn expand(
             let mut selected_queries = Vec::new();
             let selected = super::resolve::capture_with_queries(
                 BorrowedInput { definition: &selected, ..input },
-                DocumentLimits::default(),
+                environment.limits,
                 Some(&values),
                 Some(&mut selected_queries),
             )?;
             let mut combined = capture.clone();
             merge(&mut combined, selected);
-            let limits = DocumentLimits::default();
+            let limits = environment.limits;
             let size = super::bounded::document_size(
                 &(&combined.cards, &combined.sections, &combined.repeats),
                 limits.materialized_bytes,
@@ -319,7 +319,7 @@ fn has_cards(nodes: &[DocumentNode], empty: &[super::DocumentSectionRepeat]) -> 
     })
 }
 
-fn merge(target: &mut Capture, selected: Capture) {
+pub(crate) fn merge(target: &mut Capture, selected: Capture) {
     for card in selected.cards {
         if !target.cards.iter().any(|existing| existing.metadata.identifier == card.metadata.identifier) {
             target.cards.push(card);

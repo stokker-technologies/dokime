@@ -7,15 +7,22 @@
  * ***
  */
 
-// Integration Benchmarks: Runtime Capture And Durable Plot Visibility
+// Integration Benchmarks: Runtime Capture and Document Queries
 
 #![recursion_limit = "256"]
 
 /* === Modules === */
 mod capture;
+mod documents;
 mod finalization;
+#[path = "../storage/metrics.rs"]
+#[allow(dead_code)]
+mod metrics;
 mod plots;
 mod telemetry;
+#[path = "../storage/waveforms.rs"]
+#[allow(dead_code)]
+mod waveforms;
 
 #[path = "../../tests/support/services/mod.rs"]
 #[allow(dead_code)]
@@ -34,7 +41,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(benches, finalization::benchmark, capture::benchmark, plots::benchmark, telemetry::benchmark);
+criterion_group!(benches, documents::benchmark, finalization::benchmark, capture::benchmark, plots::benchmark, telemetry::benchmark);
 criterion_main!(benches);
 
 /* === Type Aliases === */
