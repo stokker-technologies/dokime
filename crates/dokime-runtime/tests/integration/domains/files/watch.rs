@@ -123,10 +123,31 @@ async fn many_file_stop() {
         append(&tree.path().join(format!("nested/{index}.log")), b"changed\n");
     }
     let started = std::time::Instant::now();
-    let outcome = watch.cancel().await.unwrap().into_owned();
+    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let gate = dokime_runtime::testing::hold_watch_seal(&execution);
+    let cancelling = tokio::spawn(async move { watch.cancel().await });
+    gate.entered().await;
+    tokio::time::pause();
+    tokio::time::advance(dokime_operations::STOP_SETTLEMENT.timeout.saturating_mul(2)).await;
+    assert!(!cancelling.is_finished(), "a live watch retains its reply while captured files are sealing");
+    {
+        let snapshot = bench.handle.watch_state().latest();
+        let state = snapshot.state();
+        let cycle = &state.cycles[&state.executions[&execution].test_cycle_id];
+        assert_eq!(cycle.phase, model::execution::result::CyclePhase::Active);
+        assert!(!state.shutting_down);
+        assert!(
+            !state
+                .run_requests
+                .values()
+                .any(|request| { request.summary.stop_requested && request.selected_execution_ids.contains(&execution) })
+        );
+    }
+    gate.release();
+    tokio::time::resume();
+    let outcome = cancelling.await.unwrap().unwrap().into_owned();
     eprintln!("many_file_stop: cancellation and sealing {:?}", started.elapsed());
     assert_eq!(outcome.artifacts.len(), 64);
-    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
     bench.handle.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
     let artifacts = bench.handle.artifacts().await.unwrap();
     for index in 0..64 {
