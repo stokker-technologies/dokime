@@ -15,6 +15,7 @@
 mod capture;
 mod documents;
 mod finalization;
+mod heavy_paths;
 #[path = "../storage/metrics.rs"]
 #[allow(dead_code)]
 mod metrics;
@@ -41,7 +42,15 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(benches, documents::benchmark, finalization::benchmark, capture::benchmark, plots::benchmark, telemetry::benchmark);
+criterion_group!(
+    benches,
+    documents::benchmark,
+    heavy_paths::benchmark,
+    finalization::benchmark,
+    capture::benchmark,
+    plots::benchmark,
+    telemetry::benchmark
+);
 criterion_main!(benches);
 
 /* === Type Aliases === */

@@ -94,6 +94,20 @@ pub enum CycleOrderKey {
 /* === Implementations === */
 
 impl RuntimeHandle {
+    pub async fn saved_cycle_header(&self, id: &TestCycleId) -> Result<Option<ListedCycle>> {
+        let Some(header) = crate::storage::objects::cycle::read(self.storage(), id, ObjectVersion::Latest).await? else {
+            return Ok(None);
+        };
+        if header.value.saved.is_none() {
+            return Ok(None);
+        }
+        if header.value.memory_size() as u64 > self.query_config().limits().working_bytes {
+            return Err(Error::overload("cycle_inspection_budget", "cycle inspection exceeds the working budget"));
+        }
+        let case_count = self.local_storage.history_cycle_case_count(id.to_string()).await?;
+        Ok(Some(ListedCycle { cycle: header.value.clone(), case_count }))
+    }
+
     pub async fn list_cycle_headers(
         &self, state: &RuntimeState, filter: &CycleFilter, order: CycleOrder, after: Option<&str>, limit: usize,
     ) -> Result<CycleListPage> {
