@@ -20,7 +20,7 @@ use std::num::NonZeroUsize;
 
 // Local Imports
 use super::ExecutionFileStream;
-use super::saved::SavedOutputs;
+use super::saved::{SavedOutputFile, SavedOutputs};
 use crate::handle::RuntimeHandle;
 use crate::{
     execution_runtime::{
@@ -87,10 +87,7 @@ impl RuntimeHandle {
         if let Some(content) = self.execution_storage.native_read(id, &path, offset, maximum.get()).await? {
             return Ok(Some(content));
         }
-        let Some(saved) = SavedOutputs::open(self.storage(), id, None).await? else {
-            return Ok(None);
-        };
-        let Some(file) = saved.file(&path)? else {
+        let Some(file) = SavedOutputFile::open_indexed(self.storage(), &self.local_storage, id, &path).await? else {
             return Ok(None);
         };
         Ok(Some(file.window(offset, maximum).await?))
@@ -105,10 +102,8 @@ impl RuntimeHandle {
         if let Some(content) = self.execution_storage.native_snapshot(test_execution_id, &relative_path).await? {
             return Ok(Some(content));
         }
-        let Some(saved) = SavedOutputs::open(self.storage(), test_execution_id, None).await? else {
-            return Ok(None);
-        };
-        let Some(file) = saved.file(&relative_path)? else {
+        let Some(file) = SavedOutputFile::open_indexed(self.storage(), &self.local_storage, test_execution_id, &relative_path).await?
+        else {
             return Ok(None);
         };
         Ok(Some(file.snapshot().await?))

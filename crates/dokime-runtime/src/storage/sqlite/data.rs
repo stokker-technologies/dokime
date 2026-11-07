@@ -791,7 +791,7 @@ mod tests {
         for count in [4096, 16384] {
             let connection = Connection::open_in_memory().unwrap();
             connection.execute_batch("PRAGMA foreign_keys=ON").unwrap();
-            for schema in [SCHEMA, telemetry::SCHEMA, records::SCHEMA] {
+            for schema in [SCHEMA, telemetry::SCHEMA, records::SCHEMA, super::super::history::SCHEMA] {
                 connection.execute_batch(schema).unwrap();
             }
             connection
@@ -807,7 +807,9 @@ mod tests {
                     "INSERT INTO storage_record_captures
                  SELECT 'execution',position,identity,position,'{}',NULL,position,NULL FROM storage_data_entries;
                  INSERT INTO storage_data_entries(position,kind,identity,item,body,digest)
-                 VALUES ('ffffffffffffffff','object','metadata','object',x'00',zeroblob(32));",
+                 VALUES ('ffffffffffffffff','object','metadata','object',x'00',zeroblob(32));
+                 INSERT INTO query_execution_outputs
+                 SELECT identity,position,'logs/output.log',x'00' FROM storage_data_entries WHERE kind='stream';",
                 )
                 .unwrap();
             // Foreign-Key Checks Must Seek The Parent Position Even When It Has No Children.
@@ -820,6 +822,8 @@ mod tests {
             }
             let remaining: i64 = connection.query_row("SELECT count(*) FROM storage_record_captures", [], |row| row.get(0)).unwrap();
             assert_eq!(remaining, count - 1, "only the deleted evidence row cascades");
+            let remaining: i64 = connection.query_row("SELECT count(*) FROM query_execution_outputs", [], |row| row.get(0)).unwrap();
+            assert_eq!(remaining, count - 1);
             assert!(!connection.prepare("PRAGMA foreign_key_check").unwrap().exists([]).unwrap());
         }
     }
