@@ -60,7 +60,7 @@ import { NativeApiLimitError } from "@/lib/api/native-values";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
-import { drawMarkerKinds, markerKinds, markerLegendRows, markerTooltip, nearestMarker } from "@/plots/markers";
+import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@/plots/markers";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { PlotSettingsEditorContext } from "@/plots/plot-settings";
@@ -876,7 +876,7 @@ test("Boolean State Plots", () => {
   assert.equal(documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 }).booleanAxis, false);
 });
 
-test("Marker Kind Legend and Visibility", () => {
+test("All Marker Kinds Draw and Remain Hoverable", () => {
   const markers = [
     { x: 0, label: "first", record_type: "kind-a", color: "" },
     { x: 5, label: "second", record_type: "kind-a", color: "" },
@@ -888,31 +888,6 @@ test("Marker Kind Legend and Visibility", () => {
     { kind: "answered" as const, x: 8, title: "fixture" },
   ];
   const kinds = markerKinds(markers, prompts);
-  const range = { min: 5, max: 8 };
-  const rows = markerLegendRows(kinds, new Set(), range, []);
-  assert.deepEqual(
-    rows.map((row) => row.key),
-    ["event:kind-a", "event:kind-b", "prompt:asked", "prompt:answered"],
-  );
-  assert.deepEqual(
-    rows.map((row) => row.cells.count),
-    ["1", "1", "1", "1"],
-  );
-  assert.deepEqual(
-    markerLegendRows(kinds, new Set(), null, []).map((row) => row.cells.count),
-    ["3", "1", "1", "1"],
-  );
-  assert.equal(markerLegendRows(kinds, new Set(), { min: 20, max: 30 }, [])[0].cells.count, "0");
-  for (const row of rows) {
-    assert.ok(Object.entries(row.cells).every(([key, value]) => key === "count" || value === ""));
-    assert.equal(row.xCursor, "");
-    assert.equal(row.yCursor, "");
-  }
-  const hidden = toggleTrace(new Set(), rows[0].key);
-  assert.deepEqual(
-    markerLegendRows(kinds, hidden, range, []).map((row) => row.hidden),
-    [true, false, false, false],
-  );
   const stems: number[] = [];
   const plot = {
     ctx: {
@@ -920,10 +895,10 @@ test("Marker Kind Legend and Visibility", () => {
       restore() {},
       setLineDash() {},
       beginPath() {},
-      moveTo(x: number, y: number) {
-        if (y === 0 || y === 4) stems.push(x);
+      moveTo() {},
+      lineTo(x: number, y: number) {
+        if (y === 100) stems.push(x);
       },
-      lineTo() {},
       closePath() {},
       stroke() {},
       fill() {},
@@ -932,15 +907,13 @@ test("Marker Kind Legend and Visibility", () => {
     over: { clientWidth: 10 },
     valToPos: (x: number) => x,
   } as unknown as uPlot;
-  drawMarkerKinds(plot, kinds.slice(0, 2), hidden, []);
-  assert.deepEqual(stems, [7]);
-  assert.equal(nearestMarker(plot, kinds.slice(0, 2), hidden, 5)?.label, markers[3].label);
-  assert.equal(nearestMarker(plot, kinds.slice(0, 2), new Set(), 5)?.label, markers[1].label);
-  assert.equal(nearestMarker(plot, kinds, new Set(), 5)?.label, promptMarkerLabel(prompts[0]));
-  assert.equal(nearestMarker(plot, kinds, new Set(["prompt:asked"]), 5)?.label, markers[1].label);
+  drawMarkerKinds(plot, kinds, []);
+  assert.deepEqual(stems, [0, 5, 10, 7, 5, 8]);
+  assert.equal(nearestMarker(plot, kinds.slice(0, 2), 5)?.label, markers[1].label);
+  assert.equal(nearestMarker(plot, kinds, 5)?.label, promptMarkerLabel(prompts[0]));
+  assert.equal(nearestMarker(plot, kinds, 8)?.label, promptMarkerLabel(prompts[1]));
   assert.deepEqual(markerKinds([], []), []);
   assert.deepEqual(markerKinds([{ ...markers[0], x: null }], []), []);
-  assert.deepEqual(markerLegendRows([], hidden, range, []), []);
 });
 
 test("Event and Prompt Markers Share Tooltip State at Every Card Edge", () => {
@@ -967,19 +940,18 @@ test("Event and Prompt Markers Share Tooltip State at Every Card Edge", () => {
         valToPos: () => left,
       } as unknown as uPlot;
       const states = kinds.map((kind) => {
-        const tooltip = markerTooltip(plot, [kind], new Set(), card);
+        const tooltip = markerTooltip(plot, [kind], card);
         assert.ok(tooltip);
         assert.equal(tooltip.label, kind.moments[0].label);
         assert.ok(tooltip.left >= 0);
         assert.ok(tooltip.width > 0);
         assert.ok(tooltip.left + tooltip.width <= card.width);
-        assert.equal(markerTooltip(plot, [kind], new Set([kind.key]), card), null);
         return { left: tooltip.left, width: tooltip.width };
       });
       assert.deepEqual(states[0], states[1]);
       assert.deepEqual(states[0], states[2]);
       plot.cursor.left = -1;
-      assert.equal(markerTooltip(plot, kinds, new Set(), card), null);
+      assert.equal(markerTooltip(plot, kinds, card), null);
     }
   }
 });
@@ -1006,15 +978,21 @@ test("Marker Canvas Draws Glyphs Without Text", () => {
     strokeText: vi.fn(),
   };
   const plot = { ctx, bbox: { left: 0, top: 0, width: 400, height: 200 }, valToPos: () => 100 } as unknown as uPlot;
-  drawMarkerKinds(plot, kinds, new Set(), []);
+  drawMarkerKinds(plot, kinds, []);
   assert.ok(ctx.stroke.mock.calls.length >= kinds.length);
   assert.ok(ctx.fill.mock.calls.length > 0);
   assert.equal(ctx.fillText.mock.calls.length, 0);
   assert.equal(ctx.strokeText.mock.calls.length, 0);
 });
 
-test("Marker Rows Follow Traces on Both Surfaces", () => {
-  const payload = hostFrame([0, 5, 10], [[1, 2, 3]]);
+test("Legend Rows Contain Only Traces on Both Surfaces", () => {
+  const payload = hostFrame(
+    [0, 5, 10],
+    [
+      [1, 2, 3],
+      [4, 5, 6],
+    ],
+  );
   const markers = [{ x: 5, label: "fixture", record_type: "fixture-kind", color: "" }];
   for (const zoom of [false, true]) {
     const html = renderToStaticMarkup(
@@ -1036,10 +1014,23 @@ test("Marker Rows Follow Traces on Both Surfaces", () => {
     );
     const document = new DOMParser().parseFromString(html, "text/html");
     const rows = document.querySelectorAll("tbody tr");
-    assert.equal(rows.length, 4);
-    assert.equal(rows[0].querySelectorAll("svg[viewBox='0 0 12 16']").length, 0);
-    for (const row of [...rows].slice(1)) assert.equal(row.querySelectorAll("svg[viewBox='0 0 12 16']").length, 1);
-    assert.equal(document.querySelectorAll(".plot-prompts").length, 0);
+    assert.deepEqual(
+      [...rows].map((row) => row.getAttribute("data-row-id")),
+      payload.series.map((trace) => trace.key),
+    );
+    const withoutStatistics = renderToStaticMarkup(
+      createElement(
+        PlotInteractionProvider,
+        { zoom },
+        createElement(CartesianPlot, {
+          title: "Fixture",
+          cartesian: payload.cartesian,
+          series: payload.series,
+          markers,
+        }),
+      ),
+    );
+    assert.doesNotMatch(withoutStatistics, /<table\b/);
   }
 });
 
