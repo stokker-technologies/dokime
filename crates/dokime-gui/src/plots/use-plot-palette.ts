@@ -9,12 +9,12 @@
 
 /* === External Imports === */
 
-import { useTheme } from "next-themes";
 import { useMemo } from "react";
 
 /* === Local Imports === */
 
 import { useAppearance } from "@/lib/appearance";
+import { useApplicationTheme } from "@/lib/application-theme";
 import type { ResolvedTheme } from "@/lib/theme";
 import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme-family";
 import { plotPaletteFromVariables, resolvePlotThemeColors } from "@/plots/colors";
@@ -24,7 +24,7 @@ import { useUiStore } from "@/stores/ui-store";
 
 export function usePlotPalette(): string[] {
   const appearance = useAppearance();
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme } = useApplicationTheme();
   const themeFamily = useUiStore((state) => state.themeFamily);
   const resolvedMode: ResolvedTheme = resolvedTheme === "dark" ? "dark" : "light";
   const selectedTheme = resolveThemeFamily(appearance.themes, {

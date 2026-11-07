@@ -67,9 +67,9 @@ const TOUCH_PLOT_FONT_SCALE = 1.3;
 const POINT_MARK_RENDER_LIMIT = GUI_POINT_MARK_THRESHOLD;
 /* Point mark diameters in CSS pixels: a lone sample must read at 1x DPR on
    either theme, and dense captures keep smaller marks. */
-const DENSE_POINT_MARK_SIZE = 4;
-const DEFAULT_POINT_MARK_SIZE = 6;
-const SOLID_POINT_OUTLINE_WIDTH = 1.5;
+const DENSE_POINT_MARK_SIZE = 5;
+const DEFAULT_POINT_MARK_SIZE = 8;
+const SOLID_POINT_BACKGROUND_OUTLINE_WIDTH = 1;
 const SERIES_LINE_WIDTH = 2;
 /* The hover mark grows by this many CSS pixels over the drawn mark. */
 const CURSOR_POINT_GROWTH = 2;
@@ -468,7 +468,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       cursor: {
         drag: { ...PLOT_DRAG_OPTIONS },
         focus: { prox: -1 },
-        points: cursorPointOptions(pointMarks),
+        points: cursorPointOptions(pointMarks, style),
         sync:
           timeAxis && syncKey
             ? {
@@ -1263,11 +1263,11 @@ function plotPixelRatio(): number {
   return window.devicePixelRatio || 1;
 }
 
-/** Points are solid series-colour marks; line points are hollow rings over the plot background. */
+/** Solid points have a background outline; line points are series-colour rings over the background. */
 export function seriesPointMarks(style: DocumentPlotStyle, densePoints: boolean, color: string, background: string): PointMarks {
   const size = densePoints ? DENSE_POINT_MARK_SIZE : DEFAULT_POINT_MARK_SIZE;
   if (style === "points") {
-    return { show: true, size, width: SOLID_POINT_OUTLINE_WIDTH, stroke: color, fill: color };
+    return { show: true, size, width: SOLID_POINT_BACKGROUND_OUTLINE_WIDTH, stroke: background, fill: color };
   }
   return {
     show: style === "line_points" && !densePoints,
@@ -1303,9 +1303,10 @@ function isolatedAlignedPoints(plot: uPlot, seriesIdx: number, show: boolean): n
 }
 
 /** The hover mark is a solid disc in the series colour, a little larger than its drawn marks. */
-export function cursorPointOptions(marks: readonly PointMarks[]): uPlot.Cursor.Points {
+export function cursorPointOptions(marks: readonly PointMarks[], style: DocumentPlotStyle): uPlot.Cursor.Points {
   // uPlot numbers data series from 1; marks follow the rendered series from 0.
-  const color = (_plot: uPlot, seriesIdx: number) => marks[seriesIdx - 1]?.stroke ?? CURSOR_POINT_FALLBACK_COLOR;
+  const color = (_plot: uPlot, seriesIdx: number) =>
+    (style === "points" ? marks[seriesIdx - 1]?.fill : marks[seriesIdx - 1]?.stroke) ?? CURSOR_POINT_FALLBACK_COLOR;
   return {
     size: (_plot, seriesIdx) => (marks[seriesIdx - 1]?.size ?? DEFAULT_POINT_MARK_SIZE) + CURSOR_POINT_GROWTH,
     width: 0,
