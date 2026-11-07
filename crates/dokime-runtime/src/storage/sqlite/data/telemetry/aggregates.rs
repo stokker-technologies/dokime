@@ -330,6 +330,7 @@ impl crate::storage::sqlite::State {
     ) -> Result<Option<Option<Value>>, Error> {
         let _cancel = work.cancellation();
         let work = std::sync::Arc::new(work);
+        let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
         self.read(move |connection| {
             let checking = work.clone();
             connection.create_scalar_function("document_alive", 0, rusqlite::functions::FunctionFlags::SQLITE_UTF8, move |_| {
@@ -358,8 +359,8 @@ impl crate::storage::sqlite::State {
                     params![execution, stream, path], |row| row.get(0),
                 )?;
                 if !indexed {
-                    if aggregate == harmos::Aggregate::Median && moments.count != 0 {
-                        return Ok(None);
+                    if aggregate == harmos::Aggregate::Median {
+                        return replay_median(connection, &root, &(execution, stream, field), &at, &work).map(Some);
                     }
                     let partial: bool = connection.query_row(
                         "SELECT EXISTS(SELECT 1 FROM streams s JOIN stream_batches b ON b.file_id=s.file_id
@@ -449,6 +450,206 @@ pub(crate) fn numeric_summaries(connection: &Connection, execution: String) -> R
 }
 
 /* === Private Functions === */
+
+#[cfg(feature = "native")]
+fn replay_median(
+    connection: &Connection, root: &std::path::Path, key: &Key, at: &harmos::storage::StorageCursor,
+    work: &crate::storage::sqlite::QueryWork,
+) -> Result<Option<Value>, Error> {
+    let maximum = (work.config.limits().working_bytes as usize / 4 / std::mem::size_of::<Value>()).max(1);
+    let value = select_median(maximum, |consume| {
+        let mut after = 0;
+        let page_rows = (work.config.limits().working_bytes as usize / 2 / std::mem::size_of::<(u64, Value)>())
+            .clamp(1, work.config.limits().max_page_rows as usize);
+        loop {
+            let scan = super::super::Scan::new(
+                "stream",
+                at.sequence,
+                0,
+                harmos::storage::ScanPage {
+                    after,
+                    rows: page_rows.try_into().unwrap(),
+                    bytes: (work.config.limits().working_bytes as usize).try_into().unwrap(),
+                },
+            )
+            .filter("execution", Some(key.0.clone()))
+            .filter("stream", Some(key.1.clone()));
+            let rows = super::reader::typed(connection, root, &scan, &key.2, work)?;
+            if rows.is_empty() {
+                break;
+            }
+            for (position, value) in rows {
+                work.check().map_err(|error| Error::Sqlite(rusqlite::Error::UserFunctionError(error)))?;
+                if position <= after {
+                    return Err(Error::Corrupt("median replay did not advance"));
+                }
+                after = position;
+                if !matches!(value, Value::Null) {
+                    consume(value)?;
+                }
+            }
+        }
+        Ok(())
+    })?;
+    work.check().map_err(|error| Error::Sqlite(rusqlite::Error::UserFunctionError(error)))?;
+    Ok(value)
+}
+
+#[cfg(feature = "native")]
+fn median_key(value: &Value) -> Result<[u8; 11], Error> {
+    if dokime_domain::model::values::numeric_value(value).is_none_or(|value| !value.is_finite()) {
+        return Err(Error::Data("median replay is not finite numeric evidence"));
+    }
+    let encoded = super::super::distinct::sort_key(value)?;
+    let mut key = [0; 11];
+    key.get_mut(..encoded.len()).ok_or(Error::Corrupt("numeric sort key is too wide"))?.copy_from_slice(&encoded);
+    Ok(key)
+}
+
+#[cfg(feature = "native")]
+fn select_median(
+    maximum: usize, mut visit: impl FnMut(&mut dyn FnMut(Value) -> Result<(), Error>) -> Result<(), Error>,
+) -> Result<Option<Value>, Error> {
+    struct Bucket {
+        count: u64,
+        low: [u8; 11],
+        high: [u8; 11],
+        value: Value,
+    }
+    struct Group {
+        bucket: Bucket,
+        ranks: [Option<u64>; 2],
+    }
+    let select = |buckets: BTreeMap<u32, Bucket>, ranks: [Option<u64>; 2]| -> Result<Vec<Group>, Error> {
+        let mut offset = 0;
+        let mut groups = Vec::new();
+        let wanted = ranks.iter().flatten().count();
+        for bucket in buckets.into_values() {
+            let end = offset + bucket.count;
+            let selected = ranks.map(|rank| rank.filter(|rank| *rank >= offset && *rank < end).map(|rank| rank - offset));
+            if selected.iter().any(Option::is_some) {
+                groups.push(Group { bucket, ranks: selected });
+            }
+            offset = end;
+        }
+        if groups.iter().map(|group| group.ranks.iter().flatten().count()).sum::<usize>() != wanted {
+            return Err(Error::Corrupt("median ranks are absent from replay"));
+        }
+        Ok(groups)
+    };
+
+    // Partition Exact Numeric Exponents; Their Count Is Independent of History Length.
+    let mut buckets = BTreeMap::<u32, Bucket>::new();
+    let mut count = 0u64;
+    let mut signed = false;
+    let mut floating = false;
+    visit(&mut |value| {
+        let key = median_key(&value)?;
+        let prefix = u32::from_be_bytes([0, key[0], key[1], key[2]]);
+        let bucket = buckets.entry(prefix).or_insert_with(|| Bucket {
+            count: 0,
+            low: key,
+            high: key,
+            value: value.clone(),
+        });
+        bucket.count += 1;
+        bucket.low = bucket.low.min(key);
+        bucket.high = bucket.high.max(key);
+        signed |= matches!(value, Value::Integer(_));
+        floating |= matches!(value, Value::Number(_));
+        count += 1;
+        Ok(())
+    })?;
+    if count == 0 {
+        return Ok(None);
+    }
+    let mut pending = select(buckets, [Some((count - 1) / 2), Some(count / 2)])?;
+    let mut leaves = Vec::new();
+    let mut selected = [None, None];
+
+    // Refine Only Buckets Containing a Requested Rank, Skipping Common Key Bytes.
+    while let Some(group) = pending.pop() {
+        let bucket = &group.bucket;
+        if bucket.low == bucket.high {
+            for (index, rank) in group.ranks.into_iter().enumerate() {
+                if rank.is_some() {
+                    selected[index] = Some(bucket.value.clone());
+                }
+            }
+            continue;
+        }
+        if bucket.count <= maximum as u64 {
+            leaves.push(group);
+            continue;
+        }
+        let byte = bucket
+            .low
+            .iter()
+            .zip(bucket.high)
+            .position(|(low, high)| *low != high)
+            .ok_or(Error::Corrupt("median bucket does not partition"))?;
+        let mut buckets = BTreeMap::<u32, Bucket>::new();
+        visit(&mut |value| {
+            let key = median_key(&value)?;
+            if key < bucket.low || key > bucket.high {
+                return Ok(());
+            }
+            let child = buckets.entry(u32::from(key[byte])).or_insert_with(|| Bucket {
+                count: 0,
+                low: key,
+                high: key,
+                value: value.clone(),
+            });
+            child.count += 1;
+            child.low = child.low.min(key);
+            child.high = child.high.max(key);
+            Ok(())
+        })?;
+        pending.extend(select(buckets, group.ranks)?);
+    }
+
+    // At Most Two Small Buckets Share One Bounded Collection Pass.
+    if !leaves.is_empty() {
+        let mut values = leaves.iter().map(|group| Vec::with_capacity(group.bucket.count as usize)).collect::<Vec<_>>();
+        visit(&mut |value| {
+            let key = median_key(&value)?;
+            if let Some(index) = leaves.iter().position(|group| key >= group.bucket.low && key <= group.bucket.high) {
+                if values[index].len() == maximum {
+                    return Err(Error::Corrupt("median bucket grew at a fixed cut"));
+                }
+                values[index].push(value);
+            }
+            Ok(())
+        })?;
+        for (group, mut values) in leaves.into_iter().zip(values) {
+            if values.len() as u64 != group.bucket.count {
+                return Err(Error::Corrupt("median bucket count changed at a fixed cut"));
+            }
+            for (index, rank) in group.ranks.into_iter().enumerate() {
+                if let Some(rank) = rank {
+                    let (_, value, _) = values.select_nth_unstable_by(rank as usize, |left, right| {
+                        dokime_domain::model::values::numeric_cmp(left, right).expect("checked finite numeric values")
+                    });
+                    selected[index] = Some(value.clone());
+                }
+            }
+        }
+    }
+    let expression = crate::expressions::telemetry("replay", "value").median();
+    let mut fold = crate::document::frame::Fold::new(&expression).map_err(|_| Error::Invalid("median fold is invalid"))?;
+    for (index, value) in selected.into_iter().enumerate() {
+        let mut value = value.ok_or(Error::Corrupt("median rank is absent"))?;
+        if floating {
+            value = Value::Number(dokime_domain::model::values::numeric_value(&value).ok_or(Error::Corrupt("median rank is not numeric"))?);
+        }
+        fold.push_at(index as u64, Some(&value)).map_err(|_| Error::Corrupt("median rank cannot be reduced"))?;
+    }
+    let value = fold.finish_checked(&mut || Ok(())).map_err(|_| Error::Data("median is outside its numeric range"))?;
+    Ok(match value {
+        Some(Value::Unsigned(value)) if signed && i64::try_from(value).is_ok() => Some(Value::Integer(value as i64)),
+        value => value,
+    })
+}
 
 #[cfg(feature = "native")]
 fn document_value(moments: Moments, aggregate: harmos::Aggregate) -> Result<Option<Value>, Error> {
@@ -686,6 +887,42 @@ fn ordered(value: f64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn radix_median_matches_typed_folds_across_bucket_boundaries() {
+        let cases = [
+            vec![],
+            vec![Value::Number(3.5); 19],
+            (-32..=32).rev().map(Value::Integer).collect(),
+            vec![
+                Value::Unsigned(9_007_199_254_740_995),
+                Value::Unsigned(u64::MAX),
+                Value::Unsigned(9_007_199_254_740_993),
+                Value::Unsigned(9_007_199_254_740_991),
+            ],
+            vec![Value::Integer(i64::MIN), Value::Integer(-9), Value::Unsigned(7), Value::Integer(-8), Value::Unsigned(u64::MAX)],
+            vec![Value::Number(-0.0), Value::Number(0.0), Value::Number(f64::MIN_POSITIVE), Value::Number(-f64::MIN_POSITIVE)],
+            vec![Value::Integer(-4), Value::Unsigned(7), Value::Number(2.5), Value::Number(10.0)],
+        ];
+        for values in cases {
+            let expression = crate::expressions::telemetry("fixture", "value").median();
+            let mut reference = crate::document::frame::Fold::new(&expression).unwrap();
+            for (index, value) in values.iter().enumerate() {
+                reference.push_at(index as u64, Some(value)).unwrap();
+            }
+            let expected = reference.finish().unwrap();
+            for maximum in [1, 2, 64] {
+                let actual = select_median(maximum, |consume| {
+                    for value in &values {
+                        consume(value.clone())?;
+                    }
+                    Ok(())
+                })
+                .unwrap();
+                assert_eq!(actual, expected, "{values:?} with capacity {maximum}");
+            }
+        }
+    }
 
     #[tokio::test]
     async fn document_checkpoints_match_nullable_rows_at_every_cut() {

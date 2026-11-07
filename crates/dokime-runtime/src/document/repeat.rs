@@ -443,11 +443,18 @@ mod tests {
         let mut plot = super::super::Plot::time_series("Continuous");
         plot.y(crate::expressions::telemetry("sensor", "continuous"));
         section.plot(plot);
-        document.layout.nodes.push(super::super::DocumentNode::Section(Box::new(super::super::DocumentSectionNode {
+        let child = super::super::DocumentNode::Section(Box::new(super::super::DocumentSectionNode {
             node_id: section.metadata.identifier.clone(),
             metadata: section.metadata.clone(),
             repeat: section.repeat.take(),
             children: vec![],
+        }));
+        let parent = super::super::DocumentSection::new("Parent");
+        document.layout.nodes.push(super::super::DocumentNode::Section(Box::new(super::super::DocumentSectionNode {
+            node_id: parent.metadata.identifier.clone(),
+            metadata: parent.metadata,
+            repeat: None,
+            children: vec![child],
         })));
         document.sections.push(section);
         let contracts = [dokime_domain::model::telemetry::TelemetryContract::declared("sensor", "Sensor")];

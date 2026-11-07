@@ -2579,6 +2579,66 @@ they are not a disjoint CPU budget.
 | Writer Normalization | 0.23–0.37 | 0.27–0.30 | 0.74–0.90 |
 | Sample Identity Inserts | 1.36–1.80 | 1.63–1.87 | 5.30–6.07 |
 
+##### Selective Distinct Indexing
+
+The follow-up merged the sealed-query and header-read changes from dev before
+measuring this candidate on the same Windows workstation. Each numeric case
+publishes 100,000 rows; each payload case publishes 10,000 rows. Three unprofiled
+fresh-root repeats completed every case, including durable payload replay and
+0/1/64-plot binding checks. These are diagnostic ranges under workstation
+contention, not portable throughput guarantees.
+
+| Payload | Plots | Rows/s, Minimum–Maximum | Logical MiB/s, Minimum–Maximum |
+| --- | ---: | ---: | ---: |
+| Scalar, 8 B | 0 | 13,012–21,772 | 0.0993–0.1661 |
+| Scalar, 8 B | 1 | 14,543–22,680 | 0.1110–0.1730 |
+| Scalar, 8 B | 64 | 13,126–22,344 | 0.1001–0.1705 |
+| Wide, 128 B | 0 | 11,158–12,381 | 1.3620–1.5114 |
+| Wide, 128 B | 1 | 11,817–13,320 | 1.4426–1.6260 |
+| Wide, 128 B | 64 | 8,609–13,328 | 1.0509–1.6269 |
+| 4 KiB Text | 0 | 4,450–5,051 | 17.3841–19.7308 |
+| 64 KiB Text | 0 | 271–385 | 16.9108–24.0431 |
+
+The regressed scalar baseline was 795–1,780 rows/s (0.0061–0.0136 MiB/s),
+4 KiB was 413–622 rows/s (1.6137–2.4302 MiB/s), and 64 KiB was 43–68 rows/s
+(2.7040–4.2496 MiB/s). The regressed wide case timed out at its unchanged
+900-second barrier, so it has no completed throughput figure. The repaired
+64-plot cases exceed #302's 8,627–8,660 scalar and 3,134–5,163 wide rows/s.
+
+The two-table rowid candidate was measured first. Its completed scalar cases
+reached 2,904–4,088 rows/s, improving on the regressed baseline but missing the
+target; the remaining diagnostic run was stopped without a completed wide result.
+The rowid tables remain, reducing duplication of their long composite primary
+keys in secondary indexes. The larger fix selects telemetry fields from
+captured document repeats, filters and ordering before admission. Unrelated
+numeric, timestamp and payload fields create no distinct entries. The writer
+loads these selections once per execution/stream chunk. Numeric checkpoints
+remain bounded, and unindexed medians and partial cuts for unindexed fields use exact
+projected Arrow replay. Record indexing and live/frozen document results retain
+their existing semantics. Older roots require an explicit fresh root at storage
+v1; no migration or reset occurs.
+
+Scalar writer time is now 17.97–33.17 µs/row, with named lock waits totaling
+0.42–2.38 µs/row, versus 541.63–1233.47 and 496.14–1163.54 respectively in
+the regressed baseline. These clocks overlap. The baseline observed about
+1–6 flushes/s and 3–13 host syncs/s; the earlier audit's larger guesses were
+not measurements. No flush cadence, durability point, deadline or budget changed.
+
+The one-million-sample exact document median, including its maintained summary
+tiles and one bounded plot, measured 356.91–367.41 ms across ten Criterion
+samples (twenty measured query iterations). The generic spilled accumulator had
+exceeded the unchanged five-second active-time limit; a full temporary SQLite
+sort measured 1.627–1.745 s. The retained reader counts exact numeric key ranges,
+refines only ranges containing a median rank, and collects at most two small
+ranges within bounded buffers. It skips common key bytes and resolves equal-key
+ranges directly. The selected typed values use the shared exact fold, preserving
+large integers. This adds no ingest index or scratch-file sort.
+The existing three-day, 3,072,000-sample document with 30 streams/plots measured
+39.359–43.803 ms for cards and plot payloads across ten Criterion samples
+(100 measured iterations), retaining its no-history-scan assertion. The sampled
+whole-process RSS peak was about 240 MiB; the resource probe's sampling caveat
+still applies.
+
 ## Remote Certificate Refresh
 
 The managed remote listener reloads its TLS leaf in place. Existing connections

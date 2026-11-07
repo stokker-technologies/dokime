@@ -182,7 +182,9 @@ impl Fixture {
                 .capture
                 .cards
                 .iter()
-                .all(|card| !matches!(card.result, dokime_runtime::document::capture::CardBindingResult::Failed { .. }))
+                .all(|card| !matches!(card.result, dokime_runtime::document::capture::CardBindingResult::Failed { .. })),
+            "{}",
+            serde_json::to_string(&captured.capture.cards).unwrap()
         );
         let scope = self.runtime.watch_state().latest().state().executions[&self.execution].capture_scope();
         let requests = captured

@@ -64,6 +64,11 @@ struct Reading {
     value: f64,
 }
 
+#[harmos::message]
+struct UnsignedReading {
+    value: Option<u64>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -285,7 +290,7 @@ async fn time_series_views_share_field_state_and_preserve_exact_rows() {
     let postings = fixture
         .local
         .read(|connection| {
-            connection.query_row("SELECT count(*) FROM storage_value_postings WHERE kind='telemetry'", [], |row| row.get::<_, u64>(0))
+            connection.query_row("SELECT count(*) FROM storage_value_postings WHERE kind='telemetry'", [], |row| row.get::<_, i64>(0))
         })
         .await
         .unwrap();
@@ -331,11 +336,62 @@ async fn distinct_fields_retain_only_registered_values_across_reopen() {
         .read(|connection| {
             let mut statement = connection
                 .prepare("SELECT path,count(*) FROM storage_value_postings WHERE kind='telemetry' GROUP BY path ORDER BY path")?;
-            statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()
+            statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()
         })
         .await
         .unwrap();
-    assert_eq!(paths, vec![("[\"value\"]".into(), points.len() as u64 + 1)]);
+    assert_eq!(paths, vec![("[\"value\"]".into(), points.len() as i64 + 1)]);
+    fixture.finish().await;
+}
+
+#[cfg(feature = "native")]
+#[tokio::test]
+async fn unindexed_medians_preserve_nullable_large_integers_at_saved_cuts() {
+    let fixture = Fixture::new(8).await;
+    let contract = crate::telemetry::TelemetryContract::declared("unsigned.fixture", "Unsigned").typed::<UnsignedReading>();
+    let codec = Arc::new(telemetry::codec(&contract, &Default::default()).unwrap());
+    fixture.storage.write_schema(codec.schema().clone(), codec.graph().clone()).await.unwrap();
+    fixture.storage.flush().await.unwrap();
+    fixture.local.register_telemetry_contract(contract, codec.clone()).await.unwrap();
+    let values = [Some(9_007_199_254_740_993), None, Some(9_007_199_254_740_995), Some(u64::MAX)];
+    let (rows, entries): (Vec<_>, Vec<_>) = values
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let (mut input, mut entry) = fixture.row(index as u64, index as i64);
+            entry.sample.stream = harmos::Identifier::new("unsigned.fixture").unwrap();
+            entry.sample = entry.sample.typed(&UnsignedReading { value });
+            entry.sample.values.insert("value".into(), value.map(Cell::Unsigned).unwrap_or(Cell::Null));
+            input.stream = entry.sample.stream.clone();
+            input.record.schema = codec.schema().clone();
+            input.record.payload = codec.encode(&entry, usize::MAX).unwrap();
+            (input, entry)
+        })
+        .unzip();
+    let at = fixture.storage.write_stream(rows).await.unwrap();
+    fixture.local.stage_telemetry(fixture.storage.clone(), at.clone(), entries).await.unwrap();
+    fixture.storage.flush_until(&at).await.unwrap();
+    let query = crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
+    for (omitted, expected) in [(0, 9_007_199_254_740_995), (1, 9_007_199_254_740_994), (2, 9_007_199_254_740_993)] {
+        let cut = StorageCursor {
+            sequence: at.sequence - omitted,
+            ..at.clone()
+        };
+        let actual = fixture
+            .local
+            .document_statistic(
+                fixture.execution.to_string(),
+                "unsigned.fixture".into(),
+                "value".into(),
+                cut,
+                harmos::Aggregate::Median,
+                crate::storage::sqlite::QueryWork::document(query.clone(), "fixture"),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(actual, Some(Cell::Unsigned(expected)));
+    }
     fixture.finish().await;
 }
 
@@ -351,6 +407,28 @@ async fn percentiles_replay_beyond_retained_prefix() {
     let points: Vec<_> = (0..count as u64).map(|index| (index, index as i64)).collect();
     let at = fixture.admit(&points).await;
     fixture.storage.flush_until(&at).await.unwrap();
+    let query = crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
+    for omitted in [0, 3] {
+        let cut = StorageCursor {
+            sequence: at.sequence - omitted,
+            ..at.clone()
+        };
+        let median = fixture
+            .local
+            .document_statistic(
+                fixture.execution.to_string(),
+                "arrow.fixture".into(),
+                "value".into(),
+                cut,
+                harmos::Aggregate::Median,
+                crate::storage::sqlite::QueryWork::document(query.clone(), "fixture"),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        let expected = (count as u64 - omitted - 1) as f64 / 2.0;
+        assert_eq!(median, Some(Cell::Number(expected)));
+    }
     let evidence = fixture
         .local
         .report_evidence(vec![super::report::Request {

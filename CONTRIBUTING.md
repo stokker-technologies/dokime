@@ -288,6 +288,9 @@ first structure event; `cards_and_plots` measures all bindings and the 30 bounde
 plot payloads at one saved cut, deriving requests from the actual card descriptors
 through the same mapping as the GUI. Each pass verifies sample coverage without
 a raw-history scan. Setup uses bounded batches outside the timings.
+The `median/1000000` case uses one stream and measures its exact median together
+with the other maintained tiles and one bounded plot at the saved cut, under the
+unchanged query limits.
 The shared resource probe reports current process RSS on Linux and Windows,
 including its baseline and sampled peak for each measurement window. Compare
 the same visible output at increasing retained row counts; RSS includes the
