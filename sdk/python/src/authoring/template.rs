@@ -415,8 +415,16 @@ pub(super) fn definition(
         .map(|id| prompts.iter().find(|prompt| prompt.prompt_type.as_str() == id).cloned().ok_or_else(|| format!("undeclared prompt {id}")))
         .collect::<Result<Vec<_>, _>>()?;
     context.set_prompts(declared_prompts);
-    if let Some(document) = &spec.document {
-        context.set_document(document.clone());
+    if let Some(spec) = &spec.document {
+        let mut document = dokime::document::DocumentDefinition::new(&spec.label);
+        if let Some(identifier) = &spec.id {
+            document.id(identifier);
+        }
+        document.validate_identity()?;
+        for section in &spec.sections {
+            document.section(section.clone());
+        }
+        context.set_document(document);
     }
     let template = context.into_test_case_template().map_err(|error| error.to_string())?;
     let rows = spec.streams.iter().chain(spec.observers.iter().flat_map(|observer| &observer.streams)).collect::<BTreeSet<_>>();

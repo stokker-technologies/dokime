@@ -34,7 +34,7 @@ pub use stream::ExecutionFileStream;
 // Local Imports
 use crate::definition::TestCaseTemplate;
 use crate::document::{
-    DocumentCard, DocumentCardBody, DocumentCardLayout, DocumentCardRail, DocumentDefinition, DocumentSection, resolve_document_plot_axes,
+    DocumentCard, DocumentCardBody, DocumentCardLayout, DocumentCardRail, DocumentDefinition, resolve_document_plot_axes,
 };
 use crate::execution_runtime::registry::SuiteRegistry;
 use crate::telemetry::TelemetryContract;
@@ -77,14 +77,14 @@ pub(crate) fn cycle_document(label: impl Into<String>) -> DocumentDefinition {
 
 pub(crate) fn captured_authored_document(
     suites: &SuiteRegistry, execution: &TestExecution, document_id: &DocumentId,
-) -> Option<DocumentDefinition> {
+) -> crate::runtime::Result<Option<DocumentDefinition>> {
     let definitions = &execution.documents;
-    // Instance registration is keyed by the definition identity, not the outer
-    // map key. Preserve its first-definition-wins behavior for native snapshots.
+    crate::document::DocumentRegistry::validate_definitions(definitions.values())
+        .map_err(|error| crate::runtime::Error::validation("document_identity", error.to_string(), Vec::new()))?;
     let authored = definitions.values().find(|definition| &definition.document_id == document_id).cloned();
     let completed = complete_execution_document(authored, document_id, || execution_document_label(execution));
 
-    completed.map(|definition| with_resolved_plot_axes(definition, suites))
+    Ok(completed.map(|definition| with_resolved_plot_axes(definition, suites)))
 }
 
 pub(crate) fn with_resolved_plot_axes(mut definition: DocumentDefinition, suites: &SuiteRegistry) -> DocumentDefinition {

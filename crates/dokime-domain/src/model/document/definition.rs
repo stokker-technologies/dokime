@@ -1146,7 +1146,10 @@ impl DocumentDefinition {
 
     pub fn validate_identity(&self) -> Result<(), String> {
         if self.document_id.as_str() != self.metadata.identifier.as_str() {
-            return Err(format!("document {:?} has an invalid or empty derived identifier; set .id(...) to a valid identifier", self.metadata.label));
+            return Err(format!(
+                "document {:?} has an invalid or empty derived identifier; set .id(...) to a valid identifier",
+                self.metadata.label
+            ));
         }
         Ok(())
     }

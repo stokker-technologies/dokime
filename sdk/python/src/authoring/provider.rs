@@ -111,8 +111,18 @@ pub(super) struct TemplateSpec {
     pub streams: Vec<String>,
     pub requires: Vec<String>,
     pub prompts: Vec<String>,
-    pub document: Option<dokime::document::DocumentDefinition>,
+    pub document: Option<DocumentSpec>,
     pub subscriptions: Vec<dokime::definition::Subscription>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct DocumentSpec {
+    pub label: String,
+    pub id: Option<String>,
+
+    #[serde(default)]
+    pub sections: Vec<dokime::document::DocumentSection>,
 }
 
 #[derive(Clone, Deserialize)]

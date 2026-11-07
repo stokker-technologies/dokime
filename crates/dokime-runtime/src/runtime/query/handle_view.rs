@@ -204,7 +204,10 @@ fn state_payload(query: &RuntimeViewQuery, snapshot: &RuntimeStateSnapshot) -> c
             ),
         },
         RuntimeViewTopic::Documents => {
-            let cycles = snapshot.state().cycle_views().map(crate::definition::TestCycleInstance::new)
+            let cycles = snapshot
+                .state()
+                .cycle_views()
+                .map(crate::definition::TestCycleInstance::new)
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| crate::runtime::Error::validation("document_identity", error.to_string(), Vec::new()))?;
 

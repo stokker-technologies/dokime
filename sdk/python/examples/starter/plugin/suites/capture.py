@@ -45,7 +45,12 @@ class Confirm:
     connected: bool
 
 
-@dokime.template(id="bench.capture", label="Capture", parameters=Parameters, requires=[Read], streams=[Row], prompts=[Confirm])
+DOCUMENT = dokime.Document("Capture Measurements")
+
+
+@dokime.template(
+    id="bench.capture", label="Capture", parameters=Parameters, requires=[Read], streams=[Row], prompts=[Confirm], document=DOCUMENT
+)
 class Template:
     @dokime.step(label="Confirm Connections")
     async def confirm(self, ctx: dokime.Context) -> None:

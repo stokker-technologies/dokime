@@ -33,6 +33,7 @@ from . import _native
 __all__ = [
     "Context",
     "Document",
+    "DocumentHandle",
     "Invocation",
     "OperationInstance",
     "OperationPolicy",
@@ -213,6 +214,24 @@ class StreamSelection:
 
 
 class Document:
+    """Declare a document whose identifier derives from its label."""
+
+    def __init__(self, label: str) -> None:
+        self.label = label
+        self._identifier: str | None = None
+        self._sections: list[dict[str, Any]] = []
+
+    def id(self, identifier: str) -> None:
+        self._identifier = identifier
+
+    def section(self, identifier: str, label: str, *, cards: Sequence[Mapping[str, Any]] = ()) -> None:
+        self._sections.append({"metadata": _metadata(identifier, label), "cards": list(cards)})
+
+    def _definition(self) -> dict[str, Any]:
+        return {"label": self.label, "id": self._identifier, "sections": self._sections}
+
+
+class DocumentHandle:
     """Document cards use native mappings: XY plots select ``plot_type="xy"``.
 
     Their ``style`` defaults to ``"line"``; ``"points"`` uses density reduction,
@@ -250,8 +269,8 @@ class Context:
         return self._inner.execution
 
     @property
-    def document(self) -> Document:
-        return Document(self)
+    def document(self) -> DocumentHandle:
+        return DocumentHandle(self)
 
     @property
     def cancelled(self) -> bool:
@@ -565,7 +584,7 @@ def template[T](
     prompts: Sequence[type] = (),
     tags: Sequence[str] = (),
     description: str | None = None,
-    document: Mapping[str, Any] | None = None,
+    document: Document | None = None,
 ) -> Callable[[type[T]], type[T]]:
     return _declare(
         "template",
@@ -868,7 +887,7 @@ def _template_spec(kind: type) -> dict[str, Any]:
         "streams": [_meta(item, "stream")["id"] for item in metadata["streams"]],
         "requires": [_meta(item, "operation")["id"] for item in metadata["requires"]],
         "prompts": [_meta(item, "prompt")["id"] for item in metadata["prompts"]],
-        "document": metadata["document"],
+        "document": metadata["document"]._definition() if metadata["document"] is not None else None,
         "subscriptions": [
             {"Stream" if _meta(item)["kind"] == "stream" else "Record": _meta(item)["id"]} for item in metadata["subscribes"]
         ],

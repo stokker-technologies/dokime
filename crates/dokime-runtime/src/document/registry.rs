@@ -70,18 +70,28 @@ impl DocumentRegistry {
         self.instances.values()
     }
 
-    pub fn open_instance(&mut self, definition: DocumentDefinition, updated_at: Timestamp) -> Result<&mut DocumentInstance, DocumentRegistryError> {
-        definition.validate_identity().map_err(DocumentRegistryError::InvalidDefinition)?;
+    pub fn open_instance(
+        &mut self, definition: DocumentDefinition, updated_at: Timestamp,
+    ) -> Result<&mut DocumentInstance, DocumentRegistryError> {
+        Self::validate_definitions(self.definitions.values().chain(std::iter::once(&definition)))?;
         let document_id = definition.document_id.clone();
-        if let Some(existing) = self.definitions.get(&document_id) {
-            return Err(DocumentRegistryError::DuplicateDefinition {
-                identifier: document_id,
-                first_label: existing.metadata.label.clone(),
-                second_label: definition.metadata.label.clone(),
-            });
-        }
         self.definitions.entry(document_id.clone()).or_insert_with(|| definition.clone());
         Ok(self.instances.entry(document_id).or_insert_with(|| DocumentInstance::new(definition, updated_at)))
+    }
+
+    pub fn validate_definitions<'a>(definitions: impl IntoIterator<Item = &'a DocumentDefinition>) -> Result<(), DocumentRegistryError> {
+        let mut identifiers = BTreeMap::new();
+        for definition in definitions {
+            definition.validate_identity().map_err(DocumentRegistryError::InvalidDefinition)?;
+            if let Some(first_label) = identifiers.insert(&definition.document_id, &definition.metadata.label) {
+                return Err(DocumentRegistryError::DuplicateDefinition {
+                    identifier: definition.document_id.clone(),
+                    first_label: first_label.clone(),
+                    second_label: definition.metadata.label.clone(),
+                });
+            }
+        }
+        Ok(())
     }
 }
 

@@ -125,6 +125,13 @@ and filter controls remain usable. Preserve the case of unit symbols.
 
 ## Document Summaries
 
+Author documents with `Document::new("Hold at Temperature")`; identifiers derive
+from labels, as for traceability and sections. Use `document.id("hold");` to retain
+a key across label edits. Invalid or empty derived keys and collisions in one
+registry are refused with an instruction to set `.id(...)`. GUI routes continue
+to select the runtime's internal `default` execution document, which merges the
+template's authored content with built-in results and evidence.
+
 Document structure commits before the saved-evidence wait. Each pending binding
 uses an independent query through the existing document capture operation, with
 its own cancellation and retry lifetime. Runtime invalidation preserves in-flight

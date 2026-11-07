@@ -704,8 +704,21 @@ raw `client.call` still exposes its canonical contracts. The existing catalog
 `dokime.query.aggregate` remains a separate grouping operation, using the same
 `Aggregate` vocabulary for catalog columns rather than stream samples.
 
-Python document plots are mappings passed to `Document.section` or the template's
-`document` declaration. Use `"plot_type": "xy"` for explicit X and Y axes.
+Declare a document with the same label-derived identity as Rust:
+
+```python
+document = dokime.Document("Hold at Temperature")
+document.id("hold")  # Optional Stable Key Across Label Edits
+# Pass document=document to @dokime.template(...).
+```
+
+Native validation derives the identifier with the shared traceability rule,
+refuses invalid or empty derived identifiers and registry collisions, and directs
+the author to set `.id(...)`. The runtime retains its internal `default` view,
+merging authored content with built-in results and evidence.
+
+Python document plots are mappings passed as cards to `document.section(...)`
+or to the dynamic `ctx.document.section(...)` handle. Use `"plot_type": "xy"` for explicit X and Y axes.
 Style defaults to `"line"`; choose `"points"`, `"line_points"` or `"step"` through
 `"style"`. Points use the density grid above the exact preview limit; the other
 styles retain the ordered envelope without a grid. For example:
