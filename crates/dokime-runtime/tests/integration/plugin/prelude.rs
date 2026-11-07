@@ -22,17 +22,13 @@ mod one_prelude {
     ) {
     }
 
-    fn document_types(_: Document, _: Section, _: Plot, _: Line, _: Band) {}
+    fn document_types(_: Document, _: Section, _: Plot, _: ReferenceValue) {}
 
     fn traceability_types(_: TraceabilityRow, _: TraceabilitySection) {}
 
     fn plugin_trait<P: Plugin>() {}
 
     fn supervisor(_: &Supervisor) {}
-
-    fn refusal() -> Refusal {
-        Refusal::of("refused")
-    }
 
     fn configuration(config: Configuration) -> Result<NoSettings, Refusal> {
         config.settings::<NoSettings>().map_err(|error| Refusal::of(error.to_string()))

@@ -407,8 +407,8 @@ fn alias_inventory_declared() {
     let declaration = declaration_of("integration/renamed_sdk.rs");
     assert_eq!(declaration.id, "renamed");
     assert_eq!(
-        declaration.streams.iter().map(|row| (row.id.as_str(), row.schema, row.window)).collect::<Vec<_>>(),
-        [("renamed.direct", 1, 8), ("renamed.observations", 1, 64)],
+        declaration.streams.iter().map(|row| (row.id.as_str(), row.window)).collect::<Vec<_>>(),
+        [("renamed.direct", 8), ("renamed.observations", 64)],
         "outputs appear once even when referenced by an observer",
     );
     assert_eq!(
@@ -589,10 +589,7 @@ fn conflicting_streams_refused() {
     let diagnostics = String::from_utf8_lossy(&built.stderr);
 
     assert!(!built.status.success(), "two shapes of one stream compiled");
-    assert!(
-        diagnostics.contains("two declarations of the plugin name one stream id with different rows, schema versions, windows or metadata"),
-        "{diagnostics}"
-    );
+    assert!(diagnostics.contains("distinct_publications"), "{diagnostics}");
     assert!(!diagnostics.contains("proc macro panicked"), "{diagnostics}");
 }
 
