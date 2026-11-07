@@ -11,8 +11,8 @@
 
 /* === Modules === */
 
-pub(crate) mod publication;
 pub(crate) mod diagnostics;
+pub(crate) mod publication;
 
 /* === Re-Exports === */
 

@@ -12,8 +12,8 @@
 /* === Modules === */
 
 pub(crate) mod activation;
-pub(crate) mod leases;
 pub(crate) mod installation;
+pub(crate) mod leases;
 
 /* === Re-Exports === */
 
