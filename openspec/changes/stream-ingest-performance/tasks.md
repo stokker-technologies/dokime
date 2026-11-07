@@ -11,7 +11,7 @@
 - [x] 1.6 Measure actual flush, Arrow sync, SQLite VFS sync and catalog commit counts; lock wait and admission/host/writer stages in the existing system benchmark. Separate host and sidecar CPU. Own benches/system/{ingest,ingest_sync,main}.rs; storage/{ipc,sqlite}.rs and sqlite/data/telemetry{,/flush,/writer}.rs; domains/telemetry/streams{,/admission}.rs and runtime/storage/telemetry.rs. Include spawned prepare/commit work and the distinct-value index introduced by fresh dev.
 - [x] 1.7 Add deterministic 4 KiB and 64 KiB payload fixtures in OBC benchmarks, select their required benchmark-only suite catalog and measure delivered payload bytes at fresh-root durable barriers.
 - [x] 1.8 Evaluate each requested trim against repeated measurements, retaining supported changes as separate commits: IPC buffering/hash work; duplicate normalization; Tail allocations; sample identity representation and exact receipt queries. Preserve durability, cadence, exact retry/replay and storage v1; no migrations.
-- [ ] 1.9 Update CONTRIBUTING.md and docs/product-guide.md with measurement definitions, spread and decisions; README claims reviewed. Refresh measurements after integrating dev's per-row distinct index.
+- [x] 1.9 Update CONTRIBUTING.md and docs/product-guide.md with measurement definitions, spread and decisions; README claims reviewed. Refresh measurements after integrating dev's per-row distinct index.
 
 ## Final Validation
 

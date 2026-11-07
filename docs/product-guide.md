@@ -2388,8 +2388,9 @@ source snapshots and artifact SHA-256 digests were retained locally under
 #### Durability and Payload Follow-Up
 
 Follow-up measurements on 7 November 2026 use the same Windows/Ryzen workstation,
-Rust toolchain and optimized bench profile described above. Numeric cases publish
-100,000 rows; the 4 KiB and 64 KiB cases publish 10,000 rows. Their payload is an
+Rust toolchain and optimized bench profile described above, after rebasing onto
+the Harmos update in 7 November dev, before its distinct-value index. Numeric
+cases publish 100,000 rows; the 4 KiB and 64 KiB cases publish 10,000 rows. Their payload is an
 f64 plus deterministic, row-varying printable text totaling the stated byte size.
 Durable Arrow replay verifies every payload length outside the timed interval.
 These are logical application-payload MiB/s, excluding metadata and framing;
@@ -2399,8 +2400,9 @@ Three ordinary repeats retain counters, lock-wait measurements and writer-total
 wall time. Three separate detailed-profile repeats cover each zero-plot shape.
 Every case verifies durable row and static plot-binding counts. Benchmark-feature
 OBC builds retain the steady, recovery and benchmark suites required by the runtime
-and server benches; shipping builds retain their complete product catalog. No
-flush/fsync policy, deadline, storage budget, schema or evidence format changed.
+and server benches; shipping builds retain their complete product catalog. The
+measurement follow-up changes no flush/fsync policy, deadline, storage budget,
+schema or evidence format; each run uses a fresh root with its measured v1 schema.
 
 Counts below cover execution start through the inspection prompt and saved barrier,
 including control/setup commits inside that interval. Sync counts observe host
@@ -2412,14 +2414,14 @@ admission, SQLite writer, store and tail acquisitions in the benchmark output.
 
 | Payload | Plots | MiB/s | Flush Calls | Host Sync Calls | Catalog Commits | Lock µs/Row | Writer µs/Row |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Scalar, 8 B | 0 | 0.097–0.136 | 92–101 | 210–228 | 117–126 | 0.39–1.64 | 23.36–32.26 |
-| Scalar, 8 B | 1 | 0.077–0.136 | 94–105 | 215–237 | 120–131 | 0.28–3.08 | 22.68–44.03 |
-| Scalar, 8 B | 64 | 0.086–0.136 | 93–99 | 213–225 | 119–125 | 0.50–8.65 | 23.94–43.32 |
-| Wide, 128 B | 0 | 0.826–1.039 | 119–126 | 264–278 | 144–151 | 0.91–3.84 | 54.98–68.42 |
-| Wide, 128 B | 1 | 0.870–1.545 | 112–124 | 251–275 | 138–150 | 1.11–3.11 | 38.40–62.87 |
-| Wide, 128 B | 64 | 0.940–1.244 | 105–119 | 237–265 | 131–145 | 0.62–9.82 | 43.41–66.16 |
-| 4 KiB Text | 0 | 10.419–16.890 | 51–59 | 128–144 | 76–84 | 1.95–12.36 | 59.79–137.05 |
-| 64 KiB Text | 0 | 16.480–24.486 | 724–741 | 1480–1514 | 749–766 | 399.08–461.16 | 1108.78–1628.70 |
+| Scalar, 8 B | 0 | 0.115–0.172 | 89–102 | 204–230 | 114–127 | 0.14–5.02 | 17.43–30.81 |
+| Scalar, 8 B | 1 | 0.113–0.172 | 93–98 | 213–223 | 119–124 | 0.74–15.24 | 19.18–38.31 |
+| Scalar, 8 B | 64 | 0.109–0.173 | 85–104 | 197–235 | 111–130 | 0.12–1.34 | 16.93–29.49 |
+| Wide, 128 B | 0 | 1.001–1.618 | 113–120 | 252–266 | 138–145 | 0.33–5.86 | 33.79–64.40 |
+| Wide, 128 B | 1 | 1.354–1.564 | 110–114 | 247–255 | 136–140 | 1.14–10.34 | 37.33–46.09 |
+| Wide, 128 B | 64 | 0.952–1.601 | 115–124 | 257–275 | 141–150 | 0.43–20.27 | 33.90–70.91 |
+| 4 KiB Text | 0 | 14.930–20.625 | 53–54 | 132–134 | 78–79 | 1.80–4.16 | 49.47–73.19 |
+| 64 KiB Text | 0 | 23.351–24.744 | 733–752 | 1498–1536 | 758–777 | 439.15–602.05 | 1047.74–1276.49 |
 
 For zero plots, the observed rates below can be compared with the audit's guesses
 of 10–20 flushes/s and 20–40 syncs/s. Payload size and contention change those rates;
@@ -2427,10 +2429,10 @@ they do not establish a fixed periodic cadence.
 
 | Payload | Flushes/s | Host Syncs/s | Store Settings Lock µs/Row |
 | --- | ---: | ---: | ---: |
-| Scalar, 8 B | 12.91–16.38 | 29.13–37.40 | 0.17–1.21 |
-| Wide, 128 B | 8.53–10.13 | 18.81–22.47 | 0.30–2.80 |
-| 4 KiB Text | 15.74–23.78 | 38.41–58.81 | 1.28–11.61 |
-| 64 KiB Text | 19.54–28.36 | 39.92–57.98 | 397.00–457.11 |
+| Scalar, 8 B | 15.42–20.48 | 34.77–46.81 | 0.02–4.62 |
+| Wide, 128 B | 9.84–15.25 | 21.81–33.94 | 0.04–5.36 |
+| 4 KiB Text | 20.64–27.98 | 51.22–69.70 | 1.39–3.68 |
+| 64 KiB Text | 27.79–29.02 | 56.78–59.31 | 436.64–600.22 |
 
 The numeric zero-plot writer ranges above vary beyond the audit's 53–62 µs/row
 estimate. Writer time includes scheduling/preemption. The store-settings mutex
@@ -2443,10 +2445,10 @@ run with zero plots; CPU across processes can exceed elapsed time.
 
 | Payload | Runtime CPU s | OBC CPU s | Host Collector CPU s |
 | --- | ---: | ---: | ---: |
-| Scalar, 8 B | 7.03–9.94 | 1.97–2.89 | 0.00–0.02 |
-| Wide, 128 B | 14.42–18.19 | 3.81–4.97 | 0.00 |
-| 4 KiB Text | 2.66–4.58 | 0.70–1.49 | 0.00–0.03 |
-| 64 KiB Text | 32.05–50.25 | 7.69–11.95 | 0.00–0.09 |
+| Scalar, 8 B | 5.48–7.44 | 1.64–2.31 | 0.01–0.05 |
+| Wide, 128 B | 9.27–11.48 | 2.67–3.64 | 0.03–0.06 |
+| 4 KiB Text | 2.28–3.23 | 0.75–1.11 | 0.00–0.02 |
+| 64 KiB Text | 30.94–33.89 | 6.76–8.00 | 0.00–0.28 |
 
 Detailed-profile ranges below are active poll/callback wall µs/row. Spawned
 admission and host commit work has its own spans. Blocking callbacks re-enter
@@ -2457,21 +2459,21 @@ Profiling overhead and preemption are included.
 
 | Stage, µs/Row | 8 B | 128 B | 4 KiB | 64 KiB |
 | --- | ---: | ---: | ---: | ---: |
-| Admission Prepare | 2.83–5.02 | 4.78–12.40 | 3.33–5.64 | 9.25–12.61 |
-| Admission Commit | 23.08–37.71 | 32.10–84.63 | 117.55–211.51 | 1933.86–2575.94 |
-| Host Commit | 43.53–72.23 | 62.26–162.37 | 170.74–341.18 | 2943.03–4058.33 |
-| Host Payload Projection | 1.65–2.36 | 3.19–5.90 | 3.41–5.73 | 27.82–36.55 |
-| Host Canonical Encoding | 3.85–6.57 | 5.79–14.82 | 6.14–10.20 | 33.20–41.93 |
-| Tail Staging Callback | 3.25–4.77 | 3.40–7.22 | 3.87–6.07 | 17.79–22.30 |
-| Writer Total | 23.06–38.42 | 36.28–91.32 | 61.00–144.58 | 1113.52–1597.55 |
-| Writer Decode/Group | 12.81–19.58 | 17.70–34.17 | 15.92–26.98 | 64.43–76.46 |
-| Arrow Build/Compress/Sync | 3.89–9.40 | 6.60–23.56 | 27.74–83.98 | 448.84–652.18 |
-| Writer Catalog Commit | 2.19–3.17 | 3.61–14.21 | 7.13–17.24 | 134.05–358.91 |
-| Writer SQLite Sync | 0.63–1.21 | 1.43–10.86 | 3.72–6.48 | 61.76–288.85 |
-| IPC File Writes | 0.08–0.11 | 0.08–0.16 | 1.47–2.67 | 21.89–31.96 |
-| IPC Hashing | 0.07–0.07 | 0.10–0.13 | 3.28–3.48 | 51.74–54.48 |
-| Writer Normalization | 0.25–0.39 | 0.56–1.04 | 0.31–0.52 | 0.78–0.93 |
-| Sample Identity Inserts | 1.27–1.92 | 1.17–2.24 | 1.78–2.99 | 4.63–5.65 |
+| Admission Prepare | 2.48–7.36 | 4.65–8.20 | 2.88–3.10 | 8.69–9.45 |
+| Admission Commit | 21.20–46.12 | 34.29–43.78 | 106.97–126.60 | 1683.61–2221.53 |
+| Host Commit | 41.08–89.48 | 67.68–87.74 | 147.48–196.05 | 2455.85–3560.47 |
+| Host Payload Projection | 1.45–2.80 | 3.13–4.42 | 2.85–3.14 | 24.03–27.51 |
+| Host Canonical Encoding | 3.59–8.70 | 5.67–8.99 | 5.23–5.89 | 32.14–38.09 |
+| Tail Staging Callback | 2.91–5.22 | 3.52–4.87 | 3.37–3.83 | 13.48–15.80 |
+| Writer Total | 21.92–49.65 | 38.83–54.22 | 46.55–75.82 | 847.88–1421.15 |
+| Writer Decode/Group | 10.85–20.69 | 17.28–22.79 | 13.81–14.49 | 50.76–57.40 |
+| Arrow Build/Compress/Sync | 4.10–13.38 | 8.54–15.88 | 19.64–40.45 | 318.65–727.74 |
+| Writer Catalog Commit | 3.13–6.25 | 3.28–5.99 | 4.99–11.27 | 84.37–209.70 |
+| Writer SQLite Sync | 2.06–3.98 | 0.83–3.75 | 2.09–6.93 | 38.14–153.96 |
+| IPC File Writes | 0.06–0.17 | 0.08–0.12 | 1.19–1.44 | 20.69–25.10 |
+| IPC Hashing | 0.06–0.08 | 0.10–0.11 | 3.14–3.18 | 50.31–51.17 |
+| Writer Normalization | 0.22–0.41 | 0.52–0.69 | 0.28–0.29 | 0.63–0.68 |
+| Sample Identity Inserts | 1.11–2.34 | 1.13–1.53 | 1.35–1.57 | 3.92–4.38 |
 
 No hot-path trim was retained:
 
@@ -2487,7 +2489,7 @@ No hot-path trim was retained:
   contracts; exact packing needs additional encoding. Identity spans did not
   establish a throughput benefit that justifies that storage rewrite.
 - **Tail Key Reuse:** A prototype removed temporary key construction and reused the
-  vacant position entry. Three before/after profiled repeats used the same fixture
+  vacant position entry. Before the final dev rebase, three before/after profiled repeats used the same fixture
   catalog and profiler. Its scoped wall-time medians/ranges below establish no
   repeatable gain under contention; broader stage costs also moved. The original
   tail insertion was restored, without claiming a causal regression or saving.
@@ -2504,6 +2506,47 @@ estimates or a portable throughput promise. README performance targets retain
 that development qualification. Raw measurements, failing/passing diagnostic logs,
 source patches and artifact SHA-256 digests are retained in the primary checkout
 under `target/benchmarks/ingest2-20261106/` (the task began on 6 November).
+
+##### Fresh Dev with Distinct Indexing
+
+The preceding tables measure dev after its Harmos update and before the
+per-row distinct-value index introduced by #320. Fresh-root measurements with
+that index retain the same row counts, fixtures, durability points and budgets.
+Four completed scalar zero-plot runs include the case saved before the wide
+failure; the payload fixtures each have three completed zero-plot repeats.
+
+The 100,000-row wide fixture missed its existing 900-second inspection barrier.
+Its timeout produced no completed throughput or durability-count record.
+Neither elapsed/row estimates nor successful proof are inferred from that failure.
+
+| Payload | Runs | MiB/s | Flush Calls | Host Sync Calls | Catalog Commits | Lock µs/Row | Writer µs/Row |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Scalar, 8 B | 4 | 0.006–0.014 | 105–114 | 350–369 | 130–139 | 496.14–1163.54 | 541.63–1233.47 |
+| 4 KiB Text | 3 | 1.614–2.430 | 58–60 | 178–182 | 83–85 | 1359.92–1990.17 | 1493.64–2266.28 |
+| 64 KiB Text | 3 | 2.704–4.250 | 817–855 | 1834–1910 | 842–880 | 11932.67–18211.36 | 13718.32–21807.11 |
+| Wide, 128 B | 1 Attempt | Barrier Timeout | — | — | — | — | — |
+
+| Payload | Flushes/s | Host Syncs/s | Store Settings Lock µs/Row |
+| --- | ---: | ---: | ---: |
+| Scalar, 8 B | 0.91–1.87 | 2.93–6.23 | 494.57–1161.50 |
+| 4 KiB Text | 2.44–3.73 | 7.44–11.32 | 1357.47–1987.19 |
+| 64 KiB Text | 3.70–5.73 | 8.26–12.82 | 11928.56–18199.86 |
+
+| Payload | Runtime CPU s | OBC CPU s | Host Collector CPU s |
+| --- | ---: | ---: | ---: |
+| Scalar, 8 B | 43.17–55.05 | 1.94–2.48 | 0.00–0.05 |
+| 4 KiB Text | 8.39–14.42 | 0.81–1.09 | 0.00–0.03 |
+| 64 KiB Text | 91.97–131.11 | 7.86–9.81 | 0.05–0.17 |
+
+These observed rates are below the audit's 10–20 flushes/s and 20–40 syncs/s
+guesses, while writer wall time exceeds its 53–62 µs/row guess. Most named lock
+wait is at the store-settings read behind writer activity. The source difference
+includes the distinct index, and the workstation remains busy; these ranges
+are not savings attributed to any of the four rejected trims.
+
+Detailed profiling observes the merged index call separately as `ingest.distinct`.
+The earlier admission/host/writer profile table describes the source before
+that index. CPU remains reported by process; inclusive stage clocks overlap.
 
 ## Remote Certificate Refresh
 
