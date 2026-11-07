@@ -162,7 +162,7 @@ concurrency group; each keeps its own public bootstrap and required platform leg
 Use `mise run test:rust:acceptance -- --select 'test(=facade::typescript_facade_bridge)'` for one native acceptance story from the Tests archive.
 Use `mise run test:rust:system -- --select 'test(=plugin::remote_scripts)'` for one native system story from the same archive.
 Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
-Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/containers/history and its dependent attachment/recovery (`native-desktop`), native plugin installation/activation and settings (`desktop-configuration`), distribution/organization (`desktop-appearance`), remote access (`desktop-remote`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux. The configuration story exercises the native chooser, restart and installed plugin settings; other independent stories launch with the prepared plugin fixture. Every story retains the same five-minute deadline.
+Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/containers/history and its dependent attachment/recovery (`native-desktop`), native plugin installation/activation and settings (`desktop-configuration`), distribution/organization (`desktop-appearance`), remote access (`desktop-remote`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux. The configuration story exercises the native chooser, restart and installed plugin settings; other independent stories launch with the prepared plugin fixture. Lane hang guards come from `[conventions.testing.deadlines]` in `tools/project.toml`.
 Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 
 During implementation, run targeted checks for changed behavior. Once all agreed
@@ -194,7 +194,7 @@ Product enables neither testing feature. Focus one small guard with
 
 Python acceptance and coverage also consume the matching Tests fixtures. All native
 artifact consumers select the graph profile through `TEST_PROFILE`. Coverage uses
-the ordinary story budgets multiplied by five, including retained-report validation;
+the ordinary hang guards multiplied by five, including retained-report validation;
 Rust compile contracts remain owned and executed by Build / Tests.
 
 Product and Tests build independently. Tests use Cargo's unoptimized test
@@ -206,7 +206,10 @@ authorized ready PR and enable auto-merge without waiting for local completion.
 
 ### System Story Reports
 
-Both Rust and native desktop system lanes enforce a 300-second budget per story.
+Lane deadlines are hang guards configured in `[conventions.testing.deadlines]`
+in `tools/project.toml`. Native runners terminate hung stories, and script lanes
+also terminate their process tree at the lane deadline. A completed story keeps
+its runner result regardless of its reported duration; timings are measurements.
 Keep workloads proportional to the behavior under test; retain boundary sizes
 when the boundary is the point. Terminal interruption groups each native script
 family into an independently selectable plugin recovery story; transport
@@ -225,9 +228,8 @@ which do not produce execution reports have explicit reasons in
 Native shutdown stories exercise their stop boundary first; finalization runs on
 their recovered session's ordinary teardown. Filtered desktop runs name their
 selected journeys in JUnit. The default lane runs the walkthrough workflows
-with every maintained scene; each has its own fixture, JUnit result and enforced
-story budget. Owned-backend startup has its own storage root and story; it does
-not consume the attached configuration fixture's budget.
+with every maintained scene; each has its own fixture and JUnit result.
+Owned-backend startup has its own storage root and story.
 The native harness logs scene totals and retains per-step timings in each story's
 `timings.json` under `target/tests/<profile>/<native>/system-typescript/`.
 Categories distinguish launches, subprocesses, execution waits, polling, native
