@@ -337,6 +337,7 @@ impl State {
         polled
     }
 
+    #[tracing::instrument(name = "files.watch.seal", level = "debug", skip_all)]
     async fn seal(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
         if self.complete {
             return Ok(());
@@ -362,6 +363,7 @@ impl State {
     }
 
     // Seals every tracked file, then answers the execution's seal request.
+    #[tracing::instrument(name = "files.watch.finish", level = "debug", skip_all)]
     async fn finish(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
         #[cfg(feature = "testing")]
         crate::domains::execution::run::testing::before_watch_seal(&self.execution).await;

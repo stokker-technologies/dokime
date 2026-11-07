@@ -364,6 +364,7 @@ impl FrozenFile {
         }
     }
 
+    #[tracing::instrument(name = "storage.outputs.frozen.finish", level = "debug", skip_all)]
     pub(super) async fn finish(&mut self, storage: &Manager) -> Result<FileReference> {
         if self.capture.is_none() && self.creating.get_mut().is_none() {
             let session = self.session.get_or_insert_with(|| storage.clone()).clone();
