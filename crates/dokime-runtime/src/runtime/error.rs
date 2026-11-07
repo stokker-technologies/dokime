@@ -140,6 +140,9 @@ pub enum Error {
     #[error("Plugin {plugin} could not initialize\n  Cause: {reason}")]
     PluginInitialization { plugin: String, reason: String },
 
+    #[error("embedded plugin `{plugin}` conflicts with an installed plugin")]
+    PluginIdConflict { plugin: String },
+
     #[error("{}", super::plugins::start_error(plugin, plugin, source))]
     PluginStart {
         plugin: String,

@@ -15,7 +15,7 @@
 # Third Party Imports
 # Local Imports
 from dokime_tools.build import configuration, frontend
-from dokime_tools.prepare import bindings, generated
+from dokime_tools.prepare import generated
 
 # Type Checking Imports
 
@@ -35,7 +35,6 @@ def build(profile: str) -> list[str]:
     messages = configuration.messages(profile)
     if not messages.is_file():
         raise ValueError(f"missing Product compiler messages {messages}; run `mise run build:rust` first")
-    bindings.generate(messages, check=True)
     generated.generate(messages, check=True)
     generated.stage(profile)
     built = frontend.build(profile)

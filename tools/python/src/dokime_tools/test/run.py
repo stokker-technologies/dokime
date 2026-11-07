@@ -65,7 +65,7 @@ def test(
     rules = policy.load(directory)
     key = f"{category}-{language}"
     _preflight(directory, category, language, profile)
-    if language == "python" and not prepared and not (category in ("unit", "integration") and "-k" in extra):
+    if language == "python" and not prepared:
         archive.install_wheels(directory, profile)
     with _scratch(directory, key, profile) as scratch, temporary.directory() if language == "python" else nullcontext(scratch) as fixtures:
         deadline = rules.deadline(category)
@@ -96,8 +96,6 @@ def test(
             arguments += ["-o", f"cache_dir={fixtures / 'pytest-cache'}"]
             command = pytest.run(cwd, f"tests/{category}", deadline, junit, arguments)
             environment = pytest.environment(directory)
-            if category in ("unit", "integration") and "-k" in extra:
-                environment["PYTHONPATH"] = str(cwd / "src")
         else:
             junit = scratch / "junit.xml"
             command = vitest.run(extra, junit, deadline)

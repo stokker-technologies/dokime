@@ -66,7 +66,7 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
         if category == "integration":
             extra += ["-E", "not binary_id(dokime-macros::compile)"]
     elif language == "python":
-        arguments += ["--project", "packages/dokime-client"]
+        arguments += ["--project", "sdk/python"]
         if category == "integration":
             extra = ["-n", str(workers), "--dist=worksteal", "--max-worker-restart=0"]
         elif category == "acceptance":

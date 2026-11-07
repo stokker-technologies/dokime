@@ -16,8 +16,8 @@ import tomllib
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
+from .simulate import PLAN
 
 # Type Checking Imports
 
@@ -106,7 +106,51 @@ def check(root: Path) -> list[str]:
     if not isinstance(project, dict):
         raise TypeError("tasks must be a table")
     tasks.update(project)
-    return [f"mise.toml: task {task}: {finding}" for task, definition in tasks.items() for finding in forms(definition)]
+    findings = [f"mise.toml: task {task}: {finding}" for task, definition in tasks.items() for finding in forms(definition)]
+    findings.extend(graph(PLAN))
+    return findings
+
+
+def graph(plan: dict) -> list[str]:
+    """Refuse Dangling Dependencies, Cycles And Missing Native Artifact Producers."""
+    jobs = {job["key"]: job for job in plan["jobs"]}
+    findings = []
+    if len(jobs) != len(plan["jobs"]):
+        findings.append("CI job keys must be unique")
+    visited = set()
+    visiting = set()
+
+    def visit(key: str) -> None:
+        if key in visiting:
+            findings.append(f"CI dependency cycle at {key}")
+            return
+        if key in visited:
+            return
+        visiting.add(key)
+        for need in jobs[key]["needs"]:
+            if need not in jobs:
+                findings.append(f"CI {key}: missing dependency {need}")
+                continue
+            visit(need)
+        visiting.remove(key)
+        visited.add(key)
+
+    for key, job in jobs.items():
+        visit(key)
+        native = job.get("execution_platform", "unix" if job["platform"] == "any" else job["platform"])
+        for reference in job["inputs"]:
+            producer, output = reference.split("#", 1)
+            sources = [
+                jobs[need]
+                for need in job["needs"]
+                if need in jobs
+                and jobs[need]["id"] == producer
+                and output in jobs[need]["outputs"]
+                and (jobs[need]["platform"] in ("any", native) or job["id"].startswith("release:"))
+            ]
+            if not sources:
+                findings.append(f"CI {key}: missing native producer for {reference}")
+    return findings
 
 
 # === Private Functions === #

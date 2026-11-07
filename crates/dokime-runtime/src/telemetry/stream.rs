@@ -108,6 +108,19 @@ pub trait OwnedStream: TelemetryStream {}
 /* === Implementations === */
 
 impl Streams {
+    // Foreign Bindings Publish A Validated Batch Through The Same Row Admission.
+    pub async fn publish_rows(&self, stream: &Identifier, rows: Vec<(BTreeMap<String, Value>, Vec<u8>)>) -> Result<(), String> {
+        for (values, payload) in rows {
+            self.published_as(stream, move || values, Some(payload), "foreign row").await;
+        }
+        self.flush().await;
+        #[cfg(feature = "native")]
+        if let Some(failure) = self.failure() {
+            return Err(failure.to_string());
+        }
+        Ok(())
+    }
+
     pub fn new(sink: Arc<dyn SampleSink>) -> Self {
         // Native streams own the flush task and listener queue; the portable
         // stream facade delegates publication directly to its supplied sink.

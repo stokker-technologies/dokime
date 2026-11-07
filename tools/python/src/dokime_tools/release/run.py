@@ -27,6 +27,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from ..build import paths
 from ..process import spawn_flags
 
 # isort: split
@@ -132,6 +133,10 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
         if not source.is_file() or source.is_symlink():
             raise policy.ToolError(f"missing regular release asset: {source}")
         result.append({"name": name, "path": relative, "target": selected})
+    wheels = sorted((paths.output(directory, "package", profile, selected) / "python").glob("*.whl"))
+    if len(wheels) != 1 or "-cp313-abi3-" not in wheels[0].name:
+        raise policy.ToolError(f"expected one native abi3 wheel for {selected}")
+    result.append({"name": wheels[0].name, "path": wheels[0].relative_to(directory).as_posix(), "target": selected})
     return result
 
 

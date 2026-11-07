@@ -27,6 +27,8 @@ mod watch_liveness;
 #[path = "../support/mod.rs"]
 mod support;
 
+mod storage_format;
+
 /* === Re-Exports === */
 
 /* === Imports === */

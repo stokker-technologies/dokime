@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+pub mod format;
 pub(crate) mod ipc;
 pub mod objects;
 pub(crate) mod projection;
@@ -49,6 +50,17 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error(
+        "StorageFormatMismatch: root {root}; writer build {writer_build} (format {writer_format:?}); running build {running_build} (format {running_format})"
+    )]
+    StorageFormatMismatch {
+        root: std::path::PathBuf,
+        writer_build: Box<str>,
+        running_build: &'static str,
+        writer_format: Option<Box<str>>,
+        running_format: &'static str,
+    },
+
     #[error("query snapshot is unavailable")]
     QuerySnapshotUnavailable,
 
