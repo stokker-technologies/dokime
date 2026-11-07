@@ -209,9 +209,8 @@ def test_existing_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     connection.__aenter__ = AsyncMock(return_value=client)
     connection.__aexit__ = AsyncMock(return_value=False)
     monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
-    monkeypatch.setitem(run.__globals__, "EXECUTION_ID", EXECUTION)
 
-    assert asyncio.run(run()) == 1
+    assert asyncio.run(run(EXECUTION)) == 1
     client.execution.assert_awaited_once_with(EXECUTION)
     execution.start.assert_awaited_once_with()
     response = (tmp_path / "execution.json").read_text(encoding="utf-8")
@@ -263,6 +262,49 @@ def test_polling_example(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert summary["run"]["execution_id"] == EXECUTION
     assert summary["samples_by_stream"] == {"pulse": 1}
     assert summary["events_by_type"] == {"run": 1}
+
+
+def test_existing_execution_reader_drains_before_return(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    namespace = runpy.run_path(str(EXAMPLES.parents[1] / "remote_control.py"))
+    run = namespace["run"]
+    monkeypatch.chdir(tmp_path)
+    drained: list[str] = []
+
+    class ExistingExecution:
+        id = EXECUTION
+        start = AsyncMock()
+
+        async def records(self):
+            await asyncio.sleep(0)
+            drained.append("record")
+            yield SimpleNamespace(to_json=lambda: json.dumps({"sequence": 1}))
+
+        async def samples(self):
+            await asyncio.sleep(0)
+            drained.append("sample")
+            yield SimpleNamespace(to_json=lambda: json.dumps({"sequence": 2}))
+
+        def __await__(self):
+            async def saved():
+                return SimpleNamespace(status="passed", checkpoint=SimpleNamespace(execution_id=EXECUTION), exit_code=0)
+
+            return saved().__await__()
+
+    execution = ExistingExecution()
+    client = SimpleNamespace(
+        connect=AsyncMock(return_value=SimpleNamespace(id=CYCLE, epoch="epoch")),
+        execution=AsyncMock(return_value=execution),
+    )
+    connection = MagicMock()
+    connection.__aenter__ = AsyncMock(return_value=client)
+    connection.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
+
+    assert asyncio.run(run(EXECUTION)) == 0
+    client.execution.assert_awaited_once_with(EXECUTION)
+    execution.start.assert_awaited_once()
+    assert set(drained) == {"record", "sample"}
+    assert json.loads((tmp_path / "execution.json").read_text(encoding="utf-8")) == {"execution_id": EXECUTION, "status": "passed"}
 
 
 # === Private Functions === #

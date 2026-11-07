@@ -55,6 +55,7 @@ tracing = { workspace = true }
 sysinfo = { workspace = true }
 
 # Serialization
+serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Configuration
@@ -95,7 +96,6 @@ harmos-sdk = { workspace = true }
 sha2 = { workspace = true }
 
 # Serialization
-serde = { workspace = true }
 
 # Configuration
 

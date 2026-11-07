@@ -5,28 +5,28 @@ set -eu
 # Connection Parameters
 BACKEND_IDENTIFIER="lab"
 
-# Case And Execution Parameters
+# Case and Execution Parameters
 TEMPLATE="obc.checks.pulse"
 CYCLE_LABEL="Remote Confirmation Demonstration"
 ANSWER="yes"
-WAIT_SECONDS=60
+WAIT_S=60
 
 # Evidence Files
 OUTPUT_DIRECTORY="prompt-evidence"
 OVERWRITE=false
 
-# Select The Imported Profile Once; Each Call Below Shows Its Remote Command.
+# Select the Imported Profile Once; Each Call Below Shows Its Remote Command.
 set -- --backend "$BACKEND_IDENTIFIER"
 
 cycle=""
 execution=""
 destination=""
-case "$WAIT_SECONDS" in ''|*[!0-9]*|0) printf 'WAIT_SECONDS Must Be A Positive Integer\n' >&2; exit 2 ;; esac
+case "$WAIT_S" in ''|*[!0-9]*|0) printf 'WAIT_S Must Be A Positive Integer\n' >&2; exit 2 ;; esac
 mkdir -p "$OUTPUT_DIRECTORY/recovery"
 overwrite=""
 if [ "$OVERWRITE" = true ]; then overwrite="--overwrite"; fi
 
-# Recover Only This Script-Owned Cycle If The Shell Is Interrupted Between Calls.
+# Recover Only This Script-Owned Cycle If the Shell Is Interrupted Between Calls.
 trap '
     trap "" INT TERM
     if [ -z "$cycle" ]; then
@@ -60,7 +60,7 @@ if [ "$OVERWRITE" != true ] && { [ -e "$OUTPUT_DIRECTORY/cycle.zip" ] || [ -L "$
     exit 2
 fi
 
-# Materialize The Immutable Case; Its ID Is Reused By Independent Attempts.
+# Materialize the Immutable Case; Its ID Is Reused by Independent Attempts.
 case_id=$(dokime plan materialize --template "$TEMPLATE" --parameters-json '{"require_confirmation":true}' --id-only "$@")
 case "$case_id" in ''|*'
 '*) printf 'Expected One Case\n' >&2; exit 2 ;; esac
@@ -69,24 +69,24 @@ dokime cycle create --label "$CYCLE_LABEL" --json "$@" > cycle.json
 cycle=$(sed -n 's/^{"cycle_id":"\([^"]*\)"}$/\1/p' cycle.json)
 printf 'Cycle: %s\n' "$cycle"
 
-# Append One Attempt; Its UUID Scopes The Prompt And Evidence.
+# Append One Attempt; Its UUID Scopes the Prompt and Evidence.
 dokime cycle append "$cycle" --case-id "$case_id" --id-only --id-file execution.id --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
 IFS= read -r execution < execution.id
 printf 'Execution: %s\n' "$execution"
 destination="$OUTPUT_DIRECTORY/execution.zip"
 
-# Start Without Blocking, Then Wait For This Execution's Next Prompt.
+# Start Without Blocking, Then Wait for This Execution's Next Prompt.
 dokime execution start "$execution" --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
-dokime execution prompt next "$execution" --wait-seconds "$WAIT_SECONDS" --id-only --id-file prompt.id --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
+dokime execution prompt next "$execution" --wait-seconds "$WAIT_S" --id-only --id-file prompt.id --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
 IFS= read -r prompt < prompt.id
 printf 'Prompt: %s Execution: %s\n' "$prompt" "$execution"
 dokime execution prompt show "$execution" "$prompt" --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@" --json > prompt.json
 
-# Answer That Prompt Once; Wait For The Durable Result Before Downloading.
+# Answer That Prompt Once; Wait for the Durable Result Before Downloading.
 dokime execution prompt answer "$execution" "$prompt" --action "$ANSWER" --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
-dokime execution wait "$execution" --wait-seconds "$WAIT_SECONDS" --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
+dokime execution wait "$execution" --wait-seconds "$WAIT_S" --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
 dokime execution export "$execution" --output "$OUTPUT_DIRECTORY/execution.zip" ${overwrite:+"$overwrite"} --cancel-on-interrupt --owned-cycle "$cycle" --recovery-directory "$OUTPUT_DIRECTORY/recovery" "$@"
 
-# Seal The Cycle And Download All Members Into cycle.zip.
+# Seal the Cycle and Download All Members into cycle.zip.
 dokime cycle seal "$cycle" "$@"
 dokime cycle export "$cycle" --output "$OUTPUT_DIRECTORY/cycle.zip" ${overwrite:+"$overwrite"} "$@"

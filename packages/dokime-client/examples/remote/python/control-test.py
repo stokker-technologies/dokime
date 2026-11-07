@@ -40,7 +40,7 @@ CYCLE_LABEL = "Remote Pulse Demonstration"
 SAMPLE_COUNT = 8
 PARAMETERS = {"sample_count": SAMPLE_COUNT}
 EXECUTION_COUNT = 2
-WAIT_SECONDS = 60.0
+WAIT_S = 60.0
 
 # Observation Filters
 RECORD_TYPES = ("obc.run.*",)
@@ -58,9 +58,9 @@ OVERWRITE = False
 
 
 async def run() -> int:
-    # The Story Spells Out Two Attempts; Keep One To Study A Single Run.
-    if EXECUTION_COUNT not in (1, 2) or WAIT_SECONDS <= 0:
-        raise ValueError("EXECUTION_COUNT must be 1 or 2 and WAIT_SECONDS must be positive")
+    # The Story Spells Out Two Attempts; Keep One to Study a Single Run.
+    if EXECUTION_COUNT not in (1, 2) or WAIT_S <= 0:
+        raise ValueError("EXECUTION_COUNT must be 1 or 2 and WAIT_S must be positive")
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
     if (OUTPUT_DIRECTORY / "execution-1.zip").exists() and not OVERWRITE:
         raise FileExistsError("execution-1.zip exists; choose another output directory or enable OVERWRITE")
@@ -92,7 +92,7 @@ async def run() -> int:
             else:
                 await cycle.append([first])
 
-            # Run Attempt 1; The Client Waits For Its Saved Outcome And Drains Observations.
+            # Run Attempt 1; the Client Waits for Its Saved Outcome and Drains Observations.
             execution = first
             destination = OUTPUT_DIRECTORY / "execution-1.zip"
             records: asyncio.Queue[Record] = asyncio.Queue()
@@ -107,12 +107,12 @@ async def run() -> int:
                 async for item in first.samples(*STREAMS):
                     samples.put_nowait(item)
 
-            async with asyncio.timeout(WAIT_SECONDS), asyncio.TaskGroup() as tasks:
+            async with asyncio.timeout(WAIT_S), asyncio.TaskGroup() as tasks:
                 tasks.create_task(read_records())
                 tasks.create_task(read_samples())
                 outcome = await first
 
-            # Print The Returned Observations In Order Within Each Reader.
+            # Print the Returned Observations in Order Within Each Reader.
             records_by_type: Counter[str] = Counter()
             samples_by_stream: Counter[str] = Counter()
             for _ in range(records.qsize()):
@@ -137,7 +137,7 @@ async def run() -> int:
             print(f"Execution Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)
 
             if EXECUTION_COUNT == 2:
-                # Run Attempt 2; The Client Waits For Its Saved Outcome And Drains Observations.
+                # Run Attempt 2; the Client Waits for Its Saved Outcome and Drains Observations.
                 execution = second
                 destination = OUTPUT_DIRECTORY / "execution-2.zip"
                 records = asyncio.Queue()
@@ -152,12 +152,12 @@ async def run() -> int:
                     async for item in second.samples(*STREAMS):
                         samples.put_nowait(item)
 
-                async with asyncio.timeout(WAIT_SECONDS), asyncio.TaskGroup() as tasks:
+                async with asyncio.timeout(WAIT_S), asyncio.TaskGroup() as tasks:
                     tasks.create_task(read_records())
                     tasks.create_task(read_samples())
                     outcome = await second
 
-                # Print The Returned Observations In Order Within Each Reader.
+                # Print the Returned Observations in Order Within Each Reader.
                 records_by_type = Counter()
                 samples_by_stream = Counter()
                 for _ in range(records.qsize()):

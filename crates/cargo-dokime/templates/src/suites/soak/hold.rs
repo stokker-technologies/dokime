@@ -148,34 +148,6 @@ pub enum Streams {
     subscribes = Inputs,
     parameters = Parameters, description = "Drive the chamber to the target and hold it for the requested samples.")]
 impl Template {
-    fn document() -> Document {
-        let mut temperature = Plot::time_series("Temperature");
-        temperature.id("{{crate}}.soak.temperature");
-        temperature.unit("°C");
-        let temperature_c = Row::column_temperature_c();
-        temperature.y(temperature_c);
-        let elapsed_seconds = format::elapsed_seconds();
-        temperature.x_format(elapsed_seconds);
-        let fixed = format::fixed(1);
-        temperature.y_format(fixed);
-        let target_c = Parameters::target_c();
-        let band_c = Parameters::band_c();
-        let band = Band::around(target_c, band_c);
-        let temperature_c = Row::column_temperature_c();
-        temperature.reference_band("Target ± Band", temperature_c, band);
-        let marker = HoldReached::marker();
-        temperature.marker_records([marker]);
-
-        let mut signals = Section::new("Soak");
-        signals.id("{{crate}}.soak.signals");
-        signals.plot(temperature);
-
-        let mut document = Document::new("default", "Hold at Temperature");
-        document.section(signals);
-
-        document
-    }
-
     async fn initialize(_: &Parameters, _: &mut InitializationContext<'_>) -> Result<(Self, SoakResources), Error> {
         let template = Self { unit: None, note: None };
         let shared = SoakResources { holding: AtomicBool::new(false) };
@@ -334,21 +306,6 @@ impl Template {
         Ok(())
     }
 
-    #[observer(interval_ms = 100, streams = Streams)]
-    async fn observe(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
-        // Read Chamber Temperature
-        let operation = ReadChamber {};
-        let reading = ctx.operation(operation).await?;
-
-        let row = Row {
-            temperature_c: reading.temperature_c,
-            holding: ctx.resources().holding.load(Ordering::Acquire),
-        };
-        ctx.publish(row).await;
-
-        Ok(())
-    }
-
     #[criterion(
         id = "{{crate}}.soak.in_band",
         label = "Temperature Stayed in Band",
@@ -390,6 +347,21 @@ impl Template {
         Ok(load_ok)
     }
 
+    #[observer(interval_ms = 100, streams = Streams)]
+    async fn observe(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
+        // Read Chamber Temperature
+        let operation = ReadChamber {};
+        let reading = ctx.operation(operation).await?;
+
+        let row = Row {
+            temperature_c: reading.temperature_c,
+            holding: ctx.resources().holding.load(Ordering::Acquire),
+        };
+        ctx.publish(row).await;
+
+        Ok(())
+    }
+
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
         // Release Chamber
         let operation = ReleaseChamber {};
@@ -402,6 +374,35 @@ impl Template {
 
         Ok(())
     }
+
+    fn document() -> Document {
+        let mut temperature = Plot::time_series("Temperature");
+        temperature.id("{{crate}}.soak.temperature");
+        temperature.unit("°C");
+        let temperature_c = Row::column_temperature_c();
+        temperature.y(temperature_c);
+        let elapsed_seconds = format::elapsed_seconds();
+        temperature.x_format(elapsed_seconds);
+        let fixed = format::fixed(1);
+        temperature.y_format(fixed);
+        let target_c = Parameters::target_c();
+        let band_c = Parameters::band_c();
+        let band = Band::around(target_c, band_c);
+        let temperature_c = Row::column_temperature_c();
+        temperature.reference_band("Target ± Band", temperature_c, band);
+        let marker = HoldReached::marker();
+        temperature.marker_records([marker]);
+
+        let mut signals = Section::new("Soak");
+        signals.id("{{crate}}.soak.signals");
+        signals.plot(temperature);
+
+        let mut document = Document::new("default", "Hold at Temperature");
+        document.section(signals);
+
+        document
+    }
+
 }
 
 /* === Public Functions === */

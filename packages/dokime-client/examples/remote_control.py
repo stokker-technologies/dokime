@@ -12,6 +12,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import argparse
 import asyncio
 import json
 from pathlib import Path
@@ -29,8 +30,7 @@ from dokime_client.client import DokimeClient
 # === Constants === #
 
 PAIRING_FILE = Path("lab.dokime-remote")
-EXECUTION_ID = "00000000-0000-0000-0000-000000000001"
-WAIT_SECONDS: float | None = None
+WAIT_S: float | None = None
 
 # === Types === #
 
@@ -39,11 +39,11 @@ WAIT_SECONDS: float | None = None
 # === Public Functions === #
 
 
-async def run() -> int:
+async def run(execution_id: str) -> int:
     async with DokimeClient.from_pairing(PAIRING_FILE) as client:
         backend = await client.connect()
         print(f"Backend: {backend.id} Epoch: {backend.epoch}", flush=True)
-        execution = await client.execution(EXECUTION_ID)
+        execution = await client.execution(execution_id)
         print(
             f"Execution: {execution.id}",
             flush=True,
@@ -58,7 +58,7 @@ async def run() -> int:
                 print(item.to_json(), flush=True)
 
         await execution.start()
-        async with asyncio.timeout(WAIT_SECONDS), asyncio.TaskGroup() as tasks:
+        async with asyncio.timeout(WAIT_S), asyncio.TaskGroup() as tasks:
             tasks.create_task(records())
             tasks.create_task(samples())
             outcome = await execution
@@ -77,8 +77,11 @@ async def run() -> int:
 # === Entry Point === #
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("execution_id", help="Existing execution UUID to start and observe")
+    arguments = parser.parse_args()
     try:
-        raise SystemExit(asyncio.run(run()))
+        raise SystemExit(asyncio.run(run(arguments.execution_id)))
     except KeyboardInterrupt:
-        print(f"Local Client Closed; Remote Work May Still Be Running. Execution: {EXECUTION_ID}", flush=True)
+        print(f"Local Client Closed; Remote Work May Still Be Running. Execution: {arguments.execution_id}", flush=True)
         raise SystemExit(130)

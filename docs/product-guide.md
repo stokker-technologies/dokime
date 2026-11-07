@@ -918,21 +918,29 @@ inputs before execution, so the procedure and its document see the same values.
 ### Run the Procedure and Capture Evidence
 
 OBC's [steady-state template](../plugins/sidecars/obc/src/suites/steady/measurement.rs)
-initializes shared device resources, energizes the charger, observes its
+initializes a plugin-owned device, energizes the charger, observes its
 waveform, asks the operator to inspect the trace, and attaches a measurement
-summary. Cleanup stops the simulated device.
+summary. Cleanup releases the simulated device through an operation.
 
-This excerpt is the template's measurement observer. `InputMeasurement`,
-`Samples`, `ObserverStreams`, and `reading` belong to the example:
+This excerpt is the template's measurement observer. `SampleCharger`, `Row`,
+`Samples`, `Streams`, and `measurement` belong to the example:
 
 ```rust
-#[dokime::observer(interval_ms = 5, streams = ObserverStreams)]
+#[dokime::observer(interval_ms = STEADY_INTERVAL_MS, streams = Streams)]
 async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
-    let row = reading(ctx.resources())?;
-    ctx.stream::<InputMeasurement>()
-        .into::<Samples>()
-        .push(row)
-        .await;
+    let index = ctx.resources().produced.load(Ordering::Acquire);
+
+    // Sample Charger
+    let operation = SampleCharger {
+        device_id: ctx.resources().device_id,
+        elapsed_s: 0.1 + index as f64 * ctx.resources().interval_s,
+    };
+    let sample = ctx.operation(operation).await?;
+
+    // Publish Measurement
+    let row = measurement::row(index, sample.reading, "stream");
+    ctx.stream::<Row>().into::<Samples>().push(row).await;
+    ctx.resources().produced.store(index + 1, Ordering::Release);
     Ok(())
 }
 ```
@@ -944,13 +952,17 @@ were captured and that the completion record accepted the run:
 ```rust
 #[dokime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = "Trace Accepted")]
 fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-    Ok(
-        ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
-            && super::super::support::decided(
-                ctx.records::<Completed>(),
-                |run| run.accepted,
-            )?,
-    )
+    let samples = ctx.samples::<Samples>();
+    let records = ctx.records::<Completed>()?;
+    let completed = records.last()
+        .ok_or_else(|| Error::MissingEvidence(Completed::RECORD_TYPE.into()))?;
+
+    // Check / Number of Rows
+    let number_ok = samples.len() as u64 >= ctx.parameters().sample_count()?;
+
+    // Check / Operator Acceptance
+    let accepted_ok = completed.accepted;
+    Ok(number_ok && accepted_ok)
 }
 ```
 
@@ -978,8 +990,8 @@ turns matching lines into rows and records. The
 simulated charger's log this way:
 
 ```rust
-let watch = ctx
-    .operation(WatchFile {
+// Watch the Charger Log
+let operation = WatchFile {
         execution_id: None,
         source: Some(FileWatchSource {
             payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
@@ -1001,9 +1013,8 @@ let watch = ctx
             r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)",
         )],
         markers: Vec::new(),
-    })
-    .start()
-    .await?;
+};
+let watch = ctx.operation(operation).start().await?;
 watch.armed().await?;
 // The baseline is established; the charger can now start logging its readings.
 let captured = watch.cancel().await?.into_owned();
@@ -1137,14 +1148,14 @@ The storage baseline remains v1 and existing storage is never automatically rese
 
 Compose plots from the same typed measurement fields used by the procedure.
 This shortened example follows OBC's
-[measurement document](../plugins/sidecars/obc/src/suites/common/measurement.rs); `stream` selects
-the suite-owned stream carrying `InputMeasurement` rows:
+[measurement document](../plugins/sidecars/obc/src/domain/model/measurement.rs); `stream` selects
+the suite-owned stream carrying `Row` rows:
 
 ```rust
 let mut voltage = Plot::xy_line("Battery Voltage");
 voltage.unit("V");
-voltage.x(InputMeasurement::column_elapsed_s().on(stream));
-voltage.y(InputMeasurement::column_dc_voltage_v().on(stream));
+voltage.x(Row::column_elapsed_s().on(stream));
+voltage.y(Row::column_dc_voltage_v().on(stream));
 
 let mut charging = Section::new("Battery Charging");
 charging.plot(voltage);

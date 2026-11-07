@@ -5,25 +5,25 @@ set -eu
 # Connection Parameters
 BACKEND_IDENTIFIER="lab"
 
-# Select The Imported Profile Once; Each Call Below Shows Its Remote Command.
+# Select the Imported Profile Once; Each Call Below Shows Its Remote Command.
 set -- --backend "$BACKEND_IDENTIFIER"
 
 trap 'printf "Stopped Waiting; Read Device State Before Resending An Unconfirmed Command\n" >&2; exit 130' INT TERM
 
-# Discover The Operation IDs Offered By The Installed Plugin.
+# Discover the Operation IDs Offered by the Installed Plugin.
 dokime operation list "$@"
 
-# Read The Manual Device Before Changing Power.
+# Read the Manual Device Before Changing Power.
 dokime operation call obc.device.read --json '{}' --output "before.json" "$@"
 
-# Enable The Manual Device.
+# Enable the Manual Device.
 dokime operation call obc.device.set_power --json '{"enabled":true}' --output "power-on.json" "$@"
 
-# Read Back The Powered State: 230 V RMS.
+# Read Back the Powered State: 230 V RMS.
 dokime operation call obc.device.read --json '{}' --output "running.json" "$@"
 
-# Disable The Manual Device.
+# Disable the Manual Device.
 dokime operation call obc.device.set_power --json '{"enabled":false}' --output "power-off.json" "$@"
 
-# Read Back The Powered-Off State: Zero Volts.
+# Read Back the Powered-Off State: Zero Volts.
 dokime operation call obc.device.read --json '{}' --output "after.json" "$@"

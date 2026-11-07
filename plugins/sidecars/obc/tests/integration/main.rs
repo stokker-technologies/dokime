@@ -31,7 +31,7 @@ use dokime::execution::{Answering, Caller};
 use dokime::harmos::operations::OperationDeclaration;
 use dokime::{ValidationMode, ValueType};
 use plugin_obc::domain::model::readiness::Readiness;
-use plugin_obc::domain::operations::AskReadiness;
+use plugin_obc::operations::AskReadiness;
 use plugin_obc::{ObcChecks, Pulse};
 
 /* === Constants === */
@@ -49,9 +49,16 @@ use plugin_obc::{ObcChecks, Pulse};
     description = "The host-side stream the pulse leases, declared by the plugin's system observer.\nThe observer's module is private to the crate, so the row the run leases is mirrored here under the same stream id and the same fields; the harness matches a measured stream by that id."
 )]
 struct SystemRow {
+    #[row(unit = "%")]
     process_cpu_percent: f64,
+
+    #[row(unit = "B")]
     process_memory_bytes: i64,
+
+    #[row(unit = "%")]
     system_cpu_percent: f64,
+
+    #[row(unit = "B")]
     system_memory_used_bytes: i64,
 }
 
@@ -94,8 +101,83 @@ fn materialization() -> dokime::definition::CaseMaterializationOptions {
     }
 }
 
+fn charger_answers() -> BTreeMap<String, Answering> {
+    use plugin_obc::operations::charger::*;
+    use plugin_obc::operations::wait::Wait;
+    let devices = Arc::new(Chargers::default());
+    let mut answers = BTreeMap::new();
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<InitializeCharger, _>(move |request| owner.initialize(request.supply, request.logging));
+    answers.insert(id, answer);
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<StartCharger, _>(move |request| owner.start(request.device_id));
+    answers.insert(id, answer);
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<ReadCharger, _>(move |request| owner.read(request.device_id));
+    answers.insert(id, answer);
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<SampleCharger, _>(move |request| owner.sample(request.device_id, request.elapsed_s));
+    answers.insert(id, answer);
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<SetChargerLoad, _>(move |request| owner.set_load(request.device_id, request.load_ohm));
+    answers.insert(id, answer);
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<InjectChargerFault, _>(move |request| owner.inject_fault(request.device_id, request.fault));
+    answers.insert(id, answer);
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<ClearChargerFault, _>(move |request| owner.clear_fault(request.device_id));
+    answers.insert(id, answer);
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<ProbeChargerRestart, _>(move |request| owner.probe_restart(request.device_id));
+    answers.insert(id, answer);
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<StopCharger, _>(move |request| owner.stop(request.device_id));
+    answers.insert(id, answer);
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<ReleaseCharger, _>(move |request| owner.release(request.device_id));
+    answers.insert(id, answer);
+    let owner = devices.clone();
+    let (id, answer) = answering_result::<SampleChargerBatch, _>(move |request| request.sample(&owner));
+    answers.insert(id, answer);
+    let (id, answer) = answering_result::<EncodeChargerSummary, _>(|request| request.encode().map_err(plugin_obc::Error::from));
+    answers.insert(id, answer);
+    answers.insert(
+        Wait::ID.into(),
+        Arc::new(|payload: Vec<u8>| {
+            Box::pin(async move {
+                let request = <Wait as dokime::harmos::Message>::decode(payload.as_slice()).map_err(|error| error.to_string())?;
+                tokio::time::sleep(std::time::Duration::from_secs_f64(request.duration_s)).await;
+                Ok(dokime::harmos::Message::encode(&()))
+            }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>>
+        }),
+    );
+    answers
+}
+
+fn answering_result<O, F>(answer: F) -> (String, Answering)
+where
+    O: OperationDeclaration + dokime::harmos::Message,
+    O::Response: dokime::harmos::Message,
+    F: Fn(O) -> Result<O::Response, plugin_obc::Error> + Send + Sync + 'static,
+{
+    let answer = Arc::new(answer);
+    (
+        O::ID.to_owned(),
+        Arc::new(move |payload: Vec<u8>| {
+            let answer = answer.clone();
+            Box::pin(async move {
+                let request = <O as dokime::harmos::Message>::decode(payload.as_slice()).map_err(|error| error.to_string())?;
+                let response = answer(request).map_err(|error| error.to_string())?;
+                Ok(dokime::harmos::Message::encode(&response))
+            }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>>
+        }),
+    )
+}
+
 fn road() -> Caller {
-    Caller::local(BTreeMap::from([answering::<AskReadiness, _>(|_| Readiness { stopped: false })]))
+    let mut answers = charger_answers();
+    answers.extend([answering::<AskReadiness, _>(|_| Readiness { stopped: false })]);
+    Caller::local(answers)
 }
 
 fn measured<C: dokime::telemetry::TelemetryStream>(rows: impl IntoIterator<Item = C::Row>) -> dokime::plugin::testing::Harness {
@@ -163,7 +245,7 @@ fn default_case_phases() {
     assert_eq!(template.test_case_template_id, Pulse::template_id());
     assert_eq!(
         template.parameters.iter().map(|parameter| parameter.metadata.identifier.as_str()).collect::<Vec<_>>(),
-        vec!["sample_count", "tolerance", "capture_system", "require_confirmation"]
+        vec!["sample_count", "tolerance_au", "capture_system", "require_confirmation"]
     );
     // The sidecar names one of these phase ids in every drain reply.
     assert_eq!(
@@ -260,6 +342,7 @@ async fn cpu_load_example_uses_public_hold_and_control_subscription() {
         .parameter("target_percent", 35.0)
         .parameter("duration_s", 1.0)
         .measuring::<LoadControl>([row])
+        .answering::<plugin_obc::operations::wait::Wait, _>(|_| ())
         .answering::<LoadHold, _>(move |request| {
             assert_eq!(request.target, LoadTarget::Percent(35.0));
             assert_eq!(request.threads, None);

@@ -28,8 +28,8 @@ use dokime::transport::{EvidenceBatch, RunExecution, SidecarCriterionStatus, Sid
 use dokime::{PromptId, Timestamp};
 use plugin_obc::domain::model::connections::Connections as ListedConnections;
 use plugin_obc::domain::model::readiness::Readiness;
-use plugin_obc::domain::operations::AskReadiness;
-use plugin_obc::domain::operations::ListConnections;
+use plugin_obc::operations::AskReadiness;
+use plugin_obc::operations::ListConnections;
 
 /* === Constants === */
 
@@ -69,12 +69,14 @@ fn assert_record_contract(request: model::records::publication::RecordPublishReq
 
 fn road(resources: &Connections) -> Caller {
     let connections = Arc::clone(resources);
-    Caller::local(BTreeMap::from([
+    let mut answers = super::charger_answers();
+    answers.extend([
         answering::<AskReadiness, _>(|_| Readiness { stopped: false }),
         answering::<ListConnections, _>(move |_| ListedConnections {
             resources: connections.lock().unwrap().clone(),
         }),
-    ]))
+    ]);
+    Caller::local(answers)
 }
 
 fn workflow<T: SidecarTemplate>(suite: &str) -> Workflow<T> {
@@ -377,7 +379,7 @@ fn runtime_request(token: &str, continuous: bool) -> RunExecution {
             // The two list-declaring templates this helper also starts: a
             // resolved case carries every parameter its template declares,
             // and a template that declares none simply never reads these.
-            "load_steps": dokime::Value::Array(::std::vec![
+            "load_steps_ohm": dokime::Value::Array(::std::vec![
                 dokime::Value::from(100.0),
                 dokime::Value::from(50.0),
                 dokime::Value::from(10.0),

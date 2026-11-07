@@ -181,7 +181,7 @@ cannot leave generation running or persistent native state changed.
 intervals, including the final partial interval. Cancellation during publication
 also settles the workers and returns the final summary. The OBC Checks template
 `obc.checks.cpu_load` demonstrates the complete consumer sequence using the
-step host’s scoped `submit::<LoadHold>(request)` API to start its handle.
+step’s `ctx.operation(operation).start().await?` builder to start its handle.
 
 The runtime decodes these rows through the same codec as other plugins.
 `host.system` also exposes `memory_used_gib` (Memory Used [GiB]) and

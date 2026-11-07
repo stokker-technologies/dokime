@@ -144,7 +144,7 @@ impl Hosting {
         for (publication, scope) in published {
             use dokime::telemetry::TelemetryRow;
             use harmos::Message;
-            let row = plugin_obc::suites::checks::pulse::PulseRow::decode(publication.payload()).unwrap();
+            let row = plugin_obc::suites::checks::pulse::Row::decode(publication.payload()).unwrap();
             let micros = u64::try_from(publication.published_unix_micros().unwrap()).unwrap();
             let instant = std::time::UNIX_EPOCH.checked_add(Duration::from_micros(micros)).unwrap();
             let mut sample = dokime::telemetry::TelemetrySample::new(
@@ -573,8 +573,8 @@ async fn inventory_matches_dispatch() {
         served.push((run, <dokime::execution::Run<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
         served.push((signal, <dokime::execution::Signal<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
     }
-    use plugin_obc::domain::operations::device::{ReadDevice, SetPower};
-    use plugin_obc::domain::operations::{AskReadiness, GetStatus, ListConnections};
+    use plugin_obc::operations::device::{ReadDevice, SetPower};
+    use plugin_obc::operations::{AskReadiness, GetStatus, ListConnections};
     for (operation, timeout) in [
         (<GetStatus as OperationDeclaration>::ID, <GetStatus as OperationDeclaration>::POLICY.timeout),
         (<AskReadiness as OperationDeclaration>::ID, <AskReadiness as OperationDeclaration>::POLICY.timeout),
@@ -651,7 +651,7 @@ async fn samples_keep_context() {
     let mut bench = Bench::new().await;
     let parameters = BTreeMap::from([
         ("sample_count", Value::Integer(3)),
-        ("tolerance", Value::from(plugin_obc::DEFAULT_TOLERANCE)),
+        ("tolerance_au", Value::from(plugin_obc::DEFAULT_TOLERANCE)),
         ("capture_system", Value::from(false)),
         ("require_confirmation", Value::from(false)),
     ]);
@@ -688,7 +688,7 @@ async fn samples_keep_context() {
     assert_eq!(
         stream.definition().schema().unwrap(),
         &harmos::schema::graph::Schema::from_declaration(
-            <plugin_obc::suites::checks::pulse::PulseRow as harmos::schema::Described>::DEFINITION,
+            <plugin_obc::suites::checks::pulse::Row as harmos::schema::Described>::DEFINITION,
             &harmos::config::SchemaSettings::default(),
         )
         .unwrap()
@@ -696,7 +696,7 @@ async fn samples_keep_context() {
     let mut samples: BTreeMap<String, Vec<i64>> = BTreeMap::new();
     for row in stream.query(..).await.unwrap() {
         assert!(row.value.published_unix_micros.is_some());
-        let decoded = plugin_obc::suites::checks::pulse::PulseRow::decode(&row.value.payload).unwrap();
+        let decoded = plugin_obc::suites::checks::pulse::Row::decode(&row.value.payload).unwrap();
         let index = decoded.sample_index;
         samples.entry(row.value.context.clone().expect("native template rows carry context")).or_default().push(index);
     }

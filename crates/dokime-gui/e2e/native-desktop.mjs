@@ -144,7 +144,7 @@ const STARTUP_SUITE = "Charger Start-Up";
 const STARTUP_TEMPLATE = "Start-Up Sequence";
 
 /** A cartesian list parameter, so chips and expressions have somewhere to go. */
-const LIST_PARAMETER = "load_steps";
+const LIST_PARAMETER = "load_steps_ohm";
 
 /** A plain number, so an edit has a Reset affordance to reveal. */
 const NUMBER_PARAMETER = "frequency_hz";

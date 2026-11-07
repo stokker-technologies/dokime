@@ -38,7 +38,7 @@ switch ($Architecture) {
     default { throw 'The Windows Bootstrap Requires An x64 Or ARM64 Operating System' }
 }
 
-# Use TLS 1.2 On Older Windows PowerShell Images Without Changing Certificate Trust
+# Use TLS 1.2 on Older Windows PowerShell Images Without Changing Certificate Trust
 $PreviousProtocol = [Net.ServicePointManager]::SecurityProtocol
 $PreviousProgress = $ProgressPreference
 $PreviousInstallPath = [Environment]::GetEnvironmentVariable('MISE_INSTALL_PATH', 'Process')
@@ -51,7 +51,7 @@ try {
     $ProgressPreference = 'SilentlyContinue'
     New-Item -ItemType Directory -Path $Work | Out-Null
 
-    # Install The Verified Self-Contained PowerShell ZIP For This User
+    # Install the Verified Self-Contained PowerShell ZIP for This User
     $PowerShellDirectory = Join-Path $env:LOCALAPPDATA "Programs\PowerShell\$POWERSHELL_VERSION-$Architecture"
     $Pwsh = Join-Path $PowerShellDirectory 'pwsh.exe'
     if (-not (Test-Path -LiteralPath $PowerShellDirectory)) {
@@ -72,7 +72,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or $InstalledVersion -ne $POWERSHELL_VERSION) {
         throw "PowerShell Did Not Start As $POWERSHELL_VERSION; Check OS Prerequisites And $PowerShellDirectory"
     }
-    # Preserve Unexpanded Variables And Existing User Entries
+    # Preserve Unexpanded Variables and Existing User Entries
     $EnvironmentKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
     try {
         $RawPath = [string]$EnvironmentKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
@@ -92,8 +92,8 @@ try {
     })
     $env:Path = (@($PowerShellDirectory) + $ProcessEntries) -join ';'
 
-    # The Official Windows Installer Verifies Mise And Installs Its Companion Shim
-    # It Supports PowerShell 5.1, Preserves User PATH And Broadcasts Environment Changes.
+    # The Official Windows Installer Verifies Mise and Installs Its Companion Shim
+    # It Supports PowerShell 5.1, Preserves User PATH and Broadcasts Environment Changes.
     $Mise = Join-Path $env:USERPROFILE '.local\bin\mise.exe'
     $env:MISE_INSTALL_PATH = $Mise
     $env:MISE_INSTALL_MODIFY_PATH = '1'
@@ -103,7 +103,7 @@ try {
     & ([scriptblock]::Create([string]$Installer))
     if (-not (Test-Path -LiteralPath $Mise -PathType Leaf)) { throw 'The Mise Installer Did Not Produce mise.exe' }
 
-    # Install uv Globally Without Trusting Or Installing Any Local Project
+    # Install Uv Globally Without Trusting or Installing Any Local Project
     Push-Location -LiteralPath $env:USERPROFILE
     try {
         & $Mise use -g uv
@@ -116,7 +116,7 @@ try {
         Pop-Location
     }
 
-    # Activate Project Environments In PowerShell 7; Shims Also Serve cmd.exe And Editors
+    # Activate Project Environments in PowerShell 7; Shims Also Serve cmd.exe and Editors
     $ProfilePath = & $Pwsh -NoLogo -NoProfile -NonInteractive -Command '$PROFILE.CurrentUserAllHosts'
     if ($LASTEXITCODE -ne 0 -or -not $ProfilePath) { throw 'Cannot Locate The PowerShell 7 User Profile' }
     $Activation = "(& '" + $Mise.Replace("'", "''") + "' activate pwsh) | Out-String | Invoke-Expression"
@@ -128,7 +128,7 @@ try {
         [IO.File]::WriteAllText($ProfilePath, $ProfileText, [Text.UTF8Encoding]::new($true))
     }
 
-    # Install The Published CLI From Its Own Prebuilt Asset Without A Rust Toolchain
+    # Install the Published CLI from Its Own Prebuilt Asset Without a Rust Toolchain
     if ($INSTALL_DOKIME) {
         $CliRoot = Join-Path $env:LOCALAPPDATA 'Programs\DokimeCLI'
         $CliBin = Join-Path $CliRoot 'bin'
@@ -148,7 +148,7 @@ try {
         if (-not (Test-Path -LiteralPath $Dokime -PathType Leaf)) { throw 'Mise Did Not Install dokime.exe' }
         & $Dokime --version
         if ($LASTEXITCODE -ne 0) { throw 'The Installed Dokime CLI Did Not Start' }
-        # Preserve Unexpanded Variables And Existing User Entries
+        # Preserve Unexpanded Variables and Existing User Entries
         $EnvironmentKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
         try {
             $RawPath = [string]$EnvironmentKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)

@@ -5,22 +5,22 @@ setlocal EnableExtensions DisableDelayedExpansion
 rem Connection Parameters
 set "BACKEND_IDENTIFIER=lab"
 
-rem Case And Execution Parameters
+rem Case and Execution Parameters
 set "TEMPLATE=obc.checks.pulse"
 set "CYCLE_LABEL=Remote Confirmation Demonstration"
 set "ANSWER=yes"
-set "WAIT_SECONDS=60"
+set "WAIT_S=60"
 
 rem Evidence Files
 set "OUTPUT_DIRECTORY=prompt-evidence"
 set "OVERWRITE=false"
 
-rem Connect With The Explicit Parameters
+rem Connect with the Explicit Parameters
 set CONNECTION=--backend "%BACKEND_IDENTIFIER%"
 
 set "CycleId="
 set "ExecutionId="
-if %WAIT_SECONDS% LSS 1 exit /b 2
+if %WAIT_S% LSS 1 exit /b 2
 set "Export="
 if "%OVERWRITE%"=="true" set "Export=--overwrite"
 if not exist "%OUTPUT_DIRECTORY%\recovery" mkdir "%OUTPUT_DIRECTORY%\recovery"
@@ -53,28 +53,28 @@ for /f "tokens=2 delims=:{}" %%I in (cycle.json) do set "CycleId=%%~I"
 if not defined CycleId goto Failed
 echo Cycle: %CycleId%
 
-rem Append One Attempt; Its UUID Scopes The Prompt And Evidence
+rem Append One Attempt; Its UUID Scopes the Prompt and Evidence
 dokime cycle append "%CycleId%" --case-id "%CaseId%" --id-only --id-file execution.id --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
 set "ExecutionId="
 set /p "ExecutionId=" < execution.id
 if not defined ExecutionId goto Failed
 echo Execution: %ExecutionId%
 
-rem Start Without Blocking, Then Wait For This Execution's Next Prompt
+rem Start Without Blocking, Then Wait for This Execution's Next Prompt
 dokime execution start "%ExecutionId%" --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
-dokime execution prompt next "%ExecutionId%" --wait-seconds %WAIT_SECONDS% --id-only --id-file prompt.id --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
+dokime execution prompt next "%ExecutionId%" --wait-seconds %WAIT_S% --id-only --id-file prompt.id --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
 set "PromptId="
 set /p "PromptId=" < prompt.id
 if not defined PromptId goto Failed
 echo Prompt: %PromptId% Execution: %ExecutionId%
 dokime execution prompt show "%ExecutionId%" "%PromptId%" --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION% --json > prompt.json
 
-rem Answer Once; Wait For The Durable Result Before Downloading
+rem Answer Once; Wait for the Durable Result Before Downloading
 dokime execution prompt answer "%ExecutionId%" "%PromptId%" --action "%ANSWER%" --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
-dokime execution wait "%ExecutionId%" --wait-seconds %WAIT_SECONDS% --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
+dokime execution wait "%ExecutionId%" --wait-seconds %WAIT_S% --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
 dokime execution export "%ExecutionId%" --output "%OUTPUT_DIRECTORY%\execution.zip" %Export% --cancel-on-interrupt --owned-cycle "%CycleId%" --recovery-directory "%OUTPUT_DIRECTORY%\recovery" %CONNECTION%
 
-rem Seal The Cycle And Download All Members Into cycle.zip
+rem Seal the Cycle and Download All Members into cycle.zip
 dokime cycle seal "%CycleId%" %CONNECTION%
 dokime cycle export "%CycleId%" --output "%OUTPUT_DIRECTORY%\cycle.zip" %Export% %CONNECTION%
 exit /b

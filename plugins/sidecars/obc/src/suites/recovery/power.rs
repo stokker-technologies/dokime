@@ -19,13 +19,15 @@
 
 // Local Imports
 use super::TEMPLATE;
-use crate::error::Error;
-use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
-use crate::suites::common::system::{self, SystemInputs};
-use crate::suites::common::{measurement, readiness, verdicts};
+use crate::domain::Error;
+use crate::domain::document::{self as system, Subscriptions};
+use crate::domain::model::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
+use crate::domain::model::charger::{Charger, Fault, Power};
+use crate::domain::model::measurement;
+use crate::domain::model::measurement::Row;
+use crate::operations::charger::*;
 use dokime::definition::ParameterDefault;
 use dokime::prelude::*;
-use obc_runtime::device::{Device, Fault, Power, Reading};
 
 /* === Constants === */
 
@@ -37,11 +39,11 @@ bench!(Parameters);
 
 /* === Structs === */
 
-#[dokime::stream(id = "obc.charger.recovery.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
+#[dokime::stream(id = "obc.charger.recovery.samples", window = 4096, row = Row, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::Row`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
 pub struct Samples;
 
-pub struct PowerLoss {
-    device: Device,
+pub struct Template {
+    device: Charger,
     recovered: bool,
     cycles: u64,
     published: u64,
@@ -86,7 +88,7 @@ pub struct Cleared {}
 
 #[dokime::record(
     id = "obc.charger.recovery.stopped",
-    label = "Recovered Charger De-energized",
+    label = "Recovered Charger De-Energized",
     description = "The recovered Charger was de-energized, and what the procedure decided."
 )]
 #[derive(Clone, Debug)]
@@ -100,7 +102,7 @@ pub struct Stopped {
 
 #[dokime::parameters]
 pub struct Parameters {
-    #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
+    #[parameter(label = "AC RMS Voltage", unit = "V", default = 230.0)]
     pub ac_voltage_v: f64,
 
     #[parameter(label = "Load Impedance Magnitude", unit = "ohm", default = 100.0)]
@@ -160,7 +162,15 @@ pub struct Parameters {
 
 #[dokime::catalog]
 pub enum Required {
-    AskReadiness(crate::domain::operations::AskReadiness),
+    AskReadiness(crate::operations::AskReadiness),
+    ClearChargerFault(ClearChargerFault),
+    InitializeCharger(InitializeCharger),
+    InjectChargerFault(InjectChargerFault),
+    ProbeChargerRestart(ProbeChargerRestart),
+    ReleaseCharger(ReleaseCharger),
+    SampleCharger(SampleCharger),
+    StartCharger(StartCharger),
+    StopCharger(StopCharger),
 }
 
 #[dokime::catalog]
@@ -183,34 +193,55 @@ pub enum Streams {
 
 #[dokime::template(id = TEMPLATE, label = "Power Recovery", tags = ["device", "recovery"],
     requires = Required,
-    subscribes = SystemInputs,
+    subscribes = Subscriptions,
     records = Records,
     streams = Streams,
     parameters = Parameters, description = "Remove the Charger's power, clear the latched fault, and verify a controlled restart.")]
-impl PowerLoss {
+impl Template {
     async fn initialize(supply: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
-        readiness::ready(ctx).await?;
+        // Check Bench Readiness
+        let operation = crate::operations::AskReadiness {};
+        let readiness = ctx.operation(operation).await?;
+        if readiness.stopped {
+            return Err(Error::Observation("the bench is stopped".into()));
+        }
+
+        // Initialize Charger
+        let operation = InitializeCharger { supply: supply.supply(), logging: false };
+        let device = ctx.operation(operation).await?.into_owned();
         Ok(Self {
-            device: Device::initialize(supply.supply()).map_err(Error::Device)?,
+            device,
             recovered: false,
             cycles: 0,
             published: 0,
         })
     }
-    fn document() -> Document {
-        let mut document = measurement::document(<Samples as dokime::StreamSpec>::ID, "Power Recovery");
-        document.section(system::section(TEMPLATE));
-        document
-    }
+
     #[dokime::step(id = "initialize", label = "Initialize and Start Charger")]
     async fn setup(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        ctx.publish(Initialized {}).await;
-        self.device.start().map_err(Error::Device)?;
-        ctx.publish(Started { note: "Charger energized.".into() }).await;
-        let reading = self.device.sample(0.1);
-        publish(ctx, &mut self.published, reading, "running").await;
+        // Publish Initialized
+        let record = Initialized {};
+        ctx.publish(record).await;
+        // Start Charger
+        let operation = StartCharger { device_id: self.device.device_id };
+        self.device = ctx.operation(operation).await?.into_owned();
+        let record = Started { note: "Charger energized.".into() };
+        ctx.publish(record).await;
+        // Sample Charger
+        let operation = SampleCharger {
+            device_id: self.device.device_id,
+            elapsed_s: 0.1,
+        };
+        let sample = ctx.operation(operation).await?.into_owned();
+        self.device = sample.charger;
+        let reading = sample.reading;
+        // Publish Measurement
+        let row = measurement::row(self.published, reading, "running");
+        ctx.stream::<Row>().into::<Samples>().push(row).await;
+        self.published += 1;
         Ok(())
     }
+
     #[dokime::step(
         label = "Replay the Outage Schedule",
         description = "Replay the declared outage schedule, one pair at a time.\nEach cycle removes power for its own duration, restores it, clears the latch, and requires the restart to be observable within the paired budget. A case whose two lists are different lengths has half a cycle in it and is refused by name rather than silently truncated."
@@ -230,24 +261,58 @@ impl PowerLoss {
         let mut elapsed_s = 0.1;
         let mut every_cycle_recovered = true;
         for (outage_s, limit_s) in outages.into_iter().zip(limits) {
-            self.device.inject(Fault::PowerLoss);
+            // Remove Charger Power
+            let operation = InjectChargerFault {
+                device_id: self.device.device_id,
+                fault: Fault::PowerLoss,
+            };
+            self.device = ctx.operation(operation).await?.into_owned();
             elapsed_s += outage_s;
-            let dark = self.device.sample(elapsed_s);
-            let contained = dark.voltage_rms_v == 0.0 && self.device.start().is_err();
-            ctx.publish(Faulted {}).await;
-            publish(ctx, &mut self.published, dark, "power_loss").await;
+            // Sample Charger
+            let operation = SampleCharger {
+                device_id: self.device.device_id,
+                elapsed_s: elapsed_s,
+            };
+            let sample = ctx.operation(operation).await?.into_owned();
+            self.device = sample.charger;
+            let dark = sample.reading;
+            // Probe Restart While Power Is Lost
+            let operation = ProbeChargerRestart { device_id: self.device.device_id };
+            let restart = ctx.operation(operation).await?;
+            let contained = dark.voltage_rms_v == 0.0 && restart.blocked;
+            let record = Faulted {};
+            ctx.publish(record).await;
+            // Publish Measurement
+            let row = measurement::row(self.published, dark, "power_loss");
+            ctx.stream::<Row>().into::<Samples>().push(row).await;
+            self.published += 1;
 
-            self.device.clear();
-            ctx.publish(Cleared {}).await;
-            self.device.start().map_err(Error::Device)?;
-            ctx.publish(Started {
+            // Clear Fault Latch
+            let operation = ClearChargerFault { device_id: self.device.device_id };
+            self.device = ctx.operation(operation).await?.into_owned();
+            let record = Cleared {};
+            ctx.publish(record).await;
+            // Start Charger
+            let operation = StartCharger { device_id: self.device.device_id };
+            self.device = ctx.operation(operation).await?.into_owned();
+            let record = Started {
                 note: format!("Charger restarted under control within {limit_s} s."),
-            })
-            .await;
+            };
+            ctx.publish(record).await;
             elapsed_s += limit_s;
-            let restored = self.device.sample(elapsed_s);
+            // Sample Charger
+            let operation = SampleCharger {
+                device_id: self.device.device_id,
+                elapsed_s: elapsed_s,
+            };
+            let sample = ctx.operation(operation).await?.into_owned();
+            self.device = sample.charger;
+            let restored = sample.reading;
             let recovered = restored.current_rms_a > 0.0 && self.device.power == Power::Running;
-            publish(ctx, &mut self.published, restored, "recovered").await;
+            // Publish Measurement
+            let row = measurement::row(self.published, restored, "recovered");
+            ctx.stream::<Row>().into::<Samples>().push(row).await;
+            self.published += 1;
 
             every_cycle_recovered &= contained && recovered;
             self.cycles += 1;
@@ -261,18 +326,15 @@ impl PowerLoss {
         description = "Leave the recovered Charger de-energized and record what was decided."
     )]
     async fn stop(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        self.device.stop();
-        ctx.publish(Stopped {
+        // Stop Charger
+        let operation = StopCharger { device_id: self.device.device_id };
+        self.device = ctx.operation(operation).await?.into_owned();
+        // Publish Stopped
+        let record = Stopped {
             accepted: self.recovered && self.cycles > 0 && self.device.fault.is_none(),
             cycles: self.cycles,
-        })
-        .await;
-        Ok(())
-    }
-
-    async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
-        self.device.stop();
-        ctx.info("Charger resources released");
+        };
+        ctx.publish(record).await;
         Ok(())
     }
 
@@ -282,17 +344,36 @@ impl PowerLoss {
         description = "Passed once the loss was contained and the controlled restart recovered."
     )]
     fn recovered(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-        verdicts::decided(ctx.records::<Stopped>(), |stopped| stopped.accepted)
+        let records = ctx.records::<Stopped>()?;
+        let stopped = records.last().ok_or_else(|| Error::MissingEvidence(Stopped::RECORD_TYPE.into()))?;
+
+        // Check / Accepted Outcome
+        let accepted_ok = stopped.accepted;
+        Ok(accepted_ok)
+    }
+
+    async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
+        // Release Charger
+        let operation = ReleaseCharger { device_id: self.device.device_id };
+        let result = ctx.operation(operation).await;
+        if let Err(error) = &result {
+            ctx.warn(format!("charger cleanup: {error}"));
+        }
+        result?;
+        ctx.info("Charger resources released");
+        Ok(())
+    }
+
+    fn document() -> Document {
+        let mut document = measurement::document(<Samples as dokime::StreamSpec>::ID, "Power Recovery");
+        let section = system::section(TEMPLATE);
+        document.section(section);
+        document
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-async fn publish<T, O, I>(ctx: &mut StepContext<'_, T, O, I>, published: &mut u64, reading: Reading, phase: &str) {
-    measurement::publish::<Samples, _, _, _>(ctx, *published, reading, phase).await;
-    *published += 1;
-}
 
 /* === Tests === */

@@ -22,3 +22,10 @@ GUI `src/lib/traceability.ts` keys stated groups by snapshot identity plus secti
 One writer owns this integration worktree. Task 1 owns domain identity/traceability, all constructor consumers, runtime traceability/report expectations, starter traceability and all maintained skill copies. Task 2 owns the client example directories, starter authoring flow and sample OBC plugin operations, domain data, observers and templates. The existing host sidecar is a shipping provider, not a sample plugin, and retains its established native layout. There is no root examples directory on the base revision.
 
 Review README impact with both tasks; preserve unaffected product claims. Do not edit historical archived changes. Migrate tests and generated bindings when contract fields actually change. No unresolved owner decisions remain.
+
+
+## Sample Ownership
+
+The OBC plugin retains a `Chargers` resource. Each initialization issues a separate handle; templates retain plugin-owned snapshot data and a handle, and operations own native device access and conversions. Batch capture acquires bounded batches before publishing each original row, keeping high-volume examples viable. The system observer collects through an operation. Shared row/parameter data, prompts and settings live in `domain/model/`; shared host presentation belongs to `domain/document.rs`. Operation policies remain beside their handlers. Calls form an acyclic tree; templates sequence operations directly. There are no new product features.
+
+The OBC unit-bearing parameter names are `load_steps_ohm` and `tolerance_au`, and client example time constants use `_S`. Their callers and behavior fixtures are migrated together. README product claims and supported entry points are unaffected; maintained topic guides carry the changed source layout.

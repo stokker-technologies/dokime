@@ -219,7 +219,7 @@ CYCLE_LABEL = "Remote Pulse Demonstration"
 SAMPLE_COUNT = 8
 PARAMETERS = {"sample_count": SAMPLE_COUNT}
 EXECUTION_COUNT = 2
-WAIT_SECONDS = 60.0
+WAIT_S = 60.0
 
 RECORD_TYPES = ("obc.run.*",)
 STREAMS = ("obc.pulse",)
@@ -233,7 +233,7 @@ to `1` to study only the first attempt or leave it at `2`; add explicit calls
 and evidence destinations to teach additional attempts.
 `PARAMETERS` supplies the selected template's inputs; update it and the observation
 filters when choosing another template.
-`WAIT_SECONDS` is each execution's positive local deadline. Filters are case-sensitive
+`WAIT_S` is each execution's positive local deadline. Filters are case-sensitive
 whole-identifier globs: `*` matches any sequence, `?` one character, and
 alternatives in a tuple are OR. An empty tuple observes all records or streams
 for its supplied reader. Filters affect observation, not captured evidence.
@@ -272,7 +272,7 @@ only the selected attempt until the operator explicitly re-enables continuation.
 ## Answer One Confirmation
 
 In `control-prompt.py`, review `TEMPLATE`, `CYCLE_LABEL`, `ANSWER`,
-`WAIT_SECONDS`, `OUTPUT_DIRECTORY` and `OVERWRITE`. The default `ANSWER`
+`WAIT_S`, `OUTPUT_DIRECTORY` and `OVERWRITE`. The default `ANSWER`
 is `"yes"`; `"no"` records a truthful nonpassing result.
 
 ```sh

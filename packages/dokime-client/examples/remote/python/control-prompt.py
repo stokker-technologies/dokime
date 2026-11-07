@@ -37,7 +37,7 @@ PAIRING_FILE = Path("../lab.dokime-remote")
 TEMPLATE = "obc.checks.pulse"
 CYCLE_LABEL = "Remote Confirmation Demonstration"
 ANSWER = "yes"
-WAIT_SECONDS = 60.0
+WAIT_S = 60.0
 
 # Evidence Files
 OUTPUT_DIRECTORY = Path("prompt-evidence")
@@ -51,8 +51,8 @@ OVERWRITE = False
 
 
 async def run() -> int:
-    if ANSWER not in ("yes", "no") or WAIT_SECONDS <= 0:
-        raise ValueError("ANSWER must be yes or no and WAIT_SECONDS must be positive")
+    if ANSWER not in ("yes", "no") or WAIT_S <= 0:
+        raise ValueError("ANSWER must be yes or no and WAIT_S must be positive")
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
     if (OUTPUT_DIRECTORY / "execution.zip").exists() and not OVERWRITE:
         raise FileExistsError("execution.zip exists; choose another output directory or enable OVERWRITE")
@@ -77,9 +77,9 @@ async def run() -> int:
 
             # Start Without Blocking So the Script Can Answer Its Prompt
             await execution.start()
-            # Python Lists Pending Prompts But Offers No Blocking Next-Prompt Call.
-            # This One Bounded Wait Ends At A Prompt, A Saved Seal Or The Deadline.
-            async with asyncio.timeout(WAIT_SECONDS):
+            # Python Lists Pending Prompts but Offers No Blocking Next-Prompt Call.
+            # This One Bounded Wait Ends at a Prompt, a Saved Seal or the Deadline.
+            async with asyncio.timeout(WAIT_S):
                 while True:
                     async with aclosing(execution.pending_prompts()) as reader:
                         pending = [prompt async for prompt in reader]
@@ -99,7 +99,7 @@ async def run() -> int:
             Path("prompt.json").write_text(json.dumps(question, indent=2) + "\n", encoding="utf-8")
             print(f"Answer: {ANSWER}", flush=True)
             await execution.respond(prompt.id, action=ANSWER)
-            outcome = await execution.wait(timeout=WAIT_SECONDS)
+            outcome = await execution.wait(timeout=WAIT_S)
             print(f"Saved Outcome: {outcome.status} Execution: {execution.id}", flush=True)
             saved = await execution.export(OUTPUT_DIRECTORY / "execution.zip", overwrite=OVERWRITE)
             print(f"Execution Evidence: {saved.path} SHA-256: {saved.sha256}", flush=True)

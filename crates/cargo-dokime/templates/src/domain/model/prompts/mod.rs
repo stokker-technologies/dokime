@@ -38,7 +38,7 @@
 // struct instance: `SoakCheckpoint { note: seen, ..Default::default() }`.
 #[dokime::prompt(
     id = "{{crate}}.soak.checkpoint",
-    label = "Sign Off the Soak",
+    label = "Sign off the Soak",
     submit = "Sign Off",
     description = "Check the chamber and the unit, then record what you saw."
 )]
