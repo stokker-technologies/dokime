@@ -7,7 +7,7 @@ Define canonical parallel native compilation, preserved local extended coverage 
 
 ### Requirement: Canonical Native Configuration
 
-Ordinary Product and Tests SHALL use canonical configurations per platform and profile. Independent feature sets are permitted; compatible compiler outputs MAY be reused without widening the shipped feature graph. Clippy SHALL precede compilation with matching configuration. Necessary fault-injection instrumentation SHALL remain local extended coverage and SHALL NOT enter provider CI or shipping binaries. Local installers SHALL NOT build tests by default.
+Ordinary Product and Tests SHALL use canonical configurations per platform and profile. Independent feature sets are permitted; compatible compiler outputs MAY be reused without widening the shipped feature graph. Build, test, bench, fixture and focused compilation tasks SHALL NOT run Clippy implicitly. Clippy SHALL run with warnings denied only through `lint:rust`, included by `check:rust` and gated by CI Check / Rust; an explicit focused `clippy` operation MAY invoke it deliberately. Necessary fault-injection instrumentation SHALL remain local extended coverage and SHALL NOT enter provider CI or shipping binaries. Local installers SHALL NOT build tests by default.
 
 #### Scenario: Ordinary Review
 

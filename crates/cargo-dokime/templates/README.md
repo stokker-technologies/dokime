@@ -123,7 +123,7 @@ the first build resolves the SDK and Rust dependencies. Commit `Cargo.lock`
 to retain the resolved revisions.
 
 Run `cargo generate-lockfile` and `mise install` once, then commit both lockfiles:
-CI installs the locked dependencies and tools. `mise.toml` pins `cargo-dokime` and the `dokime` CLI to the Dokime release that generated this project, from Dokime's official GitHub release assets for the host platform; neither is a crates.io package. Set both versions to `nightly` to follow the nightly prerelease. `mise run check` verifies source and formatting; Build runs configuration-matched Clippy before compiling. `mise run build` compiles the plugin and freezes its catalog
+CI installs the locked dependencies and tools. `mise.toml` pins `cargo-dokime` and the `dokime` CLI to the Dokime release that generated this project, from Dokime's official GitHub release assets for the host platform; neither is a crates.io package. Set both versions to `nightly` to follow the nightly prerelease. `mise run check` verifies source and formatting; `lint:rust` runs Clippy with warnings denied, included by `check:rust` and gated by CI Check / Rust. Build, test, bench and fixture tasks do not run Clippy; a focused `clippy` operation is an explicit choice. Use `mise run lint:rust --extended` for optional compatibility lint coverage. `mise run build` compiles the plugin and freezes its catalog
 under `target/build/<profile>/<target>/plugins/{{package}}.dokime`.
 Standalone development builds retain line tables with separate debug information,
 matching Dokime's development profile while keeping the packaged executable bounded.

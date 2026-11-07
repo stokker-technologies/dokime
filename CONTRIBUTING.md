@@ -109,6 +109,12 @@ Debug assertions and overflow checks remain enabled.
 
 ## Tests and Checks
 
+`lint:rust` runs Clippy with warnings denied; `check:rust` includes it and CI
+Check / Rust gates it. Build, test, bench and fixture tasks do not run Clippy.
+Focused compilation retains compiler preflight; Clippy is an explicit choice with
+`mise run build:rust:focused -- clippy <arguments>`.
+Use `mise run lint:rust --extended` for local compatibility lint coverage.
+
 Build matching artifacts, then run every test lane concurrently (the five-minute
 execution target is advisory and excludes compilation):
 
@@ -425,7 +431,7 @@ JSON timings and runtime/report tracing on stderr, then run:
 mise run build:rust:focused -- bench --locked -p dokime-runtime --features testing,fault-injection --bench integration-runtime -- long_execution
 ```
 
-The focused task retains the standard compiler preflight and Clippy. Use
+The focused task retains the standard compiler preflight. Use
 `DOKIME_FINALIZE_MEASURE=criterion` with the same selection for repeated native
 Criterion measurements. Fresh fixture construction is outside
 the measured intervals. The long workloads do not run without this explicit opt-in.

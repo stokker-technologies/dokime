@@ -172,8 +172,17 @@ run = [
 
 [tasks."lint:rust"]
 description = "Lint Rust"
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}},dokime-runtime/testing"
+usage = 'flag "--extended"'
+run = [
+  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}},dokime-runtime/testing",
+  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.lint -- --locked --workspace --profile dev --features {{vars.rust_plugin_features}},{{vars.rust_desktop_features}}",
+  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --bins --benches --profile bench --features plugin-obc/benchmarks,{{vars.rust_plugin_features}}",
+  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.lint -- --locked --workspace --all-targets --all-features --profile test{% endif %}",
+  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --profile test -p dokime-domain --target wasm32-unknown-unknown{% endif %}",
+  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --lib --bins --no-default-features --profile test{% endif %}",
+]
 env = { CARGO_BUILD_WARNINGS = "deny" }
+
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript"
