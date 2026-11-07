@@ -435,7 +435,10 @@ export const CartesianPlot = memo(function CartesianPlot({
             const nextTooltip = markerTooltip(plot, kindsRef.current, hiddenMarkersRef.current, root.getBoundingClientRect());
             setHoveredMarker((current) => {
               if (!nextTooltip) return current ? null : current;
-              return current?.label === nextTooltip.label && current.left === nextTooltip.left && current.width === nextTooltip.width
+              return current?.key === nextTooltip.key &&
+                current.label === nextTooltip.label &&
+                current.left === nextTooltip.left &&
+                current.width === nextTooltip.width
                 ? current
                 : nextTooltip;
             });
@@ -894,6 +897,7 @@ export const CartesianPlot = memo(function CartesianPlot({
             <div
               className="pointer-events-none absolute top-1 z-10 box-border line-clamp-3 wrap-anywhere rounded-lg border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-sm"
               role="tooltip"
+              data-marker-kind={hoveredMarker.key}
               style={{ left: hoveredMarker.left, width: hoveredMarker.width }}
             >
               {hoveredMarker.label}

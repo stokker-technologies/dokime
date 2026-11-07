@@ -370,7 +370,13 @@ export function TemplateDialog({
           ) : null}
         </span>
       ) : (
-        <Button className="h-9 w-full" disabled={busy || !preview || !append} onClick={() => void finishAndAdd()} type="button">
+        <Button
+          data-testid="template-add"
+          className="h-9 w-full"
+          disabled={busy || !preview || !append}
+          onClick={() => void finishAndAdd()}
+          type="button"
+        >
           Finish and Add
         </Button>
       )}

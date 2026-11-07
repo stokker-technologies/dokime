@@ -461,6 +461,7 @@ function ExecutionTreeRow({
       aria-selected={selected}
       className="group/row grid min-w-0 outline-none [&:focus-visible>div]:ring-2 [&:focus-visible>div]:ring-ring"
       data-execution-id={row.execution?.test_execution_id}
+      data-execution-status={row.execution?.status}
       data-following={following || undefined}
       data-level="case"
       data-rerun-of={row.rerunOf ?? undefined}
@@ -514,6 +515,7 @@ function ExecutionTreeRow({
             <DropdownMenuTrigger asChild>
               <Button
                 aria-label={`Actions for ${row.case.label}`}
+                data-tree-actions
                 className="size-[var(--tree-action-width)] opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [[data-density=touch]_&]:pointer-events-none"
                 size="icon-sm"
                 tabIndex={-1}
