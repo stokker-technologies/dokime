@@ -37,6 +37,7 @@ pub enum DocumentFailure {
     Limit,
     Budget { budget: &'static str, limit: usize, reached: usize, card: String },
     Evaluation { message: &'static str },
+    TelemetryColumn { stream: String, column: String, source: Box<crate::Error> },
     InvalidIdentifier { source: dokime_domain::Error },
     InvalidDefinition { issues: Vec<String> },
     // A repeated section must select row-local values; `time_between` reads
@@ -64,6 +65,12 @@ impl std::fmt::Display for DocumentFailure {
             Self::Evaluation { message } => {
                 write!(formatter, "document binding evaluation failed: {message}")
             }
+            Self::TelemetryColumn { stream, column, .. } => {
+                write!(
+                    formatter,
+                    "Stream `{stream}` column `{column}` cannot supply this summary with its recorded type. Read the execution's values directly or select a compatible column in the document."
+                )
+            }
             Self::InvalidIdentifier { .. } => formatter.write_str("invalid document identifier"),
             Self::InvalidDefinition { issues } => {
                 write!(formatter, "invalid document definition: {issues:?}")
@@ -79,6 +86,7 @@ impl std::error::Error for DocumentFailure {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::InvalidIdentifier { source } => Some(source),
+            Self::TelemetryColumn { source, .. } => Some(source),
             Self::Budget { .. }
             | Self::InvalidDefinition { .. }
             | Self::Evaluation { .. }

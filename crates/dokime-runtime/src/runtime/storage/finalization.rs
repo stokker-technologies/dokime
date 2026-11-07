@@ -244,7 +244,13 @@ impl RuntimeHandle {
                 if let Err(failure) = runtime
                     .commit(crate::transactions::FailReport {
                         execution: execution.test_execution_id.clone(),
-                        cause: crate::runtime::error::chain_message(&error),
+                        cause: error.report_evidence_message().unwrap_or_else(|| {
+                            if matches!(&error, Error::Harmos(harmos::Error::ResourceExhausted { .. })) {
+                                "Report creation ran out of capacity. Wait for other report operations to finish, then retry sealing the cycle.".into()
+                            } else {
+                                "Report creation failed unexpectedly. Open Settings → Diagnostics → Support Bundle and send it to the plugin developer.".into()
+                            }
+                        }),
                     })
                     .await
                 {
@@ -276,7 +282,7 @@ impl RuntimeHandle {
                 return Ok(());
             }
             if let Some(cause) = snapshot.state().report_finalizations.get(id).and_then(|intent| intent.failure.as_ref()) {
-                return Err(Error::InvalidReportInputs(cause.clone()));
+                return Err(Error::ReportFinalizationFailed(cause.clone()));
             }
             drop(snapshot);
             if *shutdown.borrow() {

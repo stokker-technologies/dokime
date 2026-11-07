@@ -58,6 +58,7 @@ export type ExecutionControlState = {
 export type ExecutionControlInput = {
   /** False only after the live catalog confirms that this template is absent. */
   pluginAvailable?: boolean;
+  report?: TestExecution["report"];
   status: TestExecution["status"];
   controls: TestExecution["controls"];
   /** The live step progress, when the runtime streams one for this execution. */
@@ -99,7 +100,7 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
       ? { actions: ["Start", "Cancel"], detail: null, line: "Queued · waits for the execution lane", phase: "queued" }
       : { actions: ["Start", "Cancel"], detail: null, line: "Not started · waits for Start", phase: "unstarted" };
   }
-  if (isTerminalExecutionStatus(status) && !controls) {
+  if (isTerminalExecutionStatus(status) && (!controls || input.report?.state === "failed" || input.report?.state === "ready")) {
     if (input.pluginAvailable === false) {
       return {
         actions: [],
@@ -109,7 +110,12 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
         phase: "ended",
       };
     }
-    return { actions: ["Re-Run"], detail: null, line: `Ended · ${executionStatusLabel(status)}`, phase: "ended" };
+    return {
+      actions: ["Re-Run"],
+      detail: input.report?.state === "failed" ? input.report.failure : null,
+      line: `Ended · ${executionStatusLabel(status)}${input.report?.state === "failed" ? " · Report Failed" : ""}`,
+      phase: "ended",
+    };
   }
   if (status === "finalizing" || isTerminalExecutionStatus(status)) {
     return { actions: [], detail: null, line: "Finalizing · saving evidence", phase: "finalizing" };

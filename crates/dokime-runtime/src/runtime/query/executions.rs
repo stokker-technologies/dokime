@@ -110,7 +110,7 @@ impl ExecutionFilter {
 
 pub fn execution_controls(state: &RuntimeState, id: &TestExecutionId) -> Option<ExecutionControls> {
     let execution = state.executions.get(id)?;
-    if execution.saved.is_some() {
+    if execution.saved.is_some() || state.report_finalizations.get(id).is_some_and(|intent| intent.failure.is_some()) {
         return None;
     }
     let request = ControlExecution::owning_request(state, id);

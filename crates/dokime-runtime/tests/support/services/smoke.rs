@@ -355,7 +355,7 @@ where
         metadata: <R as harmos::StreamSpec>::metadata(),
         row_metadata: <R as harmos::RowMetadata>::row_metadata(),
         id: <R as harmos::StreamSpec>::ID.into(),
-        schema: <R as harmos::StreamSpec>::VERSION,
+
         window: <R as harmos::StreamSpec>::WINDOW,
         row: harmos::schema::graph::Schema::from_declaration(<R as Described>::DEFINITION, &harmos::config::SchemaSettings::default())
             .unwrap(),

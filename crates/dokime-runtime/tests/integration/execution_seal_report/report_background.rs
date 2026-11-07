@@ -110,7 +110,7 @@ async fn report_background() {
         assert_eq!(runtime.wait_execution_report(&execution).await.is_err(), fail);
         let checkpoint = runtime.execution_saved_checkpoint(execution.clone()).await;
         if fail {
-            assert!(matches!(checkpoint, Err(dokime_runtime::runtime::Error::InvalidReportInputs(_))));
+            assert!(matches!(checkpoint, Err(dokime_runtime::runtime::Error::ReportFinalizationFailed(_))));
         } else {
             assert_eq!(checkpoint.unwrap().execution_id, execution);
             let (_, closed) = runtime.telemetry_page_at(runtime.storage(), &selection, &live_at, 0).await.unwrap();
@@ -126,6 +126,13 @@ async fn report_background() {
             assert_eq!(scoped_rows, unscoped_rows, "retained closure must not reread historical execution objects");
         }
         assert_eq!(download.await.is_err(), fail);
+        let snapshot = runtime.watch_state().latest();
+        assert!(dokime_runtime::runtime::query::execution_controls(snapshot.state(), &execution).is_none());
+        let recovered: dokime_runtime::state::RuntimeState =
+            serde_json::from_slice(&serde_json::to_vec(snapshot.state()).unwrap()).unwrap();
+        assert!(dokime_runtime::runtime::query::execution_controls(&recovered, &execution).is_none());
+        assert_eq!(recovered.report_finalizations.get(&execution).is_some_and(|intent| intent.failure.is_some()), fail);
+        drop(snapshot);
         // Repeating Stop Can Finish A Previously Failed Report.
         runtime.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
         runtime.wait_execution_report(&execution).await.unwrap();

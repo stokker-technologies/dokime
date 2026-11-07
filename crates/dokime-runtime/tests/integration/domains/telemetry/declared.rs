@@ -211,7 +211,6 @@ impl EmbeddedProvider for DeclaringProvider {
                 metadata: entry.metadata(),
                 row_metadata: entry.row_metadata(),
                 id: entry.id.into(),
-                schema: entry.schema,
                 window: entry.window,
                 row: harmos::schema::graph::Schema::from_declaration(entry.row, &harmos::config::SchemaSettings::default()).unwrap(),
             })

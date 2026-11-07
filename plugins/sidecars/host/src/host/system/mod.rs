@@ -75,7 +75,7 @@ pub struct Collected {
 impl dokime::StreamSpec for System {
     type Row = crate::System;
     const ID: &'static str = "host.system";
-    const VERSION: u32 = 1;
+
     const WINDOW: usize = <crate::System as dokime::StreamSpec>::WINDOW;
 }
 

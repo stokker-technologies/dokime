@@ -119,7 +119,7 @@ pub enum Error {
     #[error("runtime operation was interrupted")]
     Interrupted,
 
-    #[error("The report could not be saved during {stage} for {}. Retry sealing the cycle to save it again.", report_subject(.subject))]
+    #[error("{}", report_save_message(.subject, .stage, .source))]
     ReportSave {
         subject: dokime_domain::model::reports::wire::ReportSubject,
         stage: &'static str,
@@ -131,7 +131,12 @@ pub enum Error {
     #[error("invalid checkpoint report inputs: {0}")]
     InvalidReportInputs(String),
 
-    #[error("The report could not be created from saved evidence. Try again; if the problem continues, collect diagnostics.")]
+    #[error("{0}")]
+    ReportFinalizationFailed(String),
+
+    #[error(
+        "The report could not be created from saved evidence. Open Settings → Diagnostics → Support Bundle and send it to the plugin developer."
+    )]
     ReportUnavailable(#[source] Box<Error>),
 
     #[error("invalid checkpoint query: {0}")]
@@ -173,6 +178,18 @@ impl From<harmos::filesystem::Error> for Error {
 }
 
 impl Error {
+    /// Returns the recovery action supplied by the evidence or finalization owner.
+    pub fn report_evidence_message(&self) -> Option<String> {
+        match self {
+            Self::Storage(
+                error @ (crate::storage::Error::TelemetryIntegrity { .. } | crate::storage::Error::TelemetryProjection { .. }),
+            ) => Some(error.to_string()),
+            Self::ReportFinalizationFailed(message) => Some(message.clone()),
+            Self::ReportUnavailable(source) | Self::ReportSave { source, .. } => source.report_evidence_message(),
+            _ => None,
+        }
+    }
+
     pub fn code(&self) -> Option<&str> {
         match self {
             Self::Admission(failure) => Some(failure.code()),
@@ -240,6 +257,13 @@ pub(crate) fn chain_message(error: &(dyn std::error::Error + 'static)) -> String
 }
 
 /* === Private Functions === */
+
+fn report_save_message(subject: &dokime_domain::model::reports::wire::ReportSubject, stage: &str, source: &Error) -> String {
+    if let Some(message) = source.report_evidence_message() {
+        return message;
+    }
+    format!("The report could not be saved during {stage} for {}. Retry sealing the cycle to save it again.", report_subject(subject))
+}
 
 fn report_subject(subject: &dokime_domain::model::reports::wire::ReportSubject) -> String {
     match subject {

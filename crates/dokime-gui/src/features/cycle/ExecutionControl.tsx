@@ -147,6 +147,7 @@ export function useExecutionActions({
   const progress = live && live.testExecutionId === execution.test_execution_id ? live : null;
   const state = executionControlState({
     pluginAvailable,
+    report: execution.report,
     controls: execution.controls,
     progress: progress
       ? {

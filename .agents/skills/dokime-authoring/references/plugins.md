@@ -6,6 +6,12 @@ Embed the product runtime through the product entry library by default. Declare 
 
 When crash isolation or a native library requires a separate process, host that runtime as a sidecar on the same machine with the same operation contracts. The plugin requires those operations and consumes that product's portable contract crates, beside its Dokime authoring dependency. Dokime data contracts live in `dokime-domain`; its operation declarations live in `dokime-operations` without the `runtime` feature.
 
+Stream row revisions derive automatically from their schema. Changing fields needs
+only a rebuild and plugin Reload, with no author version bump or backend restart.
+Saved rows retain their definitions. Documents and queries select stream ids and
+columns; absent columns contribute no values and incompatible columns are named
+on affected bindings without discarding readable evidence. Development contracts remain v1.
+
 Declare records, streams, prompts and settings once in their domain owner. Dokime declares each operation, its policy and family catalog in `dokime-operations`; its `runtime`-gated implementation dispatches through host-provided resources. Plugin-provided operations follow their own operation families and one definition per operation. Public visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
 
 A template lists its calls in its `requires` catalog. Its plugin's own `Private` or `Public` operations can answer without a plugin-level requirement. Calls to another plugin require a `Public` operation and a declared plugin requirement. `Host` operations cannot satisfy a template call.

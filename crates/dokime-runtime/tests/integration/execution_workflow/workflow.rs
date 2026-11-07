@@ -213,7 +213,6 @@ impl dokime_runtime::telemetry::TelemetryRow for PulseRow {
 impl dokime_runtime::StreamSpec for PulseRow {
     type Row = Self;
     const ID: &'static str = STREAM;
-    const VERSION: u32 = 1;
     const WINDOW: usize = 4096;
 }
 

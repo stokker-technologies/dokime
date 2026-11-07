@@ -134,7 +134,7 @@ pub(super) async fn ingest_batch(
         }
         Err(None) => return,
     };
-    let codec = match saved_codec(handle, &stream) {
+    let codec = match saved_codec(handle, &stream, definition) {
         Ok(codec) => codec,
         Err(error) => {
             tracing::warn!(owner, %stream, %error, "native telemetry could not be represented without loss");
@@ -198,9 +198,6 @@ pub(super) fn validate(
         if !stream.row.equivalent(stream.row.root, declared, declared.root, settings).map_err(|error| error.to_string())? {
             return Err(format!("telemetry `{}` storage graph differs from its native stream", contract.stream));
         }
-        if stream.schema != contract.schema_version {
-            return Err(format!("telemetry `{}` disagrees with its native stream schema version", contract.stream));
-        }
         stream.row.prepare(settings).map_err(|error| error.to_string())?;
         let fields = stream.row.root().map_err(|error| error.to_string())?.fields();
         if !contract.allow_extra_fields
@@ -262,10 +259,15 @@ fn publication_scope(
     }
 }
 
-fn saved_codec(handle: &RuntimeHandle, stream: &Identifier) -> Result<Arc<crate::storage::telemetry::TypedCodec>, String> {
+fn saved_codec(
+    handle: &RuntimeHandle, stream: &Identifier, definition: &harmos::streams::Definition,
+) -> Result<Arc<crate::storage::telemetry::TypedCodec>, String> {
     let state = handle.state_read();
     let contract = state.telemetry_definitions.get(stream).ok_or("native stream has no registered telemetry contract")?;
-    handle.execution_storage.registered_codec(contract).map_err(|error| error.to_string())
+    let mut contract = contract.clone();
+    let schema = definition.schema().ok_or("native stream has no row definition")?;
+    contract = contract.with_storage_schema(schema.clone());
+    handle.execution_storage.registered_codec(&contract).map_err(|error| error.to_string())
 }
 
 // The Row's One Payload Pass: Values Are Projected From The Retained Bytes, Then The Bytes Are Owned Once.
@@ -278,6 +280,7 @@ fn decoded_sample(
     let now = publication_time(row.published_unix_micros)?;
     values.insert("timestamp".into(), Value::from(now.clone()));
     let mut sample = TelemetrySample::new(crate::model::identity::new_id(), stream.clone(), sequence, now, owner);
+    sample.schema_version = codec.schema().version.get();
     sample.values = values;
     sample.storage_payload = Some(row.payload.clone());
     sample.scope = scope.cloned();

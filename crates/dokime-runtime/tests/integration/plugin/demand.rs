@@ -44,7 +44,7 @@ pub(crate) mod observers {
         use dokime_runtime::telemetry::TelemetryStream;
         let contract = Revisioned::contract();
         assert_eq!(contract.stream.as_str(), "owned_stream.revisioned");
-        assert_eq!(contract.schema_version, <Revisioned as dokime_runtime::StreamSpec>::VERSION);
+        assert_eq!(contract.schema_version, harmos::domain::streams::revision(contract.storage_schema.as_ref().unwrap(), 1).unwrap());
         assert_eq!(contract.metadata.label, "Revisioned");
         assert_eq!(contract.metadata.description.as_deref(), Some("Shared row metadata"));
         assert_eq!(contract.metadata.tags, vec!["instrument"]);
@@ -508,8 +508,8 @@ async fn instance_opens_resources() {
     assert_eq!(probe.opens.load(Ordering::SeqCst), 1);
     assert_eq!(probe.samples.load(Ordering::SeqCst), 0, "activation does not start observations");
 
-    let measurement = runtime.streams.publication("owned_stream.measurement", 1).unwrap();
-    let auxiliary = runtime.streams.publication("owned_stream.auxiliary", 1).unwrap();
+    let measurement = runtime.streams.current_publication("owned_stream.measurement").unwrap();
+    let auxiliary = runtime.streams.current_publication("owned_stream.auxiliary").unwrap();
     let first = measurement.watch();
     let second = measurement.watch();
     probe.until(|probe| probe.samples.load(Ordering::SeqCst) != 0).await;
@@ -601,7 +601,7 @@ async fn listener_publishes_asked() {
     // TODO(source-hook): a wait for a published row to reach its stream window without engaging demand.
     tokio::time::timeout(crate::service_support::budgets::settings::STORY_BOUND, async {
         loop {
-            let stream = runtime.streams.publication("owned_stream.measurement", 1);
+            let stream = runtime.streams.current_publication("owned_stream.measurement");
             if let Some(stream) = stream {
                 let rows = stream.query(..).await.unwrap().collect::<Vec<_>>();
                 if let Some(row) = rows.first() {

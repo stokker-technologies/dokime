@@ -124,7 +124,7 @@ impl EmbeddedProvider for Probe {
             metadata: <StagedReading as harmos::StreamSpec>::metadata(),
             row_metadata: <StagedReading as harmos::RowMetadata>::row_metadata(),
             id: "fixture.embedded.staged".into(),
-            schema: <StagedReading as harmos::StreamSpec>::VERSION,
+
             window: <StagedReading as harmos::StreamSpec>::WINDOW,
             row: harmos::schema::graph::Schema::from_declaration(
                 <StagedReading as dokime_runtime::schema::Described>::DEFINITION,

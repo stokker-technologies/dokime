@@ -897,6 +897,10 @@ pub(super) fn summary_tile_value(
 
 fn unavailable_reason(error: crate::Error, maximum_bytes: usize) -> Result<String> {
     match error {
+        error @ crate::Error::Document(DocumentFailure::TelemetryColumn { .. }) => {
+            let message = error.to_string();
+            if super::payload::valid_unavailable_reason(&message) && message.len() <= maximum_bytes { Ok(message) } else { Err(error) }
+        }
         crate::Error::Document(DocumentFailure::Evaluation { message })
             if super::payload::valid_unavailable_reason(message) && message.len() <= maximum_bytes =>
         {
@@ -1162,3 +1166,43 @@ fn index_cards(cards: impl IntoIterator<Item = DocumentCardDefinition>) -> BTree
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod revision_tests {
+    use super::*;
+
+    #[test]
+    fn stream_revision_columns_keep_readable_summary_tiles() {
+        let samples = [
+            BTreeMap::from([("value".to_owned(), Value::Number(7.0))]),
+            BTreeMap::from([("added".to_owned(), Value::Number(29.0))]),
+            BTreeMap::from([("value".to_owned(), Value::Text("changed".into()))]),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, values)| {
+            let mut sample = crate::telemetry::TelemetrySample::new(
+                dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("revision.sample.{index}")),
+                Identifier::new("revision.reading").unwrap(),
+                index as u64,
+                dokime_domain::model::time::Timestamp::new("2026-01-01T00:00:00Z"),
+                "revision.fixture",
+            );
+            sample.values = values;
+            sample.schema_version = index as u32 + 1;
+            sample
+        })
+        .collect::<Vec<_>>();
+        let tile = TelemetrySummaryTileDefinition::new("Value", crate::expressions::telemetry("revision.reading", "value").mean());
+        let payload = telemetry_summary_tile_payload(&tile, &[], Evidence::from(&samples[..2]), 4096).unwrap();
+        assert_eq!(payload.value, Some(Value::Number(7.0)));
+        assert!(payload.unavailable.is_none());
+        let failed = telemetry_summary_tile_payload(&tile, &[], Evidence::from(samples.as_slice()), 4096).unwrap();
+        assert!(failed.value.is_none());
+        assert!(failed.unavailable.is_some());
+        let readable = TelemetrySummaryTileDefinition::new("Added", crate::expressions::telemetry("revision.reading", "added").mean());
+        let readable = telemetry_summary_tile_payload(&readable, &[], Evidence::from(samples.as_slice()), 4096).unwrap();
+        assert_eq!(readable.value, Some(Value::Number(29.0)));
+        assert!(readable.unavailable.is_none());
+    }
+}

@@ -275,7 +275,6 @@ impl PluginLifecycle for Host {
                     return;
                 }
                 assert_eq!(publication.owner(), "plugin_obc");
-                assert_eq!(publication.schema(), 1);
                 assert_eq!(publication.missed(), 0);
                 let token = publication.context().unwrap();
                 let mut captures = captures.lock().unwrap();
@@ -602,7 +601,7 @@ async fn inventory_matches_dispatch() {
 
     // Demand drives the real host probe; two rows cover its retained reader
     // across ticks rather than testing sysinfo in an inline unit test.
-    let system = runtime.streams.publication("obc.system", 1).unwrap();
+    let system = runtime.streams.current_publication("obc.system").unwrap();
     // The watch holds demand and yields each published tick.
     let mut demand = system.watch();
     let mut rows = Vec::new();
@@ -696,7 +695,7 @@ async fn samples_keep_context() {
     // Stop the actual plugin before reading its complete native stream.
     bench.plugins.shutdown(&mut bench.host).await.unwrap();
 
-    let stream = bench.runtime.streams.publication("obc.pulse", 1).unwrap();
+    let stream = bench.runtime.streams.current_publication("obc.pulse").unwrap();
     assert_eq!(
         stream.definition().schema().unwrap(),
         &harmos::schema::graph::Schema::from_declaration(

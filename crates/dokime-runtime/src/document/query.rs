@@ -668,7 +668,15 @@ async fn telemetry(
                             dokime_domain::model::query::error::Failure::new(
                                 dokime_domain::model::query::error::Reason::InvalidSelection,
                                 operation,
-                                error.to_string(),
+                                match &expression.source {
+                                    DataSource::Telemetry { stream, field } => super::DocumentFailure::TelemetryColumn {
+                                        stream: stream.clone(),
+                                        column: field.clone(),
+                                        source: Box::new(error),
+                                    }
+                                    .to_string(),
+                                    _ => error.to_string(),
+                                },
                             )
                         })?;
                         *seen = true;

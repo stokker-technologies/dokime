@@ -508,7 +508,14 @@ Unknown fields, duplicate identifiers, unsupported versions, invalid endpoints
 and dangling defaults are refused. CLI edits lock and atomically replace the
 file; contention refuses the edit for retry. Tokens stay outside JSON.
 
-Development contracts remain v1. Use fresh storage when a schema or evidence
+Changing a stream row's fields automatically creates a stored revision. Rebuild
+and reload the plugin; no author version bump or backend restart is needed.
+Each row retains its own definition, so earlier executions remain readable.
+Queries and documents select stream ids and columns: a missing column contributes
+no values, and an incompatible column is identified on its affected binding while
+other evidence remains readable. Catalogs and live plots show the active stream.
+
+Development contracts remain v1. Use fresh storage when a storage schema or evidence
 format becomes incompatible. There are no migrations, compatibility aliases or
 automatic root resets; existing files and evidence are never silently deleted.
 Before evidence writes, each root records a digest derived from stored schemas and

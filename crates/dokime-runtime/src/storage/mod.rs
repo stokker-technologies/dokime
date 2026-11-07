@@ -124,6 +124,16 @@ pub enum Error {
     #[error(transparent)]
     Saved(#[from] dokime_domain::model::execution::saved::SavedEvidenceError),
 
+    #[error(
+        "Stream `{stream}` has different stored row definitions under one key. This evidence cannot be repaired. Choose a fresh storage root for new executions; keep this root to preserve the existing evidence."
+    )]
+    TelemetryIntegrity { stream: String },
+
+    #[error(
+        "Stream `{stream}` column `{column}` could not be decoded from saved evidence. Keep this storage root and use Settings → Diagnostics → Support Bundle to send the logs to the plugin developer."
+    )]
+    TelemetryProjection { stream: String, column: String },
+
     #[error("invalid persisted evidence: {0}")]
     Invalid(&'static str),
 

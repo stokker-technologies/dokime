@@ -351,7 +351,19 @@ pub(super) fn evaluate(expression: &DataExpression, evidence: Evidence<'_>, sele
     }
     let cases = if per_case { evidence.context.cases().collect::<Vec<_>>() } else { Vec::new() };
     let plan = Plan::compile(expression, per_case.then_some(cases.len()))?;
-    plan.evaluate(expression, evidence, &cases, selected)
+    plan.evaluate(expression, evidence, &cases, selected).map_err(|error| {
+        if let DataSource::Telemetry { stream, field } = &expression.source {
+            if matches!(error, crate::Error::Document(DocumentFailure::Evaluation { .. })) {
+                return DocumentFailure::TelemetryColumn {
+                    stream: stream.clone(),
+                    column: field.clone(),
+                    source: Box::new(error),
+                }
+                .into();
+            }
+        }
+        error
+    })
 }
 
 /* === Private Functions === */

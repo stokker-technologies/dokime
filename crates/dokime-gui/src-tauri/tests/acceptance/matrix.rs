@@ -184,7 +184,7 @@ impl EmbeddedProvider for Provider {
     fn streams(&self) -> Vec<StreamDeclaration> {
         vec![StreamDeclaration {
             id: Reading::ID.into(),
-            schema: Reading::VERSION,
+
             window: Reading::WINDOW,
             metadata: <Reading as dokime::harmos::StreamSpec>::metadata(),
             row_metadata: <Reading as dokime::harmos::RowMetadata>::row_metadata(),

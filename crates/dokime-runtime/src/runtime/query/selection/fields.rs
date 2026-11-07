@@ -207,10 +207,19 @@ fn merge(mut versions: Vec<Captured>, id: &str, request: &SelectionRequest<'_>, 
                     _ => false,
                 };
                 if previous.field.value_type != field.field.value_type || !compatible_unit {
+                    let selected = request.fields.is_empty()
+                        || request.fields.contains(&field.field.id)
+                        || request.predicates.iter().any(|predicate| predicate.field == field.field.id);
+                    if !selected {
+                        continue;
+                    }
                     let mut error = Failure::new(
                         Reason::IncompatibleSchema,
                         request.operation,
-                        "Captured versions have incompatible types or units; select one version explicitly",
+                        format!(
+                            "Stream `{id}` column `{}` has incompatible captured types or units. Read the executions separately to retain their original values.",
+                            field.field.id
+                        ),
                     );
                     error.field = Some(field.field.id.clone());
                     error.available_versions = available;
