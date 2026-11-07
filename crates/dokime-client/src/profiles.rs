@@ -7,7 +7,7 @@
  * ***
  */
 
-// Named Backend Profiles And Atomic Configuration Updates
+// Named Backend Profiles and Atomic Configuration Updates
 
 /* === Modules === */
 

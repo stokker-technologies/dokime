@@ -86,8 +86,14 @@ impl RuntimeHandle {
         if let Some(inspection) = ExecutionView::open(self.storage(), &execution.test_execution_id, ObjectVersion::Latest).await?
             && inspection.execution().saved.is_some()
         {
-            if execution.saved.is_some() && inspection.execution() != execution {
-                return Err(invalid("saved report member differs from frozen cycle"));
+            if execution.saved.is_some() {
+                let mut expected = inspection.execution().clone();
+                crate::state::RuntimeState::sealed_projection(&mut expected);
+                let mut actual = execution.clone();
+                crate::state::RuntimeState::sealed_projection(&mut actual);
+                if expected != actual {
+                    return Err(invalid("saved report member differs from frozen cycle"));
+                }
             }
             if execution.saved.is_none() {
                 let mut expected = inspection.revision()?.value.clone();
@@ -190,7 +196,16 @@ impl ExecutionStorage {
                 || captured.execution != inputs.anchor
                 || captured.evidence_through != *through
             {
-                return Err(invalid("frozen report context differs from its lifecycle or evidence boundary"));
+                let frozen = crate::storage::objects::execution::Execution::try_from(&captured.lifecycle)?;
+                let requested = crate::storage::objects::execution::Execution::try_from(inputs.execution.as_ref())?;
+                return Err(invalid(&format!(
+                    "frozen report context differs from its lifecycle or evidence boundary (identity={}, lifecycle={}, fields={:?}, anchor={}, evidence={})",
+                    captured.lifecycle_id == inputs.lifecycle_id,
+                    captured.lifecycle == *inputs.execution,
+                    frozen.differing_fields(&requested),
+                    captured.execution == inputs.anchor,
+                    captured.evidence_through == *through,
+                )));
             }
             let owner = captured.owner_node_id.clone();
             let captured = captured.try_map(|mut captured| {

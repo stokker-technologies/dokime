@@ -7,7 +7,7 @@
  * ***
  */
 
-// Lifecycle Projections Captured With Their State Transaction
+// Lifecycle Projections Captured with Their State Transaction
 
 /* === Modules === */
 

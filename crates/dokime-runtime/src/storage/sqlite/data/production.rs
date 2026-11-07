@@ -170,7 +170,7 @@ impl State {
                     physical.set_len(value.length)?;
                     physical.sync_all()?;
                     drop(physical);
-                    // Recovery Can Find A Creation Whose Caller Never Received Its
+                    // Recovery Can Find a Creation Whose Caller Never Received Its
                     // Durable Name. Confirm That Name Before Returning Its Session.
                     files::confirm_durability(&path)?;
                     Ok::<_, Error>(value)
@@ -246,7 +246,7 @@ fn save_checkpoint(connection: &Connection, root: &Path, requested: &FileCheckpo
         history: requested.session.history.clone(),
         id: requested.session.id.clone(),
     };
-    // A Snapshot Captured While Producing Can Persist After A Longer
+    // A Snapshot Captured While Producing Can Persist After a Longer
     // Save, Completion, Abandonment Or Deletion. Durable State Already
     // Covers That Prefix, So The Late Checkpoint Is A No-Op.
     saved(connection)?.history.check(&file.history)?;

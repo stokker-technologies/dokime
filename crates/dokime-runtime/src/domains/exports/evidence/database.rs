@@ -7,7 +7,7 @@
  * ***
  */
 
-// Write Captured Evidence To Typed SQLite Tables
+// Write Captured Evidence to Typed SQLite Tables
 
 /* === Modules === */
 

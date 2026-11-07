@@ -27,7 +27,7 @@ The generator SHALL use exactly counted floating-point work and a discrete PI co
 - **WHEN** external host load exceeds a percent target or requested throughput exceeds capacity
 - **THEN** duty saturates without integrator windup and recovers when the target becomes reachable
 
-### Requirement: Shared CPU Sampling And Capacity
+### Requirement: Shared CPU Sampling and Capacity
 The host SHALL reuse its startup calibration and one shared CPU sampling source, without consumer-driven refreshes shortening CPU delta windows.
 
 #### Scenario: Concurrent Consumers
@@ -44,7 +44,7 @@ The host SHALL publish each control period on `host.cpu.load.control` with targe
 ### Requirement: Cancellation Restores CPU Use
 Cancelling the operation handle SHALL promptly stop all workers and return `LoadSummary` with target, achieved mean, RMS error, duration in seconds and measured interval count.
 
-#### Scenario: Cancel And Join
+#### Scenario: Cancel and Join
 - **WHEN** a caller starts a hold, waits and cancels its handle
 - **THEN** all workers stop and joining returns the summary within the configured settlement budget
 
@@ -52,7 +52,7 @@ Cancelling the operation handle SHALL promptly stop all workers and return `Load
 - **WHEN** execution cleanup finds an open handle
 - **THEN** it cancels and settles the workload before sealing evidence, without an effect-journal inverse
 
-### Requirement: Configuration And Example
+### Requirement: Configuration and Example
 One documented configuration SHALL own controller tuning and timing; an OBC suite SHALL demonstrate start, hold and cancel.
 
 #### Scenario: Configured Control

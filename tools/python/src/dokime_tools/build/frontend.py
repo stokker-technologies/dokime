@@ -56,7 +56,7 @@ INPUT_ROOTS = [
 # === Public Functions === #
 
 
-# The Stamp Records The Inputs And The Committed Template They Produced, So A Template
+# The Stamp Records the Inputs and the Committed Template They Produced, So a Template
 # Changed By Checkout Or Hand Is Rendered Again Even When The Inputs Did Not Move.
 def is_stale(previous: str | None, current: str) -> bool:
     return previous != current

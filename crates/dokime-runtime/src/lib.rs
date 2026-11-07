@@ -188,8 +188,8 @@ pub use tokio as __tokio;
 
 #[cfg(feature = "native")]
 pub(crate) use domains::{
-    documents, evidence as evidence_runtime, execution as execution_runtime, exports, installed_plugins, parameters as parameter_runtime,
-    prompts as prompt_runtime, secrets, telemetry as telemetry_runtime, traceability as traceability_runtime,
+    documents, evidence as evidence_runtime, execution as execution_runtime, exports, installed_plugins, prompts as prompt_runtime,
+    secrets, telemetry as telemetry_runtime, traceability as traceability_runtime,
 };
 
 #[cfg(feature = "native")]
@@ -214,7 +214,9 @@ pub use config::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler};
 pub use dokime_domain::model::plugins::InstalledPlugin;
 
 #[cfg(feature = "native")]
-pub use domains::documents::{CurrentDocumentCapture, ExecutionFileFollower, ExecutionFileStream, PreparedCurrentDocument};
+pub use domains::documents::{
+    CurrentDocumentCapture, CurrentDocumentEvent, CurrentDocumentQuery, ExecutionFileFollower, ExecutionFileStream, PreparedCurrentDocument,
+};
 
 #[cfg(feature = "native")]
 pub use domains::execution::outputs::{ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState};

@@ -94,6 +94,20 @@ pub enum CycleOrderKey {
 /* === Implementations === */
 
 impl RuntimeHandle {
+    pub async fn saved_cycle_header(&self, id: &TestCycleId) -> Result<Option<ListedCycle>> {
+        let Some(header) = crate::storage::objects::cycle::read(self.storage(), id, ObjectVersion::Latest).await? else {
+            return Ok(None);
+        };
+        if header.value.saved.is_none() {
+            return Ok(None);
+        }
+        if header.value.memory_size() as u64 > self.query_config().limits().working_bytes {
+            return Err(Error::overload("cycle_inspection_budget", "cycle inspection exceeds the working budget"));
+        }
+        let case_count = self.local_storage.history_cycle_case_count(id.to_string()).await?;
+        Ok(Some(ListedCycle { cycle: header.value.clone(), case_count }))
+    }
+
     pub async fn list_cycle_headers(
         &self, state: &RuntimeState, filter: &CycleFilter, order: CycleOrder, after: Option<&str>, limit: usize,
     ) -> Result<CycleListPage> {
@@ -186,10 +200,23 @@ impl RuntimeHandle {
         .map_err(|_| Error::timeout("cycle_list_deadline", "cycle list exceeded its active-work deadline"))?
     }
 
-    // Historical Inspection Is A Read-Only Projection; Never Reinsert Retired Work Into Managed State.
+    // Verify Every Saved Member Without Retaining Its Evidence Payload in the Control Snapshot.
     pub async fn inspect_cycle(&self, id: &TestCycleId) -> Result<RuntimeStateSnapshot> {
         let snapshot = self.watch_state().latest();
-        if snapshot.state().cycles.contains_key(id) {
+        if let Some(cycle) = snapshot.state().cycles.get(id) {
+            for member in &cycle.execution_ids {
+                let projection = &snapshot.state().executions[member];
+                if projection.saved.is_none() {
+                    continue;
+                }
+                let saved = self
+                    .known_execution(member)
+                    .await?
+                    .ok_or_else(|| Error::not_found("cycle_member_missing", "saved cycle member is unavailable"))?;
+                if saved.memory_size() as u64 > self.query_config().limits().working_bytes {
+                    return Err(Error::overload("cycle_inspection_budget", "cycle inspection exceeds the working budget"));
+                }
+            }
             return Ok(snapshot);
         }
         let Some(header) = crate::storage::objects::cycle::read(self.storage(), id, ObjectVersion::Latest).await? else {
@@ -212,11 +239,17 @@ impl RuntimeHandle {
             )
             .await?
             .ok_or_else(|| Error::not_found("cycle_member_missing", "saved cycle member is unavailable"))?;
-            bytes = bytes.saturating_add(member.value.memory_size());
-            if bytes as u64 > self.query_config().limits().working_bytes {
+            if bytes.saturating_add(member.value.memory_size()) as u64 > self.query_config().limits().working_bytes {
                 return Err(Error::overload("cycle_inspection_budget", "cycle inspection exceeds the working budget"));
             }
-            state.executions.insert(member.value.test_execution_id.clone(), member.value.clone());
+            let retained = member.try_map(|member| {
+                let mut execution = member.value;
+                RuntimeState::sealed_projection(&mut execution);
+                let bytes = execution.memory_size();
+                state.executions.insert(execution.test_execution_id.clone(), execution);
+                Ok::<_, Error>(bytes)
+            })?;
+            bytes = bytes.saturating_add(*retained);
         }
         state.cycles.insert(id.clone(), header.value.clone());
         state.validate_execution_ownership().map_err(|reason| Error::conflict("invalid_cycle_membership", reason))?;
@@ -236,7 +269,14 @@ impl RuntimeHandle {
                 .iter()
                 .position(|member| member == id)
                 .ok_or_else(|| Error::conflict("execution_membership_missing", "execution is absent from its cycle"))?;
-            let execution = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(member.clone()))?;
+            let execution = match &member.saved {
+                Some(_) => self
+                    .known_execution(id)
+                    .await?
+                    .ok_or_else(|| Error::not_found("execution_missing", "sealed execution is unavailable"))?,
+                None => member.clone(),
+            };
+            let execution = harmos::storage::ReadBatch::new(execution);
             let cycle = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(cycle.clone()))?;
             return Ok(ExecutionInspection { snapshot, execution, cycle, ordinal });
         }

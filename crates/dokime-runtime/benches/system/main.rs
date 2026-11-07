@@ -10,6 +10,8 @@
 // System Benchmarks: The Runtime Driving A Built Sidecar Plugin
 
 /* === Modules === */
+mod ingest;
+mod ingest_sync;
 mod report;
 
 /* === Re-Exports === */
@@ -26,7 +28,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
-criterion_group!(benches, report::benchmark);
+criterion_group!(benches, ingest::benchmark, report::benchmark);
 criterion_main!(benches);
 
 /* === Type Aliases === */

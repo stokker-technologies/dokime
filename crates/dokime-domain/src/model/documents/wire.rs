@@ -44,7 +44,7 @@ pub struct DocumentScope {
 }
 
 // Sources are captured separately; this is not an atomic latest/durable snapshot.
-// Missing frontiers mean the source was not needed by this capture.
+// Structure precedes evidence frontiers; later cut frames identify completed reads.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentFrontiers {
@@ -56,6 +56,7 @@ pub struct DocumentFrontiers {
         description = "SHA-256 of this captured artifact/report descriptor input, not a journal position or published checkpoint. These owners have no shared revision."
     )]
     pub artifacts_sha256: Option<String>,
+    pub evidence: Option<DocumentTelemetryCut>,
 }
 
 #[harmos::message]
@@ -309,6 +310,7 @@ pub struct DocumentBinding {
 pub struct DocumentRepeatSelection {
     pub node_id: String,
     pub instance_count: u64,
+    pub pending: bool,
 }
 
 #[harmos::message]
@@ -340,13 +342,46 @@ pub struct DocumentCompletion {
     pub binding_count: u64,
     pub repeat_count: u64,
     pub section_count: u64,
+    pub partial: bool,
 }
 
-// Header Is First; Completion Is Last. Apply Only After Clean gRPC EOF.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DocumentEvidenceCut {
+    pub cut: Option<DocumentTelemetryCut>,
+    pub telemetry: bool,
+    pub cacheable: bool,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DocumentCardFailure {
+    pub code: String,
+    pub message: String,
+    pub budget: Option<DocumentCardBudget>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DocumentCardBudget {
+    pub name: String,
+    pub limit: u64,
+    pub reached: u64,
+    pub card_id: String,
+}
+
+// Structure And Complete Cards Commit Independently; Completion Ends The Stream.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentFrame {
     pub frame: Option<DocumentFrameFrame>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct DocumentPage {
+    pub current: String,
+    pub next: Option<String>,
 }
 
 /* === Enums === */
@@ -478,6 +513,8 @@ pub enum DocumentBindingResult {
     Literal(bool),
     Summary(DocumentSummary),
     Plot(Box<DocumentPlotDefinition>),
+    Pending(bool),
+    Failure(DocumentCardFailure),
 }
 
 #[harmos::message]
@@ -497,6 +534,13 @@ pub enum DocumentFrameFrame {
     RepeatSelection(DocumentRepeatSelection),
     RepeatInstance(DocumentRepeatInstance),
     SectionIdentity(DocumentSectionIdentity),
+    StructureComplete(DocumentCompletion),
+    CardComplete(String),
+    ExpansionComplete(bool),
+    EvidenceCut(DocumentEvidenceCut),
+    SectionRemoval(String),
+    ArtifactCut(String),
+    Page(DocumentPage),
 }
 
 /* === Traits === */

@@ -37,8 +37,7 @@ use dokime::harmos::storage::{ReadBatch, StorageCursor};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::plots as contract;
 use dokime::runtime::query::{
-    PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotWatchKeys, RuntimePlotQueryMode, matching_plot_payload_request,
-    reduce_plot_payload,
+    PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotWatchKeys, matching_plot_payload_request, reduce_plot_payload,
 };
 use wire::{FrameError, ensure_message_budget, envelope, stream_frame};
 
@@ -68,13 +67,6 @@ struct FrameContext<'a> {
 }
 
 /* === Enums === */
-
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(contract::ListAnalyses),
-    Operation1(contract::QuerySnapshots),
-    Operation2(contract::Watch),
-}
 
 // One step of a watch's opening phase: a result, or a keepalive while none is ready.
 #[derive(Debug, PartialEq)]
@@ -127,7 +119,7 @@ impl Resources {
     }
 
     async fn query_snapshot(
-        &self, current: &PlotPayloadRequest, mode: RuntimePlotQueryMode, at: &StorageCursor,
+        &self, current: &PlotPayloadRequest, at: &StorageCursor,
     ) -> Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error> {
         let started = Instant::now();
         let runtime =
@@ -136,7 +128,7 @@ impl Resources {
         if current.window_s.is_none() {
             at.sequence = at.sequence.min(runtime.storage().cursor_saved().sequence);
         }
-        let result = runtime.query_plot_payloads_at(vec![current.clone()], mode, &at).await;
+        let result = runtime.query_plot_payloads_at(vec![current.clone()], &at).await;
         tracing::debug!(
             plot_id = current.plot_id.as_deref().unwrap_or(current.stream.as_str()),
             elapsed_ms = started.elapsed().as_millis() as u64,
@@ -215,9 +207,9 @@ impl Serve<contract::QuerySnapshots> for Resources {
             let (requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
             let at = runtime.storage().cursor_saved();
             let native = if requests.iter().all(|request| request.window_s.is_none()) {
-                runtime.query_plot_payloads(requests.clone(), RuntimePlotQueryMode::Snapshot).await
+                runtime.query_plot_payloads(requests.clone()).await
             } else {
-                runtime.query_plot_payloads_at(requests.clone(), RuntimePlotQueryMode::Snapshot, &at).await
+                runtime.query_plot_payloads_at(requests.clone(), &at).await
             }
             .map_err(|error| Status::unavailable(format!("plot query unavailable: {error}")))?;
             let count = native.len();
@@ -282,7 +274,7 @@ impl Serve<contract::Watch> for Resources {
                 let at = &initial;
                 let snapshots = stream::iter(waiting.clone())
                     .map(|current| async move {
-                        let result = resources.query_snapshot(&current, RuntimePlotQueryMode::Snapshot, at).await;
+                        let result = resources.query_snapshot(&current, at).await;
                         (current, result)
                     })
                     .buffer_unordered(usize::try_from(SERVER_PLOT_INITIAL_CONCURRENCY).expect("validated plot concurrency"));
@@ -349,13 +341,13 @@ impl Serve<contract::Watch> for Resources {
                                 dirty.remove(&key);
                                 let selection = selection_for_plot(&original, &selections, &key)
                                     .ok_or_else(|| Status::internal("plot selection is missing"))?;
-                                let (kind, mode) = if opened.contains(&key) {
-                                    (PlotPayloadStreamKind::Replace, RuntimePlotQueryMode::Replace)
+                                let kind = if opened.contains(&key) {
+                                    PlotPayloadStreamKind::Replace
                                 } else {
-                                    (PlotPayloadStreamKind::Snapshot, RuntimePlotQueryMode::Snapshot)
+                                    PlotPayloadStreamKind::Snapshot
                                 };
                                 let frame = FrameContext { epoch: &epoch, selection, kind };
-                                let result = resources.query_snapshot(&current, mode, &at).await;
+                                let result = resources.query_snapshot(&current, &at).await;
                                 if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
                                     opened.insert(key);
                                 } else {
@@ -431,7 +423,6 @@ pub(super) fn prepare(
     setup.resource::<Host<contract::QuerySnapshots>>(Host::<contract::QuerySnapshots>::new(served.clone()));
     setup.resource::<Host<contract::Watch>>(Host::<contract::Watch>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

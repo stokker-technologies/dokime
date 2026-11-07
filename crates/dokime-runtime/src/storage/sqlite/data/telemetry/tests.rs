@@ -7,7 +7,7 @@
  * ***
  */
 
-// Arrow Catalog, Flush Policy And Live Window Proofs
+// Arrow Catalog, Flush Policy and Live Window Proofs
 
 /* === Modules === */
 
@@ -62,6 +62,11 @@ struct Fixture {
 #[harmos::message]
 struct Reading {
     value: f64,
+}
+
+#[harmos::message]
+struct UnsignedReading {
+    value: Option<u64>,
 }
 
 /* === Enums === */
@@ -228,6 +233,231 @@ impl Fixture {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(feature = "native")]
+#[tokio::test]
+async fn time_series_views_share_field_state_and_preserve_exact_rows() {
+    let fixture = Fixture::new(1024).await;
+    let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>().column(
+        crate::telemetry::TelemetryColumn::declared("value", "Value", crate::ValueType::Number, crate::telemetry::TelemetryRole::Value),
+    );
+    let request = crate::plot::PlotPayloadRequest {
+        stream: "arrow.fixture".into(),
+        y_keys: vec!["value".into()],
+        scope: Some(RecordScope {
+            test_execution_id: Some(fixture.execution.clone()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let requests = (0..64)
+        .map(|index| crate::plot::PlotPayloadRequest {
+            plot_id: Some(format!("plot.{index}")),
+            ..request.clone()
+        })
+        .collect();
+    fixture
+        .local
+        .register_plot_previews(
+            fixture.execution.to_string(),
+            requests,
+            vec![contract],
+            crate::config::local_storage_defaults().previews.into(),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    let points: Vec<_> = (1..=17).map(|index| (index, index as i64)).collect();
+    let at = fixture.admit(&points).await;
+    fixture.storage.flush_until(&at).await.unwrap();
+    let execution = fixture.execution.to_string();
+    let selected = execution.clone();
+    let (plans, views, fields, shared): (i64, i64, i64, i64) = fixture
+        .local
+        .call(move |connection| {
+            connection.query_row(
+                "SELECT (SELECT count(*) FROM report_plot_previews WHERE execution=?1),
+            (SELECT count(*) FROM report_plot_bindings WHERE execution=?1),
+            (SELECT count(*) FROM storage_report_previews WHERE execution=?1),
+            (SELECT sum(shared) FROM report_plot_previews WHERE execution=?1)",
+                [selected],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!((plans, views, fields, shared), (1, 64, 1, 1));
+    let postings = fixture
+        .local
+        .read(|connection| {
+            connection.query_row("SELECT count(*) FROM storage_value_postings WHERE kind='telemetry'", [], |row| row.get::<_, i64>(0))
+        })
+        .await
+        .unwrap();
+    assert_eq!(postings, 0, "plot fields must not create distinct postings");
+    let checkpoints = fixture
+        .local
+        .read(move |connection| Ok(crate::plot::preview::index::checkpoints(connection, &execution, at.sequence)))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(checkpoints.len(), views as usize);
+    let mut selected = request;
+    selected.plot_id = Some("plot.31".into());
+    let payload = checkpoints["plot.31"].payload(&selected, "", (None, None)).unwrap();
+    assert_eq!(payload.series[0].points.len(), points.len());
+    assert_eq!(
+        payload.series[0].points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(),
+        points.iter().map(|(_, value)| *value as f64).collect::<Vec<_>>()
+    );
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn distinct_fields_retain_only_registered_values_across_reopen() {
+    let fixture = Fixture::new(2).await;
+    fixture
+        .local
+        .register_distinct_fields(
+            fixture.execution.to_string(),
+            std::collections::BTreeMap::from([("arrow.fixture".into(), std::collections::BTreeSet::from(["value".into()]))]),
+        )
+        .await
+        .unwrap();
+    let points = [(1, 1), (2, 2), (3, 3)];
+    let at = fixture.admit(&points).await;
+    fixture.storage.flush_until(&at).await.unwrap();
+    let root = fixture.stop().await;
+    let fixture = Fixture::with_root(root, 2).await;
+    let at = fixture.admit(&[(4, 4)]).await;
+    fixture.storage.flush_until(&at).await.unwrap();
+    let paths = fixture
+        .local
+        .read(|connection| {
+            let mut statement = connection
+                .prepare("SELECT path,count(*) FROM storage_value_postings WHERE kind='telemetry' GROUP BY path ORDER BY path")?;
+            statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()
+        })
+        .await
+        .unwrap();
+    assert_eq!(paths, vec![("[\"value\"]".into(), points.len() as i64 + 1)]);
+    fixture.finish().await;
+}
+
+#[cfg(feature = "native")]
+#[tokio::test]
+async fn unindexed_medians_preserve_nullable_large_integers_at_saved_cuts() {
+    let fixture = Fixture::new(8).await;
+    let contract = crate::telemetry::TelemetryContract::declared("unsigned.fixture", "Unsigned").typed::<UnsignedReading>();
+    let codec = Arc::new(telemetry::codec(&contract, &Default::default()).unwrap());
+    fixture.storage.write_schema(codec.schema().clone(), codec.graph().clone()).await.unwrap();
+    fixture.storage.flush().await.unwrap();
+    fixture.local.register_telemetry_contract(contract, codec.clone()).await.unwrap();
+    let values = [Some(9_007_199_254_740_993), None, Some(9_007_199_254_740_995), Some(u64::MAX)];
+    let (rows, entries): (Vec<_>, Vec<_>) = values
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let (mut input, mut entry) = fixture.row(index as u64, index as i64);
+            entry.sample.stream = harmos::Identifier::new("unsigned.fixture").unwrap();
+            entry.sample = entry.sample.typed(&UnsignedReading { value });
+            entry.sample.values.insert("value".into(), value.map(Cell::Unsigned).unwrap_or(Cell::Null));
+            input.stream = entry.sample.stream.clone();
+            input.record.schema = codec.schema().clone();
+            input.record.payload = codec.encode(&entry, usize::MAX).unwrap();
+            (input, entry)
+        })
+        .unzip();
+    let at = fixture.storage.write_stream(rows).await.unwrap();
+    fixture.local.stage_telemetry(fixture.storage.clone(), at.clone(), entries).await.unwrap();
+    fixture.storage.flush_until(&at).await.unwrap();
+    let query = crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
+    for (omitted, expected) in [(0, 9_007_199_254_740_995), (1, 9_007_199_254_740_994), (2, 9_007_199_254_740_993)] {
+        let cut = StorageCursor {
+            sequence: at.sequence - omitted,
+            ..at.clone()
+        };
+        let actual = fixture
+            .local
+            .document_statistic(
+                fixture.execution.to_string(),
+                "unsigned.fixture".into(),
+                "value".into(),
+                cut,
+                harmos::Aggregate::Median,
+                crate::storage::sqlite::QueryWork::document(query.clone(), "fixture"),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(actual, Some(Cell::Unsigned(expected)));
+    }
+    fixture.finish().await;
+}
+
+#[cfg(feature = "native")]
+#[tokio::test]
+async fn percentiles_replay_beyond_retained_prefix() {
+    use harmos::storage::query::{
+        Accumulator,
+        scalar::{Agg, ScalarValue},
+    };
+    let fixture = Fixture::new(65_536).await;
+    let count = crate::config::local_storage_defaults().previews.exact_points.get() + 7;
+    let points: Vec<_> = (0..count as u64).map(|index| (index, index as i64)).collect();
+    let at = fixture.admit(&points).await;
+    fixture.storage.flush_until(&at).await.unwrap();
+    let query = crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
+    for omitted in [0, 3] {
+        let cut = StorageCursor {
+            sequence: at.sequence - omitted,
+            ..at.clone()
+        };
+        let median = fixture
+            .local
+            .document_statistic(
+                fixture.execution.to_string(),
+                "arrow.fixture".into(),
+                "value".into(),
+                cut,
+                harmos::Aggregate::Median,
+                crate::storage::sqlite::QueryWork::document(query.clone(), "fixture"),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        let expected = (count as u64 - omitted - 1) as f64 / 2.0;
+        assert_eq!(median, Some(Cell::Number(expected)));
+    }
+    let evidence = fixture
+        .local
+        .report_evidence(vec![super::report::Request {
+            execution: fixture.execution.to_string(),
+            cycle: "cycle".into(),
+            at,
+            current: false,
+            rows: 32,
+            streams: Vec::new(),
+            percentiles: std::collections::BTreeSet::from([("arrow.fixture".into(), "value".into(), 17)]),
+        }])
+        .await
+        .unwrap();
+    let summary = evidence[0].exact.iter().find(|summary| summary.field == "value").unwrap();
+    for (name, method) in
+        [("median", harmos::Aggregate::Median), ("p95", harmos::Aggregate::Percentile(95)), ("p17", harmos::Aggregate::Percentile(17))]
+    {
+        let mut reference = Accumulator::new(Agg::Of(method));
+        for (index, _) in &points {
+            reference.push(*index, &ScalarValue::Float(*index as f64)).unwrap();
+        }
+        let ScalarValue::Float(expected) = reference.finish(&mut || Ok(())).unwrap() else {
+            panic!("numeric percentile");
+        };
+        let value = summary.statistics.iter().find(|(key, _)| key == name).unwrap().1;
+        assert_eq!(value, expected);
+    }
+    fixture.finish().await;
+}
 
 #[tokio::test]
 async fn acknowledgement_work() {
@@ -469,8 +699,8 @@ async fn stage_saved_tail() {
     // Model A Durable Prefix Whose In-Memory Retirement Has Not Yet Run.
     {
         let mut tail = fixture.local.0.telemetry_tail.lock().unwrap();
-        tail.entries.insert(second.sequence - 1, (tokio::time::Instant::now(), fixture.row(1, 10).1));
-        tail.entries.insert(second.sequence, (tokio::time::Instant::now(), fixture.row(2, 20).1));
+        tail.insert(second.sequence - 1, fixture.row(1, 10).1);
+        tail.insert(second.sequence, fixture.row(2, 20).1);
         tail.running = true;
     }
     let third = fixture.admit(&[(3, 30)]).await;
@@ -483,10 +713,24 @@ async fn stage_saved_tail() {
 async fn configured_row_flush_preserves_saved_order_and_combines_tail() {
     let fixture = Fixture::new(2).await;
     let saved = fixture.storage.cursor_saved();
+    let writer = fixture.local.0.live.lock().await;
+    let local = fixture.local.clone();
+    let (entered, ready) = tokio::sync::oneshot::channel();
+    let (release, released) = tokio::sync::oneshot::channel();
+    let held = tokio::task::spawn_blocking(move || {
+        let _store = local.0.telemetry.lock().unwrap();
+        entered.send(()).unwrap();
+        released.blocking_recv().unwrap();
+    });
+    ready.await.unwrap();
+    // Admission And Its Live Read Complete Even While Disk Writes Cannot Run.
     let first = fixture.admit(&[(1, 10)]).await;
     assert_eq!(fixture.storage.cursor_saved(), saved);
     assert!(fixture.read(&saved, fixture.selection()).await.is_empty());
     assert_eq!(fixture.read(&first, fixture.selection()).await.len(), 1);
+    release.send(()).unwrap();
+    held.await.unwrap();
+    drop(writer);
     let second = fixture.admit(&[(2, 20)]).await;
     fixture.saved(&second).await;
     let third = fixture.admit(&[(3, 30)]).await;
@@ -597,7 +841,7 @@ async fn out_of_order_windows_include_only_matching_saved_and_pending_rows() {
     .await
     .unwrap();
     for (suffix, expected) in [("count", 5.0), ("mean", 3.0), ("sum", 15.0)] {
-        let output = outputs.iter().find(|output| output.key.ends_with(&format!(".{suffix}"))).unwrap();
+        let output = outputs.iter().find(|output| output.key().ends_with(&format!(".{suffix}"))).unwrap();
         assert_eq!(output.value, Cell::Number(expected));
     }
     // Outputs Flush The Admitted Tail And Read The Summaries Committed With Its Arrow Batches.
@@ -977,5 +1221,44 @@ async fn query_cut_excludes_live_and_late_arrivals_across_restart() {
     let fixture = Fixture::with_root(root, 2).await;
     assert!(fixture.local.snapshot_available(cut.clone()).await.unwrap());
     assert_eq!(fixture.read(&cut.at, fixture.selection()).await.len(), 2);
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn stream_watermarks_cover_saved_tail_and_historical_frontiers() {
+    let fixture = Fixture::new(1024).await;
+    let initial = fixture.storage.cursor_saved();
+    let pattern = vec![dokime_domain::model::identity::IdentifierPattern::new("arrow.fixture").unwrap()];
+    let mut before_schema = initial.clone();
+    before_schema.sequence = 0;
+    assert!(fixture.local.telemetry_schemas(before_schema, pattern.clone()).await.unwrap().is_empty());
+    assert_eq!(
+        fixture.local.telemetry_schemas(initial.clone(), pattern).await.unwrap().into_iter().map(|(key, _)| key).collect::<Vec<_>>(),
+        [fixture.codec.schema().clone()]
+    );
+    let first = fixture.admit(&[(1, 10)]).await;
+    let second = fixture.admit(&[(2, 20)]).await;
+    let streams = fixture.local.telemetry_streams_between(initial.clone(), first.clone()).await.unwrap();
+    assert_eq!(streams, [fixture.row(1, 10).1.sample.stream.to_string()].into());
+    fixture.storage.flush_until(&second).await.unwrap();
+    assert_eq!(fixture.local.telemetry_streams_between(initial, first.clone()).await.unwrap(), streams);
+    assert!(fixture.local.telemetry_streams_between(first.clone(), first).await.unwrap().is_empty());
+    fixture.finish().await;
+}
+
+#[tokio::test]
+async fn native_inventory_uses_the_execution_numeric_summary() {
+    let fixture = Fixture::new(1024).await;
+    let at = fixture.admit(&[(1, 1), (2, 2), (3, 3)]).await;
+    fixture.storage.flush_until(&at).await.unwrap();
+    fixture.local.finalize_telemetry(fixture.execution.to_string()).await.unwrap();
+    let files = fixture.local.telemetry_files(fixture.execution.to_string(), at).await.unwrap();
+    assert_eq!(files.len(), 1);
+    let summary = &files[0].summaries[0];
+    assert_eq!(summary.signal, "value");
+    assert_eq!((summary.count, summary.minimum, summary.maximum, summary.sum), (3, 1.0, 3.0, 6.0));
+    let numeric = fixture.local.numeric_summaries(fixture.execution.to_string()).await.unwrap();
+    assert_eq!(numeric.len(), 1);
+    assert!(numeric[0].statistics.contains(&("sum".into(), summary.sum)));
     fixture.finish().await;
 }

@@ -7,7 +7,7 @@
  * ***
  */
 
-// The Backend's Live Tracing Output, Held For The Console
+// The Backend's Live Tracing Output, Held for the Console
 //
 // One capture layer in the process subscriber feeds one bounded journal; the
 // `Backend.WatchTrace` operation pages it per scope. The capture filter is its

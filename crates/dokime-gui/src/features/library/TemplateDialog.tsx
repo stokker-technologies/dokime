@@ -272,7 +272,7 @@ export function TemplateDialog({
        successful add behind an open dialog whenever the toast threw. */
     onOpenChange(false);
     const label = response.plan?.test_cycle?.title ?? cycleLabel ?? append.cycleId;
-    toast.success(`Added ${count} ${count === 1 ? "case" : "cases"} To ${label}`, {
+    toast.success(`Added ${count} ${count === 1 ? "Case" : "Cases"} to ${label}`, {
       action: {
         label: "Open Cycle",
         onClick: () => {
@@ -370,8 +370,14 @@ export function TemplateDialog({
           ) : null}
         </span>
       ) : (
-        <Button className="h-9 w-full" disabled={busy || !preview || !append} onClick={() => void finishAndAdd()} type="button">
-          Finish And Add
+        <Button
+          data-testid="template-add"
+          className="h-9 w-full"
+          disabled={busy || !preview || !append}
+          onClick={() => void finishAndAdd()}
+          type="button"
+        >
+          Finish and Add
         </Button>
       )}
     </div>
@@ -475,7 +481,7 @@ function StepSlot({ done, entry, step }: { done: boolean; entry: (typeof STEP_LA
 }
 
 /**
- * What "Finish And Add" will materialize, read straight off the preview.
+ * What "Finish and Add" will materialize, read straight off the preview.
  *
  * Every row is one planned case: a readable name built from the template's own
  * label, and the values that differ from what the template registered, stated

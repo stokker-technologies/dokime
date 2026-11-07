@@ -88,6 +88,130 @@ fn code(error: &Error) -> &str {
 /* === Tests === */
 
 #[dokime_tracing::trace_test]
+#[tokio::test]
+async fn many_file_stop() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    for index in 0..64 {
+        write(&tree.path().join(format!("nested/{index}.log")), b"baseline\n");
+    }
+    let (operations, ticket) = ticketed(&bench);
+    let watch = operations
+        .submit::<WatchFile>(WatchFile {
+            recursive: true,
+            rules: vec![include("**/*.log")],
+            maximum_files: Some(64),
+            execution_id: Some(bench.execution.clone()),
+            source: Some(FileWatchSource { payload: Some(local(tree.path())) }),
+            output: "many".into(),
+            artifact: None,
+            policy: FileWatchPolicy::Mirror,
+            selection: model::files::wire::FileWatchSelection::All,
+            wait_for_source_seconds: None,
+            poll_interval_ms: Some(60_000),
+            maximum_seconds: None,
+            maximum_bytes: None,
+            matchers: Vec::new(),
+            markers: Vec::new(),
+        })
+        .unwrap();
+    operations
+        .operation::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
+        .await
+        .unwrap();
+    for index in 0..64 {
+        append(&tree.path().join(format!("nested/{index}.log")), b"changed\n");
+    }
+    let started = std::time::Instant::now();
+    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let gate = dokime_runtime::testing::hold_watch_seal(&execution);
+    let cancelling = tokio::spawn(async move { watch.cancel().await });
+    gate.entered().await;
+    tokio::time::pause();
+    tokio::time::advance(dokime_operations::STOP_SETTLEMENT.timeout.saturating_mul(2)).await;
+    assert!(!cancelling.is_finished(), "a live watch retains its reply while captured files are sealing");
+    {
+        let snapshot = bench.handle.watch_state().latest();
+        let state = snapshot.state();
+        let cycle = &state.cycles[&state.executions[&execution].test_cycle_id];
+        assert_eq!(cycle.phase, model::execution::result::CyclePhase::Active);
+        assert!(!state.shutting_down);
+        assert!(
+            !state
+                .run_requests
+                .values()
+                .any(|request| { request.summary.stop_requested && request.selected_execution_ids.contains(&execution) })
+        );
+    }
+    gate.release();
+    tokio::time::resume();
+    let outcome = cancelling.await.unwrap().unwrap().into_owned();
+    eprintln!("many_file_stop: cancellation and sealing {:?}", started.elapsed());
+    assert_eq!(outcome.artifacts.len(), 64);
+    bench.handle.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+    let artifacts = bench.handle.artifacts().await.unwrap();
+    for index in 0..64 {
+        let filename = format!("many/nested/{index}.log");
+        let artifact = artifacts.iter().find(|record| record.filename == filename).unwrap();
+        assert_eq!(artifact.scope.test_execution_id.as_ref(), Some(&execution));
+        assert_eq!(artifact.status, ArtifactStatus::Complete);
+        let content = bench.handle.read_artifact_content(&artifact.artifact_id, 1024).await.unwrap().unwrap();
+        assert_eq!(content.bytes, b"baseline\nchanged\n");
+    }
+    bench.stop().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn cancel_retains_seal_failure() {
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    write(&tree.path().join("one.log"), b"captured\n");
+    let (operations, ticket) = ticketed(&bench);
+    let watch = operations
+        .submit::<WatchFile>(WatchFile {
+            recursive: true,
+            rules: vec![include("*.log")],
+            maximum_files: None,
+            execution_id: Some(bench.execution.clone()),
+            source: Some(FileWatchSource { payload: Some(local(tree.path())) }),
+            output: OUTPUT.into(),
+            artifact: None,
+            policy: FileWatchPolicy::Mirror,
+            selection: model::files::wire::FileWatchSelection::All,
+            wait_for_source_seconds: None,
+            poll_interval_ms: Some(60_000),
+            maximum_seconds: None,
+            maximum_bytes: None,
+            matchers: Vec::new(),
+            markers: Vec::new(),
+        })
+        .unwrap();
+    operations
+        .operation::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
+        .await
+        .unwrap();
+
+    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let gate = dokime_runtime::testing::hold_watch_seal(&execution);
+    std::fs::remove_dir_all(tree.path()).unwrap();
+    let cancelling = tokio::spawn(async move { watch.cancel().await });
+    gate.entered().await;
+    gate.release();
+    let error = cancelling.await.unwrap().unwrap_err();
+    let harmos::Error::OperationFailed { source, .. } = error else { panic!("expected the watch's seal failure") };
+    assert_eq!(source.downcast_ref::<tonic::Status>().unwrap().code(), tonic::Code::NotFound);
+
+    bench.handle.stop_execution(execution.clone(), CommandContext::default()).await.unwrap();
+    let artifacts = bench.handle.artifacts().await.unwrap();
+    let artifact = artifacts.iter().find(|record| record.filename == format!("{OUTPUT}/one.log")).unwrap();
+    assert_eq!(artifact.status, ArtifactStatus::Complete);
+    let content = bench.handle.read_artifact_content(&artifact.artifact_id, 1024).await.unwrap().unwrap();
+    assert_eq!(content.bytes, b"captured\n");
+    bench.stop().await;
+}
+
+#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
 async fn failed_initial_admission_never_reports_armed() {
     let bench = Bench::start(|config, _| config).await;
@@ -511,7 +635,7 @@ async fn stream_local_tree() {
         .await
         .unwrap();
 
-    // Files Present At The Start Baseline At Their Length
+    // Files Present at the Start Baseline at Their Length
     let first = poll(&mut watch).await;
     assert_eq!(phases(&first, Phase::Baseline), vec![("logs/charger.log".to_owned(), 0), ("logs/debug/bms.log".to_owned(), 0)]);
     assert!(phases(&first, Phase::Capturing).is_empty());
@@ -534,7 +658,7 @@ async fn stream_local_tree() {
     let segment = sealed(&rotated);
     assert_artifact(&segment["logs/charger.log"], "logs/charger.log", b"line 1\n");
 
-    // A Vanished File Is Sealed With A Gap While The Watch Continues
+    // A Vanished File Is Sealed with a Gap While the Watch Continues
     append(&tree.path().join("logs/debug/bms.log"), b"cell 3\n");
     poll(&mut watch).await;
     std::fs::remove_file(tree.path().join("logs/debug/bms.log")).unwrap();
@@ -543,7 +667,7 @@ async fn stream_local_tree() {
     let early = sealed(&vanished);
     assert_artifact(&early["logs/debug/bms.log"], "logs/debug/bms.log", b"cell 3\n");
 
-    // Sealing Captures The Last Bytes Of Every Remaining File
+    // Sealing Captures the Last Bytes of Every Remaining File
     append(&tree.path().join("logs/charger.log"), b"tail\n");
     let last = seal(&mut watch).await;
     let sealed = sealed(&last);
@@ -575,12 +699,12 @@ async fn mirror_local_tree() {
         .await
         .unwrap();
 
-    // The Whole File Is Mirrored At Discovery, Then Only On Change
+    // The Whole File Is Mirrored at Discovery, Then Only on Change
     let first = poll(&mut watch).await;
     assert_eq!(phases(&first, Phase::Synced), vec![("report.csv".to_owned(), 8)]);
     assert!(phases(&poll(&mut watch).await, Phase::Synced).is_empty());
 
-    // A Rewrite Of Equal Length Is Detected By Its Modification Time
+    // A Rewrite of Equal Length Is Detected by Its Modification Time
     write(&report, b"a,b\n3,4\n");
     let later = SystemTime::now() + Duration::from_secs(5);
     std::fs::File::options().write(true).open(&report).unwrap().set_modified(later).unwrap();
@@ -588,7 +712,7 @@ async fn mirror_local_tree() {
     let changed = poll(&mut watch).await;
     assert_eq!(phases(&changed, Phase::Synced), vec![("report.csv".to_owned(), 8), ("runs/second.csv".to_owned(), 2)]);
 
-    // A Shrunk Source Retains Its Previous Segment Before Mirroring A Fresh One
+    // A Shrunk Source Retains Its Previous Segment Before Mirroring a Fresh One
     write(&report, b"a\n");
     let shrunk = poll(&mut watch).await;
     assert_eq!(gaps(&shrunk), [("report.csv".to_owned(), 8, GapReason::Truncated)]);
@@ -650,7 +774,7 @@ async fn watch_refusals() {
     write(&tree.path().join("b.log"), b"0123456789");
     let base = || request(&bench.execution, local(tree.path()), vec![include("*.log")], FileWatchPolicy::Mirror);
 
-    // The File Cap Refuses The Second File, After Sealing The First
+    // The File Cap Refuses the Second File, After Sealing the First
     let mut capped = bench.handle.open_file_watch(&FileWatch { maximum_files: Some(1), ..base() }, None).await.unwrap();
     let mut events = Vec::new();
     let refused = capped.poll(&mut events).await.unwrap_err();
@@ -658,13 +782,13 @@ async fn watch_refusals() {
     let sealed = sealed(&seal(&mut capped).await);
     assert_artifact(&sealed["a.log"], "a.log", b"0123456789");
 
-    // The Byte Cap Refuses A File That Would Exceed It
+    // The Byte Cap Refuses a File That Would Exceed It
     let mut small = bench.handle.open_file_watch(&FileWatch { maximum_bytes: Some(15), ..base() }, None).await.unwrap();
     let refused = small.poll(&mut Vec::new()).await.unwrap_err();
     assert_eq!(code(&refused), CAPPED, "{refused}");
     seal(&mut small).await;
 
-    // Requests Are Refused Before A Source Opens
+    // Requests Are Refused Before a Source Opens
     let refusals = [
         FileWatch { execution_id: None, ..base() },
         FileWatch { rules: vec![exclude("*.log")], ..base() },
@@ -682,14 +806,14 @@ async fn watch_refusals() {
         assert_eq!(code(&error), INVALID, "{error}");
     }
 
-    // The Context Execution Must Agree With An Explicit One
+    // The Context Execution Must Agree with an Explicit One
     let error = bench.handle.open_file_watch(&base(), Some("00000000-0000-7000-8000-000000000000")).await.err().unwrap();
     assert_eq!(code(&error), INVALID, "{error}");
     let scoped = bench.handle.open_file_watch(&FileWatch { execution_id: None, ..base() }, Some(&bench.execution)).await;
     assert!(scoped.is_ok(), "the calling step's execution scopes the watch");
     drop(scoped);
 
-    // FTP Sources Refuse Untrusted Plain FTP, SFTP And Inline Passwords
+    // FTP Sources Refuse Untrusted Plain FTP, SFTP and Inline Passwords
     let ftp = |url: &str| FileWatch {
         source: Some(model::files::wire::FileWatchSource {
             payload: Some(FileWatchSourcePayload::Ftp(FtpWatchSource { url: url.to_owned(), secret_id: None })),
@@ -727,7 +851,7 @@ async fn mirror_keeps_last() {
         .unwrap();
     assert_eq!(phases(&poll(&mut watch).await, Phase::Synced), vec![("report.csv".to_owned(), 3)]);
 
-    // The Source Changes But Cannot Be Read
+    // The Source Changes but Cannot Be Read
     write(&report, b"version two, longer\n");
     std::fs::set_permissions(&report, std::fs::Permissions::from_mode(0o000)).unwrap();
     let unreadable = std::fs::File::open(&report).is_err();
@@ -763,7 +887,7 @@ async fn execution_seals_watch() {
     poll(&mut watch).await;
     append(&log, b"captured before the execution closed\n");
 
-    // Poll Once For The Appended Line, Then Drive The Watch Until The Execution Asks It To Seal
+    // Poll Once for the Appended Line, Then Drive the Watch Until the Execution Asks It to Seal
     poll(&mut watch).await;
     let driver = tokio::spawn(async move {
         watch.seal_requested().await;
@@ -833,11 +957,11 @@ async fn watch_file_matchers() {
     let (operations, ticket) = ticketed(&bench);
     let watch = operations.submit::<WatchFile>(request).unwrap();
 
-    // Lines Written After The Start Are Captured And Matched
+    // Lines Written After the Start Are Captured and Matched
     bench
         .handle
         .operations()
-        .call::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
+        .operation::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed { instance_id: ticket })
         .await
         .unwrap();
     let mut records = bench.handle.subscribe_records();
@@ -853,7 +977,7 @@ async fn watch_file_matchers() {
     );
     assert!(outcome.gaps.is_empty());
 
-    // Rows Reach The Declared Stream In The Execution's Scope
+    // Rows Reach the Declared Stream in the Execution's Scope
     let execution = dokime_runtime::TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
     let rows = bench
         .handle
@@ -885,7 +1009,7 @@ async fn watch_file_matchers() {
     assert_eq!(markers[0].record.details.get("warning_code"), Some(&Value::Text("W42".to_owned())));
     assert_eq!(markers[0].record.message.as_deref(), Some("WARN W42"));
 
-    // The Artifact Holds Only The Appended Bytes
+    // The Artifact Holds Only the Appended Bytes
     let record = bench
         .handle
         .artifacts()
@@ -1174,6 +1298,102 @@ async fn live_artifact_tree() {
     bench.stop().await;
 }
 
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn live_media_upload() {
+    use dokime_runtime::ExecutionFileStreamState;
+    use dokime_runtime::artifacts::ArtifactUploadInput;
+
+    let bench = Bench::start(|config, _| config).await;
+    let execution = TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let scope = bench.handle.watch_state().latest().state().executions[&execution].scope.clone();
+    // A Valid One-Pixel PNG Is Saved While The Execution Remains Blocked.
+    let png: &[u8] = &[
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 4, 0, 0, 0, 181, 28, 12, 2, 0, 0, 0, 11,
+        73, 68, 65, 84, 120, 218, 99, 100, 248, 15, 0, 1, 5, 1, 1, 39, 24, 227, 102, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+    ];
+    let stem = "capture-".repeat(28);
+    let names = [format!("{stem}.png"), format!("{stem}.2.png"), format!("{stem}.2.2.png"), format!("{stem}.3.png")];
+    let mut uploads = Vec::new();
+    for requested in [&names[0], &names[0], &names[1], &names[0]] {
+        let upload = bench
+            .handle
+            .begin_artifact_upload(ArtifactUploadInput {
+                scope: scope.clone(),
+                filename: requested.clone(),
+                content_type: Some("image/png".into()),
+                size_bytes: png.len() as u64,
+                sha256: None,
+            })
+            .await
+            .unwrap();
+        upload.send(png.to_vec()).await.unwrap();
+        uploads.push(upload);
+    }
+    for (upload, name) in uploads.iter().zip(&names) {
+        let record = upload.finish().await.unwrap();
+        assert_eq!(&record.filename, name);
+        let path = format!("media/{name}");
+        let files = bench.handle.execution_files(&execution).await.unwrap();
+        let file = files.iter().find(|file| file.relative_path == path).unwrap();
+        assert_eq!(file.artifact_id, record.artifact_id.to_string());
+        assert_eq!(file.content_type.as_deref(), Some("image/png"));
+        assert_eq!(file.stream_state, ExecutionFileStreamState::Finalized);
+        let content = bench.handle.execution_file_content(&execution, path, 0, png.len()).await.unwrap().unwrap();
+        assert_eq!(content.content_type.as_deref(), Some("image/png"));
+        assert_eq!(content.bytes, png);
+        assert!(bench.handle.artifacts().await.unwrap().iter().any(|entry| entry.artifact_id == record.artifact_id));
+    }
+    assert!(bench.handle.watch_state().latest().state().executions[&execution].saved.is_none());
+    drop(uploads);
+    bench.executor.release();
+    crate::service_support::native::checkpoint(&bench.handle, &execution).await;
+    let files = bench.handle.execution_files(&execution).await.unwrap();
+    assert_eq!(files.iter().filter(|file| file.relative_path.starts_with("media/")).count(), 4);
+    let mut report = bench.handle.open_execution_report(&execution).await.unwrap();
+    let html = crate::service_support::reports::opened_bytes(&mut report).await;
+    let evidence = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tests/media");
+    std::fs::create_dir_all(&evidence).unwrap();
+    std::fs::write(evidence.join("report.html"), &html).unwrap();
+    let payload = crate::service_support::reports::parse(std::str::from_utf8(&html).unwrap());
+    let artifacts = payload["snapshot"]["artifacts"].as_array().unwrap();
+    assert_eq!(artifacts.len(), 4);
+    for artifact in artifacts {
+        assert!(artifact["path"].as_str().unwrap().starts_with("media/"));
+        let path = artifact["path"].as_str().unwrap();
+        let href = artifact["href"].as_str().unwrap();
+        assert_eq!(href, format!("outputs/{path}"));
+        let content = bench.handle.execution_file_content(&execution, path.to_owned(), 0, png.len()).await.unwrap().unwrap();
+        assert_eq!(content.bytes, png);
+        let destination = evidence.join(href);
+        std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        std::fs::write(destination, &content.bytes).unwrap();
+        assert_eq!(artifact["downloadHref"], href);
+    }
+    let Bench { _root: root, mut owner, handle, .. } = bench;
+    drop(handle);
+    owner.shutdown().await.unwrap();
+    let (mut owner, handle) = started(config(root.path())).await;
+    for name in &names {
+        let path = format!("media/{name}");
+        let content = handle.execution_file_snapshot(&execution, path.clone()).await.unwrap().unwrap();
+        assert_eq!(content.bytes, png);
+        for offset in (0..png.len()).step_by(3) {
+            let content = handle.execution_file_content(&execution, path.clone(), offset as u64, 3).await.unwrap().unwrap();
+            assert_eq!(content.offset, offset as u64);
+            assert_eq!(content.bytes, png[offset..(offset + 3).min(png.len())]);
+            assert_eq!(content.size_bytes, png.len() as u64);
+            assert_eq!(content.content_type.as_deref(), Some("image/png"));
+        }
+        let end = handle.execution_file_content(&execution, path, u64::MAX, 3).await.unwrap().unwrap();
+        assert_eq!(end.offset, png.len() as u64);
+        assert!(end.bytes.is_empty());
+    }
+    assert!(handle.execution_file_content(&execution, "media/missing.png".into(), 0, 3).await.unwrap().is_none());
+    assert!(handle.execution_file_content(&execution, "../missing.png".into(), 0, 3).await.unwrap().is_none());
+    owner.shutdown().await.unwrap();
+}
+
 #[cfg(feature = "testing")]
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -1371,8 +1591,16 @@ async fn capture_failure_isolated_during_stop() {
     let failed = records.iter().find(|record| record.filename == format!("{OUTPUT}/bad/app.log")).unwrap();
     assert_eq!(failed.status, ArtifactStatus::Failed);
     assert!(failed.error.is_some());
-    let saved = idle.test_executions[0].saved.as_ref().unwrap();
-    saved.validate(&idle.test_executions[0]).unwrap();
+    let durable = dokime_runtime::storage::objects::execution::read(
+        bench.handle.storage(),
+        &execution,
+        dokime_runtime::harmos::storage::ObjectVersion::Latest,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let saved = durable.value.saved.as_ref().unwrap();
+    saved.validate(&durable.value).unwrap();
     let failed_output = saved
         .source
         .outputs

@@ -33,7 +33,6 @@ use dokime::domain::model::files::wire::LineMatcher;
 use dokime::domain::model::files::wire::LocalWatchSource;
 use dokime::domain::model::identity::TemplateId;
 use dokime::expressions::telemetry;
-use dokime::harmos::operations::Host;
 use dokime::host::ToolConnectionAcquired;
 use dokime::operations::files::WatchFile;
 use dokime::prelude::*;
@@ -104,7 +103,7 @@ pub struct Started {}
 
 #[dokime::record(
     id = "obc.charger.startup.checkpoint",
-    label = "Review the charger status indicator and start-up trace",
+    label = "Review the Charger Status Indicator and Start-up Trace",
     description = "The operator was asked to look at the bench."
 )]
 #[derive(Clone, Debug)]
@@ -118,7 +117,7 @@ pub struct Checkpoint {
 
 #[dokime::record(
     id = "obc.charger.startup.completed",
-    label = "Start-up measurement and operator decision captured",
+    label = "Start-up Measurement and Operator Decision Captured",
     description = "The start-up measurement and the operator's decision, together."
 )]
 #[derive(Clone, Debug)]
@@ -165,27 +164,27 @@ pub struct Parameters {
     )]
     pub sample_interval_s: f64,
 
-    #[parameter(label = "Attach measurement summary", default = true)]
+    #[parameter(label = "Attach Measurement Summary", default = true)]
     pub emit_artifact: bool,
 
-    #[parameter(label = "Attach reference.png from image directory", default = false)]
+    #[parameter(label = "Attach reference.png from Image Directory", default = false)]
     pub attach_reference: bool,
 
-    #[parameter(label = "Pace samples in real time", default = false)]
+    #[parameter(label = "Pace Samples in Real Time", default = false)]
     pub realtime: bool,
 
     #[parameter(
-        label = "Observe until stopped",
+        label = "Observe Until Stopped",
         default = false,
         description = "Whether a host stop is the expected end of this run, named once more on the template's own `graceful_stop`."
     )]
     pub continuous: bool,
 
-    #[parameter(label = "Wait for the unit to report itself connected", default = false)]
+    #[parameter(label = "Wait for the Unit to Report Itself Connected", default = false)]
     pub await_connection: bool,
 
     #[parameter(
-        label = "Connection wait budget",
+        label = "Connection Wait Budget",
         unit = "s",
         default = CONNECTION_BUDGET_S,
         min = 0.0,
@@ -257,7 +256,7 @@ impl Startup {
         // so `ctx.call` selecting the explicit route type is the only road
         // to it — and the one that holds the answer to the timeout the route
         // declared, which is what a host call would get.
-        if ctx.call::<crate::domain::operations::AskReadiness>(crate::domain::operations::AskReadiness {}).await?.stopped {
+        if ctx.operation(crate::domain::operations::AskReadiness {}).await?.stopped {
             return Err(Error::Device(obc_runtime::Error::Stopped));
         }
         let mut device = Device::initialize(inputs.supply()).map_err(Error::Device)?;
@@ -289,7 +288,7 @@ impl Startup {
         if !ctx.parameters().await_connection {
             return Ok(());
         }
-        let connections = ctx.call::<crate::domain::operations::ListConnections>(crate::domain::operations::ListConnections {}).await?;
+        let connections = ctx.operation(crate::domain::operations::ListConnections {}).await?;
         ctx.info(format!("record=bench_connections count={}", connections.resources.len()));
         // The host's own record type, so the step names no id and reads no
         // detail map: the unit's identity is a field of the fact it waited for.
@@ -324,8 +323,7 @@ impl Startup {
     )]
     async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let watch = ctx
-            .host()
-            .submit(WatchFile {
+            .operation(WatchFile {
                 recursive: false,
                 rules: Vec::new(),
                 maximum_files: None,
@@ -348,6 +346,7 @@ impl Startup {
                 )],
                 markers: Vec::new(),
             })
+            .start()
             .await?;
         // The watch takes its baseline first; the charger then logs its
         // readings while it runs.
@@ -468,7 +467,7 @@ impl Startup {
 
     #[dokime::criterion(
         id = "obc.charger.startup.acceptance",
-        label = "Start-up trace and operator inspection",
+        label = "Start-up Trace and Operator Inspection",
         description = "Passed once the trace is unfaulted and, for a bounded run, the operator accepted it."
     )]
     fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
@@ -546,7 +545,7 @@ fn current_distribution(identifier: &str) -> PlotDefinition {
 }
 
 fn voltage_by_phase(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::box_summary("Voltage By Phase");
+    let mut plot = Plot::box_summary("Voltage by Phase");
     plot.id(identifier);
     plot.unit("V");
     plot.series_by(signal("phase"));
@@ -556,7 +555,7 @@ fn voltage_by_phase(identifier: &str) -> PlotDefinition {
 }
 
 fn mean_signal_by_phase(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::bar("Mean Signal By Phase");
+    let mut plot = Plot::bar("Mean Signal by Phase");
     plot.id(identifier);
     plot.unit("V");
     plot.x(signal("phase"));
@@ -567,7 +566,7 @@ fn mean_signal_by_phase(identifier: &str) -> PlotDefinition {
 }
 
 fn sample_count_by_phase(identifier: &str) -> PlotDefinition {
-    let mut plot = Plot::bar("Sample Count By Phase");
+    let mut plot = Plot::bar("Sample Count by Phase");
     plot.id(identifier);
     plot.unit("samples");
     plot.x(signal("phase"));

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Interface Composition Within The Application Lifecycle
+// Interface Composition Within the Application Lifecycle
 
 /* === Modules === */
 

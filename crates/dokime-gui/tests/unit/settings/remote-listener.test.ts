@@ -93,7 +93,7 @@ beforeEach(() => {
   fixture.updates = [];
 });
 
-test("Repeated Remote Settings Loads And Failures Stay Inline", () => {
+test("Repeated Remote Settings Loads and Failures Stay Inline", () => {
   fixture.session = {
     identity: { generation: "fixture" },
     snapshot: { connection: { backend: { methods: ["/dokime.v1.Remote/ReadListener"] } } },
@@ -193,13 +193,13 @@ test("TLS Certificate Guard", () => {
   assert.doesNotMatch(html, /role="alert"/);
 });
 
-test("Export Has No WebView Credential Or Endpoint Arguments", async () => {
+test("Export Has No WebView Credential or Endpoint Arguments", async () => {
   fixture.invoke.mockResolvedValueOnce(null);
   await commands.desktopPairingCreate();
   assert.deepEqual(fixture.invoke.mock.calls[0], ["desktop_pairing_create", undefined]);
 });
 
-test("Export Failure Retains The Native Reason", async () => {
+test("Export Failure Retains the Native Reason", async () => {
   const reason = "fixture-export-rejection";
   fixture.invoke.mockRejectedValueOnce({ kind: "grpc", detail: { code: 3, message: reason, details: [] } });
   await assert.rejects(commands.desktopPairingCreate(), (error: unknown) => failureOf(error, "fixture").message === reason);

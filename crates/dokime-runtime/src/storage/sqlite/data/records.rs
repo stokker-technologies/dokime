@@ -61,6 +61,10 @@ CREATE INDEX IF NOT EXISTS storage_capture_suite_sequence ON storage_record_capt
 CREATE INDEX IF NOT EXISTS storage_record_execution_sequence ON storage_record_visibility(execution,epoch,sequence,position);
 CREATE INDEX IF NOT EXISTS storage_record_cycle_sequence ON storage_record_visibility(cycle,epoch,sequence,position);
 CREATE INDEX IF NOT EXISTS storage_capture_execution_sequence ON storage_record_captures(execution,epoch,sequence,position);
+CREATE INDEX IF NOT EXISTS storage_document_record_attempt
+    ON storage_record_visibility(execution,coalesce(json_extract(scope,'$.origin.attempt_id'),''),position);
+CREATE INDEX IF NOT EXISTS storage_document_capture_attempt
+    ON storage_record_captures(execution,coalesce(json_extract(scope,'$.origin.attempt_id'),''),position);
 CREATE INDEX IF NOT EXISTS storage_capture_cycle_sequence ON storage_record_captures(cycle,epoch,sequence,position);
 ";
 const CAPTURE_PAGE_SQL: &str = "SELECT e.body,e.digest FROM storage_record_captures c
@@ -86,6 +90,68 @@ pub(crate) struct ScopedRecord {
 /* === Implementations === */
 
 impl super::State {
+    #[cfg(feature = "native")]
+    pub(crate) async fn document_records(
+        &self, at: StorageCursor, execution: String, after: (String, u64), journal: Option<(String, u64)>,
+    ) -> Result<(Vec<ScopedRecord>, Option<(String, u64)>), Error> {
+        self.read(move |connection| {
+            Ok((|| {
+                saved(connection)?.history.check(&at.history)?;
+                let selected = "SELECT position,scope,attempt FROM (
+                SELECT position,scope,coalesce(json_extract(scope,'$.origin.attempt_id'),'') AS attempt
+                FROM storage_record_visibility v WHERE execution=?1 AND position<=?2
+                AND (?5 IS NULL OR epoch IS NULL OR epoch<>?5 OR sequence<=?6)
+                AND (coalesce(json_extract(scope,'$.origin.attempt_id'),''),position)>(?3,?4)
+                AND NOT EXISTS(SELECT 1 FROM storage_record_captures c WHERE c.execution=?1 AND c.position=v.position)
+                ORDER BY attempt,position LIMIT 256)
+                UNION ALL SELECT position,scope,attempt FROM (
+                SELECT position,scope,coalesce(json_extract(scope,'$.origin.attempt_id'),'') AS attempt
+                FROM storage_record_captures WHERE execution=?1 AND position<=?2
+                AND (?5 IS NULL OR epoch IS NULL OR epoch<>?5 OR sequence<=?6)
+                AND (coalesce(json_extract(scope,'$.origin.attempt_id'),''),position)>(?3,?4)
+                ORDER BY attempt,position LIMIT 256)
+                ORDER BY attempt,position LIMIT 256";
+                let (epoch, revision) = journal.map_or((None, u64::MAX), |(epoch, revision)| (Some(epoch), revision));
+                let args = vec![
+                    execution.clone().into(),
+                    position(at.sequence).into(),
+                    after.0.into(),
+                    position(after.1).into(),
+                    epoch.map_or(rusqlite::types::Value::Null, Into::into),
+                    position(revision).into(),
+                ];
+                let mut statement = connection.prepare(selected)?;
+                let mut metadata = std::collections::BTreeMap::new();
+                let mut rows = statement.query(rusqlite::params_from_iter(args.iter()))?;
+                while let Some(row) = rows.next()? {
+                    let position = super::sequence(&row.get::<_, String>(0)?)?;
+                    let scope: dokime_domain::model::execution::RecordScope = serde_json::from_str(&row.get::<_, String>(1)?)?;
+                    metadata.insert(position, (row.get::<_, String>(2)?, scope));
+                }
+                let sql = format!(
+                    "WITH selected AS ({selected}) SELECT e.position,e.body,e.digest FROM selected s
+                JOIN storage_data_entries e ON e.position=s.position ORDER BY s.attempt,s.position"
+                );
+                let records = record_page(connection, &at, &sql, args)?;
+                let owner = dokime_domain::model::identity::TestExecutionId::from_uuid(&execution)?;
+                for row in &records {
+                    let (_, indexed) = metadata.get(&row.position).ok_or(Error::Corrupt("document record index is absent"))?;
+                    let actual = row.record.captured_scope(&owner).or(row.record.scope.as_ref());
+                    if actual != Some(indexed) {
+                        return Err(harmos::Error::InvalidInput {
+                            field: "document record scope",
+                            reason: "record capture differs from its index",
+                        }
+                        .into());
+                    }
+                }
+                let next = records.last().map(|row| (metadata[&row.position].0.clone(), row.position));
+                Ok((records, next))
+            })())
+        })
+        .await?
+    }
+
     pub(crate) async fn record_frontier(&self) -> Result<u64, Error> {
         self.read(|connection| {
             Ok((|| {
@@ -219,6 +285,20 @@ pub(super) fn index(connection: &Connection, row: &StoredRecord) -> Result<(), E
                 position(record.sequence),
                 row.scope.as_ref().map(|epoch| epoch.as_str())
             ],
+        )?;
+    }
+    for scope in record.scope.iter().chain(&record.captured_scopes) {
+        super::distinct::insert(
+            connection,
+            super::distinct::Row {
+                kind: "record",
+                source: record.record_type.as_str(),
+                position: row.position.sequence,
+                file: None,
+                record: true,
+                scope,
+            },
+            record.details.iter().map(|(name, value)| (name.as_str(), value)),
         )?;
     }
     Ok(())

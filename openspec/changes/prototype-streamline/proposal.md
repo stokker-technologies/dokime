@@ -4,7 +4,7 @@
 
 The storage optimization combined useful storage improvements with hundreds of operational knobs and pervasive retained-memory accounting. The prototype needs editable product settings, reliable backend selection, and a smaller implementation surface.
 
-## Status And Scope
+## Status and Scope
 
 This change is active on `refactor/prototype-streamline`. Its task inventory distinguishes landed source, superseded requests and remaining implementation/proof; checked historical tasks are not evidence of a new validation run. The former `storage-optimization` change is absent from the current inventory. This assignment authorizes local commits and targeted proof only, with no push, broad validation or other-worktree writes. Retirement remains blocked until all obligations close.
 

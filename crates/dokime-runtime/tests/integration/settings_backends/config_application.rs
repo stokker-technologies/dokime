@@ -75,7 +75,7 @@ pub(crate) async fn data_root_reopens() {
     let first = options.clone().resolve().unwrap().output_root;
     assert!(!first.exists(), "the first launch creates the data root");
     for launch in 0..3 {
-        // Resolve The Same Options The Way Every Shell Launch Does
+        // Resolve the Same Options the Way Every Shell Launch Does
         let config = options.clone().resolve().unwrap();
         assert_eq!(config.output_root, first, "launch {launch} resolved a different data root form");
         #[cfg(windows)]
@@ -88,7 +88,7 @@ pub(crate) async fn data_root_reopens() {
             config.output_root.display()
         );
 
-        // Open, Prove Readiness, And Close The Root
+        // Open, Prove Readiness, and Close the Root
         let mut runtime = dokime_runtime::app::launch(config).await.unwrap_or_else(|error| panic!("launch {launch} failed: {error}"));
         let overview = runtime.handle().runtime_overview().await.unwrap();
         assert!(!overview.shutting_down, "launch {launch} accepts commands");

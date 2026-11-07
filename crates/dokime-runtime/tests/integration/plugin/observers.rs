@@ -20,7 +20,6 @@ use std::sync::{
 };
 use std::time::Duration;
 // Third Party Imports
-use dokime_runtime::harmos::operations::Host as _;
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 use tokio_stream::StreamExt;
@@ -29,7 +28,7 @@ use dokime_runtime::Value;
 use dokime_runtime::execution::{CriterionContext, InitializationContext, ObserverContext, StepContext, Workflow};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::plugin::testing::Harness;
-use dokime_runtime::{Refusal, Supervisor};
+use dokime_runtime::{Publishable, Refusal, Supervisor};
 
 /* === Constants === */
 const SUITE: &str = "observer.checks";
@@ -44,6 +43,8 @@ type Publishing = Publisher<Owner>;
 #[derive(Default)]
 struct Probe {
     starts: AtomicUsize,
+    samples: std::sync::Mutex<Vec<usize>>,
+    intervals: std::sync::Mutex<Vec<Duration>>,
     checks: AtomicUsize,
     secrets: AtomicBool,
     secret_ticks: AtomicUsize,
@@ -72,6 +73,9 @@ pub struct Probes {
         setting still has to declare a nonempty one to pass catalog validation."
     )]
     pub token: String,
+
+    #[setting(label = "Interval [ms]", default = 5, min = 1, max = 1000)]
+    pub interval_ms: u64,
 }
 
 #[dokime_runtime::settings]
@@ -93,6 +97,7 @@ struct MissingSecretSettings {
 struct MissingSecrets;
 
 struct Shared {
+    interval: Duration,
     probe: Arc<Probe>,
     token: String,
     secrets: bool,
@@ -108,7 +113,7 @@ pub struct ObservationRow {
     index: u64,
 }
 
-struct Watch(Arc<Probe>);
+struct Watch(Arc<Probe>, usize);
 
 #[derive(Default)]
 struct StatelessWatch;
@@ -301,6 +306,7 @@ impl dokime_runtime::harmos::Lifecycle for Owner {
             let settings = dokime_runtime::plugin::refusal(config.settings::<OwnerSettings>())?;
             Self {
                 shared: Arc::new(Shared {
+                    interval: Duration::from_millis(settings.probes.interval_ms),
                     probe: probe(&settings.probes.token),
                     token: settings.probes.token,
                     secrets: config.secrets_configured::<OwnerSettings>(),
@@ -341,22 +347,33 @@ impl StatelessWatch {
     }
 }
 
-#[dokime_runtime::observer(interval_ms = 5, streams(ObservationRow))]
+#[dokime_runtime::observer(interval_ms = 5, streams(ObservationRow), activation = "plugin")]
 impl Watch {
+    fn interval(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Duration, WatchError> {
+        let shared = context.resource::<Shared>().expect("prepared settings");
+        shared.probe.intervals.lock().unwrap().push(shared.interval);
+        Ok(shared.interval)
+    }
+
     async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, WatchError> {
         let shared = context.resource::<Shared>().expect("plugin prepares its observer resources");
-        shared.probe.starts.fetch_add(1, Ordering::SeqCst);
-        Ok(Self(Arc::clone(&shared.probe)))
+        let generation = shared.probe.starts.fetch_add(1, Ordering::SeqCst) + 1;
+        Ok(Self(Arc::clone(&shared.probe), generation))
     }
 
     async fn observe(&mut self, ctx: &dokime_runtime::harmos::sidecar::ObserverContext<'_, Publishing>) -> Result<(), WatchError> {
-        let host = ctx.host().supervisor();
-        let secrets = host.call::<GetProbe>(GetProbe {}).await.map(|response| response.into_owned())?.secrets;
+        let secrets = ctx.operation(GetProbe {}).await.map(|response| response.into_owned())?.secrets;
         self.0.secrets.store(secrets, Ordering::Release);
         self.0.bump(&self.0.secret_ticks);
         let index = ctx.tick().ordinal() - 1;
         ctx.publish_on::<ObservationRow>(&ObservationRow { index }).await?;
-        dokime_runtime::plugin::Publisher::new(host).publish(Observed { index }).await?;
+        let record = Observed { index };
+        let request = dokime_runtime::records::RecordPublication {
+            request_json: serde_json::to_string(&record.publication()).expect("the declared record serializes"),
+            produced_at: dokime_runtime::model::time::now_utc().as_str().to_owned(),
+        };
+        ctx.operation(request).await?;
+        self.0.samples.lock().unwrap().push(self.1);
         self.0.bump(&self.0.checks);
         Ok(())
     }
@@ -422,11 +439,11 @@ impl AwaitEvent {
         Ok((template, shared))
     }
 
-    #[dokime_runtime::step(label = "Hear The Event")]
+    #[dokime_runtime::step(label = "Hear the Event")]
     async fn hear(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
         // An operation is the only road a step has to the plugin. Its type
         // belongs to the required catalog declared by this template.
-        let counted = ctx.call(GetCount {}).await?;
+        let counted = ctx.operation(GetCount {}).await?;
         let _ = counted.checks;
         ctx.publish(Observed { index: 999 }).await;
         ctx.resources().0.notify_one();
@@ -454,7 +471,7 @@ impl AwaitEvent {
         that hold handles."
     )]
     async fn observed(ctx: &CriterionContext<'_>) -> dokime_runtime::Result<bool> {
-        let counted = ctx.call(GetCount {}).await?;
+        let counted = ctx.operation(GetCount {}).await?;
         ctx.info(format!("the plugin has answered {} checks", counted.checks));
 
         Ok(ctx.records::<Observed>()?.iter().map(|record| record.index).collect::<Vec<_>>() == [999, 0, 777])
@@ -484,12 +501,12 @@ impl Drop for PendingGuard {
 )]
 impl Faults {
     async fn initialize(ctx: &mut InitializationContext<'_>) -> dokime_runtime::Result<(Self, Arc<Probe>)> {
-        let template = Self(probe(&ctx.call(GetProbe {}).await?.token));
+        let template = Self(probe(&ctx.operation(GetProbe {}).await?.token));
         let shared = Arc::clone(&template.0);
         Ok((template, shared))
     }
 
-    #[dokime_runtime::step(label = "Wait For Independent Observers")]
+    #[dokime_runtime::step(label = "Wait for Independent Observers")]
     async fn proceed(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
         ctx.listen::<SuiteObserved>().next().await.expect("the healthy observer continues");
         *self.0.released.lock().unwrap() = true;
@@ -539,12 +556,12 @@ impl Faults {
 )]
 impl Pending {
     async fn initialize(ctx: &mut InitializationContext<'_>) -> dokime_runtime::Result<(Self, Arc<Probe>)> {
-        let template = Self(probe(&ctx.call(GetProbe {}).await?.token));
+        let template = Self(probe(&ctx.operation(GetProbe {}).await?.token));
         let shared = Arc::clone(&template.0);
         Ok((template, shared))
     }
 
-    #[dokime_runtime::step(label = "Wait For Cancellation")]
+    #[dokime_runtime::step(label = "Wait for Cancellation")]
     async fn wait(&mut self, _: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
         std::future::pending().await
     }
@@ -707,4 +724,40 @@ async fn cancellation_drops_cleanup() {
     assert!(probe.dropped.load(Ordering::SeqCst));
     assert!(probe.attempt_cleaned.load(Ordering::SeqCst));
     workflow.shutdown().await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn plugin_observer_reload_interval() {
+    let probe = Arc::new(Probe::default());
+    let token = registered(&probe);
+    let configuration = |interval: u64| Configuration {
+        settings: BTreeMap::from([("token".to_owned(), Value::Text(token.clone())), ("interval_ms".to_owned(), Value::from(interval))]),
+        ..Configuration::default()
+    };
+    let mut native = super::native::Native::initialize(
+        super::native::attach::<Owner>(),
+        <Owner as Declared>::VERSION,
+        serde_json::to_vec(&configuration(5)).unwrap(),
+        |_, _| {},
+        vec![],
+    )
+    .await;
+    probe.until(|probe| probe.samples.lock().unwrap().len() >= 3).await;
+    assert_eq!(*probe.intervals.lock().unwrap(), [Duration::from_millis(5)]);
+    native.reload(serde_json::to_vec(&configuration(40)).unwrap()).await;
+    probe.until(|probe| probe.starts.load(Ordering::SeqCst) >= 2).await;
+    assert_eq!(probe.starts.load(Ordering::SeqCst), 2);
+    assert_eq!(probe.stops.load(Ordering::SeqCst), 1);
+    let stopped_samples = probe.samples.lock().unwrap().iter().filter(|generation| **generation == 1).count();
+    probe.until(|probe| probe.samples.lock().unwrap().iter().filter(|generation| **generation == 2).count() >= 3).await;
+    assert_eq!(probe.samples.lock().unwrap().iter().filter(|generation| **generation == 1).count(), stopped_samples);
+    assert_eq!(*probe.intervals.lock().unwrap(), [Duration::from_millis(5), Duration::from_millis(40)]);
+    native.reload(serde_json::to_vec(&configuration(40)).unwrap()).await;
+    probe.until(|probe| probe.starts.load(Ordering::SeqCst) >= 3).await;
+    assert_eq!(probe.starts.load(Ordering::SeqCst), 3);
+    assert_eq!(probe.stops.load(Ordering::SeqCst), 2);
+    assert_eq!(*probe.intervals.lock().unwrap(), [Duration::from_millis(5), Duration::from_millis(40), Duration::from_millis(40)]);
+    native.shutdown().await;
+    assert_eq!(probe.starts.load(Ordering::SeqCst), probe.stops.load(Ordering::SeqCst));
 }

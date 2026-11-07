@@ -14,11 +14,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 // Third Party Imports
 use serde::ser::SerializeSeq;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 
 // Local Imports
 use crate::definition::MaterializedParameter;
@@ -51,11 +51,20 @@ pub(super) struct Entry<'a> {
     pub outputs: &'a BTreeMap<String, MaterializedParameter>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct CapturedEntry {
+    pub scope: RecordScope,
+    pub dimensions: BTreeMap<String, Value>,
+    pub inputs: BTreeMap<String, MaterializedParameter>,
+    pub outputs: BTreeMap<String, MaterializedParameter>,
+}
+
 /* === Enums === */
 
 #[derive(Clone, Copy)]
 enum Executions<'a> {
     Slice(&'a [TestExecution]),
+    Captured(&'a [CapturedEntry]),
     Ordered { ids: &'a [TestExecutionId], values: &'a Map<TestExecutionId, TestExecution> },
 }
 
@@ -64,6 +73,24 @@ enum Executions<'a> {
 /* === Implementations === */
 
 impl<'a> Context<'a> {
+    pub(crate) fn captured(entries: &'a [CapturedEntry], selection: &'a RecordScope) -> Self {
+        Self {
+            executions: Executions::Captured(entries),
+            selection: Some(selection),
+        }
+    }
+
+    pub(crate) fn capture(self) -> Vec<CapturedEntry> {
+        self.entries()
+            .map(|entry| CapturedEntry {
+                scope: entry.scope.clone(),
+                dimensions: entry.dimensions.clone(),
+                inputs: entry.inputs.clone(),
+                outputs: entry.outputs.clone(),
+            })
+            .collect()
+    }
+
     pub(crate) fn new(executions: &'a [TestExecution], selection: &'a RecordScope) -> Self {
         Self {
             executions: Executions::Slice(executions),
@@ -94,7 +121,20 @@ impl<'a> Context<'a> {
     }
 
     pub(super) fn entries(self) -> impl DoubleEndedIterator<Item = Entry<'a>> {
-        self.executions.iter().filter(move |execution| self.selection.is_none_or(|scope| member(&execution.scope, scope))).map(Entry::from)
+        let captured = match self.executions {
+            Executions::Captured(entries) => entries,
+            _ => &[],
+        };
+        self.executions
+            .iter()
+            .map(Entry::from)
+            .chain(captured.iter().map(|entry| Entry {
+                scope: &entry.scope,
+                dimensions: &entry.dimensions,
+                inputs: &entry.inputs,
+                outputs: &entry.outputs,
+            }))
+            .filter(move |entry| self.selection.is_none_or(|scope| member(entry.scope, scope)))
     }
 
     pub(super) fn available(self) -> bool {
@@ -102,16 +142,19 @@ impl<'a> Context<'a> {
     }
 
     pub(super) fn cases(self) -> impl Iterator<Item = Entry<'a>> {
-        self.executions.iter().enumerate().filter_map(move |(index, execution)| {
-            let selected = |candidate: &TestExecution| self.selection.is_none_or(|scope| member(&candidate.scope, scope));
-            let same_case = |candidate: &TestExecution| {
-                candidate.test_case_id == execution.test_case_id && candidate.test_cycle_id == execution.test_cycle_id
-            };
-            if !selected(execution) || self.executions.iter().take(index).any(|candidate| selected(candidate) && same_case(candidate)) {
-                return None;
+        let mut positions = HashMap::new();
+        let mut cases = Vec::new();
+        for entry in self.entries() {
+            let key = (&entry.scope.test_case_id, &entry.scope.test_cycle_id);
+            let next = cases.len();
+            let position = *positions.entry(key).or_insert(next);
+            if position == next {
+                cases.push(entry);
+            } else {
+                cases[position] = entry;
             }
-            self.executions.iter().rev().find(|candidate| selected(candidate) && same_case(candidate)).map(Entry::from)
-        })
+        }
+        cases.into_iter()
     }
 
     pub(super) fn len(self) -> usize {
@@ -140,6 +183,7 @@ impl<'a> Executions<'a> {
     fn iter(self) -> impl DoubleEndedIterator<Item = &'a TestExecution> {
         let (slice, ids, values) = match self {
             Self::Slice(slice) => (slice, &[][..], None),
+            Self::Captured(_) => (&[][..], &[][..], None),
             Self::Ordered { ids, values } => (&[][..], ids, Some(values)),
         };
         slice.iter().chain(ids.iter().filter_map(move |id| values?.get(id)))
@@ -148,6 +192,7 @@ impl<'a> Executions<'a> {
     fn len(self) -> usize {
         match self {
             Self::Slice(values) => values.len(),
+            Self::Captured(values) => values.len(),
             Self::Ordered { ids, .. } => ids.len(),
         }
     }

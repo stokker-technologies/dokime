@@ -39,6 +39,8 @@ export type MarkerKind = {
 
 export type MarkerRange = { min: number; max: number } | null;
 
+export type MarkerTooltip = { key: string; label: string; left: number; width: number };
+
 /* === Classes === */
 
 /* === Public Functions === */
@@ -128,21 +130,43 @@ export function nearestMarker(
   kinds: readonly MarkerKind[],
   hidden: ReadonlySet<string>,
   left: number,
-): { label: string; left: number } | null {
-  let best: { label: string; left: number } | null = null;
+): { key: string; label: string; left: number } | null {
+  let best: { key: string; label: string; left: number } | null = null;
   let distance = 6;
+  let event = false;
   for (const kind of kinds) {
     if (hidden.has(kind.key)) continue;
     for (const marker of kind.moments) {
       const position = plot.valToPos(marker.x, "x");
       const gap = Math.abs(position - left);
-      if (Number.isFinite(position) && position >= 0 && position <= plot.over.clientWidth && gap < distance) {
-        best = { label: marker.label, left: position };
+      const preferred = gap < distance || (gap === distance && event && kind.glyph !== "event");
+      if (Number.isFinite(position) && position >= 0 && position <= plot.over.clientWidth && preferred) {
+        best = { key: kind.key, label: marker.label, left: position };
         distance = gap;
+        event = kind.glyph === "event";
       }
     }
   }
   return best;
+}
+
+/** Both Marker Kinds Share Hit Testing And A Card-Bounded Tooltip Box. */
+export function markerTooltip(
+  plot: uPlot,
+  kinds: readonly MarkerKind[],
+  hidden: ReadonlySet<string>,
+  card: Pick<DOMRect, "left" | "width">,
+): MarkerTooltip | null {
+  const cursor = plot.cursor.left;
+  if (cursor == null || cursor < 0 || cursor > plot.over.clientWidth) return null;
+  const marker = nearestMarker(plot, kinds, hidden, cursor);
+  if (!marker) return null;
+
+  const inset = Math.min(4, card.width / 2);
+  const width = Math.min(256, card.width - 2 * inset);
+  const anchor = plot.over.getBoundingClientRect().left - card.left + marker.left;
+  const left = Math.max(inset, Math.min(anchor - width / 2, card.width - inset - width));
+  return { key: marker.key, label: marker.label, left, width };
 }
 
 /* === Private Functions === */

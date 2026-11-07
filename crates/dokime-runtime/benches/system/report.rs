@@ -99,14 +99,18 @@ pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     large_cycle_saves(criterion, &executor);
     fresh_materialization(criterion, &executor);
-    let root = tempfile::tempdir().unwrap();
-    let (mut owner, runtime, executions) = executor.block_on(sealed_cycle(root.path()));
+    let mut saved = None;
     let mut group = criterion.benchmark_group("report_renders_saved");
-    group.throughput(Throughput::Elements(executions.len() as u64));
-    group.bench_function(BenchmarkId::from_parameter(executions.len()), |bencher| {
+    group.throughput(Throughput::Elements(1));
+    group.bench_function("cycle", |bencher| {
+        let (_, _, runtime, executions) = saved.get_or_insert_with(|| {
+            let root = tempfile::tempdir().unwrap();
+            let (owner, runtime, executions) = executor.block_on(sealed_cycle(root.path()));
+            (root, owner, runtime, executions)
+        });
         bencher.iter(|| {
             executor.block_on(async {
-                for execution in &executions {
+                for execution in executions.iter() {
                     let mut report = runtime.open_execution_report(execution).await.unwrap();
                     while let Some(batch) = report.reader.next().await.unwrap() {
                         black_box(batch.bytes());
@@ -117,8 +121,11 @@ pub fn benchmark(criterion: &mut Criterion) {
         });
     });
     group.finish();
-    drop(runtime);
-    executor.block_on(owner.shutdown()).unwrap();
+    if let Some((root, mut owner, runtime, _)) = saved {
+        drop(runtime);
+        executor.block_on(owner.shutdown()).unwrap();
+        drop(root);
+    }
 }
 
 /* === Private Functions === */
@@ -161,7 +168,7 @@ async fn save_cycle(runtime: &RuntimeHandle, request: &MaterializeReport) -> Dur
     let started = Instant::now();
     let report = runtime
         .operations()
-        .call::<MaterializeReport>(MaterializeReport {
+        .operation::<MaterializeReport>(MaterializeReport {
             subject: request.subject.clone(),
             at: request.at.clone(),
         })
@@ -228,7 +235,7 @@ async fn materialization(runtime: &RuntimeHandle, request: &MaterializeReport) -
         at: request.at.clone(),
     };
     let started = Instant::now();
-    let report = runtime.operations().call::<MaterializeReport>(materialize).await.unwrap();
+    let report = runtime.operations().operation::<MaterializeReport>(materialize).await.unwrap();
     let elapsed = started.elapsed();
     assert!(report.report.length > 0);
     let bytes = dokime_runtime::storage::read_file_bytes(runtime.storage(), &report.report).await.unwrap();
@@ -350,8 +357,13 @@ async fn settle(runtime: &RuntimeHandle, test_cycle_id: &TestCycleId, request: &
                 .boxed_local()
                 .await;
         }
-        let cycle =
-            runtime.cycles().await.into_iter().find(|cycle| &cycle.test_cycle_id == test_cycle_id).expect("the steady cycle exists");
+        let cycle = runtime
+            .cycles()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|cycle| &cycle.test_cycle_id == test_cycle_id)
+            .expect("the steady cycle exists");
         let settled = runtime.run_request(request).await.unwrap().is_some_and(|receipt| receipt.summary.phase.terminal());
         if settled && cycle.test_executions.iter().all(|execution| execution.saved.is_some()) {
             runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();

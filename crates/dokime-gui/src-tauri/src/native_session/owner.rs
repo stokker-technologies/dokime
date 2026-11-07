@@ -55,6 +55,8 @@ struct State {
     ownership: BackendOwnership,
     phase: Option<String>,
     archived: Option<u64>,
+    archive: Option<String>,
+    recoverable: bool,
     // The log the last failed owned start reported; the only file the shell
     // opens on the WebView's behalf.
     startup_log: Option<PathBuf>,
@@ -79,6 +81,7 @@ impl DesktopSession {
             ownership: BackendOwnership::None,
             phase: None,
             archived_bytes: None,
+            archive: None,
             connection: connection.status(),
         };
         let (status_updates, _) = tokio::sync::watch::channel(initial);
@@ -91,6 +94,8 @@ impl DesktopSession {
                 ownership: BackendOwnership::None,
                 phase: None,
                 archived: None,
+                archive: None,
+                recoverable: false,
                 startup_log: None,
             }),
             status_updates,
@@ -120,6 +125,7 @@ impl DesktopSession {
             ownership: state.ownership.clone(),
             phase: state.phase.clone(),
             archived_bytes: state.archived,
+            archive: state.archive.clone(),
             connection: self.0.connection.status(),
         }
     }
@@ -213,6 +219,7 @@ impl DesktopSession {
         if matches!(selection, BackendSelection::OwnedLocal) {
             self.backend()?;
         }
+        let local_attempt = matches!(selection, BackendSelection::OwnedLocal);
         let revision = self.begin(false)?;
         let owner = self.clone();
         let result = tokio::spawn(async move { owner.select_owned(revision, selection).await }).await.map_err(|error| Error::Startup {
@@ -226,6 +233,12 @@ impl DesktopSession {
         // the failed start's log for the shell to open.
         if let Err(error) = &result {
             self.fail(revision, error);
+            if local_attempt {
+                let mut state = self.0.state.lock().expect("desktop owner poisoned");
+                if state.revision == revision {
+                    state.recoverable = matches!(error, Error::Startup { .. });
+                }
+            }
         }
         if let (Ok(snapshot), Some(profile)) = (&result, selected)
             && let Err(error) = crate::connection::registry::remember(&self.0.connection, &snapshot.connection.generation, profile).await
@@ -285,7 +298,7 @@ impl DesktopSession {
     }
 
     pub async fn reset_local_storage(&self, confirmed: &Path, root: StorageRoot) -> Result<DesktopSessionSnapshot, Error> {
-        // Refuse Before Touching The Running Backend
+        // Refuse Before Touching the Running Backend
         if self.status().ownership != BackendOwnership::OwnedLocal {
             return Err(Error::StorageReset {
                 reason: StorageResetReason::NotOwned,
@@ -295,7 +308,7 @@ impl DesktopSession {
         root.verify(confirmed)?;
         self.backend()?;
 
-        // Reset Under A New Revision
+        // Reset Under a New Revision
         let revision = self.begin(false)?;
         let owner = self.clone();
         let result = tokio::spawn(async move { owner.reset_owned(revision, root, None).await }).await.map_err(|error| Error::Startup {
@@ -310,7 +323,11 @@ impl DesktopSession {
     pub async fn backup_and_reset_local_storage(&self, root: StorageRoot, destination: PathBuf) -> Result<DesktopSessionSnapshot, Error> {
         // Refuse While Any Backend Is Connected
         self.backend()?;
-        if self.status().ownership != BackendOwnership::None {
+        let allowed = {
+            let state = self.0.state.lock().expect("desktop owner poisoned");
+            state.recoverable && state.ownership == BackendOwnership::None
+        };
+        if !allowed {
             return Err(Error::StorageReset {
                 reason: StorageResetReason::NotOwned,
                 message: "Local storage can be backed up and reset only after the local backend failed to start.".to_owned(),
@@ -318,7 +335,7 @@ impl DesktopSession {
         }
         root.verify(root.path())?;
 
-        // Back Up And Reset Under A New Revision
+        // Back Up and Reset Under a New Revision
         let revision = self.begin(false)?;
         let owner = self.clone();
         let result = tokio::spawn(async move { owner.reset_owned(revision, root, Some(destination)).await }).await.map_err(|error| {
@@ -329,6 +346,10 @@ impl DesktopSession {
         })?;
         if let Err(error) = &result {
             self.fail(revision, error);
+            let mut state = self.0.state.lock().expect("desktop owner poisoned");
+            if state.revision == revision {
+                state.recoverable = true;
+            }
         }
         result
     }
@@ -354,6 +375,8 @@ impl DesktopSession {
         state.closing |= closing;
         state.phase = None;
         state.archived = None;
+        state.archive = None;
+        state.recoverable = false;
         state.startup_log = None;
         // A closing desktop keeps an established connection until its backend
         // has stopped: the window goes on showing what it showed, and nothing
@@ -465,7 +488,7 @@ impl DesktopSession {
         }
     }
     async fn reset_owned(&self, revision: u64, root: StorageRoot, backup: Option<PathBuf>) -> Result<DesktopSessionSnapshot, Error> {
-        // Stop The Owned Backend
+        // Stop the Owned Backend
         // The transition lock stays held until the new backend is ready, so
         // no other selection starts a backend on a half-deleted root.
         let mut resources = self.0.transition.lock().await;
@@ -474,7 +497,7 @@ impl DesktopSession {
         resources.shutdown(&self.0.abandon).await?;
         self.current(revision)?;
 
-        // Archive The Data Root First, When Asked
+        // Archive the Data Root First, When Asked
         let Some(destination) = backup else {
             return self.clear_and_restart(revision, root, &mut resources).await;
         };
@@ -488,6 +511,13 @@ impl DesktopSession {
                 message: error.to_string(),
             })??;
         tracing::warn!(archive = %archive.display(), "local storage archived");
+        {
+            let mut state = self.0.state.lock().expect("desktop owner poisoned");
+            if state.revision == revision {
+                state.archive = Some(archive.display().to_string());
+                self.publish_status(&mut state);
+            }
+        }
         self.clear_and_restart(revision, root, &mut resources).await.map_err(|error| Error::Archived {
             archive: archive.display().to_string(),
             error: Box::new(error),
@@ -496,11 +526,21 @@ impl DesktopSession {
     async fn clear_and_restart(
         &self, revision: u64, root: StorageRoot, resources: &mut Resources,
     ) -> Result<DesktopSessionSnapshot, Error> {
-        // Delete The Contents Of The Data Root
+        // Preserve Installations Independently Of The Execution Store's Format.
+        let application = dokime::paths::ApplicationPaths::new(root.application());
+        let source = root.path().to_path_buf();
+        let paths = application.clone();
+        let plugins = tokio::task::spawn_blocking(move || dokime::plugins::PluginRecovery::capture(&source, &paths))
+            .await
+            .map_err(|error| reset_failure(error.to_string()))?
+            .map_err(|error| reset_failure(error.to_string()))?;
+
+        // Delete the Contents of the Data Root
         self.current(revision)?;
         self.report_phase(revision, "deleting");
         let path = root.path().to_path_buf();
         tracing::warn!(root = %path.display(), "resetting local storage");
+        let source = root.path().to_path_buf();
         tokio::task::spawn_blocking(move || root.clear())
             .await
             .map_err(|error| Error::StorageReset {
@@ -512,7 +552,11 @@ impl DesktopSession {
             })?;
         tracing::warn!(root = %path.display(), "local storage deleted");
 
-        // Start Again On The Empty Root
+        self.report_phase(revision, "reinstalling");
+        // Once Clear Completes, Restore Installations Even If Closing Superseded This Revision.
+        plugins.restore(&source, &application).await.map_err(|error| reset_failure(error.to_string()))?;
+
+        // Start Again on the Empty Root
         self.current(revision)?;
         self.report_phase(revision, "starting");
         self.establish(revision, BackendSelection::OwnedLocal, resources).await
@@ -541,6 +585,13 @@ impl Resources {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn reset_failure(message: String) -> Error {
+    Error::StorageReset {
+        reason: StorageResetReason::Failed,
+        message,
+    }
+}
 
 /* === Tests === */
 

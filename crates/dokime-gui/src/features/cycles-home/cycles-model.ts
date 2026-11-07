@@ -113,7 +113,7 @@ export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[]
 
   return [
     {
-      emptyText: "Nothing Is Waiting On You",
+      emptyText: "Nothing Is Waiting on You",
       id: "attention",
       rows: attention,
       title: "Needs Attention",

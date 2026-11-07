@@ -69,8 +69,8 @@ export async function setNativePluginEnabled(session: SessionIdentity, installId
 }
 
 /** Starts the installation again in the running backend, without restarting it. */
-export async function retryNativePlugin(session: SessionIdentity, installId: string): Promise<PluginEntry> {
-  return mapPluginInstallation(await rpc.pluginsRetry(session, { installId }));
+export async function reloadNativePlugin(session: SessionIdentity, target: { installId: string } | { pluginId: string }): Promise<void> {
+  await rpc.pluginsReload(session, target);
 }
 
 /* === Plugin Installation === */

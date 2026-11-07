@@ -55,7 +55,12 @@ pub struct SuiteRegistry {
 /* === Implementations === */
 
 impl SuiteRegistry {
-    // The Registry's Parts, For The State Encoding That Stores Each Suite Once
+    pub(crate) fn retire_cases(&mut self, ids: &std::collections::BTreeSet<CaseId>) {
+        self.cases.retain(|id, _| !ids.contains(id));
+        self.case_revisions.retain(|id, _| !ids.contains(id));
+        self.registrations.retain(|_, members| members.iter().all(|id| !ids.contains(id)));
+    }
+    // The Registry's Parts, for the State Encoding That Stores Each Suite Once
     pub(crate) fn snapshots(&self) -> &BTreeMap<String, SuiteSnapshot> {
         &self.suites
     }
@@ -102,8 +107,8 @@ impl SuiteRegistry {
         self.cases.get(id)
     }
 
-    // A Registered Case Is Immutable But For The Label An Operator Renames, So
-    // Later Appends Still Find The Cycle's Copy Equal To The Registered One
+    // A Registered Case Is Immutable but for the Label an Operator Renames, So
+    // Later Appends Still Find the Cycle's Copy Equal to the Registered One
     pub(crate) fn relabel_case(&mut self, id: &CaseId, label: &str) {
         if let Some(case) = self.cases.get_mut(id) {
             case.metadata.label = label.to_owned();

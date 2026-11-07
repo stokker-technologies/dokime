@@ -226,7 +226,7 @@ def _skeleton(source: str) -> str:
             return source
         return _sections('"""Generated Wire Package"""', imports=("", ""), constants="")
 
-    # Split Protoc Output Into Provenance, Imports And Module Body
+    # Split Protoc Output into Provenance, Imports and Module Body
     provenance, third_party, local, body = [], [], [], []
     docstring = '"""Generated protocol buffer code."""'
     for line in source.splitlines():

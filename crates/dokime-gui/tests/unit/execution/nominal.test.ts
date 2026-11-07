@@ -17,6 +17,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
+import { MediaGalleryView } from "@/components/MediaGalleryView";
+import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@/components/media-gallery-model";
 import { PromptPanel } from "@/components/PromptPanel";
 import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
 // Local Imports
@@ -98,7 +100,7 @@ function bytes(length: number) {
 /* === Entry Point === */
 
 test("Page Sections", () => {
-  // Built-In Card Kinds Own Their Sections And Every Other Kind Is Report
+  // Built-In Card Kinds Own Their Sections and Every Other Kind Is Report
   assert.equal(executionSectionOf("steps"), "steps-criteria");
   assert.equal(executionSectionOf("criteria"), "steps-criteria");
   assert.equal(executionSectionOf("notes"), "notes");
@@ -107,11 +109,11 @@ test("Page Sections", () => {
     assert.equal(executionSectionOf(kind as CardKind), "report", kind);
   }
 
-  // The Sections Follow Page Order Whatever Order The Document Authored
+  // The Sections Follow Page Order Whatever Order the Document Authored
   const sections = executionDocumentSections(cards("traceability", "plots", "records", "criteria", "media", "notes", "artifacts", "steps"));
   assert.deepEqual(sections, ["steps-criteria", "notes", "media", "artifacts", "report", "records", "traceability"]);
 
-  // A Section The Document Leaves Out Stays Out
+  // A Section the Document Leaves Out Stays Out
   assert.deepEqual(executionDocumentSections(cards("steps", "records")), ["steps-criteria", "records"]);
 
   // A Prompt Has One Home: The Execution That Asked It, Or The Cycle When No Execution Owns It
@@ -132,7 +134,7 @@ test("Page Sections", () => {
 });
 
 test("Parameter Rows", () => {
-  // Parameters Read In Declaration Order With Their Declared Label And Unit
+  // Parameters Read in Declaration Order with Their Declared Label and Unit
   const definitions = [
     { name: "voltage", label: "Supply Voltage", unit: "V" },
     { name: "current", label: null, unit: " " },
@@ -148,7 +150,7 @@ test("Parameter Rows", () => {
   // A Case Without Parameters Has No Rows
   assert.deepEqual(executionParameterRows(null, []), []);
 
-  // Durations Read With The Precision Their Value Needs, In The Unit Column
+  // Durations Read with the Precision Their Value Needs, in the Unit Column
   const durations = executionParameterRows({ dwell_s: 90, outage_s: [0.05, 0.1, 0.2], sample_interval_s: 0.001, soak: 600 }, [
     { name: "soak", label: "Soak Time", unit: "s" },
   ]);
@@ -162,7 +164,7 @@ test("Parameter Rows", () => {
     ],
   );
 
-  // A Native Number Is A Duration Too, Not The Raw Seconds Figure
+  // A Native Number Is a Duration Too, Not the Raw Seconds Figure
   const native = (decimal: string) => ({ __dokime_native_number__: true, decimal });
   assert.deepEqual(
     executionParameterRows({ interval: native("0.001"), observe: native("120") }, [
@@ -175,11 +177,11 @@ test("Parameter Rows", () => {
     ],
   );
 
-  // Both Halves Share The Figure And Unit Widths Of The Longest Entry
+  // Both Halves Share the Figure and Unit Widths of the Longest Entry
   assert.deepEqual(executionParameterColumns(durations), { value: 12, unit: 3 });
   assert.deepEqual(executionParameterColumns([]), { value: 1, unit: 0 });
 
-  // The Grid Prints Label, Right-Aligned Figure And Dimmed Unit On One Column Template
+  // The Grid Prints Label, Right-Aligned Figure and Dimmed Unit on One Column Template
   const html = renderToStaticMarkup(createElement(ExecutionParameters, { rows: durations }));
   assert.match(html, /--parameter-value:12ch/);
   assert.match(html, /--parameter-unit:3ch/);
@@ -191,7 +193,7 @@ test("Parameter Rows", () => {
 });
 
 test("Duration Formatting", () => {
-  // One Helper Prints Every Duration With The Precision Its Value Needs
+  // One Helper Prints Every Duration with the Precision Its Value Needs
   const cases: Array<[number, string]> = [
     [0, "0 s"],
     [0.000_25, "250 µs"],
@@ -214,7 +216,7 @@ test("Duration Formatting", () => {
 });
 
 test("Step Durations", () => {
-  // A Pending Step Has No Duration, A Running One Ticks Live, An Ended One Is Measured
+  // A Pending Step Has No Duration, a Running One Ticks Live, an Ended One Is Measured
   assert.equal(durationText({ duration_s: 0, status: "pending" }, true, null), "");
   assert.equal(durationText({ duration_s: 0.1, status: "running" }, true, 12.7), "12 s");
   assert.equal(durationText({ duration_s: 2.5, status: "passed" }, true, null), "2.5 s");
@@ -225,14 +227,14 @@ test("Step Durations", () => {
 });
 
 test("Operator Notes", () => {
-  // Adding A Note Opens An Empty Draft On The Code Tab
+  // Adding a Note Opens an Empty Draft on the Code Tab
   const draft = openNewNote();
   assert.ok(draft.mode === "adding");
   assert.equal(draft.tab, "code");
   assert.equal(draft.markdown, "");
   assert.equal(noteSubmission(draft), null, "a blank draft files nothing");
 
-  // The Tabs Switch Between Code And Preview And Keep The Markdown Source
+  // The Tabs Switch Between Code and Preview and Keep the Markdown Source
   const written = updateNoteMarkdown(openNewNote(), "Fan **audible** at start.");
   const preview = selectNoteTab(written, "preview");
   assert.ok(preview.mode === "adding");
@@ -243,7 +245,7 @@ test("Operator Notes", () => {
   assert.equal(code.tab, "code");
   assert.equal(selectNoteTab(CLOSED_NOTE_DRAFT, "preview"), CLOSED_NOTE_DRAFT);
 
-  // Adding Files The Trimmed Markdown As A New Note
+  // Adding Files the Trimmed Markdown as a New Note
   const list = updateNoteMarkdown(openNewNote(), "  - checked fuses\n- reseated probe  \n");
   assert.deepEqual(noteSubmission(list), {
     kind: "create",
@@ -251,7 +253,7 @@ test("Operator Notes", () => {
   });
   assert.deepEqual(noteSubmission(selectNoteTab(list, "preview")), noteSubmission(list));
 
-  // Editing Files Only A Changed Message Against The Same Note
+  // Editing Files Only a Changed Message Against the Same Note
   const editing = openNoteEdit(note("n1", "2026-10-14T08:00:00Z", "first look"));
   assert.ok(editing.mode === "editing");
   assert.equal(editing.markdown, "first look");
@@ -277,7 +279,7 @@ test("Operator Notes", () => {
 });
 
 test("File Follow", () => {
-  // A Follow Accepts Metadata, Contiguous Chunks And A Matching Terminal
+  // A Follow Accepts Metadata, Contiguous Chunks and a Matching Terminal
   let cursor = connectingFollowCursor();
   cursor = advanceFollowCursor(cursor, {
     kind: "metadata",
@@ -298,7 +300,7 @@ test("File Follow", () => {
   });
   assert.equal(cursor.phase, "finished");
 
-  // A Follow Refuses Gaps, Early Data, Short Terminals And A Replaced Identity
+  // A Follow Refuses Gaps, Early Data, Short Terminals and a Replaced Identity
   const started = advanceFollowCursor(connectingFollowCursor(), {
     kind: "metadata",
     identity: IDENTITY,
@@ -320,13 +322,13 @@ test("File Follow", () => {
     }),
   );
 
-  // A Large Follow Starts At The Tail And A Small One At Zero
+  // A Large Follow Starts at the Tail and a Small One at Zero
   assert.equal(followTailOffset(314, 64 * 1024), 0);
   assert.equal(followTailOffset(200_000, 64 * 1024), 200_000 - 64 * 1024);
 });
 
 test("Prompt Ordering", () => {
-  // The Banner Puts The Most Urgent Level First And The Oldest First Within It
+  // The Banner Puts the Most Urgent Level First and the Oldest First Within It
   const ordered = orderPendingPrompts([
     prompt("info-old", "info", "2026-10-13T08:00:00Z"),
     prompt("warning-new", "warning", "2026-10-13T08:05:00Z"),
@@ -339,7 +341,7 @@ test("Prompt Ordering", () => {
     ["error", "warning-old", "warning-new", "info-old", "debug"],
   );
 
-  // Prompts Asked In The Same Instant Keep A Stable Order
+  // Prompts Asked in the Same Instant Keep a Stable Order
   const at = "2026-10-13T08:00:00Z";
   const instant = orderPendingPrompts([prompt("b", "info", at), prompt("a", "info", at)]);
   assert.deepEqual(
@@ -354,7 +356,7 @@ test("Prompt Ordering", () => {
     ["dated", "broken"],
   );
 
-  // Ordering Leaves The Pending List It Was Given Untouched
+  // Ordering Leaves the Pending List It Was Given Untouched
   const pending = [prompt("info", "info", "2026-10-13T08:00:00Z"), prompt("error", "error", "2026-10-13T08:00:00Z")];
   orderPendingPrompts(pending);
   assert.deepEqual(
@@ -364,7 +366,7 @@ test("Prompt Ordering", () => {
 });
 
 test("Prompt Queue", () => {
-  // The Queue Answers In The Order The Run Asked, Whatever The Level
+  // The Queue Answers in the Order the Run Asked, Whatever the Level
   const queued = queuePrompts([
     prompt("error-new", "error", "2026-10-13T08:10:00Z"),
     prompt("info-old", "info", "2026-10-13T08:00:00Z"),
@@ -379,7 +381,7 @@ test("Prompt Queue", () => {
   // Answered Prompts Read Back From Their Records: Question, Answer, Time
   const records = [
     {
-      details: { fields: [{ label: "Measured Voltage", name: "voltage" }], prompt_id: "p1", title: "Read The Meter" },
+      details: { fields: [{ label: "Measured Voltage", name: "voltage" }], prompt_id: "p1", title: "Read the Meter" },
       record_type: "prompt.request.form",
       timestamp: "2026-10-13T08:00:00Z",
     },
@@ -403,7 +405,7 @@ test("Prompt Queue", () => {
     { details: { prompt_id: "p4", title: "Still Open" }, record_type: "prompt.request.form", timestamp: "2026-10-13T08:06:00Z" },
   ];
   assert.deepEqual(answeredPrompts(records), [
-    { answer: "Measured Voltage: 230", at: "2026-10-13T08:01:00Z", promptId: "p1", question: "Read The Meter" },
+    { answer: "Measured Voltage: 230", at: "2026-10-13T08:01:00Z", promptId: "p1", question: "Read the Meter" },
     { answer: "Confirm", at: "2026-10-13T08:03:00Z", promptId: "p2", question: "Confirm Wiring" },
     { answer: "Expired", at: "2026-10-13T08:05:00Z", promptId: "p3", question: "Too Late" },
   ]);
@@ -421,27 +423,27 @@ test("Prompt Decisions", () => {
       fields,
       kind: "form",
       level: "info",
-      title: "Inspect The Charger",
+      title: "Inspect the Charger",
     }) as unknown as PromptRequest;
 
-  // Exactly One Boolean And One Answering Action Make The Prompt A Decision
+  // Exactly One Boolean and One Answering Action Make the Prompt a Decision
   const inspection = ask([field("passed", "boolean", { label: "Charger Inspection Passed" }), field("note", "text", { required: true })]);
   assert.deepEqual(promptDecision(inspection), { action: "submit", field: inspection.fields[0] });
   assert.equal(promptDecision(ask([field("a", "boolean"), field("b", "boolean")])), null);
   assert.equal(promptDecision(ask([field("note", "text")])), null);
   assert.equal(promptDecision(ask([field("a", "boolean")], [action("retry"), action("submit")])), null);
 
-  // A Decision Answers With No And Yes, Not A Checkbox, Cancel At The Far Left
+  // A Decision Answers with No and Yes, Not a Checkbox, Cancel at the Far Left
   const html = renderToStaticMarkup(
     createElement(PromptPanel, { onAction: () => undefined, onValueChange: () => undefined, prompt: inspection, values: {} }),
   );
   assert.doesNotMatch(html, /role="checkbox"/);
   assert.ok(html.indexOf(">cancel<") < html.indexOf(">No<") && html.indexOf(">No<") < html.indexOf(">Yes<"));
 
-  // An Untouched Field States No Error Before A Submit Attempt
+  // An Untouched Field States No Error Before a Submit Attempt
   assert.doesNotMatch(html, /Enter a value/);
 
-  // Several Booleans Keep Their Controls And Submit
+  // Several Booleans Keep Their Controls and Submit
   const several = renderToStaticMarkup(
     createElement(PromptPanel, {
       onAction: () => undefined,
@@ -453,7 +455,7 @@ test("Prompt Decisions", () => {
   assert.match(several, /role="checkbox"/);
   assert.match(several, />submit</);
 
-  // The Answered Row States A Decision As Yes Or No
+  // The Answered Row States a Decision as Yes or No
   assert.equal(
     answeredPrompts([
       {
@@ -472,7 +474,7 @@ test("Prompt Decisions", () => {
 });
 
 test("Prompt Answering", () => {
-  // A Count Is Coloured By Its Most Urgent Prompt And Reads As A Phrase
+  // A Count Is Coloured by Its Most Urgent Prompt and Reads as a Phrase
   assert.equal(highestPromptLevel([]), null);
   assert.equal(
     highestPromptLevel([prompt("info", "info", "2026-10-13T08:00:00Z"), prompt("warning", "warning", "2026-10-13T08:00:00Z")]),
@@ -481,7 +483,7 @@ test("Prompt Answering", () => {
   assert.equal(pendingPromptCountLabel(1), "1 prompt waiting");
   assert.equal(pendingPromptCountLabel(3), "3 prompts waiting");
 
-  // The Tone Follows The Record Severity Scale With Info Kept Visible
+  // The Tone Follows the Record Severity Scale with Info Kept Visible
   const levels = ["error", "warning", "info", "debug"] as PromptLevel[];
   assert.deepEqual(levels.map(promptLevelTone), ["danger", "warning", "info", "muted"]);
 
@@ -539,4 +541,37 @@ test("Live Artifact Tree", () => {
     collision.folders[0].folders[0].folders[0].files.map((entry) => entry.fileName),
     ["device.2.log", "device.log"],
   );
+});
+
+test("Media Cards and Tree Share Live Uploads", () => {
+  const name = `${"capture-".repeat(30)}.png`;
+  const image = {
+    artifact_id: "image",
+    label: name,
+    path: `media/${name}`,
+    media_type: "image/png",
+    group_id: "execution-files",
+    scope: { test_execution_id: "running" },
+    href: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  };
+  const audio = { ...image, artifact_id: "audio", path: "media/recording.wav", media_type: "audio/wav", href: "blob:audio" };
+  const video = { ...image, artifact_id: "video", path: "media/clip.webm", media_type: "video/webm", href: "blob:video" };
+  const markup = renderToStaticMarkup(createElement(MediaGalleryView, { artifacts: [image, audio, video], emptyMessage: "" }));
+  assert.match(markup, /<img[^>]+src="data:image\/png;base64,/);
+  assert.match(markup, /<audio[^>]+controls=""[^>]+src="blob:audio"/);
+  assert.match(markup, /<video[^>]+controls=""[^>]+src="blob:video"/);
+  assert.match(markup, /<h3 class="truncate[^"]*" title="/);
+  // Names Belong Only In The Footer, Never In The Preview's Action Row.
+  assert.equal(markup.includes("line-clamp-2"), false);
+  assert.deepEqual(mediaArtifactSource(image), { kind: "execution_file", executionId: "running", relativePath: image.path });
+  assert.equal(mediaBlobType({ ...audio, media_type: "audio/wav; codecs=1" }), "audio/wav");
+  assert.equal(mediaBlobType({ ...image, media_type: "application/octet-stream" }), "image/png");
+  const saving = { ...image, stream_state: "streaming" as const };
+  const saved = { ...image, stream_state: "finalized" as const };
+  assert.equal(mediaBlobType(saving), null);
+  assert.equal(mediaBlobType(saved), "image/png");
+  assert.notEqual(artifactContentKey(saving), artifactContentKey(saved));
+  const tree = buildArtifactTree([image, audio, video]);
+  assert.equal(tree.folders[0].path, "media");
+  assert.equal(tree.folders[0].files.find((file) => file.artifact_id === "image")?.fileName, name);
 });

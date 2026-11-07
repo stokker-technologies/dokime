@@ -44,6 +44,15 @@ pub mod plot_inputs;
 pub mod registry;
 
 #[cfg(feature = "native")]
+pub(crate) mod repeat;
+
+#[cfg(feature = "native")]
+pub(crate) mod page;
+
+#[cfg(feature = "native")]
+pub(crate) mod query;
+
+#[cfg(feature = "native")]
 pub mod resolve;
 
 /* === Re-Exports === */

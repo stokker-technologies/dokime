@@ -6,7 +6,7 @@
 - [x] 1.4 Draft dev publication before replacing assets, verify the complete upload inventory, move the tag once and publish; serialize publication.
 - [x] 1.5 Update CONTRIBUTING and tooling ownership wording; review README impact and verify changed behavior with focused tooling tests and impact evaluation.
 
-## Validation And Delivery
+## Validation and Delivery
 
 - [ ] 2.1 Run the requested mise check and tooling proof with UV_PROJECT_ENVIRONMENT removed; report every failure without editing product/test code.
 - [ ] 2.2 Push and verify the remote SHA, open one ready PR into dev and report its single CI run; do not merge or enable auto-merge.

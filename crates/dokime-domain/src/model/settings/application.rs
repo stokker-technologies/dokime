@@ -7,7 +7,7 @@
  * ***
  */
 
-// Application Preferences And Revision-Checked Updates
+// Application Preferences and Revision-Checked Updates
 
 /* === Modules === */
 

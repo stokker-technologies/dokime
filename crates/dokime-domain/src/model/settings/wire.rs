@@ -172,9 +172,9 @@ pub struct PluginRuntimeSettings {
     )]
     pub discovered: Option<Value>,
 
-    #[row(
-        description = "Whether saved values wait to reach the running program. A save that changes a value restarts it now, or once the executions that use it finish."
-    )]
+    pub unapplied: Vec<String>,
+
+    #[row(description = "Whether an explicitly requested reload is restarting or waiting for active work.")]
     pub restart: PluginRestart,
 }
 

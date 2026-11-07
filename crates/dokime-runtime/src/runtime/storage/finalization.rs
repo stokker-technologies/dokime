@@ -157,7 +157,12 @@ impl RuntimeHandle {
             }
         }
         match self.finish_saved_executions(cycle, &pending).await?.into_iter().next() {
-            Some((_, error)) => Err(error),
+            Some((_, error @ (Error::Admission(_) | Error::ShuttingDown | Error::Interrupted))) => Err(error),
+            Some((id, error)) => Err(Error::ReportSave {
+                subject: ReportSubject::Execution(id.to_string()),
+                stage: "execution report finalization",
+                source: Box::new(error),
+            }),
             None => Ok(()),
         }
     }
@@ -196,8 +201,6 @@ impl RuntimeHandle {
         if self.execution_storage.acquisition(id).await.is_none() {
             self.execution_storage.acquire(cycle, execution).await?;
         }
-        let gate = self.execution_storage.materialization_gate(id).await?;
-        let _capture = gate.lock().await;
         self.execution_storage.finish_outputs(id).await?;
         #[cfg(feature = "testing")]
         crate::domains::execution::run::testing::before_report_request(id).await;
@@ -216,6 +219,8 @@ impl RuntimeHandle {
             .map_err(|error| Error::Operation(error.to_string()))?;
         }
         self.capture_report_lifecycle(execution).await?;
+        let gate = self.execution_storage.materialization_gate(id).await?;
+        let _capture = gate.lock().await;
         let at = self.state_read().report_finalizations[id].evidence_at.clone();
         // Freeze And Drain Native Evidence Before Returning; HTML Is Independent.
         let inputs = self.execution_storage.prepare_capture(cycle, execution, &at, true).await?;
@@ -350,7 +355,14 @@ impl RuntimeHandle {
         if self.execution_storage.acquisition(id).await.is_none() {
             self.execution_storage.acquire(cycle, execution).await?;
         }
-        self.capture_report_lifecycle(execution).await?;
+        {
+            let gate = self.execution_storage.materialization_gate(id).await?;
+            let _capture = gate.lock().await;
+            if self.adopt_saved_execution(id).await? {
+                return Ok(());
+            }
+            self.capture_report_lifecycle(execution).await?;
+        }
         crate::runtime::operations::reports::Resources::from_runtime(self)
             .materialize(crate::operations::reports::MaterializeReport {
                 subject: ReportSubject::Execution(id.to_string()),
@@ -381,7 +393,10 @@ impl RuntimeHandle {
     async fn commit_admitted_seal(
         &self, seal: harmos::storage::ReadBatch<dokime_domain::model::execution::saved::ExecutionSeal>,
     ) -> Result<()> {
-        let transaction = seal.try_map(|seal| {
+        // Native Publication Has Already Validated And Saved The Complete Inventory.
+        // The Journal Carries Its Durable References, Not Another Inventory Copy.
+        let transaction = seal.try_map(|mut seal| {
+            seal.source.outputs.clear();
             Ok::<_, crate::storage::Error>(crate::transactions::Transactions::from(crate::transactions::SealExecution { seal }))
         })?;
         let owner = transaction.owner();

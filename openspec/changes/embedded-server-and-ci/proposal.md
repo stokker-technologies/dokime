@@ -1,4 +1,4 @@
-# Embedded Server And CI
+# Embedded Server and CI
 
 ## Why
 

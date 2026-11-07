@@ -49,8 +49,6 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
-const ARTIFACT_PREFIX: &str = "artifacts/";
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -137,7 +135,7 @@ impl ArtifactUpload {
         let storage = self.storage.upgrade().ok_or(Error::ShuttingDown)?;
         let count = chunk.bytes.as_slice().len() as u64;
         let appended = tokio::spawn(async move {
-            // Retain The Producer Token Through Admission
+            // Retain the Producer Token Through Admission
             let owner = storage.acquisition(&chunk.upload.execution).await.ok_or_else(|| error("execution acquisition is closed"))?;
             let mut acquisition = owner.lock().await;
             let state = acquisition.artifacts.get_mut(&chunk.upload.id).ok_or_else(|| error("artifact upload is missing"))?;
@@ -247,6 +245,7 @@ impl RuntimeHandle {
     }
 
     // Stores a finished local file as the artifact `name`, a relative path.
+    #[tracing::instrument(name = "storage.artifacts.upload_file", level = "debug", skip_all)]
     pub async fn upload_artifact_file(
         &self, scope: dokime_domain::model::execution::RecordScope, path: impl AsRef<std::path::Path>, filename: String,
         content_type: Option<String>,
@@ -322,6 +321,7 @@ impl RuntimeHandle {
         self.state_manager.state().read(move |state| state.capture_scope(&scope)).await.map_err(error)?.value.map_err(error)
     }
 
+    #[tracing::instrument(name = "storage.artifacts.begin_upload", level = "debug", skip_all)]
     pub async fn begin_artifact_upload(&self, mut input: ArtifactUploadInput) -> Result<ArtifactUpload> {
         let created_at = crate::model::time::now_utc();
         input.scope = self.capture_publication_scope(input.scope).await?;
@@ -403,18 +403,20 @@ impl ExecutionStorage {
         let id = crate::model::identity::new_id::<ArtifactId>();
         let owner = Arc::new(());
         let requested = input.filename;
+        let content_type = input.content_type;
+        let prefix = if crate::artifacts::media_kind_for(&requested, content_type.as_deref()).is_some() { "media/" } else { "artifacts/" };
         let mut filename = requested.clone();
         let mut suffix = 2;
-        while acquisition.output(&format!("{ARTIFACT_PREFIX}{filename}")).is_some() {
+        while (prefix == "artifacts/" && filename == "execution.log") || acquisition.output(&format!("{prefix}{filename}")).is_some() {
             filename = crate::artifacts::name::collision_name(&requested, suffix);
             suffix += 1;
         }
         crate::artifacts::name::validate(&filename).map_err(error)?;
-        let relative_path = format!("{ARTIFACT_PREFIX}{filename}");
+        let relative_path = format!("{prefix}{filename}");
         let output = NativeOutput::artifact(FileMetadata {
             id: Identifier::new(id.as_str()).map_err(error)?,
             scope: Some(Identifier::new(execution.as_str()).map_err(error)?),
-            media_type: input.content_type.as_deref().unwrap_or("application/octet-stream").to_owned(),
+            media_type: content_type.as_deref().unwrap_or("application/octet-stream").to_owned(),
             expected_length: None,
             expected_sha256: None,
         })?;
@@ -430,7 +432,7 @@ impl ExecutionStorage {
             upload_id: crate::model::identity::new_id::<UploadId>(),
             scope: input.scope,
             filename,
-            content_type: input.content_type,
+            content_type,
             size_bytes: 0,
             sha256: None,
             status: ArtifactStatus::Staged,
@@ -626,7 +628,7 @@ async fn close(upload: &mut Upload, complete: bool) -> Result<()> {
 
 async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result<()> {
     let Some(status) = upload.closing.as_ref() else {
-        // A Mutable Upload Is Not A Saved Artifact Descriptor
+        // A Mutable Upload Is Not a Saved Artifact Descriptor
         return Ok(());
     };
     if upload.descriptor.is_some() {
@@ -653,7 +655,7 @@ async fn stage(storage: &crate::storage::Manager, upload: &mut Upload) -> Result
                     .clone());
             }
             if upload.pending.is_none() {
-                // The Private File Is Frozen By The Execution Gate And Closing Decision
+                // The Private File Is Frozen by the Execution Gate and Closing Decision
                 upload.file.set_len(upload.record.size_bytes).await.map_err(source_error)?;
                 upload.file.flush().await.map_err(source_error)?;
                 let file = upload.file.try_clone().await.map_err(source_error)?;
@@ -756,6 +758,45 @@ fn error(problem: impl ToString) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn execution_log_keeps_plain_name_before_and_after_step_uploads() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../report/fixtures/execution-report-input.json")).unwrap();
+        let mut cycle: dokime_domain::model::execution::result::CycleView =
+            serde_json::from_value(fixture["input"]["cycle"].clone()).unwrap();
+        cycle.test_executions[0].saved = None;
+        let execution = &cycle.test_executions[0];
+        let root = tempfile::tempdir().unwrap();
+        let mut owner = crate::Runtime::start(crate::RuntimeConfig::new(root.path(), cycle.metadata.clone())).await.unwrap();
+        let runtime = owner.handle();
+        let storage = &runtime.execution_storage;
+        storage.acquire(&cycle, execution).await.unwrap();
+        let id = &execution.test_execution_id;
+        for expected in ["artifacts/execution.2.log", "artifacts/execution.3.log"] {
+            let upload = storage
+                .clone()
+                .begin_artifact(
+                    id.clone(),
+                    ArtifactUploadInput {
+                        scope: execution.scope.clone(),
+                        filename: "execution.log".into(),
+                        content_type: Some("text/plain".into()),
+                        size_bytes: 1,
+                        sha256: None,
+                    },
+                    crate::model::time::now_utc(),
+                    runtime.operation_progress().begin("Artifact Collision"),
+                )
+                .await
+                .unwrap();
+            let entries = storage.native_entries(id).await.unwrap();
+            assert!(entries.iter().any(|entry| entry.artifact_id == upload.artifact_id().as_str() && entry.relative_path == expected));
+            storage.reserve_output(id, "artifacts/execution.log").await.unwrap();
+            drop(upload);
+        }
+        drop(runtime);
+        owner.shutdown().await.unwrap();
+    }
 
     #[test]
     fn capture_failure_degrades_only_source_content_errors() {

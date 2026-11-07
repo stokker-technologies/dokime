@@ -4,8 +4,8 @@ Startup failures appear in a desktop notification and in Settings › Plugins,
 with the bundle's display name and the underlying cause. The verified ordinary
 settings remain editable even when the plugin could not start. Secret declarations
 show their shared Secret Storage identifiers and availability read-only. Use
-**Add In Secret Storage** to open Add Secret prefilled with a missing identifier,
-then use **Retry** on the plugin page, which starts that plugin again while Dokime
+**Add in Secret Storage** to open Add Secret prefilled with a missing identifier,
+then use **Reload** on the plugin page, which starts that plugin again while Dokime
 keeps running. There are no secret bindings or environment-variable sources.
 Notification history retains the settings link.
 
@@ -219,7 +219,7 @@ Its bundle and release-feed name are `plugin-host`; the stored sidecar owner is
 `plugin_host`, using Harmos's portable owner spelling; `host` names application-owned operations
 in Harmos. The bundle is `plugin-host.dokime`, with `host.*` stream and operation IDs.
 The host sidecar declares no automatic restart: a process fault deactivates it
-until an explicit reload, a settings save that changes a value, or the next startup.
+until an explicit reload or the next startup.
 
 Host observers run only while their streams are leased. Execution subscriptions
 and live plot viewers hold those leases; releasing the last lease stops the
@@ -255,14 +255,54 @@ and do not run plugin lifecycle hooks.
 Installed packages with unavailable or circular contracts are refused while
 unrelated plugins start normally. Settings → Plugins retains the boot reason,
 and the `plugin_contract_unavailable` or `plugin_contract_cycle` admission code.
-A settings save that changes a value starts a new generation of that plugin and
-its dependents through the same reload, with a configuration built from the saved
-values, once no cycle is active. A restart refused before
-the program stops, for example because its saved values or a required secret do
-not resolve, keeps the running generation and records why; one whose new
-generation then fails to start is recorded like a failed boot.
+Launch configuration seeds unsaved fields; explicitly saved values take precedence.
+Saving settings preserves the running generation and its settings snapshot in execution evidence. The backend compares saved
+values with that generation's startup values and reports differing setting IDs.
+The GUI marks these **Applied on Reload**. **Reload** reads saved settings and
+restarts the program, its dependents and all their observers, including
+`activation = "plugin"` observers, which resolve their new collection intervals.
+A reload refused before the program stops keeps the running generation and its
+pending setting marks; a generation that fails to start is recorded like a failed boot.
+An unrelated plugin's retained cleanup failure does not join that reload. The failed
+owner and plugins that depend on it still require successful cleanup before replacement.
 Unavailable-contract reasons identify the owner and required contract; cycle
 reasons identify every involved plugin.
+
+### Observer Refusals and Diagnostics
+
+Harmos refusal `-32607` means the operation or route deadline elapsed. It does
+not identify a restart or a retired generation: operation execution, lane admission,
+device contention and an unavailable remote application can all spend the same
+budget. The diagnostic retains the called operation and underlying cause. Calls
+keep their authored policies, and uncertain writes are never replayed automatically.
+
+Reload fences ordinary callers and joins the old observers before shutdown and
+generation retirement. Their owned calls can settle against that generation.
+A confirmed carrier exit during shutdown is successful physical termination;
+an authored cleanup error still fails cleanup. A disconnected observer host ends
+its activation. Repeated identical callback failures log once until success or a
+different failure; recovery has its own record.
+
+An observer awaits each callback serially and skips missed ticks. A remote call
+that uses its whole 30 s deadline therefore delays that observer's next sample;
+changing cadence alone cannot shorten it. For SDK evolution, an optional per-call
+budget capped by the operation policy, or a separately owned connection sampler
+with a cached availability snapshot, could support faster failure. Neither is
+implemented here; plugin code and operation deadlines are unchanged.
+
+Sidecar stderr groups continuation lines into bounded records and preserves
+severity, including `error:` diagnostics. Operator cancellation logs at INFO;
+step and cleanup failures remain ERROR. Routine file producer completion is DEBUG.
+
+The unresolved-symbol backtrace hint means the matching debug information is
+absent. Release builds can retain symbols separately: matching PDBs on Windows
+and split debug information on Linux can be optional diagnostic downloads, keeping
+normal installers small. In-process Windows symbol resolution needs the matching
+PDB beside the executable; offline symbolization needs the exact binary and its
+symbols. Current bundles do not promise these symbol artifacts. See the
+[Cargo profile reference](https://doc.rust-lang.org/cargo/reference/profiles.html#debug)
+for debug information and splitting controls; adding symbol publication is a
+separate packaging change.
 
 
 Cargo supplies package identity, version and description. Suite declarations
@@ -342,14 +382,197 @@ Catalog ownership is explicit. Host registrations survive plugin removal.
 Provider reconciliation rebuilds the catalogs owned by configured, embedded and
 installed plugins from their admitted registrations.
 
-## Plugin Startup And Stop Budgets
+## Operation Invocation
+
+Use `ctx.operation(request).await?` in handlers, templates, criteria and observers.
+Await returns Harmos `Response<T>`, which dereferences to the value; use
+`into_owned()` when taking owned fields. `.start().await?` returns a scoped instance.
+The operation macro owns default timeouts, delays and retries. `.retry(settings.retry)`
+overrides one call, using settings, parameters or configuration. Enabled overrides
+require declared replay safety, preserve attempt deadlines and record every attempt.
+Template built-ins such as WatchFile and RunProcess use the same method without a
+`requires` entry; listing an unconditional built-in there is a compile error.
+Import `OperationHost` for carrier hosts. Rebuild sidecars and guests together for child-call envelope v2.
+
+## Operation Boundaries
+
+Templates and observers import only operations, `domain`, Dokime and the standard
+library; they never import driver or library crates. Wrap driver or library work
+in an operation and import that operation. Steps sequence operations and may use
+returned values for records and criteria; criteria decide from captured evidence.
+
+Keep operations thin and fast. Observers read through operations; return batches
+when the acquisition rate needs them so fast streams remain viable.
+
+Each `operations/<domain>/<operation>.rs` is a self-contained vertical slice:
+request, response, policy, handler and private helpers live together. It may
+import other operations, `domain`, Dokime, std and the driver or library it uses.
+`domain/` holds shared data only; do not create `domain/operations/`. Operations
+called by other plugins keep their handler and driver imports behind the
+`runtime` feature in that same file. Requests and responses contain no driver
+types: responses are plugin-owned, serializable wrappers over driver results,
+and driver errors become `Refusal`.
+
+Resources belong to the plugin instance, never a template or `domain`. Prepare
+and retain them on the plugin through `Lifecycle`, register the same shared state
+with `Setup::resource`, and retrieve it in handlers with `ctx.resource::<T>()`.
+Use the existing mechanism; if it cannot reach the needed plugin-owned state,
+stop and report rather than inventing an API.
+
+Operation calls form a linear tree without cycles: higher-level operations call
+lower-level operations, never the reverse. These are authoring conventions, not
+a Hub rule or project check.
+
+## Hand-Authored Steps
+
+A hand-authored step reads as a list of operations. Each action is a Title Case
+comment, a `let operation` binding and one `ctx.operation`, with a blank line between
+actions:
+
+```rust
+#[dokime::step(label = "Prepare")]
+async fn preparation(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
+    // Enable Remote Control
+    let operation = SetChamberSettings::from([("RemoteControl", "true")]);
+    ctx.operation(operation).await?;
+
+    // Start Chamber Service
+    let operation = StartChamberService {};
+    ctx.operation(operation).await?;
+
+    // Wait Until Chamber Is Ready
+    let operation = WaitUntilChamberReady {};
+    ctx.operation(operation).await?;
+
+    // Read Chamber Temperature
+    let operation = ReadChamber {};
+    let reading = ctx.operation(operation).await?;
+
+    Ok(())
+}
+```
+
+For traceability, fetch the data before building and publishing each section:
+
+```rust
+#[dokime::step(label = "Traceability")]
+async fn traceability(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
+    // Get Diagnostics
+    let operation = GetDiagnostics {};
+    let diagnostics = ctx.operation(operation).await?;
+
+    // === Device Under Test === //
+    let mut section = TraceabilitySection::new("dut", "Device Under Test");
+
+    let serial_number = TraceabilityRow::text("serial_number", "Serial Number", &diagnostics.serial_number);
+    section.row(serial_number);
+
+    let firmware_version = TraceabilityRow::text("firmware_version", "Firmware Version", &diagnostics.firmware_version);
+    section.row(firmware_version);
+
+    ctx.traceability().section(section);
+
+    // === Test Bench === //
+    let mut section = TraceabilitySection::new("bench", "Test Bench");
+
+    let chamber_id = TraceabilityRow::text("chamber_id", "Chamber ID", &diagnostics.chamber_id);
+    section.row(chamber_id);
+
+    let controller_version = TraceabilityRow::text("controller_version", "Controller Version", &diagnostics.controller_version);
+    section.row(controller_version);
+
+    ctx.traceability().section(section);
+
+    Ok(())
+}
+```
+
+Fetch first, then use the result: call the operation once at the top, name the
+result after what it holds, and only read that result in the rest of the step.
+Use `?` by default for operation failures in a step.
+
+- Use two comment levels: `// Title Case` labels an action;
+  `// === Title Case === //` opens a group of actions.
+- Name before use: build a value on one line and hand it over on the next;
+  never nest construction in the call that consumes it.
+- Keep one name throughout: the variable, row ID and response field share a name.
+- Make blocks read alike: create a section, add its rows, then publish it at the
+  end of that group. Reuse the name `section` in each group.
+- Use standard style-guide Title Case for comments and every human-facing label:
+  capitalize the first and last word and every major word; lowercase articles,
+  coordinating conjunctions and short prepositions in between (`a`, `an`, `the`,
+  `and`, `but`, `or`, `nor`, `for`, `of`, `in`, `on`, `at`, `to`, `by`). This includes
+  steps, criteria, records, parameters, streams, sections and rows. For example,
+  `Number of Rows` and `Wait Until Chamber Is Ready`. IDs use `snake_case`.
+- Use `Group / Action` naming in comments and labels, such as
+  `// Check / Number of Rows` and `Setup / Bench`. Descriptions stay sentences.
+- A template is the orchestration unit: read top to bottom as one linear flow.
+  Repeat steps rather than extract a helper. Keep indentation shallow and loop
+  bodies a plain sequence of steps.
+- Build documents one statement at a time: create a plot, configure it, then
+  attach it.
+- Suffix field names with their unit (`duration_s`, `distance_m`); separate
+  attributed fields with a blank line.
+- Use the same type names in every template file: `Template`, `Parameters`,
+  `Row`, `Required`, `Streams` and `Prompts`. Catalog variants match their
+  operation names.
+- Cleanup attempts everything and logs a warning for each failure.
+
+Canonical examples contain no placeholders.
+
+A criterion fetches its data, computes one named check per
+`// Check / Title Case` comment, then combines the names in `Ok(...)`:
+
+```rust
+#[dokime::criterion(label = "All Measurements Successful")]
+fn measurements_ok(ctx: &CriterionContext<'_>) -> Result<bool> {
+    let rows = ctx.samples::<Row>();
+
+    // Check / Number of Rows
+    let number_ok = rows.len() == ctx.parameters().samples as usize;
+
+    // Check / Measurements Successful
+    let measurements_ok = rows.iter().all(|row| row.distance_m.is_some());
+
+    Ok(number_ok && measurements_ok)
+}
+```
+
+## Layout
+
+```text
+src/
+  lib.rs                        Plugin Instance And Lifecycle
+  domain/                       Shared Data Only
+  operations/
+    mod.rs                      Provided Operation Catalog
+    <domain>/
+      mod.rs                    Operation Modules
+      <operation>.rs            Request, Response, Policy, Handler And Helpers
+  observers/
+  listeners/
+  records/
+  streams/
+  settings/
+  suites/
+    mod.rs                      Suites Catalog
+    <suite>/
+      mod.rs                    Suite Declaration
+      <template>.rs             Template Declaration
+```
+
+Use unprefixed suite names and only populated modules. Keep the selected
+repository skeleton and all its section markers. Keep declarations explicit,
+with no prelude modules or placeholder suites.
+
+## Plugin Startup and Stop Budgets
 
 Two host settings bound a sidecar program's lifecycle outside its own code.
 They live in `PluginPreferences` in
 `crates/dokime-domain/src/model/settings/application.rs`, are edited under
 **Settings › Plugins** and are read again at every start, restart and stop, so a
 saved change applies to the next one, including live installation changes and
-settings restarts.
+explicit plugin reloads.
 
 | Setting | Default | Range | Bounds |
 | --- | --- | --- | --- |
@@ -373,7 +596,7 @@ Installing, reinstalling or updating a bundle, and enabling, disabling or removi
 one, take effect in the running backend without restarting Dokime. The plugin
 store records the change first, and the backend's restarter
 (`crates/dokime-runtime/src/runtime/plugins/installs.rs`) then brings the running
-programs in line with it through the same reload as a settings restart: a new
+programs in line with it through the same reload as an explicit Reload: a new
 bundle starts, a changed bundle replaces the running generation, and a disabled or
 removed bundle stops. Each change is admitted like a startup. The desired catalog
 is validated as a whole before anything stops: conflicting catalogs, unavailable
@@ -381,7 +604,7 @@ or circular contracts, and the packages that need a removed or refused provider.
 A package that loses a provider it requires stops with it and records why, so the
 running set matches what the next start would admit.
 
-Every queued change, settings restarts included, waits while work can still reach
+Every queued installation change or explicit reload waits while work can still reach
 a plugin: a running, paused or stopping execution, a prepared run, the gap before
 automatic continuation starts its next case, or plugin streams still draining.
 The plugin shows **Restart Pending** and the change applies automatically once
@@ -392,8 +615,8 @@ A cycle left open and idle holds no plugin. Sealing and report publication after
 completion, including a failed or stuck seal, hold no plugin either. Executions
 are never stopped or disturbed for a change, and further
 changes to the same package join the one that waits, applying the latest.
-**Retry** of a plugin that does not run starts it at once, even while a cycle is
-active, because nothing running stops; retrying a running plugin restarts it once
+**Reload** of a plugin that does not run starts it at once, even while a cycle is
+active, because nothing running stops; reloading a running plugin restarts it once
 no work can reach a plugin.
 
 Finalization, Retry Seal and history reads use the frozen documents, appearance,
@@ -414,7 +637,7 @@ previous bundle back as a fresh generation. Either way the previous installation
 stays installed with its saved values, and the refused one is listed as
 **Refused** with its failure, reported like a failed startup, until the next start
 deletes its file. A first installation that fails stays installed with its
-failure; **Retry** starts it again once the cause is fixed. Removal stops the
+failure; **Reload** starts it again once the cause is fixed. Removal stops the
 plugin live once no work can reach a plugin, then discards its row and managed file.
 Successful replacements discard the old installation in the same way. If deletion
 fails, the row and its error stay visible until startup retries. Unreferenced

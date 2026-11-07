@@ -45,11 +45,6 @@ struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(BrowseCycles),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -68,7 +63,7 @@ impl Serve<BrowseCycles> for Resources {
                 filter,
             };
 
-            // Project Only The Selected Headers
+            // Project Only the Selected Headers
             let page = dokime::app::live_runtime(&self.runtime).await?.browse_cycles(query).await.map_err(wire::query_failure)?;
             project(page, self.maximum).map_err(|source| wire::query_failure(source.into()))
         })
@@ -84,7 +79,6 @@ pub(super) fn prepare(
 
     setup.resource::<Host<BrowseCycles>>(Host::<BrowseCycles>::new(served.clone()));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

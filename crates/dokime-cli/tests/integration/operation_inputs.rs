@@ -7,7 +7,7 @@
  * ***
  */
 
-// Operation Output Publication And Input Refusal Story
+// Operation Output Publication and Input Refusal Story
 
 /* === Modules === */
 

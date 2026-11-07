@@ -78,6 +78,14 @@ struct Admission {
 /* === Traits === */
 
 pub trait SampleSink: Send + Sync {
+    fn flush_delay(&self) -> std::time::Duration {
+        std::time::Duration::ZERO
+    }
+
+    fn values_required(&self) -> bool {
+        true
+    }
+
     fn publish<'a>(
         &'a self, stream: &'a Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>,
     ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
@@ -110,7 +118,7 @@ impl Streams {
             #[cfg(feature = "native")]
             failure: tokio::sync::watch::channel(None).0,
             #[cfg(feature = "native")]
-            listening: crate::execution::listening_rows(1024),
+            listening: crate::execution::listening_rows(crate::execution::listen::EVIDENCE_ROWS),
             #[cfg(feature = "native")]
             flushing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
 
@@ -173,11 +181,11 @@ impl Streams {
 
     #[cfg(feature = "native")]
     pub(crate) async fn published(&self, stream: &Identifier, values: BTreeMap<String, Value>, payload: Vec<u8>) {
-        self.published_as(stream, values, Some(payload), stream.as_str()).await;
+        self.published_as(stream, move || values, Some(payload), stream.as_str()).await;
     }
 
     pub(crate) async fn published_as(
-        &self, stream: &Identifier, mut values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>, row_type: &str,
+        &self, stream: &Identifier, values: impl FnOnce() -> BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>, row_type: &str,
     ) {
         // The one place every row this execution produces is stamped: a
         // observer-measured row and a step-pushed row both land here before
@@ -185,7 +193,20 @@ impl Streams {
         // this is the production instant. A row that already stamped its own
         // "timestamp" — an observer reading a device's own clock, say — keeps
         // it; `or_insert_with` never overwrites.
-        values.entry("timestamp".to_owned()).or_insert_with(|| Value::from(crate::model::time::now_utc()));
+        #[cfg(feature = "native")]
+        let listening = self.listening.receiver_count() > 0;
+        #[cfg(not(feature = "native"))]
+        let listening = false;
+        let required = self.sink.values_required() || listening;
+        let mut values = if required {
+            values()
+        } else {
+            drop(values);
+            BTreeMap::new()
+        };
+        if required {
+            values.entry("timestamp".to_owned()).or_insert_with(|| Value::from(crate::model::time::now_utc()));
+        }
 
         #[cfg(not(feature = "native"))]
         let _ = row_type;
@@ -213,7 +234,7 @@ impl Streams {
         // that a subscription nobody opened could have read it would be the
         // whole mechanism costing something on the runs that do not use it.
         #[cfg(feature = "native")]
-        if self.listening.receiver_count() > 0 {
+        if listening {
             // A send that races the last subscriber away is not a failure: the
             // row is already this run's evidence either way.
             let _ = self.listening.send((stream.clone(), values.clone()));
@@ -257,10 +278,17 @@ impl Streams {
     #[cfg(feature = "native")]
     async fn flush_while_buffering(&self) {
         use std::sync::atomic::Ordering;
+        let delay = self.sink.flush_delay();
+        if !delay.is_zero() {
+            tokio::time::sleep(delay).await;
+        }
         self.flush().await;
         self.flushing.store(false, Ordering::Release);
         // A Producer That Saw The Cleared Flag Starts Its Own Flusher.
         while self.sink.buffering() && !self.flushing.swap(true, Ordering::AcqRel) {
+            if !delay.is_zero() {
+                tokio::time::sleep(delay).await;
+            }
             self.flush().await;
             self.flushing.store(false, Ordering::Release);
         }
@@ -308,7 +336,7 @@ impl<R: TelemetryStream<Row = R> + TelemetryRow> StreamSelection<'_, R> {
 impl<R: TelemetryRow + harmos::Message> Pushing<'_, R> {
     pub async fn push(&self, row: R) {
         let payload = row.encode();
-        self.streams.published_as(&self.stream, row.into_row(), Some(payload), std::any::type_name::<R>()).await;
+        self.streams.published_as(&self.stream, move || row.into_row(), Some(payload), std::any::type_name::<R>()).await;
     }
 
     pub fn produced(&self) -> u64 {
@@ -326,12 +354,75 @@ impl<R: TelemetryRow + harmos::Message> Pushing<'_, R> {
 mod tests {
     use super::*;
 
+    #[derive(Default)]
+    struct EncodedSink(std::sync::Mutex<Vec<Vec<u8>>>);
+
+    impl SampleSink for EncodedSink {
+        fn values_required(&self) -> bool {
+            false
+        }
+
+        fn publish<'a>(
+            &'a self, _: &'a Identifier, _: BTreeMap<String, Value>, payload: Option<Vec<u8>>,
+        ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
+            Box::pin(async move {
+                self.0.lock().unwrap().push(payload.unwrap());
+                Ok(())
+            })
+        }
+
+        fn produced(&self, _: &str) -> u64 {
+            self.0.lock().unwrap().len() as u64
+        }
+    }
+
+    #[tokio::test]
+    async fn typed_maps_are_built_for_the_selected_subscribers_only() {
+        let sink = Arc::new(EncodedSink::default());
+        let streams = Streams::new(sink.clone());
+        let stream = Identifier::new("fixture.lazy").unwrap();
+        let mut built = false;
+        streams
+            .published_as(
+                &stream,
+                || {
+                    built = true;
+                    BTreeMap::new()
+                },
+                Some(vec![1, 2]),
+                "fixture",
+            )
+            .await;
+        assert!(!built);
+        let mut receiver = streams.subscribe();
+        streams
+            .published_as(
+                &stream,
+                || {
+                    built = true;
+                    BTreeMap::from([("value".into(), Value::Integer(17))])
+                },
+                Some(vec![3, 4]),
+                "fixture",
+            )
+            .await;
+        assert!(built);
+        let (_, values) = receiver.recv().await.unwrap();
+        assert_eq!(values["value"], Value::Integer(17));
+        assert_eq!(*sink.0.lock().unwrap(), [vec![1, 2], vec![3, 4]]);
+    }
+
     struct BufferedSink {
         pending: std::sync::Mutex<Vec<Vec<u8>>>,
         delivered: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+        delay: std::time::Duration,
     }
 
     impl SampleSink for BufferedSink {
+        fn flush_delay(&self) -> std::time::Duration {
+            self.delay
+        }
+
         fn publish<'a>(
             &'a self, _: &'a Identifier, _: BTreeMap<String, Value>, payload: Option<Vec<u8>>,
         ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
@@ -362,14 +453,18 @@ mod tests {
     #[tokio::test]
     async fn buffered_publication_survives_observer_runtime_shutdown() {
         let (delivered, mut receiver) = tokio::sync::mpsc::unbounded_channel();
-        let streams = Streams::new(Arc::new(BufferedSink { pending: Default::default(), delivered }));
+        let streams = Streams::new(Arc::new(BufferedSink {
+            pending: Default::default(),
+            delivered,
+            delay: std::time::Duration::ZERO,
+        }));
         let payload = vec![1, 2, 3];
         let produced = payload.clone();
         std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
             runtime.block_on(async move {
                 let stream = Identifier::new("fixture.samples").unwrap();
-                streams.published_as(&stream, BTreeMap::new(), Some(produced), "fixture").await;
+                streams.published_as(&stream, BTreeMap::new, Some(produced), "fixture").await;
             });
             // The Observer Exits Before Its Queued Flush Can Run.
         })
@@ -377,6 +472,36 @@ mod tests {
         .unwrap();
 
         assert_eq!(receiver.recv().await, Some(payload));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn delayed_background_flush_coalesces_and_explicit_flush_drains_immediately() {
+        for delay in [std::time::Duration::from_millis(3), std::time::Duration::from_millis(11)] {
+            let (delivered, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+            let streams = Streams::new(Arc::new(BufferedSink {
+                pending: Default::default(),
+                delivered,
+                delay,
+            }));
+            let stream = Identifier::new("fixture.delayed").unwrap();
+            streams.published_as(&stream, BTreeMap::new, Some(vec![1]), "fixture").await;
+            for _ in 0..3 {
+                tokio::task::yield_now().await;
+            }
+            tokio::time::advance(delay / 2).await;
+            assert!(receiver.try_recv().is_err());
+            streams.published_as(&stream, BTreeMap::new, Some(vec![2]), "fixture").await;
+            streams.flush().await;
+            assert_eq!(receiver.try_recv().unwrap(), vec![1]);
+            assert_eq!(receiver.try_recv().unwrap(), vec![2]);
+            streams.published_as(&stream, BTreeMap::new, Some(vec![3]), "fixture").await;
+            tokio::time::advance(delay).await;
+            for _ in 0..3 {
+                tokio::task::yield_now().await;
+            }
+            assert_eq!(receiver.try_recv().unwrap(), vec![3]);
+            assert!(!streams.sink.buffering());
+        }
     }
 
     // Each Flush Takes Every Buffered Row, Records It As One Batch, Then Waits For The Gate.
@@ -438,12 +563,12 @@ mod tests {
             }
         };
 
-        streams.published_as(&stream, BTreeMap::new(), Some(vec![0]), "fixture").await;
+        streams.published_as(&stream, BTreeMap::new, Some(vec![0]), "fixture").await;
         flushes(1).await;
 
         // Rows Published Meanwhile Wait; No Second Flush Overlaps The One In Flight.
         for row in [1, 2] {
-            streams.published_as(&stream, BTreeMap::new(), Some(vec![row]), "fixture").await;
+            streams.published_as(&stream, BTreeMap::new, Some(vec![row]), "fixture").await;
         }
         for _ in 0..16 {
             tokio::task::yield_now().await;

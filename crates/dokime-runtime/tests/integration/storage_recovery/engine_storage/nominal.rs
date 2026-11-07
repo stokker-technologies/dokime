@@ -141,7 +141,7 @@ fn retention(schema: &SchemaKey) -> harmos::domain::Result<ObjectRetention> {
 
 /* === Tests === */
 pub(crate) async fn nominal() {
-    // Configure And Start The Production SQLite Adapter
+    // Configure and Start the Production SQLite Adapter
     let root = tempfile::tempdir().unwrap();
     let store = Store::<Objects>::open(root.path()).await;
     let backend = &store.backend;
@@ -163,7 +163,7 @@ pub(crate) async fn nominal() {
     ];
     backend.write_schemas(store.batch(schemas.to_vec())).await.unwrap();
 
-    // Generate Three Balanced Phases Over An Integer Number Of Periods
+    // Generate Three Balanced Phases over an Integer Number of Periods
     let samples = 256usize;
     let amplitude = 325.0;
     let mut waves = Vec::with_capacity(samples);
@@ -214,7 +214,7 @@ pub(crate) async fn nominal() {
     };
     backend.write_objects(store.batch(vec![stopped.clone()])).await.unwrap();
 
-    // Persist Original Typed Rows With Nested Schema And Complete Sample Metadata
+    // Persist Original Typed Rows with Nested Schema and Complete Sample Metadata
     let typed = TypedWave {
         rms: amplitude / 2.0f64.sqrt(),
         details: Details {
@@ -257,7 +257,7 @@ pub(crate) async fn nominal() {
     };
     backend.write_stream(store.batch(vec![typed_row.clone()])).await.unwrap();
 
-    // Publish Deterministic Empty, Small And Multi-Batch Finished Files
+    // Publish Deterministic Empty, Small and Multi-Batch Finished Files
     let mut files = Vec::new();
     for (index, size) in [0usize, 17, 150_000].into_iter().enumerate() {
         let bytes = (0..size).map(|offset| (offset % 251) as u8).collect::<Vec<_>>();
@@ -281,7 +281,7 @@ pub(crate) async fn nominal() {
     assert!(backend.prune_objects(&durable, NonZeroUsize::new(64).unwrap(), retention).await.unwrap());
     backend.close().await.unwrap();
 
-    // Reopen And Read All Evidence At The Durable Boundary
+    // Reopen and Read All Evidence at the Durable Boundary
     let backend = std::sync::Arc::new(Backend::<Objects>::primary(root.path().to_owned()).await.unwrap());
     let storage = StorageManager::<Objects>::new(
         StorageBackends {
@@ -384,7 +384,7 @@ pub(crate) async fn nominal() {
     assert_eq!(typed_count, 1);
     drop(typed_query);
 
-    // Query One Complete Period And Compare Backend RMS To Its Analytical Value
+    // Query One Complete Period and Compare Backend RMS to Its Analytical Value
     let mut reader = storage
         .query(Query {
             at: durable.clone(),
@@ -538,7 +538,7 @@ pub(crate) async fn nominal() {
     backend.release_snapshot(&view).await.unwrap();
     runtime.shutdown().await.unwrap();
 
-    // The Lifecycle Release Survives Restart And Reclaims Unpinned Revisions
+    // The Lifecycle Release Survives Restart and Reclaims Unpinned Revisions
     let backend = std::sync::Arc::new(Backend::<Objects>::primary(root.path().to_owned()).await.unwrap());
     while !backend.prune_objects(&durable, NonZeroUsize::new(64).unwrap(), retention).await.unwrap() {}
     let current = backend.open_snapshot(&durable).await.unwrap();

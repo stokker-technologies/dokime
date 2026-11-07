@@ -7,7 +7,7 @@ Define canonical parallel native compilation, preserved local extended coverage 
 
 ### Requirement: Canonical Native Configuration
 
-Ordinary Product and Tests SHALL use canonical configurations per platform and profile. Independent feature sets are permitted; compatible compiler outputs MAY be reused without widening the shipped feature graph. Clippy SHALL precede compilation with matching configuration. Necessary fault-injection instrumentation SHALL remain local extended coverage and SHALL NOT enter provider CI or shipping binaries. Local installers SHALL NOT build tests by default.
+Ordinary Product and Tests SHALL use canonical configurations per platform and profile. Independent feature sets are permitted; compatible compiler outputs MAY be reused without widening the shipped feature graph. Build, test, bench, fixture and focused compilation tasks SHALL NOT run Clippy implicitly. Clippy SHALL run with warnings denied only through `lint:rust`, included by `check:rust` and gated by CI Check / Rust; an explicit focused `clippy` operation MAY invoke it deliberately. Necessary fault-injection instrumentation SHALL remain local extended coverage and SHALL NOT enter provider CI or shipping binaries. Local installers SHALL NOT build tests by default.
 
 #### Scenario: Ordinary Review
 
@@ -28,7 +28,7 @@ All provider CI pipelines SHALL use only canonical configurations. The explicit 
 
 Warm-cache provider pipelines SHALL finish within 45 minutes, targeting 30 minutes. Tests Build SHALL take no longer than Product Build for the same candidate, native platform and profile. Relocated fixture or starter work SHALL remain visible in total critical-path accounting. A breach SHALL trigger phase-level investigation of compilation, feature selection and test structure; required coverage SHALL NOT be removed silently.
 
-#### Scenario: Exceed The Build Budget
+#### Scenario: Exceed the Build Budget
 
 - **WHEN** a measured candidate exceeds the pipeline ceiling or Tests Build exceeds Product Build
 - **THEN** the responsible phases and configurations are identified and redundant work is repaired

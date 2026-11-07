@@ -22,7 +22,7 @@ pub use catalog::Source;
 pub use data::Backend;
 pub(crate) use data::telemetry::StreamFile;
 pub(crate) use data::telemetry::aggregates::Moments;
-pub(crate) use data::telemetry::query::{QueryRead, QueryWork, storage_error};
+pub(crate) use data::telemetry::query::{QueryProjection, QueryRead, QueryWork, storage_error};
 pub use rusqlite;
 
 /* === Imports === */
@@ -57,6 +57,7 @@ pub(super) static RECORD_CAPTURE_PAGES: AtomicU64 = AtomicU64::new(0);
 pub(super) static RECORD_CAPTURE_ADMISSIONS: AtomicU64 = AtomicU64::new(0);
 pub(super) static TELEMETRY_ANCHOR_ROWS: AtomicU64 = AtomicU64::new(0);
 pub(super) static DATA_SCAN_ROWS: AtomicU64 = AtomicU64::new(0);
+pub(super) static OBJECT_RETENTION_STEPS: AtomicU64 = AtomicU64::new(0);
 
 /* === Macros === */
 
@@ -92,6 +93,9 @@ pub struct StorageCounters {
     pub record_capture_admissions: u64,
     pub telemetry_anchor_rows: u64,
     pub data_scan_rows: u64,
+
+    /// SQLite VM Instructions Spent Selecting Object Retention Candidates.
+    pub object_retention_steps: u64,
 }
 
 #[derive(Clone, Copy, Debug, serde::Serialize)]
@@ -118,9 +122,10 @@ struct Owner {
     files: std::sync::Mutex<std::collections::BTreeMap<harmos::Identifier, File>>,
     verification_prefix: std::sync::Mutex<data::VerifiedPrefix>,
     telemetry: std::sync::Mutex<data::telemetry::Store>,
+    telemetry_contracts: data::telemetry::RegisteredContracts,
     telemetry_tail: std::sync::Mutex<data::telemetry::Tail>,
     telemetry_tasks: tokio::sync::Mutex<Vec<tokio::task::JoinHandle<Result<(), Error>>>>,
-    previews: PreviewSettings,
+    settings: Settings,
     close: tokio::sync::Mutex<()>,
 }
 
@@ -183,7 +188,7 @@ impl Drop for Interruption {
 impl Reader {
     fn open(database: &Path) -> Result<Self, Error> {
         let connection = Connection::open(database)?;
-        connection.execute_batch("PRAGMA query_only=ON; PRAGMA temp_store=MEMORY;")?;
+        connection.execute_batch("PRAGMA query_only=ON; PRAGMA temp_store=FILE;")?;
         let slot = Arc::new(ReaderSlot {
             interrupt: connection.get_interrupt_handle(),
             running: std::sync::Mutex::new(0),
@@ -207,7 +212,7 @@ impl State {
     }
 
     pub(crate) fn preview_settings(&self) -> PreviewSettings {
-        self.0.previews
+        self.0.settings.previews
     }
 
     pub async fn open_with(root: impl AsRef<Path>, settings: Settings) -> Result<Self, Error> {
@@ -243,7 +248,7 @@ impl State {
                 PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-65536;",
             )?;
             connection.pragma_update(None, "wal_autocheckpoint", settings.checkpoint_pages.get())?;
-            // Idempotent DDL Over A Current Layout Dirties No Page, So Its Commit Writes And
+            // Idempotent DDL over a Current Layout Dirties No Page, So Its Commit Writes And
             // Syncs Nothing; Restamping The Version Would Rewrite The Header On Every Open.
             let transaction = connection.transaction()?;
             transaction.execute_batch(catalog::SCHEMA)?;
@@ -269,9 +274,10 @@ impl State {
                 files: std::sync::Mutex::new(std::collections::BTreeMap::new()),
                 verification_prefix,
                 telemetry: std::sync::Mutex::new(data::telemetry::Store::new(root, settings)),
+                telemetry_contracts: Default::default(),
                 telemetry_tail: Default::default(),
                 telemetry_tasks: Default::default(),
-                previews: settings.previews,
+                settings,
                 close: Default::default(),
             })))
         })
@@ -283,7 +289,7 @@ impl State {
         let has_tail = !self.0.telemetry_tail.lock().unwrap().entries.is_empty();
         if has_tail {
             let saved = self.data_saved().await?;
-            self.0.telemetry_tail.lock().unwrap().entries.retain(|position, _| *position > saved.sequence);
+            self.0.telemetry_tail.lock().unwrap().discard_saved(saved.sequence);
         }
         {
             let mut tail = self.0.telemetry_tail.lock().unwrap();
@@ -310,7 +316,7 @@ impl State {
         if !self.0.telemetry_tail.lock().unwrap().entries.is_empty() {
             let saved = self.data_saved().await?;
             let mut tail = self.0.telemetry_tail.lock().unwrap();
-            tail.entries.retain(|position, _| *position > saved.sequence);
+            tail.discard_saved(saved.sequence);
             if !tail.entries.is_empty() {
                 return Err(transient_failure.unwrap_or(Error::Conflict("unflushed telemetry prevents closing")));
             }
@@ -323,7 +329,9 @@ impl State {
             drop(permits);
             drop(std::mem::take(&mut *readers.idle.lock().unwrap()));
         }
+        let waiting = std::time::Instant::now();
         let mut live = self.0.live.clone().lock_owned().await;
+        tracing::debug!(name: "ingest.lock.sqlite", elapsed_ns = waiting.elapsed().as_nanos() as u64);
         let owner = self.0.clone();
         tokio::task::spawn_blocking(move || {
             if let Some(live) = live.as_mut() {
@@ -351,7 +359,9 @@ impl State {
         // Acquire before spawning: a cancelled caller cannot leave a queued
         // older write that overtakes its retry or a subsequent transition.
         let parent = tracing::Span::current();
+        let waiting = std::time::Instant::now();
         let mut live = self.0.live.clone().lock_owned().await;
+        tracing::debug!(name: "ingest.lock.sqlite", elapsed_ns = waiting.elapsed().as_nanos() as u64);
         tokio::task::spawn_blocking(move || {
             let _parent = parent.enter();
             let _execute = tracing::debug_span!("storage.sqlite.execute").entered();
@@ -362,7 +372,7 @@ impl State {
         .await?
     }
 
-    // Runs On A Reader Connection Inside One Read Transaction, So It Observes A Single
+    // Runs on a Reader Connection Inside One Read Transaction, So It Observes a Single
     // Committed Snapshot And Never Waits For Or Delays The Writer.
     pub(crate) async fn read<T: Send + 'static>(
         &self, operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
@@ -409,12 +419,14 @@ pub fn counters() -> StorageCounters {
         record_capture_admissions: RECORD_CAPTURE_ADMISSIONS.load(Ordering::Relaxed),
         telemetry_anchor_rows: TELEMETRY_ANCHOR_ROWS.load(Ordering::Relaxed),
         data_scan_rows: DATA_SCAN_ROWS.load(Ordering::Relaxed),
+        object_retention_steps: OBJECT_RETENTION_STEPS.load(Ordering::Relaxed),
     }
 }
 
 /* === Private Functions === */
 
 fn commit(transaction: rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
+    let _span = tracing::debug_span!("ingest.catalog.commit").entered();
     transaction.commit()?;
     COMMITTED_TRANSACTIONS.fetch_add(1, Ordering::Relaxed);
     Ok(())

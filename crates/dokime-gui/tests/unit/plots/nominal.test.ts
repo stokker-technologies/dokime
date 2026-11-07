@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { act, createElement } from "react";
+import { act, type ComponentProps, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
@@ -60,7 +60,7 @@ import { NativeApiLimitError } from "@/lib/api/native-values";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
-import { drawMarkerKinds, markerKinds, markerLegendRows, nearestMarker } from "@/plots/markers";
+import { drawMarkerKinds, markerKinds, markerLegendRows, markerTooltip, nearestMarker } from "@/plots/markers";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
 import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { PlotSettingsEditorContext } from "@/plots/plot-settings";
@@ -520,13 +520,13 @@ test("Refresh Cancellation", async () => {
 });
 
 test("Empty Snapshot", () => {
-  // A Plot Without Records Opens On Its Revision-0 Snapshot Instead Of Waiting
+  // A Plot Without Records Opens on Its Revision-0 Snapshot Instead of Waiting
   const empty = hostFrame([], [[]]);
   const state = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 0, empty)]);
   assert.equal(state.status, "live");
   assert.equal(state.droppedBatches, 0);
 
-  // A Replacement That Repeats The Revision Is Still Dropped
+  // A Replacement That Repeats the Revision Is Still Dropped
   assert.equal(applyPlotMessages(state, [streamMessage("replace", 0, empty)]).droppedBatches, 1);
 });
 
@@ -537,7 +537,7 @@ test("Window Resampling", () => {
   const sine = x.map((t) => Math.sin(2 * Math.PI * 50 * t));
   const columns = 800;
 
-  // The Whole Run Is Cut To Four Samples Per Pixel Column, Ends Included
+  // The Whole Run Is Cut to Four Samples per Pixel Column, Ends Included
   const whole = windowIndices(x, [sine], null, columns);
   assert.ok(whole);
   assert.ok(whole.length <= 4 * columns + 2);
@@ -561,23 +561,23 @@ test("Window Resampling", () => {
     assert.equal(Math.max(...kept), Math.max(...truth), `column ${column} keeps its peak`);
     assert.equal(Math.min(...kept), Math.min(...truth), `column ${column} keeps its trough`);
   }
-  // The Line Reaches Both Frame Edges And A Reset Still Fits The Whole Run
+  // The Line Reaches Both Frame Edges and a Reset Still Fits the Whole Run
   assert.ok(zoomed.includes(Math.round(zoom.min * rate) - 1));
   assert.ok(zoomed.includes(Math.round(zoom.max * rate) + 1));
   assert.equal(zoomed[0], 0);
   assert.equal(zoomed.at(-1), x.length - 1);
 
-  // A Window Within The Budget Draws Every Sample, A Short Run Is Never Reduced
+  // A Window Within the Budget Draws Every Sample, a Short Run Is Never Reduced
   const second = windowIndices(x, [sine], { min: 10, max: 11 }, columns);
   assert.ok(second);
   for (let index = 10 * rate; index <= 11 * rate; index += 1) assert.ok(second.includes(index));
   assert.equal(windowIndices(x.slice(0, 3_000), [sine.slice(0, 3_000)], null, columns), null);
 
-  // M4 Keeps First, Lowest, Highest And Last Per Bucket And Skips Gaps
+  // M4 Keeps First, Lowest, Highest and Last per Bucket and Skips Gaps
   assert.deepEqual(m4Indices([0, 1, 2, 3, 4, 5], [3, 9, null, 1, 4, 5], 0, 6, 1), [0, 1, 3, 5]);
   assert.deepEqual(m4Indices([0, 1, 2], [null, null, null], 0, 3, 1), []);
 
-  // Traces On One Axis Are Resampled Together
+  // Traces on One Axis Are Resampled Together
   const cosine = x.map((t) => Math.cos(2 * Math.PI * 50 * t));
   const fitted = windowIndices(x, [sine, cosine], null, columns, true);
   assert.ok(fitted && fitted.length <= columns);
@@ -589,7 +589,7 @@ test("Window Resampling", () => {
   assert.ok(both);
   assert.ok(zoomed.every((index) => both.includes(index)));
 
-  // A Group Titled Like Its Only Plot Prints The Title Once
+  // A Group Titled Like Its Only Plot Prints the Title Once
   const plot = { title: "AC Voltage" } as Parameters<typeof groupRepeatsPlotTitle>[1][number];
   assert.equal(groupRepeatsPlotTitle("AC Voltage", [plot]), true);
   assert.equal(groupRepeatsPlotTitle("Mains", [plot]), false);
@@ -610,29 +610,29 @@ test("Prompt Markers", () => {
     }) as unknown as HubRecord;
   const records = [
     record("prompt.response.submitted", "2026-10-20T20:04:30Z", { prompt_id: "p-1" }, "Prompt response submitted."),
-    record("prompt.request.confirmation", "2026-10-20T20:04:12Z", { prompt_id: "p-1", title: "Connect The Load" }, "Connect The Load"),
+    record("prompt.request.confirmation", "2026-10-20T20:04:12Z", { prompt_id: "p-1", title: "Connect the Load" }, "Connect the Load"),
     record("prompt.request.form", "2026-10-20T20:05:00Z", { prompt_id: "p-2", title: "Enter Serial" }),
     record("prompt.response.cancelled", "2026-10-20T20:05:10Z", { prompt_id: "p-2" }),
     record("prompt.request.choice", "not a time", { prompt_id: "p-3", title: "Pick" }),
     record("step.started", "2026-10-20T20:04:00Z", {}),
   ];
 
-  // Requests Mark When A Prompt Was Asked And Submissions When It Was Answered, In Time Order
+  // Requests Mark When a Prompt Was Asked and Submissions When It Was Answered, in Time Order
   const markers = promptMarkers(records);
   assert.deepEqual(
     markers.map((marker) => [marker.kind, marker.x, marker.title]),
     [
-      ["asked", Date.parse("2026-10-20T20:04:12Z") / 1000, "Connect The Load"],
-      ["answered", Date.parse("2026-10-20T20:04:30Z") / 1000, "Connect The Load"],
+      ["asked", Date.parse("2026-10-20T20:04:12Z") / 1000, "Connect the Load"],
+      ["answered", Date.parse("2026-10-20T20:04:30Z") / 1000, "Connect the Load"],
       ["asked", Date.parse("2026-10-20T20:05:00Z") / 1000, "Enter Serial"],
     ],
   );
 
-  // The Hover Names The Moment And The Prompt's Title
-  assert.equal(promptMarkerLabel(markers[0]), "Prompt asked: Connect The Load");
-  assert.equal(promptMarkerLabel(markers[1]), "Prompt answered: Connect The Load");
+  // The Hover Names the Moment and the Prompt's Title
+  assert.equal(promptMarkerLabel(markers[0]), "Prompt Asked: Connect the Load");
+  assert.equal(promptMarkerLabel(markers[1]), "Prompt Answered: Connect the Load");
 
-  // An Answer Whose Request Is Out Of Scope Still Marks, Under A Generic Title
+  // An Answer Whose Request Is Out of Scope Still Marks, Under a Generic Title
   assert.deepEqual(
     promptMarkers([records[0]]).map((marker) => marker.title),
     ["Prompt"],
@@ -640,31 +640,31 @@ test("Prompt Markers", () => {
   assert.deepEqual(promptMarkers([]), []);
 });
 
-test("Waiting For Data", () => {
+test("Waiting for Data", () => {
   const opened = { voltage: { ...emptyLivePlotState(), status: "loading" as const } };
 
-  // The Watch's Acknowledgement Turns A Loading Plot Into A Quiet Wait, Never An Error
+  // The Watch's Acknowledgement Turns a Loading Plot into a Quiet Wait, Never an Error
   const acknowledged = applyPendingNotice(opened, "voltage", 1_000);
   assert.equal(acknowledged.voltage.status, "waiting");
   assert.equal(acknowledged.voltage.error, null);
-  assert.equal(plotWaitingLabel(acknowledged.voltage), "Waiting For Data \u00b7 0 s");
+  assert.equal(plotWaitingLabel(acknowledged.voltage), "Waiting for Data \u00b7 0 s");
 
-  // Each Keepalive Counts From The First Notice, However Long The First Read Takes
+  // Each Keepalive Counts from the First Notice, However Long the First Read Takes
   const later = applyPendingNotice(acknowledged, "voltage", 46_000);
   assert.equal(later.voltage.status, "waiting");
-  assert.equal(plotWaitingLabel(later.voltage), "Waiting For Data \u00b7 45 s");
+  assert.equal(plotWaitingLabel(later.voltage), "Waiting for Data \u00b7 45 s");
 
-  // A Notice For A Plot This Watch Does Not Hold Changes Nothing
+  // A Notice for a Plot This Watch Does Not Hold Changes Nothing
   assert.equal(applyPendingNotice(later, "current", 50_000), later);
 
-  // A Server Error Frame Still Reports, And A Later Notice Does Not Hide It
+  // A Server Error Frame Still Reports, and a Later Notice Does Not Hide It
   const failed = {
     voltage: applyPlotMessages(later.voltage, [{ ...streamMessage("error", 0, hostFrame([], [])), warnings: ["plot query unavailable"] }]),
   };
   assert.equal(failed.voltage.status, "error");
   assert.equal(applyPendingNotice(failed, "voltage", 60_000), failed);
 
-  // The First Frame Ends The Wait
+  // The First Frame Ends the Wait
   const served = applyPlotMessages(later.voltage, [streamMessage("snapshot", 0, hostFrame([0, 1], [[1, 2]]))]);
   assert.equal(served.status, "live");
   assert.equal(served.waitingSince, null);
@@ -742,37 +742,37 @@ test("Storage Query Snapshots", () => {
 });
 
 test("Drag Viewport", () => {
-  // Drag Options Zoom Either Axis Alone Or Both Together
+  // Drag Options Zoom Either Axis Alone or Both Together
   assert.equal(PLOT_DRAG_OPTIONS.x, true);
   assert.equal(PLOT_DRAG_OPTIONS.y, true);
   assert.ok(PLOT_DRAG_OPTIONS.uni > 0, "a uni threshold makes one-axis drags possible");
   assert.ok(PLOT_DRAG_OPTIONS.dist > 0, "a click is not a zoom");
   assert.equal(PLOT_DRAG_OPTIONS.setScale, true);
 
-  // A Diagonal Box Holds Both Axes In Value Space
+  // A Diagonal Box Holds Both Axes in Value Space
   assert.deepEqual(heldViewport({ left: 100, top: 50, width: 100, height: 50 }, AREA, posToVal), {
     x: { min: 25, max: 50 },
     y: { min: 25, max: 37.5 },
   });
 
-  // A Horizontal Drag Spans The Full Height And Holds X Alone
+  // A Horizontal Drag Spans the Full Height and Holds X Alone
   assert.deepEqual(heldViewport({ left: 40, top: 0, width: 80, height: 200 }, AREA, posToVal), {
     x: { min: 10, max: 30 },
     y: null,
   });
 
-  // A Vertical Drag Spans The Full Width And Holds Y Alone
+  // A Vertical Drag Spans the Full Width and Holds Y Alone
   assert.deepEqual(heldViewport({ left: 0, top: 20, width: 400, height: 40 }, AREA, posToVal), {
     x: null,
     y: { min: 35, max: 45 },
   });
 
-  // An Empty Or Full-Area Box Holds Nothing
+  // An Empty or Full-Area Box Holds Nothing
   assert.equal(heldViewport({ left: 0, top: 0, width: 0, height: 0 }, AREA, posToVal), null);
   assert.equal(heldViewport({ left: 10, top: 10, width: 20, height: 0 }, AREA, posToVal), null);
   assert.equal(heldViewport({ left: 0, top: 0, width: 400, height: 200 }, AREA, posToVal), null);
 
-  // Ranges Are Ordered Whichever Way The Axis Runs
+  // Ranges Are Ordered Whichever Way the Axis Runs
   const flipped = (position: number, axis: "x" | "y") => (axis === "x" ? 100 - position : position);
   assert.deepEqual(heldViewport({ left: 10, top: 10, width: 10, height: 10 }, AREA, flipped), {
     x: { min: 80, max: 90 },
@@ -781,7 +781,7 @@ test("Drag Viewport", () => {
 });
 
 test("Histogram Axes", () => {
-  // A Histogram Draws Its Declared Value On X And The Host's Count On Y
+  // A Histogram Draws Its Declared Value on X and the Host's Count on Y
   const format = { kind: "fixed", decimals: 1 };
   const axes = histogramAxes(
     histogram({
@@ -800,7 +800,7 @@ test("Histogram Axes", () => {
   assert.match(histogramAxisTitle(axes.x), / \[V\]$/);
   assert.equal(histogramAxisTitle(axes.y), "Count");
 
-  // A Histogram Without A Column Spec Titles X By Its Declared Field
+  // A Histogram Without a Column Spec Titles X by Its Declared Field
   const field = histogramAxes(
     histogram({
       title: "Time Until Ready",
@@ -813,7 +813,7 @@ test("Histogram Axes", () => {
   assert.match(histogramAxisTitle(field.x), / \[s\]$/);
   assert.equal(field.x.format, null);
 
-  // A Histogram Never Titles X By The Row Timestamp
+  // A Histogram Never Titles X by the Row Timestamp
   const timestamp = histogramAxes(
     histogram({
       title: "Current Distribution",
@@ -876,7 +876,7 @@ test("Boolean State Plots", () => {
   assert.equal(documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 }).booleanAxis, false);
 });
 
-test("Marker Kind Legend And Visibility", () => {
+test("Marker Kind Legend and Visibility", () => {
   const markers = [
     { x: 0, label: "first", record_type: "kind-a", color: "" },
     { x: 5, label: "second", record_type: "kind-a", color: "" },
@@ -936,12 +936,84 @@ test("Marker Kind Legend And Visibility", () => {
   assert.deepEqual(stems, [7]);
   assert.equal(nearestMarker(plot, kinds.slice(0, 2), hidden, 5)?.label, markers[3].label);
   assert.equal(nearestMarker(plot, kinds.slice(0, 2), new Set(), 5)?.label, markers[1].label);
+  assert.equal(nearestMarker(plot, kinds, new Set(), 5)?.label, promptMarkerLabel(prompts[0]));
+  assert.equal(nearestMarker(plot, kinds, new Set(["prompt:asked"]), 5)?.label, markers[1].label);
   assert.deepEqual(markerKinds([], []), []);
   assert.deepEqual(markerKinds([{ ...markers[0], x: null }], []), []);
   assert.deepEqual(markerLegendRows([], hidden, range, []), []);
 });
 
-test("Marker Rows Follow Traces On Both Surfaces", () => {
+test("Event and Prompt Markers Share Tooltip State at Every Card Edge", () => {
+  const kinds = markerKinds(
+    [{ x: 0, label: "fixture", record_type: "fixture-kind", color: "" }],
+    [
+      { kind: "asked", x: 0, title: "fixture" },
+      { kind: "answered", x: 0, title: "fixture" },
+    ],
+  );
+  for (const width of [120, 320, 680]) {
+    const card = { left: 137, width };
+    const areaWidth = width - 60;
+    for (const [left, top] of [
+      [0, 0],
+      [areaWidth, 0],
+      [0, 200],
+      [areaWidth, 200],
+      [areaWidth / 2, 100],
+    ]) {
+      const plot = {
+        cursor: { left, top },
+        over: { clientWidth: areaWidth, getBoundingClientRect: () => ({ left: card.left + 40 }) },
+        valToPos: () => left,
+      } as unknown as uPlot;
+      const states = kinds.map((kind) => {
+        const tooltip = markerTooltip(plot, [kind], new Set(), card);
+        assert.ok(tooltip);
+        assert.equal(tooltip.label, kind.moments[0].label);
+        assert.ok(tooltip.left >= 0);
+        assert.ok(tooltip.width > 0);
+        assert.ok(tooltip.left + tooltip.width <= card.width);
+        assert.equal(markerTooltip(plot, [kind], new Set([kind.key]), card), null);
+        return { left: tooltip.left, width: tooltip.width };
+      });
+      assert.deepEqual(states[0], states[1]);
+      assert.deepEqual(states[0], states[2]);
+      plot.cursor.left = -1;
+      assert.equal(markerTooltip(plot, kinds, new Set(), card), null);
+    }
+  }
+});
+
+test("Marker Canvas Draws Glyphs Without Text", () => {
+  const kinds = markerKinds(
+    [{ x: 0, label: "fixture", record_type: "fixture-kind", color: "" }],
+    [
+      { kind: "asked", x: 0, title: "fixture" },
+      { kind: "answered", x: 0, title: "fixture" },
+    ],
+  );
+  const ctx = {
+    save() {},
+    restore() {},
+    setLineDash() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    closePath() {},
+    stroke: vi.fn(),
+    fill: vi.fn(),
+    fillText: vi.fn(),
+    strokeText: vi.fn(),
+  };
+  const plot = { ctx, bbox: { left: 0, top: 0, width: 400, height: 200 }, valToPos: () => 100 } as unknown as uPlot;
+  drawMarkerKinds(plot, kinds, new Set(), []);
+  assert.ok(ctx.stroke.mock.calls.length >= kinds.length);
+  assert.ok(ctx.fill.mock.calls.length > 0);
+  assert.equal(ctx.fillText.mock.calls.length, 0);
+  assert.equal(ctx.strokeText.mock.calls.length, 0);
+});
+
+test("Marker Rows Follow Traces on Both Surfaces", () => {
   const payload = hostFrame([0, 5, 10], [[1, 2, 3]]);
   const markers = [{ x: 5, label: "fixture", record_type: "fixture-kind", color: "" }];
   for (const zoom of [false, true]) {
@@ -1152,7 +1224,7 @@ test("Plot Statistics", () => {
 });
 
 test("Series Legend", () => {
-  // Live And Report Legends List The Trace, The Cursor And The Statistics With The Unit In Each Header
+  // Live and Report Legends List the Trace, the Cursor and the Statistics with the Unit in Each Header
   const plain = seriesLegendColumns(null);
   for (const unit of ["V", "M\u03a9", "Mbps"]) {
     const columns = seriesLegendColumns(unit);
@@ -1176,13 +1248,13 @@ test("Series Legend", () => {
   }
   assert.equal(formatUnitLabel("fixture", "  "), "fixture");
   assert.equal(formatUnitLabel("fixture", " ms "), "fixture [ms]");
-  // Widths Depend On The Column Alone, So Every Table On A Page Lines Up Whatever Its Unit
+  // Widths Depend on the Column Alone, So Every Table on a Page Lines up Whatever Its Unit
   const widths = (unit: string | null) => seriesLegendColumns(unit).map((column) => seriesLegendColumnWidth(column.id));
   assert.deepEqual(widths("dBm"), widths(null));
   assert.deepEqual(widths("M\u03a9"), widths("V"));
   assert.deepEqual(widths(null).slice(1), ["w-52", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32"]);
 
-  // Rows Follow Trace Order And Read Each Trace's Own Backend Summary
+  // Rows Follow Trace Order and Read Each Trace's Own Backend Summary
   const rows = seriesLegendRows({ hidden: new Set(), summaries: SUMMARIES, traces: TRACES });
   assert.deepEqual(
     rows.map((row) => [row.key, row.label, row.color, row.cells.count, row.cells.mean]),
@@ -1202,7 +1274,7 @@ test("Series Legend", () => {
   });
   assert.equal(rows[1].cells.rms, "7.14");
 
-  // A Trace Without A Summary Shows Dashes, Never Browser-Side Statistics
+  // A Trace Without a Summary Shows Dashes, Never Browser-Side Statistics
   const [unsummarized] = seriesLegendRows({
     hidden: new Set(),
     summaries: [],
@@ -1214,7 +1286,7 @@ test("Series Legend", () => {
   assert.equal(formatStatValue(undefined, "V"), "-");
   assert.equal(formatStatValue(2.5, "V"), "2.50 V");
 
-  // Clicking A Row Toggles Its Trace And A Hidden Row Keeps Its Numbers
+  // Clicking a Row Toggles Its Trace and a Hidden Row Keeps Its Numbers
   let hidden = new Set<string>();
   hidden = toggleTrace(hidden, "current");
   assert.deepEqual([...hidden], ["current"]);
@@ -1230,7 +1302,7 @@ test("Series Legend", () => {
   hidden = toggleTrace(hidden, "current");
   assert.equal(hidden.size, 0);
 
-  // The Cursor Column Is Blank Until The Pointer Has Been Over The Plot
+  // The Cursor Column Is Blank Until the Pointer Has Been over the Plot
   assert.deepEqual(
     rows.map((row) => [row.xCursor, row.yCursor]),
     [
@@ -1239,7 +1311,7 @@ test("Series Legend", () => {
     ],
   );
 
-  // The Cursor Reads Each Trace's Nearest Drawn Point And Skips Its Gaps
+  // The Cursor Reads Each Trace's Nearest Drawn Point and Skips Its Gaps
   const x = [0, 1, 2, 3, 4];
   const voltage = [10, 11, null, 13, 14];
   const current = [null, null, null, null, null];
@@ -1249,7 +1321,7 @@ test("Series Legend", () => {
   assert.deepEqual(nearestDrawnPoint(x, voltage, 99), { x: 4, y: 14 });
   assert.equal(nearestDrawnPoint(x, current, 1), null);
   assert.deepEqual(nearestDrawnPoint([3, 0, 2], [30, 0, 20], 0.9), { x: 0, y: 0 });
-  // Live Or Report, The Cursor Cells Follow The Plot Cursor
+  // Live or Report, the Cursor Cells Follow the Plot Cursor
   const cursorPoints = [nearestDrawnPoint(x, voltage, 3.1), nearestDrawnPoint(x, current, 3.1)];
   const pointed = seriesLegendRows({
     cursorPoints,
@@ -1265,7 +1337,7 @@ test("Series Legend", () => {
     ],
   );
 
-  // On A Time Axis The X Cursor Reads As The Local Date And Clock, To What One Pixel Resolves
+  // On a Time Axis the X Cursor Reads as the Local Date and Clock, to What One Pixel Resolves
   const evening = new Date(2026, 9, 20, 22, 4, 12, 345).getTime() / 1000;
   const timeAxis = { timeAxis: true, xFormat: null, xElapsedUnit: null, origin: {}, widthPx: 600 };
   assert.equal(formatCursorX(evening, { ...timeAxis, span: 3_600 }), "10/20/26 10:04:12 PM");
@@ -1273,7 +1345,7 @@ test("Series Legend", () => {
   assert.equal(formatCursorX(evening, { ...timeAxis, span: 1 }), "10/20/26 10:04:12.345 PM");
   assert.equal(formatCursorX(evening, { ...timeAxis, span: 120 }), "10/20/26 10:04:12.3 PM");
   assert.equal(formatCursorX(new Date(2026, 9, 21, 0, 0, 5).getTime() / 1000, { ...timeAxis, span: 3_600 }), "10/21/26 12:00:05 AM");
-  // Elapsed And Numeric Axes Keep Their Own Readouts, Never A Date
+  // Elapsed and Numeric Axes Keep Their Own Readouts, Never a Date
   assert.equal(formatCursorX(12.5, { ...timeAxis, xElapsedUnit: "s", span: 60 }), "12.5 s");
   assert.equal(formatCursorX(3, { ...timeAxis, timeAxis: false, span: 6_000 }), "3");
   const formatted = seriesLegendRows({
@@ -1285,7 +1357,7 @@ test("Series Legend", () => {
   });
   assert.equal(formatted[0].xCursor, "10/20/26 10:04:12.35 PM");
 
-  // The Table Dims Only While A Summary Request Is In Flight
+  // The Table Dims Only While a Summary Request Is in Flight
   // A zoom or window change asks for new numbers: the old range's dim.
   assert.equal(summaryInFlight("requested"), true);
   // Its frame arrives, or the request fails: nothing is in flight.
@@ -1299,7 +1371,7 @@ test("Series Legend", () => {
 });
 
 test("Backend Statistics", () => {
-  // A Histogram Draws One Bar Per Backend Bin With The Backend's Counts
+  // A Histogram Draws One Bar per Backend Bin with the Backend's Counts
   const bars = histogramBars({
     bins: [
       { lower: 0, upper: 1.5, count: 3 },
@@ -1314,7 +1386,7 @@ test("Backend Statistics", () => {
     { slot: "2", min: 3, max: 4.5, count: 7 },
   ]);
 
-  // The Summary Grid Prints The Backend's Statistics And Count
+  // The Summary Grid Prints the Backend's Statistics and Count
   const cells = statsSummaryCells({
     label: "Voltage",
     unit: "V",
@@ -1331,7 +1403,7 @@ test("Backend Statistics", () => {
     ["Count", "42"],
   ]);
 
-  // Statistics The Backend Has Not Delivered Print Dashes, Never Browser Numbers
+  // Statistics the Backend Has Not Delivered Print Dashes, Never Browser Numbers
   const missing = statsSummaryCells({ label: "Voltage", unit: "V", statistics: null, count: 0 });
   assert.deepEqual(
     missing.map(([, value]) => value),
@@ -1340,14 +1412,14 @@ test("Backend Statistics", () => {
 });
 
 test("Plot Placeholders", () => {
-  // A Plot Without Samples Waits With The Shared Label And Detail
+  // A Plot Without Samples Waits with the Shared Label and Detail
   assert.deepEqual(plotPlaceholderText({}), {
     label: WAITING_FOR_SAMPLES,
     detail: NO_NUMERIC_SAMPLES,
   });
-  assert.equal(WAITING_FOR_SAMPLES, "Waiting For Samples");
+  assert.equal(WAITING_FOR_SAMPLES, "Waiting for Samples");
 
-  // A Stated Stream Condition Replaces The Wait In The Placeholder
+  // A Stated Stream Condition Replaces the Wait in the Placeholder
   const stated = plotPlaceholderText({
     stateLabel: "Reconnecting",
     stateDetail: "The last samples remain visible while the plot stream reopens.",
@@ -1357,12 +1429,12 @@ test("Plot Placeholders", () => {
     detail: "The last samples remain visible while the plot stream reopens.",
   });
 
-  // A Plot Kind May Word Its Own Detail But Keeps The Shared Label
+  // A Plot Kind May Word Its Own Detail but Keeps the Shared Label
   const worded = plotPlaceholderText({}, "No categorical samples are available.");
   assert.equal(worded.label, WAITING_FOR_SAMPLES);
   assert.equal(worded.detail, "No categorical samples are available.");
 
-  // A Plot The Backend Could Not Produce Says So Instead Of Waiting
+  // A Plot the Backend Could Not Produce Says So Instead of Waiting
   // It Reads As A Failure, Not A Wait: The Error Tone Tints The Full Plot Area
   assert.deepEqual(plotUnavailableText("Field voltage_v is not numeric."), {
     label: "Plot Unavailable",
@@ -1398,6 +1470,7 @@ test("Stream Errors Replace Retained Charts", () => {
       documentPlots: [descriptor],
       liveStates: { pulse: failed },
       title: "Signals",
+      viewportMode: "fit",
     }),
   );
   assert.match(html, /role="alert"/);
@@ -1407,6 +1480,30 @@ test("Stream Errors Replace Retained Charts", () => {
 
 test("Plot Edits Survive Presentation Changes", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  let visibility: IntersectionObserverCallback;
+  let element: Element;
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        visibility = callback;
+      }
+      observe(target: Element) {
+        element = target;
+      }
+      unobserve() {}
+    },
+  );
+  const show = async (visible: boolean) => {
+    await act(async () =>
+      visibility([{ target: element, isIntersecting: visible } as IntersectionObserverEntry], {} as IntersectionObserver),
+    );
+  };
+  let renders = 0;
+  function Editor(props: ComponentProps<typeof PlotSettingsButton>) {
+    renders += 1;
+    return createElement(PlotSettingsButton, props);
+  }
   const descriptor: DocumentViewPlot = {
     plot_id: "pulse",
     title: "Pulse",
@@ -1432,7 +1529,7 @@ test("Plot Edits Survive Presentation Changes", async () => {
       root.render(
         createElement(
           PlotSettingsEditorContext.Provider,
-          { value: PlotSettingsButton },
+          { value: Editor },
           createElement(LivePlotGroupGrid, {
             documentPlots: [descriptor],
             liveStates: { pulse: state },
@@ -1444,7 +1541,9 @@ test("Plot Edits Survive Presentation Changes", async () => {
     );
   };
   await render();
-  const trigger = host.querySelector<HTMLButtonElement>("button[aria-label^='Plot Settings For ']");
+  assert.equal(renders, 0, "off-screen plots mount lazily");
+  await show(true);
+  const trigger = host.querySelector<HTMLButtonElement>("button[aria-label^='Plot Settings for ']");
   assert.ok(trigger);
   await act(async () => trigger.click());
   const input = document.querySelector<HTMLInputElement>("[role=dialog] input[type=number]");
@@ -1456,18 +1555,23 @@ test("Plot Edits Survive Presentation Changes", async () => {
   const payload = hostFrame([0, 1], [[2, 3]]);
   const ready = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, payload)]);
   const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["fixture"] }]);
+  await show(false);
+  const pausedRenders = renders;
   for (const state of [ready, failed, ready]) {
     await render(state);
     const current = document.querySelector<HTMLInputElement>("[role=dialog] input[type=number]");
     assert.ok(current);
     assert.equal(current.value, "2500");
   }
+  assert.equal(renders, pausedRenders, "off-screen payloads do not render the plot subtree");
+  await show(true);
+  assert.ok(renders > pausedRenders, "returning applies the latest retained payload");
   const cancel = [...document.querySelectorAll<HTMLButtonElement>("[role=dialog] button")].find(
     (button) => button.textContent === "Cancel",
   );
   assert.ok(cancel);
   await act(async () => cancel.click());
-  await vi.waitFor(() => assert.ok(document.activeElement === host.querySelector("button[aria-label^='Plot Settings For ']")));
+  await vi.waitFor(() => assert.ok(document.activeElement === host.querySelector("button[aria-label^='Plot Settings for ']")));
 });
 
 test("Viewport Panning", () => {
@@ -1633,4 +1737,26 @@ test("Report Metadata Subtitles", () => {
   );
   assert.ok(html.includes("plot-follow"));
   assert.ok(html.includes("fixture-network"));
+});
+
+test("Generated Plot Series Labels Respect Word Positions", () => {
+  const keys = ["number_of_rows", "wait_until_chamber_is_ready", "log_in", "turn_off_the_heater"];
+  const descriptor = {
+    plot_id: "generated-labels",
+    title: "Generated Labels",
+    stream: "fixture",
+    plot_type: "time_series",
+    x: "timestamp",
+    y: keys,
+  } as DocumentViewPlot;
+  const payload = hostFrame(
+    [0],
+    keys.map(() => [1]),
+    { keys },
+  );
+  const plot = documentPlotSpec({ plot: descriptor, payload, title: descriptor.title, position: 0 });
+  assert.deepEqual(
+    plot.series.map((series) => series.label),
+    ["Number of Rows", "Wait Until Chamber Is Ready", "Log In", "Turn Off the Heater"],
+  );
 });

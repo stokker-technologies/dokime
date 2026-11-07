@@ -7,7 +7,7 @@
  * ***
  */
 
-// Compact Checkpoints, Evidence Dependencies And Uncertain Publication Recovery
+// Compact Checkpoints, Evidence Dependencies and Uncertain Publication Recovery
 
 /* === Modules === */
 

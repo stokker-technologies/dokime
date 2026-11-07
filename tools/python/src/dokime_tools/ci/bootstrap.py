@@ -35,7 +35,7 @@ from pathlib import Path
 
 # === Constants === #
 
-# Debian Build And Installer Prerequisites
+# Debian Build and Installer Prerequisites
 GUI_MARKER_PACKAGE = "libwebkit2gtk-4.1-dev"
 GUI_PACKAGES = (
     "git",

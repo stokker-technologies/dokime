@@ -15,7 +15,7 @@ lockfile = true
 # === Tools === #
 
 [tools]
-# Languages And Runtimes
+# Languages and Runtimes
 go = "1.27.3"
 node = "26.11.1"
 powershell = { version = "7.6.7", os = ["windows"] }
@@ -32,15 +32,15 @@ uv = "0.13.0"
 "github:bnjbvr/cargo-machete" = "0.9.2"
 sccache = "0.19.0"
 
-# Formatting And Linting
+# Formatting and Linting
 "aqua:koalaman/shellcheck" = "0.11.0"
 "go:github.com/rhysd/actionlint/cmd/actionlint" = "v1.7.13-0.20260417151945-fd33e9f582a0"
 taplo = "0.10.0"
 
-# Protocols And Code Generation
+# Protocols and Code Generation
 protoc = "36.2"
 
-# Release And Signing
+# Release and Signing
 git-cliff = "2.14.2"
 minisign = "0.12"
 
@@ -72,8 +72,8 @@ generated_python = "packages/dokime-client/src/dokime_client/_wire packages/doki
 # === Prepare === #
 
 [tasks.prepare]
-description = "Prepare Tools And Inputs"
-usage = 'flag "--refresh-lock" help="Refresh The Python Workspace Lock Before Synchronizing"'
+description = "Prepare Tools and Inputs"
+usage = 'flag "--refresh-lock" help="Refresh the Python Workspace Lock Before Synchronizing"'
 run = [
   "{% if usage.refresh_lock %}uv lock{% endif %}",
   "uv sync --locked --all-groups --no-install-package dokime-client",
@@ -81,14 +81,14 @@ run = [
 ]
 
 [tasks."prepare:generated"]
-description = "Build The Contract Generator And Generate TypeScript Modules"
+description = "Build the Contract Generator and Generate TypeScript Modules"
 depends = ["prepare"]
 usage = 'flag "--write" help="Refresh tracked clients instead of checking them"'
 run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.prepare.generated --generate{% if not usage.write %} --check{% endif %}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."prepare:bindings"]
-description = "Regenerate Canonical Python And TypeScript Contracts"
+description = "Regenerate Canonical Python and TypeScript Contracts"
 depends = ["prepare"]
 run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.prepare.generated --generate"
 env.CARGO_INCREMENTAL = "0"
@@ -99,7 +99,7 @@ depends = ["prepare"]
 run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop"
 
 [tasks."prepare:organization"]
-description = "Generate Default Organization And Desktop Icons"
+description = "Generate Default Organization and Desktop Icons"
 depends = ["prepare"]
 run = "{{vars.tools}} dokime_tools.build.organization --icons"
 
@@ -172,8 +172,17 @@ run = [
 
 [tasks."lint:rust"]
 description = "Lint Rust"
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}}"
+usage = 'flag "--extended"'
+run = [
+  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}},dokime-runtime/testing",
+  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.lint -- --locked --workspace --profile dev --features {{vars.rust_plugin_features}},{{vars.rust_desktop_features}}",
+  "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --bins --benches --profile bench --features plugin-obc/benchmarks,{{vars.rust_plugin_features}}",
+  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.lint -- --locked --workspace --all-targets --all-features --profile test{% endif %}",
+  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --profile test -p dokime-domain --target wasm32-unknown-unknown{% endif %}",
+  "{% if usage.extended %}{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused clippy --locked --workspace --lib --bins --no-default-features --profile test{% endif %}",
+]
 env = { CARGO_BUILD_WARNINGS = "deny" }
+
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript"
@@ -183,7 +192,7 @@ run = "pnpm --dir crates/dokime-gui exec biome lint ."
 # === Check === #
 
 [tasks.check]
-description = "Check Every Language And Conventions"
+description = "Check Every Language and Conventions"
 run = [{ task = "check:repository" }, { task = "check:rust" }, { task = "check:python" }, { task = "check:typescript" }]
 
 [tasks."check:python"]
@@ -191,7 +200,7 @@ description = "Check Python"
 run = [{ task = "format:python --check" }, { task = "lint:python" }, { task = "test:tooling" }]
 
 [tasks."check:python:generated"]
-description = "Check The Generated Python Client"
+description = "Check the Generated Python Client"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
@@ -215,7 +224,7 @@ description = "Check TypeScript"
 run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }]
 
 [tasks."check:typescript:generated"]
-description = "Check The Generated TypeScript Client"
+description = "Check the Generated TypeScript Client"
 depends = ["prepare:generated"]
 usage = '''
 flag "--profile <profile>" default="dev"
@@ -233,7 +242,7 @@ env = { CARGO_INCREMENTAL = "0" }
 # === Build === #
 
 [tasks.build]
-description = "Build Shipping Binaries, Bundles, Frontend And Client Wheel"
+description = "Build Shipping Binaries, Bundles, Frontend and Client Wheel"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   { task = "build:rust --profile {{usage.profile}}" },
@@ -244,47 +253,48 @@ run = [
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."build:python"]
-description = "Build The Python Client Distributions"
+description = "Build the Python Client Distributions"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.python --profile {{usage.profile}}"
 
 [tasks."build:rust"]
-description = "Build Shipping Native Executables And Plugin Bundle"
+description = "Build Shipping Native Executables and Plugin Bundle"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust --profile {{usage.profile}}"
 
 [tasks."build:rust:bench"]
-description = "Build Benchmarks And Their Matching Native Fixtures"
+description = "Build Benchmarks and Their Matching Native Fixtures"
 depends = ["prepare"]
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.bench"
+usage = 'flag "--binary <binary>" help="Build One Benchmark Executable and Its Native Fixtures"'
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.bench {% if usage.binary %}--binary {{usage.binary}}{% endif %}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:compatibility"]
-description = "Verify Local Extended Feature And Browser Configurations"
+description = "Verify Local Extended Feature and Browser Configurations"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.compatibility --profile {{usage.profile}}"
 
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:contracts"]
-description = "Verify Rust Compile Contracts In Their Build Tree"
+description = "Verify Rust Compile Contracts in Their Build Tree"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.contracts --profile {{usage.profile}}"
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:rust:desktop"]
-description = "Build The Desktop With Its Compiled Frontend"
+description = "Build the Desktop with Its Compiled Frontend"
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.desktop --profile {{usage.profile}}"
 
 [tasks."build:rust:focused"]
-description = "Compile An Explicit Local Rust Selection"
+description = "Compile an Explicit Local Rust Selection"
 run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.cargo focused"
 
 [tasks."build:rust:tests"]
-description = "Build Independent Test Archive And Compile Contracts"
+description = "Build Independent Test Archive and Compile Contracts"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
@@ -294,7 +304,7 @@ run = [
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."build:typescript"]
-description = "Build The Generated GUI Client And Frontend"
+description = "Build the Generated GUI Client and Frontend"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = "{{vars.tools}} dokime_tools.build.typescript --profile {{usage.profile}}"
@@ -302,7 +312,7 @@ run = "{{vars.tools}} dokime_tools.build.typescript --profile {{usage.profile}}"
 # === Dev === #
 
 [tasks.dev]
-description = "Start The Native Desktop Shell With An Owned Local Backend And The OBC Plugin"
+description = "Start the Native Desktop Shell with an Owned Local Backend and the OBC Plugin"
 depends = ["prepare:report"]
 env.DOKIME_PLUGINS_DIR = "{{config_root}}/target/debug/plugins"
 run = [
@@ -316,7 +326,7 @@ run = [
 # === Test === #
 
 [tasks.test]
-description = "Test Every Layer Concurrently From Built Artifacts"
+description = "Test Every Layer Concurrently from Built Artifacts"
 usage = 'flag "--profile <profile>" default="dev"'
 depends = ["prepare:desktop"]
 run = "{{vars.tools}} dokime_tools.test.schedule --profile {{usage.profile}}"
@@ -359,7 +369,7 @@ run = "{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --cat
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:coverage"]
-description = "Measure Python Coverage Over Instrumented Lanes"
+description = "Measure Python Coverage over Instrumented Lanes"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
@@ -389,7 +399,7 @@ description = "Test Integration Rust"
 depends = ["prepare"]
 usage = '''
 flag "--profile <profile>" default="dev"
-flag "--select <select>" help="Narrow The Nextest Filterset"
+flag "--select <select>" help="Narrow the Nextest Filterset"
 '''
 run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust -- -E \"not binary_id(dokime-macros::compile)\" {% if usage.select %}-E \"{{usage.select}}\"{% endif %}"
 env.CARGO_INCREMENTAL = "0"
@@ -399,7 +409,7 @@ description = "Test Acceptance Rust"
 depends = ["prepare"]
 usage = '''
 flag "--profile <profile>" default="dev"
-flag "--select <select>" help="Narrow The Nextest Filterset"
+flag "--select <select>" help="Narrow the Nextest Filterset"
 '''
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}",
@@ -413,7 +423,7 @@ description = "Test System Rust"
 depends = ["prepare"]
 usage = '''
 flag "--profile <profile>" default="dev"
-flag "--select <select>" help="Narrow The Nextest Filterset"
+flag "--select <select>" help="Narrow the Nextest Filterset"
 '''
 run = [
   "{{vars.tools}} dokime_tools.test.archive --target any --install-wheels --profile {{usage.profile}}",
@@ -422,7 +432,7 @@ run = [
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:coverage"]
-description = "Measure Rust Coverage Over Instrumented Lanes"
+description = "Measure Rust Coverage over Instrumented Lanes"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
@@ -432,7 +442,7 @@ run = [
 ]
 
 [tasks."test:rust:extended"]
-description = "Run Optional Local Compatibility And Fault-Injection Stories"
+description = "Run Optional Local Compatibility and Fault-Injection Stories"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   { task = "build --profile {{usage.profile}}" },
@@ -444,7 +454,7 @@ run = [
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:starter"]
-description = "Prove The Standalone Starter In Nightly Validation"
+description = "Prove the Standalone Starter in Nightly Validation"
 usage = 'flag "--profile <profile>" default="release"'
 run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.test.rust.starter --profile {{usage.profile}}"
 env.CARGO_INCREMENTAL = "0"
@@ -530,7 +540,7 @@ usage = 'flag "--profile <profile>" default="dev"'
 run = [{ tasks = ["package:rust --profile {{usage.profile}}", "package:python --profile {{usage.profile}} --target any"] }]
 
 [tasks."package:python"]
-description = "Package The Built Client Distributions"
+description = "Package the Built Client Distributions"
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--target <target>" default="any"
@@ -538,7 +548,7 @@ flag "--target <target>" default="any"
 run = "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target {{usage.target}}"
 
 [tasks."package:rust"]
-description = "Package The Desktop Installer, Tools And Plugin Archives"
+description = "Package the Desktop Installer, Tools and Plugin Archives"
 depends = ["prepare"]
 tools = { "aqua:ip7z/7zip" = "26.05" }
 usage = '''
@@ -553,7 +563,7 @@ run = [
 # === CI === #
 
 [tasks."ci:simulate"]
-description = "Simulate The Declared CI Graph Locally"
+description = "Simulate the Declared CI Graph Locally"
 usage = '''
 flag "--pipeline <kind>" default=pr
 flag "--platform <platform>"
@@ -565,15 +575,15 @@ run = "{{vars.tools}} dokime_tools.ci.simulate {% if usage.pipeline %}--pipeline
 # === Release === #
 
 [tasks."release:prepare"]
-description = "Prepare The Release Branch"
+description = "Prepare the Release Branch"
 run = "{{vars.tools}} dokime_tools.release.run prepare"
 
 [tasks."release:publish"]
-description = "Publish A Tagged Release"
+description = "Publish a Tagged Release"
 run = [{ task = "release:publish:assets" }, { task = "release:publish:python" }, { task = "release:publish:finalize" }]
 
 [tasks."release:publish:assets"]
-description = "Draft The Release With Its Assets And SHA256SUMS"
+description = "Draft the Release with Its Assets and SHA256SUMS"
 run = "{{vars.tools}} dokime_tools.release.run publish"
 
 [tasks."release:publish:dry"]
@@ -587,11 +597,11 @@ run = [
 ]
 
 [tasks."release:publish:finalize"]
-description = "Verify And Publish The Drafted Release"
+description = "Verify and Publish the Drafted Release"
 run = "{{vars.tools}} dokime_tools.release.run finalize"
 
 [tasks."release:publish:python"]
-description = "Publish The Python Client"
+description = "Publish the Python Client"
 run = "{{vars.tools}} dokime_tools.release.run python"
 
 [tasks."release:publish:rust"]
@@ -603,11 +613,11 @@ description = "Rehearse Staged Release Packages Without Credentials"
 run = "{{vars.tools}} dokime_tools.release.run rehearse"
 
 [tasks."release:tag"]
-description = "Tag A Merged Release Review And Fast-Forward Main"
+description = "Tag a Merged Release Review and Fast-Forward Main"
 run = "{{vars.tools}} dokime_tools.release.run tag"
 
 [tasks."release:verify"]
-description = "Verify Published Release Assets And Installers"
+description = "Verify Published Release Assets and Installers"
 run = "{{vars.tools}} dokime_tools.release.run verify"
 
 # === Clean === #
@@ -615,7 +625,7 @@ run = "{{vars.tools}} dokime_tools.release.run verify"
 # === Housekeeping === #
 
 [tasks.housekeeping]
-description = "Clean Owned Build Outputs And State"
+description = "Clean Owned Build Outputs and State"
 run = "stkr project housekeeping"
 
 [tasks."housekeeping:stats"]

@@ -21,7 +21,7 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use crate::definition::{MaterializedParameter, ParameterSource};
+use crate::definition::MaterializedParameter;
 use crate::state::RuntimeState;
 use crate::streams::AggregateOutput;
 use dokime_domain::model::identity::Identifier;
@@ -52,6 +52,9 @@ impl Transaction<RuntimeState> for FinalizeExecutionOutputs {
     type Error = String;
 
     fn check(&self, _state: &RuntimeState) -> Result<(), Self::Error> {
+        for output in &self.outputs {
+            output.metadata()?;
+        }
         Ok(())
     }
 
@@ -75,16 +78,8 @@ fn replace_aggregate_parameters(parameters: &mut BTreeMap<String, MaterializedPa
     parameters
         .retain(|key, parameter| !(key.starts_with("telemetry.") && (parameter.source.is_derived() || parameter.group_id == group_id)));
     for output in outputs {
-        parameters.insert(
-            output.key,
-            MaterializedParameter {
-                metadata: output.metadata,
-                group_id: group_id.clone(),
-                source: ParameterSource::Telemetry,
-                value: output.value,
-                unit: None,
-            },
-        );
+        let parameter = output.parameter().expect("checked aggregate metadata");
+        parameters.insert(output.key(), parameter);
     }
 }
 

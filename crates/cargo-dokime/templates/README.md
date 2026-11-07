@@ -6,16 +6,16 @@ one to replace with a real driver.
 
 ```text
 src/bench.rs                       the simulated sensor and heater
-src/error.rs                       the one error every boundary answers with
-src/lib.rs                         the plugin, its contributions, and the handles opened once
-src/domain/model/chamber/          what the chamber answers, and its temperature row
+src/error.rs                       template and evidence errors
+src/lib.rs                         the plugin, contributions and resource ownership
+src/domain/model/chamber/          the shared temperature row and host stream contract
 src/domain/model/prompts/          the one question it asks an operator
 src/domain/model/settings/         the one settings section an operator edits
-src/domain/operations/chamber/     the chamber requests a template sends
-src/domain/operations/status/      the request for what the bench reports about itself
-src/domain/operations/             the catalog of operations the plugin provides
-src/operations/chamber/            reads the chamber; the one road a template has to it
-src/operations/status/             answers the bench status request
+src/domain/model/soak.rs           shared summary data
+src/operations/mod.rs             the catalog of operations the plugin provides
+src/operations/chamber/<name>.rs  each chamber request, response, policy and handler
+src/operations/status/get.rs      the bench status request, policy and handler
+src/operations/soak/encode_summary.rs JSON encoding behind an operation
 src/listeners/unit_connected.rs    what the bench hears between runs
 src/observers/temperature.rs       the observer that measures the chamber
 src/suites/soak/hold.rs            the procedure: steps, samples, criteria, cleanup
@@ -24,10 +24,15 @@ mise.toml                          the tasks every CI job runs
 .github/workflows/, .gitlab-ci.yml CI for either provider
 ```
 
-`src/domain/` holds what the plugin declares, by kind first and domain second:
-`model/` for messages, rows, prompts and settings, `operations/` for the
-requests it serves. Their bodies live under `src/operations/`, one folder per
-domain with the same name.
+`src/domain/` holds shared data. Each `src/operations/<domain>/<operation>.rs`
+keeps its request, response, policy, handler and private helpers together.
+Templates and observers use operations, shared domain data, Dokime and std;
+driver and library work stays behind operations. Keep calls acyclic and directed
+from higher-level operations to lower-level ones. Keep operations thin and fast;
+return batches when an observer's acquisition rate needs them. Requests and
+responses never expose driver types; wrap results in plugin-owned serializable
+responses and convert driver errors to `Refusal`. Operations shared with other
+plugins gate their handler and driver imports with `runtime` in the same file.
 
 Each contribution belongs to a named `#[dokime::catalog]` enum in its owning
 module. The plugin id is `{{crate}}`, the crate name: Harmos serves each operation
@@ -42,24 +47,33 @@ observer file defines its own public `Streams` and `Records` catalogs as permitt
 subsets, keeping empty catalogs explicit. Demand observers run while any declared
 stream or record has an active subscriber; registration alone does not start them.
 
-Each request is its operation: a `#[dokime::operation]` struct under
-`src/domain/operations/` carries an explicit wire id, its response, a policy
-and the `resources = [Bench]` it reads. Its body is `impl Operation for
-ReadChamber`, whose `run(self, ctx)` consumes the request and reaches the bench
-with `ctx.resource::<Bench>()`; it holds no state between calls. Empty requests
-are empty structs. `Lifecycle::prepare(config, setup)` registers the shared bench
-with `setup.resource(...)` and prepares suite resources; `initialize` activates
-resources that need the running runtime. Observers read the bench through
-`ctx.resource::<Bench>()`. A template names the operations it calls with `requires = Required`
-and invokes `ctx.call::<ReadChamber>(ReadChamber {}).await?`; the call is
-routed through the host. Adding an operation means a request variant in
-`domain::operations::Operations` and its `impl Operation`.
+Each request is its operation: a `#[dokime::operation]` struct carries an
+explicit wire id, its response, a policy and the `resources = [Bench]` it reads.
+The plugin owns the sensor and heater in its shared `Bench`; templates retain
+only procedure state. `Lifecycle::prepare(config, setup)` registers that same
+state with `setup.resource(...)`, and handlers retrieve it with
+`ctx.resource::<Bench>()`. Plugin cleanup releases remaining handles.
+Observers read through operations, and template cleanup calls `ReleaseChamber`.
+A template lists its calls in `requires = Required` and sequences them as:
+
+```rust
+// Read Chamber Temperature
+let operation = ReadChamber {};
+let reading = ctx.operation(operation).await?;
+```
+
+Steps may use returned values for records and criteria. Add each operation to
+`operations::Operations`; do not split its declaration into `domain/operations/`.
 
 The optional `cloud_token` setting reads the shared Secret Storage identifier
 `cloud_token` directly. Add it in Settings → Secret Storage and retry
 the plugin. A bare `Secret` field is required and refuses startup when
 missing; `Option<Secret>` permits absence. Secret fields have no saved bindings,
 environment sources or defaults.
+
+Workspace Clippy lints deny `todo!` and `unimplemented!`. When generated inside an
+existing Cargo workspace, the starter inherits its lints and adds these defaults
+where they are missing.
 
 The SDK and `plugin-host` definitions use the same Dokime release tag. Install the host telemetry bundle before loading this template, which subscribes to `plugin_host::System`; missing publishers are refused per stream.
 
@@ -70,7 +84,7 @@ cargo dokime sidecar dev{{selection}}
 ```
 
 Select **Thermal Soak → Hold at Temperature** in the development host and
-execute the case. Turn the **Ask the operator to sign off** parameter on to see
+execute the case. Turn the **Ask the Operator to Sign Off** parameter on to see
 the checkpoint prompt. Keep dev running while editing: successful builds cancel
 active plugin work and reload the plugin while the browser stays connected.
 Click **Re-run**, or start dev with `--rerun` to repeat your latest case after
@@ -109,7 +123,7 @@ the first build resolves the SDK and Rust dependencies. Commit `Cargo.lock`
 to retain the resolved revisions.
 
 Run `cargo generate-lockfile` and `mise install` once, then commit both lockfiles:
-CI installs the locked dependencies and tools. `mise.toml` pins `cargo-dokime` and the `dokime` CLI to the Dokime release that generated this project, from Dokime's official GitHub release assets for the host platform; neither is a crates.io package. Set both versions to `nightly` to follow the nightly prerelease. `mise run check` verifies source and formatting; Build runs configuration-matched Clippy before compiling. `mise run build` compiles the plugin and freezes its catalog
+CI installs the locked dependencies and tools. `mise.toml` pins `cargo-dokime` and the `dokime` CLI to the Dokime release that generated this project, from Dokime's official GitHub release assets for the host platform; neither is a crates.io package. Set both versions to `nightly` to follow the nightly prerelease. `mise run check` verifies source and formatting; `lint:rust` runs Clippy with warnings denied, included by `check:rust` and gated by CI Check / Rust. Build, test, bench and fixture tasks do not run Clippy; a focused `clippy` operation is an explicit choice. Use `mise run lint:rust --extended` for optional compatibility lint coverage. `mise run build` compiles the plugin and freezes its catalog
 under `target/build/<profile>/<target>/plugins/{{package}}.dokime`.
 Standalone development builds retain line tables with separate debug information,
 matching Dokime's development profile while keeping the packaged executable bounded.

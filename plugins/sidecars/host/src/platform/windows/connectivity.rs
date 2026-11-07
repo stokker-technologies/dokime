@@ -57,6 +57,7 @@ impl Drop for Apartment {
 /* === Public Functions === */
 
 pub fn internet() -> Option<bool> {
+    super::apartment::retain().ok()?;
     // SAFETY: Initializing COM has no preconditions; a thread already in another apartment keeps it.
     let initialized = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
     if initialized.is_err() && initialized != RPC_E_CHANGED_MODE {

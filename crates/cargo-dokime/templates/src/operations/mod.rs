@@ -10,9 +10,14 @@
 /* === Modules === */
 
 pub mod chamber;
+pub mod soak;
 pub mod status;
 
 /* === Re-Exports === */
+
+pub use chamber::{DetectPort, OpenHeater, ReadChamber, ReleaseChamber, SetTarget};
+pub use soak::EncodeSummary;
+pub use status::GetStatus;
 
 /* === Imports === */
 
@@ -31,6 +36,17 @@ pub mod status;
 /* === Structs === */
 
 /* === Enums === */
+
+#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
+pub enum Operations {
+    GetStatus(GetStatus),
+    ReadChamber(ReadChamber),
+    DetectPort(DetectPort),
+    OpenHeater(OpenHeater),
+    SetTarget(SetTarget),
+    ReleaseChamber(ReleaseChamber),
+    EncodeSummary(EncodeSummary),
+}
 
 /* === Traits === */
 

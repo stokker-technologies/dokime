@@ -63,7 +63,7 @@ function frame(
 /* === Entry Point === */
 
 test("Operation Progress", () => {
-  // One Running Operation Shows Its Label, Phase And Determinate Progress
+  // One Running Operation Shows Its Label, Phase and Determinate Progress
   const summary = summarizeOperations(operationsFromFrame([frame("a", "Running", { fraction: 0.426 })]));
   assert.ok(summary.kind === "single");
   assert.equal(summary.operation.label, "Operation a");
@@ -71,12 +71,12 @@ test("Operation Progress", () => {
   assert.equal(operationPercent(summary.operation), 43);
   assert.equal(summary.operation.startedAtMs, 100_000);
 
-  // An Operation Without A Fraction Is Indeterminate
+  // An Operation Without a Fraction Is Indeterminate
   const [indeterminate] = operationsFromFrame([frame("a", "Running", { phase: "" })]);
   assert.equal(operationPercent(indeterminate), null);
   assert.equal(operationPhaseLabel(indeterminate), "Starting");
 
-  // Fractions Outside Zero To One Are Clamped
+  // Fractions Outside Zero to One Are Clamped
   const [over, under] = operationsFromFrame([frame("a", "Running", { fraction: 1.7 }), frame("b", "Running", { fraction: -0.2 })]);
   assert.equal(operationPercent(over), 100);
   assert.equal(operationPercent(under), 0);
@@ -87,7 +87,7 @@ test("Operation Summary", () => {
   assert.deepEqual(summarizeOperations(operationsFromFrame([])), { kind: "idle" });
   assert.deepEqual(summarizeOperations(operationsFromFrame(undefined)), { kind: "idle" });
 
-  // Several Running Operations Collapse To A Count Named After The Longest Running
+  // Several Running Operations Collapse to a Count Named After the Longest Running
   const many = summarizeOperations(
     operationsFromFrame([
       frame("late", "Running", { seconds: 300 }),
@@ -104,7 +104,7 @@ test("Operation Summary", () => {
     ["late", "early"],
   );
 
-  // With Nothing Running, The Last Settled Operation Shows Until It Retires
+  // With Nothing Running, the Last Settled Operation Shows Until It Retires
   const finished = summarizeOperations(operationsFromFrame([frame("a", "Finished")]));
   assert.ok(finished.kind === "single");
   assert.equal(operationPhaseLabel(finished.operation), "Done");
@@ -127,14 +127,14 @@ test("Embedded Startup Diagnostics", () => {
 });
 
 test("Brand Label", () => {
-  // Host Programs Are Named After The Running Brand
+  // Host Programs Are Named After the Running Brand
   const program = {
     owner: { kind: "host" },
     version: "1.2.0",
   } as unknown as RuntimeInstalledPluginRecord;
   assert.equal(programSource(program, "Stokker Technologies"), "Stokker Technologies Built-in · v1.2.0");
 
-  // A Removal Waits For The Running Execution, Then Stops The Plugin Without A Restart
+  // A Removal Waits for the Running Execution, Then Stops the Plugin Without a Restart
   const entry = {
     active: true,
     installed_at: "2026-10-25T00:00:00Z",
@@ -162,7 +162,7 @@ test("Plugin Rows Open Their Own Settings Page", () => {
     ],
   } as unknown as RuntimeSettingsFrame;
 
-  // The Host Row Opens The Section Any Of Its Programs Contributes
+  // The Host Row Opens the Section Any of Its Programs Contributes
   assert.deepEqual(
     programRows(programs, [], frame).map((row) => [row.key, row.settingsSection]),
     [
@@ -188,7 +188,7 @@ test("a failure during the desktop's stop never settles, and the stop shows only
   assert.equal(desktopStopping(), "running");
   assert.equal(await outcome(settleUnlessStopping(new Error("refused"))), "rejected");
 
-  // The Shell's Own Refusal Starts The Stop Even Before Its Announcement Arrives
+  // The Shell's Own Refusal Starts the Stop Even Before Its Announcement Arrives
   assert.equal(await outcome(settleUnlessStopping({ kind: "session", detail: { kind: "shutting_down" } })), pending);
   assert.equal(desktopStopping(), "hidden");
 

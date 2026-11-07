@@ -15,10 +15,12 @@
 
 /* === External Imports === */
 
-import type { ReactNode } from "react";
+import { type ReactNode, useContext } from "react";
 
 /* === Local Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { DocumentRetryContext } from "@/components/document/DocumentViewRenderer";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
 import { DataTable } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
@@ -99,7 +101,16 @@ export type DocumentCardContentProps = LiveDocumentSurfaceProps | ReportDocument
 /* === Public Functions === */
 
 export function DocumentCardContentView(props: DocumentCardContentProps) {
+  const retry = useContext(DocumentRetryContext);
   const reportMode = isReportDocumentSurface(props);
+  if (props.card.failure)
+    return <ErrorCard failure={props.card.failure} onRetry={reportMode || !retry ? undefined : () => retry(props.card.card_id)} />;
+  if (props.card.loading)
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Loading…
+      </p>
+    );
 
   if (props.card.kind === "overview") {
     return (

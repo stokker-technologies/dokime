@@ -237,7 +237,7 @@ function cycleColumns(onOpen: (id: string) => void, onUnarchive: ((cycleId: stri
     }),
     column.accessor("finishedCount", {
       cell: ({ row }) => (
-        <span className="font-mono text-xs tabular-nums text-muted-foreground" title="Cases Finished, Of The Cases This Cycle Plans">
+        <span className="font-mono text-xs tabular-nums text-muted-foreground" title="Cases Finished, of the Cases This Cycle Plans">
           {row.original.finishedCount} / {row.original.caseCount}
         </span>
       ),

@@ -192,7 +192,7 @@ test("Container Seal Controls", () => {
     "Execution 2 · Energize Charger",
   );
 
-  // Sealing And Sealed Offer Nothing
+  // Sealing and Sealed Offer Nothing
   assert.deepEqual(cycleControlState({ phase: "sealing", running: null }), {
     actions: [],
     detail: null,
@@ -200,15 +200,14 @@ test("Container Seal Controls", () => {
   });
   assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], detail: null, line: "Sealed · evidence saved" });
 
-  // A Failed Seal Offers Retry And Archive, Never A Running Control
+  // A Failed Seal Offers Retry and Archive, Never a Running Control
   assert.deepEqual(cycleControlState({ phase: "seal_failed", running: null }).actions, ["Retry Seal", "Archive"]);
 });
 
-test("Stream Refreshes Files And Preserves Sealed Detail", async () => {
+test("Stream Refreshes Documents and Preserves Sealed Detail", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  const calls = { files: 0, document: 0, sealed: 0, active: 0 };
+  const calls = { document: 0, sealed: 0, active: 0 };
   const keys = {
-    files: workflowQueryKeys.executionFiles("active"),
     document: workflowQueryKeys.executionDocument({ cycleId: "cycle", executionId: "active" }),
     sealed: workflowQueryKeys.executionDetail("sealed"),
     active: workflowQueryKeys.executionDetail("active"),
@@ -223,12 +222,12 @@ test("Stream Refreshes Files And Preserves Sealed Detail", async () => {
   const release = observers.map((observer) => observer.subscribe(() => {}));
   try {
     await Promise.all(observers.map((observer) => observer.refetch()));
-    assert.deepEqual(calls, { files: 1, document: 1, sealed: 1, active: 1 });
+    assert.deepEqual(calls, { document: 1, sealed: 1, active: 1 });
 
     await invalidateRuntimeDocuments(client);
-    assert.deepEqual(calls, { files: 2, document: 2, sealed: 1, active: 1 });
+    assert.deepEqual(calls, { document: 2, sealed: 1, active: 1 });
     await invalidateRuntimeProjectionQueries(client);
-    assert.deepEqual(calls, { files: 2, document: 2, sealed: 1, active: 2 });
+    assert.deepEqual(calls, { document: 2, sealed: 1, active: 2 });
   } finally {
     for (const unsubscribe of release) unsubscribe();
     client.clear();

@@ -112,7 +112,7 @@ async fn crashed_run_replay() {
             .unwrap(),
     );
 
-    // The Child Reports Readiness On Stdout Once Its Run Is Saved
+    // The Child Reports Readiness on Stdout Once Its Run Is Saved
     let stdout = child.0.stdout.take().unwrap();
     let (request_id, cycle_id, execution_id): (String, String, String) = tokio::task::spawn_blocking(move || {
         use std::io::BufRead;
@@ -175,10 +175,10 @@ async fn crashed_run_replay() {
     assert_eq!(execution.status, dokime::domain::model::execution::result::ExecutionStatus::Interrupted);
     assert_eq!(execution.test_execution_id, receipt.last_claim.as_ref().unwrap().execution_id);
     assert!(execution.finished_at.is_some());
-    assert_eq!(restored.state().run_requests.len(), 1);
-    let recovered = restored.state().run_requests.values().next().unwrap();
+    assert!(restored.state().run_requests.is_empty());
+    let recovered = owner.handle().run_request(&command).await.unwrap().unwrap();
     assert_eq!(recovered.summary.phase, dokime::domain::model::execution::request::RunPhase::Interrupted);
-    assert!(recovered.pending.is_empty());
+    assert_eq!(recovered.claimed, recovered.summary.planned);
     assert!(execution.saved.is_some());
     let repeated = owner.handle().run_request(&command).await.unwrap().unwrap();
     assert_eq!(&*repeated, &*receipt);

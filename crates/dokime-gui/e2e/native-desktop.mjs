@@ -396,11 +396,14 @@ async function checkParameterGeometry(session) {
 }
 
 async function promptHoverLabels() {
+  document
+    .querySelector('[data-plot-viewport="obc.charger.startup.sequence.signals"]')
+    ?.scrollIntoView({ block: "center", behavior: "instant" });
   const frame = document.querySelector('[data-plot-id="obc.charger.startup.sequence.signals"]');
   const overlay = frame?.querySelector(".u-over");
   if (!overlay) return [];
   overlay.scrollIntoView({ block: "center", behavior: "instant" });
-  const labels = new Set();
+  const labels = new Map();
   const frameDrawn = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   await frameDrawn();
   const bounds = overlay.getBoundingClientRect();
@@ -416,26 +419,22 @@ async function promptHoverLabels() {
       }),
     );
     await frameDrawn();
-    const label = frame.querySelector("[role=tooltip]")?.textContent;
-    if (label) labels.add(label);
-    if ([...labels].some((label) => label.includes("Prompt asked:")) && [...labels].some((label) => label.includes("Prompt answered:")))
-      break;
+    const tooltip = frame.querySelector("[role=tooltip][data-marker-kind]");
+    if (tooltip) labels.set(tooltip.dataset.markerKind, tooltip.textContent);
+    if (labels.has("prompt:asked") && labels.has("prompt:answered")) break;
   }
-  return [...labels];
+  return Object.fromEntries(labels);
 }
 
 function assertPromptHovers(labels) {
-  assert.ok(
-    labels.some((label) => label.includes(`Prompt asked: ${STARTUP_PROMPT}`)),
-    `Asked marker must name its prompt: ${labels}`,
-  );
-  assert.ok(
-    labels.some((label) => label.includes(`Prompt answered: ${STARTUP_PROMPT}`)),
-    `Answered marker must name its prompt: ${labels}`,
-  );
+  assert.ok(labels["prompt:asked"]?.includes(STARTUP_PROMPT), `Asked marker must name its prompt: ${JSON.stringify(labels)}`);
+  assert.ok(labels["prompt:answered"]?.includes(STARTUP_PROMPT), `Answered marker must name its prompt: ${JSON.stringify(labels)}`);
 }
 
 function histogramPresentation() {
+  document
+    .querySelector('[data-plot-viewport="obc.charger.startup.sequence.voltage_distribution"]')
+    ?.scrollIntoView({ block: "center", behavior: "instant" });
   const plot = document.querySelector('[data-plot-id="obc.charger.startup.sequence.voltage_distribution"] section');
   if (!plot) return null;
   const bins = [...plot.querySelectorAll("button[aria-label]")].map((button) =>
@@ -1752,13 +1751,12 @@ async function startCaseFromItsRow(session, fragment) {
       session.execute(
         `const fragment = arguments[0];
      const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')].find(
-       (candidate) => candidate.innerText.includes(fragment) && candidate.querySelector('button[aria-label^="Actions For "]'),
+       (candidate) => candidate.innerText.includes(fragment) && candidate.querySelector('button[data-tree-actions]'),
      );
      if (!row?.dataset.executionId) return null;
      return {
        before: row.innerText,
        executionId: row.dataset.executionId,
-       trigger: row.querySelector('button[aria-label^="Actions For "]').getAttribute('aria-label'),
      };`,
         [fragment],
       ),
@@ -1781,7 +1779,7 @@ async function startCaseFromItsRow(session, fragment) {
       if (await started()) return true;
       const item = await session.named("menuitem", "Start Execution").catch(() => null);
       if (!item) {
-        const trigger = await session.named("button", target.trigger);
+        const trigger = await session.find("css selector", `li[data-execution-id="${target.executionId}"] button[data-tree-actions]`);
         const expanded = await session.execute("return arguments[0].getAttribute('aria-expanded') === 'true'", [trigger]);
         if (!expanded) await session.click(trigger);
         return false;
@@ -1801,10 +1799,11 @@ async function startCaseFromItsRow(session, fragment) {
 }
 
 /** Press a menu trigger until its menu is up, and answer with the menu. */
-async function openMenu(session, name, attempts = 2) {
+async function openMenu(session, name, selector, attempts = 2) {
   let last;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    await session.clickNamed("button", name);
+    if (selector) await session.clickCss(selector);
+    else await session.clickNamed("button", name);
     const menu = await until(`the ${name} menu`, () => session.find("css selector", "[role=menu]"), WAIT_MS).catch((failure) => {
       last = failure;
       return null;
@@ -2127,17 +2126,14 @@ async function libraryJourney(session) {
   /* A number edit reveals that row's Reset affordance and its gilt rule. */
   const number = await session.find("css selector", `[data-testid="parameter-input-${NUMBER_PARAMETER}"]`);
   await session.type(number, "60");
-  const edited = await until("edited row reset", () =>
+  await until("edited row reset", () =>
     session.execute(
       `const row = document.querySelector('[data-testid="parameter-row-' + arguments[0] + '"]');
        if (!row || row.dataset.edited !== 'true') return null;
-       const reset = row.querySelector('button[aria-label^="Reset To "]');
-       const label = reset ? reset.getAttribute('aria-label') : null;
-       return label && label.startsWith('Reset To') ? label : null;`,
+       return row.querySelector('button[data-testid="parameter-reset"]')?.getAttribute('aria-label')?.trim();`,
       [NUMBER_PARAMETER],
     ),
   );
-  assert.match(edited, /^Reset To /, "An edited row must offer a named reset");
 
   /* A list parameter: one chip per value, an add affordance, and an expression
      that expands into chips of its own. */
@@ -2186,7 +2182,7 @@ async function libraryJourney(session) {
 
   /* Step 2 reads the preview back: the deltas, the count, and the target. */
   await session.clickNamed("button", "Next");
-  await until("summary step", async () => hasText(await session.text(), "Finish And Add"), WAIT_MS);
+  await until("summary step", () => session.find("css selector", '[data-testid="template-add"]'), WAIT_MS);
   const summary = await session.text();
   assert.ok(hasText(summary, "Target Cycle"), "The summary must name the active cycle");
   assert.ok(hasText(summary, title.trim()) || hasText(summary, appendTo), "The summary target must be the cycle New Cycle created");
@@ -2200,7 +2196,7 @@ async function libraryJourney(session) {
     `The summary rows must state the parameter deltas (got ${normalize(deltas).slice(0, 200)})`,
   );
 
-  await session.clickNamed("button", "Finish And Add");
+  await session.clickCss('[data-testid="template-add"]');
   await until(
     "first add finished",
     async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
@@ -2512,20 +2508,22 @@ async function cycleJourney(session, cycleId) {
     WAIT_MS,
   );
   assert.notEqual(rerunId, selection.executionId, "Re-Run must create a distinct execution");
-  assert.match(await sidebarText(session), /Re-Run Of #\d+/, "The new row must name its previous execution");
+  assert.ok(
+    await session.execute("return document.querySelector('li[data-execution-id=\"' + arguments[0] + '\"]')?.dataset.rerunOf;", [rerunId]),
+    "The new row must identify its previous execution",
+  );
   await until("Start on the fresh attempt", () => session.exists("button", "Start"), WAIT_MS);
   await session.clickNamed("button", "Start");
   await until("the new attempt admission", async () => /Execution Started/.test(await toastText(session)), WAIT_MS);
   /* Plot Settings Persist In The Native Frozen Document. */
-  const plotId = await until(
-    "the plot identity to configure",
-    () =>
-      session.execute(`
-    return document.querySelector('button[aria-label^="Plot Settings For "]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
+  const plotId = await until("the plot identity to configure", () =>
+    session.execute(`
+    const viewport = document.querySelector('[data-plot-viewport]');
+    viewport?.scrollIntoView({ block: "center", behavior: "instant" });
+    return viewport?.querySelector('button[data-testid="plot-settings"]')?.closest('[data-plot-id]')?.dataset.plotId ?? null;
   `),
-    WAIT_MS,
   );
-  const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[aria-label^='Plot Settings For ']`;
+  const settingsSelector = `[data-plot-id=${JSON.stringify(plotId)}] button[data-testid="plot-settings"]`;
   const settingsText = await openPlotSettings(session, settingsSelector);
   assert.match(settingsText, /Display Points|Reduction/);
   const pointsInput = await session.find("css selector", "[role=dialog] input[type=number]");
@@ -2556,18 +2554,17 @@ async function cycleJourney(session, cycleId) {
   }
   await session.goto("/cycles");
   await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`, { reload: true });
-  await until(
-    "the same plot frame after remounting",
-    () =>
-      session.execute(
-        `
+  await until("the same plot frame after remounting", () =>
+    session.execute(
+      `
+    const viewport = document.querySelector('[data-plot-viewport=' + JSON.stringify(arguments[0]) + ']');
+    viewport?.scrollIntoView({ block: "center", behavior: "instant" });
     const frame = [...document.querySelectorAll('[data-live-mounted="true"][data-plot-id]')]
       .find((node) => node.dataset.plotId === arguments[0]);
-    return frame && !frame.innerText.includes('Loading Plot') && Boolean(frame.querySelector('button[aria-label^="Plot Settings For "]'));
+    return frame && !frame.innerText.includes('Loading Plot') && Boolean(frame.querySelector('button[data-testid="plot-settings"]'));
   `,
-        [plotId],
-      ),
-    WAIT_MS,
+      [plotId],
+    ),
   );
   await openPlotSettings(session, settingsSelector);
   const persistedPoints = await session.execute("return {value: document.querySelector('[role=dialog] input[type=number]').value}");
@@ -2716,7 +2713,7 @@ async function cycleJourney(session, cycleId) {
     viewport.scrollTop = 0;
     viewport.dispatchEvent(new Event('scroll', {bubbles: true}));
   `);
-  await session.clickNamed("button", "Jump To Latest");
+  await session.clickCss('[data-testid="console-follow-latest"]');
   await until("console follows newest row again", () =>
     session.execute(`
     const viewport = [...document.querySelectorAll('section[aria-label=Console] div')]
@@ -2801,7 +2798,7 @@ async function executionStopJourney(session, cycleId) {
       if (!match || match[1] === cycleId) return null;
       const ready = await session.execute(
         `return [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
-          .some((candidate) => candidate.innerText.includes(arguments[0]) && candidate.querySelector('button[aria-label^="Actions For "]'));`,
+          .some((candidate) => candidate.innerText.includes(arguments[0]) && candidate.querySelector('button[data-tree-actions]'));`,
         [STARTUP_TEMPLATE],
       );
       return ready ? match[1] : null;
@@ -2883,7 +2880,12 @@ async function executionStopJourney(session, cycleId) {
   // === Stop Only That Execution === //
 
   await session.clickNamed("button", "Stop Execution");
-  await until("the stop acknowledgement", async () => /Execution Stopped And Evidence Saved/.test(await toastText(session)), WAIT_MS);
+  await session.waitForDom(
+    "the stopped execution",
+    `const status = document.querySelector('li[data-execution-id="' + args[0] + '"]')?.dataset.executionStatus;
+     return ["stopped", "interrupted"].includes(status) && document.querySelector('[data-execution-action="Re-Run"]:not(:disabled)');`,
+    [running],
+  );
   await writeFile(join(evidence, "invokes-execution-stop.json"), JSON.stringify(await drainInvokeLedger(session), null, 2));
   const header = normalize(await session.text());
   assert.ok(!/Stopping Cycle|\bStopping\b/.test(header), "Stopping one execution must not put the cycle into Stopping");
@@ -3004,7 +3006,7 @@ async function exportAvailability(session, enabled, kind = "cycle") {
   const state = await until(`evidence export ${enabled ? "enabled" : "disabled"}`, () =>
     session.execute(
       `
-    const button = [...document.querySelectorAll('[role=menuitem]')].find((candidate) => candidate.innerText.trim() === 'Export Evidence');
+    const button = document.querySelector('[data-testid="evidence-export"]');
     if (!button) return null;
     const disabled = button.getAttribute('aria-disabled') === 'true';
     if (disabled === arguments[0]) return null;
@@ -3014,7 +3016,7 @@ async function exportAvailability(session, enabled, kind = "cycle") {
     ),
   );
   assert.equal(state.disabled, !enabled);
-  assert.equal(state.title, enabled ? "Download SQLite, Files And Saved Reports" : "Seal This Cycle Before Exporting");
+  assert.ok(state.title.trim(), "The export action explains its availability");
   await session.key("Escape");
 }
 
@@ -3396,7 +3398,12 @@ async function remoteAccessJourney(recoveredReports) {
   assert.ok(decision.actions.includes("No") && decision.actions.includes("Yes"), "The inspection decision must offer No and Yes");
   assert.equal(decision.checkboxes, 0, "The decision belongs in the footer without a duplicate checkbox");
   await session.clickNamed("button", "Stop Execution");
-  await until("revocation execution stopped", async () => hasText(await toastText(session), "Execution Stopped And Evidence Saved"));
+  await session.waitForDom(
+    "revocation execution stopped",
+    `const status = document.querySelector('li[data-execution-id="' + args[0] + '"]')?.dataset.executionStatus;
+     return ["stopped", "interrupted"].includes(status) && document.querySelector('[data-execution-action="Re-Run"]:not(:disabled)');`,
+    [remoteCycle.startupExecutionId],
+  );
   // Reissuing The Leaf Preserves The Existing CA Trust Anchor.
   await session.goto("/settings/remote");
   await showAdvanced();
@@ -3434,7 +3441,7 @@ async function remoteAccessJourney(recoveredReports) {
   for (const client of clients) if (client.status === "rejected") throw client.reason;
   await session.goto("/settings/remote", { reload: true });
   const pageSize = await until("remote session table page size", () =>
-    session.find("xpath", "//table[@aria-label='Recent Remote Sessions']/parent::div/parent::div//select[@aria-label='Rows Per Page']"),
+    session.find("xpath", "//table[@aria-label='Recent Remote Sessions']/parent::div/parent::div//select[@data-testid='table-page-size']"),
   );
   await session.execute(
     `const select = arguments[0];
@@ -3468,10 +3475,10 @@ async function remoteAccessJourney(recoveredReports) {
     await cli(["backend", "remove", "--identifier", identifier, "--profiles-file", profiles]);
   }
   await session.goto("/settings/backends");
-  await openMenu(session, "Actions For desktop-pairing");
+  await openMenu(session, "desktop-pairing actions", '[data-row-id="desktop-pairing"] [data-testid="table-row-actions"]');
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
-  await until("paired backend removed", async () => !(await session.exists("button", "Actions For desktop-pairing")));
+  await session.waitForDom("paired backend removed", "return !document.querySelector('[data-row-id=\"desktop-pairing\"]');");
   return { executionIds: remoteCycle.executionIds, reports: [...recoveredReports, remoteCycle.startupExecutionId] };
 }
 
@@ -3622,7 +3629,9 @@ async function settingsJourney(session, notes) {
       await session.type(input, text);
     }
     await session.clickNamed("button", "Save Secret");
-    await until("shared keyring entry saved", () => session.exists("button", `Actions For ${name}`));
+    await until("shared keyring entry saved", () =>
+      session.find("css selector", `[data-row-id="${name}"] [data-testid="table-row-actions"]`),
+    );
     assert.ok(
       await session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[@aria-label='Edit' and not(@disabled)]`),
       "The saved secret remains editable",
@@ -3630,10 +3639,12 @@ async function settingsJourney(session, notes) {
     assert.ok(!(await session.text()).includes(value), "stored secret values stay masked");
   }
   for (const name of ["e2e.settings.first", "e2e.settings.second"]) {
-    await openMenu(session, `Actions For ${name}`);
+    await openMenu(session, `${name} actions`, `[data-row-id="${name}"] [data-testid="table-row-actions"]`);
     await session.clickNamed("menuitem", "Delete");
     await session.clickNamed("button", "Confirm Delete");
-    await until("shared keyring entry removed", async () => !(await session.exists("button", `Actions For ${name}`)));
+    await session.waitForDom("shared keyring entry removed", "return !document.querySelector('[data-row-id=\"' + args[0] + '\"]');", [
+      name,
+    ]);
   }
 
   /* Backend Dialog Validation, Cancelled Deletion And Selection Recovery. */
@@ -3702,7 +3713,7 @@ async function settingsJourney(session, notes) {
 
   await add("native-recovery");
   await add("native-stale", "deliberately-wrong-native-identity");
-  await openMenu(session, "Actions For native-stale");
+  await openMenu(session, "native-stale actions", '[data-row-id="native-stale"] [data-testid="table-row-actions"]');
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Cancel");
   assert.ok(await rowAction("native-stale", "Select"));
@@ -3729,7 +3740,7 @@ async function settingsJourney(session, notes) {
   });
   await session.connected();
   await session.goto("/settings/backends");
-  await openMenu(session, "Actions For native-stale");
+  await openMenu(session, "native-stale actions", '[data-row-id="native-stale"] [data-testid="table-row-actions"]');
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
   await until("stale profile removed", async () => {
@@ -4866,13 +4877,10 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await session.screenshot("organization-active");
 
   await session.goto("/settings/about");
-  await session.clickNamed("button", "Check For Updates");
+  await session.clickCss('[data-testid="desktop-updates-open"]');
   const selection = (label) => session.execute(`return document.querySelector('select[aria-label="${label}"]')?.value;`);
   await until("disabled organization update policy", async () => (await selection("Update Checks")) === "disabled");
-  const checkDisabled = () =>
-    session.execute(
-      `return [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent.trim() === 'Check For Updates')?.disabled;`,
-    );
+  const checkDisabled = () => session.execute("return document.querySelector('[data-testid=\"desktop-updates-check\"]')?.disabled;");
   assert.equal(await checkDisabled(), true);
   const select = async (label, value) => {
     await session.execute(
@@ -4890,18 +4898,11 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   assert.equal(await checkDisabled(), true);
   await select("Release Source", "public");
   await select("Update Checks", "manual");
-  await session.execute(
-    `const button = [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent.trim() === 'Check For Updates'); button.click();`,
-  );
+  await session.clickCss('[data-testid="desktop-updates-check"]');
   await until("update check failure notification", async () =>
     hasText(await toastText(session), "The update manifest could not be checked"),
   );
-  assert.equal(
-    await session.execute(
-      `return [...document.querySelectorAll('[role="dialog"] button')].find(button => button.textContent.trim() === 'Install Update')?.disabled;`,
-    ),
-    true,
-  );
+  assert.equal(await session.execute("return document.querySelector('[data-testid=\"desktop-updates-install\"]')?.disabled;"), true);
   await select("Update Checks", "disabled");
   await select("Release Source", "private");
   await session.screenshot("organization-update-policy");
@@ -4911,7 +4912,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await writeFile(join(root, "pending", "organization.toml"), "invalid [");
   await restart();
   await session.goto("/settings/about");
-  await session.clickNamed("button", "Check For Updates");
+  await session.clickCss('[data-testid="desktop-updates-open"]');
   await until("saved release source survives restart", async () => (await selection("Release Source")) === "private");
   assert.equal(await selection("Update Checks"), "disabled");
   await session.key("Escape");

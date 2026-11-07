@@ -15,6 +15,8 @@ mod batches;
 
 /* === Re-Exports === */
 
+pub(crate) use batches::QueryProjection;
+
 /* === Imports === */
 
 // Standard Library Imports
@@ -69,6 +71,7 @@ pub(crate) struct QueryWork {
     pub rows: u64,
     pub bytes: u64,
     deadline: std::time::Instant,
+    scan_limits: bool,
     cancelled: Arc<AtomicBool>,
 }
 
@@ -94,13 +97,36 @@ impl QueryWork {
             rows: 0,
             bytes: 0,
             deadline,
+            scan_limits: true,
             cancelled: Arc::new(AtomicBool::new(false)),
         }
     }
 
+    pub fn document(config: QueryConfig, operation: &'static str) -> Self {
+        Self {
+            scan_limits: false,
+            ..Self::new(config, operation)
+        }
+    }
+
     pub fn check(&self) -> Result<(), Box<Failure>> {
-        if self.cancelled.load(Ordering::Acquire) || std::time::Instant::now() >= self.deadline {
-            return Err(Failure::new(Reason::Deadline, self.operation, "Query exceeded its active-work deadline or was cancelled"));
+        if self.cancelled.load(Ordering::Acquire) {
+            return Err(Failure::new(Reason::Deadline, self.operation, "Query was cancelled"));
+        }
+        let now = std::time::Instant::now();
+        if now >= self.deadline {
+            let limit = self.config.limits().active_time.as_millis().min(u128::from(u64::MAX)) as u64;
+            let reached = limit.saturating_add(now.duration_since(self.deadline).as_millis().min(u128::from(u64::MAX)) as u64);
+            let mut failure = Failure::new(
+                Reason::Deadline,
+                self.operation,
+                format!("Query budget active_time_ms exceeded (limit {limit}, reached {reached})"),
+            );
+            failure.limit = Some(EffectiveLimit {
+                name: "active_time_ms".into(),
+                value: limit,
+            });
+            return Err(failure);
         }
         Ok(())
     }
@@ -119,8 +145,12 @@ impl QueryWork {
             (self.rows, self.config.limits().scanned_rows, "scanned_rows"),
             (self.bytes, self.config.limits().scanned_bytes, "scanned_bytes"),
         ] {
-            if used > maximum {
-                let mut failure = Failure::new(Reason::WorkLimit, self.operation, "Query scan budget exhausted; narrow the selection");
+            if self.scan_limits && used > maximum {
+                let mut failure = Failure::new(
+                    Reason::WorkLimit,
+                    self.operation,
+                    format!("Query budget {name} exceeded (limit {maximum}, reached {used})"),
+                );
                 failure.limit = Some(EffectiveLimit { name: name.into(), value: maximum });
                 return Err(failure);
             }
@@ -217,6 +247,12 @@ impl State {
 
 pub(crate) fn storage_error(error: crate::storage::Error, operation: &str) -> Box<Failure> {
     use crate::storage::Error;
+    if let Error::Budget { budget, limit, reached } = error {
+        let mut failure =
+            Failure::new(Reason::ResourceLimit, operation, format!("Query budget {budget} exceeded (limit {limit}, reached {reached})"));
+        failure.limit = Some(EffectiveLimit { name: budget.into(), value: limit });
+        return failure;
+    }
     let reason = match error {
         Error::Data(_) => Reason::ResourceLimit,
         Error::Corrupt(_) | Error::Decode(_) | Error::Json(_) => Reason::Corruption,

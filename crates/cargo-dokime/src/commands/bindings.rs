@@ -69,7 +69,7 @@ enum Command {
     #[command(about = "Export Protobuf Contracts")]
     Proto(ProtoArgs),
 
-    #[command(about = "Generate The Python Client Package From One Contract Export")]
+    #[command(about = "Generate the Python Client Package from One Contract Export")]
     Python(PythonArgs),
 }
 

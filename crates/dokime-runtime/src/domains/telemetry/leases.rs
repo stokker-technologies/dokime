@@ -104,7 +104,7 @@ struct Holder {
 }
 
 // Each Declared Stream Leases On Its Own: A Sampled Stream Gets A Lease, A
-// Plugin-Published Stream Needs None, And A Stream That Cannot Be Leased Is
+// Plugin-Published Stream Needs None, and a Stream That Cannot Be Leased Is
 // Refused Without Costing The Others Theirs.
 #[derive(Clone, Debug, Default)]
 pub struct DeclaredLeases {
@@ -730,7 +730,7 @@ impl RuntimeHandle {
         }
     }
 
-    // Queues Behind Every Earlier Delivery To The Same Run Without Awaiting Its Plugin, So A
+    // Queues Behind Every Earlier Delivery to the Same Run Without Awaiting Its Plugin, So A
     // Caller Holding Admission Order Never Waits On A Leaseholder That Itself Waits On Admission.
     fn queue_for_leaseholder(&self, holder: &Holder, request: DeliverSamplesRequest) -> Option<tokio::sync::oneshot::Receiver<()>> {
         // A hold that names no run has nobody to be evidence for. A dashboard

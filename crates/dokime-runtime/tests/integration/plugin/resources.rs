@@ -307,8 +307,8 @@ impl Checks {}
     parameters = ProbeParameters)]
 impl Probe {
     async fn initialize(parameters: &ProbeParameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
-        let device = ctx.call(GetDevice {}).await?;
-        if ctx.call(GetDevice {}).await?.identity != device.identity {
+        let device = ctx.operation(GetDevice {}).await?;
+        if ctx.operation(GetDevice {}).await?.identity != device.identity {
             return Err(Error::ResourceChanged);
         }
         let observations = double(&device.token);
@@ -323,13 +323,13 @@ impl Probe {
             std::future::pending::<()>().await;
             drop(partial);
         }
-        ctx.call(StartRun {}).await?;
+        ctx.operation(StartRun {}).await?;
         Ok(Self { observations, identity: device.identity })
     }
 
     #[dokime_runtime::step(label = "Use device")]
     async fn use_device(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        if ctx.call(GetDevice {}).await?.identity != self.identity {
+        if ctx.operation(GetDevice {}).await?.identity != self.identity {
             return Err(Error::ResourceChanged);
         }
         self.observations.record("step");
@@ -359,7 +359,7 @@ impl Probe {
     }
 
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
-        if ctx.call(GetDevice {}).await?.identity != self.identity {
+        if ctx.operation(GetDevice {}).await?.identity != self.identity {
             return Err(Error::ResourceChanged);
         }
         tokio::task::yield_now().await;

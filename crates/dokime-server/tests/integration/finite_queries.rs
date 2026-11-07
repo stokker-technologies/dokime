@@ -117,7 +117,7 @@ async fn finite_query_transports_and_cli_pages() {
     assert!(!first.complete);
     let mut next = cycles();
     next.page.after = first.next.clone();
-    let native = handle.operations().call::<ListCycles>(next.clone()).await.unwrap();
+    let native = handle.operations().operation::<ListCycles>(next.clone()).await.unwrap();
     let second = client.unary::<ListCycles>(authenticated(next.clone())).await.unwrap().into_inner();
     assert_eq!(native.rows, second.rows);
     assert_ne!(first.rows[0].cycle_id, second.rows[0].cycle_id);
@@ -130,7 +130,7 @@ async fn finite_query_transports_and_cli_pages() {
     filtered.at =
         first.snapshot.as_ref().map(|snapshot| dokime::domain::model::query::snapshot::SnapshotRef::Token(snapshot.token.clone()));
     let selected = client.unary::<ListCycles>(authenticated(filtered.clone())).await.unwrap().into_inner();
-    let native = handle.operations().call::<ListCycles>(filtered).await.unwrap();
+    let native = handle.operations().operation::<ListCycles>(filtered).await.unwrap();
     assert_eq!(native.rows, selected.rows);
     assert_eq!(selected.rows, first.rows);
     let mut invalid = cycles();
@@ -272,13 +272,13 @@ async fn finite_query_failures_and_cancellation() {
             revoked: Some(revoked),
         })
         .unwrap();
-    let error = handle.operations().with_context(context).call::<ListCycles>(cycles()).await.unwrap_err();
+    let error = handle.operations().with_context(context).operation::<ListCycles>(cycles()).await.unwrap_err();
     let dokime::harmos::Error::OperationFailed { source, .. } = error else { panic!("expected an operation failure") };
     assert_eq!(source.downcast_ref::<tonic::Status>().unwrap().code(), Code::PermissionDenied);
     let cancelled = handle.operations().submit::<ListCycles>(cycles()).unwrap();
     cancelled.request_cancel();
     assert!(cancelled.await.is_err());
-    assert!(handle.operations().call::<ListCycles>(cycles()).await.unwrap().complete);
+    assert!(handle.operations().operation::<ListCycles>(cycles()).await.unwrap().complete);
     assert!(client.unary::<ListCycles>(authenticated(cycles())).await.unwrap().into_inner().rows.is_empty());
     drop(client);
     server.shutdown().await.unwrap();

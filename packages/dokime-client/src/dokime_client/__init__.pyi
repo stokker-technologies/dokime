@@ -105,8 +105,8 @@ import dokime_client._wire.dokime.v1.PluginsMessages.GetInstallation.messages_pb
 import dokime_client._wire.dokime.v1.PluginsMessages.Install.messages_pb2 as _wire_103
 import dokime_client._wire.dokime.v1.PluginsMessages.ListAdmittedPlugins.messages_pb2 as _wire_104
 import dokime_client._wire.dokime.v1.PluginsMessages.ListInstallations.messages_pb2 as _wire_105
-import dokime_client._wire.dokime.v1.PluginsMessages.Remove.messages_pb2 as _wire_106
-import dokime_client._wire.dokime.v1.PluginsMessages.Retry.messages_pb2 as _wire_107
+import dokime_client._wire.dokime.v1.PluginsMessages.Reload.messages_pb2 as _wire_106
+import dokime_client._wire.dokime.v1.PluginsMessages.Remove.messages_pb2 as _wire_107
 import dokime_client._wire.dokime.v1.PluginsMessages.SetEnabled.messages_pb2 as _wire_108
 import dokime_client._wire.dokime.v1.PromptsMessages.GetDefinition.messages_pb2 as _wire_109
 import dokime_client._wire.dokime.v1.PromptsMessages.GetPrompt.messages_pb2 as _wire_111
@@ -746,15 +746,15 @@ DOKIME_PLUGINS_LIST_INSTALLATIONS: Operation[
     DokimePluginsListInstallationsRequest, DokimePluginsListInstallationsResponse, Message, Message
 ]
 
-DokimePluginsRemoveRequest = _wire_106.Row1
-DokimePluginsRemoveResponse = _wire_106.Row2
+DokimePluginsReloadRequest = _wire_106.Row1
+DokimePluginsReloadResponse = _wire_106.Row2
+
+DOKIME_PLUGINS_RELOAD: Operation[DokimePluginsReloadRequest, DokimePluginsReloadResponse, Message, Message]
+
+DokimePluginsRemoveRequest = _wire_107.Row1
+DokimePluginsRemoveResponse = _wire_107.Row2
 
 DOKIME_PLUGINS_REMOVE: Operation[DokimePluginsRemoveRequest, DokimePluginsRemoveResponse, Message, Message]
-
-DokimePluginsRetryRequest = _wire_107.Row1
-DokimePluginsRetryResponse = _wire_107.Row2
-
-DOKIME_PLUGINS_RETRY: Operation[DokimePluginsRetryRequest, DokimePluginsRetryResponse, Message, Message]
 
 DokimePluginsSetEnabledRequest = _wire_108.Row1
 DokimePluginsSetEnabledResponse = _wire_108.Row2

@@ -6,7 +6,7 @@ Define durable typed telemetry and portable evidence archives while preserving i
 
 ## ADDED Requirements
 
-### Requirement: Execution And Session Files
+### Requirement: Execution and Session Files
 The backend SHALL store telemetry exclusively as Arrow IPC files, one per execution/stream at `<data root>/telemetry/<sha256(execution_id | stream)>.arrow`, with separate session-scoped files outside executions.
 
 #### Scenario: Stream Ownership
@@ -16,25 +16,25 @@ The backend SHALL store telemetry exclusively as Arrow IPC files, one per execut
 ### Requirement: Configured Durable Flush
 The backend SHALL append ZSTD batches after a header and flush when either configured row or time threshold is reached. The saved cursor MUST advance only after batch fsync and its catalog commit.
 
-#### Scenario: Threshold Or Commit Failure
+#### Scenario: Threshold or Commit Failure
 - **WHEN** either threshold is reached, or fsync/catalog commit fails
 - **THEN** the batch flush is attempted and saved progress includes it only after both durability steps succeed
 
-### Requirement: Metadata-Only Finalize And Recovery
+### Requirement: Metadata-Only Finalize and Recovery
 The backend SHALL write the IPC footer from its in-memory/catalog block list at finalize, with work proportional only to batch count and no telemetry payload scan, decode or rewrite. A footerless crashed file SHALL remain readable as an embedded stream and recovery SHALL scan batch headers, skipping payload bodies, to rebuild the footer.
 
-#### Scenario: Finalize And Interrupted Run
+#### Scenario: Finalize and Interrupted Run
 - **WHEN** a run finalizes or restarts after a crash before footer completion
 - **THEN** finalize emits only footer metadata, or recovery preserves readable flushed batches and rebuilds their valid IPC footer from headers respectively
 
-### Requirement: Typed Contracts And Metadata
+### Requirement: Typed Contracts and Metadata
 Telemetry SHALL map integer/unsigned/number/bool/string to Int64/UInt64/Float64/Boolean/Utf8, arrays to List, declared objects to Struct, undeclared objects to JSON Utf8 and timestamps to Timestamp(µs, UTC). Fields SHALL retain unit, description and stream id; files SHALL retain execution id, Dokime version and contract hash.
 
 #### Scenario: External Reader Round Trip
 - **WHEN** a contract containing each value type is recorded and read using an Arrow reader
 - **THEN** typed values, nested structure, units and identity metadata are preserved
 
-### Requirement: Relational Catalog And Summaries
+### Requirement: Relational Catalog and Summaries
 SQLite SHALL expose `files(id,kind,path,size_bytes,sha256,media_type)` with artifact/telemetry/report kinds, `artifacts` referencing files, streams with execution/stream/file identity, row counts, first/last times and indexed batch offsets/time/row ranges, and retained incremental numeric summaries. Telemetry payload storage and per-signal tables/indexes SHALL be removed.
 
 #### Scenario: Catalog Joins
@@ -44,11 +44,11 @@ SQLite SHALL expose `files(id,kind,path,size_bytes,sha256,media_type)` with arti
 ### Requirement: Indexed Live Windows
 Charts, queries and outputs SHALL combine overlapping flushed batches selected through the batch index with the unflushed in-memory tail, retaining a query latency target of approximately one second per million samples or better.
 
-#### Scenario: Window With Pending Rows
+#### Scenario: Window with Pending Rows
 - **WHEN** a requested window overlaps saved batches and pending rows
 - **THEN** the result contains matching rows from both exactly once and reads no nonoverlapping batch payloads
 
-### Requirement: Portable Execution And Cycle Exports
+### Requirement: Portable Execution and Cycle Exports
 Execution ZIPs SHALL contain manifest.json with path/size/SHA-256, evidence.sqlite, reports/execution-<id>.html, artifacts/<relative path> and telemetry/<stream>.arrow. Arrow bytes MUST be copied unchanged. Cycle ZIPs SHALL place files under executions/<execution-id>/{artifacts,telemetry}/ and include reports/cycle-<id>.html.
 
 #### Scenario: Portable Archive

@@ -25,7 +25,9 @@ use super::*;
 /* === Constants === */
 
 const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
-    cancellation_timeout: crate::STOP_SETTLEMENT.timeout,
+    // A Live Watch Seals Within Its Existing Attempt Deadline. Cancellation Must
+    // Not Impose The Shorter Run-Stop Reply Budget On That Same Work.
+    cancellation_timeout: FOLLOW.attempt_timeout,
     ..FOLLOW
 };
 
@@ -35,7 +37,7 @@ const POLICY: harmos::operations::OperationPolicy = harmos::operations::Operatio
 
 /* === Structs === */
 
-// Public, so a template reaches it through `ctx.host()` without listing it.
+// Public, so a template reaches it through `ctx.operation(request)` without listing it.
 // A step built-in only: listeners watch through `FileWatch`, and a gRPC
 // binding would make the contract a plugin requires differ from the host's.
 // Watches a file or filtered directory for the calling step's execution until the instance is
@@ -101,12 +103,3 @@ pub struct WatchFile {
 /* === Private Functions === */
 
 /* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    use super::*;
-
-    crate::hosted!(WatchFile);
-}

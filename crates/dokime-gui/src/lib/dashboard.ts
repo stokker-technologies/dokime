@@ -11,7 +11,7 @@
 
 import { numericValue } from "@/lib/utils";
 
-import { formatDuration, formatNumber } from "./format";
+import { formatDuration, formatNumber, formatTitleWord } from "./format";
 import { formatRecordValue, isDatetimeValue } from "./record-display";
 import { parseTimestampMs } from "./time-format";
 import type { HubRecord } from "./types";
@@ -34,6 +34,7 @@ const ARTIFACT_LABEL_WORDS: Record<string, string> = {
   txt: "TXT",
   ui: "UI",
   url: "URL",
+  usb: "USB",
   wifi: "WiFi",
   xml: "XML",
   yaml: "YAML",
@@ -134,15 +135,15 @@ function numeric(value: unknown): number | null {
   return null;
 }
 
-function titleCaseArtifactWord(word: string): string {
+function titleCaseArtifactWord(word: string, index: number, words: string[]): string {
   const mapped = ARTIFACT_LABEL_WORDS[word.toLowerCase()];
   if (mapped) {
     return mapped;
   }
   if (word.toUpperCase() === word && word.length <= 5) {
-    return word;
+    return formatTitleWord(word, index, words);
   }
-  return `${word.slice(0, 1).toUpperCase()}${word.slice(1).toLowerCase()}`;
+  return formatTitleWord(word.toLowerCase(), index, words);
 }
 
 /* Dashboard facts read as fixed columns: two decimals until the integer part

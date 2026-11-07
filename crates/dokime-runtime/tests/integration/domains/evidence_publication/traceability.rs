@@ -79,7 +79,7 @@ pub(super) async fn resource_records_absent(runtime: &RuntimeHandle) {
     publish_tooling_resource(runtime, &execution_scope, "resource.opened", Some("TOOL-2")).await;
 
     let evidence = runtime.evidence_snapshot().await.unwrap();
-    let ours = runtime.cycles().await.into_iter().find(|item| item.test_cycle_id == test_cycle_id).unwrap();
+    let ours = runtime.cycles().await.unwrap().into_iter().find(|item| item.test_cycle_id == test_cycle_id).unwrap();
     let grouped = |prefix: &str| {
         evidence
             .traceability

@@ -399,6 +399,13 @@ fn requires(template: &Type, required: &TokenStream) -> TokenStream {
 
     quote! {
         #[automatically_derived]
+        const _: () = #sdk::catalog::assert_no_builtin_requirements(
+            <#required as #sdk::catalog::InertCatalog<
+                #sdk::__harmos::operations::Contracts,
+                #sdk::__harmos::operations::WireDeclaration,
+            >>::ENTRIES,
+        );
+
         impl #sdk::execution::Required for #template {
             type Operations = #required;
         }
@@ -993,7 +1000,7 @@ fn engine(
                 host: &'a #sdk::__harmos::sidecar::Supervisor,
                 token: &'a str,
                 stream: &'a #sdk::Identifier,
-                rows: &'a [#sdk::execution::StampedRow],
+                rows: ::std::vec::Vec<#sdk::execution::StampedRow>,
             ) -> #sdk::transport::TransportFuture<'a, ::core::result::Result<(), ::std::string::String>> {
                 ::std::boxed::Box::pin(async move {
                     #(#publications)*

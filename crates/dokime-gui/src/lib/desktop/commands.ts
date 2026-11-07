@@ -23,7 +23,7 @@ import { isReportBuild } from "@/lib/ui-mode";
 import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
 import type { BuildIdentity } from "./connection";
 import type { OrganizationStatus } from "./organization";
-import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./session";
+import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot, StorageBackupDestination } from "./session";
 import type { ParameterOverrides } from "./settings";
 import { settleUnlessStopping } from "./stopping";
 import type { PluginRelease, UpdateCheck, UpdateSelection, UpdateStatus } from "./updates";
@@ -64,6 +64,10 @@ export const commands = {
   desktopOpenBackendLog: () => invoke<null>("desktop_open_backend_log"),
   /** Development only: delete the owned backend's storage and restart it. */
   desktopResetLocalStorage: (directory: string) => invoke<DesktopSessionSnapshot>("desktop_reset_local_storage", { directory }),
+  desktopStorageBackupDestination: (choose = false) =>
+    invoke<StorageBackupDestination | null>("desktop_storage_backup_destination", { choose }),
+  desktopBackupResetLocalStorage: (directory: string, archive: string) =>
+    invoke<DesktopSessionSnapshot>("desktop_backup_reset_local_storage", { directory, archive }),
   desktopOpenPath: (path: string) => invoke<null>("desktop_open_path", { path }),
   desktopOpenTarget: (target: string) => invoke<null>("desktop_open_target", { target }),
   /** Save a verified document through the native file picker: the saved path, `null` when the operator cancels. */

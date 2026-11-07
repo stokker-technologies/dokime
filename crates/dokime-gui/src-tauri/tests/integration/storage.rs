@@ -12,14 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
-use std::fs;
+use std::{fs, path::Path};
 // Third Party Imports
 
 // Local Imports
 use dokime_gui::connection::ConnectionSession;
+use dokime_gui::native_session::backend::Backend;
 use dokime_gui::native_session::storage::StorageRoot;
-use dokime_gui::native_session::{DesktopSession, DesktopSessionError, StorageResetReason};
+use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSession, DesktopSessionError, StorageResetReason};
 
 /* === Constants === */
 
@@ -38,11 +40,75 @@ use dokime_gui::native_session::{DesktopSession, DesktopSessionError, StorageRes
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn reason(result: Result<dokime_gui::native_session::DesktopSessionSnapshot, DesktopSessionError>) -> Option<StorageResetReason> {
     match result {
         Err(DesktopSessionError::StorageReset { reason, .. }) => Some(reason),
         _ => None,
     }
+}
+
+fn recovery_owner(root: &Path) -> DesktopSession {
+    let arguments = dokime_server::host::Args {
+        shutdown_stdin: false,
+        dev_control: false,
+        network: dokime_server::host::NetworkArgs {
+            host: std::net::Ipv4Addr::LOCALHOST.into(),
+            port: Some(0),
+            message_limit_mib: Some(2),
+        },
+        title: None,
+        label: None,
+        output_root: Some(root.join("data")),
+        application_root: Some(root.to_owned()),
+        env_file: None,
+        plugins: Vec::new(),
+        plugins_root: None,
+    };
+    DesktopSession::with_local_backend(ConnectionSession::default(), Backend::new(arguments))
+}
+
+fn recovery_bundle() -> Vec<u8> {
+    use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
+    let owner = "reset_fixture";
+    let lifecycle = serde_json::json!([
+        {"action":"initialize", "identity":"harmos.operation.v1", "policy":dokime::operations::ORDINARY},
+        {"action":"shutdown", "identity":"harmos.operation.v1", "policy":dokime::operations::ORDINARY},
+    ]);
+    let registrations = [
+        serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Fixture","config":"()"}),
+        serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"entry":{"direction":"lifecycle","lifecycle":lifecycle}}),
+        serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}}),
+        serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]}),
+        serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]}),
+    ];
+    let mut executable = b"inert".to_vec();
+    for registration in registrations {
+        executable.extend_from_slice(dokime::harmos::artifacts::PREFIX);
+        executable.extend_from_slice(registration.to_string().as_bytes());
+        executable.push(0);
+    }
+    Bundle::build(
+        Identity {
+            name: "reset-fixture".into(),
+            version: "1.0.0".parse().unwrap(),
+            description: "Fixture".into(),
+            package: Default::default(),
+        },
+        &[Source {
+            path: "bin/fixture",
+            bytes: &executable,
+            executable: Some(Executable {
+                facility: Facility::Sidecar,
+                target: dokime::plugins::NATIVE_TARGET.into(),
+                registrations: vec![],
+            }),
+        }],
+        Limits::default(),
+    )
+    .unwrap()
+    .bytes()
+    .to_vec()
 }
 
 /* === Tests === */
@@ -78,7 +144,7 @@ fn backup_archives_store() {
     fs::write(store.join("artifacts/cycle-1/evidence.bin"), b"bytes").unwrap();
     fs::write(store.join("artifacts/cycle-1/nested/trace.csv"), vec![b'7'; 3 << 20]).unwrap();
 
-    // A Backend Holding The Lease Refuses The Backup
+    // A Backend Holding the Lease Refuses the Backup
     let lease = fs::OpenOptions::new().create(true).truncate(false).write(true).open(store.join("local.lock")).unwrap();
     lease.try_lock().unwrap();
     let destination = storage.backup_destination(time::OffsetDateTime::UNIX_EPOCH);
@@ -93,7 +159,7 @@ fn backup_archives_store() {
     assert!(!destination.exists());
     drop(lease);
 
-    // A Destination Inside The Root Is Refused
+    // A Destination Inside the Root Is Refused
     assert!(matches!(
         storage.archive(&store.join("inside.zip"), |_| {}),
         Err(DesktopSessionError::StorageReset {
@@ -102,7 +168,7 @@ fn backup_archives_store() {
         })
     ));
 
-    // The Archive Holds Every Nested File, The WAL Included, But The Lease
+    // The Archive Holds Every Nested File, the WAL Included, but the Lease
     let mut reports = Vec::new();
     let archive = storage.archive(&destination, |bytes| reports.push(bytes)).unwrap();
     assert_eq!(archive, destination);
@@ -140,8 +206,74 @@ fn backup_archives_store() {
     assert!(storage.archive(&destination, |_| {}).is_err());
     assert_eq!(fs::metadata(&archive).unwrap().len(), written);
 
-    // The Reset Then Empties The Root
+    // The Reset Then Empties the Root
     storage.clear().unwrap();
     assert_eq!(fs::read_dir(&store).unwrap().count(), 0);
     assert!(archive.exists());
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn backup_reset_backup_failure_leaves_storage_untouched_and_can_retry() {
+    let root = tempfile::tempdir().unwrap();
+    let data = root.path().join("data");
+    let application = dokime::paths::ApplicationPaths::new(root.path());
+    let database = dokime::storage::sqlite::State::open_with(&data, dokime::config::local_storage_defaults()).await.unwrap();
+    let settings = dokime::config::Settings::open(application.clone(), database.clone()).await.unwrap();
+    let store = dokime::plugins::PluginStore::new(settings, dokime::config::schema_defaults());
+    let bytes = recovery_bundle();
+    let install = store.install(&bytes, &[], &std::collections::BTreeSet::new()).await.unwrap().installation.install_id;
+    store.set_enabled(install, false).await.unwrap();
+    database.close().await.unwrap();
+    let connection = dokime::storage::sqlite::rusqlite::Connection::open(data.join("local.sqlite")).unwrap();
+    connection.pragma_update(None, "user_version", 999).unwrap();
+    drop(connection);
+    let saved = std::fs::read(data.join("local.sqlite")).unwrap();
+    std::fs::write(data.join("evidence"), b"retained evidence").unwrap();
+    let storage = StorageRoot::new(data.clone(), root.path().to_owned());
+    let owner = recovery_owner(root.path());
+    assert!(matches!(owner.select(BackendSelection::OwnedLocal).await, Err(DesktopSessionError::Startup { .. })));
+    let occupied = root.path().join("occupied.zip");
+    std::fs::write(&occupied, b"existing archive").unwrap();
+    assert!(owner.backup_and_reset_local_storage(storage.clone(), occupied.clone()).await.is_err());
+    assert_eq!(std::fs::read(data.join("local.sqlite")).unwrap(), saved);
+    assert_eq!(std::fs::read(data.join("evidence")).unwrap(), b"retained evidence");
+    assert_eq!(std::fs::read(occupied).unwrap(), b"existing archive");
+
+    let archive = root.path().join("saved.zip");
+    let recovered = owner.backup_and_reset_local_storage(storage, archive.clone()).await.unwrap();
+    assert_eq!(recovered.ownership, BackendOwnership::OwnedLocal);
+    assert_eq!(recovered.archive.as_deref(), Some(archive.to_str().unwrap()));
+    assert!(archive.is_file());
+    assert!(!data.join("evidence").exists());
+    owner.shutdown().await.unwrap();
+    let database = dokime::storage::sqlite::State::open_with(&data, dokime::config::local_storage_defaults()).await.unwrap();
+    let settings = dokime::config::Settings::open(application, database.clone()).await.unwrap();
+    let restored = dokime::plugins::PluginStore::new(settings, dokime::config::schema_defaults());
+    let entry = restored.get(install).await.unwrap();
+    assert_eq!(entry.installation.state, dokime::plugins::PluginState::Disabled);
+    assert!(entry.metadata.is_some());
+    assert_eq!(std::fs::read(restored.path(install)).unwrap(), bytes);
+    database.close().await.unwrap();
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn backup_reset_refuses_idle_and_another_backends_storage() {
+    let root = tempfile::tempdir().unwrap();
+    let storage = StorageRoot::new(root.path().join("data"), root.path().to_owned());
+    let owner = recovery_owner(root.path());
+    assert!(matches!(
+        owner.backup_and_reset_local_storage(storage.clone(), root.path().join("idle.zip")).await,
+        Err(DesktopSessionError::StorageReset { reason: StorageResetReason::NotOwned, .. })
+    ));
+    owner.select(BackendSelection::OwnedLocal).await.unwrap();
+    let other = recovery_owner(root.path());
+    assert!(matches!(other.select(BackendSelection::OwnedLocal).await, Err(DesktopSessionError::BackendRunning { .. })));
+    assert!(matches!(
+        other.backup_and_reset_local_storage(storage, root.path().join("occupied.zip")).await,
+        Err(DesktopSessionError::StorageReset { reason: StorageResetReason::NotOwned, .. })
+    ));
+    assert!(!root.path().join("occupied.zip").exists());
+    owner.shutdown().await.unwrap();
 }

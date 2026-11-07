@@ -1128,7 +1128,7 @@ pub(super) async fn normalised_report_rows() {
 
     let payload = parse(&render_annotated(&input, notes, health).await);
 
-    // One Row Per Subject
+    // One Row per Subject
     let notes = payload["snapshot"]["notes"].as_array().unwrap();
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0]["text"], "Edited");
@@ -1136,7 +1136,7 @@ pub(super) async fn normalised_report_rows() {
     assert_eq!(health.len(), 1);
     assert_eq!(health[0]["title"], "Recovered");
 
-    // Artifacts Arrive Complete With Their Download Target
+    // Artifacts Arrive Complete with Their Download Target
     let artifacts = payload["snapshot"]["artifacts"].as_array().unwrap();
     assert_eq!(artifacts.len(), 1);
     assert_eq!(artifacts[0]["href"], "data:application/json;base64,e30=");
@@ -1145,7 +1145,7 @@ pub(super) async fn normalised_report_rows() {
     assert_eq!(artifacts[0]["group_label"], "Outputs");
     assert!(payload.get("artifact_links").is_none());
 
-    // Steps Arrive Grouped Under Their Own Execution In Recorded Order
+    // Steps Arrive Grouped Under Their Own Execution in Recorded Order
     assert!(payload.get("test_steps").is_none());
     let steps = payload["test_executions"][0]["steps"].as_array().unwrap();
     assert_eq!(
@@ -1191,7 +1191,7 @@ pub(super) async fn latest_member_annotations(runtime: &RuntimeHandle) {
         detail: None,
         observed_at: Timestamp::new(at),
     };
-    // Each Run Settles With Its Member's Seal Before The Next Observation
+    // Each Run Settles with Its Member's Seal Before the Next Observation
     let run = async |member: &dokime_runtime::TestExecutionId| {
         let receipt = runtime
             .start_execution(member.clone(), dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default())

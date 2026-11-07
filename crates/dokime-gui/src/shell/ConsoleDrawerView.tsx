@@ -314,6 +314,7 @@ function RecordWindow({
       {onFollowChange && !follow ? (
         <Button
           className="absolute right-[var(--shell-inset)] bottom-2 shadow-sm"
+          data-testid="console-follow-latest"
           onClick={() => {
             pinned.current = true;
             onFollowChange(true);
@@ -322,7 +323,7 @@ function RecordWindow({
           variant="secondary"
         >
           <ArrowDownToLine data-icon="inline-start" />
-          Jump To Latest
+          Jump to Latest
         </Button>
       ) : null}
     </div>

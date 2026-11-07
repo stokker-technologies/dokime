@@ -30,7 +30,7 @@ use crate::commands::Command;
 /* === Structs === */
 
 #[derive(Debug, Parser)]
-#[command(name = "dokime", about = "Connect To Dokime Backends", version = dokime::version::label())]
+#[command(name = "dokime", about = "Connect to Dokime Backends", version = dokime::version::label())]
 pub struct Cli {
     #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(crate::terminal::ColorMode), help = "Color output: auto, always, or never.")]
     pub color: crate::terminal::ColorMode,

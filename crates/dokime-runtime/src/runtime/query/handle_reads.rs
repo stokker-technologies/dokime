@@ -178,8 +178,19 @@ impl RuntimeHandle {
         self.projected_evidence_snapshot(&snapshot).await
     }
 
-    pub async fn cycles(&self) -> Vec<dokime_domain::model::execution::result::CycleView> {
-        self.state_read().cycle_views().collect()
+    pub async fn cycles(&self) -> crate::runtime::Result<Vec<dokime_domain::model::execution::result::CycleView>> {
+        let mut cycles: Vec<_> = self.state_read().cycle_views().collect();
+        for cycle in &mut cycles {
+            for execution in &mut cycle.test_executions {
+                if execution.saved.is_some() {
+                    *execution = self
+                        .known_execution(&execution.test_execution_id)
+                        .await?
+                        .ok_or_else(|| crate::runtime::Error::Operation("sealed execution revision is missing".into()))?;
+                }
+            }
+        }
+        Ok(cycles)
     }
 
     pub async fn record_contracts(&self) -> Vec<crate::records::RecordContract> {
@@ -276,20 +287,30 @@ impl RuntimeHandle {
         use harmos::storage::{ObjectRead, query::ObjectVersions};
         let mut sealed = false;
         if let Some(id) = &selection.scope.test_execution_id {
-            let intent = self.state_read().report_finalizations.get(id).filter(|intent| intent.lifecycle.is_some()).cloned();
-            if let Some(intent) = intent {
-                sealed = at.covers(&intent.evidence_at)?;
+            let closed_at = {
+                let state = self.state_read();
+                state
+                    .report_finalizations
+                    .get(id)
+                    .filter(|intent| intent.lifecycle.is_some())
+                    .map(|intent| intent.evidence_at.clone())
+                    .or_else(|| state.executions.get(id)?.saved.as_ref().map(|seal| seal.dependencies_saved.clone()))
+            };
+            if let Some(closed_at) = closed_at {
+                sealed = at.covers(&closed_at)?;
             }
 
-            let mut rows = session
-                .read_objects::<crate::storage::objects::execution::Execution>(ObjectRead {
-                    at: at.clone(),
-                    key: Some(id.as_str()),
-                    versions: ObjectVersions::Latest,
-                })
-                .await?;
-            while let Some(page) = rows.next().await? {
-                sealed |= page.iter().any(|row| row.value.is_sealed());
+            if !sealed {
+                let mut rows = session
+                    .read_objects::<crate::storage::objects::execution::Execution>(ObjectRead {
+                        at: at.clone(),
+                        key: Some(id.as_str()),
+                        versions: ObjectVersions::Latest,
+                    })
+                    .await?;
+                while let Some(page) = rows.next().await? {
+                    sealed |= page.iter().any(|row| row.value.is_sealed());
+                }
             }
         }
         let options = crate::runtime::storage::telemetry::ReadOptions { after, ..Default::default() };
@@ -305,16 +326,15 @@ impl RuntimeHandle {
     }
 
     pub async fn query_plot_payloads(
-        &self, requests: Vec<crate::queries::PlotPayloadRequest>, mode: crate::queries::RuntimePlotQueryMode,
+        &self, requests: Vec<crate::queries::PlotPayloadRequest>,
     ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<crate::queries::PlotPayloadEnvelope>>> {
-        crate::queries::plots::query_plot_payloads(self, requests, mode).await
+        crate::queries::plots::query_plot_payloads(self, requests).await
     }
 
     pub async fn query_plot_payloads_at(
-        &self, requests: Vec<crate::queries::PlotPayloadRequest>, mode: crate::queries::RuntimePlotQueryMode,
-        at: &harmos::storage::StorageCursor,
+        &self, requests: Vec<crate::queries::PlotPayloadRequest>, at: &harmos::storage::StorageCursor,
     ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<crate::queries::PlotPayloadEnvelope>>> {
-        crate::queries::plots::query_plot_payloads_at(self, requests, mode, at).await
+        crate::queries::plots::query_plot_payloads_at(self, requests, at).await
     }
 
     pub async fn query_plot_stream_batches(

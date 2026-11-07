@@ -7,7 +7,7 @@
  * ***
  */
 
-// File And Stream Catalog For Arrow Telemetry
+// File and Stream Catalog for Arrow Telemetry
 
 /* === Modules === */
 
@@ -81,11 +81,6 @@ CREATE TABLE IF NOT EXISTS stream_captures (
 CREATE INDEX IF NOT EXISTS stream_capture_cycle ON stream_captures(cycle,file_id,batch,first_row);
 CREATE INDEX IF NOT EXISTS stream_capture_execution ON stream_captures(execution,file_id,batch,first_row);
 CREATE INDEX IF NOT EXISTS stream_capture_batch ON stream_captures(file_id,batch);
-CREATE TABLE IF NOT EXISTS stream_summaries (
-    file_id TEXT NOT NULL REFERENCES streams(file_id), signal TEXT NOT NULL,
-    count INTEGER NOT NULL, minimum REAL NOT NULL, maximum REAL NOT NULL, sum REAL NOT NULL,
-    PRIMARY KEY(file_id,signal)
-) WITHOUT ROWID;
 ";
 
 /* === Macros === */
@@ -103,10 +98,14 @@ CREATE TABLE IF NOT EXISTS stream_summaries (
 /* === Public Functions === */
 
 pub(super) fn composed(connection: &Connection, key: &harmos::storage::SchemaKey) -> Result<harmos::storage::StorageSchema> {
+    composed_at(connection, key, u64::MAX)
+}
+
+pub(super) fn composed_at(connection: &Connection, key: &harmos::storage::SchemaKey, at: u64) -> Result<harmos::storage::StorageSchema> {
     let encoded = serde_json::to_string(key)?;
     let mut statement = connection
-        .prepare("SELECT body,digest FROM storage_data_entries WHERE kind='schema' AND schema_key=?1 ORDER BY position DESC LIMIT 1")?;
-    let mut rows = statement.query([encoded])?;
+        .prepare("SELECT body,digest FROM storage_data_entries WHERE kind='schema' AND schema_key=?1 AND position<=?2 ORDER BY position DESC LIMIT 1")?;
+    let mut rows = statement.query(params![encoded, super::super::position(at)])?;
     let row = rows.next()?.ok_or(Error::Corrupt("telemetry schema is absent"))?;
     let body = super::super::blob(row, 0)?;
     super::super::check_digest(body, super::super::blob(row, 1)?)?;

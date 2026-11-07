@@ -179,12 +179,25 @@ pub(crate) fn telemetry_needed(definition: &DocumentDefinition, context: Context
     bindings_need(definition, |expression| expression_needs_telemetry(expression, context))
 }
 
-pub(crate) fn records_needed(definition: &DocumentDefinition) -> bool {
-    bindings_need(definition, |expression| matches!(expression.source, DataSource::Record { .. }))
+pub(crate) fn repeat_artifacts_needed(definition: &DocumentDefinition) -> bool {
+    let needs = |expression: &DataExpression| matches!(expression.source, DataSource::Artifact { .. });
+    definition.sections.iter().filter_map(|section| section.repeat.as_ref()).any(|repeat| repeat_needs(repeat, needs))
+        || nodes_need(&definition.layout.nodes, needs)
 }
 
-pub(crate) fn artifacts_needed(definition: &DocumentDefinition) -> bool {
-    bindings_need(definition, |expression| matches!(expression.source, DataSource::Artifact { .. }))
+pub(crate) fn card_artifacts_needed(card: &super::DocumentCardDefinition) -> bool {
+    let DocumentCardBody::TelemetrySummary { summary } = &card.body else { return false };
+    card.filters
+        .iter()
+        .map(|filter| &filter.expression)
+        .chain(
+            summary
+                .groups
+                .iter()
+                .flat_map(|group| &group.tiles)
+                .flat_map(|tile| std::iter::once(&tile.value).chain(tile.filters.iter().map(|filter| &filter.expression))),
+        )
+        .any(|expression| matches!(expression.source, DataSource::Artifact { .. }))
 }
 
 pub(crate) fn context_needed(definition: &DocumentDefinition) -> bool {
@@ -272,59 +285,6 @@ pub(super) fn validate_predicates<'a>(expression: &DataExpression, filters: impl
     Ok(())
 }
 
-pub(super) fn evaluation_work(definition: &DocumentDefinition, rows: usize, instances: usize) -> usize {
-    summary_expressions(definition)
-        .fold(0usize, |total, expression| total.saturating_add(plan(expression, rows).map_or(usize::MAX, |plan| plan.work(rows))))
-        .saturating_mul(instances.max(1))
-}
-
-pub(super) fn correlation_work(definition: &DocumentDefinition, rows: usize, instances: usize) -> usize {
-    fn correlated(expression: &DataExpression, rows: usize) -> usize {
-        let lookup = expression.transforms.iter().any(|transform| matches!(transform, DataTransform::TimeBetween { .. }));
-        let per_case = expression.transforms.contains(&DataTransform::PerCase);
-        if !lookup && !per_case {
-            return 0;
-        }
-        rows.saturating_mul(rows).saturating_mul(usize::from(lookup) + usize::from(per_case))
-    }
-    let mut expressions = 0usize;
-    for (filters, body) in definition
-        .cards
-        .iter()
-        .map(|card| (&card.filters, &card.body))
-        .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| (&card.filters, &card.body))))
-    {
-        if let DocumentCardBody::TelemetrySummary { summary } = body {
-            expressions = filters.iter().fold(expressions, |count, filter| count.saturating_add(correlated(&filter.expression, rows)));
-            for tile in summary.groups.iter().flat_map(|group| &group.tiles) {
-                expressions = expressions.saturating_add(correlated(&tile.value, rows));
-                expressions =
-                    tile.filters.iter().fold(expressions, |count, filter| count.saturating_add(correlated(&filter.expression, rows)));
-            }
-        }
-    }
-    fn repeat_count(repeat: &super::DocumentSectionRepeat, rows: usize) -> usize {
-        repeat.filters.iter().fold(
-            correlated(&repeat.value, rows).saturating_add(repeat.order_by.as_ref().map_or(0, |order| correlated(order, rows))),
-            |count, filter| count.saturating_add(correlated(&filter.expression, rows)),
-        )
-    }
-    fn node_count(nodes: &[DocumentNode], rows: usize) -> usize {
-        nodes.iter().fold(0usize, |count, node| match node {
-            DocumentNode::Section(section) => count
-                .saturating_add(section.repeat.as_ref().map_or(0, |repeat| repeat_count(repeat, rows)))
-                .saturating_add(node_count(&section.children, rows)),
-            _ => count,
-        })
-    }
-    expressions = definition
-        .sections
-        .iter()
-        .fold(expressions, |count, section| count.saturating_add(section.repeat.as_ref().map_or(0, |repeat| repeat_count(repeat, rows))))
-        .saturating_add(node_count(&definition.layout.nodes, rows));
-    expressions.saturating_mul(instances.max(1))
-}
-
 pub(super) fn row<'a>(input: Row<'a>, expression: &DataExpression, evidence: Evidence<'a>) -> Option<Cow<'a, Value>> {
     let (sample, record, artifact, context) = match input {
         Row::Sample { sample, context } => (Some(sample), None, None, context),
@@ -396,11 +356,6 @@ pub(super) fn evaluate(expression: &DataExpression, evidence: Evidence<'_>, sele
 
 /* === Private Functions === */
 
-fn plan(expression: &DataExpression, rows: usize) -> Result<Plan<'_>> {
-    let cases = expression.transforms.contains(&DataTransform::PerCase).then_some(rows.max(1));
-    Plan::compile(expression, cases)
-}
-
 fn correlate<'a>(record: RecordView<'a>, expression: &DataExpression, evidence: Evidence<'a>) -> Option<Cow<'a, Value>> {
     let selector = DataExpression {
         label: None,
@@ -466,21 +421,7 @@ fn nodes_need(nodes: &[DocumentNode], needs: impl Fn(&DataExpression) -> bool + 
     })
 }
 
-fn summary_expressions(definition: &DocumentDefinition) -> impl Iterator<Item = &DataExpression> {
-    definition
-        .cards
-        .iter()
-        .map(|card| &card.body)
-        .chain(definition.sections.iter().flat_map(|section| section.cards.iter().map(|card| &card.body)))
-        .filter_map(|body| match body {
-            DocumentCardBody::TelemetrySummary { summary } => Some(summary),
-            _ => None,
-        })
-        .flat_map(|summary| summary.groups.iter().flat_map(|group| &group.tiles))
-        .map(|tile| &tile.value)
-}
-
-fn validate_expression(expression: &DataExpression, aggregate: bool) -> Result<()> {
+pub(super) fn validate_expression(expression: &DataExpression, aggregate: bool) -> Result<()> {
     if let Some(index) = expression.transforms.iter().position(|transform| matches!(transform, DataTransform::PerCase)) {
         let suffix = &expression.transforms[index + 1..];
         if !aggregate || suffix.len() != 1 || suffix.first().is_some_and(|transform| !matches!(transform, DataTransform::Aggregate(_))) {

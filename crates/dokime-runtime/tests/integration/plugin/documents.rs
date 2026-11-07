@@ -138,7 +138,7 @@ impl Probe {
     }
 
     #[dokime_runtime::step(
-        label = "Wait For The Observer",
+        label = "Wait for the Observer",
         description = "Waits until the observer has had its turn at the shared index.\nWithout it the run could end before any tick \
         happened, and the claim this file makes about two tasks sharing one index would be asserted by a test that never exercised it."
     )]
@@ -162,7 +162,7 @@ impl Probe {
             return Ok(());
         }
 
-        let mut observed = Section::new("From The Observer");
+        let mut observed = Section::new("From the Observer");
         observed.id("documents.checks.discovered");
         ctx.document().section(observed);
         ctx.resources().observed.store(true, Ordering::Release);

@@ -23,7 +23,7 @@ use futures_util::FutureExt;
 use harmos::{Message, schema::Described};
 
 // Local Imports
-use dokime_runtime::runtime::query::{PlotPayloadRequest, RuntimePlotQueryMode};
+use dokime_runtime::runtime::query::PlotPayloadRequest;
 use dokime_runtime::telemetry::{TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample};
 use dokime_runtime::{Identifier, Metadata, ValueType};
 use dokime_runtime::{InstalledPlugin, Runtime, RuntimeConfig};
@@ -39,9 +39,9 @@ const STREAM: &str = "bench.plot";
 /* === Structs === */
 #[harmos::message]
 #[derive(Clone, PartialEq)]
-struct PlotRow {
-    timestamp: String,
-    value: Option<f64>,
+pub(super) struct PlotRow {
+    pub(super) timestamp: String,
+    pub(super) value: Option<f64>,
 }
 
 /* === Enums === */
@@ -101,14 +101,14 @@ async fn measure_all() {
     let exact = dokime_runtime::config::local_storage_defaults().previews.exact_points.get();
     let fixture = crate::service_support::all_plots::AllPlots::new(root.path(), 14_400, 1, exact).await;
     let at = fixture.runtime.storage().cursor_saved();
-    fixture.runtime.query_plot_payloads_at(Vec::new(), RuntimePlotQueryMode::Snapshot, &at).await.unwrap();
+    fixture.runtime.query_plot_payloads_at(Vec::new(), &at).await.unwrap();
     for window in [Some(300.0), None] {
         let mut total = Duration::ZERO;
         for request in fixture.requests(2000, window) {
             let id = request.plot_id.clone().unwrap();
             let before = fixture.runtime.storage_read_counters();
             let started = Instant::now();
-            let result = fixture.runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).await.unwrap();
+            let result = fixture.runtime.query_plot_payloads(vec![request]).await.unwrap();
             let elapsed = started.elapsed();
             total += elapsed;
             let payload = &result[0].payload;
@@ -146,7 +146,7 @@ async fn measure_queries() {
             ..Default::default()
         };
         let started = Instant::now();
-        let result = runtime.query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot).boxed_local().await;
+        let result = runtime.query_plot_payloads(vec![request]).boxed_local().await;
         let elapsed = started.elapsed();
         match result {
             Ok(envelopes) => {

@@ -237,7 +237,7 @@ inspect the question before deciding whether to submit again. Duplicate or stale
 answers are refused by the server. To cancel the prompt, pass `action="cancel",
 accepted=False`; stopping the execution also settles its pending prompts.
 
-## Remote Control And Listening
+## Remote Control and Listening
 
 Use the backend's HTTPS origin, its access key and the public certificate
 downloaded from the host. Keep the key outside source files. The scripts in
@@ -307,7 +307,7 @@ fails live readers; recover immutable evidence through the original checkpoint.
 Downloads verify identity, contiguous offsets, completion, byte count and SHA-256
 before replacing the destination.
 
-## Canonical Operations And Plugin Discovery
+## Canonical Operations and Plugin Discovery
 
 The generated SDK exposes typed operation constants and standard protobuf request
 and response classes from the canonical Harmos catalog. The client also discovers
@@ -428,7 +428,7 @@ the server advertises effective limits. `at=` accepts a query snapshot or saved
 `Checkpoint`. These finite readers never follow, start, stop or seal work;
 existing `records()`/`samples()` and checkpoint APIs retain their behavior.
 
-## Typed Status And Record Schemas
+## Typed Status and Record Schemas
 
 Use typed statuses to refuse a new run while the backend has active work:
 
@@ -598,7 +598,7 @@ The generated field remains a plain protobuf oneof:
 `entry.aggregate.WhichOneof("_harmos_variant")` names the member. An absent
 member reads as `Count`.
 
-## Follow And Resume Execution Files
+## Follow and Resume Execution Files
 
 `Execution.follow_file(relative_path, destination)` keeps a local file
 up to date while its registered backend producer writes it. Each update includes

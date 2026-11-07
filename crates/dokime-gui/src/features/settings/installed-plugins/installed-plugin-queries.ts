@@ -51,6 +51,12 @@ export function useInstalledPluginsQuery() {
 
 export function useInstalledPluginDetailQuery(pluginId: string, ownerKey: string) {
   const session = useNativeSession();
+  const client = useQueryClient();
+  const operations = useHubStore((state) => state.operations.map((operation) => `${operation.id}:${operation.status}`).join());
+  // biome-ignore lint/correctness/useExhaustiveDependencies: operation transitions refresh settings applied by another GUI
+  useEffect(() => {
+    void client.invalidateQueries({ queryKey: pluginQueryKeys.detail(pluginId, session.identity.generation) });
+  }, [client, pluginId, session.identity.generation, operations]);
   return useQuery({
     enabled: Boolean(pluginId),
     queryFn: () => {
@@ -82,7 +88,7 @@ export function useInstalledPluginSettingsMutation() {
 }
 
 /**
- * While saved settings wait to restart their program, re-read the plugin
+ * While an explicit reload waits to restart its program, re-read the plugin
  * views whenever the backend's operations change: the restart runs as one,
  * and a failed restart is recorded like a failed startup.
  */

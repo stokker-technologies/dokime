@@ -65,7 +65,7 @@ def sync_output(source: Path, destination: Path) -> None:
     _ensure_directory(destination)
     sources = _tree(source, allow_links=False)
     destinations = _tree(destination, allow_links=True)
-    # Validate The Complete Projection Before Pruning
+    # Validate the Complete Projection Before Pruning
     for relative in sources.keys() & destinations.keys():
         if destinations[relative] == "symlink":
             raise ValueError(f"build output destination contains an unsafe entry: {destination / relative}")

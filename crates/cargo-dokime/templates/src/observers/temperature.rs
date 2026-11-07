@@ -19,8 +19,8 @@
 
 // Local Imports
 use crate::domain::model::chamber::TemperatureRow;
-use crate::{Bench, Plugin};
-use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
+use crate::operations::ReadChamber;
+use dokime::harmos::sidecar::{ObserverContext, Publisher};
 
 /* === Constants === */
 
@@ -41,20 +41,14 @@ pub struct Temperature;
 
 #[dokime::observer(interval_ms = 1_000, streams(TemperatureRow), activation = "demand")]
 impl Temperature {
-    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<Plugin>>) -> Result<(), PublishError> {
-        // A sensor that cannot be read publishes nothing this tick; the next
-        // tick reads it again.
-        let Ok(celsius) = ctx.resource::<Bench>().expect("plugin prepares its bench").sensor.read_celsius() else {
-            return Ok(());
-        };
-        ctx.publish_on::<TemperatureRow>(&TemperatureRow { celsius }).await
+    async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<crate::Plugin>>) -> Result<(), dokime::Refusal> {
+        // Read Chamber Temperature
+        let operation = ReadChamber {};
+        let reading = dokime::plugin::refusal(ctx.operation(operation).await)?;
+        let row = TemperatureRow { temperature_c: reading.temperature_c };
+        dokime::plugin::refusal(ctx.publish_on::<TemperatureRow>(&row).await)?;
+        Ok(())
     }
-
-    // An observer that opened a port, a file or a child process closes it in an
-    // `async fn stop(&mut self) -> Result<(), Error>` here, which runs on this observer's own task when
-    // the last lease ends — before the plugin is handed back its own handles.
-    // This one borrows the bench's shared sensor and has nothing of its own to
-    // close, so it keeps the trait's empty ending.
 }
 
 /* === Public Functions === */

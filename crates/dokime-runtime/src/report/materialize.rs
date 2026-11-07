@@ -138,7 +138,7 @@ async fn materialize_execution(
             health_item_id: crate::model::identity::new_id(),
             scope: execution.scope.clone(),
             severity: dokime_domain::model::execution::health::HealthSeverity::Info,
-            message: format!("Report As Of {}", captured.captured_at),
+            message: format!("Report as of {}", captured.captured_at),
             detail: Some(format!("Saved evidence through storage cursor {}.", captured.evidence_through.sequence)),
             observed_at: captured.captured_at.clone(),
         });
@@ -172,41 +172,30 @@ async fn materialize_execution(
     samples.sort_by(|left, right| left.timestamp.cmp(&right.timestamp).then(left.sequence.cmp(&right.sequence)));
     let selection = crate::document::DocumentSelection { scope: execution.scope.clone() };
     let context = crate::document::input::Context::new(std::slice::from_ref(execution), &selection.scope);
-    let selected_records: Vec<_> = records.iter().collect();
-    let outputs: Vec<_> =
-        super::previews::indices(captured.outputs.len(), table_rows).map(|index| captured.outputs[index].clone()).collect();
-    let bindings = crate::document::bounded::SharedBindings::new(
-        &selection,
-        crate::document::input::BorrowedData {
-            context,
-            records: crate::document::input::Records::Native(selected_records.as_slice().into()),
-            telemetry: &samples,
-            artifacts: crate::document::input::Artifacts::Outputs(&outputs),
-        },
-        crate::document::bounded::DocumentLimits {
+    let data = crate::document::input::BorrowedData {
+        context,
+        records: Default::default(),
+        telemetry: &[],
+        artifacts: crate::document::input::Artifacts::Outputs(&captured.outputs),
+    };
+    let environment = crate::document::query::Environment {
+        storage: &ctx.storage,
+        config: &ctx.query,
+        journal: None,
+        limits: crate::document::bounded::DocumentLimits {
             source_bytes: captured.report_defaults.source_bytes as usize,
             materialized_bytes: captured.report_defaults.source_bytes as usize,
-            ..crate::document::bounded::DocumentLimits::default()
+            depth: captured.report_defaults.value_depth as usize,
+            ..Default::default()
         },
-    )?;
-    // Repeated Sections Expand Over The Complete Evidence, Not The Bounded Rows.
-    let repeats = crate::runtime::storage::document_repeats::resolve(
-        inspection,
-        &ctx.storage,
-        &ctx.resources().schema_settings,
-        &selection,
-        context,
-        &captured.outputs,
-        crate::document::resolve::RepeatScan::new(captured.context.execution_documents.values())?,
-    )
-    .await?;
+    };
     let limits = ctx.storage.preview_settings().into();
     let mut documents = BTreeMap::new();
     let mut plots = BTreeMap::new();
     for (id, definition) in &captured.context.execution_documents {
         let _permit = operation.report_work().await;
-        let mut document = bindings.capture(definition, Some(&repeats))?;
-        super::previews::summaries(&mut document, &exact, &fields, context);
+        let input = crate::document::input::BorrowedInput { definition, selection: &selection, data };
+        let mut document = crate::document::query::capture(environment, input, &captured.evidence_through).await?;
         document.warnings.push(super::previews::warning(format!(
             "Telemetry previews contain at most the first and last {} rows per stream. Plots use bounded previews. Complete raw data: execution {}, evidence through {} (use execution evidence paging or cycle.save).",
             table_rows, execution.test_execution_id, captured.evidence_through.sequence)));

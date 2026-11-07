@@ -21,7 +21,7 @@ use serde::Serialize;
 
 // Local Imports
 use super::input::{BorrowedData, BorrowedInput, DocumentSelection};
-use super::{DocumentDefinition, DocumentNode, DocumentPayload, DocumentResolveInput};
+use super::{DocumentDefinition, DocumentPayload, DocumentResolveInput};
 
 /* === Constants === */
 
@@ -37,24 +37,26 @@ pub struct DocumentLimits {
     pub depth: usize,
     pub expanded_nodes: usize,
     pub materialized_bytes: usize,
-    pub evaluation_work: usize,
     pub layout_depth: usize,
     pub unavailable_reason_bytes: usize,
     pub maximum_plot_points: usize,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DocumentLimit;
-
 pub(crate) struct SharedBindings<'a> {
     selection: &'a DocumentSelection,
     data: BorrowedData<'a>,
     bytes: usize,
-    rows: usize,
     limits: DocumentLimits,
 }
 
 /* === Enums === */
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DocumentLimit {
+    Bytes { limit: usize, reached: usize },
+    Depth { limit: usize, reached: usize },
+    Encoding,
+}
 
 /* === Traits === */
 
@@ -67,7 +69,6 @@ impl Default for DocumentLimits {
             depth: 32,
             expanded_nodes: 4096,
             materialized_bytes: 33554432,
-            evaluation_work: 256000000,
             layout_depth: 12,
             unavailable_reason_bytes: 512,
             maximum_plot_points: 100000,
@@ -77,7 +78,11 @@ impl Default for DocumentLimits {
 
 impl std::fmt::Display for DocumentLimit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("document source, expansion, or evaluation budget exceeded")
+        match self {
+            Self::Bytes { limit, reached } => write!(f, "encoded_bytes exceeded (limit {limit}, reached {reached})"),
+            Self::Depth { limit, reached } => write!(f, "value_depth exceeded (limit {limit}, reached {reached})"),
+            Self::Encoding => f.write_str("document value cannot be encoded"),
+        }
     }
 }
 
@@ -85,33 +90,15 @@ impl std::error::Error for DocumentLimit {}
 
 impl<'a> SharedBindings<'a> {
     pub(crate) fn new(selection: &'a DocumentSelection, data: BorrowedData<'a>, limits: DocumentLimits) -> crate::Result<Self> {
-        #[derive(Serialize)]
-        struct Shared<'a> {
-            selection: &'a DocumentSelection,
-            data: BorrowedData<'a>,
-        }
-        let bytes =
-            document_size(&Shared { selection, data }, limits.source_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
-        let rows =
-            data.telemetry.len().saturating_add(data.context.len()).saturating_add(data.records.len()).saturating_add(data.artifacts.len());
-        Ok(Self { selection, data, bytes, rows, limits })
+        let bytes = document_size(selection, limits.source_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
+        Ok(Self { selection, data, bytes, limits })
     }
 
     fn validate(&self, definition: &DocumentDefinition) -> crate::Result<()> {
-        self.validate_expanding(definition, self.rows)
-    }
-
-    // Repeats Resolved Ahead Of The Capture May Expand Beyond Its Own Rows.
-    fn validate_expanding(&self, definition: &DocumentDefinition, instances: usize) -> crate::Result<()> {
         let bytes = document_size(definition, self.limits.source_bytes, self.limits.depth.saturating_sub(1))
             .map_err(|_| super::DocumentFailure::Limit)?;
         let total = self.bytes.checked_add(b",\"definition\":".len()).and_then(|total| total.checked_add(bytes));
         if total.is_none_or(|total| total > self.limits.source_bytes) {
-            return Err(super::DocumentFailure::Limit.into());
-        }
-        preflight_definition(definition, instances.max(self.rows), self.limits, bytes).map_err(|_| super::DocumentFailure::Limit)?;
-        let context_work = bytes.checked_mul(self.data.context.len()).and_then(|work| work.checked_mul(self.rows.max(1)));
-        if context_work.is_none_or(|work| work > self.limits.evaluation_work) {
             return Err(super::DocumentFailure::Limit.into());
         }
         Ok(())
@@ -122,7 +109,7 @@ impl<'a> SharedBindings<'a> {
     pub(crate) fn capture(
         &self, definition: &'a DocumentDefinition, repeats: Option<&super::resolve::RepeatValues>,
     ) -> crate::Result<crate::document::capture::Capture> {
-        self.validate_expanding(definition, repeats.map_or(0, super::resolve::RepeatValues::instances))?;
+        self.validate(definition)?;
         let input = BorrowedInput {
             definition,
             selection: self.selection,
@@ -144,12 +131,27 @@ pub fn document_size<T: Serialize + ?Sized>(value: &T, max_bytes: usize, max_dep
         max_depth: usize,
         quoted: bool,
         escaped: bool,
+        failure: Option<DocumentLimit>,
+    }
+    impl Counter {
+        fn refuse(&mut self, failure: DocumentLimit) -> std::io::Error {
+            self.failure = Some(failure);
+            std::io::Error::other(failure)
+        }
     }
     impl Write for Counter {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.bytes = self.bytes.checked_add(bytes.len()).ok_or_else(refusal)?;
+            self.bytes = self.bytes.checked_add(bytes.len()).ok_or_else(|| {
+                self.refuse(DocumentLimit::Bytes {
+                    limit: self.max_bytes,
+                    reached: usize::MAX,
+                })
+            })?;
             if self.bytes > self.max_bytes {
-                return Err(refusal());
+                return Err(self.refuse(DocumentLimit::Bytes {
+                    limit: self.max_bytes,
+                    reached: self.bytes,
+                }));
             }
             for byte in bytes {
                 if self.quoted {
@@ -166,7 +168,10 @@ pub fn document_size<T: Serialize + ?Sized>(value: &T, max_bytes: usize, max_dep
                         b'{' | b'[' => {
                             self.depth += 1;
                             if self.depth > self.max_depth {
-                                return Err(refusal());
+                                return Err(self.refuse(DocumentLimit::Depth {
+                                    limit: self.max_depth,
+                                    reached: self.depth,
+                                }));
                             }
                         }
                         b'}' | b']' => self.depth -= 1,
@@ -180,9 +185,6 @@ pub fn document_size<T: Serialize + ?Sized>(value: &T, max_bytes: usize, max_dep
             Ok(())
         }
     }
-    fn refusal() -> std::io::Error {
-        std::io::Error::other(DocumentLimit)
-    }
     let mut counter = Counter {
         bytes: 0,
         depth: 0,
@@ -190,8 +192,11 @@ pub fn document_size<T: Serialize + ?Sized>(value: &T, max_bytes: usize, max_dep
         max_depth,
         quoted: false,
         escaped: false,
+        failure: None,
     };
-    serde_json::to_writer(&mut counter, value).map_err(|_| DocumentLimit)?;
+    if serde_json::to_writer(&mut counter, value).is_err() {
+        return Err(counter.failure.unwrap_or(DocumentLimit::Encoding));
+    }
     Ok(counter.bytes)
 }
 
@@ -215,90 +220,39 @@ pub(crate) fn capture_document_borrowed(
 
 /* === Private Functions === */
 
-fn preflight_definition(
-    definition: &DocumentDefinition, telemetry_rows: usize, limits: DocumentLimits, bytes: usize,
-) -> Result<usize, DocumentLimit> {
-    fn nodes(items: &[DocumentNode], samples: usize, depth: usize, limit: usize) -> Result<(usize, usize), DocumentLimit> {
-        if depth == 0 {
-            return Err(DocumentLimit);
+pub(crate) fn card_size<T: Serialize + ?Sized>(value: &T, maximum: usize, depth: usize, card: &str) -> crate::Result<()> {
+    let reached = document_size(value, usize::MAX, depth).map_err(|error| match error {
+        DocumentLimit::Depth { limit, reached } => super::DocumentFailure::Budget {
+            budget: "value_depth",
+            limit,
+            reached,
+            card: card.to_owned(),
+        },
+        DocumentLimit::Bytes { reached, .. } => super::DocumentFailure::Budget {
+            budget: "materialized_bytes",
+            limit: maximum,
+            reached,
+            card: card.to_owned(),
+        },
+        DocumentLimit::Encoding => super::DocumentFailure::Evaluation {
+            message: "document card cannot be encoded",
+        },
+    })?;
+    if reached > maximum {
+        return Err(super::DocumentFailure::Budget {
+            budget: "materialized_bytes",
+            limit: maximum,
+            reached,
+            card: card.to_owned(),
         }
-        let mut constructed = 0usize;
-        let mut declared = 0usize;
-        for node in items {
-            let (amount, source) = match node {
-                DocumentNode::Card(_) => (1, 1),
-                DocumentNode::Section(section) => {
-                    let (children, descendants) = nodes(&section.children, samples, depth - 1, limit)?;
-                    let source = descendants.checked_add(1).ok_or(DocumentLimit)?;
-                    let amount = children.checked_add(1).ok_or(DocumentLimit)?;
-                    let amount = if section.repeat.is_some() {
-                        // Expansion Copies Every Declared Descendant Before Its
-                        // Nested Repeats Materialize Their Own Children.
-                        amount.checked_add(descendants).and_then(|nodes| nodes.checked_mul(samples.max(1))).ok_or(DocumentLimit)?
-                    } else {
-                        amount
-                    };
-                    (amount, source)
-                }
-            };
-            constructed = constructed.checked_add(amount).filter(|count| *count <= limit).ok_or(DocumentLimit)?;
-            declared = declared.checked_add(source).ok_or(DocumentLimit)?;
-        }
-        Ok((constructed, declared))
+        .into());
     }
-    let mut count = definition
-        .sections
-        .iter()
-        .try_fold(definition.cards.len(), |count, section| count.checked_add(section.cards.len()).ok_or(DocumentLimit))?;
-    let mut repeats = definition.sections.iter().any(|section| section.repeat.is_some());
-    repeats |= has_repeat(&definition.layout.nodes);
-    count =
-        count.checked_add(nodes(&definition.layout.nodes, telemetry_rows, limits.depth, limits.expanded_nodes)?.0).ok_or(DocumentLimit)?;
-    for section in &definition.sections {
-        let multiplier = if section.repeat.is_some() { telemetry_rows.max(1) } else { 1 };
-        count = count
-            .checked_add(
-                section
-                    .cards
-                    .len()
-                    .checked_add(1)
-                    .and_then(|nodes| if section.repeat.is_some() { nodes.checked_add(section.cards.len()) } else { Some(nodes) })
-                    .and_then(|nodes| nodes.checked_mul(multiplier))
-                    .ok_or(DocumentLimit)?,
-            )
-            .ok_or(DocumentLimit)?;
-    }
-    if definition.layout.nodes.is_empty() && definition.sections.is_empty() {
-        // Normalization Creates One Implicit Placement Per Card Definition.
-        count = count.checked_add(definition.cards.len()).ok_or(DocumentLimit)?;
-    }
-    if count > limits.expanded_nodes
-        || bytes
-            .checked_mul(telemetry_rows.max(1))
-            .and_then(|work| work.checked_add(super::binding::evaluation_work(definition, telemetry_rows, count)))
-            .and_then(|work| work.checked_add(super::binding::correlation_work(definition, telemetry_rows, count)))
-            .is_none_or(|n| n > limits.evaluation_work)
-        || (repeats
-            && telemetry_rows
-                .checked_mul(telemetry_rows)
-                .and_then(|n| n.checked_mul(count.max(1)))
-                .is_none_or(|n| n > limits.evaluation_work))
-    {
-        return Err(DocumentLimit);
-    }
-    Ok(count)
+    Ok(())
 }
 
 pub(crate) fn check_payload(payload: DocumentPayload, limits: DocumentLimits) -> crate::Result<DocumentPayload> {
     document_size(&payload, limits.materialized_bytes, limits.depth).map_err(|_| super::DocumentFailure::Limit)?;
     Ok(payload)
-}
-
-fn has_repeat(nodes: &[DocumentNode]) -> bool {
-    nodes.iter().any(|node| match node {
-        DocumentNode::Card(_) => false,
-        DocumentNode::Section(section) => section.repeat.is_some() || has_repeat(&section.children),
-    })
 }
 
 /* === Tests === */
@@ -308,25 +262,47 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shared_bindings_preserve_the_exact_source_boundary() {
+    fn actual_limits() {
+        use crate::document::DocumentCard;
+        let mut definition = DocumentDefinition::new("bindings.structure", "Structure");
+        for index in 0..150 {
+            definition.cards.push(DocumentCard::text(format!("card.{index}"), "Card", "Contents").into());
+        }
         let input = DocumentResolveInput {
-            definition: DocumentDefinition::new("bindings.boundary", "Boundary"),
+            definition,
             selection: DocumentSelection::default(),
             data: Default::default(),
         };
-        let borrowed = input.borrowed();
-        let length = document_size(&borrowed, usize::MAX, 32).unwrap();
-        for source_bytes in [length - 1, length] {
-            let limits = DocumentLimits { source_bytes, ..Default::default() };
-            let result =
-                SharedBindings::new(borrowed.selection, borrowed.data, limits).and_then(|bindings| bindings.validate(borrowed.definition));
-            assert_eq!(result.is_ok(), source_bytes == length);
+        let empty = capture_document_borrowed(input.borrowed(), DocumentLimits::default()).unwrap();
+        assert_eq!(empty.cards.len(), 150);
+        let limits = DocumentLimits {
+            expanded_nodes: 149,
+            ..Default::default()
+        };
+        assert!(matches!(
+            capture_document_borrowed(input.borrowed(), limits),
+            Err(crate::Error::Document(super::super::DocumentFailure::Budget { budget: "expanded_nodes", .. }))
+        ));
+
+        let value = ("brackets {} []", vec![1u8, 2]);
+        let bytes = serde_json::to_vec(&value).unwrap().len();
+        match card_size(&value, bytes - 1, 32, "fixture.output").unwrap_err() {
+            crate::Error::Document(super::super::DocumentFailure::Budget { budget, limit, reached, card }) => {
+                assert_eq!((budget, limit, reached, card.as_str()), ("materialized_bytes", bytes - 1, bytes, "fixture.output"));
+            }
+            error => panic!("unexpected output failure {error}"),
+        }
+        match card_size(&value, bytes, 1, "fixture.output").unwrap_err() {
+            crate::Error::Document(super::super::DocumentFailure::Budget { budget, limit, reached, card }) => {
+                assert_eq!((budget, limit, reached, card.as_str()), ("value_depth", 1, 2, "fixture.output"));
+            }
+            error => panic!("unexpected depth failure {error}"),
         }
     }
 
     #[test]
     fn time_between_repeats_are_refused_naming_their_section() {
-        use crate::document::{DocumentFailure, DocumentSection, DocumentSectionNode, DocumentSectionRepeat};
+        use crate::document::{DocumentFailure, DocumentNode, DocumentSection, DocumentSectionNode, DocumentSectionRepeat};
         use crate::expressions::{record, telemetry};
         use dokime_domain::model::identity::{Identifier, Metadata};
 

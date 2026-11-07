@@ -143,7 +143,7 @@ export function MediaGallerySurface({
 
   return (
     <>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(--spacing(36),1fr))] gap-2" data-testid="media-gallery">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,--spacing(36)),1fr))] gap-2" data-testid="media-gallery">
         {resolvedMedia.map((artifact) => (
           <MediaGalleryCard
             artifact={artifact}
@@ -173,8 +173,12 @@ export function MediaGallerySurface({
           {selectedArtifact ? (
             <div className="grid gap-4">
               <DialogHeader>
-                <DialogTitle>{mediaArtifactTitle(selectedArtifact)}</DialogTitle>
-                <DialogDescription>{selectedArtifact.displayPath}</DialogDescription>
+                <DialogTitle className="truncate" title={mediaArtifactTitle(selectedArtifact)}>
+                  {mediaArtifactTitle(selectedArtifact)}
+                </DialogTitle>
+                <DialogDescription className="truncate" title={selectedArtifact.displayPath}>
+                  {selectedArtifact.displayPath}
+                </DialogDescription>
               </DialogHeader>
               <div className="overflow-hidden rounded-lg border bg-muted/20 p-2">
                 {selectedArtifact.href ? (
@@ -210,7 +214,7 @@ export function MediaGallerySurface({
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm text-muted-foreground">
-                  {selectedArtifact.group_label ? artifactLabel(selectedArtifact.group_label) : "Media artifact"}
+                  {selectedArtifact.group_label ? artifactLabel(selectedArtifact.group_label) : "Media Artifact"}
                   {selectedArtifact.size_bytes ? ` • ${formatArtifactSize(selectedArtifact.size_bytes)}` : ""}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -299,15 +303,19 @@ function MediaGalleryCard({
   onVisibilityChange: (artifactId: string, visible: boolean) => void;
   previewError: string | null;
 }) {
-  const [imagePreviewFailed, setImagePreviewFailed] = useState(false);
+  const [failedImageHref, setFailedImageHref] = useState<string | null>(null);
   const cardRef = useRef<HTMLElement | null>(null);
   const title = mediaArtifactTitle(artifact);
   const meta = artifact.group_label ? artifactLabel(artifact.group_label) : formatArtifactSize(artifact.size_bytes);
-  const showImagePreview = artifact.kind === "image" && Boolean(artifact.href) && !imagePreviewFailed;
+  const showImagePreview = artifact.kind === "image" && Boolean(artifact.href) && artifact.href !== failedImageHref;
 
   useEffect(() => {
     const element = cardRef.current;
-    if (!element || typeof IntersectionObserver === "undefined") return;
+    if (!element) return;
+    if (typeof IntersectionObserver === "undefined") {
+      onVisibilityChange(artifact.artifact_id, true);
+      return;
+    }
     const observer = new IntersectionObserver(([entry]) => onVisibilityChange(artifact.artifact_id, entry?.isIntersecting ?? false), {
       rootMargin: "160px",
     });
@@ -317,40 +325,46 @@ function MediaGalleryCard({
 
   return (
     <article className="grid min-w-0 overflow-hidden rounded-lg border bg-background" ref={cardRef}>
-      <button
-        className="group/media relative grid aspect-video place-items-center overflow-hidden bg-muted/45 text-left"
-        title={artifact.displayPath}
-        type="button"
-        onClick={onInspect}
-      >
-        {showImagePreview ? (
-          <img
-            alt={title}
-            className="h-full w-full object-cover transition-transform group-hover/media:scale-[1.02]"
-            loading="lazy"
-            src={artifact.href ?? undefined}
-            onError={() => setImagePreviewFailed(true)}
-          />
-        ) : null}
-        <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background/50" />
-        {!showImagePreview ? (
-          <span className="relative z-10 flex max-w-full flex-col items-center gap-2 px-3 text-center">
-            <MediaKindIcon className="text-muted-foreground" kind={artifact.kind} size={18} />
-            <span className="line-clamp-2 text-xs font-semibold text-foreground">{title}</span>
-          </span>
-        ) : null}
-        <span className="absolute inset-x-2 bottom-2 flex justify-end">
-          <span className="inline-flex items-center gap-1 rounded-lg bg-background/85 px-2 py-1 text-xs font-semibold text-foreground shadow-sm">
-            <Search size={12} />
-            Inspect
-          </span>
-        </span>
-      </button>
+      <div className="flex aspect-video min-w-0 flex-col overflow-hidden bg-muted/45">
+        <div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden">
+          {showImagePreview ? (
+            <button aria-label={title} className="absolute inset-0" type="button" onClick={onInspect}>
+              <img
+                alt={title}
+                className="h-full w-full object-cover"
+                decoding="async"
+                loading="lazy"
+                src={artifact.href ?? undefined}
+                onError={() => setFailedImageHref(artifact.href)}
+              />
+            </button>
+          ) : artifact.href && artifact.kind === "audio" ? (
+            // biome-ignore lint/a11y/useMediaCaption: operator recordings have no caption sidecars.
+            <audio aria-label={title} className="w-full min-w-0 px-2" controls preload="metadata" src={artifact.href} />
+          ) : artifact.href && artifact.kind === "video" ? (
+            // biome-ignore lint/a11y/useMediaCaption: captured videos have no caption sidecars.
+            <video aria-label={title} className="h-full w-full object-contain" controls preload="metadata" src={artifact.href} />
+          ) : (
+            <span className="flex min-w-0 items-center justify-center p-3">
+              <MediaKindIcon className="text-muted-foreground" kind={artifact.kind} size={18} />
+            </span>
+          )}
+        </div>
+        <button
+          className="flex shrink-0 items-center justify-end gap-1 px-2 py-1 text-xs font-semibold"
+          title={artifact.displayPath}
+          type="button"
+          onClick={onInspect}
+        >
+          <Search size={12} />
+          Inspect
+        </button>
+      </div>
       <div className="grid min-w-0 gap-1 px-2 py-2">
         <div className="flex min-w-0 items-start gap-2">
           <MediaKindIcon className="mt-1 shrink-0" kind={artifact.kind} size={14} />
-          <div className="min-w-0">
-            <h3 className="line-clamp-2 break-all text-xs font-semibold" title={title}>
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-xs font-semibold" title={title}>
               {title}
             </h3>
             <p className="truncate text-xs text-muted-foreground" title={artifact.displayPath}>
@@ -386,7 +400,7 @@ function MediaGalleryCard({
                   aria-label={nativeOpenError ? `Retry Open ${title}` : `Open ${title}`}
                   disabled={nativeOpenBusy || nativeDownloadBusy}
                   size="icon-xs"
-                  title={nativeOpenError ?? "Open artifact"}
+                  title={nativeOpenError ?? "Open Artifact"}
                   type="button"
                   variant="ghost"
                   onClick={onNativeOpen}
@@ -397,7 +411,7 @@ function MediaGalleryCard({
                   aria-label={nativeDownloadError ? `Retry Download ${title}` : `Download ${title}`}
                   disabled={nativeOpenBusy || nativeDownloadBusy}
                   size="icon-xs"
-                  title={nativeDownloadError ?? "Download artifact"}
+                  title={nativeDownloadError ?? "Download Artifact"}
                   type="button"
                   variant="ghost"
                   onClick={onNativeDownload}

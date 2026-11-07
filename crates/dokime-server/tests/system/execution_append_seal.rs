@@ -42,6 +42,7 @@ const LARGE: usize = 203;
 struct Work {
     transactions: u64,
     batches: u64,
+    retention_steps: u64,
 }
 
 /* === Enums === */
@@ -55,6 +56,7 @@ impl Work {
         Self {
             transactions: after.committed_transactions - before.committed_transactions,
             batches: after.data_batches - before.data_batches,
+            retention_steps: after.object_retention_steps - before.object_retention_steps,
         }
     }
 }
@@ -166,6 +168,7 @@ async fn execution_append_seal() {
     for (stage, small, large) in [("append", small_append, large_append), ("seal", small_seal, large_seal)] {
         assert!(large.transactions * SMALL as u64 <= small.transactions * LARGE as u64, "{stage}: {small:?} -> {large:?}");
         assert!(large.batches * SMALL as u64 <= small.batches * LARGE as u64, "{stage}: {small:?} -> {large:?}");
+        assert!(large.retention_steps * SMALL as u64 <= small.retention_steps * LARGE as u64, "{stage}: {small:?} -> {large:?}");
     }
 
     server.shutdown().await.unwrap();

@@ -252,8 +252,8 @@ matrix! {
     "/dokime.v1.Plugins/GetInstallation", unary, contracts::plugins::GetInstallation;
     "/dokime.v1.Plugins/ListAdmittedPlugins", unary, contracts::plugins::ListAdmittedPlugins;
     "/dokime.v1.Plugins/ListInstallations", unary, contracts::plugins::ListInstallations;
+    "/dokime.v1.Plugins/Reload", unary, contracts::plugins::Reload;
     "/dokime.v1.Plugins/Remove", unary, contracts::plugins::Remove;
-    "/dokime.v1.Plugins/Retry", unary, contracts::plugins::Retry;
     "/dokime.v1.Plugins/SetEnabled", unary, contracts::plugins::SetEnabled;
     "/dokime.v1.Prompts/GetDefinition", unary, contracts::prompts::GetDefinition;
     "/dokime.v1.Prompts/GetPrompt", unary, contracts::prompts::GetPrompt;
@@ -478,7 +478,7 @@ pub(crate) async fn remote_refuses_local() {
     let endpoint = endpoint.tls_config(tls).unwrap();
     let channel = endpoint.connect().await.unwrap();
 
-    // Media Capture, File Watches And Host Paths Stay On The Loopback Listener
+    // Media Capture, File Watches and Host Paths Stay on the Loopback Listener
     let mut covered = 0;
     let served = cases();
     let native_cases = served.filter(|case| {

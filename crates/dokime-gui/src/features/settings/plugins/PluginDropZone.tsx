@@ -63,7 +63,7 @@ export function PluginDropZone({ disabled, error, failure, filename, onDrop, onP
             <FileUp className="size-8 text-muted-foreground" />
           )}
           <div className="grid gap-1">
-            <p className="font-medium">{disabled ? installationLabel(progress, filename) : "Drop a plugin bundle here"}</p>
+            <p className="font-medium">{disabled ? installationLabel(progress, filename) : "Drop a Plugin Bundle Here"}</p>
             <p className="text-sm text-muted-foreground">
               {brand.label} verifies and installs the bundle, then starts it once execution cleanup and plugin streams finish.
             </p>

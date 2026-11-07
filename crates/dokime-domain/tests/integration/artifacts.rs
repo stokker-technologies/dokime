@@ -52,7 +52,7 @@ fn artifact_names_validate() {
         assert_eq!(name::validate(accepted), Ok(()), "{accepted}");
     }
 
-    // Escapes, Roots And Platform Separators Are Refused
+    // Escapes, Roots and Platform Separators Are Refused
     for refused in [
         "CON.diag",
         "logs/NUL.hpl30",
@@ -74,7 +74,7 @@ fn artifact_names_validate() {
         assert_eq!(name::validate(refused), Err(InvalidName::Path), "{refused}");
     }
 
-    // The Name Bound Is Tighter Than The Execution Path Bound
+    // The Name Bound Is Tighter Than the Execution Path Bound
     let long = format!("upload/{}", "x".repeat(255));
     assert_eq!(name::validate(""), Err(InvalidName::Length));
     assert_eq!(name::validate(&long), Err(InvalidName::Length));

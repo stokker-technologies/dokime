@@ -7,7 +7,7 @@
  * ***
  */
 
-// Deliver Saved Evidence Through The Shared Transfer Pipeline
+// Deliver Saved Evidence Through the Shared Transfer Pipeline
 
 /* === Modules === */
 
@@ -56,11 +56,6 @@ struct ExportFrames {
 }
 
 /* === Enums === */
-
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(DownloadEvidence),
-}
 
 /* === Traits === */
 
@@ -140,7 +135,6 @@ pub(super) fn prepare(
 
     setup.resource::<Host<DownloadEvidence>>(Host::<DownloadEvidence>::new(served));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 

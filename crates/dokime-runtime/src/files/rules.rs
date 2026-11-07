@@ -130,7 +130,7 @@ mod tests {
     fn last_rule_decides() {
         let rules = matcher(&[include("**/*.log"), exclude("**/debug/**"), include("**/debug/bms.log")]);
 
-        // Included, Excluded, Then Re-Included By A Later Rule
+        // Included, Excluded, Then Re-Included by a Later Rule
         assert!(rules.matches("charger.log"));
         assert!(rules.matches("bench/a/charger.log"));
         assert!(!rules.matches("bench/debug/trace.log"));
@@ -159,7 +159,7 @@ mod tests {
         assert!(rules.matches("data/run.csv"));
         assert!(!rules.matches("data/run.csv.tmp"));
 
-        // An Earlier Exclusion Is Overridden By A Later Inclusion Only Where It Matches
+        // An Earlier Exclusion Is Overridden by a Later Inclusion Only Where It Matches
         let reordered = matcher(&[exclude("**/*.tmp"), include("**")]);
         assert!(reordered.matches("data/run.csv.tmp"));
     }

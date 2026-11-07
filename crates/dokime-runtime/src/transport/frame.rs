@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, MutexGuard, PoisonError};
 
 // Third Party Imports
+use harmos::MemorySize;
 
 // Local Imports
 use super::buffer::{BufferedFrame, Executions, LeaseOutcome, PromptOutcome, lock, settled};
@@ -35,9 +36,6 @@ use dokime_domain::model::records::publication::RecordPublishRequest;
 use dokime_domain::model::values::Value;
 
 /* === Constants === */
-
-// Rows of one stream that publish together without waiting for the window.
-const HOST_BATCH_ROWS: usize = 100;
 
 /* === Macros === */
 
@@ -69,6 +67,7 @@ pub(crate) struct ExecutionSampleSink<T: crate::execution::SidecarTemplate> {
     template: std::marker::PhantomData<fn() -> T>,
     publisher: Option<crate::execution::SamplePublisher>,
     rows: HostRows,
+    flush_delay: std::time::Duration,
 }
 
 // Rows bound for the host. Producers keep buffering while one host call is in
@@ -76,6 +75,7 @@ pub(crate) struct ExecutionSampleSink<T: crate::execution::SidecarTemplate> {
 // batch; a producer that fills a batch waits for that call, bounding memory.
 struct HostRows {
     batch_rows: usize,
+    batch_bytes: usize,
     // Held only to add or take rows, never across a host call.
     pending: std::sync::Mutex<Pending>,
     // Held across every host call, so one stream's rows reach the host in
@@ -93,6 +93,7 @@ struct Pending {
 struct Buffered {
     rows: Vec<crate::execution::StampedRow>,
     latest: i64,
+    bytes: usize,
 }
 
 pub(crate) struct FrameRecordSource {
@@ -170,6 +171,17 @@ impl<T: crate::execution::SidecarTemplate> ExecutionSampleSink<T> {
         executions: Executions, token: String, source: String, host: Option<crate::execution::SampleOutput>,
         publisher: Option<crate::execution::SamplePublisher>,
     ) -> Self {
+        let (batch_rows, batch_bytes, flush_delay) = {
+            let live = lock(&executions);
+            let request = &live.get(&token).expect("running execution").request;
+            (
+                request.publication_rows as usize,
+                usize::try_from(request.publication_bytes).unwrap_or(usize::MAX),
+                std::time::Duration::from_micros(request.publication_delay_micros),
+            )
+        };
+        let mut rows = HostRows::new(publication_limit(T::STREAMS, batch_rows));
+        rows.batch_bytes = batch_bytes;
         Self {
             executions,
             token,
@@ -177,16 +189,22 @@ impl<T: crate::execution::SidecarTemplate> ExecutionSampleSink<T> {
             host,
             template: std::marker::PhantomData,
             publisher,
-            rows: HostRows::new(HOST_BATCH_ROWS),
+            rows,
+            flush_delay,
         }
     }
 
-    fn host_output(&self) -> Option<Result<(&harmos::sidecar::Supervisor, crate::execution::SamplePublisher), String>> {
-        match self.host.as_ref()? {
-            crate::execution::SampleOutput::Host(host) => Some(
-                self.publisher.map(|publish| (host, publish)).ok_or_else(|| "native workflow has no owning plugin publisher".to_owned()),
-            ),
-            crate::execution::SampleOutput::Embedded(_) => None,
+    fn sender<'a>(&'a self) -> impl Fn(Identifier, Vec<crate::execution::StampedRow>) -> TransportFuture<'a, Result<(), String>> + 'a {
+        move |stream, rows| {
+            Box::pin(async move {
+                match self.host.as_ref().ok_or("execution has no publication output")? {
+                    crate::execution::SampleOutput::Host(host) => {
+                        let publish = self.publisher.ok_or("native workflow has no owning plugin publisher")?;
+                        publish(host, &self.token, &stream, rows).await
+                    }
+                    crate::execution::SampleOutput::Embedded(publisher) => publisher.publish(&self.token, &stream, rows).await,
+                }
+            })
         }
     }
 }
@@ -194,7 +212,7 @@ impl<T: crate::execution::SidecarTemplate> ExecutionSampleSink<T> {
 impl Pending {
     // Stamp the row with its production instant, never earlier than the
     // stream's previous row, and report how many rows the stream now holds.
-    fn push(&mut self, stream: &Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>) -> usize {
+    fn push(&mut self, stream: &Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>) -> (usize, usize) {
         let buffered = self.streams.entry(stream.clone()).or_default();
         let stamp = unix_micros().max(buffered.latest);
         buffered.latest = stamp;
@@ -203,20 +221,35 @@ impl Pending {
             storage_payload,
             published_unix_micros: stamp,
         });
-        buffered.rows.len()
+        buffered.bytes = buffered.bytes.saturating_add(row_bytes(buffered.rows.last().expect("pushed row")));
+        (buffered.rows.len(), buffered.bytes)
     }
 
     // The stream's oldest rows, at most `limit` of them, in production order.
-    fn take(&mut self, stream: &Identifier, limit: usize) -> Vec<crate::execution::StampedRow> {
+    fn take(&mut self, stream: &Identifier, limit: usize, byte_limit: usize) -> Vec<crate::execution::StampedRow> {
         let Some(buffered) = self.streams.get_mut(stream) else {
             return Vec::new();
         };
-        let count = limit.min(buffered.rows.len());
-        buffered.rows.drain(..count).collect()
+        let mut count = 0;
+        let mut bytes = 0usize;
+        for row in buffered.rows.iter().take(limit) {
+            let length = row_bytes(row);
+            if count > 0 && length > byte_limit.saturating_sub(bytes) {
+                break;
+            }
+            count += 1;
+            bytes = bytes.saturating_add(length);
+        }
+        buffered.bytes = buffered.bytes.saturating_sub(bytes);
+        if count == buffered.rows.len() { std::mem::take(&mut buffered.rows) } else { buffered.rows.drain(..count).collect() }
     }
 
     fn len(&self, stream: &Identifier) -> usize {
         self.streams.get(stream).map_or(0, |buffered| buffered.rows.len())
+    }
+
+    fn bytes(&self, stream: &Identifier) -> usize {
+        self.streams.get(stream).map_or(0, |buffered| buffered.bytes)
     }
 
     // How many rows each stream holds now; a flush publishes exactly these.
@@ -234,6 +267,7 @@ impl HostRows {
     fn new(batch_rows: usize) -> Self {
         Self {
             batch_rows,
+            batch_bytes: usize::MAX,
             pending: Default::default(),
             sending: Default::default(),
         }
@@ -249,14 +283,18 @@ impl HostRows {
         &self, stream: &Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>,
         send: impl Fn(Identifier, Vec<crate::execution::StampedRow>) -> TransportFuture<'s, Result<(), String>>,
     ) -> Result<(), String> {
-        if self.pending().push(stream, values, storage_payload) < self.batch_rows {
+        let (count, bytes) = self.pending().push(stream, values, storage_payload);
+        if count < self.batch_rows && bytes < self.batch_bytes {
             return Ok(());
         }
         let _sending = self.sending.lock().await;
-        if self.pending().len(stream) < self.batch_rows {
-            return Ok(());
-        }
-        let rows = self.pending().take(stream, self.batch_rows);
+        let rows = {
+            let mut pending = self.pending();
+            if pending.len(stream) < self.batch_rows && pending.bytes(stream) < self.batch_bytes {
+                return Ok(());
+            }
+            pending.take(stream, self.batch_rows, self.batch_bytes)
+        };
         send(stream.clone(), rows).await
     }
 
@@ -267,15 +305,15 @@ impl HostRows {
     ) -> Result<(), (Identifier, String)> {
         let _sending = self.sending.lock().await;
         let due = self.pending().due();
-        let batches_of = |(stream, rows): (Identifier, usize)| std::iter::repeat_n(stream, rows.div_ceil(self.batch_rows));
-        let batches = due.into_iter().flat_map(batches_of);
         let mut refused = None;
-        for stream in batches {
-            let batch = self.pending().take(&stream, self.batch_rows);
-            let Err(error) = send(stream.clone(), batch).await else {
-                continue;
-            };
-            refused.get_or_insert((stream, error));
+        for (stream, mut remaining) in due {
+            while remaining > 0 {
+                let batch = self.pending().take(&stream, remaining.min(self.batch_rows), self.batch_bytes);
+                remaining -= batch.len();
+                if let Err(error) = send(stream.clone(), batch).await {
+                    refused.get_or_insert((stream.clone(), error));
+                }
+            }
         }
         refused.map_or(Ok(()), Err)
     }
@@ -327,6 +365,18 @@ impl crate::records::RecordSource for FrameRecordSource {
 }
 
 impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T> {
+    fn flush_delay(&self) -> std::time::Duration {
+        if self.host.is_some() { self.flush_delay } else { std::time::Duration::ZERO }
+    }
+
+    fn values_required(&self) -> bool {
+        match &self.host {
+            Some(crate::execution::SampleOutput::Host(_)) => false,
+            Some(crate::execution::SampleOutput::Embedded(publisher)) => publisher.values_required(),
+            None => true,
+        }
+    }
+
     fn publish<'a>(
         &'a self, stream: &'a Identifier, values: BTreeMap<String, Value>, storage_payload: Option<Vec<u8>>,
     ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
@@ -334,17 +384,8 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
             if lock(&self.executions).get(&self.token).is_none_or(|state| !state.samples_open()) {
                 return Err("execution sample inputs are closed".into());
             }
-            if let Some(output) = self.host_output() {
-                let (host, publish) = output?;
-                return self.rows.publish(stream, values, storage_payload, host_send(host, &self.token, publish)).await;
-            }
-            if let Some(crate::execution::SampleOutput::Embedded(publisher)) = &self.host {
-                return publisher.publish(
-                    &self.token,
-                    stream,
-                    values,
-                    storage_payload.ok_or("typed publication requires original row bytes")?,
-                );
+            if self.host.is_some() {
+                return self.rows.publish(stream, values, storage_payload, self.sender()).await;
             }
 
             let mut executions = lock(&self.executions);
@@ -369,10 +410,10 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
 
     fn flush(&self) -> TransportFuture<'_, Result<(), (Identifier, String)>> {
         Box::pin(async move {
-            let Some(Ok((host, publish))) = self.host_output() else {
+            if self.host.is_none() {
                 return Ok(());
-            };
-            self.rows.flush(host_send(host, &self.token, publish)).await
+            }
+            self.rows.flush(self.sender()).await
         })
     }
 
@@ -595,12 +636,6 @@ impl LeaseRelease for FrameLeaseRelease {
 /* === Private Functions === */
 
 // One host call publishing a batch of one stream's rows.
-fn host_send<'s>(
-    host: &'s harmos::sidecar::Supervisor, token: &'s str, publish: crate::execution::SamplePublisher,
-) -> impl Fn(Identifier, Vec<crate::execution::StampedRow>) -> TransportFuture<'s, Result<(), String>> {
-    move |stream, rows| Box::pin(async move { publish(host, token, &stream, &rows).await })
-}
-
 // The publication clock Harmos stamps rows with: system time in Unix
 // microseconds, negative before the epoch.
 fn unix_micros() -> i64 {
@@ -608,6 +643,23 @@ fn unix_micros() -> i64 {
         Ok(elapsed) => i64::try_from(elapsed.as_micros()).unwrap_or(i64::MAX),
         Err(error) => i64::try_from(error.duration().as_micros()).map_or(i64::MIN, |micros| -micros),
     }
+}
+
+fn row_bytes(row: &crate::execution::StampedRow) -> usize {
+    std::mem::size_of_val(row)
+        .saturating_add(row.values.memory_size())
+        .saturating_add(row.storage_payload.as_ref().map_or(0, Vec::capacity))
+}
+
+fn publication_limit(nodes: &[harmos::catalog::Node<crate::catalog::Publication>], mut maximum: usize) -> usize {
+    for node in nodes {
+        match node {
+            harmos::catalog::Node::Leaf(publication) if publication.window > 0 => maximum = maximum.min(publication.window),
+            harmos::catalog::Node::Nested(children) => maximum = publication_limit(children, maximum),
+            _ => {}
+        }
+    }
+    maximum
 }
 
 fn park_at_gate<'a>(
@@ -635,6 +687,9 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn prompt_waits_wake_on_settlement() {
         let request = crate::transport::protocol::RunExecution {
+            publication_rows: 1024,
+            publication_bytes: 1024 * 1024,
+            publication_delay_micros: 0,
             execution_token: "fixture".into(),
             test_cycle_id: crate::model::identity::new_id::<dokime_domain::model::identity::TestCycleId>().to_string(),
             test_execution_id: crate::model::identity::new_id::<dokime_domain::model::identity::TestExecutionId>().to_string(),
@@ -659,7 +714,7 @@ mod tests {
             scope: RecordScope::default(),
         };
 
-        // An Answer Wakes The Waiter Without Any Clock Advance
+        // An Answer Wakes the Waiter Without Any Clock Advance
         let waiting = tokio::spawn(async move {
             let answer = transport.prompt(question()).await;
             (transport, answer)
@@ -680,7 +735,7 @@ mod tests {
         assert_eq!(answer.unwrap(), response);
         assert_eq!(tokio::time::Instant::now(), before);
 
-        // Evicting The Run Cancels A Waiting Prompt At Once
+        // Evicting the Run Cancels a Waiting Prompt at Once
         let waiting = tokio::spawn(async move { transport.prompt(question()).await });
         raised(&executions, 2).await;
         lock(&executions).remove("fixture");
@@ -847,6 +902,40 @@ mod tests {
         filling.await.unwrap().unwrap();
         assert_eq!(host.calls(), [vec!["0"], vec!["1", "2", "3", "4"]]);
         assert!(!rows.buffering());
+    }
+
+    #[tokio::test]
+    async fn byte_bounded_batches_drain_in_order_including_large_rows() {
+        let mut rows = HostRows::new(32);
+        let example = crate::execution::StampedRow {
+            values: BTreeMap::new(),
+            storage_payload: Some(vec![0; 16]),
+            published_unix_micros: 0,
+        };
+        rows.batch_bytes = row_bytes(&example) * 2;
+        let host = Host::new(false);
+        let names = ["a".repeat(16), "b".repeat(16), "c".repeat(512), "d".repeat(16), "e".repeat(16), "f".repeat(16)];
+        for name in &names {
+            produce(&rows, &host, name).await.unwrap();
+        }
+        rows.flush(sender(&host)).await.unwrap();
+        let calls = host.calls();
+        assert_eq!(calls.iter().flatten().collect::<Vec<_>>(), names.iter().collect::<Vec<_>>());
+        for call in calls {
+            let bytes: usize = call
+                .iter()
+                .map(|name| {
+                    row_bytes(&crate::execution::StampedRow {
+                        values: BTreeMap::new(),
+                        storage_payload: Some(name.as_bytes().to_vec()),
+                        published_unix_micros: 0,
+                    })
+                })
+                .sum();
+            assert!(bytes <= rows.batch_bytes || call.len() == 1);
+        }
+        assert!(!rows.buffering());
+        assert_eq!(rows.pending().bytes(&Identifier::new("fixture.samples").unwrap()), 0);
     }
 
     #[tokio::test]

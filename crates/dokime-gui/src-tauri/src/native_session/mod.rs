@@ -20,12 +20,6 @@ pub mod storage;
 pub use contract::*;
 pub use owner::DesktopSession;
 
-/* === Constants === */
-
-const DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES: u64 = 1_048_576;
-
-pub const STATUS_CHANGED_EVENT: &str = "desktop://session-status";
-
 /* === Imports === */
 
 // Standard Library Imports
@@ -35,6 +29,10 @@ pub const STATUS_CHANGED_EVENT: &str = "desktop://session-status";
 // Local Imports
 
 /* === Constants === */
+
+const DESKTOP_STORAGE_BACKUP_PROGRESS_BYTES: u64 = 1_048_576;
+
+pub const STATUS_CHANGED_EVENT: &str = "desktop://session-status";
 
 /* === Macros === */
 
@@ -97,7 +95,7 @@ pub fn desktop_session_status(state: tauri::State<'_, DesktopSessionControl>) ->
 pub async fn desktop_reset_local_storage(
     window: tauri::WebviewWindow, state: tauri::State<'_, DesktopSessionControl>, directory: String,
 ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
-    // Development Builds And The Main Window Only
+    // Development Builds and the Main Window Only
     if !tauri::is_dev() {
         return Err(DesktopSessionError::StorageReset {
             reason: StorageResetReason::DevelopmentOnly,
@@ -111,13 +109,16 @@ pub async fn desktop_reset_local_storage(
 
 pub async fn desktop_storage_backup_destination(
     window: tauri::WebviewWindow, app: tauri::AppHandle, choose: bool,
-) -> Result<Option<String>, DesktopSessionError> {
+) -> Result<Option<StorageBackupDestination>, DesktopSessionError> {
     use tauri_plugin_dialog::DialogExt;
 
     let root = owned_storage_root(&window)?;
     let default = root.backup_destination(time::OffsetDateTime::now_utc());
     if !choose {
-        return Ok(Some(default.display().to_string()));
+        return Ok(Some(StorageBackupDestination {
+            directory: root.path().display().to_string(),
+            archive: default.display().to_string(),
+        }));
     }
     let failed = |message: String| DesktopSessionError::StorageReset {
         reason: StorageResetReason::Failed,
@@ -136,13 +137,23 @@ pub async fn desktop_storage_backup_destination(
     })
     .await
     .map_err(|error| failed(error.to_string()))?;
-    selected.map(|path| path.into_path().map(|path| path.display().to_string()).map_err(|error| failed(error.to_string()))).transpose()
+    selected
+        .map(|path| {
+            path.into_path()
+                .map(|path| StorageBackupDestination {
+                    directory: root.path().display().to_string(),
+                    archive: path.display().to_string(),
+                })
+                .map_err(|error| failed(error.to_string()))
+        })
+        .transpose()
 }
 
 pub async fn desktop_backup_reset_local_storage(
-    window: tauri::WebviewWindow, state: tauri::State<'_, DesktopSessionControl>, archive: String,
+    window: tauri::WebviewWindow, state: tauri::State<'_, DesktopSessionControl>, directory: String, archive: String,
 ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
     let root = owned_storage_root(&window)?;
+    root.verify(std::path::Path::new(&directory))?;
     tracing::warn!(archive, "local storage backup and reset requested");
     state.0.backup_and_reset_local_storage(root, std::path::PathBuf::from(archive)).await
 }
@@ -170,13 +181,13 @@ pub async fn desktop_open_backend_log(
     use tauri::Manager;
     use tauri_plugin_opener::OpenerExt;
 
-    // Trust Only The Main Application Window
+    // Trust Only the Main Application Window
     let url = window.url().map_err(|error| error.to_string())?;
     if window.label() != "main" || !trusted_application_url(&url, window.app_handle().config()) {
         return Err("Only the main application window may open the backend log.".into());
     }
 
-    // Open The Recorded Log
+    // Open the Recorded Log
     let log = state.0.startup_log().ok_or("No failed backend start has a log file to open.")?;
     // The opener forks a launcher process; keep it off the async workers.
     tauri::async_runtime::spawn_blocking(move || {
@@ -191,7 +202,7 @@ pub async fn desktop_open_backend_log(
 fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageRoot, DesktopSessionError> {
     use tauri::Manager;
 
-    // Trust Only The Main Application Window
+    // Trust Only the Main Application Window
     let unavailable = |message: String| DesktopSessionError::StorageReset {
         reason: StorageResetReason::OutsideRoot,
         message,
@@ -201,7 +212,7 @@ fn owned_storage_root(window: &tauri::WebviewWindow) -> Result<storage::StorageR
         return Err(unavailable("Only the main application window may manage local storage.".to_owned()));
     }
 
-    // Resolve The Data Root The Owned Backend Opens
+    // Resolve the Data Root the Owned Backend Opens
     let failed = |message: String| DesktopSessionError::StorageReset {
         reason: StorageResetReason::Failed,
         message,

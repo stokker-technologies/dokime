@@ -16,6 +16,7 @@
 // Standard Library Imports
 use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::num::NonZeroU128;
 
 // Third Party Imports
@@ -58,6 +59,14 @@ pub(super) struct Plan<'a> {
     inner: Agg,
     measured: usize,
     outer: Option<Agg>,
+}
+
+pub(crate) struct Fold {
+    plan: Plan<'static>,
+    values: Vec<Accumulator>,
+    original: Option<(u64, Value)>,
+    floating: Accumulator,
+    has_float: bool,
 }
 
 struct Columns {
@@ -266,29 +275,86 @@ impl<'plan> Plan<'plan> {
             outer,
         })
     }
-    pub(super) fn work(&self, rows: usize) -> usize {
-        let scans = 1 + usize::from(!self.right.is_empty());
-        let sort = if self.right.is_empty() { 1 } else { rows.max(2).ilog2() as usize + 1 };
-        rows.saturating_mul(scans).saturating_mul(sort)
-    }
-
     pub(super) fn evaluate<'a>(
         &self, expression: &DataExpression, evidence: Evidence<'a>, cases: &[Entry<'a>], selected: impl Fn(Row<'a>) -> bool,
     ) -> Result<Option<Value>> {
-        let capacity = evidence.upper_rows().saturating_mul(cases.len().max(1));
+        let cases_by_execution = cases
+            .iter()
+            .enumerate()
+            .filter_map(|(index, case)| Some((case.scope.test_execution_id.as_ref()?, index)))
+            .collect::<HashMap<_, _>>();
+        let capacity = evidence.upper_rows();
         let mut left = Vec::with_capacity(capacity);
         let mut right = Vec::with_capacity(capacity);
         match &self.join {
             Join::None if self.cases.is_some() => {
-                // A Case's Own Context Decides Whether Samples Or Context Supply It.
-                let mut ordinal = 0usize;
-                for (case, entry) in cases.iter().enumerate() {
-                    for row in evidence.rows_for_case(expression, Some(*entry)) {
-                        if selected(row) {
-                            let value = super::binding::row(row, expression, evidence);
-                            left.push(Selected::new(ordinal, value, None, Some(case)));
+                let by_execution = cases
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, entry)| Some((entry.scope.test_execution_id.as_ref()?.as_str(), index)))
+                    .collect::<HashMap<_, _>>();
+                let contextual = cases
+                    .iter()
+                    .map(|entry| {
+                        matches!(expression.source, DataSource::Parameter { .. })
+                            || (matches!(expression.source, DataSource::Dimension { .. }) && entry.value(&expression.source).is_some())
+                    })
+                    .collect::<Vec<_>>();
+                let mut ordinal = 0;
+                let mut push = |row: Row<'a>, case| {
+                    if selected(row) {
+                        let value = super::binding::row(row, expression, evidence);
+                        left.push(Selected::new(ordinal, value, None, Some(case)));
+                    }
+                    ordinal += 1;
+                };
+                for (case, entry) in cases.iter().copied().enumerate() {
+                    if contextual[case] {
+                        push(Row::Context(entry), case);
+                    }
+                }
+                let case_of = |scope: Option<&RecordScope>| {
+                    let scope = scope?;
+                    let case = *by_execution.get(scope.test_execution_id.as_ref()?.as_str())?;
+                    cases[case].covers(Some(scope)).then_some(case)
+                };
+                match &expression.source {
+                    DataSource::Parameter { .. } => {}
+                    DataSource::Record { record_type } => {
+                        for record in evidence.records.iter() {
+                            if record.entry.record_type.as_str() != record_type
+                                || evidence.selection.is_some_and(|selection| !selection.matches_scope(record.scope))
+                            {
+                                continue;
+                            }
+                            if let Some(case) = case_of(record.scope) {
+                                push(Row::Record { record, context: Some(cases[case]) }, case);
+                            }
                         }
-                        ordinal += 1;
+                    }
+                    DataSource::Artifact { artifact: filename } => {
+                        for artifact in evidence.artifacts.iter() {
+                            if artifact.filename != *filename
+                                || evidence.selection.is_some_and(|selection| !selection.matches_scope(Some(&artifact.scope)))
+                            {
+                                continue;
+                            }
+                            if let Some(case) = case_of(Some(&artifact.scope)) {
+                                push(Row::Artifact { artifact, context: Some(cases[case]) }, case);
+                            }
+                        }
+                    }
+                    _ => {
+                        for sample in evidence.telemetry {
+                            if !evidence.selected(sample) {
+                                continue;
+                            }
+                            if let Some(case) = case_of(sample.scope.as_ref())
+                                && !contextual[case]
+                            {
+                                push(Row::Sample { sample, context: Some(cases[case]) }, case);
+                            }
+                        }
                     }
                 }
             }
@@ -305,7 +371,15 @@ impl<'plan> Plan<'plan> {
                     return Err(failure("record correlations require a record source"));
                 };
                 for (ordinal, record) in evidence.records.iter().enumerate() {
-                    let case = case_of(cases, record.scope);
+                    let case = record
+                        .scope
+                        .and_then(|scope| scope.test_execution_id.as_ref())
+                        .and_then(|id| cases_by_execution.get(id))
+                        .copied()
+                        .filter(|&case| cases[case].covers(record.scope));
+                    if self.cases.is_some() && case.is_none() {
+                        continue;
+                    }
                     let row = Row::Record {
                         record,
                         context: case.map(|case| cases[case]).or_else(|| evidence.context.for_scope(record.scope)),
@@ -426,10 +500,14 @@ impl<'plan> Plan<'plan> {
         let right = project(&right, &self.right, right_float)?;
         left.sort_unstable_by_key(|row| row.capture);
 
-        // Each Left Row Measures Its Own Columns Or Its Correlated Right Row.
+        // Merge Equal Scope Partitions In Capture Order, Then Fold In Original Order.
         let correlation = match &self.join {
             Join::None => None,
-            Join::Previous(_) => Some(Correlation::new(right)),
+            Join::Previous(_) => {
+                let correlation = Correlation::new(right);
+                let matched = correlation.merge(&left);
+                Some((correlation, matched))
+            }
         };
         let case = self.left.iter().position(|column| *column == Column::Case);
         let groups = self.cases.unwrap_or(1);
@@ -442,7 +520,7 @@ impl<'plan> Plan<'plan> {
             }
             folds.push(group);
         }
-        for row in &left {
+        for (index, row) in left.iter().enumerate() {
             let group = match case {
                 Some(column) => match row.values[column] {
                     ScalarValue::Unsigned(case) if (case as usize) < groups => case as usize,
@@ -452,7 +530,7 @@ impl<'plan> Plan<'plan> {
             };
             let measured = match &correlation {
                 None => row.values[..self.measured].to_vec(),
-                Some(correlation) => match correlation.find(&row.values[..3], row.capture) {
+                Some((correlation, matched)) => match matched[index].map(|index| &correlation.rows[index]) {
                     Some(matched) => vec![elapsed(&matched.values[2], &row.values[2])?],
                     None => vec![ScalarValue::Missing],
                 },
@@ -522,6 +600,111 @@ impl<'plan> Plan<'plan> {
     }
 }
 
+impl Fold {
+    pub(crate) fn new(expression: &DataExpression) -> Result<Self> {
+        let per_case = expression.transforms.contains(&DataTransform::PerCase);
+        let mut compiled = Plan::compile(expression, per_case.then_some(1))?;
+        if !matches!(compiled.join, Join::None) {
+            // Record Queries Supply Correlated Scalar Seconds.
+            compiled.left = Columns::new();
+            compiled.left.push(Column::Value);
+            if compiled.kind == Kind::Numeric {
+                compiled.left.extend([Column::Signed, Column::Float]);
+            }
+            compiled.measured = compiled.left.len();
+            if compiled.shape == Shape::Elapsed {
+                compiled.shape = match compiled.kind {
+                    Kind::Ordinal => Shape::Original,
+                    _ => Shape::Numeric { flags: true },
+                };
+            }
+        }
+        let values =
+            (0..compiled.measured).map(|index| Accumulator::new(if index == 0 { compiled.inner } else { flag(compiled.inner) })).collect();
+        let plan = Plan {
+            left: compiled.left,
+            right: compiled.right,
+            join: Join::None,
+            kind: compiled.kind,
+            shape: compiled.shape,
+            cases: compiled.cases,
+            inner: compiled.inner,
+            measured: compiled.measured,
+            outer: compiled.outer,
+        };
+        let floating = Accumulator::new(plan.inner);
+        Ok(Self {
+            plan,
+            values,
+            original: None,
+            floating,
+            has_float: false,
+        })
+    }
+
+    pub(crate) fn push_at(&mut self, capture: u64, value: Option<&Value>) -> Result<()> {
+        let row = Selected::new(capture as usize, value.map(Cow::Borrowed), None, self.plan.cases.map(|_| 0));
+        let float = matches!(value, Some(Value::Number(_)));
+        let mut projected = self.plan.project(&self.plan.left, &row, float)?;
+        if self.plan.kind == Kind::Numeric {
+            let scalar = match value {
+                Some(Value::Null) => ScalarValue::Null,
+                Some(value) => floating(value)?,
+                None => ScalarValue::Missing,
+            };
+            self.floating.push(capture, &scalar).map_err(reduction)?;
+            self.has_float |= float;
+            if float {
+                projected.values[0] = ScalarValue::Missing;
+            }
+        }
+        for (accumulator, value) in self.values.iter_mut().zip(&projected.values) {
+            accumulator.push(capture, value).map_err(reduction)?;
+        }
+        if let Some(value) = value
+            && self.original.as_ref().is_none_or(|(last, _)| capture > *last)
+        {
+            self.original = Some((capture, value.clone()));
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn finish(self) -> Result<Option<Value>> {
+        self.finish_checked(&mut || Ok(()))
+    }
+
+    pub(crate) fn finish_checked(self, check: &mut impl FnMut() -> harmos::storage::Result<()>) -> Result<Option<Value>> {
+        if self.plan.shape == Shape::Original {
+            return Ok(self.original.map(|(_, value)| value));
+        }
+        let mut values =
+            self.values.into_iter().map(|accumulator| accumulator.finish(check).map_err(reduction)).collect::<Result<Vec<_>>>()?;
+        if self.has_float {
+            values[0] = self.floating.finish(check).map_err(reduction)?;
+        }
+        let outer = self
+            .plan
+            .outer
+            .map(|outer| {
+                values
+                    .iter()
+                    .enumerate()
+                    .map(|(column, value)| {
+                        let mut accumulator = Accumulator::new(if column == 0 { outer } else { Agg::Of(Aggregate::Max) });
+                        accumulator.push(0, value).map_err(reduction)?;
+                        accumulator.finish(check).map_err(reduction)
+                    })
+                    .collect::<Result<Vec<_>>>()
+            })
+            .transpose()?;
+        match self.plan.output(&Collected { groups: vec![values], outer })? {
+            Output::Value(value) => Ok(value),
+            Output::Left(_) => unreachable!("ordinal folds finish directly"),
+        }
+    }
+}
+
 impl Numeric {
     fn value(self) -> Result<Option<Value>> {
         let exact = match self.value {
@@ -575,18 +758,27 @@ impl Correlation {
         Self { rows }
     }
 
-    // The Last Right Row Captured Before The Probe Among Rows With Equal Keys.
-    fn find(&self, probe: &[ScalarValue], capture: u64) -> Option<&Projected> {
-        let precedes = |row: &Projected| match text(&row.values[0]).cmp(text(&probe[0])) {
-            Ordering::Equal => match text(&row.values[1]).cmp(text(&probe[1])) {
-                Ordering::Equal => row.capture < capture,
-                order => order.is_lt(),
-            },
-            order => order.is_lt(),
-        };
-        let end = self.rows.partition_point(precedes);
-        let candidate = self.rows[..end].last()?;
-        (text(&candidate.values[0]) == text(&probe[0]) && text(&candidate.values[1]) == text(&probe[1])).then_some(candidate)
+    // The Sorted Merge Advances Through Each Side Once.
+    fn merge(&self, left: &[Projected]) -> Vec<Option<usize>> {
+        let mut probes = left.iter().enumerate().collect::<Vec<_>>();
+        probes.sort_unstable_by(|(_, left), (_, right)| order(left, right));
+        let mut matches = vec![None; left.len()];
+        let mut next = 0;
+        let mut previous = None;
+        for (index, probe) in probes {
+            while let Some(candidate) = self.rows.get(next) {
+                if !order(candidate, probe).is_lt() {
+                    break;
+                }
+                previous = Some(next);
+                next += 1;
+            }
+            matches[index] = previous.filter(|&index| {
+                let candidate = &self.rows[index];
+                text(&candidate.values[0]) == text(&probe.values[0]) && text(&candidate.values[1]) == text(&probe.values[1])
+            });
+        }
+        matches
     }
 }
 
@@ -687,10 +879,6 @@ fn elapsed(start: &ScalarValue, end: &ScalarValue) -> Result<ScalarValue> {
     })
 }
 
-fn case_of(cases: &[Entry<'_>], scope: Option<&RecordScope>) -> Option<usize> {
-    cases.iter().position(|case| case.covers(scope))
-}
-
 fn floating(value: &Value) -> Result<ScalarValue> {
     Ok(ScalarValue::Float(match value {
         Value::Integer(value) => *value as f64,
@@ -747,3 +935,127 @@ fn reduction(error: harmos::storage::Error) -> crate::Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod streaming_tests {
+    use super::*;
+
+    #[test]
+    fn streaming_statistics() {
+        let values = [Value::Unsigned(9_007_199_254_740_993), Value::Unsigned(9_007_199_254_740_995)];
+        for (aggregate, expected) in [
+            (Aggregate::Min, Value::Unsigned(9_007_199_254_740_993)),
+            (Aggregate::Max, Value::Unsigned(9_007_199_254_740_995)),
+            (Aggregate::Mean, Value::Unsigned(9_007_199_254_740_994)),
+            (Aggregate::Median, Value::Unsigned(9_007_199_254_740_994)),
+        ] {
+            let expression = crate::expressions::telemetry("fixture", "value").aggregate(aggregate);
+            let mut fold = Fold::new(&expression).unwrap();
+            for (position, value) in values.iter().enumerate() {
+                fold.push_at(position as u64, Some(value)).unwrap();
+            }
+            assert_eq!(fold.finish().unwrap(), Some(expected));
+        }
+        let expression = crate::expressions::telemetry("fixture", "value").mean();
+        let mut fold = Fold::new(&expression).unwrap();
+        for (position, value) in [Value::Integer(-2), Value::Null, Value::Number(5.0), Value::Unsigned(3)].iter().enumerate() {
+            fold.push_at(position as u64, Some(value)).unwrap();
+        }
+        assert_eq!(fold.finish().unwrap(), Some(Value::Number(2.0)));
+
+        let mut per_case = crate::expressions::telemetry("fixture", "value").mean();
+        per_case.transforms.extend([DataTransform::PerCase, DataTransform::Aggregate(Aggregate::Count)]);
+        assert_eq!(Fold::new(&per_case).unwrap().finish().unwrap(), Some(Value::Unsigned(0)));
+        let mut fold = Fold::new(&per_case).unwrap();
+        fold.push_at(3, Some(&Value::Integer(7))).unwrap();
+        fold.push_at(8, Some(&Value::Integer(9))).unwrap();
+        assert_eq!(fold.finish().unwrap(), Some(Value::Unsigned(1)));
+
+        let expression = crate::expressions::record("end").time_between("start").mean();
+        let mut fold = Fold::new(&expression).unwrap();
+        fold.push_at(2, Some(&Value::Number(0.5))).unwrap();
+        fold.push_at(4, Some(&Value::Unsigned(1))).unwrap();
+        assert_eq!(fold.finish().unwrap(), Some(Value::Number(0.75)));
+    }
+
+    #[test]
+    fn sorted_record_merge_matches_capture_reference() {
+        let row = |capture: u64| Projected {
+            capture,
+            values: vec![
+                ScalarValue::Text(format!("execution.{}", capture % 3)),
+                ScalarValue::Text(format!("attempt.{}", capture % 5)),
+                ScalarValue::Datetime(i128::from(capture) * 1_000_000_000),
+            ],
+        };
+        let right = (0..257).filter(|capture| capture % 4 != 0).rev().map(row).collect::<Vec<_>>();
+        let probes = (0..307).rev().map(row).collect::<Vec<_>>();
+        let expected = probes
+            .iter()
+            .map(|probe| {
+                right
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.capture < probe.capture
+                            && text(&candidate.values[0]) == text(&probe.values[0])
+                            && text(&candidate.values[1]) == text(&probe.values[1])
+                    })
+                    .max_by_key(|candidate| candidate.capture)
+                    .map(|candidate| candidate.capture)
+            })
+            .collect::<Vec<_>>();
+        let correlation = Correlation::new(right);
+        let actual =
+            correlation.merge(&probes).into_iter().map(|index| index.map(|index| correlation.rows[index].capture)).collect::<Vec<_>>();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn partitioned_cases_match_individual_folds() {
+        use std::collections::BTreeMap;
+        let scopes = (0..7)
+            .map(|index| {
+                RecordScope::default()
+                    .with_test_execution(dokime_domain::model::identity::TestExecutionId::from_seed(format!("execution-{index}")))
+                    .with_test_case(dokime_domain::model::identity::CaseId::from_seed(format!("case-{index}")))
+            })
+            .collect::<Vec<_>>();
+        let dimensions = BTreeMap::new();
+        let parameters = BTreeMap::new();
+        let cases = scopes
+            .iter()
+            .map(|scope| Entry {
+                scope,
+                dimensions: &dimensions,
+                inputs: &parameters,
+                outputs: &parameters,
+            })
+            .collect::<Vec<_>>();
+        let samples = (0..137)
+            .map(|index| {
+                let mut sample = crate::telemetry::TelemetrySample::new(
+                    dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("sample-{index}")),
+                    dokime_domain::model::identity::Identifier::new("fixture").unwrap(),
+                    index,
+                    dokime_domain::model::time::Timestamp::new("2026-01-01T00:00:00Z"),
+                    "fixture",
+                );
+                sample.scope = Some(scopes[index as usize % (scopes.len() - 1)].clone());
+                sample.values.insert("value".into(), Value::Integer(index as i64 - 37));
+                sample
+            })
+            .collect::<Vec<_>>();
+        let inner = crate::expressions::telemetry("fixture", "value").min();
+        let mut expression = inner.clone();
+        expression.transforms.extend([DataTransform::PerCase, DataTransform::Aggregate(Aggregate::Mean)]);
+        let evidence = Evidence::from(samples.as_slice());
+        let mut reference = Fold::new(&crate::expressions::telemetry("fixture", "value").mean()).unwrap();
+        for (index, case) in cases.iter().enumerate() {
+            let selected = samples.iter().filter(|sample| case.covers(sample.scope.as_ref())).cloned().collect::<Vec<_>>();
+            let value = Plan::compile(&inner, None).unwrap().evaluate(&inner, Evidence::from(selected.as_slice()), &[], |_| true).unwrap();
+            reference.push_at(index as u64, value.as_ref()).unwrap();
+        }
+        let actual = Plan::compile(&expression, Some(cases.len())).unwrap().evaluate(&expression, evidence, &cases, |_| true).unwrap();
+        assert_eq!(actual, reference.finish().unwrap());
+    }
+}

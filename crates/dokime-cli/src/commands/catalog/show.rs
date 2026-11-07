@@ -7,7 +7,7 @@
  * ***
  */
 
-// Show A Registered Suite Contract
+// Show a Registered Suite Contract
 
 /* === Modules === */
 

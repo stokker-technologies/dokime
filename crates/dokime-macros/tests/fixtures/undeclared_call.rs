@@ -94,10 +94,10 @@ impl Probe {
 
     #[sdk::step(label = "Run")]
     async fn run(&mut self, ctx: &mut sdk::execution::StepContext<'_>) -> Result<(), std::convert::Infallible> {
-        let _ = ctx.call(GetVoltage {}).await;
+        let _ = ctx.operation(GetVoltage {}).await;
         // Served by the plugin, and never declared here: the bound reads the
         // template's own `requires`, not the plugin's operation list.
-        let _ = ctx.call(GetCurrent {}).await;
+        let _ = ctx.operation(GetCurrent {}).await;
 
         Ok(())
     }

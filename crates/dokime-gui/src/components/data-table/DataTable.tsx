@@ -230,6 +230,7 @@ export function DataTable<TData extends RowData>({
             return (
               <TableRow
                 className={cn("h-[var(--table-row-height)]", onRowClick && "cursor-pointer")}
+                data-row-id={row.id}
                 data-state={selected ? "selected" : undefined}
                 key={row.id}
                 onClick={onRowClick ? (event) => activate(event, row.original) : undefined}
@@ -286,9 +287,10 @@ export function DataTable<TData extends RowData>({
         <span className="tabular-nums">{table.getFilteredRowModel().rows.length} Rows</span>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
-            Rows Per Page
+            Rows per Page
             <select
-              aria-label="Rows Per Page"
+              aria-label="Rows per Page"
+              data-testid="table-page-size"
               className="h-[var(--control-height)] rounded-lg border bg-background px-2"
               value={table.state.pagination.pageSize}
               onChange={(event) => table.setPageSize(Number(event.target.value))}
@@ -385,7 +387,7 @@ export function DataTableRowActions({ label, primary, children }: { label: strin
         {overflow.length ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button aria-label={`Actions For ${label}`} size="icon-sm" type="button" variant="ghost">
+              <Button aria-label={`Actions for ${label}`} data-testid="table-row-actions" size="icon-sm" type="button" variant="ghost">
                 <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>

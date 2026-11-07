@@ -7,7 +7,7 @@
  * ***
  */
 
-// Bounded Per-Scope Rings Of Captured Tracing Events
+// Bounded Per-Scope Rings of Captured Tracing Events
 //
 // Every captured event enters the instance ring, and also the ring of the
 // cycle and the execution it belongs to. Each ring evicts its oldest events
@@ -211,7 +211,7 @@ impl Journal {
                 _ => {}
             }
 
-            // Append To Every Ring The Event Belongs To
+            // Append to Every Ring the Event Belongs To
             let event = Arc::new(event);
             let limits = self.limits;
             state.instance.push(&event, sequence, limits.instance_events, limits.instance_bytes);
@@ -255,13 +255,13 @@ impl Journal {
             return Err(Stale { after, head: tail });
         }
 
-        // Count What Eviction Took Ahead Of The Cursor
+        // Count What Eviction Took Ahead of the Cursor
         let wanted = after.max(ring.base) + 1;
         let end = ring.end().min(through.saturating_add(1));
         let missed = ring.front.min(end).saturating_sub(wanted);
         let mut sequence = wanted.max(ring.front).min(end).max(after + 1);
 
-        // Scan Forward Within The Page Bounds
+        // Scan Forward Within the Page Bounds
         let mut events = Vec::new();
         let mut bytes = 0_usize;
         while sequence < end && events.len() < max_events {

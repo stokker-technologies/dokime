@@ -20,6 +20,7 @@
 
 /* === Local Imports === */
 
+import type { DocumentViewNode, DocumentViewPayload } from "@/lib/types";
 import { failureOf, type NotificationFailure } from "@/lib/notification-details";
 
 /* === Constants === */
@@ -93,6 +94,49 @@ export function evidencePaneState({
     return { kind: "failed", message: failureOf(error, "Evidence Unavailable").message, failure: failureOf(error, "Evidence Unavailable") };
   if (pending) return { kind: "loading" };
   return { kind: "document", staleReason: null };
+}
+
+/** Keep completed cards visible while their replacement query is pending. */
+export function mergeDocumentProgress(current: DocumentViewPayload, previous?: DocumentViewPayload): DocumentViewPayload {
+  if (!previous || previous.document_id !== current.document_id) return current;
+  const oldCards = new Map(previous.cards.map((card) => [card.card_id, card]));
+  const cards = new Map(
+    current.cards.map((card) => {
+      const old = oldCards.get(card.card_id);
+      return [card.card_id, card.loading && old && !old.loading && !old.failure ? { ...old, refreshing: true } : card];
+    }),
+  );
+  const oldNodes = new Map<string, DocumentViewNode>();
+  const index = (nodes: DocumentViewNode[]) => {
+    for (const node of nodes)
+      if (node.type === "section") {
+        oldNodes.set(node.node_id, node);
+        index(node.children);
+      }
+  };
+  index(previous.layout.nodes);
+  const merge = (nodes: DocumentViewNode[]): DocumentViewNode[] =>
+    nodes.map((node) => {
+      if (node.type === "card") return node;
+      const old = oldNodes.get(node.node_id);
+      if (node.loading && old?.type === "section" && !old.loading && !old.unavailable) return { ...old, refreshing: true };
+      return { ...node, children: merge(node.children) };
+    });
+  const nodes = merge(current.layout.nodes);
+  const used = new Set<string>();
+  const collect = (nodes: DocumentViewNode[]) => {
+    for (const node of nodes) {
+      if (node.type === "card") used.add(node.card_id);
+      else collect(node.children);
+    }
+  };
+  collect(nodes);
+  for (const id of used)
+    if (!cards.has(id)) {
+      const old = oldCards.get(id);
+      if (old) cards.set(id, { ...old, refreshing: true });
+    }
+  return { ...current, layout: { ...current.layout, nodes }, cards: [...cards.values()].filter((card) => used.has(card.card_id)) };
 }
 
 /* === Private Functions === */

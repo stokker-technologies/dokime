@@ -71,7 +71,7 @@ beforeEach(() => {
   fixture.messages = [];
 });
 
-test("Blocked Host Shows Its Brand And Only Elevates After The Operator Acts", async () => {
+test("Blocked Host Shows Its Brand and Only Elevates After the Operator Acts", async () => {
   const html = renderToStaticMarkup(
     createElement(FirewallNotice, { generation: "host-7", enabled: true, listenerAddress: "0.0.0.0:8765" }),
   );
@@ -89,7 +89,7 @@ test("Blocked Host Shows Its Brand And Only Elevates After The Operator Acts", a
   assert.deepEqual(fixture.invoke.mock.calls[1], ["desktop_firewall", { generation: "host-7", allow: true }]);
 });
 
-test("Allowed Or Inactive Host Does Not Offer An Action", () => {
+test("Allowed or Inactive Host Does Not Offer an Action", () => {
   fixture.result.required = false;
   const html = renderToStaticMarkup(createElement(FirewallNotice, { generation: "host-8", enabled: false }));
   assert.equal(html, "");

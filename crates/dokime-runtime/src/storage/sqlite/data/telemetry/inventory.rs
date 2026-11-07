@@ -7,7 +7,7 @@
  * ***
  */
 
-// Execution Telemetry Materialization And Its Portable Catalog
+// Execution Telemetry Materialization and Its Portable Catalog
 
 /* === Modules === */
 
@@ -225,19 +225,23 @@ fn native_file(
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+    let stream: String = row.get(1)?;
     let mut summaries =
-        connection.prepare("SELECT signal,count,minimum,maximum,sum FROM stream_summaries WHERE file_id=?1 ORDER BY signal")?;
+        connection.prepare("SELECT field,moments FROM storage_numeric_summaries WHERE execution=?1 AND stream=?2 ORDER BY field")?;
     let summaries = summaries
-        .query_map([&id], |row| {
+        .query_map(rusqlite::params![execution, stream], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?
+        .map(|row| {
+            let (signal, bytes) = row?;
+            let moments = super::aggregates::Moments::decode(&bytes)?;
             Ok(Summary {
-                signal: row.get(0)?,
-                count: catalog::unsigned(row, 1)?,
-                minimum: row.get(2)?,
-                maximum: row.get(3)?,
-                sum: row.get(4)?,
+                signal,
+                count: moments.count,
+                minimum: moments.value(harmos::Aggregate::Min).unwrap_or_default(),
+                maximum: moments.value(harmos::Aggregate::Max).unwrap_or_default(),
+                sum: moments.value(harmos::Aggregate::Sum).unwrap_or_default(),
             })
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
+        })
+        .collect::<Result<Vec<_>>>()?;
     Ok(Some(StreamFile {
         id,
         stream: row.get(1)?,

@@ -24,7 +24,7 @@
 /* === External Imports === */
 
 import { Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 /* === Local Imports === */
 
@@ -58,6 +58,14 @@ export function RecordTimeline({
 }) {
   const [recordType, setRecordType] = useState("all");
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  // Query structural sharing can copy a shifted tail's objects; evidence IDs
+  // still name the same immutable records. Retain only this timeline's tail.
+  const [searchText] = useState(() => new Map<string, string[]>());
+  useEffect(() => {
+    const retained = new Set(records.map((record) => record.record_id));
+    for (const id of searchText.keys()) if (!retained.has(id)) searchText.delete(id);
+  }, [records, searchText]);
   const [selectedRecord, setSelectedRecord] = useState<HubRecord | null>(null);
   const recordSearchId = "record-timeline-search";
   const recordTypeId = "record-timeline-type";
@@ -70,9 +78,10 @@ export function RecordTimeline({
     [records],
   );
 
+  const orderedRecords = useMemo(() => [...records].sort(compareRecordTimelineOrder), [records]);
   const visibleRecords = useMemo(() => {
     // Escape regex syntax: only * and ? are wildcards in the search textbox.
-    const pattern = query
+    const pattern = deferredQuery
       .trim()
       .split(/([*?])/)
       .map((part) => {
@@ -84,18 +93,20 @@ export function RecordTimeline({
       .join("");
     const matcher = pattern ? new RegExp(pattern, "is") : null;
 
-    return [...records]
-      .sort(compareRecordTimelineOrder)
+    return orderedRecords
       .filter((record) => recordType === "all" || record.record_type === recordType)
       .filter((record) => {
         if (!matcher) {
           return true;
         }
-        return [record.record_type, record.source, recordTitle(record), recordMessage(record), stringifyRecordDetails(record.details)].some(
-          (value) => matcher.test(value),
-        );
+        let fields = searchText.get(record.record_id);
+        if (!fields) {
+          fields = [record.record_type, record.source, recordTitle(record), recordMessage(record), stringifyRecordDetails(record.details)];
+          searchText.set(record.record_id, fields);
+        }
+        return fields.some((value) => matcher.test(value));
       });
-  }, [recordType, records, query]);
+  }, [recordType, orderedRecords, deferredQuery, searchText]);
   const rowWindow = useRowWindow(visibleRecords.length);
 
   return (

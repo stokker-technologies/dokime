@@ -7,7 +7,7 @@
  * ***
  */
 
-// Indexed Arrow Batch Reads At A Storage Frontier
+// Indexed Arrow Batch Reads at a Storage Frontier
 
 /* === Modules === */
 
@@ -252,7 +252,11 @@ pub(super) fn numeric(
                 return Ok(None);
             }
         }
-        let values = batch.column(1).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("telemetry values are not a struct"))?;
+        let values = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<arrow_array::StructArray>()
+            .ok_or(Error::Corrupt("telemetry values are not a struct"))?;
         let values = keys
             .iter()
             .map(|key| {
@@ -283,6 +287,18 @@ pub(super) fn numeric(
             sequence,
             values,
         }))
+    })
+}
+
+pub(super) fn typed(
+    connection: &Connection, root: &Path, scan: &Scan, field: &str, work: &super::query::QueryWork,
+) -> Result<Vec<(u64, dokime_domain::model::values::Value)>> {
+    use arrow_array::StructArray;
+    let keys = [field.to_owned()];
+    projected(connection, root, scan, Some((&["position", "at"], &keys)), |batch, row, _, _, _| {
+        work.check().map_err(|error| Error::Sqlite(rusqlite::Error::UserFunctionError(error)))?;
+        let values = batch.column(1).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("telemetry values are not a struct"))?;
+        values.column_by_name(field).map(|array| ipc::cell(array, row)).transpose()
     })
 }
 
@@ -441,9 +457,9 @@ fn projected<T>(
                 break;
             }
         }
+        output.sort_unstable_by_key(|(position, _)| *position);
+        output.truncate(scan.page.rows.get());
     }
-    output.sort_unstable_by_key(|(position, _)| *position);
-    output.truncate(scan.page.rows.get());
     Ok(output)
 }
 

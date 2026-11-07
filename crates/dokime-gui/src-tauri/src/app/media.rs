@@ -32,6 +32,10 @@ use crate::connection::ConnectionSession;
 
 const DESKTOP_MEDIA_CACHE_BYTES: u64 = 4_294_967_296;
 const DESKTOP_MEDIA_RANGE_BYTES: u64 = 4_194_304;
+// Even An Incompressible RGBA PNG Fits Within One Native Range Response.
+const IMAGE_PREVIEW_EDGE: u32 = 960;
+const IMAGE_DECODE_BYTES: u64 = 128 * 1024 * 1024;
+const MEDIA_CACHE_HEADER: &str = "preview-v1\n";
 
 pub const MEDIA_SCHEME: &str = "dokime-media";
 
@@ -85,11 +89,27 @@ pub async fn desktop_media_prepare(
         .await
         .map_err(|error| error.to_string())??;
     let destination = cache_dir.join(&key);
-    if !tokio::fs::try_exists(&destination).await.unwrap_or(false) {
+    let prepared =
+        tokio::fs::read_to_string(destination.with_extension("type")).await.ok().is_some_and(|value| cached_content_type(&value).is_some());
+    if !prepared || !tokio::fs::try_exists(&destination).await.unwrap_or(false) {
+        // Old Cache Entries Contain Originals, Which Must Never Reach The Image Element.
+        let _ = tokio::fs::remove_file(&destination).await;
+        let _ = tokio::fs::remove_file(destination.with_extension("type")).await;
         let verified = content::fetch_verified(&lease, &source, &destination, DESKTOP_FRAME_BYTES as usize)
             .await
             .map_err(|error| error.to_string())?;
-        write_content_type(&destination, verified.content_type.as_deref()).await?;
+        let content_type = verified.content_type;
+        // Sniff Images Even When An Execution File Has No Declared Media Type.
+        let path = destination.clone();
+        let result = tauri::async_runtime::spawn_blocking(move || prepare_image(&path)).await.map_err(|error| error.to_string())?;
+        let image_type = match result {
+            Ok(image_type) => image_type,
+            Err(error) => {
+                let _ = tokio::fs::remove_file(&destination).await;
+                return Err(error);
+            }
+        };
+        write_content_type(&destination, if image_type { Some("image/png") } else { content_type.as_deref() }).await?;
         let private_path = destination.clone();
         tauri::async_runtime::spawn_blocking(move || set_private_file(&private_path)).await.map_err(|error| error.to_string())??;
     }
@@ -99,7 +119,7 @@ pub async fn desktop_media_prepare(
 
 pub async fn desktop_media_release(_state: State<'_, ConnectionSession>, app: AppHandle, generation: String) -> Result<(), String> {
     ensure_generation_token(&generation)?;
-    release_generation(&media_root(&app), &generation).await
+    release_with(&media_root(&app), &generation, tokio::fs::remove_dir_all).await
 }
 
 pub(crate) async fn release_all(app: &AppHandle) {
@@ -111,10 +131,6 @@ pub(crate) async fn release_all(app: &AppHandle) {
 
 fn media_root(app: &AppHandle) -> PathBuf {
     app.state::<dokime::paths::ApplicationPaths>().cache().join("media")
-}
-
-async fn release_generation(media_root: &Path, generation: &str) -> Result<(), String> {
-    release_with(media_root, generation, tokio::fs::remove_dir_all).await
 }
 
 async fn release_with<F>(media_root: &Path, generation: &str, remove: impl FnOnce(PathBuf) -> F) -> Result<(), String>
@@ -167,20 +183,46 @@ fn parse_cache_key(key: &str) -> Result<String, String> {
     Err("invalid media key".into())
 }
 
-fn parse_request_path(path: &str) -> Option<(&str, &str)> {
-    let trimmed = path.strip_prefix('/')?;
+fn parse_request_path(path: &str) -> Option<(String, String)> {
+    // Tauri Encodes The Entire File Path, Including Its Separating Slash.
+    let decoded = percent_encoding::percent_decode_str(path).decode_utf8().ok()?;
+    let trimmed = decoded.strip_prefix('/')?;
     let mut segments = trimmed.split('/');
     let generation = segments.next().filter(|value| !value.is_empty())?;
     let key = segments.next().filter(|value| !value.is_empty())?;
     if segments.next().is_some() {
         return None;
     }
-    Some((generation, key))
+    Some((generation.to_owned(), key.to_owned()))
+}
+
+fn prepare_image(path: &Path) -> Result<bool, String> {
+    let mut reader =
+        image::ImageReader::open(path).map_err(|error| error.to_string())?.with_guessed_format().map_err(|error| error.to_string())?;
+    if reader.format().is_none() {
+        return Ok(false);
+    }
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(32_768);
+    limits.max_image_height = Some(32_768);
+    limits.max_alloc = Some(IMAGE_DECODE_BYTES);
+    reader.limits(limits);
+    let image = reader.decode().map_err(|error| error.to_string())?;
+    let preview = image.thumbnail(IMAGE_PREVIEW_EDGE, IMAGE_PREVIEW_EDGE);
+    let mut output =
+        tempfile::NamedTempFile::new_in(path.parent().ok_or("media cache has no parent")?).map_err(|error| error.to_string())?;
+    preview.write_to(output.as_file_mut(), image::ImageFormat::Png).map_err(|error| error.to_string())?;
+    output.persist(path).map_err(|error| error.to_string())?;
+    Ok(true)
 }
 
 async fn write_content_type(destination: &Path, content_type: Option<&str>) -> Result<(), String> {
     let value = content_type.map(str::trim).filter(|value| !value.is_empty()).unwrap_or("application/octet-stream");
-    tokio::fs::write(destination.with_extension("type"), value).await.map_err(|error| error.to_string())
+    tokio::fs::write(destination.with_extension("type"), format!("{MEDIA_CACHE_HEADER}{value}")).await.map_err(|error| error.to_string())
+}
+
+fn cached_content_type(value: &str) -> Option<&str> {
+    value.strip_prefix(MEDIA_CACHE_HEADER).map(str::trim).filter(|value| !value.is_empty())
 }
 
 async fn evict_lru(cache_dir: &Path, max_bytes: u64) -> Result<(), String> {
@@ -264,6 +306,9 @@ fn resolve_range(range_header: Option<&str>, len: u64, maximum: u64) -> RangeOut
 
 async fn read_range(path: &Path, start: u64, end: u64) -> std::io::Result<Vec<u8>> {
     let mut file = tokio::fs::File::open(path).await?;
+    if file.metadata().await?.len() == 0 {
+        return Ok(Vec::new());
+    }
     file.seek(std::io::SeekFrom::Start(start)).await?;
     let mut buffer = vec![0_u8; (end - start + 1) as usize];
     file.read_exact(&mut buffer).await?;
@@ -283,19 +328,18 @@ async fn try_respond(app: &AppHandle, request: &http::Request<Vec<u8>>) -> Resul
     if generation.is_empty() || !generation.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(http::StatusCode::BAD_REQUEST);
     }
-    let key = parse_cache_key(raw_key).map_err(|_| http::StatusCode::BAD_REQUEST)?;
+    let key = parse_cache_key(&raw_key).map_err(|_| http::StatusCode::BAD_REQUEST)?;
     // A stale generation (disconnected, superseded) cannot read a previous
     // connection's cache, even one still on disk pending eviction.
-    app.state::<ConnectionSession>().lease(generation).map_err(|_| http::StatusCode::NOT_FOUND)?;
-    let path = media_root(app).join(generation).join(&key);
+    app.state::<ConnectionSession>().lease(&generation).map_err(|_| http::StatusCode::NOT_FOUND)?;
+    let path = media_root(app).join(&generation).join(&key);
     let metadata = tokio::fs::metadata(&path).await.map_err(|_| http::StatusCode::NOT_FOUND)?;
     let len = metadata.len();
     let content_type = tokio::fs::read_to_string(path.with_extension("type"))
         .await
         .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "application/octet-stream".into());
+        .and_then(|value| cached_content_type(&value).map(str::to_owned))
+        .ok_or(http::StatusCode::NOT_FOUND)?;
     let range_header = request.headers().get(http::header::RANGE).and_then(|value| value.to_str().ok());
     match resolve_range(range_header, len, DESKTOP_MEDIA_RANGE_BYTES) {
         RangeOutcome::Unsatisfiable => http::Response::builder()
@@ -328,3 +372,41 @@ async fn try_respond(app: &AppHandle, request: &http::Request<Vec<u8>>) -> Resul
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tauri_encoded_media_paths() {
+        let key = "art-2ef1c770-b30d-4185-bc09-b8e1a09ac18c";
+        for path in [format!("/12%2F{key}"), format!("/12/{key}")] {
+            let (generation, parsed) = parse_request_path(&path).unwrap();
+            assert_eq!(generation, "12");
+            assert_eq!(parse_cache_key(&parsed).unwrap(), key);
+        }
+        assert!(parse_request_path("/12%2Fkey%2Fextra").is_none());
+        assert!(parse_cache_key(&parse_request_path("/12%2F..").unwrap().1).is_err());
+        assert_eq!(cached_content_type("image/png"), None);
+        assert_eq!(cached_content_type("preview-v1\nimage/png"), Some("image/png"));
+    }
+
+    #[test]
+    fn image_preview_is_bounded_and_decodable() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("preview");
+        image::RgbImage::new(2400, 1600).save_with_format(&path, image::ImageFormat::Png).unwrap();
+        assert!(prepare_image(&path).unwrap());
+        let image = image::ImageReader::open(&path).unwrap().with_guessed_format().unwrap().decode().unwrap();
+        assert_eq!((image.width(), image.height()), (960, 640));
+
+        // Oversized Header Refuses Decode Before Allocating Its Pixel Buffer.
+        let huge = image::RgbImage::new(1, 32_769);
+        huge.save_with_format(&path, image::ImageFormat::Png).unwrap();
+        assert!(prepare_image(&path).is_err());
+
+        std::fs::write(&path, b"RIFF\x04\x00\x00\x00WAVE").unwrap();
+        assert!(!prepare_image(&path).unwrap());
+        assert_eq!(std::fs::read(&path).unwrap(), b"RIFF\x04\x00\x00\x00WAVE");
+    }
+}

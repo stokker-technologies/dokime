@@ -68,19 +68,6 @@ pub(super) struct Resources {
 
 /* === Enums === */
 
-#[dokime::harmos::catalog(harmos_path = dokime::harmos)]
-enum PreparedOperations {
-    Operation0(wire::GetCase),
-    Operation1(wire::GetExecution),
-    Operation2(wire::ListCaseParameters),
-    Operation3(wire::ListExecutionParameters),
-    Operation4(wire::ListExecutionSteps),
-    Operation5(wire::GetCycle),
-    Operation6(wire::ListCycles),
-    Operation7(wire::ListCases),
-    Operation8(wire::ListExecutions),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -160,9 +147,16 @@ impl Serve<wire::ListExecutions> for Resources {
 impl Resources {
     async fn get_cycle(&self, request: &wire::GetCycle) -> Result<dokime::domain::model::execution::wire::CycleSummary, Status> {
         let id = cycle_id(&request.cycle_id)?;
-        let snapshot = dokime::app::live_runtime(&self.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
-        let cycle = snapshot.state().cycles.get(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
-        let value = summary(snapshot.state(), cycle, canonical::cursor(&snapshot))?;
+        let runtime = dokime::app::live_runtime(&self.runtime).await?;
+        let snapshot = runtime.watch_state().latest();
+        let state = snapshot.state();
+        let cursor = canonical::cursor(&snapshot);
+        let value = if let Some(cycle) = state.cycles.get(&id) {
+            summary(state, cycle, cursor)?
+        } else {
+            let header = runtime.saved_cycle_header(&id).await.map_err(status)?.ok_or_else(|| Status::not_found("cycle not found"))?;
+            cycle_summary(&header.cycle, header.case_count, Default::default(), state.archived_cycles.contains(&id), cursor)?
+        };
         inspection_reply(self, value)
     }
 
@@ -207,11 +201,25 @@ impl Resources {
 
     async fn list_cases(&self, request: &wire::ListCases) -> Result<dokime::domain::model::execution::wire::ListCasesReply, Status> {
         let id = cycle_id(&request.cycle_id)?;
-        let snapshot = dokime::app::live_runtime(&self.runtime).await?.inspect_cycle(&id).await.map_err(status)?;
+        let runtime = dokime::app::live_runtime(&self.runtime).await?;
+        let snapshot = runtime.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor.page(request.limit, &request.after_case_id, request.cursor.as_ref()).map_err(canonical::cursor_failure)?;
-        let cycle = snapshot.state().cycle_view(&id).ok_or_else(|| Status::not_found("cycle not found"))?;
-        let value = case_page(snapshot.state(), &cycle, &request.after_case_id, limit, cursor)?;
+        let value = if let Some(cycle) = snapshot.state().cycle_view(&id) {
+            case_page(snapshot.state(), &cycle, &request.after_case_id, limit, cursor)?
+        } else {
+            let headers = runtime.saved_cycle_cases(&id).await.map_err(status)?.ok_or_else(|| Status::not_found("cycle not found"))?;
+            let start = after_position(&request.after_case_id, headers.iter().map(|case| case.case_id.as_str()))?;
+            let count = headers.len();
+            let cases = headers.into_iter().skip(start).take(limit).map(case_header_summary).collect::<Result<Vec<_>, _>>()?;
+            let next_after_case_id =
+                (start + cases.len() < count).then(|| cases.last().expect("nonempty continued case page").case_id.clone());
+            dokime::domain::model::execution::wire::ListCasesReply {
+                cases,
+                next_after_case_id,
+                cursor: Some(cursor),
+            }
+        };
         inspection_reply(self, value)
     }
 
@@ -252,11 +260,13 @@ pub(super) fn prepare(
     setup.resource::<Host<wire::ListCases>>(Host::<wire::ListCases>::new(served.clone()));
     setup.resource::<Host<wire::ListExecutions>>(Host::<wire::ListExecutions>::new(served));
 
-    setup.operations::<PreparedOperations>(dokime::app::Lanes::Open);
     Ok(())
 }
 
 pub(super) fn status(error: Error) -> Status {
+    if matches!(&error, Error::ReportSave { .. }) {
+        return super::error::detailed(Status::internal(error.to_string()), &error);
+    }
     let (grpc_code, code, message, issues) = match error {
         Error::Storage(dokime::storage::Error::SettingsConflict { expected, actual }) => {
             (Code::Aborted, "settings_conflict".into(), format!("expected settings revision {expected}, found {actual}"), vec![])
@@ -336,12 +346,20 @@ fn cycle_summary(
 pub(super) fn case_summary(
     case: &TestCase, ordinal: usize, projection: CaseProjection,
 ) -> Result<dokime::domain::model::execution::wire::CaseSummary, Status> {
+    let header = dokime::runtime::query::cases::CaseHeader::new(case, ordinal, projection);
+    case_header_summary(header)
+}
+
+fn case_header_summary(
+    case: dokime::runtime::query::cases::CaseHeader,
+) -> Result<dokime::domain::model::execution::wire::CaseSummary, Status> {
+    let projection = case.projection;
     Ok(dokime::domain::model::execution::wire::CaseSummary {
-        suite_id: case.suite_id.clone(),
-        case_id: case.test_case_id.as_str().to_owned(),
-        template_id: case.test_case_template_id.as_str().to_owned(),
+        suite_id: case.suite_id,
+        case_id: case.case_id.to_string(),
+        template_id: case.template_id.to_string(),
         metadata: Some(canonical::metadata(&case.metadata)?),
-        ordinal: ordinal as u64,
+        ordinal: case.ordinal as u64,
         status: projection.status.map_or(dokime::domain::model::execution::wire::CaseStatus::Unspecified, case_status),
         latest_execution_id: projection.latest_execution_id.as_ref().map(|id| id.as_str().to_owned()),
         latest_execution_status: projection.latest_execution_status.as_ref().map(execution_status),
@@ -539,3 +557,32 @@ fn execution_page<'a>(
 }
 
 /* === Tests === */
+
+#[test]
+fn report_failure_details() {
+    use dokime::domain::model::{evidence::wire::CapturedRecordError, reports::wire::ReportSubject};
+    use dokime::harmos::grpc::{Transcoded, Wire};
+    use harmos_sdk::grpc::DecodeInput;
+
+    let execution = "00000000-0000-7000-8000-000000000123";
+    let root = std::env::current_dir().unwrap();
+    let source = std::io::Error::other(format!("fixture-save-root: {}", root.join("report.html").display()));
+    let error = Error::ReportSave {
+        subject: ReportSubject::Execution(execution.into()),
+        stage: "execution report publication",
+        source: Box::new(Error::ReportUnavailable(Box::new(source.into()))),
+    };
+    let status = status(error);
+    assert_eq!(status.code(), Code::Internal);
+    let envelope = tonic_types::Status::decode(status.details()).unwrap();
+    let detail = envelope.details.iter().find(|detail| detail.type_url.ends_with("CapturedRecordError")).unwrap();
+    let (detail, _) =
+        <Transcoded as Wire<CapturedRecordError>>::decode_admitted(DecodeInput::new(&detail.value), |_| Ok::<_, Status>(())).unwrap();
+    assert_eq!(detail.code.as_deref(), Some("report_not_saved"));
+    assert!(detail.message.contains(execution));
+    assert!(detail.message.contains("execution report publication"));
+    assert!(detail.cause_chain.len() >= 2);
+    assert_eq!(detail.cause_chain.last().unwrap().message, "fixture-save-root: report.html");
+    assert!(!detail.cause_chain.iter().any(|cause| cause.message.contains(&root.display().to_string())));
+    assert!(detail.source.is_some());
+}

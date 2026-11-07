@@ -78,7 +78,7 @@ pub(crate) async fn persisted_cycle_restart() {
     let boundary = runtime.storage().cursor_saved();
     let report = runtime
         .operations()
-        .call::<MaterializeReport>(MaterializeReport {
+        .operation::<MaterializeReport>(MaterializeReport {
             subject: ReportSubject::Cycle(cycle_id.to_string()),
             at: boundary.clone(),
         })
@@ -153,7 +153,7 @@ pub(crate) async fn persisted_cycle_restart() {
         .unwrap();
     assert_eq!(recovered.value.saved, settled.saved);
     drop(recovered);
-    assert!(runtime.cycles().await.is_empty(), "sealed containers stay in native history");
+    assert!(runtime.cycles().await.unwrap().is_empty(), "sealed containers stay in native history");
     let recovered_checkpoint = crate::service_support::native::checkpoint(&runtime, &first).await;
     assert_eq!(crate::service_support::native::open(&runtime, &recovered_checkpoint).await.execution().saved.as_ref(), Some(&seal));
     drop(recovered_checkpoint);

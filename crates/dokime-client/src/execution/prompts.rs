@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read And Answer Execution-Scoped Prompts
+// Read and Answer Execution-Scoped Prompts
 
 /* === Modules === */
 

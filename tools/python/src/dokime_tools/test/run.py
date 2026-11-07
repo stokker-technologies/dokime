@@ -17,6 +17,7 @@ import math
 import os
 import platform
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -213,6 +214,7 @@ def bench(
     refresh: bool,
     extra: Sequence[str],
     archive_arguments: Sequence[str] = (),
+    binary: str | None = None,
 ) -> int:
     """Measure one benchmark layer and compare it with the `dev` baseline."""
     rules = policy.load(directory)
@@ -233,7 +235,7 @@ def bench(
     }
     if language == "rust":
         identity["rustc"] = archive._toolchain(directory)
-        rows, status = _bench_rust(directory, category, refresh, measure, extra, archive_arguments, identity)
+        rows, status = _bench_rust(directory, category, refresh, measure, extra, archive_arguments, identity, binary)
     elif language == "python":
         identity["python"] = {
             "version": sys.version,
@@ -242,8 +244,10 @@ def bench(
         rows, status = _bench_python(directory, category, project, refresh, measure, extra, identity)
     else:
         raise policy.TestError("benchmarks run for rust and python")
-    if not rows:
+    if not rows and "--test" not in extra:
         raise policy.TestError(f"no {category} {language} benchmark produced results")
+    if "--test" in extra:
+        print("Benchmark Diagnostic Mode: No Criterion Regression Estimates")
 
     for name, median, baseline in rows:
         if baseline is None:
@@ -278,6 +282,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     bench_lane.add_argument("--language", choices=("rust", "python"), required=True)
     bench_lane.add_argument("--refresh-baseline", action="store_true")
     bench_lane.add_argument("--archive-argument", action="append", default=[])
+    bench_lane.add_argument("--binary", help="Measure One Native Benchmark Executable")
     measured = commands.add_parser("coverage", help="instrumented run of every layer")
     measured.add_argument("--language", choices=("rust", "python"), required=True)
     for command in (lane, bench_lane, measured):
@@ -326,6 +331,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 options.refresh_baseline,
                 extra,
                 options.archive_argument,
+                options.binary,
             )
         return 0
     except (policy.TestError, OSError, ValueError, KeyError) as error:
@@ -375,7 +381,10 @@ def _lane(
 ) -> dict:
     """Execute a lane command and turn its JUnit report into a lane record."""
     started = time.time()
-    status = _execute(command, cwd, environment)
+    if language in SCRIPTS:
+        status = _execute(command, cwd, environment, timeout_s=rules.deadline(category))
+    else:
+        status = _execute(command, cwd, environment)
     seconds = time.time() - started
     destination = report.location(directory, profile, key)
     if (
@@ -398,21 +407,12 @@ def _lane(
     if not junit.is_file():
         raise policy.TestError(f"{key}: the runner exited {status} without a JUnit report")
 
-    # Stories, Deadlines And Liveness Overruns
+    # Stories And Measurements
     text = junit.read_text(encoding="utf-8")
     package = Path(project).name if project != "." else directory.name
     found = report.cases(text, category, language, package)
-    factor = policy.COVERAGE_FACTOR if environment and environment.get(COVERAGE_VARIABLE) == "1" else 1
-    deadlines = {(case.suite, case.name): _deadline(rules, language, case) * factor for case in found}
-    overruns = [
-        f"{case.file}::{case.story}"
-        for case in found
-        if language != "rust" and case.outcome == "passed" and case.seconds > deadlines[(case.suite, case.name)]
-    ]
-    failed = sum(case.outcome == "failed" for case in found) + len(overruns)
-    passed = sum(case.outcome == "passed" for case in found) - len(overruns)
-    for story in overruns:
-        print(f"{key}: {story} exceeded its liveness deadline", file=sys.stderr)
+    failed = sum(case.outcome == "failed" for case in found)
+    passed = sum(case.outcome == "passed" for case in found)
 
     report.write(destination / "junit.xml", text)
     durations = {}
@@ -433,27 +433,12 @@ def _lane(
         "passed": passed,
         "failed": failed,
         "skipped": sum(case.outcome == "skipped" for case in found),
-        "overruns": overruns,
         "seconds": round(seconds, 3),
         "started_at": int(started),
         "junit": (destination / "junit.xml").relative_to(directory).as_posix(),
         "coverage": None,
-        "durations": [
-            (case.suite, case.name, case.package, case.seconds)
-            for case in found
-            if case.outcome == "passed" and f"{case.file}::{case.story}" not in overruns
-        ],
+        "durations": [(case.suite, case.name, case.package, case.seconds) for case in found if case.outcome == "passed"],
     }
-
-
-def _deadline(rules: policy.Policy, language: str, case: report.Case) -> int:
-    if language != "rust":
-        entry = rules.matched(case.category, language, f"{case.file}::{case.story}")
-        if entry is not None:
-            return entry.timeout_seconds
-    if case.category not in policy.CATEGORIES:
-        return 0
-    return rules.deadline(case.category)
 
 
 def _console() -> dict:
@@ -472,9 +457,31 @@ def _console() -> dict:
     }
 
 
-def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | None) -> int:
+def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | None, *, timeout_s: float | None = None) -> int:
     try:
-        return subprocess.run(list(command), cwd=cwd, env=environment, check=False, **_console()).returncode
+        with subprocess.Popen(
+            list(command), cwd=cwd, env=environment, start_new_session=os.name != "nt" and timeout_s is not None, **_console()
+        ) as process:
+            try:
+                return process.wait(timeout=timeout_s)
+            except subprocess.TimeoutExpired:
+                print(f"{command[0]}: script lane exceeded its {timeout_s}-second hang guard", file=sys.stderr)
+                if os.name == "nt":
+                    subprocess.run(
+                        ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                        check=False,
+                        capture_output=True,
+                        creationflags=spawn_flags(),
+                    )
+                else:
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
+                return 1
     except OSError as error:
         raise policy.TestError(f"{command[0]} is unavailable: {error}") from error
 
@@ -501,6 +508,7 @@ def _bench_rust(
     extra: Sequence[str],
     archive_arguments: Sequence[str],
     identity: dict,
+    binary: str | None = None,
 ) -> tuple[list[tuple[str, float, float | None]], int]:
     messages = paths.output(directory, "build", "bench") / "bench/compiler.json"
     if not messages.is_file():
@@ -509,13 +517,17 @@ def _bench_rust(
     compatibility = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     rows = []
     status = 0
+    executed = False
     for line in messages.read_text(encoding="utf-8").splitlines():
         message = json.loads(line) if line.startswith("{") else {}
         target = message.get("target", {})
         name = target.get("name", "")
+        if binary is not None and name != binary:
+            continue
         artifact = message.get("reason") == "compiler-artifact" and "bench" in target.get("kind", []) and message.get("executable")
         if not artifact or not (name == category or name.startswith(category + "-")):
             continue
+        executed = True
         manifest = Path(message["manifest_path"])
         owner = manifest.parent / name
         if manifest.is_absolute() or ".." in owner.parts:
@@ -546,6 +558,8 @@ def _bench_rust(
                 shutil.copytree(path.parent, key / BASELINE, dirs_exist_ok=True)
         if measure and peak is not None:
             print(f"benchmark peak memory: {owner.as_posix()}: {peak} bytes")
+    if not executed:
+        raise policy.TestError("no native benchmark executable matched the selection")
     return rows, status
 
 

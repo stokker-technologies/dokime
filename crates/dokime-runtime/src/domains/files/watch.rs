@@ -153,7 +153,7 @@ impl FileWatch {
         // Subscribe Before The Baseline So A Racing Write Remains Observable.
         let changes = source.changes(runtime.storage()).await;
 
-        // Seal Into The Execution Before It Stops Admitting Artifacts
+        // Seal into the Execution Before It Stops Admitting Artifacts
         let (seal_sender, seal_request) = oneshot::channel();
         let registration = runtime.execution_storage.captures.register(&execution, seal_sender as SealRequest)?;
         Ok(Self {
@@ -200,6 +200,10 @@ impl FileWatch {
 
     pub fn policy(&self) -> Policy {
         self.state().policy
+    }
+
+    pub(super) fn execution(&self) -> &TestExecutionId {
+        &self.state().execution
     }
 
     pub fn poll_interval(&self) -> Duration {
@@ -333,6 +337,7 @@ impl State {
         polled
     }
 
+    #[tracing::instrument(name = "files.watch.seal", level = "debug", skip_all)]
     async fn seal(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
         if self.complete {
             return Ok(());
@@ -358,7 +363,10 @@ impl State {
     }
 
     // Seals every tracked file, then answers the execution's seal request.
+    #[tracing::instrument(name = "files.watch.finish", level = "debug", skip_all)]
     async fn finish(&mut self, events: &mut Vec<WatchEvent>) -> Result<()> {
+        #[cfg(feature = "testing")]
+        crate::domains::execution::run::testing::before_watch_seal(&self.execution).await;
         let mut outcome = Ok(());
         let paths = self.tracked.keys().cloned().collect::<Vec<_>>();
         for path in paths {
@@ -399,7 +407,7 @@ impl State {
             self.seal_file(&path, events).await?;
         }
 
-        // Capture Each Matched File From Its Baseline
+        // Capture Each Matched File from Its Baseline
         for (path, entry) in &listing {
             // A Replaced Source Seals Its Segment; The New File Starts Afresh
             if let Some(tracked) = self.tracked.get(path) {
@@ -528,7 +536,7 @@ impl State {
             return Ok(());
         }
 
-        // Append Only Bytes The Cap Admits
+        // Append Only Bytes the Cap Admits
         let length = entry.size - tracked.offset;
         if self.captured.saturating_add(length) > self.maximum_bytes {
             return Err(over_bytes(self.maximum_bytes, path));
@@ -552,13 +560,13 @@ impl State {
                 if self.lines.is_empty() {
                     return Ok(());
                 }
-                // The Captured Bytes Are Read Back From The Spool As Lines
+                // The Captured Bytes Are Read Back from the Spool as Lines
                 let captured = read_back(&tracked.spool, tracked.written - copied, copied)?;
                 let lines = tracked.pending.push(&captured);
                 self.offer(lines).await;
                 Ok(())
             }
-            // A Source That Cannot Resume Mirrors This File From Now On
+            // A Source That Cannot Resume Mirrors This File from Now On
             Err(ReadFailure::ResumeUnsupported) => {
                 events.push(WatchEvent::Gap {
                     path: path.to_owned(),
@@ -675,7 +683,7 @@ impl State {
             tracing::debug!(%path, "file watch never copied this file; nothing is sealed");
             return Ok(());
         }
-        // Drop Any Interrupted Write Past The Committed Length
+        // Drop Any Interrupted Write Past the Committed Length
         open_spool(&tracked.spool, tracked.written, false).await?;
         let artifact = tracked.artifact;
         let record = if let Some(upload) = tracked.upload {

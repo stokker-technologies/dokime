@@ -38,7 +38,7 @@ export type NodeSummaryProps = {
   onRename: ((label: string) => Promise<unknown>) | null;
   status: { label: string; variant: ComponentProps<typeof Badge>["variant"] };
   /** The progress text beside the pill. */
-  progress: string | null;
+  progress: ReactNode;
   description?: ReactNode;
   /** False in the frozen report: no pencil. */
   live: boolean;

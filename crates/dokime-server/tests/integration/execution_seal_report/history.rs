@@ -249,7 +249,7 @@ fn cycles_restart() {
             let execution = handle.watch_state().latest().state().cycles[&interrupted].execution_ids[0].clone();
             handle.start_execution(execution.clone(), ExecutionMode::Automatic, Default::default()).await;
             gate.started.notified().await;
-            let before = handle.operations().call::<contracts::execution::ListCycles>(Default::default()).await.unwrap();
+            let before = handle.operations().operation::<contracts::execution::ListCycles>(Default::default()).await.unwrap();
             assert_eq!(before.cycles.len(), 2, "starting another cycle preserves completed rows");
             assert_eq!(
                 handle.watch_state().latest().state().executions[&execution].status,
@@ -280,7 +280,7 @@ fn cycles_restart() {
             let prepared = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
             let mut owner = runtime(root.path(), &prepared).await;
             let handle = owner.handle();
-            let listed = handle.operations().call::<contracts::execution::ListCycles>(Default::default()).await.unwrap();
+            let listed = handle.operations().operation::<contracts::execution::ListCycles>(Default::default()).await.unwrap();
             assert_eq!(listed.cycles.len(), 2);
             let completed = listed.cycles.iter().find(|cycle| cycle.cycle_id == sealed.as_str()).unwrap();
             assert_eq!(completed.phase, model::execution::result::CyclePhase::Sealed);
@@ -316,12 +316,12 @@ fn cycles_restart() {
 
             let first = handle
                 .operations()
-                .call::<contracts::execution::ListCycles>(contracts::execution::ListCycles { limit: 1, ..Default::default() })
+                .operation::<contracts::execution::ListCycles>(contracts::execution::ListCycles { limit: 1, ..Default::default() })
                 .await
                 .unwrap();
             let second = handle
                 .operations()
-                .call::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
+                .operation::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
                     limit: 1,
                     after_cycle_id: first.next_after_cycle_id.clone().unwrap(),
                     cursor: first.cursor.clone(),
@@ -337,14 +337,14 @@ fn cycles_restart() {
             // Every Read Used By The Cycle Workspace Opens The Retired Container.
             let cycle = handle
                 .operations()
-                .call::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: interrupted.to_string() })
+                .operation::<contracts::execution::GetCycle>(contracts::execution::GetCycle { cycle_id: interrupted.to_string() })
                 .await
                 .unwrap();
             assert_eq!(cycle.status, stopped.status);
             assert_eq!(cycle.case_count, 1);
             let cases = handle
                 .operations()
-                .call::<contracts::execution::ListCases>(contracts::execution::ListCases {
+                .operation::<contracts::execution::ListCases>(contracts::execution::ListCases {
                     cycle_id: interrupted.to_string(),
                     ..Default::default()
                 })
@@ -355,7 +355,7 @@ fn cycles_restart() {
             let case_id = cases.cases[0].case_id.clone();
             handle
                 .operations()
-                .call::<contracts::execution::GetCase>(contracts::execution::GetCase {
+                .operation::<contracts::execution::GetCase>(contracts::execution::GetCase {
                     cycle_id: interrupted.to_string(),
                     case_id: case_id.clone(),
                 })
@@ -363,7 +363,7 @@ fn cycles_restart() {
                 .unwrap();
             handle
                 .operations()
-                .call::<contracts::execution::ListCaseParameters>(contracts::execution::ListCaseParameters {
+                .operation::<contracts::execution::ListCaseParameters>(contracts::execution::ListCaseParameters {
                     cycle_id: interrupted.to_string(),
                     case_id,
                     ..Default::default()
@@ -372,7 +372,7 @@ fn cycles_restart() {
                 .unwrap();
             let executions = handle
                 .operations()
-                .call::<contracts::execution::ListExecutions>(contracts::execution::ListExecutions {
+                .operation::<contracts::execution::ListExecutions>(contracts::execution::ListExecutions {
                     cycle_id: interrupted.to_string(),
                     ..Default::default()
                 })
@@ -382,13 +382,13 @@ fn cycles_restart() {
             assert!(executions.executions[0].sealed);
             let detail = handle
                 .operations()
-                .call::<contracts::execution::GetExecution>(contracts::execution::GetExecution { execution_id: execution.to_string() })
+                .operation::<contracts::execution::GetExecution>(contracts::execution::GetExecution { execution_id: execution.to_string() })
                 .await
                 .unwrap();
             assert_eq!(detail.summary.as_ref().unwrap().status, model::execution::wire::ExecutionStatus::Interrupted);
             handle
                 .operations()
-                .call::<contracts::execution::ListExecutionParameters>(contracts::execution::ListExecutionParameters {
+                .operation::<contracts::execution::ListExecutionParameters>(contracts::execution::ListExecutionParameters {
                     execution_id: execution.to_string(),
                     set: model::execution::wire::ExecutionParameterSet::Inputs,
                     limit: 0,
@@ -399,7 +399,7 @@ fn cycles_restart() {
                 .unwrap();
             handle
                 .operations()
-                .call::<contracts::execution::ListExecutionSteps>(contracts::execution::ListExecutionSteps {
+                .operation::<contracts::execution::ListExecutionSteps>(contracts::execution::ListExecutionSteps {
                     execution_id: execution.to_string(),
                     ..Default::default()
                 })
@@ -407,12 +407,12 @@ fn cycles_restart() {
                 .unwrap();
 
             handle.set_cycle_archived(sealed.clone(), true, Default::default()).await.unwrap();
-            let visible = handle.operations().call::<contracts::execution::ListCycles>(Default::default()).await.unwrap();
+            let visible = handle.operations().operation::<contracts::execution::ListCycles>(Default::default()).await.unwrap();
             assert_eq!(visible.cycles.len(), 1);
             assert_eq!(visible.cycles[0].cycle_id, interrupted.as_str());
             let all = handle
                 .operations()
-                .call::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
+                .operation::<contracts::execution::ListCycles>(contracts::execution::ListCycles {
                     filter: Some(model::execution::wire::CycleFilter {
                         archive: Some(model::execution::wire::ArchiveScope::All),
                         ..Default::default()
@@ -435,7 +435,7 @@ pub(crate) async fn empty_cycles_retain_history() {
     use dokime::domain::model::execution::wire::{ArchiveScope, CycleFilter};
     use std::collections::BTreeSet;
 
-    // Read An Empty Catalog
+    // Read an Empty Catalog
     let root = tempfile::tempdir().unwrap();
     let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
     let mut owner = runtime(root.path(), &prepared_owner).await;
@@ -476,7 +476,7 @@ pub(crate) async fn empty_cycles_retain_history() {
     assert_eq!(page.entries.len(), 1);
     let snapshot = page.at.clone().unwrap();
 
-    // Intervening Writes Cannot Change The Selected Saved Image
+    // Intervening Writes Cannot Change the Selected Saved Image
     let definition = dokime::transactions::CycleDefinition {
         metadata: support::metadata("history.later", "Later Empty"),
         continue_automatically: false,
@@ -544,7 +544,7 @@ pub(crate) async fn empty_cycles_retain_history() {
     let refusal = handle.browse_cycles(oversized).await;
     assert!(matches!(refusal, Err(dokime::runtime::Error::Harmos(dokime::harmos::Error::ResourceExhausted { .. }))));
 
-    // Restart And Preserve Archive Visibility And Labels
+    // Restart and Preserve Archive Visibility and Labels
     drop(client);
     server.shutdown().await.unwrap();
     drop(handle);

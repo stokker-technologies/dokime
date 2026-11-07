@@ -6,7 +6,7 @@
 
 Dokime and the paired Harmos storage interface SHALL remove memory-accounting claims while preserving the behavior listed below.
 
-#### Scenario: Read Through The Storage Manager
+#### Scenario: Read Through the Storage Manager
 
 - **WHEN** a read method previously took `&ReadSession`
 - **THEN** it takes `&Manager` in the same argument position and invokes its ordinary read methods
@@ -53,7 +53,7 @@ Checkpoint publication SHALL preserve the durable evidence dependency and all un
 - **WHEN** checkpoint encoding exceeds its configured bound
 - **THEN** the prior checkpoint and its complete recovery tail remain readable
 
-#### Scenario: The Journal Cannot Reopen After Replacement
+#### Scenario: the Journal Cannot Reopen After Replacement
 
 - **WHEN** reopening the named journal fails after checkpoint and journal replacement
 - **THEN** a fresh owner recovers the published checkpoint and exactly the uncovered tail

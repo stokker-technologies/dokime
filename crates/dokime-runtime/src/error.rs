@@ -56,7 +56,7 @@ pub enum Error {
     #[error("secret {0:?} is not declared in this context")]
     UnknownSecret(String),
 
-    #[error("secret `{0}` is not in Secret Storage; add it and retry the plugin")]
+    #[error("secret `{0}` is not in Secret Storage; add it and reload the plugin")]
     UnavailableSecret(String),
 
     #[error("parameter {name:?}: {reason}")]
@@ -98,6 +98,10 @@ pub enum Error {
 
     #[error("evidence file: {0}")]
     Artifact(#[source] std::io::Error),
+
+    #[cfg(feature = "native")]
+    #[error(transparent)]
+    Operation(#[from] harmos::sidecar::CallError),
 
     #[error("operation {operation:?} did not answer: {reason}")]
     Call { operation: &'static str, reason: String },

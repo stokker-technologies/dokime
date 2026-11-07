@@ -37,13 +37,12 @@ const PROTECTION_SUITE: &str = "obc.charger.protection";
 const PROTECTION_TEMPLATE: &str = "obc.charger.protection.overcurrent";
 const STARTUP_TEMPLATE: &str = "obc.charger.startup.sequence";
 const STARTUP_SAMPLES: &str = "obc.charger.startup.samples";
-const STARTUP_STREAM_LOG: &str = "obc.charger.startup/stream.000000.log";
+const EXECUTION_LOG: &str = "artifacts/execution.log";
 const STARTUP_SAMPLE_COUNT: u64 = 40;
 const STEADY_SUITE: &str = "obc.charger.steady";
 const STEADY_TEMPLATE: &str = "obc.charger.steady.measurement";
 const STEADY_SAMPLES: &str = "obc.charger.steady.samples";
 const STEADY_EVENTS: &str = "obc.charger.steady.events";
-const STEADY_STREAM_LOG: &str = "obc.charger.steady/stream.000000.log";
 const STEADY_HOST_SYSTEM: &str = "host.system";
 const STEADY_SAMPLE_COUNT: u64 = 240;
 const STEADY_PROMPT: &str = "obc.charger.steady.check";
@@ -155,11 +154,11 @@ async fn scene_development_session(session: &mut Session) {
     status_ready(&client).await;
     assert!(installations(&client).await.is_empty());
 
-    // Reloading Unchanged Bytes Keeps The Suites
+    // Reloading Unchanged Bytes Keeps the Suites
     assert_eq!(session.host.command(reload.clone()).await["event"], "reloaded");
     assert!(serves_startup(&client).await);
 
-    // A Reload Refuses Bytes That Are Not A Distribution
+    // A Reload Refuses Bytes That Are Not a Distribution
     std::fs::write(&session.bundle, b"not a distribution").unwrap();
     assert_eq!(session.host.command(reload.clone()).await["event"], "reload_failed");
     assert!(serves_startup(&client).await, "a refused reload keeps the suites");
@@ -205,7 +204,7 @@ async fn scene_startup(session: &mut Session) {
     let follow = content
         .stream(contracts::content::FollowExecutionFile {
             execution_id: execution_id.clone(),
-            relative_path: STARTUP_STREAM_LOG.into(),
+            relative_path: EXECUTION_LOG.into(),
             identity: None,
             offset: 0,
             max_bytes: 64 * 1024,
@@ -220,7 +219,7 @@ async fn scene_startup(session: &mut Session) {
     assert_eq!(metadata.phase, model::content::wire::ExecutionFilePhase::Producing);
     assert_eq!(metadata.offset, 0);
     let identity = metadata.identity.expect("a live follow names its retained identity");
-    assert_eq!(identity.relative_path, STARTUP_STREAM_LOG);
+    assert_eq!(identity.relative_path, EXECUTION_LOG);
     let followed = {
         let mut followed = Vec::new();
         loop {
@@ -234,20 +233,18 @@ async fn scene_startup(session: &mut Session) {
             }
             let text = String::from_utf8_lossy(&followed).into_owned();
             if text.contains("record=prompt_requested") {
-                break text;
+                break followed;
             }
         }
     };
-    assert!(followed.contains("record=started"));
+    assert!(String::from_utf8_lossy(&followed).contains("record=started"));
     drop(follow);
 
-    // The Followed Prefix Is Also What A Plain Read Serves While Still Streaming
-    let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
+    // The Followed Prefix Is Also What a Plain Read Serves While Still Streaming
+    let file = list_file(&mut content, &execution_id, EXECUTION_LOG).await;
     assert_eq!(file.state, model::content::wire::ExecutionFileState::Streaming);
-    let window = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-    let running_log = String::from_utf8_lossy(&window.data).into_owned();
-    assert!(running_log.contains("record=started"));
-    assert!(running_log.contains("record=prompt_requested"));
+    let running_log = read_file(&mut content, &execution_id, EXECUTION_LOG).await;
+    assert!(running_log.starts_with(&followed));
 
     prompts
         .call(contracts::prompts::Respond {
@@ -262,7 +259,7 @@ async fn scene_startup(session: &mut Session) {
 
     let cycle = wait_completed(changes, &mut execution, &cycle_id).await;
     if !passed(&cycle) {
-        let diagnosis = diagnosis::execution(&client, &execution_id, STARTUP_STREAM_LOG).await;
+        let diagnosis = diagnosis::execution(&client, &execution_id, EXECUTION_LOG).await;
         assert!(passed(&cycle), "{diagnosis}");
     }
     let telemetry = client.clone();
@@ -279,11 +276,11 @@ async fn scene_startup(session: &mut Session) {
     assert_eq!(telemetry.samples.len() as u64, STARTUP_SAMPLE_COUNT);
     assert_eq!(telemetry.samples.iter().map(|sample| sample.stream.as_str()).collect::<HashSet<_>>(), HashSet::from([STARTUP_SAMPLES]));
 
-    let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
+    let file = list_file(&mut content, &execution_id, EXECUTION_LOG).await;
     assert_eq!(file.kind, model::content::wire::ExecutionFileKind::Text);
     assert_eq!(file.state, model::content::wire::ExecutionFileState::Finalized);
-    let final_log = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-    let final_text = String::from_utf8_lossy(&final_log.data);
+    let final_log = read_file(&mut content, &execution_id, EXECUTION_LOG).await;
+    let final_text = String::from_utf8_lossy(&final_log);
     assert!(final_text.contains("record=prompt_answered action=continue accepted=true"));
     assert!(final_text.contains("Charger resources released"));
 
@@ -345,8 +342,8 @@ async fn scene_clean_stop(session: Session) {
     drop(root);
 }
 
-// A Cycle Report Opens On Every Request From The Measuring Member's Settlement, Through The
-// Prompting Member's Admission, To Its Pending Question, And Both Reports Open While That
+// A Cycle Report Opens on Every Request from the Measuring Member's Settlement, Through the
+// Prompting Member's Admission, to Its Pending Question, and Both Reports Open While That
 // Question Waits Without Answering It.
 async fn scene_open_report_while_cycle_runs(session: &mut Session) {
     const BOUND: Duration = crate::support::budgets::settings::STORY_BOUND;
@@ -402,7 +399,7 @@ async fn scene_open_report_while_cycle_runs(session: &mut Session) {
         assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))), "{reply:?}");
     }
 
-    // Back-To-Back Requests Cover The Measuring Member's Seal, The Next Admission And The Question
+    // Back-To-Back Requests Cover the Measuring Member's Seal, the Next Admission and the Question
     on_change(changes, "the measuring member to pass", async || {
         let page = execution
             .call(contracts::execution::ListExecutions {
@@ -435,7 +432,7 @@ async fn scene_open_report_while_cycle_runs(session: &mut Session) {
         }
     };
 
-    // Both Reports Open While The Question Waits, And It Still Waits
+    // Both Reports Open While the Question Waits, and It Still Waits
     let execution_id = pending.scope.as_ref().and_then(|scope| scope.execution_id.clone()).expect("execution scope");
     let cycle_html =
         tokio::time::timeout(BOUND, cycle_report(&client, &cycle_id)).await.expect("the cycle report opens while the prompt waits");
@@ -455,7 +452,7 @@ async fn scene_open_report_while_cycle_runs(session: &mut Session) {
         .unwrap();
     assert!(still.prompts.iter().any(|prompt| prompt.prompt_id == pending.prompt_id), "opening a report leaves the prompt pending");
 
-    // Answering The Question Completes The Cycle
+    // Answering the Question Completes the Cycle
     prompts
         .call(contracts::prompts::Respond {
             prompt_id: pending.prompt_id,
@@ -641,8 +638,8 @@ async fn run_cycle(execution: &mut Client, cycle_id: &str) {
     assert!(matches!(reply.outcome, Some(model::execution::wire::RunReplyOutcome::Accepted(_))));
 }
 
-async fn read_file(content: &mut Client, execution_id: &str, relative_path: &str) -> model::content::wire::ExecutionFileWindow {
-    content
+async fn read_file(content: &mut Client, execution_id: &str, relative_path: &str) -> Vec<u8> {
+    let window = content
         .call(contracts::content::ReadExecutionFile {
             execution_id: execution_id.to_owned(),
             relative_path: relative_path.to_owned(),
@@ -650,7 +647,29 @@ async fn read_file(content: &mut Client, execution_id: &str, relative_path: &str
             max_bytes: 8192,
         })
         .await
-        .unwrap()
+        .unwrap();
+    assert_eq!(window.offset, 0);
+    let size = window.observed_size_bytes;
+    let mut data = window.data;
+    assert!(data.len() as u64 <= size);
+    assert!(!data.is_empty() || size == 0);
+    while (data.len() as u64) < size {
+        let offset = data.len() as u64;
+        let window = content
+            .call(contracts::content::ReadExecutionFile {
+                execution_id: execution_id.to_owned(),
+                relative_path: relative_path.to_owned(),
+                offset,
+                max_bytes: (size - offset).min(8192) as u32,
+            })
+            .await
+            .unwrap();
+        assert_eq!(window.offset, offset);
+        assert!(window.observed_size_bytes >= size);
+        assert!(!window.data.is_empty() && window.data.len() as u64 <= size - offset);
+        data.extend(window.data);
+    }
+    data
 }
 
 async fn list_file(content: &mut Client, execution_id: &str, relative_path: &str) -> model::content::wire::ExecutionFileMetadata {
@@ -825,7 +844,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
 
     let cycle = wait_completed(changes, &mut execution, &cycle_id).await;
     if !passed(&cycle) {
-        let diagnosis = diagnosis::execution(client, &execution_id, STEADY_STREAM_LOG).await;
+        let diagnosis = diagnosis::execution(client, &execution_id, EXECUTION_LOG).await;
         assert!(passed(&cycle), "{diagnosis}");
     }
     let id = model::identity::TestCycleId::from_uuid(&cycle_id).unwrap();
@@ -861,11 +880,11 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     assert_eq!(acceptance.observed.as_ref().map(|value| value.to_core().unwrap()), Some(Value::Text("passed".into())));
 
     let mut content = client.clone();
-    let stream_log = list_file(&mut content, &execution_id, STEADY_STREAM_LOG).await;
+    let stream_log = list_file(&mut content, &execution_id, EXECUTION_LOG).await;
     assert_eq!(stream_log.kind, model::content::wire::ExecutionFileKind::Text);
     assert_eq!(stream_log.state, model::content::wire::ExecutionFileState::Finalized);
-    let log = read_file(&mut content, &execution_id, STEADY_STREAM_LOG).await;
-    let log = String::from_utf8_lossy(&log.data);
+    let log = read_file(&mut content, &execution_id, EXECUTION_LOG).await;
+    let log = String::from_utf8_lossy(&log);
     assert!(log.contains("record=sidecar_started"));
     assert!(log.contains("record=sidecar_prompt_answered action=continue accepted=true"));
     assert!(log.contains("Charger resources released"));
@@ -1010,6 +1029,9 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     let documents = client.clone();
     let stream = documents
         .stream(contracts::documents::CaptureCurrentDocument {
+            structure_only: false,
+            card_ids: Vec::new(),
+            page: None,
             scope: Some(model::documents::wire::DocumentScope {
                 cycle_id: cycle_id.clone(),
                 execution_id: execution_id.clone(),
@@ -1213,7 +1235,7 @@ async fn store() {
     let root = tempfile::tempdir().unwrap();
     let bytes = std::fs::read(support::artifacts::plugin_obc_bundle()).unwrap();
 
-    // An Installed Plugin Starts In The Running Backend, And Again On The Next Boot
+    // An Installed Plugin Starts in the Running Backend, and Again on the Next Boot
     let store = root.path().join("store");
     std::fs::create_dir_all(store.join("plugins")).unwrap();
     std::fs::copy(support::artifacts::host_plugin_bundle(), store.join("plugins/plugin-host.dokime")).unwrap();

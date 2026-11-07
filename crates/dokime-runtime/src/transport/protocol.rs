@@ -98,6 +98,9 @@ pub(crate) use templated;
 #[harmos::message(skip_debug)]
 #[derive(Clone, PartialEq)]
 pub struct RunExecution {
+    pub publication_rows: u32,
+    pub publication_bytes: u64,
+    pub publication_delay_micros: u64,
     pub execution_token: String,
     pub test_cycle_id: String,
     pub test_execution_id: String,

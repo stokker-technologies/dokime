@@ -226,6 +226,7 @@ impl ExecutionStorage {
                     updated_at: output.created_at.clone(),
                 });
             }
+            entries.sort_unstable_by(|left, right| left.relative_path.cmp(&right.relative_path));
             Ok(entries)
         })
         .await
@@ -251,7 +252,7 @@ impl ExecutionStorage {
         let Some(output) = acquisition.output(path) else {
             return Ok(None);
         };
-        // Reopen The Original Inode While Its Registered Owner Is Protected
+        // Reopen the Original Inode While Its Registered Owner Is Protected
         #[cfg(windows)]
         let _path_access = std::fs::File::open(output.file.path()).map_err(error)?;
         let file = output.file.reopen().map_err(error)?;
@@ -303,7 +304,7 @@ impl ExecutionStorage {
     }
 
     pub(crate) async fn finish_outputs(self: &Arc<Self>, execution: &TestExecutionId) -> Result<()> {
-        // Running Captures Seal Into The Execution While It Still Admits Artifacts
+        // Running Captures Seal into the Execution While It Still Admits Artifacts
         self.captures.close(execution).await;
         let storage = self.clone();
         let execution = execution.clone();
@@ -363,6 +364,7 @@ impl FrozenFile {
         }
     }
 
+    #[tracing::instrument(name = "storage.outputs.frozen.finish", level = "debug", skip_all)]
     pub(super) async fn finish(&mut self, storage: &Manager) -> Result<FileReference> {
         if self.capture.is_none() && self.creating.get_mut().is_none() {
             let session = self.session.get_or_insert_with(|| storage.clone()).clone();

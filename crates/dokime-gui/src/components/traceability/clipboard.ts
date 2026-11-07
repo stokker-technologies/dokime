@@ -32,9 +32,9 @@ export async function copyTraceabilityText(value: string): Promise<void> {
       throw new Error("Clipboard API is unavailable.");
     }
     await navigator.clipboard.writeText(value);
-    toast.success("Copied To Clipboard");
+    toast.success("Copied to Clipboard");
   } catch (error: unknown) {
-    toast.error(failureOf(error, "Could Not Copy To Clipboard"));
+    toast.error(failureOf(error, "Could Not Copy to Clipboard"));
   }
 }
 

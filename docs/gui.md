@@ -12,7 +12,7 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
-## About And Build Versions
+## About and Build Versions
 
 Settings › About shows **Desktop Version** from the native `desktop_build` command
 and, while connected, **Backend Version** from the backend identity, since a remote
@@ -22,7 +22,7 @@ one is known. Clicking the short commit copies the full commit. Formatting lives
 `src/features/settings/sections/build-version.ts`. A browser build without the
 native shell shows only the bundled frontend version.
 
-## Desktop Launches And Storage Ownership
+## Desktop Launches and Storage Ownership
 
 Every launch opens its own desktop window. Launch arguments and deep links belong
 to that instance; there is no desktop lock, focus channel or forwarding to another
@@ -40,7 +40,28 @@ remote backend, or close the other instance and retry. An attached connection us
 its existing client preferences when the occupied Local backend cannot supply them.
 Storage reset and backup still refuse an occupied folder with `BackendRunning`.
 
-## Cycle Lists And Restart Recovery
+After Start Local Backend fails, including corrupt data, decode errors or an
+incompatible storage format, the connection screen offers **Back Up and Reset**.
+It is absent for `BackendRunning`. The confirmation names the data folder and
+timestamped ZIP destination beside it, and explains that the folder's contents
+will be removed after backup. Cancelling changes nothing. A failed backup never
+deletes data. The existing reset steps report stopping, archiving (with bytes),
+deleting, reinstalling plugins and starting. Success shows the archive path in
+Notifications; a later restart failure retains it on the connection screen.
+
+Recovery copies installed bundles before clearing execution storage and restores
+their readable enabled state and settings that the current declarations accept.
+It reads plugin metadata independently of execution schema validation; when that
+metadata is unreadable, bundle files are recovered with default enabled state and
+settings. Readable metadata limits restoration to recorded installations; removed
+installations and orphan bundle files stay uninstalled. Bundled plugins use normal startup
+installation. Each restored bundle passes ordinary verification and admission:
+a refused bundle stays visible with its failure in Settings › Plugins and does
+not prevent recovery or startup. Credentials are untouched; readable node identity
+and the secret catalog survive so existing secrets remain addressable. The ZIP
+retains the original files even when their metadata cannot be decoded.
+
+## Cycle Lists and Restart Recovery
 
 The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
 current live cycles and durable sealed cycle headers as one list, with the same
@@ -50,15 +71,23 @@ another cycle or restarting the desktop. Archive selection applies to both sourc
 
 `state.json` and `state.jsonl` under the data root recover current work. Sealed
 cycles are retired from that state to keep checkpoints bounded; their durable
-history remains the source for subsequent reads. Startup marks unfinished
-executions Interrupted, records the restart reason, and closes admission to their
+history remains the source for subsequent reads.
+
+Sealed executions retain their control summary and frozen plan in managed state;
+generated telemetry outputs and artifact inventories are read from their durable
+execution revisions. Completed request receipts and consumed case registrations
+leave managed state with their sealed cycle. Reusing a case reloads its saved
+definition and revision; retirement never permits reusing an execution identity.
+The final shutdown checkpoint also retires the latest sealed cycle.
+
+Startup marks unfinished executions Interrupted, records the restart reason, and closes admission to their
 cycles before accepting new work. Interrupted cycles report Stopped. Pending
 report finalization resumes from its frozen terminal header. A seal that cannot
 complete settles as Seal Failed: the Cycles home lists it under Needs Attention,
 and the cycle's control card shows the cause with Retry Seal and Archive, each
 behind a confirmation. Startup does not retry a Seal Failed cycle.
 
-## Keyboard Focus And Theme Colors
+## Keyboard Focus and Theme Colors
 
 Keyboard focus uses the optional `--focus-ring` token, independently of `--primary`,
 `--destructive` and the organization palette's required `--ring` token. Tailwind's
@@ -78,7 +107,7 @@ adjacent surfaces in both modes, including the 50% opacity used by focus rings.
 The defaults meet this threshold on the bundled background, card and popover
 surfaces; packs that change those surfaces must verify their focus contrast.
 
-## Units In Labels
+## Units in Labels
 
 Labels and titles show units in square brackets on the same line, for example
 `Mean [Mbps]`. Use `formatUnitLabel` in `src/lib/format.ts` for table headings,
@@ -86,6 +115,36 @@ plot titles and axes, legends and stat labels. The live GUI and runtime report
 HTML share this formatter. Keep structured units separate from authored labels.
 Table headings truncate as a whole with the full label in a tooltip, while sort
 and filter controls remain usable. Preserve the case of unit symbols.
+
+## Document Summaries
+
+Document structure commits before the saved-evidence wait. Each pending binding
+uses an independent query through the existing document capture operation, with
+its own cancellation and retry lifetime. Runtime invalidation preserves in-flight
+card reads, so fast cards keep refreshing while an exact median is still loading.
+A completed card remains visible when another card or transfer fails. Failed
+bindings render the existing ErrorCard with their native diagnostic and budget
+fields. Repeated sections keep a loading identity until their expansion arrives.
+
+Repeated sections use distinct-value index pages. Previous Page and Next Page
+replace the visible page at the same saved cut, including its captured definition
+and scalar context. Latest resumes live refresh. Card query identities remain
+stable across page and evidence frontier changes; each repeated card requests the
+page that declared it. A page retains only its actual expanded output.
+
+Live document summary tiles query one saved evidence cut using bounded folds and
+exact order statistics. They do not load the run's telemetry into a document input
+array. Count, min, max, mean and RMS reuse typed ingest checkpoints; a cut inside
+a saved batch reads only its bounded remainder. Median remains exact and loads in
+an independently loading card. They do not
+reject estimated definition-size-times-row work. Plots retain their
+existing independent query path. Actual output and expansion limits report the
+budget, limit, amount reached and affected card.
+
+Saved HTML uses the same card query evaluator at its frozen evidence cut.
+It includes all repeated-section pages and complete authored tables, rather than
+only the page currently displayed in the GUI. A failed data binding retains its
+card diagnostic in the saved document.
 
 ## Telemetry Plots
 
@@ -154,7 +213,12 @@ filled caps matching the canvas. Marker rows leave cursor and statistics cells
 empty. Clicking a row hides or restores only that kind; visibility belongs to
 the plot card, like trace visibility. Frozen HTML reports retain these toggles.
 Marker colors come from the theme's plot palette, and hovering a visible marker
-shows its recorded label. There is no separate prompt-marker control.
+shows its recorded label through the same tooltip for events and prompts; markers
+never draw permanent canvas labels. The tooltip stays inside the plot card,
+and prompt labels take precedence over event labels at the same position. It
+wraps long labels and ellipsizes after three lines while retaining the start.
+Live plots and frozen HTML reports share this behavior. There is no separate
+prompt-marker control.
 
 Point styles draw samples independently of hover. Line, stepped and line-point
 styles also mark lone samples between gaps, including nullable XY coordinates.
@@ -182,7 +246,26 @@ capture. Read frames, tail offsets and retained text keep their existing budgets
 Runtime operation changes refresh the file list and size without idle polling.
 Untouched baseline files do not clutter the tree; new empty files remain visible.
 
-## Canonical Bindings And Transport
+## Media Capture and Live Artifacts
+
+Screenshot, Photo and Record Audio save execution uploads under `media/`,
+preserving their relative names and the existing `.2`, `.3` collision suffixes.
+The Media card and artifact tree refresh after a capture is saved, while the
+execution is still running; runtime file updates also refresh the same inventory.
+Other uploads retain their `artifacts/` paths. Captured bytes are readable before
+execution completion.
+
+Desktop previews use the generation-owned native media cache. The scheme handler
+decodes Tauri's encoded cache path before validating its generation and key.
+Preview preparation uses closed files and refreshes when their saved state changes.
+Images are decoded on a blocking native worker with dimension and allocation
+limits, then reduced to at most 960 × 960 pixels before the WebView reads them.
+Audio and video expose playback controls with bounded native range reads.
+Names ellipsize, retain their full text as a tooltip, and occupy a separate row
+from Inspect. Frozen HTML retains its original media and download links under
+`outputs/media/`, independently of the desktop preview cache.
+
+## Canonical Bindings and Transport
 
 - `mise run check:typescript:generated --source` checks locally prepared bindings
   and GUI types. Without `--source`, the generated check restores staged Product
@@ -226,21 +309,18 @@ Untouched baseline files do not clutter the tree; new empty files remain visible
   Secret declarations show identifiers and availability read-only; Add In Secret
   Storage opens the shared Add Secret dialog prefilled with the identifier.
   Every owner in an inactive bundle remains visible. Add missing identifiers, then
-  use the page's **Retry**, which calls `Plugins.Retry` for that installation only.
-- A saved settings change restarts its program. The plugin's status badge reads
-  Restarting… while the new generation starts, and Restart Pending, explained as
-  applying after plugin work completes, while an execution runs, pauses or stops,
-  a prepared run waits, automatic continuation is between cases, or plugin streams
-  still drain. Completed means a terminal execution outcome, settled plugin cleanup
-  and stream drain, and durably frozen report inputs. Sealing and report publication
-  after that boundary do not keep Restart Pending, even if sealing fails or stalls.
-  Both states come from `PluginRuntimeSettings.restart`;
-  while one holds, the page re-reads the plugin views whenever the backend's
-  operations change, since the restart runs as one. A restart refused before the
-  program stopped shows **Restart Refused** with **Retry** while the plugin stays
-  active; a failed new generation surfaces like a failed startup. **Retry** starts
-  a plugin that does not run at once, even during a cycle; retrying a running one
-  shows Restart Pending until no work can reach a plugin.
+  use the page's **Reload**, which calls `Plugins.Reload` for that installation only.
+- Saving plugin settings keeps its running generation unchanged. Fields whose saved
+  values differ from its startup settings show **Applied on Reload** with a warning
+  highlight. The backend computes these marks, so reopening the view, restarting
+  the GUI or attaching another GUI preserves them. Restarting the backend starts
+  programs with saved values. Every plugin page offers **Reload**, and the plugin
+  table puts status in its own column beside direct Settings, Reload and Delete
+  actions. Reload applies saved settings and restarts all observers, including
+  plugin-activated observers. It waits as **Restart Pending** while active work
+  owns the plugin; preparation refusal keeps the running generation and marks,
+  with **Restart Refused** and its reason. A plugin that does not run starts at
+  once. A successful reload clears marks for the values it applied.
 - Install, reinstall, update, enable, disable and remove apply in the running
   backend; no plugin action prompts to restart the application. After a successful
   live stop, removed or replaced installations disappear with their bundles.

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Preview And Register Canonical Selection Plans
+// Preview and Register Canonical Selection Plans
 
 /* === Modules === */
 

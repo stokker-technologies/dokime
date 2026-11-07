@@ -137,7 +137,7 @@ use harmos::Message;
 // Local Imports
 use dokime_domain::model;
 use dokime_runtime::plugin::Configuration;
-use dokime_runtime::{Refusal, Supervisor};
+use dokime_runtime::{Publishable, Refusal, Supervisor};
 
 /* === Constants === */
 static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> = LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
@@ -381,7 +381,12 @@ impl RecordObserver {
     }
 
     async fn observe(&mut self, ctx: &ObserverContext<'_, Publishing>) -> Result<(), Error> {
-        dokime_runtime::plugin::Publisher::new(ctx.host().supervisor()).publish(UnitNoted { serial: "demand".into() }).await?;
+        let record = UnitNoted { serial: "demand".into() };
+        let request = dokime_runtime::records::RecordPublication {
+            request_json: serde_json::to_string(&record.publication()).expect("the declared record serializes"),
+            produced_at: dokime_runtime::model::time::now_utc().as_str().to_owned(),
+        };
+        ctx.operation(request).await.map_err(dokime_runtime::Error::from)?;
         Ok(())
     }
 
@@ -396,7 +401,7 @@ impl Noted {
     async fn hear(ctx: &dokime_runtime::plugin::ListenerContext<'_, Self>, connected: UnitConnected) -> Result<(), Error> {
         let resource = ctx.resource::<Resource>();
         let probe = &resource.0;
-        let host = &*ctx.host();
+        let host = &*ctx.resource::<Supervisor>();
         probe.bump(&probe.active_listeners);
         let _listening = Listening(Arc::clone(probe));
         if connected.serial == "STALL" {
@@ -573,7 +578,7 @@ async fn listener_publishes_asked() {
             connected("STALL").encode(),
         )
         .unwrap();
-    // A Paused Clock Advances Without Turning Pending Delivery Into A Success
+    // A Paused Clock Advances Without Turning Pending Delivery into a Success
     assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());
     tokio::time::advance(Duration::from_millis(100)).await;
     assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());

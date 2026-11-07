@@ -9,7 +9,6 @@
 
 /* === Modules === */
 
-mod acquire;
 mod construction;
 mod current;
 mod follow;
@@ -22,7 +21,7 @@ mod stream;
 
 pub(crate) use crate::transactions::documents::AddExecutionDocumentParts;
 
-pub use current::{CurrentDocumentCapture, PreparedCurrentDocument};
+pub use current::{CurrentDocumentCapture, CurrentDocumentEvent, CurrentDocumentQuery, PreparedCurrentDocument};
 pub use follow::ExecutionFileFollower;
 pub use stream::ExecutionFileStream;
 
@@ -33,23 +32,16 @@ pub use stream::ExecutionFileStream;
 // Third Party Imports
 
 // Local Imports
-use crate::artifacts::ArtifactRecord;
 use crate::definition::TestCaseTemplate;
 use crate::document::{
-    DocumentCard, DocumentCardBody, DocumentCardLayout, DocumentCardRail, DocumentDefinition, DocumentPayload, DocumentSection,
-    DocumentSelection, resolve_document_plot_axes,
+    DocumentCard, DocumentCardBody, DocumentCardLayout, DocumentCardRail, DocumentDefinition, DocumentSection, resolve_document_plot_axes,
 };
 use crate::execution_runtime::registry::SuiteRegistry;
-use crate::runtime::error::Error;
-use crate::runtime::error::Result;
-use crate::telemetry::{TelemetryContract, TelemetrySample};
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::execution::result::TestCycle;
+use crate::telemetry::TelemetryContract;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::records::evidence::RecordEntry;
 
 /* === Constants === */
 
@@ -61,98 +53,13 @@ pub(crate) const DEFAULT_DOCUMENT_ID: &str = "default";
 
 /* === Structs === */
 
-pub(crate) struct RuntimeDocumentData {
-    pub(crate) records: crate::storage::projection::Pages<RecordEntry>,
-    pub(crate) telemetry: harmos::storage::ReadBatch<Vec<TelemetrySample>>,
-    pub(crate) artifacts: harmos::storage::ReadBatch<Vec<ArtifactRecord>>,
-}
-
-pub(crate) struct RuntimeDocumentInput {
-    records: Vec<harmos::storage::ReadBatch<Vec<RecordEntry>>>,
-    telemetry: Vec<TelemetrySample>,
-    artifacts: Vec<ArtifactRecord>,
-}
-
-struct PreparedDocument {
-    definition: DocumentDefinition,
-    selection: DocumentSelection,
-    data: RuntimeDocumentInput,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl RuntimeDocumentData {
-    pub(crate) fn into_owner(self) -> Result<harmos::storage::ReadBatch<RuntimeDocumentInput>> {
-        let data = self.telemetry.try_map_with(self.records, |telemetry, records| -> Result<_> { Ok((telemetry, records)) })?;
-        data.try_map_with(self.artifacts, |(telemetry, records), artifacts| -> Result<_> {
-            Ok(RuntimeDocumentInput { records, telemetry, artifacts })
-        })
-    }
-}
-
-impl RuntimeDocumentInput {
-    fn borrowed(&self) -> crate::document::input::BorrowedData<'_> {
-        crate::document::input::BorrowedData {
-            context: Default::default(),
-            records: crate::document::input::Records::Pages(&self.records),
-            telemetry: &self.telemetry,
-            artifacts: crate::document::input::Artifacts::Native(&self.artifacts),
-        }
-    }
-}
-
 /* === Public Functions === */
-
-pub(crate) fn resolve_cycle_document(
-    state: &crate::RuntimeState, cycle: &TestCycle, document_id: &DocumentId, selection: DocumentSelection, data: RuntimeDocumentData,
-    limits: crate::document::bounded::DocumentLimits,
-) -> Result<harmos::storage::ReadBatch<Result<Option<DocumentPayload>>>> {
-    let suites = &state.suites;
-    let prepared = data.into_owner()?.try_map(|mut data| -> Result<_> {
-        let result = (|| -> Result<Option<PreparedDocument>> {
-            let mut selection = selection;
-            if selection.scope.test_cycle_id.is_none() {
-                selection.scope = selection.scope.with_cycle(cycle.test_cycle_id.clone());
-            }
-            validate_selection(state, cycle, &selection.scope)?;
-            let id = selection
-                .scope
-                .test_execution_id
-                .as_ref()
-                .ok_or_else(|| Error::Operation("document selection requires an execution".into()))?;
-            let execution = selected_execution(state, cycle, id)?;
-            normalize_execution_selection(execution, &mut selection.scope);
-            let Some(definition) = captured_authored_document(suites, execution, document_id) else { return Ok(None) };
-            data.telemetry.retain(|sample| selection.matches_sample(sample));
-            Ok(Some(PreparedDocument { definition, selection, data }))
-        })();
-        Ok(result)
-    })?;
-    let prepared = prepared.try_map(|result| -> Result<_> {
-        Ok(result.and_then(|prepared| {
-            let Some(mut prepared) = prepared else { return Ok(None) };
-            let input = crate::document::input::BorrowedInput {
-                definition: &prepared.definition,
-                selection: &prepared.selection,
-                data: prepared.data.borrowed(),
-            };
-            crate::document::bounded::validate_native_resolution(&input, limits)?;
-            prepared.definition = crate::document::resolve::normalize_definition(prepared.definition);
-            Ok(Some(prepared))
-        }))
-    })?;
-    prepared.try_map(|result| -> Result<_> {
-        Ok(result.and_then(|prepared| {
-            let Some(PreparedDocument { definition, selection, data }) = prepared else { return Ok(None) };
-            let payload = crate::document::resolve::resolve_normalized(definition, selection, data.borrowed(), true, limits)?;
-            crate::document::bounded::check_payload(payload, limits).map(Some).map_err(Into::into)
-        }))
-    })
-}
 
 pub(crate) fn default_document(label: impl Into<String>) -> DocumentDefinition {
     DocumentDefinition::new(DEFAULT_DOCUMENT_ID, label)
@@ -254,48 +161,6 @@ fn built_in_card(identifier: &str, label: &str, order: i32, body: DocumentCardBo
 
 fn metadata(identifier: &str, label: &str, description: Option<String>) -> Metadata {
     Metadata::new(Identifier::new(identifier).expect("built-in document identifiers are valid"), label, description)
-}
-
-fn validate_selection(state: &crate::RuntimeState, cycle: &TestCycle, scope: &RecordScope) -> Result<()> {
-    let selected_case_id = if let Some(case_id) = &scope.test_case_id {
-        if !cycle.execution_ids.iter().filter_map(|id| state.executions.get(id)).any(|execution| &execution.test_case_id == case_id) {
-            return Err(Error::Operation(format!("cycle test case {case_id} not found")));
-        }
-        Some(case_id)
-    } else {
-        None
-    };
-
-    if let Some(test_execution_id) = &scope.test_execution_id {
-        let execution_case_id = &selected_execution(state, cycle, test_execution_id)?.test_case_id;
-        if let Some(case_id) = selected_case_id
-            && case_id != execution_case_id
-        {
-            return Err(Error::Operation(format!("cycle execution {test_execution_id} does not belong to test case {case_id}")));
-        }
-    }
-
-    Ok(())
-}
-
-fn normalize_execution_selection(execution: &TestExecution, scope: &mut RecordScope) {
-    if scope.test_case_id.is_none() {
-        scope.test_case_id = Some(execution.test_case_id.clone());
-    }
-    if scope.template_id.is_none() {
-        scope.template_id = execution.scope.template_id.clone();
-    }
-}
-
-fn selected_execution<'a>(
-    state: &'a crate::RuntimeState, cycle: &TestCycle, test_execution_id: &dokime_domain::model::identity::TestExecutionId,
-) -> Result<&'a TestExecution> {
-    cycle
-        .execution_ids
-        .contains(test_execution_id)
-        .then(|| state.executions.get(test_execution_id))
-        .flatten()
-        .ok_or_else(|| Error::Operation(format!("cycle execution {test_execution_id} not found")))
 }
 
 /* === Tests === */

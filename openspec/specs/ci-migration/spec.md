@@ -8,14 +8,14 @@ The user approved fixing migration-related convention findings, required canonic
 Timed benchmarks are optional and explicitly deferred from migration and release gates. The benchmark producer passed; unit measurement was interrupted under native CI contention, and integration/system measurements were not started. Partial output is excluded from accepted baselines; no completed timing or regression result is claimed. Future measurements require a quiet window and all declared layers. The producer's unused implicit library harness is a deferred optimization opportunity; preserve the current producer and five explicit benchmark executables.
 
 ## Requirements
-### Requirement: Adopt The Agreed Hub Contract
+### Requirement: Adopt the Agreed Hub Contract
 The product SHALL own its authored tasks, configuration, tooling and workflows after baseline rendering, preserving required native platform coverage, artifact dependencies and release behavior. Dokime's current dev and release gates are defined in the Dokime CI specification.
 
 #### Scenario: Candidate Delivery
 - **WHEN** complete source passes applicable local proof
 - **THEN** publish the candidate PR to dev, monitor and repair required provider checks until green, merge with protections enforced and verify the merged revision.
 
-### Requirement: Honest Baseline And Repairs
+### Requirement: Honest Baseline and Repairs
 The initial full baseline SHALL run before implementation as explicitly requested; every observed existing failure remains actionable and cannot waive final gates. Only targeted proof runs during migration until source closes. Optional nightly workloads are excluded unless explicitly requested.
 
 #### Scenario: Baseline Failure
@@ -25,25 +25,25 @@ The initial full baseline SHALL run before implementation as explicitly requeste
 ### Requirement: Separate Executable Publication
 The dokime and dokime-server libraries SHALL retain their published names and APIs. Their executable targets SHALL belong to non-publishable CLI crates while retaining existing executable names and behavior.
 
-#### Scenario: Library And Binary Delivery
+#### Scenario: Library and Binary Delivery
 - WHEN the candidate builds, tests and packages Dokime
 - THEN library consumers resolve the existing library packages and executable process stories resolve the new binary owners
 - AND registry publication excludes the CLI packages while release assets retain dokime and dokime-server executables
 
-### Requirement: Publish The Distinct Python Client
+### Requirement: Publish the Distinct Python Client
 The Python distribution SHALL be dokime-client and expose only the dokime_client import package. Installation documentation SHALL use uv. Rust crate, protocol, product and executable names SHALL remain unchanged.
 
-#### Scenario: Install And Import The Client
+#### Scenario: Install and Import the Client
 - WHEN a user installs the built dokime-client wheel through uv
 - THEN dokime_client and its generated wire modules import with the existing client behavior
 - AND the wheel metadata names dokime-client and contains no old dokime import package
 
-#### Scenario: Reproduce And Publish The Client
+#### Scenario: Reproduce and Publish the Client
 - WHEN the producer regenerates bindings, builds distributions and packages the candidate
 - THEN the renamed uv workspace and artifact consumers use the same distribution/import contract
 - AND the existing PyPI publisher expects stokker-technologies/dokime, managed-release.yml and the release environment
 
-### Requirement: Use The Ordinary CI Job Budget
+### Requirement: Use the Ordinary CI Job Budget
 Ordinary CI jobs SHALL inherit the canonical 120-minute default without unnecessary per-job overrides. Exceptions SHALL have a concrete hang/deadlock justification and thirty-minute increments. Individual test deadlines and required checks SHALL remain unchanged.
 
 #### Scenario: Render Required Jobs
@@ -51,18 +51,18 @@ Ordinary CI jobs SHALL inherit the canonical 120-minute default without unnecess
 - THEN ordinary jobs use the canonical 120-minute budget
 - AND test failures remain blocking within their existing story deadlines
 
-### Requirement: Validate In The Assigned Worktree
+### Requirement: Validate in the Assigned Worktree
 All local implementation and validation SHALL use the assigned worktree. Local proof SHALL NOT create an isolated checkout, exported source tree or provider simulator. Before the next candidate push, the full applicable local graph SHALL pass on available native platforms after the combined source closes. Actual native CI runners SHALL supply distinct-path archive proof and required proof for unavailable local platforms.
 
-#### Scenario: Deliver An Archive Portability Repair
+#### Scenario: Deliver an Archive Portability Repair
 - WHEN the candidate completes its source and applicable local validation in the assigned worktree
 - THEN the next PR update starts required native runner checks with archive workspace remapping
 - AND integration remains blocked until distinct-path consumers and every required native platform pass
 
 ### Requirement: Share Native Compilation Ownership
-Product and Tests SHALL compile independently in parallel per platform/profile, under repository-owned canonical configurations and matching Clippy. Shipping behavior and canonical test coverage SHALL remain intact. Check SHALL not compile; Test and Package SHALL consume existing exports. Noncanonical compatibility and fault injection SHALL remain explicit local-only extended validation.
+Product and Tests SHALL compile independently in parallel per platform/profile, under repository-owned canonical configurations with Clippy owned by `lint:rust`. Shipping behavior and canonical test coverage SHALL remain intact. Check SHALL not compile; Test and Package SHALL consume existing exports. Noncanonical compatibility and fault injection SHALL remain explicit local-only extended validation.
 
-#### Scenario: Build A Native Candidate
+#### Scenario: Build a Native Candidate
 - **WHEN** native CI builds the candidate
 - **THEN** Product and canonical Tests producers run in parallel per platform
 - **AND** artifact dependencies and any subsequent fixture preparation are explicit rather than hidden in consumers
@@ -87,7 +87,7 @@ Product and Tests SHALL compile independently in parallel per platform/profile, 
 ### Requirement: Use GitHub-Hosted Runners
 Every GitHub Actions job SHALL use the matching GitHub-hosted platform default, including crate compilation, coverage, benchmark and release jobs. Root and generated starter configurations SHALL NOT select local runners. Required native platforms, declared bootstrap, job budgets, individual test deadlines, Release Rehearsal and release preparation profiles and behavior SHALL remain unchanged.
 
-#### Scenario: Render Producer And Consumer Routing
+#### Scenario: Render Producer and Consumer Routing
 - **WHEN** native CI renders the actual task graph
 - **THEN** all producer, consumer, coverage, benchmark and release jobs use matching GitHub-hosted platforms
 - **AND** no job or legacy repository routing variable redirects execution to local runners

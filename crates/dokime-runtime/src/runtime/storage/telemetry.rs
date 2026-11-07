@@ -21,7 +21,7 @@ pub use reader::TelemetryReader;
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
 // Third Party Imports
 use harmos::{
@@ -53,6 +53,7 @@ pub(super) type PositionedTelemetry = super::paging::Positioned<TelemetryEntry>;
 pub(crate) struct ReadOptions<'a> {
     pub codecs: Option<&'a [telemetry::TypedCodec]>,
     pub scan_limit: Option<usize>,
+    pub page_rows: Option<NonZeroUsize>,
     pub window: Option<(&'a str, f64)>,
     pub visible: Option<&'a dokime_domain::model::execution::RecordScope>,
     pub sequence: Sequence,
@@ -151,13 +152,13 @@ impl ScopedTelemetry {
         self.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref())
     }
 
-    fn into_input(self) -> Result<StreamInput> {
+    fn input(&self) -> Result<StreamInput> {
         let mut captured;
         let sample = if self.captures.is_empty() {
             &*self.row.sample
         } else {
             captured = (*self.row.sample).clone();
-            captured.captured_scopes = self.captures.into_iter().map(|(_, scope)| scope).collect();
+            captured.captured_scopes = self.captures.iter().map(|(_, scope)| scope.clone()).collect();
             &captured
         };
         let prepared = prepare_staged(&self.row.epoch, sample, self.scope.as_ref(), self.ordinal, &self.row.codec, &self.row.signals)?;
@@ -166,6 +167,7 @@ impl ScopedTelemetry {
 }
 
 impl TelemetryAdmission {
+    #[tracing::instrument(level = "debug", name = "ingest.host.commit", skip_all)]
     pub(crate) async fn commit(mut self, closure: Option<&crate::services::telemetry::Sampling>) -> Result<CommittedTelemetry> {
         let mut accepted = crate::domains::telemetry::telemetry_slots(self.rows.len())?;
         accepted.resize(self.rows.len(), false);
@@ -205,17 +207,9 @@ impl TelemetryAdmission {
             // Materialize Only The Scope Being Committed, Releasing It Before The Next Scope.
             let mut inputs = crate::domains::telemetry::telemetry_slots(count)?;
             let mut staged = crate::domains::telemetry::telemetry_slots(count)?;
+            let encode_span = tracing::debug_span!("ingest.host.encode").entered();
             for row in writes {
-                let mut sample = (*row.row.sample).clone();
-                sample.scope = row.scope.clone();
-                sample.captured_scopes = row.captures.iter().map(|(_, scope)| scope.clone()).collect();
-                sample.storage_payload = None;
-                staged.push(TelemetryEntry {
-                    epoch: (*row.row.epoch).clone(),
-                    ordinal: row.ordinal,
-                    sample,
-                });
-                match row.into_input() {
+                match row.input() {
                     Ok(input) => inputs.push(input),
                     Err(source) if accepted.iter().any(|accepted| *accepted) => {
                         failure = Some(source);
@@ -223,7 +217,21 @@ impl TelemetryAdmission {
                     }
                     Err(source) => return Err(source),
                 }
+                let epoch = row.row.epoch.clone();
+                let mut sample = match Arc::try_unwrap(row.row) {
+                    Ok(shared) => Arc::unwrap_or_clone(shared.sample),
+                    Err(shared) => (*shared.sample).clone(),
+                };
+                sample.scope = row.scope;
+                sample.captured_scopes = row.captures.into_iter().map(|(_, scope)| scope).collect();
+                sample.storage_payload = None;
+                staged.push(TelemetryEntry {
+                    epoch: (*epoch).clone(),
+                    ordinal: row.ordinal,
+                    sample,
+                });
             }
+            drop(encode_span);
             let mut writes = inputs.into_iter();
             let mut staged = staged.into_iter();
             let mut offset = 0;
@@ -450,9 +458,14 @@ pub(crate) async fn collect_saved(
 /// Reads One Page In Storage Order After `options.after`; Each Schema Stops Once It Holds The Page Limit.
 pub(crate) async fn collect_page(
     session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection,
-    settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
+    settings: &harmos::config::SchemaSettings, mut options: ReadOptions<'_>, local: &crate::storage::sqlite::State,
 ) -> Result<TelemetryPage> {
     let limit = selection.limit.unwrap_or(usize::MAX);
+    // Forward Pages Must Not Materialize a Storage Batch for Every Small Client Page.
+    if !selection.latest {
+        options.page_rows = NonZeroUsize::new(limit);
+    }
+
     let mut rows = std::collections::VecDeque::new();
     let mut held = (usize::MAX, 0_usize);
     let mut limited = false;
@@ -513,6 +526,7 @@ async fn visit_positioned(
     let ReadOptions {
         codecs,
         scan_limit,
+        page_rows,
         window,
         visible,
         sequence,
@@ -620,7 +634,7 @@ async fn visit_positioned(
                     .map_err(crate::storage::Error::from)?;
             }
         }
-        let page_rows = session.settings().response.batch_rows;
+        let page_rows = session.settings().response.batch_rows.min(page_rows.unwrap_or(NonZeroUsize::MAX));
         let page_bytes = session.settings().response.batch_bytes;
         loop {
             let page = harmos::storage::ScanPage {

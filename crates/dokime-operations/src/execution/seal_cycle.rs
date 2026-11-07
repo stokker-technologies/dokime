@@ -7,7 +7,7 @@
  * ***
  */
 
-// Seal A Cycle After Its Executions Become Durable
+// Seal a Cycle After Its Executions Become Durable
 
 /* === Modules === */
 
@@ -52,12 +52,3 @@ pub struct SealCycle {
 /* === Private Functions === */
 
 /* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    use super::*;
-
-    crate::hosted!(SealCycle);
-}

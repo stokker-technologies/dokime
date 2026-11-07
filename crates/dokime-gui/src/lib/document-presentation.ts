@@ -92,7 +92,7 @@ export function documentView(
 export function documentCard(
   metadata: Metadata,
   kind: DocumentViewCard["kind"],
-  content: Partial<Pick<DocumentViewCard, "groups" | "plots" | "rows">> = {},
+  content: Partial<Pick<DocumentViewCard, "groups" | "plots" | "rows" | "loading" | "failure" | "refreshing">> = {},
 ): DocumentViewCard {
   return {
     card_id: metadata.identifier,

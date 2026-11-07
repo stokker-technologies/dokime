@@ -379,7 +379,7 @@ pub async fn desktop_artifact_deliver(
 ) -> Result<Option<Delivered>, DeliveryError> {
     let prepare = |message: String| DeliveryError::local(DeliveryStage::Prepare, message);
 
-    // Prepare The Destination Before Requesting Content
+    // Prepare the Destination Before Requesting Content
     ensure_main_window(&window).map_err(prepare)?;
     ensure_generation_token(&generation).map_err(prepare)?;
     ensure_picker_kind(request.kind).map_err(prepare)?;
@@ -413,12 +413,12 @@ pub async fn desktop_artifact_deliver(
     // The Download API Creates Its Own Output File; Keep The Unique Name And Cleanup Guard.
     std::fs::remove_file(&staged).map_err(|error| prepare(error.to_string()))?;
 
-    // Stream And Verify Beside The Chosen Destination Or In The Open Cache
+    // Stream and Verify Beside the Chosen Destination or in the Open Cache
     let verified = content::fetch_verified(&lease, &request.source, &staged, DESKTOP_FRAME_BYTES as usize).await?;
     let cleanup = staged;
     ensure_document_session(&session, &generation).map_err(prepare)?;
 
-    // Open The Verified Cache File
+    // Open the Verified Cache File
     let open = |message: String| DeliveryError::local(DeliveryStage::Open, message);
     let path = verified.path.clone();
     tauri::async_runtime::spawn_blocking(move || set_private_file(&path)).await.map_err(|error| open(error.to_string()))?.map_err(open)?;

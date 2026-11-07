@@ -53,6 +53,7 @@ async fn report_background() {
         register_custom_suite(&runtime, suite.clone()).await;
         let cycle = start_cycle(&runtime, suite).await;
         let execution = runtime.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
+        let live_at = runtime.storage().cursor_saved();
         let gate = dokime_runtime::testing::hold_report(&execution, fail);
         let receipt = runtime.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
         assert_eq!(receipt.status, CommandStatus::Accepted);
@@ -112,6 +113,17 @@ async fn report_background() {
             assert!(matches!(checkpoint, Err(dokime_runtime::runtime::Error::InvalidReportInputs(_))));
         } else {
             assert_eq!(checkpoint.unwrap().execution_id, execution);
+            let (_, closed) = runtime.telemetry_page_at(runtime.storage(), &selection, &live_at, 0).await.unwrap();
+            assert!(!closed);
+            let at = runtime.storage().cursor_saved();
+            let before = runtime.storage_read_counters();
+            let (_, closed) = runtime.telemetry_page_at(runtime.storage(), &selection, &at, at.sequence).await.unwrap();
+            let scoped_rows = runtime.storage_read_counters().data_scan_rows - before.data_scan_rows;
+            assert!(closed);
+            let before = runtime.storage_read_counters();
+            runtime.telemetry_page_at(runtime.storage(), &TelemetrySelection::default(), &at, at.sequence).await.unwrap();
+            let unscoped_rows = runtime.storage_read_counters().data_scan_rows - before.data_scan_rows;
+            assert_eq!(scoped_rows, unscoped_rows, "retained closure must not reread historical execution objects");
         }
         assert_eq!(download.await.is_err(), fail);
         // Repeating Stop Can Finish A Previously Failed Report.

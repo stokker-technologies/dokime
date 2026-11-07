@@ -7,7 +7,7 @@
  * ***
  */
 
-// Materialize And Register Canonical Template Cases
+// Materialize and Register Canonical Template Cases
 
 /* === Modules === */
 
@@ -51,12 +51,3 @@ pub struct MaterializeTemplate {
 /* === Private Functions === */
 
 /* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    use super::*;
-
-    crate::hosted!(MaterializeTemplate);
-}

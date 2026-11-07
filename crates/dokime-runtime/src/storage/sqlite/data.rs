@@ -10,6 +10,7 @@
 /* === Modules === */
 
 mod backend;
+pub(crate) mod distinct;
 mod entry;
 mod files;
 mod mutations;
@@ -86,6 +87,8 @@ CREATE INDEX IF NOT EXISTS storage_data_live_object_key_covering
 CREATE INDEX IF NOT EXISTS storage_data_retired_object_position
     ON storage_data_entries(position, retired_at)
     WHERE kind='object' AND retired_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS storage_object_releases_generation
+    ON storage_object_releases(schema_id, generation, item);
 CREATE INDEX IF NOT EXISTS storage_data_scope ON storage_data_entries(kind, scope, position);
 CREATE INDEX IF NOT EXISTS storage_data_schema_scope ON storage_data_entries(kind, schema_key, scope, position);
 CREATE INDEX IF NOT EXISTS storage_data_schema_position ON storage_data_entries(kind, schema_key, position);
@@ -321,9 +324,10 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
         connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')", [], |row| row.get(0))?;
     if exists {
         let indexed: bool = connection.query_row(
-            "SELECT count(*)=8 FROM sqlite_master WHERE type='table' AND name IN
+            "SELECT count(*)=11 FROM sqlite_master WHERE type='table' AND name IN
                 ('files','streams','storage_record_visibility','storage_record_captures',
-                 'storage_numeric_summaries','storage_numeric_ranks','storage_report_previews','stream_samples')",
+                 'storage_numeric_summaries','storage_numeric_checkpoints','storage_report_previews','stream_samples',
+                 'storage_distinct_values','storage_value_postings','storage_distinct_fields')",
             [],
             |row| row.get(0),
         )?;
@@ -342,12 +346,17 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
                 "SELECT id,kind,path,size_bytes,sha256,media_type FROM files LIMIT 0",
                 "SELECT file_id,execution,relative_path FROM artifacts LIMIT 0",
                 "SELECT file_id,contract,durable_end,hash_state,finalized,sealed FROM streams LIMIT 0",
+                "SELECT execution,plot,definition,shared FROM report_plot_previews LIMIT 0",
+                "SELECT execution,plot,projection FROM report_plot_bindings LIMIT 0",
+                "SELECT execution,stream,through,state FROM storage_report_context LIMIT 0",
                 "SELECT file_id,offset,metadata_bytes,body_bytes,sha256 FROM stream_batches LIMIT 0",
                 "SELECT sample_id,position,file_id,batch,batch_row FROM stream_samples LIMIT 0",
                 "SELECT file_id,batch,scope,first_at,last_at FROM stream_batch_scopes LIMIT 0",
                 "SELECT execution,cycle,file_id,batch,first_row,rows,scope FROM stream_captures LIMIT 0",
                 "SELECT cycle,sequence,epoch FROM storage_record_captures LIMIT 0",
                 "SELECT sequence,epoch,scope FROM storage_record_visibility LIMIT 0",
+                "SELECT value_type,position,scope FROM storage_value_postings LIMIT 0",
+                "SELECT execution,source,field FROM storage_distinct_fields LIMIT 0",
             ] {
                 connection
                     .prepare(query)
@@ -479,6 +488,7 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     transaction.execute_batch(telemetry::previews::SCHEMA)?;
     transaction.execute_batch(crate::plot::preview::index::SCHEMA)?;
     transaction.execute_batch(records::SCHEMA)?;
+    transaction.execute_batch(distinct::SCHEMA)?;
     transaction.execute_batch(mutations::SCHEMA)?;
     transaction.execute_batch(super::history::SCHEMA)?;
     super::snapshots::initialize(&transaction)?;
@@ -783,7 +793,7 @@ mod tests {
         for count in [4096, 16384] {
             let connection = Connection::open_in_memory().unwrap();
             connection.execute_batch("PRAGMA foreign_keys=ON").unwrap();
-            for schema in [SCHEMA, telemetry::SCHEMA, records::SCHEMA] {
+            for schema in [SCHEMA, telemetry::SCHEMA, records::SCHEMA, super::super::history::SCHEMA] {
                 connection.execute_batch(schema).unwrap();
             }
             connection
@@ -799,7 +809,9 @@ mod tests {
                     "INSERT INTO storage_record_captures
                  SELECT 'execution',position,identity,position,'{}',NULL,position,NULL FROM storage_data_entries;
                  INSERT INTO storage_data_entries(position,kind,identity,item,body,digest)
-                 VALUES ('ffffffffffffffff','object','metadata','object',x'00',zeroblob(32));",
+                 VALUES ('ffffffffffffffff','object','metadata','object',x'00',zeroblob(32));
+                 INSERT INTO query_execution_outputs
+                 SELECT identity,position,'logs/output.log',x'00' FROM storage_data_entries WHERE kind='stream';",
                 )
                 .unwrap();
             // Foreign-Key Checks Must Seek The Parent Position Even When It Has No Children.
@@ -812,6 +824,8 @@ mod tests {
             }
             let remaining: i64 = connection.query_row("SELECT count(*) FROM storage_record_captures", [], |row| row.get(0)).unwrap();
             assert_eq!(remaining, count - 1, "only the deleted evidence row cascades");
+            let remaining: i64 = connection.query_row("SELECT count(*) FROM query_execution_outputs", [], |row| row.get(0)).unwrap();
+            assert_eq!(remaining, count - 1);
             assert!(!connection.prepare("PRAGMA foreign_key_check").unwrap().exists([]).unwrap());
         }
     }

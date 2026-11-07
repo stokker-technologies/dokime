@@ -68,6 +68,9 @@ pub(crate) async fn running_execution_owners() {
     };
     let mut stream = documents
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
+            structure_only: false,
+            card_ids: Vec::new(),
+            page: None,
             scope: Some(selected),
             document_id: "default".into(),
         }))

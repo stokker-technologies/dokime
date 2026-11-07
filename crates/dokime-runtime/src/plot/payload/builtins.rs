@@ -149,7 +149,7 @@ impl Analysis for Mean {
     const ID: &'static str = "dokime.analysis.mean";
     const VERSION: u32 = 1;
     const LABEL: &'static str = "Mean";
-    const DESCRIPTION: &'static str = "Arithmetic Mean Of Original Samples";
+    const DESCRIPTION: &'static str = "Arithmetic Mean of Original Samples";
     const TIMEOUT: Duration = Duration::from_secs(10);
     const LIMITS: Limits = Limits {
         max_samples: MAX_SAMPLES,
@@ -189,7 +189,7 @@ impl Analysis for Extrema {
     const ID: &'static str = "dokime.analysis.extrema";
     const VERSION: u32 = 1;
     const LABEL: &'static str = "Min/Max Downsampling";
-    const DESCRIPTION: &'static str = "Select Original Bucket Extrema In Source Order";
+    const DESCRIPTION: &'static str = "Select Original Bucket Extrema in Source Order";
     const TIMEOUT: Duration = Lttb::TIMEOUT;
     const LIMITS: Limits = Lttb::LIMITS;
     fn evaluate(samples: &Samples, parameters: &Reduction) -> Result<Curve, Error> {
@@ -210,7 +210,7 @@ impl Analysis for Fft {
     const ID: &'static str = "dokime.analysis.fft";
     const VERSION: u32 = 1;
     const LABEL: &'static str = "FFT Spectrum";
-    const DESCRIPTION: &'static str = "One-Sided Amplitude Spectrum Of Uniform Time Samples";
+    const DESCRIPTION: &'static str = "One-Sided Amplitude Spectrum of Uniform Time Samples";
     const TIMEOUT: Duration = Lttb::TIMEOUT;
     const LIMITS: Limits = Lttb::LIMITS;
     fn evaluate(samples: &Samples, parameters: &Fourier) -> Result<Spectrum, Error> {

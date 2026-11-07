@@ -8,7 +8,7 @@
  */
 
 // Three Wi-Fi Collectors, One Per Stream: The Link Queries The Current
-// Connection, The Scan Lists Nearby Networks And The Latency Probe Echoes A
+// Connection, the Scan Lists Nearby Networks and the Latency Probe Echoes A
 // Configured Target. None Reads Another's State.
 
 /* === Modules === */

@@ -31,7 +31,7 @@ export const FIXTURE_CYCLE_ID = "cycle-1";
 
 export const FIXTURE_CASE_ID = "case-1";
 
-export const FIXTURE_CASE_LABEL = "Protection At 230 V";
+export const FIXTURE_CASE_LABEL = "Protection at 230 V";
 
 export const FIXTURE_CYCLE_TITLE = "Mains Protection Sweep";
 

@@ -64,7 +64,11 @@ def group(title):
 
 def roots(environment, workspace, home):
     """Keep Installation Identity Independent Of The Runner's Per-Job Temp Directory."""
-    data = Path(environment.get("MISE_DATA_DIR") or home / ".local/share/mise")
+    default_data = home / ".local/share/mise"
+    if environment.get("RUNNER_OS") == "Windows" and environment.get("RUNNER_TEMP"):
+        # Keep Mise On The Work Disk Beside Its Temporary Download And Extraction.
+        default_data = Path(environment["RUNNER_TEMP"]) / "mise"
+    data = Path(environment.get("MISE_DATA_DIR") or default_data)
     cargo = Path(environment.get("CARGO_HOME") or home / ".cargo")
     rustup = Path(environment.get("RUSTUP_HOME") or home / ".rustup")
     return {

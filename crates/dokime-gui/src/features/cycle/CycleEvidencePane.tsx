@@ -29,6 +29,7 @@ import { type ReactNode, useMemo } from "react";
 import type { HubLiveState, PromptRequest, RecordScope, TestCyclePlan } from "@/lib/types";
 import { CycleEvidenceView } from "./CycleEvidenceView";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
+import { DocumentPagination } from "./DocumentPagination";
 import { evidencePaneState } from "./document-query-model";
 import { usePlotWindow } from "./PlotWindowSlider";
 import { PromptQueue } from "./PromptQueue";
@@ -83,10 +84,15 @@ export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, pla
       surface={surface}
       pane={pane}
       plotWindow={plotWindow}
-      onRetry={() => void documentQuery.refetch()}
+      onRetry={(cardId) => void documentQuery.retryCard(cardId)}
       documentView={DocumentView}
       lead={lead}
-      pageActions={pageActions}
+      pageActions={
+        <>
+          {pageActions}
+          <DocumentPagination navigation={documentQuery.navigation} />
+        </>
+      }
       promptQueue={
         live ? (
           <PromptQueue prompts={prompts ?? []} records={surface.view.records.filter((record) => !record.scope?.test_execution_id)} />

@@ -563,7 +563,7 @@ mod tests {
         let kept = symbols(&pdb, target, 4096, &terminal).unwrap().unwrap();
         assert_eq!(kept.0, format!("bin/{target}/plugin.pdb"));
 
-        // The Bundle Still Builds From The Executable Alone
+        // The Bundle Still Builds from the Executable Alone
         let executable = inert_executable();
         let sources = [Source {
             path: "bin/x86_64-pc-windows-msvc/fixture.exe",

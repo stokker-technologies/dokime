@@ -74,7 +74,8 @@ fn standalone_scaffold_offline() {
     assert_eq!(host["default-features"].as_bool(), Some(false));
     assert!(sdk.get("rev").is_none());
     assert!(document.get("profile").is_none(), "the starter uses Cargo profile defaults");
-    assert!(!manifest.contains("workspace"));
+    assert!(document.get("workspace").is_some());
+    assert_eq!(document["lints"]["workspace"].as_bool(), Some(true));
     assert!(!manifest.contains("harmos"));
     assert!(root.path().join("my-plugin/src/suites/soak/hold.rs").is_file());
     assert!(root.path().join("my-plugin/tests/soak.rs").is_file());
@@ -85,7 +86,7 @@ fn standalone_scaffold_offline() {
     assert!(fs::read_to_string(root.path().join("my-plugin/src/lib.rs")).unwrap().contains("id = \"my_plugin\""));
     assert!(fs::read_to_string(root.path().join("my-plugin/src/suites/soak/hold.rs")).unwrap().contains("id = \"my_plugin.soak.hold\""));
 
-    // The Shipped Starter Includes Its Own Native Workflow And Locked Tooling
+    // The Shipped Starter Includes Its Own Native Workflow and Locked Tooling
     let plugin = root.path().join("my-plugin");
     for file in [
         "mise.toml",
@@ -105,7 +106,7 @@ fn standalone_scaffold_offline() {
     let members = python["tool"]["uv"]["workspace"]["members"].as_array().unwrap();
     assert!(members.iter().any(|member| member.as_str() == Some("tools/python")));
 
-    // The Project Pins Its Authoring Tools Once, At The Generating Release
+    // The Project Pins Its Authoring Tools Once, at the Generating Release
     let tooling = fs::read_to_string(plugin.join("mise.toml")).unwrap();
     assert!(!tooling.contains("SPDX-License-Identifier"), "mise.toml has no embedded file header");
     let tooling = tooling.parse::<toml_edit::DocumentMut>().unwrap();
@@ -136,25 +137,36 @@ fn standalone_scaffold_offline() {
 #[dokime_tracing::trace_test]
 #[test]
 fn workspace_scaffold_preserved() {
-    for members in ["[]", "[\"plugins/*\"]", "[\"./plugins/*\"]"] {
+    for (members, lints) in [("[]", ""), ("[\"plugins/*\"]", ""), ("[\"./plugins/*\"]", "\n[workspace.lints.clippy]\ntodo = \"forbid\"\n")]
+    {
         let root = tempfile::tempdir().unwrap();
         fs::create_dir(root.path().join("plugins")).unwrap();
         let original = format!(
-            "# Keep this comment\n[workspace]\nresolver = \"3\"\nmembers = {members} # members comment\ndefault-members = [] # deliberate\n"
+            "# Keep this comment\n[workspace]\nresolver = \"3\"\nmembers = {members} # members comment\ndefault-members = [] # deliberate\n{lints}"
         );
         fs::write(root.path().join("Cargo.toml"), &original).unwrap();
         let output = succeeded(generate(root.path(), &["plugins/smoke-plugin"]));
         assert!(output.contains("cargo dokime sidecar dev -p smoke-plugin"));
         let member = fs::read_to_string(root.path().join("plugins/smoke-plugin/Cargo.toml")).unwrap();
-        assert!(member.parse::<toml_edit::DocumentMut>().unwrap().get("profile").is_none());
+        let member = member.parse::<toml_edit::DocumentMut>().unwrap();
+        assert!(member.get("profile").is_none());
+        assert!(member.get("workspace").is_none());
+        assert_eq!(member["lints"]["workspace"].as_bool(), Some(true));
         let updated = fs::read_to_string(root.path().join("Cargo.toml")).unwrap();
         assert!(updated.contains("# Keep this comment"));
         assert!(updated.contains("# members comment"));
         assert!(updated.contains("default-members = [] # deliberate"));
-        if members.contains('*') {
-            assert_eq!(updated, original);
-        } else {
-            assert!(updated.contains("\"plugins/smoke-plugin\""));
+        let updated = updated.parse::<toml_edit::DocumentMut>().unwrap();
+        let lints = &updated["workspace"]["lints"]["clippy"];
+        assert!(lints.get("todo").is_some());
+        if members.starts_with("[\"./") {
+            let original = original.parse::<toml_edit::DocumentMut>().unwrap();
+            assert_eq!(lints["todo"].as_str(), original["workspace"]["lints"]["clippy"]["todo"].as_str());
+        }
+        assert!(lints.get("unimplemented").is_some());
+        if !members.contains('*') {
+            let members = updated["workspace"]["members"].as_array().unwrap();
+            assert!(members.iter().any(|member| member.as_str() == Some("plugins/smoke-plugin")));
         }
     }
 }
@@ -169,7 +181,10 @@ fn excluded_scaffold_independent() {
     let output = succeeded(generate(root.path(), &["plugins/private-demo"]));
     assert!(!output.contains(" -p "));
     assert_eq!(fs::read_to_string(root.path().join("Cargo.toml")).unwrap(), original);
-    assert!(fs::read_to_string(root.path().join("plugins/private-demo/Cargo.toml")).unwrap().contains("[workspace]"));
+    let manifest = fs::read_to_string(root.path().join("plugins/private-demo/Cargo.toml")).unwrap();
+    let manifest = manifest.parse::<toml_edit::DocumentMut>().unwrap();
+    assert!(manifest.get("workspace").is_some());
+    assert_eq!(manifest["lints"]["workspace"].as_bool(), Some(true));
 }
 
 #[dokime_tracing::trace_test]

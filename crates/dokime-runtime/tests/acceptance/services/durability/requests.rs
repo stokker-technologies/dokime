@@ -101,7 +101,7 @@ async fn durable_requests_reopens() {
     drop(handle);
     runtime.shutdown().await.unwrap();
 
-    // Read The Saved Native Parent After The Runtime Has Closed
+    // Read the Saved Native Parent After the Runtime Has Closed
     let backend = dokime_runtime::storage::Backend::primary(root.path().to_path_buf()).await.unwrap();
     let saved = backend.open().await.unwrap();
     let snapshot = backend.open_snapshot(&saved).await.unwrap();

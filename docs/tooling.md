@@ -1,5 +1,15 @@
 # Repository Tooling
 
+`lint:rust` owns Clippy with warnings denied. `check:rust` includes it, and CI
+Check / Rust gates it. Build, test, bench, fixture and focused compilation tasks
+retain compiler preflight without running Clippy. Use an explicit
+`mise run build:rust:focused -- clippy <arguments>` for a selected Clippy run.
+
+Desktop and benchmark selections are covered by `lint:rust`.
+
+`mise run lint:rust --extended` lints the optional compatibility selections;
+`build:rust:compatibility` checks them without Clippy. Extended lint remains local-only.
+
 Mise is the public entry point. Python modules in `tools/python/src/dokime_tools/`
 own environment setup, synchronization, version metadata, binding generation,
 frontend preparation, native packaging, CI and
@@ -69,12 +79,14 @@ the root environment without a staged wheel. A focused integration selection use
 `mise run test:python:integration --select <expression>` and also checks source.
 Full Python unit and integration tasks retain their built-wheel input.
 
-## Hosted-Runner Test Budgets
+## Test Hang Guards
 
-Test-time budgets are doubled so hosted runners, whose disks can stall for over a
-minute, finish stories reliably on Linux and Windows. `[conventions.testing.deadlines]`
-in `tools/project.toml` sets each lane's per-story deadline, which the test runner
-passes to nextest, pytest and Vitest. Rust fixture operations and in-story waits
+`[conventions.testing.deadlines]` in `tools/project.toml` owns the lane hang guards.
+The test runner passes these values to nextest, pytest and Vitest. Script lanes,
+including native desktop system tests, also have a whole-lane process-tree timeout
+using the same configured deadline. These guards terminate hangs; completed story
+durations remain measurements and never change a runner's pass/fail result.
+Rust fixture operations and in-story waits
 share `STORY_BOUND` and `FIXTURE_POLICY` in
 `crates/dokime-runtime/tests/support/settings.rs`; the desktop stories size their
 waits with the constants at the top of `crates/dokime-gui/e2e/native-desktop.mjs`.
@@ -82,17 +94,10 @@ Product operation policies keep their own deadlines.
 
 ## Workstation Builds
 
-Compiling task wrappers in `tools/python/src/dokime_tools/build/machine.py`
-share `native-build.lock` directly under the OS user cache directory:
-`%LOCALAPPDATA%` on Windows, `$XDG_CACHE_HOME` (or `~/.cache`) on Unix.
-Dokime and Harmos use the same path. Windows `LockFileEx` and Unix `flock`
-serialize native compilation across repositories and worktrees. Waiting tasks
-print the holder PID, project and task. The lock spans the child command;
-nested commands inherit ownership. Process exit releases the OS lock,
-including crashes; stale holder metadata is replaced after acquisition.
-Never delete the lock file. The lock also remains enabled in CI, where hosted
-jobs have separate machines; local CI simulations therefore share the lock.
-No worker or compiler thread limits are added.
+Compiling tasks run through `tools/python/src/dokime_tools/build/machine.py`, which starts the
+shared compiler cache for the command. Nothing serializes compilation: tasks in
+any repository or worktree run at the same time, and no worker or compiler
+thread limits are added.
 
 For non-CI runs, `mise.toml` selects `RUSTC_WRAPPER=sccache`,
 `SCCACHE_DIR=<OS user cache>/sccache`, `SCCACHE_CACHE_SIZE=20G` and disables
@@ -101,8 +106,8 @@ cacheable crate compilations can reuse results across worktrees. CI retains
 its existing per-profile cache settings. sccache is already a pinned mise tool.
 Local wrappers reuse the existing `ci/compiler.py` foreground-server helper with
 an owned endpoint, so an older daemon cannot silently select another store.
-Only that owned server is stopped after the command; each task prints its cache
-hit and miss counts.
+Concurrent tasks each own a server on the same store. Only that owned server is
+stopped after the command; each task prints its cache hit and miss counts.
 If allocation failures recur, disable it for one run by setting
 `RUSTC_WRAPPER` to an empty value:
 
@@ -111,8 +116,7 @@ RUSTC_WRAPPER= mise run build:rust
 ```
 
 In PowerShell use `$env:RUSTC_WRAPPER = ''; mise run build:rust`, then remove
-the override with `Remove-Item Env:RUSTC_WRAPPER`. The build lock remains active.
-`mise run test:tooling` proves serialization and OS release after a holder dies.
+the override with `Remove-Item Env:RUSTC_WRAPPER`.
 
 ## Simulation Scratch Recovery
 

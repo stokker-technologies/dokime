@@ -48,7 +48,7 @@ const fixture = vi.hoisted(() => ({
   buttons: [] as (() => void)[],
   hash: "",
   navigate: vi.fn(),
-  retry: vi.fn(),
+  reload: vi.fn(),
 }));
 const session = { generation: "1", isCurrent: () => true };
 const entry: PluginEntry = {
@@ -110,7 +110,7 @@ vi.mock("react", async (original) => {
 });
 vi.mock("@/components/ui/button", () => ({
   Button: ({ onClick, ...props }: ComponentProps<"button">) => {
-    if (onClick && props.children !== "Copy") fixture.buttons.push(() => onClick({} as never));
+    if (onClick && !props.disabled && props.children !== "Copy") fixture.buttons.push(() => onClick({} as never));
     return createElement("button", { type: "button", ...props });
   },
 }));
@@ -145,7 +145,7 @@ vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", () => 
 vi.mock("@/features/settings/plugins/plugin-queries", async (original) => ({
   ...(await original<typeof import("@/features/settings/plugins/plugin-queries")>()),
   usePluginsQuery: fixture.installations,
-  useRetryPluginMutation: () => ({ mutate: fixture.retry, isPending: false, isError: false }),
+  useReloadPluginMutation: () => ({ mutate: fixture.reload, isPending: false, isError: false }),
 }));
 vi.mock("@/features/settings/use-settings-sections", () => ({ useSettingsSections: () => ({ frame: { sections: [], cards: [] } }) }));
 vi.mock("@/features/settings/SettingsSurface", () => ({ SettingsAdvancedSwitch: () => null }));
@@ -168,6 +168,7 @@ beforeEach(() => {
     values: { address: "corrected" },
     discovered: {},
     secrets: [],
+    unapplied: [],
     restart: "idle",
   });
 });
@@ -289,6 +290,7 @@ test("Declared Secret Add", () => {
     error: null,
     values: {},
     discovered: {},
+    unapplied: [],
     restart: "idle",
     settings: {
       contributions: [
@@ -310,7 +312,7 @@ test("Declared Secret Add", () => {
   assert.ok(initial.includes("api_token"));
   assert.ok(initial.includes("Required · Missing"));
   assert.ok(initial.includes("Optional · Available"));
-  assert.equal((initial.match(/Add In Secret Storage/g) ?? []).length, 1);
+  assert.equal((initial.match(/Add in Secret Storage/g) ?? []).length, 1);
   assert.equal(initial.includes('type="password"'), false);
   assert.equal(fixture.buttons.length, 1);
   fixture.buttons[0]();
@@ -344,6 +346,7 @@ test("Pending Restart Explained", () => {
     error: null,
     values: {},
     discovered: {},
+    unapplied: [],
     restart: "pending",
     settings: { contributions: [] },
     secrets: [],
@@ -404,20 +407,23 @@ test("Refused Restart Notifies", () => {
   assert.equal(startNotification({ ...entry, last_boot: null }), null);
 });
 
-test("Retry Starts One Plugin", () => {
+test("Reload Starts One Plugin", () => {
   fixture.detail.mockReturnValue({ data: null });
-  for (const installation of [entry, { ...entry, active: true, boot_failed: false }]) {
+  for (const installation of [
+    entry,
+    { ...entry, active: true, boot_failed: false },
+    { ...entry, active: true, boot_failed: false, last_boot: null },
+  ]) {
     fixture.buttons.length = 0;
-    fixture.retry.mockClear();
+    fixture.reload.mockClear();
     fixture.installations.mockReturnValue({ data: [installation] });
-    const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
-    assert.ok(html.includes(entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : ""));
+    renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.install_id }));
     assert.ok(fixture.buttons.length);
     fixture.buttons.at(-1)?.();
-    assert.deepEqual(fixture.retry.mock.calls, [[entry.install_id]]);
+    assert.deepEqual(fixture.reload.mock.calls, [[{ installId: entry.install_id }]]);
   }
   for (const installation of [
-    { ...entry, active: true, boot_failed: false, last_boot: null },
+    { ...entry, state: "disabled" as const },
     { ...entry, restart: "pending" as const },
   ]) {
     fixture.buttons.length = 0;
@@ -436,4 +442,31 @@ test("Installed Program Applying", async () => {
     const detail = await getInstalledPluginDetail(session, "equipment.main");
     assert.equal(detail?.status, status);
   }
+});
+
+test("Backend Field Marks Survive View Reads and Clear After Reload", async () => {
+  fixture.admitted.mockResolvedValue([{ plugin_id: "equipment.main", label: "Equipment", status: "ready", error: null }]);
+  const settings = {
+    settings: { contributions: [{ kind: "text_area", id: "address", title: "Address", default: "", required: false }] },
+    values: { address: "saved" },
+    discovered: {},
+    secrets: [],
+    restart: "idle",
+    unapplied: ["address"],
+  };
+  fixture.settings.mockResolvedValue(settings);
+  for (let view = 0; view < 2; view++) {
+    const detail = await getInstalledPluginDetail(session, "equipment.main");
+    assert.deepEqual(detail?.unapplied, ["address"]);
+    const html = renderToStaticMarkup(
+      createElement(InstalledPluginDetail, { detail: detail as PluginDetail, onSaveSettings: async () => {} }),
+    );
+    assert.ok(html.includes('data-setting-unapplied="address"'));
+  }
+  fixture.settings.mockResolvedValue({ ...settings, unapplied: [] });
+  const detail = await getInstalledPluginDetail(session, "equipment.main");
+  const html = renderToStaticMarkup(
+    createElement(InstalledPluginDetail, { detail: detail as PluginDetail, onSaveSettings: async () => {} }),
+  );
+  assert.equal(html.includes("data-setting-unapplied="), false);
 });

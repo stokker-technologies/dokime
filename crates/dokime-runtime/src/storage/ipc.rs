@@ -7,7 +7,7 @@
  * ***
  */
 
-// Durable Arrow IPC Blocks And Metadata-Only Finalization
+// Durable Arrow IPC Blocks and Metadata-Only Finalization
 
 /* === Modules === */
 
@@ -20,7 +20,8 @@ mod values;
 pub(crate) use projection::Projection;
 pub(crate) use schema::schema as contract_schema;
 pub(crate) use values::{
-    batch as record_batch, cell, entry as telemetry_entry, metadata_text, native_encoding, normalize_values, row_key, row_keys,
+    batch as record_batch, batch_at as record_batch_at, cell, entry as telemetry_entry, metadata_text, native_encoding, normalize_values,
+    row_key, row_keys,
 };
 
 /* === Imports === */
@@ -177,7 +178,10 @@ impl Writer {
         let mut dictionaries = DictionaryTracker::new(true);
         let message = IpcDataGenerator::default().schema_to_bytes_with_dictionary_tracker(&schema, &mut dictionaries, &options);
         write_message(&mut file, message, &options)?;
-        file.file.sync_all()?;
+        {
+            let _span = tracing::debug_span!("ingest.ipc.sync").entered();
+            file.file.sync_all()?;
+        }
         sync_parent(path)?;
         Ok(Self {
             file,
@@ -232,7 +236,10 @@ impl Writer {
         if std::mem::take(&mut self.fail_sync) {
             return Err(Error::Io(std::io::Error::other("injected batch sync failure")));
         }
-        self.file.file.sync_all()?;
+        {
+            let _span = tracing::debug_span!("ingest.ipc.sync").entered();
+            self.file.file.sync_all()?;
+        }
         self.blocks.push(index.block()?);
         Ok(index)
     }
@@ -280,7 +287,10 @@ impl BatchIndex {
 
 impl Write for HashedFile {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let write_span = tracing::debug_span!("ingest.ipc.write").entered();
         let written = self.file.write(bytes)?;
+        drop(write_span);
+        let _hash = tracing::debug_span!("ingest.ipc.hash").entered();
         self.hash.update(&bytes[..written]);
         if let Some(hash) = &mut self.batch_hash {
             hash.update(&bytes[..written]);
@@ -422,13 +432,20 @@ fn footer(file: &mut HashedFile, schema: &arrow_schema::Schema, blocks: &[Block]
     file.write_all(bytes)?;
     file.write_all(&length.to_le_bytes())?;
     file.write_all(b"ARROW1")?;
-    file.file.sync_all()?;
+    {
+        let _span = tracing::debug_span!("ingest.ipc.sync").entered();
+        file.file.sync_all()?;
+    }
     Ok(())
 }
 
 fn sync_parent(path: &Path) -> Result<()> {
     #[cfg(unix)]
-    File::open(path.parent().ok_or(Error::Invalid("IPC file has no parent"))?)?.sync_all()?;
+    {
+        let parent = File::open(path.parent().ok_or(Error::Invalid("IPC file has no parent"))?)?;
+        let _span = tracing::debug_span!("ingest.ipc.sync").entered();
+        parent.sync_all()?;
+    }
     #[cfg(not(unix))]
     let _ = path;
     Ok(())

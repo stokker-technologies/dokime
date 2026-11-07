@@ -64,7 +64,7 @@ impl RuntimeHandle {
             });
         };
         self.commit_label(LabelSubject::Execution(test_execution_id.clone()), label.clone(), context).await?;
-        // Every Attempt Is Unsealed, So They All Checkpoint With Their Cycle
+        // Every Attempt Is Unsealed, So They All Checkpoint with Their Cycle
         self.execution_storage.save_cycle(cycle_id).await.map_err(|error| unsaved(&error))?;
         Ok(label)
     }

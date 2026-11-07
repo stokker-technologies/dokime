@@ -13,12 +13,14 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { test, vi } from "vitest";
 
 // Local Imports
 import { createExecutionFileRefresh, createRuntimeProjectionRefreshCoordinator, createThrottledRefresh } from "@/app/live/runtime-refresh";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { mapNativeExecutionSummary, projectExecutionStatus } from "@/lib/api/native-planning";
+import { invalidateWorkflowDocuments, workflowQueryKeys } from "@/features/cycle/server-state";
 
 /* === Re-Exports === */
 
@@ -34,7 +36,7 @@ import { mapNativeExecutionSummary, projectExecutionStatus } from "@/lib/api/nat
 
 /* === Entry Point === */
 
-test("Runtime Refresh Preserves A Trailing Observation", async () => {
+test("Runtime Refresh Preserves a Trailing Observation", async () => {
   let finish!: () => void;
   const gate = new Promise<void>((resolve) => {
     finish = resolve;
@@ -70,7 +72,7 @@ test("Runtime Refresh Can Retry After Failure", async () => {
   coordinator.dispose();
 });
 
-test("Document Refresh Is Demand Driven And Bounded", () => {
+test("Document Refresh Is Demand Driven and Bounded", () => {
   vi.useFakeTimers();
   const refresh = vi.fn();
   const coordinator = createThrottledRefresh(refresh, 5_000);
@@ -144,5 +146,26 @@ test("Live File Refresh", () => {
   } finally {
     files.dispose();
     vi.useRealTimers();
+  }
+});
+
+test("Saved Capture Refreshes Active Execution Files", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  let files: { path: string }[] = [];
+  const observer = new QueryObserver(client, {
+    queryKey: workflowQueryKeys.executionFiles("running"),
+    queryFn: async () => files,
+    staleTime: Infinity,
+  });
+  const unsubscribe = observer.subscribe(() => undefined);
+  try {
+    await observer.refetch();
+    assert.deepEqual(observer.getCurrentResult().data, []);
+    files = [{ path: "media/capture.png" }];
+    await invalidateWorkflowDocuments(client);
+    assert.deepEqual(observer.getCurrentResult().data, files);
+  } finally {
+    unsubscribe();
+    client.clear();
   }
 });

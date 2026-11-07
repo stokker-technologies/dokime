@@ -611,7 +611,7 @@ fn browse_page<'a>(
     let returned = selected.len().saturating_sub(start).min(limit);
     let more = selected.len().saturating_sub(start) > returned;
 
-    // Fold The Whole Selection Into Per-Cycle Totals
+    // Fold the Whole Selection into Per-Cycle Totals
     let mut folds = BTreeMap::<&TestCycleId, CycleFold>::new();
     for row in &selected {
         let metadata = &row.metadata;

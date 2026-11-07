@@ -19,7 +19,7 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 // Third Party Imports
-use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, Requires, RetryPolicy, Visibility};
+use harmos::operations::{NoStream, OperationDeclaration, OperationHost, OperationPolicy, Requires, RetryPolicy, Visibility};
 use harmos::sidecar::operations::ServingError;
 use harmos::sidecar::{Refusal, Supervisor};
 
@@ -247,19 +247,21 @@ impl harmos::Operation for Signal<()> {
 
 impl ExecutionHost for Supervisor {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>> {
-        Box::pin(
-            async move { self.call::<EvidenceBatch>(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) },
-        )
+        Box::pin(async move {
+            self.operation::<EvidenceBatch>(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
+        })
     }
 
     fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
         Box::pin(async move {
-            self.call::<OperatorQuestion>(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
+            self.operation::<OperatorQuestion>(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
         })
     }
 
     fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, Result<LeaseResolution, String>> {
-        Box::pin(async move { self.call::<LeaseAsk>(ask).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) })
+        Box::pin(
+            async move { self.operation::<LeaseAsk>(ask).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) },
+        )
     }
 }
 
@@ -537,7 +539,7 @@ fn request_lease(
     });
 }
 
-// One Delivered Frame Serves Every Leaseholder, So Each Run Stamps Rows With The Scope Its Request
+// One Delivered Frame Serves Every Leaseholder, So Each Run Stamps Rows with the Scope Its Request
 // Names, Keeping The Producer's Own Scope Only For Rows That Execution Captured Itself.
 fn delivery_scope(
     source: Option<dokime_domain::model::execution::RecordScope>, holder: &dokime_domain::model::execution::RecordScope,

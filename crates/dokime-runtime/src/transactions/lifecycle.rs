@@ -341,7 +341,10 @@ impl Transaction<RuntimeState> for SealExecution {
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         let id = &self.seal.source.execution.execution_id;
         let execution = state.executions.get(id).ok_or("execution seal owner is missing")?;
-        if execution.saved.as_ref().is_some_and(|saved| saved != &self.seal) {
+        let mut projected = execution.clone();
+        projected.saved = Some(self.seal.clone());
+        RuntimeState::sealed_projection(&mut projected);
+        if execution.saved.as_ref().is_some_and(|saved| Some(saved) != projected.saved.as_ref()) {
             return Err("execution already has a different immutable seal".into());
         }
         self.seal.validate(execution).map_err(|error| error.to_string())
@@ -349,7 +352,9 @@ impl Transaction<RuntimeState> for SealExecution {
 
     fn apply(&self, state: &mut RuntimeState) {
         let id = &self.seal.source.execution.execution_id;
-        state.executions.get_mut(id).expect("checked execution owner").saved = Some(self.seal.clone());
+        let execution = state.executions.get_mut(id).expect("checked execution owner");
+        execution.saved = Some(self.seal.clone());
+        RuntimeState::sealed_projection(execution);
         state.report_finalizations.remove(id);
     }
 }
@@ -536,6 +541,7 @@ impl Transaction<RuntimeState> for StartShutdown {
 
     fn apply(&self, state: &mut RuntimeState) {
         state.shutting_down = true;
+        state.retire_sealed_cycles();
     }
 }
 
@@ -604,7 +610,7 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
             request.failure = Some("runtime restarted before request completion".into());
         }
 
-        // Sealed Cycles Are Served From Native History After A Restart
+        // Sealed Cycles Are Served from Native History After a Restart
         state.retire_sealed_cycles();
         for (id, cycle) in &mut state.cycles {
             // Startup Finishes These Containers Before Exposing New Admission. A Failed

@@ -59,7 +59,18 @@ derive = ["dep:dokime-macros"]
 # Activates the Harmos operation resource bindings for operations this package declares.
 runtime = []
 configuration = ["dep:base64", "dep:cssparser", "dep:tempfile", "dep:tokio", "dep:toml", "dep:url", "dep:image"]
-storage = ["dep:base64", "dep:futures-util", "dep:hmac", "dep:rand", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
+storage = [
+  "dep:base64",
+  "dep:flate2",
+  "dep:futures-util",
+  "dep:hmac",
+  "dep:postcard",
+  "dep:rand",
+  "dep:rusqlite",
+  "dep:sha2",
+  "dep:tempfile",
+  "dep:tokio",
+]
 # Canonical Tests Enable This Fixture Surface; Product Never Does.
 testing = ["native"]
 fault-injection = ["native"]
@@ -106,10 +117,12 @@ arrow-buffer = { workspace = true }
 arrow-ipc = { workspace = true }
 arrow-schema = { workspace = true }
 base64 = { workspace = true, optional = true }
+flate2 = { workspace = true, optional = true }
 flatbuffers = { workspace = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true, features = ["jpeg", "png"] }
 prost = { workspace = true }
+postcard = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 toml = { workspace = true, optional = true }
@@ -167,6 +180,7 @@ harmos-sdk = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Utilities
+sysinfo = { workspace = true }
 
 # Serialization
 serde_json = { workspace = true, features = ["float_roundtrip"] }
@@ -332,7 +346,7 @@ xcap = { workspace = true, optional = true }
 [[test]]
 name = "integration"
 path = "tests/integration/main.rs"
-required-features = ["native"]
+required-features = ["testing"]
 
 [[test]]
 name = "acceptance"
@@ -342,6 +356,11 @@ required-features = ["native"]
 [[test]]
 name = "system"
 path = "tests/system/main.rs"
+required-features = ["native"]
+
+[[test]]
+name = "invocation"
+path = "tests/invocation.rs"
 required-features = ["native"]
 
 # === Bench Targets === #
@@ -375,6 +394,9 @@ required-features = ["native"]
 # === Workspace Lints === #
 
 # === Lints === #
+
+[lints]
+workspace = true
 
 # === Profiles === #
 

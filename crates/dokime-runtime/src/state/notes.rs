@@ -193,7 +193,7 @@ impl RuntimeState {
         Ok(())
     }
 
-    // A Sealed Cycle Or Execution Keeps The Notes Its Report Froze
+    // A Sealed Cycle or Execution Keeps the Notes Its Report Froze
     pub fn note_scope_sealed(&self, scope: &RecordScope) -> bool {
         let cycle_sealed = scope.test_cycle_id.as_ref().and_then(|id| self.cycles.get(id)).is_some_and(|cycle| cycle.saved.is_some());
         let execution_sealed =

@@ -70,7 +70,7 @@ export function TraceabilityJsonDialog({ exportName, traceability }: Traceabilit
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            aria-label="View Traceability As JSON"
+            aria-label="View Traceability as JSON"
             disabled={!traceability?.groups.length}
             onClick={() => setOpen(true)}
             size="icon-xs"
@@ -80,7 +80,7 @@ export function TraceabilityJsonDialog({ exportName, traceability }: Traceabilit
             <Braces />
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="top">View As JSON</TooltipContent>
+        <TooltipContent side="top">View as JSON</TooltipContent>
       </Tooltip>
       <DialogContent className="grid max-h-[min(--spacing(192),calc(100dvh_-_--spacing(16)))] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-3xl">
         <DialogHeader>

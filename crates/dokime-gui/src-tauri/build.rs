@@ -38,7 +38,7 @@
 /* === Private Functions === */
 
 fn main() {
-    // The Shell Names The Product From The Generated Brand, Like The Web UI
+    // The Shell Names the Product from the Generated Brand, Like the Web UI
     let label = brand_text("default-organization.json", "label");
     println!("cargo:rustc-env=DOKIME_BRAND_LABEL={label}");
 

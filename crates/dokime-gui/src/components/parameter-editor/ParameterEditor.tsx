@@ -168,7 +168,7 @@ export function ParameterEditor({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
-                            aria-label={`Reset ${definition.label ?? definition.name} To Template Default`}
+                            aria-label={`Reset ${definition.label ?? definition.name} to Template Default`}
                             disabled={row.uploading}
                             onClick={() => onResetFile(definition.name)}
                             size="icon-sm"
@@ -178,7 +178,7 @@ export function ParameterEditor({
                             <RotateCcw aria-hidden />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Reset To Template Default</TooltipContent>
+                        <TooltipContent>Reset to Template Default</TooltipContent>
                       </Tooltip>
                     ) : null}
                   </div>
@@ -273,7 +273,8 @@ function ParameterEditorRow({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                aria-label={`Reset To ${resetTargetLabel(row)}`}
+                aria-label={`Reset to ${resetTargetLabel(row)}`}
+                data-testid="parameter-reset"
                 onClick={() => onResetRow(row.name)}
                 size="icon-sm"
                 type="button"
@@ -282,7 +283,7 @@ function ParameterEditorRow({
                 <RotateCcw aria-hidden />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{`Reset To ${resetTargetLabel(row)}`}</TooltipContent>
+            <TooltipContent>{`Reset to ${resetTargetLabel(row)}`}</TooltipContent>
           </Tooltip>
         ) : null}
       </div>

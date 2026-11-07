@@ -23,6 +23,9 @@
 
 /* === Macros === */
 
+#[cfg(feature = "runtime")]
+crate::hosted!(ReadEnvironment, PrepareEffect, ConfirmEffect);
+
 /* === Type Aliases === */
 
 /* === Structs === */
@@ -91,11 +94,6 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    crate::hosted!(super::ReadEnvironment, super::PrepareEffect, super::ConfirmEffect);
-}
 
 /* === Public Functions === */
 

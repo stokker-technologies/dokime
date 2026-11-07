@@ -108,7 +108,7 @@ impl ExecutionFixture for UploadGate {
 
 /* === Private Functions === */
 
-// A 4 KiB Frame Limit Pages Listings And Chunks Downloads Into Small Frames
+// A 4 KiB Frame Limit Pages Listings and Chunks Downloads into Small Frames
 pub(crate) async fn small_frame_transfer() {
     artifact_transfer(4096).boxed_local().await;
 }
@@ -228,7 +228,7 @@ async fn artifact_transfer(message_bytes: usize) {
     );
 
     if message_bytes >= 1024 * 1024 {
-        // Shared Native Verification And Publication
+        // Shared Native Verification and Publication
         let native = dokime::client::Client::connect(dokime::client::Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None)
             .await
             .unwrap();
@@ -561,6 +561,19 @@ pub(crate) async fn artifact_upload_owned() {
         .into_inner();
     assert_eq!(foldered.filename, "upload/operator-notes.txt");
     assert_eq!(foldered.state, model::content::wire::ArtifactState::Complete);
+    let files = content
+        .unary::<contracts::content::ListExecutionFiles>(authenticated(contracts::content::ListExecutionFiles {
+            execution_id: execution_id.clone(),
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .files;
+    assert!(files.windows(2).all(|pair| pair[0].relative_path < pair[1].relative_path));
+    for artifact in [&uploaded, &foldered] {
+        assert!(files.iter().any(|file| file.relative_path == format!("artifacts/{}", artifact.filename)));
+    }
     for escaping in ["../escape.txt", "/absolute.txt", "upload//empty.txt"] {
         let refused = content.upload::<contracts::content::UploadArtifact>(authenticated(upload_named(escaping))).await.unwrap_err();
         assert_eq!(refused.code(), Code::InvalidArgument, "{escaping}");

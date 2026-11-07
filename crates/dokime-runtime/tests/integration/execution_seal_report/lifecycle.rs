@@ -77,7 +77,7 @@ pub(crate) async fn cycle_container_lifecycle() {
     register_python_suite(&runtime, suite.clone()).await;
     let first = start_cycle(&runtime, suite.clone()).await;
     let second = start_cycle(&runtime, suite).await;
-    assert_eq!(runtime.cycles().await.len(), 2);
+    assert_eq!(runtime.cycles().await.unwrap().len(), 2);
 
     let run = runtime.start_next_execution(first.clone(), CommandContext::default()).await;
     crate::service_support::waits::wait_for_run_settled(&runtime, &run.command_id).await;
@@ -223,7 +223,7 @@ pub(crate) async fn stop_archive_state() {
     assert!(listed(ArchiveScope::Archived).await);
     assert!(listed(ArchiveScope::All).await);
 
-    // An Execution Archives On Its Own, And History Lists It Only When Asked
+    // An Execution Archives on Its Own, and History Lists It Only When Asked
     let execution = archived.test_executions[0].test_execution_id.clone();
     runtime.set_execution_archived(execution.clone(), true, CommandContext::default()).await.unwrap();
     let browse = |scope: ArchiveScope| {
@@ -255,7 +255,7 @@ pub(crate) async fn rename_admission_seal() {
     let ready = cycle_snapshot(&runtime, &test_cycle_id).await;
     let first = ready.test_executions[0].clone();
 
-    // Invalid Labels And Missing Executions Leave The Original State Intact
+    // Invalid Labels and Missing Executions Leave the Original State Intact
     let cycle = runtime.rename_cycle(test_cycle_id.clone(), "   ".into(), CommandContext::default()).await;
     assert!(matches!(
         cycle,
@@ -282,14 +282,14 @@ pub(crate) async fn rename_admission_seal() {
     let cycle_before = stored_cycle(&runtime, &test_cycle_id).await;
     let mut records = runtime.subscribe_records();
 
-    // Before The Run Seals, Both Subjects Take A New Label
+    // Before the Run Seals, Both Subjects Take a New Label
     let cycle_label = runtime.rename_cycle(test_cycle_id.clone(), "  Charger Burn-In  ".into(), CommandContext::default()).await.unwrap();
     assert_eq!(cycle_label, "Charger Burn-In");
     let case_label =
         runtime.rename_execution(first.test_execution_id.clone(), "Charger Soak".into(), CommandContext::default()).await.unwrap();
     assert_eq!(case_label, "Charger Soak");
 
-    // Each Rename Is An Evidence Record Carrying Both Labels
+    // Each Rename Is an Evidence Record Carrying Both Labels
     assert_eq!(
         label_edits(&mut records, 2).await,
         [
@@ -298,7 +298,7 @@ pub(crate) async fn rename_admission_seal() {
         ]
     );
 
-    // The Cycle Persists A New Revision, And Lists Read The New Labels
+    // The Cycle Persists a New Revision, and Lists Read the New Labels
     let cycle_after = stored_cycle(&runtime, &test_cycle_id).await;
     assert_eq!(cycle_after.0.metadata.label, "Charger Burn-In");
     assert_ne!(cycle_after.1, cycle_before.1, "the cycle has a new revision");
@@ -310,7 +310,7 @@ pub(crate) async fn rename_admission_seal() {
         assert_eq!(snapshot.state().cases_for_cycle(cycle).map(|case| case.metadata.label.as_str()).collect::<Vec<_>>(), ["Charger Soak"]);
     }
 
-    // The Sealed Execution Keeps The Label It Ran Under
+    // The Sealed Execution Keeps the Label It Ran Under
     runtime.start_next_execution(test_cycle_id.clone(), CommandContext::default()).await;
     wait_for_cycle_outcome(&runtime, &test_cycle_id, ResultStatus::Passed).await;
     runtime.seal_cycle(test_cycle_id.clone(), CommandContext::default()).await.unwrap();

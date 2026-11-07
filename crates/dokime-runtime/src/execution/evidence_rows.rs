@@ -61,7 +61,8 @@ use serde::{Serialize, de::DeserializeOwned, ser::SerializeSeq};
 
 /* === Constants === */
 
-const MAX_ROW_BYTES: u64 = 16 * 1024 * 1024;
+#[cfg(feature = "native")]
+pub(crate) const MAX_ROW_BYTES: u64 = 16 * 1024 * 1024;
 // One Read Fills Many Rows: Iteration Costs One Seek And Read Per Window, Not Per Row Or Byte.
 #[cfg(feature = "native")]
 const READ_WINDOW_BYTES: u64 = 1024 * 1024;
@@ -104,6 +105,7 @@ struct Spool {
 
 pub struct Rows<'a, T> {
     owner: &'a EvidenceRows<T>,
+    #[cfg(feature = "native")]
     offset: u64,
     remaining: usize,
     #[cfg(feature = "native")]
@@ -178,6 +180,7 @@ impl<T> EvidenceRows<T> {
     pub fn iter(&self) -> Rows<'_, T> {
         Rows {
             owner: self,
+            #[cfg(feature = "native")]
             offset: 0,
             remaining: self.len(),
             #[cfg(feature = "native")]
@@ -330,7 +333,7 @@ impl<T: Serialize + DeserializeOwned> Iterator for Rows<'_, T> {
 #[cfg(feature = "native")]
 impl Spool {
     fn new() -> std::io::Result<Self> {
-        // Windows Reports Access Denied When A Random File Name Matches An Existing
+        // Windows Reports Access Denied When a Random File Name Matches an Existing
         // Temp Directory Ignoring Case. Keep Files Inside An Owned Directory Instead.
         let directory = tempfile::Builder::new().prefix("dokime-evidence-").tempdir()?;
         let data = std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(directory.path().join("rows"))?;

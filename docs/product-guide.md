@@ -2,7 +2,7 @@
 
 Detailed concepts, supported interfaces and existing authoring examples. For installation, start with the [Quick Start](../README.md#quick-start).
 
-## Install Tools With Mise
+## Install Tools with Mise
 
 Select the CLI and authoring tool from one release in your mise configuration,
 the same form generated plugin projects use:
@@ -105,6 +105,14 @@ natural completion and evidence drain; it defaults to false. Stop durably disabl
 continuation policy. Each execution saves and seals its evidence while its cycle stays
 Active. Select the destination cycle in the Library before adding attempts.
 
+After an execution seals, managed recovery state keeps its control summary and
+frozen plan. Generated telemetry outputs and artifact inventories remain in native
+execution storage. Complete inspection reads that durable revision. Retiring a
+sealed cycle also releases its completed requests and consumed case registrations;
+saved cases can be reused without retaining every earlier cycle in recovery state.
+Development roots without durable case registration revisions require a fresh
+storage root. Existing roots are never reset automatically; storage remains v1.
+
 **Seal Cycle** closes admission immediately, stops that cycle's running work,
 cancels unrun executions and waits for every execution and the cycle report to
 be durably saved. Other cycles continue. Shutdown stops running executions
@@ -199,8 +207,7 @@ Remote files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
 `endpoints` (an ordered nonempty list), `backend_identifier`, `label`,
 `ca_certificate_pem` and `access_key`. CA/key values may be null for explicitly
 unsecured lab listeners. Unknown fields, invalid identities or PEM, wildcard
-origins and inconsistent TLS/CA combinations are rejected. `.dokime-pair` files
-and the old single `endpoint` format are unsupported. The remote security store
+origins and inconsistent TLS/CA combinations are rejected. The remote security store
 also keeps format v1; old stores require a fresh application root and are never
 silently reset.
 
@@ -239,7 +246,7 @@ firewall notice reports blocked access, optionally select **Allow In Firewall…
 and approve the administrator prompt; the rule covers that profile for peers on
 the same subnet. Installation never changes firewall rules.
 
-## Full-Control Access And Plugin Capabilities
+## Full-Control Access and Plugin Capabilities
 
 A valid access key grants full control over remote product operations and
 installed plugins, including request-dependent channel, stream and source scopes.
@@ -491,9 +498,9 @@ a running plugin remains its responsibility.
 
 A declared secret's identifier is its Secret Storage identifier. At plugin start,
 Dokime reads each declaration directly from the store. A missing required secret
-fails startup with ``secret `api_token` is not in Secret Storage; add it and retry the plugin``
+fails startup with ``secret `api_token` is not in Secret Storage; add it and reload the plugin``
 (the identifier varies). Optional secrets are absent when missing. Add the exact
-identifier in Secret Storage, then use **Retry** on the plugin page to read the
+identifier in Secret Storage, then use **Reload** on the plugin page to read the
 store again; only that plugin restarts. There are no per-plugin bindings,
 environment-variable sources, automatic retries or fallback identifiers.
 
@@ -539,26 +546,22 @@ human display text. No `name` alias is accepted in secret contracts.
 
 ### Plugin Settings
 
-A program prepares with its saved settings when it starts. Saving a change in
-**Settings → Plugins** restarts that program, and the programs that depend on it,
-with the saved values; a save that changes nothing restarts nothing. The plugin
-page shows **Restarting…** while the new generation starts. While work can still
-reach a plugin, including a paused or stopping run, the gap before automatic
-continuation and draining plugin streams, the page shows **Restart Pending**.
-The restart follows once that work completes. An idle open cycle, sealing and
-report publication after completion hold no plugin.
-Running executions are never stopped for a restart, and saves made while one
-waits apply together. A restart refused before
-the program stops, such as saved values or a missing secret its preparation
-rejects, keeps the running generation: the plugin shows **Active · Restart
-Refused** with the reason, the saved values stay saved, and saving corrected
-values or **Retry** restarts it. A new generation that fails to start is reported
-like a failed startup. Programs that are not running apply saved settings when
-they start, including through **Retry**, which starts a plugin that does not run
-at once even while a cycle is active; retrying a running plugin restarts it once
-no work can reach a plugin.
+Saving a changed value in **Settings → Plugins** keeps the program running with
+its startup values. The backend compares saved values against that generation
+and marks differing fields **Applied on Reload** with a warning highlight.
+These marks survive navigation, a GUI restart and another attached GUI. A backend
+restart starts programs with their saved settings.
 
-### Plugin Startup And Stop Timeouts
+Use **Reload** on the plugin page or table to apply saved settings and restart
+all of the plugin's observers, including plugin-activated ones, at their newly
+configured intervals. The plugin shows **Restarting…** while it starts. Active
+work retains **Restart Pending** until the existing restart admission permits it;
+executions are never stopped for a reload. A refused preparation keeps the running
+generation, saved settings and field marks, with **Restart Refused** and its reason.
+A plugin with no running program starts immediately, including during an active
+cycle. An idle open cycle, sealing and completed report publication hold no plugin.
+
+### Plugin Startup and Stop Timeouts
 
 **Settings › Plugins** also holds the backend's **Plugin Startup Timeout [s]**
 (default 60 s), the time each plugin program has to launch and become ready, and,
@@ -566,7 +569,7 @@ under Show Advanced, **Plugin Stop Timeout [s]** (default 10 s), the time a
 stopping plugin's executions have to settle. Both accept 1 to 3,600 seconds. A
 saved value applies to the next start, restart or stop; running programs are not
 restarted for it. A program that does not become ready in time fails to start with
-a cause naming the budget and this setting: raise the timeout and use **Retry**.
+a cause naming the budget and this setting: raise the timeout and use **Reload**.
 Time spent in a plugin's own initialization is bounded by the plugin's declared
 initialization policy instead; see
 [Plugins](plugins.md#plugin-startup-and-stop-budgets).
@@ -575,7 +578,7 @@ Saved preferences use the current defaults for absent sections or fields, so an
 existing backend data root starts with default plugin budgets until they are set.
 Explicit saved values remain in effect and must pass validation.
 
-### Installing And Removing Plugins
+### Installing and Removing Plugins
 
 Installing, reinstalling or updating a plugin in **Settings → Plugins**, and
 enabling, disabling or removing one, take effect in the running backend; nothing
@@ -587,7 +590,7 @@ installation's row and bundle are deleted. If deletion fails, its row retains
 the error until startup retries. If a reinstall or update is refused, the previous
 version keeps running and stays installed, and the refused bundle is listed as
 **Refused** with its reason until the next start deletes it. A plugin that did not
-start offers **Retry**, which starts only that plugin again, at once even while
+start offers **Reload**, which starts only that plugin again, at once even while
 a cycle is active. See
 [Plugins](plugins.md#live-installation-changes) for the admission rules.
 
@@ -595,7 +598,7 @@ a cycle is active. See
 
 The host plugin declares its 20 settings in
 [`plugins/sidecars/host/src/settings.rs`](../plugins/sidecars/host/src/settings.rs).
-Saving a changed value in **Settings → Plugins** restarts the host plugin with it.
+Save host settings in **Settings → Plugins**, then use **Reload** to apply them.
 Each start resolves one settings snapshot.
 Collection selects the Wi-Fi/Bluetooth adapters, latency target (default
 `1.1.1.1`) and minimum active-scan interval (30 s). Empty adapter selectors use
@@ -665,12 +668,12 @@ window and batch size are settings. Windows ICMP reply storage follows the
 native API's required trailer layout. These are measurement or protocol
 definitions rather than deployment tunables.
 
-#### Ordinary Settings And Shared Secrets
+#### Ordinary Settings and Shared Secrets
 
 **Settings → Plugins** keeps ordinary plugin settings editable after startup
 fails. Its read-only **Required Secrets** list shows each declared identifier,
 whether it is required or optional, and whether it exists in Secret Storage.
-**Add In Secret Storage** opens **Add Secret** with that exact identifier prefilled.
+**Add in Secret Storage** opens **Add Secret** with that exact identifier prefilled.
 Secret values are entered only in Secret Storage; the plugin settings form has no
 secret fields. Existing saved references are ignored on load without migrating
 values or changing storage v1. A stored identifier such as `example.api_token` does
@@ -681,7 +684,7 @@ Declare `api_token: dokime::plugin::Secret` for a required shared identifier or
 the store identifier; secret declarations have no default or `from_environment`
 argument. Rebuild external plugins against the matching SDK after this clean break.
 
-## Planning And Creating Cycles
+## Planning and Creating Cycles
 
 Name a template by the readable ID that `dokime catalog show` lists. Preview
 its cases, then materialize them before constructing execution attempts:
@@ -866,7 +869,7 @@ uncertain, inspect the backend before creating another container.
 
 ## Examples
 
-### Qualify An On-Board Charger
+### Qualify an On-Board Charger
 
 Harmos supplies the runtime and plugin boundary. Applications use
 `Runtime::<A>::launch(origin, config)` with the shared `Lifecycle`: `prepare`
@@ -881,7 +884,7 @@ steady-state measurement, overcurrent protection, and recovery. It models a
 charger testbench for learning the workflow; it is not a validated electrical
 model or a ready-made vehicle qualification standard.
 
-### Define The Operating Points
+### Define the Operating Points
 
 A shortened version of OBC's
 [steady-state parameters](../plugins/sidecars/obc/src/suites/steady/measurement.rs) declare the
@@ -912,7 +915,7 @@ pub struct Parameters {
 The template names its parameter type once. Every expanded case resolves those
 inputs before execution, so the procedure and its document see the same values.
 
-### Run The Procedure And Capture Evidence
+### Run the Procedure and Capture Evidence
 
 OBC's [steady-state template](../plugins/sidecars/obc/src/suites/steady/measurement.rs)
 initializes shared device resources, energizes the charger, observes its
@@ -957,8 +960,17 @@ adds an automated load ladder and verifies that an overcurrent fault disconnects
 the supply and prevents restart. A real charger integration can extend these
 procedures with regulation, efficiency, and thermal criteria for its hardware.
 
-A step also reaches two built-in operations through `ctx.host()`, with nothing
-to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
+Every execution stage uses `ctx.operation(request).await?`, returning the shared
+Harmos `Invocation<StepOperationHost, O>` builder. Await returns `Response<T>`;
+read its fields through Deref, or use `into_owned()` when moving the payload.
+Use `.start().await?` for an instance you will join or cancel. The operation
+macro owns the default policy. `.retry(settings.retry)` overrides one call only;
+obtain the choice from settings, parameters or configuration. Enabled retry
+overrides require declared replay safety, preserve operation deadlines and record
+each attempt in the execution log. Templates have no `.lane()` option.
+
+A step also reaches two built-in operations through `ctx.operation(request)`,
+with nothing to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
 sends its output to the execution log or into an artifact, and records its exit.
 `WatchFile` captures a device log written during the step into an artifact and
 turns matching lines into rows and records. The
@@ -967,8 +979,7 @@ simulated charger's log this way:
 
 ```rust
 let watch = ctx
-    .host()
-    .submit(WatchFile {
+    .operation(WatchFile {
         execution_id: None,
         source: Some(FileWatchSource {
             payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
@@ -991,6 +1002,7 @@ let watch = ctx
         )],
         markers: Vec::new(),
     })
+    .start()
     .await?;
 watch.armed().await?;
 // The baseline is established; the charger can now start logging its readings.
@@ -1032,7 +1044,7 @@ let request = WatchFile {
     matchers: Vec::new(),
     markers: Vec::new(),
 };
-let watch = ctx.host().submit(request.clone()).await?;
+let watch = ctx.operation(request.clone()).start().await?;
 watch.armed().await?;
 // Run the vendor application, then seal its captured logs.
 let captured = watch.cancel().await?.into_owned();
@@ -1089,11 +1101,17 @@ report saving. Storage failures outside artifact content capture still fail the 
 
 Use `instance.request_cancel().await?` to signal cancellation and retain the
 handle, or `instance.cancel().await?` to cancel and receive its final response.
-Processes return their exit status; file watches finish capturing before replying.
+Processes return their exit status; cancelling a file watch on its own waits for
+captured files to seal before replying, retaining any seal failure. Its cancellation
+grace covers the existing `WatchFile` attempt deadline (`FOLLOW.attempt_timeout`);
+it does not extend that deadline or impose the shorter run-stop reply budget.
+When stopping an execution, cancelled watch calls acknowledge cancellation while
+their registered captures finish sealing under that execution's capture barrier.
+Stop still waits for all captured files and the durable execution seal.
 Anything a step leaves running is cancelled when the step ends, with a warning
 record.
 
-### Capture And Edit Traceability
+### Capture and Edit Traceability
 
 Steps contribute traceability through their context, alongside document additions:
 
@@ -1115,7 +1133,7 @@ observers and cleanup have no traceability mutation handle. The former template
 `traceability()` lifecycle method is removed; move identity discovery into steps.
 The storage baseline remains v1 and existing storage is never automatically reset.
 
-### Present The Result
+### Present the Result
 
 Compose plots from the same typed measurement fields used by the procedure.
 This shortened example follows OBC's
@@ -1177,6 +1195,37 @@ verdicts stand and no partial report is kept. Retrying cycle sealing publishes
 from the same persisted boundary, including after a restart. Cycle Seal also
 finalizes an empty cycle with its report.
 
+The document page shows its authored structure immediately. Data cards load and
+refresh independently, so a slow median or a failing card leaves the others
+available. An error stays inside its affected card and can be retried there.
+
+Repeated sections read a durable index of distinct values and fill one page at a
+time. Previous Page and Next Page keep the same captured evidence and authored
+definition; Latest returns to live refresh. Page cursors retain scalar execution
+context, without keeping raw telemetry or a document registry in memory. Generated
+repeat identities use the typed value rather than its display label.
+
+Live summary tiles query saved evidence at a fixed capture boundary. Numeric folds
+use ingest-maintained count, min, max, mean and RMS checkpoints where applicable.
+Checkpoint boundaries reuse those moments; other boundaries read exact projected pages. Integer extrema
+and totals retain their exact representation, including values above f64 precision.
+Median selects exact ranks from the ordered distinct-value dictionary when indexed,
+or uses exact projected Arrow replay. Telemetry distinct postings cover fields selected
+by document repeats, filters and ordering, rather than every numeric or payload field.
+Other numeric folds retain bounded working state, and exact
+order statistics spill scratch where required instead of collecting a run's
+samples into the document. Record summaries seek
+indexed record pages. Building a document no longer estimates evaluation cost from
+its definition size multiplied by source rows, and there is no document source-row
+ceiling. Limits apply to actual encoded output and expanded nodes; an exceeded
+card budget identifies the card, budget, limit and reached amount.
+
+Frozen documents use the same card queries at the sealed evidence cut. Report
+materialization drains every repeated-section page and retains every authored
+table row. It reads no full telemetry or record history into document inputs;
+telemetry and record previews remain bounded separately from document content.
+Later evidence cannot change the sealed statistics or repeated sections.
+
 ## Finite Evidence Queries
 
 The Python client discovers executions and cycles in the connected backend's
@@ -1226,7 +1275,7 @@ command prints its full flags with `--help`. Backend RPC commands accept
 `--endpoint` or `--backend` and `--timeout-seconds` for unary waits; streaming
 transfers use their operation idle policy. Most accept `--json` for scripts.
 
-### Connection And Backends
+### Connection and Backends
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
@@ -1235,7 +1284,7 @@ transfers use their operation idle policy. Most accept `--json` for scripts.
 | `dokime server` | Run the server in the CLI process. | `--application-root`, `--port` |
 | `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
 
-### Catalog And Plans
+### Catalog and Plans
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
@@ -1244,7 +1293,7 @@ transfers use their operation idle policy. Most accept `--json` for scripts.
 | `dokime plan register` | Register cases with a caller-retained idempotency key. | `--template`, `--request-key`, `--max-cases` |
 | `dokime plan materialize` | Materialize template cases without creating executions. | `--template`, `--parameters-json`, `--id-only` |
 
-### Cycles And Executions
+### Cycles and Executions
 
 Exercised by [control-test](../packages/dokime-client/examples/remote/cli/control-test.sh)
 and [control-prompt](../packages/dokime-client/examples/remote/cli/control-prompt.sh).
@@ -1313,7 +1362,7 @@ admitted rows/bytes, and runtime operation admission bounds active and waiting
 queries. The [query contracts](query-api.md) describe page/failure shapes and
 [finite records versus follow](query-api.md#finite-records-and-follow).
 
-### Operations And Plugins
+### Operations and Plugins
 
 The [Query API Foundations](query-api.md) describe the finite query declarations;
 the five operations share runtime handlers and existing read authorization.
@@ -1542,7 +1591,7 @@ Because the text is copied verbatim, the pack's `file` must be UTF-8 on Linux.
 RPM packages carry the same file as documentation; their license metadata
 remains the `License` tag.
 
-#### Distribution From A Release
+#### Distribution from a Release
 
 Omit `--artifacts` to resolve `[dokime] version` from the Dokime GitHub release.
 Use an exact semantic version such as `"0.1.3"`, `"nightly"`, or omit the key
@@ -1945,7 +1994,7 @@ summary in the desktop to inspect each unavailable operation without mixing it i
 
 A missing secret retains its identifier. **Set Secret** opens Secret Storage’s
 **Add Secret** dialog with that identifier prefilled, including after a failed start.
-Save the correction, then use **Retry** on the plugin page to start that plugin again.
+Save the correction, then use **Reload** on the plugin page to start that plugin again.
 All owners in an inactive bundle keep their ordinary settings editable; secret
 declarations show their identifiers read-only.
 
@@ -2001,9 +2050,13 @@ record and telemetry views and follows, artifact views and content, execution
 inspection, prompt condition checks, request-command recovery and evidence exports do not decode another
 cycle's evidence. Historical execution detail reads its cycle header and selected
 exact member while retaining its ordinal; full-cycle inspection still verifies
-every member. Case detail and parameter reads select only that case's attempts,
-using ownership metadata to retain its ordinal. Suite artifact reads use the
-frozen execution scope even after the suite is removed from the installed catalog.
+every member sequentially and retains compact control projections. Resident
+cycles reuse their published state, and historical cycles account for retained
+projections plus the full member currently being verified. Full saved payloads
+remain available through execution detail reads. Case detail and parameter reads
+select only that case's attempts, using ownership metadata to retain its ordinal.
+Suite artifact reads use the frozen execution scope even after the suite is
+removed from the installed catalog.
 Execution exports also include the selected cycle's unowned
 records and application-wide records: those are shared context, so corruption in
 that context fails the export. Arrow files and batches shared by subscriptions
@@ -2030,7 +2083,7 @@ unreadable: a scoped request cannot safely infer membership from corrupt catalog
 Roots without indexed record producer scopes require a fresh root. This clean
 break retains the v1 baseline and does not upgrade or reset existing storage.
 
-## Long-Running Evidence And Report Saves
+## Long-Running Evidence and Report Saves
 
 Telemetry admission retains a bounded in-memory tail. A flush writes a
 ZSTD-compressed Arrow batch and syncs it before committing SQLite catalog metadata
@@ -2055,6 +2108,16 @@ Recovery rebuilds an interrupted footer from batch headers and catalog checkpoin
 without decoding sample bytes.
 Files close before rename or deletion on Windows.
 
+Native publication uses `RuntimeConfig.stream_publication.batch_rows` and
+`batch_bytes` (4,096 rows and 1 MiB by default), capped by the template's declared
+stream windows. Sidecar and embedded providers use the same ordered bounded
+batch path. They move the original encoded row bytes; typed stream pushes
+materialize value maps only for local consumers or active subscriptions. A single schema-admitted row
+larger than the batch byte budget travels alone. Step completion and evidence
+barriers drain the buffered tail immediately. Background tail flushes coalesce
+for `stream_publication.flush_delay` (2 ms by default); a full batch publishes
+with backpressure immediately.
+
 Receiver receipts resolve sample identities through the saved SQLite batch index on
 a reader connection, including execution capture membership. Replayed chunks advance
 from their known saved positions after the receiver confirms the final sample.
@@ -2075,23 +2138,31 @@ Retiring superseded metadata seeks its matching evidence references. It does not
 scan the accumulated telemetry signals or captured records.
 
 Numeric execution outputs update in the same SQLite transaction as each saved
-telemetry batch. Rolling moments and an on-disk numeric rank index retain exact
-counts, extrema, means, medians, standard deviations, RMS values, sums and
-percentiles. Completion reads these indexes instead of replaying each field's
-whole stream. Pending index work is bounded by the admitted write batch; raw
-evidence remains unchanged. Development roots with older evidence indexes need
-a fresh storage root and are never reset automatically.
+telemetry batch. Rolling moments retain counts, extrema, means, standard
+deviations, RMS values and sums. Each field retains typed exact inputs within
+the preview cap. Medians and percentiles use those inputs when available;
+longer captures replay the selected stream's numeric Arrow columns through
+the saved frontier and sort them in disposable SQLite storage. The replay
+uses bounded pages and a bounded SQLite cache; it does not build a permanent
+rank counts during ingestion. Raw evidence remains unchanged. Development roots
+with older evidence indexes need a fresh storage root and are never reset
+automatically.
 
 Report presentation is built during ingestion. Each numeric field has adaptive
 time buckets containing first, last, minimum, maximum and count, committed with
-its raw samples. Plots render the resulting extrema envelope within their display
-budget; extending a run coarsens time resolution while retaining peaks and dips.
+its raw samples. Plain time-series plots of the same stream field share that
+projection and its bounded typed exact inputs. Plot creation, formatting and
+rendering read the shared state; they do not fold every admitted row again for
+each plot. Numeric checkpoints use a compact binary representation. Latest
+non-null context values are retained once per stream. Plots render the
+resulting extrema envelope within their display budget; extending a run coarsens
+time resolution while retaining peaks and dips.
 Table cards carry every row their author registered and page in the report
 exactly as in the live document; Dokime neither trims nor caps authored rows.
 Telemetry previews keep bounded first/last rows per stream. Each report identifies
 its execution and saved evidence frontier; evidence paging and exported bundles retain the full data.
 Numeric summaries, including percentiles and the built-in mean analysis,
-use all samples through the incremental numeric indexes. Within-cap plot
+use all samples through the saved frontier. Within-cap plot
 summaries preserve typed integers until the final numeric result.
 
 SQLite construction settings `RuntimeConfig.local_storage.previews` own
@@ -2107,7 +2178,7 @@ Document input/materialization defaults to 64 MiB and report value encoding to
 Lifecycle definitions, annotations and file inventories retain complete captured
 metadata; capture cost still scales with their cardinality, rather than sample history.
 
-Plot-specific checkpoints apply filters and scopes before accumulating data. They
+Specialized projections apply filters and scopes before accumulating data. They
 keep exact inputs up to `exact_points` (2,000 by default). Longer time series use
 extrema envelopes; XY scatter keeps paired coordinates in a density grid (64 by
 64 by default), re-binning occupied cells as extents grow. Each cell retains its
@@ -2119,8 +2190,12 @@ configured cap identify their specific limitation. Every repeated section
 resolves at seal over every distinct value in the complete evidence, read page by
 page from the stream it selects, so a report contains the full sealed document
 with the same sections the live document shows. Plots without a checkpoint share one evidence replay per document.
-Full evidence remains available for external analysis.
-Plot checkpoints commit with the telemetry batch that advances them. A historical
+Full evidence remains available for external analysis. Identical specialized
+requests share one projection across plot identifiers. Static definitions are
+stored once; only dirty state is written, with lossless compression. These
+projections retain their filtering, paired-coordinate and record-correlation
+semantics independently of the ordinary shared field envelopes.
+Projection checkpoints commit with the telemetry batch that advances them. A historical
 cut whose plot checkpoint has advanced, and captures and plots without a
 plot-specific checkpoint, are reconstructed from bounded evidence pages through
 the requested cut; a historical cut whose field preview has advanced is refused.
@@ -2133,12 +2208,16 @@ Live documents and HTML document replays read artifact owners and indexed record
 within their selected execution or cycle, including subscribed captures. Corrupt
 evidence outside that selection does not prevent the document from opening;
 corrupt evidence or inconsistent ownership within the selection still fails.
-Development roots without report previews require a fresh root; storage remains
+Development roots without shared field projections, stream context and plot
+bindings require a fresh root; storage remains
 v1 and existing data is never migrated or reset automatically.
 
 Stop closes and drains evidence, then waits for the execution's durable seal,
-joining report publication already in flight. A report failure fails Stop without
-changing the execution result. Cancel and natural completion publish HTML in the
+joining report publication already in flight. A report failure is returned after
+Stop settles its request and preserves the execution result and evidence. Technical
+Details identifies the report finalization stage, execution and redacted cause chain.
+Seal the cycle, or use Retry Seal after a failed seal, to retry report publication
+from the original frozen evidence. Cancel and natural completion publish HTML in the
 background. Execution detail exposes report **Pending**, **Ready** or
 **Failed**, including the failure cause. The GUI shows it beside report actions;
 CLI `operation call dokime.execution.get_execution --json '{"execution_id":"<uuid>"}'`
@@ -2153,7 +2232,10 @@ does not cancel sealing; later Stop or shutdown calls await that work. Closing
 capture admission refuses new capture producers, and successful provider cleanup
 stages remain complete across retries.
 
-Execution logs segment at 64 MiB and stop capture explicitly at 1 GiB per
+Execution logs use `artifacts/execution.log`, rolling over to `execution.2.log`,
+`execution.3.log` and the next free collision suffix. The log retains the plain
+name when a step uploads an artifact named `execution.log`. Logs segment at
+64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture
 failure appears in evidence health and affects the terminal result when required
 evidence is lost; bounded retries preserve acknowledged offsets.
@@ -2170,6 +2252,430 @@ Document bindings retain their 64 MiB bound; large raw evidence remains paged.
 
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
 and diagnostics snapshot artifacts are no longer produced or bundled.
+
+### Measured Stream Performance
+
+Measured on this machine on 6 November 2026: Windows 11 Home, Ryzen 9 5950X
+(16 cores/32 logical processors), about 80 GiB visible RAM, Rust 1.99.0,
+`x86_64-pc-windows-msvc`, optimized bench profile and production defaults.
+The workstation was busy with other builds; repeated runs expose that variation.
+These are measured results, not a portable throughput promise or test deadline.
+
+`system-runtime`'s `sidecar_ingest` benchmark starts the real OBC sidecar plugin
+and publishes 100,000 scalar f64 rows or rows containing 16 f64 fields. It measures
+execution start through the inspection barrier and durable storage flush, including
+document setup and ingest checkpoints. Runtime startup and case registration are
+outside that interval. Numeric-payload MiB/s counts 8 or 128 bytes per row,
+excluding timestamps and framing. CPU seconds per 100,000 rows sum the benchmark
+and its live descendant processes; they can exceed elapsed seconds.
+See [Sidecar Stream Ingestion](../CONTRIBUTING.md#sidecar-stream-ingestion) for commands.
+
+The repeated before runs used `48de17933` with Harmos `3f0a6c53`.
+All six ingestion cases completed; the old runner then timed out while eagerly
+creating an unselected report fixture. The benchmark now creates that fixture
+only when selected. Those earlier overall runner exits are failures, not passing
+benchmark suites. The saved measurements remain usable ingestion baselines.
+
+| Before, 100,000 Rows | Plots | Rows/s, Two Runs | Numeric MiB/s | CPU Seconds/100k |
+| --- | ---: | ---: | ---: | ---: |
+| Scalar | 0 | 5,690–6,335 | 0.0434–0.0483 | 19.015–22.656 |
+| Scalar | 1 | 5,162–5,192 | 0.0394–0.0396 | 23.017–23.062 |
+| Scalar | 64 | 908–1,312 | 0.00693–0.0100 | 73.109–113.436 |
+| Wide, 16 Fields | 0 | 1,080–1,872 | 0.1318–0.2285 | 55.501–98.266 |
+| Wide, 16 Fields | 1 | 940–1,496 | 0.1147–0.1826 | 70.672–101.797 |
+| Wide, 16 Fields | 64 | 286–495 | 0.0349–0.0604 | 189.953–283.672 |
+
+The after measurements use candidate `658c45b9b`, based on `b91a2c082` with
+Harmos `1d4f4bcd`. The subsequent dev integration retains the same ingest,
+projection, transport and benchmark sources and changes object memory accounting.
+It includes intervening dev updates as well as this change; these measurements
+compare complete candidates, rather than isolating one patch's causal effect.
+Both ordinary repeats and the separate profiled and 250,003-row runs completed
+successfully. The ordinary wide-row repeats remain below 1 numeric MiB/s.
+One instrumented zero-plot pass reached 1.075 MiB/s; sustained MiB/s support
+is not established and that throughput requirement remains open.
+
+| After, 100,000 Rows | Plots | Rows/s, Two Runs | Numeric MiB/s | CPU Seconds/100k |
+| --- | --- | --- | --- | --- |
+| Scalar | 0 | 9,871–15,062 | 0.0753–0.1149 | 10.499–14.437 |
+| Scalar | 1 | 11,807–12,336 | 0.0901–0.0941 | 8.874–13.640 |
+| Scalar | 64 | 8,627–8,660 | 0.0658–0.0661 | 14.796–16.827 |
+| Wide, 16 Fields | 0 | 4,934–6,458 | 0.6023–0.7883 | 24.125–27.109 |
+| Wide, 16 Fields | 1 | 5,161–6,540 | 0.6301–0.7984 | 21.438–24.968 |
+| Wide, 16 Fields | 64 | 3,134–5,163 | 0.3826–0.6302 | 29.484–31.843 |
+
+Disk figures are file lengths at the durable barrier, not cumulative device I/O.
+SQLite table allocation comes from `dbstat`; it describes live logical pages
+across the main database and WAL, so do not add it again to physical file bytes.
+WAL allocation also reflects checkpoint timing and reusable frames.
+
+| Before, First Run | Raw Arrow Bytes | Shared Field Preview Bytes | Plot Checkpoint Bytes | Rank Table Bytes | SQLite Main Bytes | WAL Bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Scalar, 0 Plots | 7,685,840 | 73,728 | 4,096 | 46,276,608 | 34,201,600 | 67,885,272 |
+| Scalar, 64 Plots | 7,578,184 | 65,536 | 4,263,936 | 46,252,032 | 117,907,456 | 114,490,712 |
+| Wide, 0 Plots | 11,783,728 | 1,003,520 | 4,096 | 670,150,656 | 664,961,024 | 71,894,032 |
+| Wide, 64 Plots | 11,875,640 | 806,912 | 3,739,648 | 672,239,616 | 674,160,640 | 194,258,032 |
+
+| After, First Run | Raw Arrow Bytes | Shared Field Preview Bytes | Plot Definition/State Bytes | View Binding Bytes | SQLite Main Bytes | WAL Bytes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Scalar, 0 Plots | 6,903,560 | 16,384 | 4,096 | 4,096 | 4,096 | 33,194,872 |
+| Scalar, 64 Plots | 7,025,704 | 16,384 | 8,192 | 12,288 | 4,096 | 34,266,072 |
+| Wide, 0 Plots | 11,034,376 | 282,624 | 4,096 | 4,096 | 4,096 | 53,695,992 |
+| Wide, 64 Plots | 11,090,232 | 282,624 | 12,288 | 12,288 | 4,096 | 56,176,232 |
+
+The permanent rank table is gone. With 64 plots, the first repeat's physical
+Arrow/main/WAL total fell from 239,976,352 to 41,295,872 bytes for scalar rows,
+and from 880,294,312 to 67,270,560 bytes for wide rows. Raw row counts remain
+100,000; Arrow size changes reflect batching and timestamp/compression variation.
+Static view definitions and bindings add fixed setup bytes; shared numeric field
+state is independent of the number of views.
+
+The additional run combines the larger row count and the 64-plot case, rather
+than treating them as separate workloads:
+
+| After, 250,003 Rows | Plots | CPU Seconds/100k | Raw Arrow Bytes | Shared Field Preview Bytes | Plot Definition/State Bytes | View Binding Bytes | SQLite Main Bytes | WAL Bytes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Scalar | 0 | 12.825 | 17,314,616 | 24,576 | 4,096 | 4,096 | 33,591,296 | 67,819,352 |
+| Scalar | 64 | 12.137 | 17,347,888 | 24,576 | 8,192 | 12,288 | 33,759,232 | 67,600,992 |
+| Wide | 0 | 26.556 | 27,327,136 | 348,160 | 4,096 | 4,096 | 35,049,472 | 67,609,232 |
+| Wide | 64 | 22.650 | 27,243,872 | 348,160 | 12,288 | 12,288 | 35,389,440 | 68,083,032 |
+
+Before's paired 64-minus-zero CPU delta averaged per plot was 0.845–1.418
+seconds per 100,000 scalar rows and 2.101–2.897 seconds for wide rows. After,
+the ordinary repeats measured 0.037–0.067 and 0.074–0.084 seconds respectively.
+The 250,003-row run's deltas were negative under contention. These differences
+include fixed document setup and scheduling noise; they do not isolate a per-view
+sample fold. With 64 views, binding allocation adds 8,192 bytes over one view;
+the shared projection definition/state allocation does not increase from one to
+64 views. At 250,003 rows, shared field state occupies 24,576 scalar bytes or
+348,160 wide-row bytes with either zero or 64 plots.
+
+A separate instrumented pass attributes writer-thread wall time in microseconds
+per row for zero-plot cases. The table makes nested decode/plot and
+catalog/identity spans exclusive within the writer. Before's uninstrumented
+blocks remain in its remainder; no precision is implied for those blocks.
+Scheduling/preemption and instrumentation overhead are included.
+
+| Writer µs/Row | Scalar Before | Scalar After | Wide Before | Wide After |
+| --- | --- | --- | --- | --- |
+| Writer Total | 111.99 | 62.14 | 933.72 | 52.79 |
+| Decode and Group, Excluding Plot Work | In Remainder | 20.25 | In Remainder | 22.92 |
+| Plot Scope/Fold Work | 0.69 | 0.63 | 0.91 | 0.47 |
+| Numeric Field Fold and State Loads | 13.32 | 0.88 | 227.95 | 3.98 |
+| Arrow Construction, Compression and Sync | 27.86 | 17.78 | 52.21 | 11.04 |
+| Sample Identity Inserts | 2.53 | 2.61 | 2.88 | 1.69 |
+| Other Catalog and Scope Work | In Remainder | 1.95 | In Remainder | 0.75 |
+| Numeric Save (Before Includes Rank Trie) | 15.51 | 0.04 | 356.67 | 0.06 |
+| Shared Field Checkpoint Save | In Remainder | 0.52 | In Remainder | 0.86 |
+| Specialized Plot Checkpoint Save | In Remainder | 0.01 | In Remainder | 0.01 |
+| Remaining Writer Work and Commit | 52.08 | 17.46 | 293.10 | 11.02 |
+
+The 64-plot writer fold alone was 807.72 µs/row for scalar and 1,449.59
+µs/row for wide rows before. After, its fixed scope/batch bookkeeping measured
+0.36 and 0.67 µs/row across all 64 views (zero-plot cases: 0.63 and 0.47).
+The views read shared field state when requested, rather than folding 64 samples
+for every admitted row. Specialized filtered/correlated requests retain their
+separate semantics and share state when their requests are identical.
+
+After's host payload projection measured 3.19/4.49 µs per scalar/wide row;
+canonical input encoding and tail staging measured 11.00/9.78 µs. These stages
+can overlap the writer: do not add their work times into a serial elapsed budget.
+Profiled zero-plot end-to-end elapsed time was 126.41/113.57 µs per row,
+compared with 62.14/52.79 µs of writer activity. Native admission/transport,
+control work and scheduling remain substantial outside the writer spans;
+these coarse traces do not distinguish every function in that remainder.
+The largest named zero-plot writer block is canonical frame decoding/grouping
+(about 23 µs per wide row), followed by Arrow work (11 µs). In the profiled
+64-plot wide case, Arrow construction/compression/sync instead took 101.80 µs/row
+within 182.28 µs/row of writer activity, showing the effect of stalls and
+preemption on these wall-time measurements. These are the remaining costs for
+a faster protocol/adapter to beat, not evidence of sustained MiB/s support.
+
+Machine details, repeated JSON measurements, full failing/passing runner logs,
+source snapshots and artifact SHA-256 digests were retained locally under
+`.stkr/benchmarks/stream-ingest-20261106/` in the primary checkout.
+
+#### Durability and Payload Follow-Up
+
+Follow-up measurements on 7 November 2026 use the same Windows/Ryzen workstation,
+Rust toolchain and optimized bench profile described above, after rebasing onto
+the Harmos update in 7 November dev, before its distinct-value index. Numeric
+cases publish 100,000 rows; the 4 KiB and 64 KiB cases publish 10,000 rows. Their payload is an
+f64 plus deterministic, row-varying printable text totaling the stated byte size.
+Durable Arrow replay verifies every payload length outside the timed interval.
+These are logical application-payload MiB/s, excluding metadata and framing;
+compressed Arrow bytes are reported separately in JSON.
+
+Three ordinary repeats retain counters, lock-wait measurements and writer-total
+wall time. Three separate detailed-profile repeats cover each zero-plot shape.
+Every case verifies durable row and static plot-binding counts. Benchmark-feature
+OBC builds retain the steady, recovery and benchmark suites required by the runtime
+and server benches; shipping builds retain their complete product catalog. The
+measurement follow-up changes no flush/fsync policy, deadline, storage budget,
+schema or evidence format; each run uses a fresh root with its measured v1 schema.
+
+Counts below cover execution start through the inspection prompt and saved barrier,
+including control/setup commits inside that interval. Sync counts observe host
+Arrow sync calls (files and Unix parent directories) and native SQLite VFS sync
+requests, including WAL and checkpoint requests. Post-commit VFS notifications count native catalog commits;
+explicit commit-call counts, including no-op calls, remain separately available.
+Sidecar-internal sync calls are outside this observer. Lock wait sums the named
+admission, SQLite writer, store and tail acquisitions in the benchmark output.
+
+| Payload | Plots | MiB/s | Flush Calls | Host Sync Calls | Catalog Commits | Lock µs/Row | Writer µs/Row |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Scalar, 8 B | 0 | 0.115–0.172 | 89–102 | 204–230 | 114–127 | 0.14–5.02 | 17.43–30.81 |
+| Scalar, 8 B | 1 | 0.113–0.172 | 93–98 | 213–223 | 119–124 | 0.74–15.24 | 19.18–38.31 |
+| Scalar, 8 B | 64 | 0.109–0.173 | 85–104 | 197–235 | 111–130 | 0.12–1.34 | 16.93–29.49 |
+| Wide, 128 B | 0 | 1.001–1.618 | 113–120 | 252–266 | 138–145 | 0.33–5.86 | 33.79–64.40 |
+| Wide, 128 B | 1 | 1.354–1.564 | 110–114 | 247–255 | 136–140 | 1.14–10.34 | 37.33–46.09 |
+| Wide, 128 B | 64 | 0.952–1.601 | 115–124 | 257–275 | 141–150 | 0.43–20.27 | 33.90–70.91 |
+| 4 KiB Text | 0 | 14.930–20.625 | 53–54 | 132–134 | 78–79 | 1.80–4.16 | 49.47–73.19 |
+| 64 KiB Text | 0 | 23.351–24.744 | 733–752 | 1498–1536 | 758–777 | 439.15–602.05 | 1047.74–1276.49 |
+
+For zero plots, the observed rates below can be compared with the audit's guesses
+of 10–20 flushes/s and 20–40 syncs/s. Payload size and contention change those rates;
+they do not establish a fixed periodic cadence.
+
+| Payload | Flushes/s | Host Syncs/s | Store Settings Lock µs/Row |
+| --- | ---: | ---: | ---: |
+| Scalar, 8 B | 15.42–20.48 | 34.77–46.81 | 0.02–4.62 |
+| Wide, 128 B | 9.84–15.25 | 21.81–33.94 | 0.04–5.36 |
+| 4 KiB Text | 20.64–27.98 | 51.22–69.70 | 1.39–3.68 |
+| 64 KiB Text | 27.79–29.02 | 56.78–59.31 | 436.64–600.22 |
+
+The numeric zero-plot writer ranges above vary beyond the audit's 53–62 µs/row
+estimate. Writer time includes scheduling/preemption. The store-settings mutex
+can block host admission behind writer activity even though it only reads settings;
+its wait remains a measured cost rather than an assumed saving.
+
+CPU is sampled independently for the benchmark/runtime PID, the OBC publisher
+and the host collector sidecar. Values below are CPU seconds per complete timed
+run with zero plots; CPU across processes can exceed elapsed time.
+
+| Payload | Runtime CPU s | OBC CPU s | Host Collector CPU s |
+| --- | ---: | ---: | ---: |
+| Scalar, 8 B | 5.48–7.44 | 1.64–2.31 | 0.01–0.05 |
+| Wide, 128 B | 9.27–11.48 | 2.67–3.64 | 0.03–0.06 |
+| 4 KiB Text | 2.28–3.23 | 0.75–1.11 | 0.00–0.02 |
+| 64 KiB Text | 30.94–33.89 | 6.76–8.00 | 0.00–0.28 |
+
+Detailed-profile ranges below are active poll/callback wall µs/row. Spawned
+admission and host commit work has its own spans. Blocking callbacks re-enter
+captured spans on their threads, so these overlapping intervals can exceed elapsed
+time. Read them alongside lock waits and per-process CPU; do not sum them into a
+serial budget. Runtime/control/library work also exists outside these named spans.
+Profiling overhead and preemption are included.
+
+| Stage, µs/Row | 8 B | 128 B | 4 KiB | 64 KiB |
+| --- | ---: | ---: | ---: | ---: |
+| Admission Prepare | 2.48–7.36 | 4.65–8.20 | 2.88–3.10 | 8.69–9.45 |
+| Admission Commit | 21.20–46.12 | 34.29–43.78 | 106.97–126.60 | 1683.61–2221.53 |
+| Host Commit | 41.08–89.48 | 67.68–87.74 | 147.48–196.05 | 2455.85–3560.47 |
+| Host Payload Projection | 1.45–2.80 | 3.13–4.42 | 2.85–3.14 | 24.03–27.51 |
+| Host Canonical Encoding | 3.59–8.70 | 5.67–8.99 | 5.23–5.89 | 32.14–38.09 |
+| Tail Staging Callback | 2.91–5.22 | 3.52–4.87 | 3.37–3.83 | 13.48–15.80 |
+| Writer Total | 21.92–49.65 | 38.83–54.22 | 46.55–75.82 | 847.88–1421.15 |
+| Writer Decode/Group | 10.85–20.69 | 17.28–22.79 | 13.81–14.49 | 50.76–57.40 |
+| Arrow Build/Compress/Sync | 4.10–13.38 | 8.54–15.88 | 19.64–40.45 | 318.65–727.74 |
+| Writer Catalog Commit | 3.13–6.25 | 3.28–5.99 | 4.99–11.27 | 84.37–209.70 |
+| Writer SQLite Sync | 2.06–3.98 | 0.83–3.75 | 2.09–6.93 | 38.14–153.96 |
+| IPC File Writes | 0.06–0.17 | 0.08–0.12 | 1.19–1.44 | 20.69–25.10 |
+| IPC Hashing | 0.06–0.08 | 0.10–0.11 | 3.14–3.18 | 50.31–51.17 |
+| Writer Normalization | 0.22–0.41 | 0.52–0.69 | 0.28–0.29 | 0.63–0.68 |
+| Sample Identity Inserts | 1.11–2.34 | 1.13–1.53 | 1.35–1.57 | 3.92–4.38 |
+
+No hot-path trim was retained:
+
+- **IPC Buffering/Hashing:** Numeric write/hash spans are small; even large-text
+  file writes remain a small part of writer activity. The runs establish no
+  buffering benefit. Independent whole-file and batch SHA-256 digests retain their
+  two hash states and existing sync points.
+- **Normalization:** Tail preparation follows original-frame encoding, while the
+  writer decodes a separate representation. Each retains the normalization its
+  Arrow contract requires, including timestamp and JSON conversions.
+- **Sample Index Packing:** IDs preserve UUID letter case and positions preserve
+  the full u64 range. Plain 16-byte UUID/signed-integer packing would change those
+  contracts; exact packing needs additional encoding. Identity spans did not
+  establish a throughput benefit that justifies that storage rewrite.
+- **Tail Key Reuse:** A prototype removed temporary key construction and reused the
+  vacant position entry. Before the final dev rebase, three before/after profiled repeats used the same fixture
+  catalog and profiler. Its scoped wall-time medians/ranges below establish no
+  repeatable gain under contention; broader stage costs also moved. The original
+  tail insertion was restored, without claiming a causal regression or saving.
+
+| Payload | Tail Before Median (Range), µs/Row | Prototype Median (Range), µs/Row |
+| --- | ---: | ---: |
+| Scalar, 8 B | 0.815 (0.731–0.972) | 1.024 (0.955–1.317) |
+| Wide, 128 B | 0.689 (0.616–0.927) | 1.016 (0.640–1.252) |
+| 4 KiB Text | 0.743 (0.709–0.804) | 0.957 (0.755–1.071) |
+| 64 KiB Text | 1.438 (1.189–1.534) | 1.841 (1.498–2.163) |
+
+These diagnostic runs produce raw JSON and ranges, not Criterion regression
+estimates or a portable throughput promise. README performance targets retain
+that development qualification. Raw measurements, failing/passing diagnostic logs,
+source patches and artifact SHA-256 digests are retained in the primary checkout
+under `target/benchmarks/ingest2-20261106/` (the task began on 6 November).
+
+##### Fresh Dev with Distinct Indexing
+
+The preceding tables measure dev after its Harmos update and before the
+per-row distinct-value index introduced by #320. Fresh-root measurements with
+that index retain the same row counts, fixtures, durability points and budgets.
+Four completed scalar zero-plot runs include the case saved before the wide
+failure; the payload fixtures each have three completed zero-plot repeats.
+
+The 100,000-row wide fixture missed its existing 900-second inspection barrier.
+Its timeout produced no completed throughput or durability-count record.
+Neither elapsed/row estimates nor successful proof are inferred from that failure.
+
+| Payload | Runs | MiB/s | Flush Calls | Host Sync Calls | Catalog Commits | Lock µs/Row | Writer µs/Row |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Scalar, 8 B | 4 | 0.006–0.014 | 105–114 | 350–369 | 130–139 | 496.14–1163.54 | 541.63–1233.47 |
+| 4 KiB Text | 3 | 1.614–2.430 | 58–60 | 178–182 | 83–85 | 1359.92–1990.17 | 1493.64–2266.28 |
+| 64 KiB Text | 3 | 2.704–4.250 | 817–855 | 1834–1910 | 842–880 | 11932.67–18211.36 | 13718.32–21807.11 |
+| Wide, 128 B | 1 Attempt | Barrier Timeout | — | — | — | — | — |
+
+| Payload | Flushes/s | Host Syncs/s | Store Settings Lock µs/Row |
+| --- | ---: | ---: | ---: |
+| Scalar, 8 B | 0.91–1.87 | 2.93–6.23 | 494.57–1161.50 |
+| 4 KiB Text | 2.44–3.73 | 7.44–11.32 | 1357.47–1987.19 |
+| 64 KiB Text | 3.70–5.73 | 8.26–12.82 | 11928.56–18199.86 |
+
+| Payload | Runtime CPU s | OBC CPU s | Host Collector CPU s |
+| --- | ---: | ---: | ---: |
+| Scalar, 8 B | 43.17–55.05 | 1.94–2.48 | 0.00–0.05 |
+| 4 KiB Text | 8.39–14.42 | 0.81–1.09 | 0.00–0.03 |
+| 64 KiB Text | 91.97–131.11 | 7.86–9.81 | 0.05–0.17 |
+
+These observed rates are below the audit's 10–20 flushes/s and 20–40 syncs/s
+guesses, while writer wall time exceeds its 53–62 µs/row guess. Most named lock
+wait is at the store-settings read behind writer activity. The source difference
+includes the distinct index, and the workstation remains busy; these ranges
+are not savings attributed to any of the four rejected trims.
+
+Three separate detailed-profile repeats of the indexed source observe the
+merged index call as `ingest.distinct`. The earlier four-shape stage table
+describes the source before that index. The following clocks remain overlapping
+active poll/callback wall µs/row, including preemption and profiling overhead;
+they are not a disjoint CPU budget.
+
+| Stage, µs/Row | 8 B | 4 KiB | 64 KiB |
+| --- | ---: | ---: | ---: |
+| Admission Prepare | 3.41–4.69 | 3.27–3.71 | 9.57–11.03 |
+| Admission Commit | 791.24–1041.44 | 1603.69–2135.32 | 14836.58–19248.28 |
+| Host Commit | 1622.35–2127.98 | 3273.73–4292.65 | 29533.04–39581.92 |
+| Host Payload Projection | 1.73–2.19 | 3.49–3.72 | 31.87–34.32 |
+| Host Canonical Encoding | 4.39–6.22 | 5.98–6.51 | 44.06–49.72 |
+| Tail Staging Callback | 4.28–5.51 | 4.55–5.32 | 24.51–27.14 |
+| Writer Total | 833.58–1089.05 | 1675.97–2163.63 | 14779.91–20417.81 |
+| Writer Decode/Group | 12.09–16.41 | 16.02–17.55 | 65.10–74.72 |
+| Distinct-Value Index | 101.35–128.39 | 222.40–245.96 | 3923.21–4721.45 |
+| Arrow Build/Compress/Sync | 15.14–41.16 | 81.82–128.81 | 1070.99–2940.64 |
+| Writer Catalog Commit | 660.95–893.58 | 1342.10–1805.37 | 8456.31–12081.49 |
+| Writer SQLite Sync | 482.45–674.97 | 1037.60–1438.49 | 6024.11–9379.29 |
+| IPC File Writes | 0.08–0.10 | 1.50–5.49 | 30.74–143.20 |
+| IPC Hashing | 0.06–0.07 | 3.17–3.33 | 51.73–53.61 |
+| Tail Key Insert | 0.76–0.98 | 0.68–0.78 | 1.40–1.54 |
+| Tail Normalization | 0.45–0.55 | 0.48–0.56 | 1.02–1.11 |
+| Writer Normalization | 0.23–0.37 | 0.27–0.30 | 0.74–0.90 |
+| Sample Identity Inserts | 1.36–1.80 | 1.63–1.87 | 5.30–6.07 |
+
+##### Selective Distinct Indexing
+
+The follow-up merged the sealed-query and header-read changes from dev before
+measuring this candidate on the same Windows workstation. Each numeric case
+publishes 100,000 rows; each payload case publishes 10,000 rows. Three unprofiled
+fresh-root repeats completed every case, including durable payload replay and
+0/1/64-plot binding checks. These are diagnostic ranges under workstation
+contention, not portable throughput guarantees.
+
+| Payload | Plots | Rows/s, Minimum–Maximum | Logical MiB/s, Minimum–Maximum |
+| --- | ---: | ---: | ---: |
+| Scalar, 8 B | 0 | 13,012–21,772 | 0.0993–0.1661 |
+| Scalar, 8 B | 1 | 14,543–22,680 | 0.1110–0.1730 |
+| Scalar, 8 B | 64 | 13,126–22,344 | 0.1001–0.1705 |
+| Wide, 128 B | 0 | 11,158–12,381 | 1.3620–1.5114 |
+| Wide, 128 B | 1 | 11,817–13,320 | 1.4426–1.6260 |
+| Wide, 128 B | 64 | 8,609–13,328 | 1.0509–1.6269 |
+| 4 KiB Text | 0 | 4,450–5,051 | 17.3841–19.7308 |
+| 64 KiB Text | 0 | 271–385 | 16.9108–24.0431 |
+
+The regressed scalar baseline was 795–1,780 rows/s (0.0061–0.0136 MiB/s),
+4 KiB was 413–622 rows/s (1.6137–2.4302 MiB/s), and 64 KiB was 43–68 rows/s
+(2.7040–4.2496 MiB/s). The regressed wide case timed out at its unchanged
+900-second barrier, so it has no completed throughput figure. The repaired
+64-plot cases exceed #302's 8,627–8,660 scalar and 3,134–5,163 wide rows/s.
+
+The two-table rowid candidate was measured first. Its completed scalar cases
+reached 2,904–4,088 rows/s, improving on the regressed baseline but missing the
+target; the remaining diagnostic run was stopped without a completed wide result.
+The rowid tables remain, reducing duplication of their long composite primary
+keys in secondary indexes. The larger fix selects telemetry fields from
+captured document repeats, filters and ordering before admission. Unrelated
+numeric, timestamp and payload fields create no distinct entries. The writer
+loads these selections once per execution/stream chunk. Numeric checkpoints
+remain bounded, and unindexed medians and partial cuts for unindexed fields use exact
+projected Arrow replay. Record indexing and live/frozen document results retain
+their existing semantics. Older roots require an explicit fresh root at storage
+v1; no migration or reset occurs.
+
+Scalar writer time is now 17.97–33.17 µs/row, with named lock waits totaling
+0.42–2.38 µs/row, versus 541.63–1233.47 and 496.14–1163.54 respectively in
+the regressed baseline. These clocks overlap. The baseline observed about
+1–6 flushes/s and 3–13 host syncs/s; the earlier audit's larger guesses were
+not measurements. No flush cadence, durability point, deadline or budget changed.
+
+The one-million-sample exact document median, including its maintained summary
+tiles and one bounded plot, measured 356.91–367.41 ms across ten Criterion
+samples (twenty measured query iterations). The generic spilled accumulator had
+exceeded the unchanged five-second active-time limit; a full temporary SQLite
+sort measured 1.627–1.745 s. The retained reader counts exact numeric key ranges,
+refines only ranges containing a median rank, and collects at most two small
+ranges within bounded buffers. It skips common key bytes and resolves equal-key
+ranges directly. The selected typed values use the shared exact fold, preserving
+large integers. This adds no ingest index or scratch-file sort.
+The existing three-day, 3,072,000-sample document with 30 streams/plots measured
+39.359–43.803 ms for cards and plot payloads across ten Criterion samples
+(100 measured iterations), retaining its no-history-scan assertion. The sampled
+whole-process RSS peak was about 240 MiB; the resource probe's sampling caveat
+still applies.
+
+##### Admission Under Disk Contention
+
+Telemetry admission reads immutable settings and registered codec/Arrow field metadata
+without acquiring the durable writer. It normalizes the pending rows on a blocking
+worker and publishes their live tail without entering the SQLite write queue.
+The manager's saved cursor follows the durable catalog commit. Readers retain their
+existing ordering: capture the tail before establishing the catalog snapshot, then
+discard the tail's saved prefix. Arrow sync, catalog atomicity, configured flush
+cadence, capacity backpressure and explicit evidence barriers retain their contracts.
+
+The Windows document-scale diagnostic on 7 November 2026 retained all four fixtures
+and all six summary assertions. Its baseline took 120.18 seconds alone. The
+250,003-row fixture took 109.39 seconds: setup 0.29, row construction 2.12,
+admission 100.01, capture 3.20 and completion/shutdown 3.77 seconds. A separate
+profile observed 18.36 seconds waiting for the writer mutex merely to read settings,
+3.31 seconds in tail staging including its SQLite queue wait, and 52.37 seconds
+of writer activity (42.96 decoding/grouping, 5.39 Arrow work and 0.54 catalog
+commits). These inclusive clocks overlap and must not be added into a serial budget.
+The frozen Nightly 42338695354 Windows log recorded the 240.031-second timeout
+but no stage split.
+
+Two repaired scale-test repetitions took 77.20 and 86.71 seconds alone. With the
+42 document/telemetry tests selected at eight test threads, repetitions took
+96.58 and 106.34 seconds. The corresponding baseline selection took 105.98 seconds;
+its scale test and 39 other tests passed, while two host tests refused a missing
+compiled bundle. The repaired repetitions used the task-built host bundle and
+passed all 42 tests. These workstation observations vary with contention; the
+loaded range overlaps the baseline and does not establish a portable speedup.
+The first repaired 250,003-row fixture took 70.86 seconds: setup 0.26, construction
+1.89, admission 65.47, capture 1.38 and completion/shutdown 1.86 seconds.
+
+The regression story holds both durable writer resources while
+admission and live reads complete, then verifies the configured flush and combined
+saved/tail ordering. Raw local diagnostics are retained in the primary checkout at
+`target/benchmarks/document-scale-20261107/`.
 
 ## Remote Certificate Refresh
 

@@ -9,3 +9,4 @@
 
 - Start at `README.md` and `docs/product-guide.md`; its Documentation section links the topic guides in `docs/`. Read `docs/gui.md` before changing `crates/dokime-gui/`.
 - Keep documentation in `docs/` and refer to code by path. Do not add `AGENTS.md`, `CLAUDE.md` or other Markdown notes inside code directories; package READMEs that registries publish are the exception.
+- Follow the plugin operation boundaries and step form in [Plugin Authoring](.agents/skills/dokime-authoring/references/plugins.md) when authoring plugins.

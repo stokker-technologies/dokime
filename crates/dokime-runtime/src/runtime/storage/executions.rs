@@ -101,6 +101,7 @@ pub(crate) struct Acquisition {
     execution_owner: ReadBatch<Arc<TestExecution>>,
     pub(super) gate: Arc<Mutex<()>>,
     materialization_gate: Arc<Mutex<()>>,
+    lifecycle_gate: Arc<Mutex<()>>,
     pub(super) finish_requested: bool,
     pub(super) outputs_sealed: bool,
     pub(super) outputs_quiescent: bool,
@@ -363,6 +364,12 @@ impl ExecutionStorage {
         Ok(gate)
     }
 
+    pub(crate) async fn lifecycle_gate(&self, execution: &TestExecutionId) -> Result<Arc<Mutex<()>>> {
+        let owner = self.acquisition(execution).await.ok_or_else(|| invalid("report has no acquisition owner"))?;
+        let gate = owner.lock().await.lifecycle_gate.clone();
+        Ok(gate)
+    }
+
     pub(crate) async fn prepare_capture(
         self: &Arc<Self>, cycle: &CycleView, execution: &TestExecution, at: &StorageCursor, final_report: bool,
     ) -> Result<CaptureInputs> {
@@ -435,7 +442,7 @@ impl ExecutionStorage {
                 return Err(invalid("report capture changed the original finalization input"));
             }
             if final_report && acquisition.finalizing.is_none() {
-                // Retain The Exact Input Before Closing Admission Or Awaiting A Save
+                // Retain the Exact Input Before Closing Admission or Awaiting a Save
                 acquisition.finalizing = Some(frozen.clone());
                 acquisition.finish_requested = true;
                 open_scopes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&acquisition.execution_id);
@@ -694,7 +701,7 @@ impl ExecutionStorage {
             crate::domains::execution::run::testing::before_execution_checkpoint(id).await;
             tokio::spawn(async move {
                 let mut acquisition = owner.lock().await;
-                // Settle The Original Admission Before Reading Any Newer Journal State
+                // Settle the Original Admission Before Reading Any Newer Journal State
                 if acquisition.pending.is_some() {
                     save_working_revision(&mut acquisition).await?;
                 }
@@ -783,6 +790,9 @@ impl ExecutionStorage {
             (defaults, documents, contracts)
         };
         let selection = crate::document::DocumentSelection { scope: execution.scope.clone() };
+        let context = crate::plot::dimension_context_for_scope(execution);
+        let fields = crate::document::repeat::fields(documents.values(), &contracts, &context);
+        self.local.register_distinct_fields(execution.test_execution_id.to_string(), fields).await?;
         let mut requests = Vec::new();
         for mut document in documents.into_values() {
             defaults.apply(&mut document);
@@ -800,13 +810,7 @@ impl ExecutionStorage {
             }
         }
         self.local
-            .register_plot_previews(
-                execution.test_execution_id.to_string(),
-                requests,
-                contracts,
-                self.preview_limits,
-                crate::plot::dimension_context_for_scope(execution),
-            )
+            .register_plot_previews(execution.test_execution_id.to_string(), requests, contracts, self.preview_limits, context)
             .await?;
         let (frozen, execution_owner) = retained_execution(execution)?;
         let id = execution.test_execution_id.clone();
@@ -817,6 +821,7 @@ impl ExecutionStorage {
             execution_owner,
             gate: Arc::new(Mutex::new(())),
             materialization_gate: Arc::new(Mutex::new(())),
+            lifecycle_gate: Arc::new(Mutex::new(())),
             finish_requested: false,
             outputs_sealed: false,
             outputs_quiescent: false,
@@ -962,7 +967,7 @@ async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevisi
         })?;
         let sealed = sealed_owner.as_ref().clone();
         acquisition.execution_owner = sealed_owner;
-        // Keep The Mutable Head Unsealed Until This Exact Pending Admission Is Saved
+        // Keep the Mutable Head Unsealed Until This Exact Pending Admission Is Saved
         acquisition.pending = Some(PendingRevision { execution: sealed, receipt: None });
     }
     save_working_revision(acquisition).await?;

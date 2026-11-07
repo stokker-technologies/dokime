@@ -20,7 +20,7 @@
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 // Local Imports
 import type { MediaArtifactKind } from "@/lib/media";
-import type { RecordScope } from "@/lib/types";
+import type { ExecutionFileLifecycle, RecordScope } from "@/lib/types";
 
 /* === Re-Exports === */
 
@@ -39,6 +39,7 @@ export type MediaGalleryArtifact = {
   media_type?: string | null;
   description?: string | null;
   size_bytes?: number | null;
+  stream_state?: ExecutionFileLifecycle | null;
   group_id?: string | null;
   group_label?: string | null;
   scope?: RecordScope | null;
@@ -79,13 +80,16 @@ export function artifactContentKey(artifact: MediaGalleryArtifact): string {
     artifact.path,
     artifact.media_type ?? "",
     artifact.size_bytes ?? "",
+    artifact.stream_state ?? "",
     artifact.scope?.test_execution_id ?? "",
   ].join("\u0000");
 }
 
 export function mediaBlobType(artifact: MediaGalleryArtifact): string | null {
-  const explicit = artifact.media_type?.trim().toLowerCase();
-  if (explicit) return safeMediaType(explicit) ? explicit : null;
+  // Cache Only Closed Files; A Growing Clip Has No Immutable Preview Yet.
+  if (artifact.stream_state === "streaming") return null;
+  const explicit = artifact.media_type?.split(";")[0]?.trim().toLowerCase();
+  if (explicit && explicit !== "application/octet-stream") return safeMediaType(explicit) ? explicit : null;
   const path = artifact.path.toLowerCase().split(/[?#]/u)[0] ?? "";
   const extension = path.slice(path.lastIndexOf("."));
   if (extension === ".png") return "image/png";

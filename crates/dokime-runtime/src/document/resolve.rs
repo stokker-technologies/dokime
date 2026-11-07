@@ -56,6 +56,8 @@ const VALUE_PLACEHOLDER: &str = "{value}";
 /* === Structs === */
 
 struct DocumentMaterializer<'a> {
+    limits: DocumentLimits,
+    expanded_nodes: usize,
     unavailable_reason_bytes: usize,
     capture: Option<&'a mut CaptureBindings>,
     artifact_lists: &'a mut Vec<ArtifactListDescriptor>,
@@ -70,16 +72,21 @@ struct DocumentMaterializer<'a> {
     selection: &'a crate::document::input::DocumentSelection,
     evidence: Evidence<'a>,
     repeats: Option<&'a RepeatValues>,
+    repeat_position: usize,
+    summary_queries: Option<&'a mut Vec<DocumentCardDefinition>>,
 }
 
 /// The distinct values each repeated section expands over, resolved ahead of a
 /// capture whose own rows are a bounded preview of the evidence.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct RepeatValues(Vec<(DocumentSectionRepeat, Vec<Value>)>);
+pub(crate) struct RepeatValues {
+    definitions: Vec<(DocumentSectionRepeat, Vec<Value>)>,
+    path: Option<Vec<Value>>,
+}
 
 /// Folds the distinct values of every repeat of a document across evidence
 /// pages, in evidence order, as one complete read would.
-pub(crate) struct RepeatScan {
+pub(crate) struct RepeatDefinitions {
     repeats: Vec<(DocumentSectionRepeat, Distinct)>,
 }
 
@@ -111,11 +118,26 @@ struct CaptureBindings {
 /* === Implementations === */
 
 impl DocumentMaterializer<'_> {
+    fn charge_node(&mut self, card: &Identifier) -> Result<()> {
+        self.expanded_nodes = self.expanded_nodes.saturating_add(1);
+        if self.expanded_nodes > self.limits.expanded_nodes {
+            return Err(DocumentFailure::Budget {
+                budget: "expanded_nodes",
+                limit: self.limits.expanded_nodes,
+                reached: self.expanded_nodes,
+                card: card.to_string(),
+            }
+            .into());
+        }
+        Ok(())
+    }
+
     fn capture_nodes(&mut self, nodes: Vec<DocumentNode>) -> Result<bool> {
         let mut present = false;
         for node in nodes {
             match node {
                 DocumentNode::Card(placement) => {
+                    self.charge_node(&placement.card_id)?;
                     self.ensure_card_payload(&placement.card_id)?;
                     present = true;
                 }
@@ -146,6 +168,7 @@ impl DocumentMaterializer<'_> {
                         if !self.capture_nodes(section.children)? {
                             continue;
                         }
+                        self.charge_node(&section.node_id)?;
                         let capture = self.capture.as_mut().expect("capture assembly is active");
                         if capture
                             .sections
@@ -187,12 +210,15 @@ impl DocumentMaterializer<'_> {
             DocumentNode::Section(section) => {
                 let sections = self.expanded_section_nodes(*section);
                 for section in sections {
+                    let id = section.node_id.clone();
                     if let Some(section) = self.materialize_section_node(section)? {
+                        self.charge_node(&id)?;
                         push_exact(output, section)?;
                     }
                 }
             }
             DocumentNode::Card(placement) => {
+                self.charge_node(&placement.card_id)?;
                 if let Some(card) = self.materialize_card_placement(placement)? {
                     push_exact(output, card)?;
                 }
@@ -230,17 +256,30 @@ impl DocumentMaterializer<'_> {
         }
         if let Some(capture) = self.capture.as_mut() {
             let card = self.card_definitions.get(card_id).expect("declared card exists");
-            let result = match &card.body {
-                DocumentCardBody::TelemetrySummary { summary } => CardBindingResult::Summary {
-                    groups: telemetry_summary_payload(summary, &card.filters, self.evidence, self.unavailable_reason_bytes)?,
-                },
-                DocumentCardBody::Plot { plot } => {
-                    let input = plot_input_for_definition(plot, &[], self.markers_len, self.selection);
-                    CardBindingResult::Plot {
-                        descriptor: Box::new(plot_descriptor_for_definition(input, plot.metadata.clone())),
-                    }
+            let sized = super::bounded::card_size(card, self.limits.materialized_bytes, self.limits.depth, card_id.as_str());
+            let result = if let Err(error) = sized {
+                CardBindingResult::Failed {
+                    failure: super::capture::CardFailure::document(error),
                 }
-                _ => CardBindingResult::Static,
+            } else {
+                match &card.body {
+                    DocumentCardBody::TelemetrySummary { summary } => {
+                        if let Some(queries) = self.summary_queries.as_mut() {
+                            queries.push(card.clone());
+                            CardBindingResult::Pending
+                        } else {
+                            let groups = telemetry_summary_payload(summary, &card.filters, self.evidence, self.unavailable_reason_bytes)?;
+                            CardBindingResult::Summary { groups }
+                        }
+                    }
+                    DocumentCardBody::Plot { plot } => {
+                        let input = plot_input_for_definition(plot, &[], self.markers_len, self.selection);
+                        CardBindingResult::Plot {
+                            descriptor: Box::new(plot_descriptor_for_definition(input, plot.metadata.clone())),
+                        }
+                    }
+                    _ => CardBindingResult::Static,
+                }
             };
             let source_id = capture.source_ids.get(card_id).expect("captured card source exists").clone();
             let binding = CardBinding {
@@ -330,10 +369,11 @@ impl DocumentMaterializer<'_> {
         let Some(repeat) = section.repeat.as_ref() else {
             return vec![section];
         };
-        let values = match self.repeats.and_then(|repeats| repeats.get(repeat)) {
+        let values = match self.repeats.and_then(|repeats| repeats.get(repeat, self.repeat_position)) {
             Some(values) => values.to_vec(),
             None => repeat_values(repeat, self.evidence),
         };
+        self.repeat_position += 1;
         if let Some(capture) = self.capture.as_mut()
             && capture.repeats.insert(section.node_id.clone(), Vec::with_capacity(values.len())).is_some()
         {
@@ -361,9 +401,14 @@ impl DocumentMaterializer<'_> {
         values
             .into_iter()
             .map(|value| {
-                let suffix = identifier_segment(&value_label(&value));
+                let key = crate::storage::sqlite::data::distinct::value_key(&value).expect("typed repeat values are serializable");
+                let suffix = key[..16].iter().map(|byte| format!("{byte:02x}")).collect::<String>();
                 let label = render_template(&repeat.label_template, &repeat.value, &value);
-                let identifier = render_template(&identifier_template, &repeat.value, &value);
+                let identifier = if repeat.id_template.is_some() {
+                    render_template(&identifier_template, &repeat.value, &value)
+                } else {
+                    format!("{}.{}", section.node_id, suffix)
+                };
                 let repeat_filter = DocumentFilter {
                     expression: repeat.value.clone(),
                     operator: FilterOperator::Eq,
@@ -439,17 +484,22 @@ impl DocumentMaterializer<'_> {
 }
 
 impl RepeatValues {
-    fn get(&self, repeat: &DocumentSectionRepeat) -> Option<&[Value]> {
-        self.0.iter().find(|(candidate, _)| candidate == repeat).map(|(_, values)| values.as_slice())
+    pub(crate) fn path(values: Vec<Value>) -> Self {
+        Self {
+            definitions: Vec::new(),
+            path: Some(values),
+        }
     }
 
-    /// The most instances any one repeat expands into.
-    pub(crate) fn instances(&self) -> usize {
-        self.0.iter().map(|(_, values)| values.len()).max().unwrap_or(0)
+    fn get(&self, repeat: &DocumentSectionRepeat, position: usize) -> Option<&[Value]> {
+        if let Some(path) = &self.path {
+            return Some(path.get(position).map_or(&[], std::slice::from_ref));
+        }
+        self.definitions.iter().find(|(candidate, _)| candidate == repeat).map(|(_, values)| values.as_slice())
     }
 }
 
-impl RepeatScan {
+impl RepeatDefinitions {
     /// Every distinct repeat the definitions declare, at any depth. A repeat
     /// selecting on a correlated transform is refused before any evidence is read.
     pub(crate) fn new<'d>(definitions: impl IntoIterator<Item = &'d crate::document::DocumentDefinition>) -> Result<Self> {
@@ -484,62 +534,22 @@ impl RepeatScan {
         Ok(Self { repeats })
     }
 
-    fn expressions(&self) -> impl Iterator<Item = &DataExpression> {
-        self.repeats.iter().flat_map(|(repeat, _)| {
-            std::iter::once(&repeat.value).chain(&repeat.order_by).chain(repeat.filters.iter().map(|filter| &filter.expression))
-        })
-    }
-
     pub(crate) fn is_empty(&self) -> bool {
         self.repeats.is_empty()
     }
 
-    pub(crate) fn needs_records(&self) -> bool {
-        self.expressions().any(|expression| matches!(expression.source, DataSource::Record { .. }))
-    }
-
-    pub(crate) fn needs_telemetry(&self, context: super::input::Context<'_>) -> bool {
-        self.expressions().any(|expression| binding::expression_needs_telemetry(expression, context))
-    }
-
-    /// The one telemetry stream every telemetry-reading repeat selects, when
-    /// they agree, so a scan need not read the execution's other streams.
-    pub(crate) fn telemetry_stream(&self, context: super::input::Context<'_>) -> Option<&str> {
-        let mut streams =
-            self.expressions().filter(|expression| binding::expression_needs_telemetry(expression, context)).map(|expression| {
-                match &expression.source {
-                    DataSource::Telemetry { stream, .. } => Some(stream.as_str()),
-                    _ => None,
-                }
-            });
-        let first = streams.next()??;
-        streams.all(|stream| stream == Some(first)).then_some(first)
-    }
-
-    /// Folds one evidence page; pages arrive in evidence order.
-    pub(crate) fn fold(&mut self, selection: &crate::document::DocumentSelection, data: BorrowedData<'_>) {
-        let evidence = Evidence {
-            records: data.records,
-            artifacts: data.artifacts,
-            telemetry: data.telemetry,
-            context: data.context,
-            selection: Some(selection),
-        };
-        for (repeat, values) in &mut self.repeats {
-            values.fold(repeat, evidence);
-        }
-    }
-
     pub(crate) fn finish(self) -> RepeatValues {
-        RepeatValues(
-            self.repeats
+        RepeatValues {
+            definitions: self
+                .repeats
                 .into_iter()
                 .map(|(repeat, values)| {
                     let values = values.finish(&repeat);
                     (repeat, values)
                 })
                 .collect(),
-        )
+            path: None,
+        }
     }
 }
 
@@ -591,6 +601,13 @@ pub fn resolve_document(input: DocumentResolveInput, limits: DocumentLimits) -> 
 }
 
 pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits, repeats: Option<&RepeatValues>) -> Result<Capture> {
+    capture_with_queries(input, limits, repeats, None)
+}
+
+pub(crate) fn capture_with_queries(
+    input: BorrowedInput<'_>, limits: DocumentLimits, repeats: Option<&RepeatValues>,
+    summary_queries: Option<&mut Vec<DocumentCardDefinition>>,
+) -> Result<Capture> {
     let (mut cards, layout) = input.definition.normalized_parts();
     validate_normalized_parts(&cards, &layout, limits.layout_depth, limits.maximum_plot_points)
         .map_err(|issues| DocumentFailure::InvalidDefinition { issues })?;
@@ -618,6 +635,8 @@ pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits,
     let mut plot_descriptors = Vec::new();
     let mut plot_inputs = Vec::new();
     let mut materializer = DocumentMaterializer {
+        limits,
+        expanded_nodes: 0,
         unavailable_reason_bytes: limits.unavailable_reason_bytes,
         capture: Some(&mut capture),
         artifact_lists: &mut artifact_lists,
@@ -638,6 +657,8 @@ pub(crate) fn capture_borrowed(input: BorrowedInput<'_>, limits: DocumentLimits,
             selection: Some(input.selection),
         },
         repeats,
+        repeat_position: 0,
+        summary_queries,
     };
     materializer.capture_nodes(definition.layout.nodes.clone())?;
     if capture.identity_collision {
@@ -717,6 +738,8 @@ pub(crate) fn resolve_normalized(
     let mut artifact_lists = Vec::new();
     let (cards, layout) = {
         let mut materializer = DocumentMaterializer {
+            limits,
+            expanded_nodes: 0,
             unavailable_reason_bytes: limits.unavailable_reason_bytes,
             capture: None,
             artifact_lists: &mut artifact_lists,
@@ -737,6 +760,8 @@ pub(crate) fn resolve_normalized(
                 selection: Some(&selection),
             },
             repeats: None,
+            repeat_position: 0,
+            summary_queries: None,
         };
         let layout = materializer.materialize_layout(layout_definition)?;
         (materializer.card_payloads, layout)
@@ -835,7 +860,7 @@ fn telemetry_summary_payload(
     Ok(groups)
 }
 
-fn telemetry_summary_tile_payload(
+pub(super) fn telemetry_summary_tile_payload(
     tile: &TelemetrySummaryTileDefinition, card_filters: &[DocumentFilter], evidence: Evidence<'_>, unavailable_reason_bytes: usize,
 ) -> Result<TelemetrySummaryTilePayload> {
     let result = (|| {
@@ -851,8 +876,14 @@ fn telemetry_summary_tile_payload(
         Ok(value) => (value, None),
         Err(error) => (None, Some(unavailable_reason(error, unavailable_reason_bytes)?)),
     };
+    Ok(summary_tile_value(tile, value, unavailable))
+}
+
+pub(super) fn summary_tile_value(
+    tile: &TelemetrySummaryTileDefinition, value: Option<Value>, unavailable: Option<String>,
+) -> TelemetrySummaryTilePayload {
     let state = value.as_ref().and_then(|value| matching_summary_state(value, &tile.conditions));
-    Ok(TelemetrySummaryTilePayload {
+    TelemetrySummaryTilePayload {
         metadata: tile.metadata.clone(),
         value,
         unavailable,
@@ -861,7 +892,7 @@ fn telemetry_summary_tile_payload(
         presentation: tile.presentation.clone(),
         unit: tile.unit.clone(),
         state,
-    })
+    }
 }
 
 fn unavailable_reason(error: crate::Error, maximum_bytes: usize) -> Result<String> {
@@ -884,7 +915,9 @@ pub(crate) fn matching_summary_state(
         .map(|condition| condition.state.clone())
 }
 
-fn row_matches_filters<'a>(row: Row<'_>, filters: impl Iterator<Item = &'a DocumentFilter> + Clone, evidence: Evidence<'_>) -> bool {
+pub(super) fn row_matches_filters<'a>(
+    row: Row<'_>, filters: impl Iterator<Item = &'a DocumentFilter> + Clone, evidence: Evidence<'_>,
+) -> bool {
     if let Row::Context(context) = row
         && filters.clone().any(|filter| row.needs_sample(&filter.expression))
     {
@@ -903,7 +936,7 @@ fn row_matches_filters<'a>(row: Row<'_>, filters: impl Iterator<Item = &'a Docum
     })
 }
 
-fn value_matches_operator(actual: Option<&Value>, operator: FilterOperator, expected: Option<&Value>) -> bool {
+pub(crate) fn value_matches_operator(actual: Option<&Value>, operator: FilterOperator, expected: Option<&Value>) -> bool {
     match operator {
         FilterOperator::Exists => actual.is_some_and(traceable_value),
         FilterOperator::Eq => expected.is_some_and(|expected| actual.is_some_and(|actual| values_equal(actual, expected))),

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Native Trace Subscriber And Export Failures
+// Native Trace Subscriber and Export Failures
 
 /* === Modules === */
 

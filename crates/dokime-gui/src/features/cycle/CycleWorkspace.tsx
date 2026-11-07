@@ -266,7 +266,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       onRerun:
         selectedRow.execution && isTerminalExecutionStatus(selectedRow.execution.status)
           ? () =>
-              run({ done: "New Attempt Ready To Start", failed: "Case Re-Run Failed" }, async () => {
+              run({ done: "New Attempt Ready to Start", failed: "Case Re-Run Failed" }, async () => {
                 const created = await rerunCase.rerun(selectedRow.case.caseId);
                 if (created) onSelectionChange({ executionId: created });
               })

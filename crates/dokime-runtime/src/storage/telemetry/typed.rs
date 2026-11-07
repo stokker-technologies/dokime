@@ -123,7 +123,7 @@ impl TypedCodec {
         let invalid_metadata = Error::Invalid("telemetry metadata graph exceeds schema limits");
         let metadata = declaration.map_err(|_| invalid_metadata)?;
 
-        // Compose Metadata And Payload Definitions
+        // Compose Metadata and Payload Definitions
         let payload_offset =
             metadata.definitions.len().checked_add(1).ok_or(Error::Invalid("telemetry graph definition count overflows"))?;
         let mut definitions = vec![vec![
@@ -146,7 +146,7 @@ impl TypedCodec {
             append_definitions(&mut definitions, graph, offset)?;
         }
 
-        // Validate And Name The Composed Graph
+        // Validate and Name the Composed Graph
         let graph = Schema { root: 0, definitions };
         let prepared = graph.prepare(settings);
         let invalid_composition = Error::Invalid("composed telemetry graph exceeds schema limits");
@@ -244,7 +244,7 @@ impl TypedCodec {
         let stream = sample::copy_text(sample.stream.as_str())?;
         let timestamp = sample::copy_text(sample.timestamp.as_str())?;
 
-        // Encode The Timestamp Projection Before The Remaining Metadata
+        // Encode the Timestamp Projection Before the Remaining Metadata
         let timestamp_values = sample.values.get("timestamp").map(|value| {
             let entry = ("timestamp".to_owned(), value.clone());
             BTreeMap::from([entry])
@@ -302,7 +302,7 @@ impl TypedCodec {
             return Err(Error::Invalid("typed telemetry frame exceeds byte limit"));
         }
 
-        // Decode And Verify Canonical Metadata
+        // Decode and Verify Canonical Metadata
         let mut reader = Reader::new(bytes);
         let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
         let payload = reader.remaining();
@@ -337,7 +337,7 @@ impl TypedCodec {
         {
             return Err(Error::Invalid("stored telemetry metadata differs from its schema"));
         }
-        // Restore The Sample Under The Decoding Allowance
+        // Restore the Sample Under the Decoding Allowance
         let sample = Sample {
             sample_id: metadata.sample_id,
             stream: metadata.stream,
@@ -442,7 +442,7 @@ pub fn codec(contract: &TelemetryContract, settings: &harmos::config::SchemaSett
 pub fn stored_codecs_where(
     batch: ArrowBatch, settings: &harmos::config::SchemaSettings, selected: impl Fn(&str, u32) -> bool,
 ) -> Result<harmos::storage::ReadBatch<Vec<TypedCodec>>> {
-    // Decode The Selected Graphs
+    // Decode the Selected Graphs
     let decoded = batch.try_map(|batch| {
         let (ids, versions, definitions) = schema_columns(&batch)?;
         let mut schemas = Vec::new();
@@ -467,7 +467,7 @@ pub fn stored_codecs_where(
         }
         Ok::<_, Error>(schemas)
     })?;
-    // Compile The Values Roots
+    // Compile the Values Roots
     decoded.try_map(|schemas| {
         let mut codecs = Vec::new();
         let allocation = codecs.try_reserve_exact(schemas.len());
@@ -520,22 +520,6 @@ pub fn decode_values(validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<Str
     let projection = projected_values(validator, bytes);
     let invalid_projection = Error::Invalid("typed telemetry payload projection failed");
     projection.map_err(|_| invalid_projection)
-}
-
-pub(crate) fn numeric_metadata(bytes: &[u8]) -> Result<Vec<(String, f64)>> {
-    let mut reader = Reader::new(bytes);
-    let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
-    let length = bytes.len() - reader.remaining().len();
-    if metadata.encode() != bytes[..length] {
-        return Err(Error::Invalid("stored telemetry metadata is not canonical"));
-    }
-    Ok(metadata.signals.into_iter().filter_map(|signal| signal.numeric_bits.map(|bits| (signal.name, f64::from_bits(bits)))).collect())
-}
-
-pub(crate) fn capture_scopes(bytes: &[u8]) -> Result<Vec<RecordScope>> {
-    let mut reader = Reader::new(bytes);
-    let metadata = <Metadata as PostcardValue>::read(&mut reader)?;
-    metadata.captured_scopes.into_iter().map(TryInto::try_into).collect()
 }
 
 pub(crate) fn signals(values: &BTreeMap<String, Value>) -> Vec<Signal> {
@@ -780,7 +764,7 @@ mod tests {
         cache.mark_registered(&contract, &first);
         assert!(cache.unregistered(&contract, &settings).unwrap().is_none());
 
-        // A Redefined Graph Under The Same Version Builds And Registers Afresh
+        // A Redefined Graph Under the Same Version Builds and Registers Afresh
         let mut redefined = TelemetryContract::declared("cache.fixture", "Cache").typed::<Renamed>();
         redefined.schema_version = contract.schema_version;
         let rebuilt = cache.codec(&redefined, &settings).unwrap();
@@ -813,7 +797,6 @@ mod tests {
             sample,
         };
         let bytes = codec.encode(&entry, usize::MAX).unwrap();
-        assert_eq!(numeric_metadata(&bytes).unwrap(), [("value".to_owned(), 7.0)]);
         assert_eq!(codec.decode(&bytes, usize::MAX).unwrap().sample.values, values);
         let mut reader = Reader::new(&bytes);
         let mut metadata = <Metadata as PostcardValue>::read(&mut reader).unwrap();

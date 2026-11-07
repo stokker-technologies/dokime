@@ -7,7 +7,7 @@
  * ***
  */
 
-// Offline Backend Profile And Credential Admission Story
+// Offline Backend Profile and Credential Admission Story
 
 /* === Modules === */
 

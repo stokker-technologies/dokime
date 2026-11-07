@@ -67,7 +67,7 @@ def export(root: Path, profile: str) -> Path:
             else:
                 raise ValueError(f"installer organization input must be a regular file or directory: {path}")
 
-    # Validate Inputs Before Replacing The Owned Export
+    # Validate Inputs Before Replacing the Owned Export
     invalid = [path for path in source.values() if path.is_symlink() or not path.is_file()]
     if invalid:
         raise ValueError(f"installer input must be a regular file: {invalid[0]}")

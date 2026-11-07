@@ -135,7 +135,7 @@ def test_append_recovery() -> None:
             assert execution._cycle_id is None
             assert server.run_calls == 0
 
-            # Retry The Exact Objects After A Lost Registration Reply
+            # Retry the Exact Objects After a Lost Registration Reply
             server.append_allowed.set()
             await cycle.append([execution])
             assert execution._cycle_id == cycle.id
@@ -265,7 +265,7 @@ def test_restart_boundaries() -> None:
             run = run_cycle.executions[0]
             await run.start()
 
-            # A Restarted Runtime Refuses The Old Connection's Live Reads
+            # A Restarted Runtime Refuses the Old Connection's Live Reads
             server.epoch = "epoch-2"
             assert run.id == EXECUTION_ID
             with pytest.raises(BackendChanged):

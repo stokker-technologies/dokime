@@ -129,6 +129,9 @@ tokio = { workspace = true, features = ["test-util"] }
 
 # === Lints === #
 
+[lints]
+workspace = true
+
 # === Profiles === #
 
 # === Patches === #

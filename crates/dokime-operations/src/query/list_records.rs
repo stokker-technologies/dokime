@@ -78,9 +78,3 @@ impl ListRecords {
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    use super::*;
-    crate::hosted!(ListRecords);
-}

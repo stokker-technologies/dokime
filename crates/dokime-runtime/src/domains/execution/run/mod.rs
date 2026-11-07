@@ -197,6 +197,7 @@ impl Target {
     async fn run(&self, request: RunExecution) -> Result<SidecarExecutionOutcome, ProviderExecutionFailure> {
         let mut context = harmos::operations::CallContext::default();
         let token = request.execution_token.clone();
+        context.insert(host::AttemptOwner(token.clone())).map_err(|error| failure("execution_run", error.to_string()))?;
         let scope = ExecutionScope::execution(token);
         context.insert_portable(scope).map_err(|error| {
             let message = error.to_string();
@@ -402,6 +403,16 @@ async fn execute_case(
         None => BTreeMap::new(),
     };
     let request = RunExecution {
+        publication_rows: context.runtime.config().stream_publication.batch_rows.get(),
+        publication_bytes: u64::from(context.runtime.config().stream_publication.batch_bytes.get()),
+        publication_delay_micros: context
+            .runtime
+            .config()
+            .stream_publication
+            .flush_delay
+            .as_micros()
+            .try_into()
+            .map_err(|_| failure("sidecar_start", "stream publication delay exceeds wire range"))?,
         mode: execution.mode.as_str().into(),
         execution_token: execution_token.clone(),
         test_cycle_id: cycle.test_cycle_id.to_string(),
@@ -455,7 +466,6 @@ async fn execute_case(
     let opened = session::Opened {
         context: context.clone(),
         execution: execution.clone(),
-        workflow: workflow.to_owned(),
         source: source.to_owned(),
         target: target.clone(),
         prompts: PromptBridge::new(declared.prompts),

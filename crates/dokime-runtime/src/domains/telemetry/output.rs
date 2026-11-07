@@ -21,7 +21,6 @@ pub(crate) use crate::streams::AggregateOutput;
 // Local Imports
 use crate::telemetry::TelemetryContract;
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
 
@@ -73,28 +72,13 @@ pub(crate) async fn project_saved(
 /* === Private Functions === */
 
 fn output(stream: &Identifier, field: &str, stat: &str, value: f64) -> AggregateOutput {
-    let key = valid_identifier(&format!("telemetry.{}.values.{field}.{stat}", stream.as_str()));
     AggregateOutput {
-        metadata: {
-            let mut metadata = Metadata::definition(
-                Identifier::new(&key).expect("aggregate keys are sanitized"),
-                format!("{} {} {}", stream, field.replace('_', " "), stat.replace('_', " ")),
-                Some(format!("Telemetry aggregate {stat} for {stream} {field}.")),
-                ["output", "telemetry", "aggregate"],
-            );
-            metadata.created_at = Some(time::OffsetDateTime::now_utc());
-            metadata
-        },
+        stream: stream.to_string(),
+        field: field.to_owned(),
+        statistic: stat.to_owned(),
+        created_at: Some(time::OffsetDateTime::now_utc()),
         value: Value::Number(value),
-        key,
     }
-}
-
-fn valid_identifier(value: &str) -> String {
-    value
-        .chars()
-        .map(|character| if character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-') { character } else { '_' })
-        .collect()
 }
 
 /* === Tests === */

@@ -37,6 +37,13 @@ use super::*;
 pub struct CaptureCurrentDocument {
     pub scope: Option<DocumentScope>,
     pub document_id: String,
+    #[serde(default)]
+    pub structure_only: bool,
+    #[serde(default)]
+    pub card_ids: Vec<String>,
+
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 /* === Enums === */
@@ -50,12 +57,3 @@ pub struct CaptureCurrentDocument {
 /* === Private Functions === */
 
 /* === Tests === */
-
-/* === --- === Runtime Module === --- === */
-
-#[cfg(feature = "runtime")]
-mod runtime {
-    use super::*;
-
-    crate::hosted!(CaptureCurrentDocument);
-}

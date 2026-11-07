@@ -64,7 +64,7 @@ def test_live_values() -> None:
             assert _wire.decode(server.overrides["flag"].values[0], 64) is True
             assert _wire.decode(server.overrides["array"].values[0], 64) == [1, None]
 
-            # Live Readers Follow Until The Run Completes
+            # Live Readers Follow Until the Run Completes
             following = asyncio.gather(
                 collect(run.records()),
                 collect(run.samples(page_size=1)),
@@ -160,7 +160,7 @@ def test_example_listeners_drain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
             monkeypatch.setattr(Execution, "export", execution_export)
             monkeypatch.setattr(Cycle, "export", cycle_export)
 
-            # The Example Reads Live Before The Run Finishes
+            # The Example Reads Live Before the Run Finishes
             polling = asyncio.create_task(run())
             await server.records_parked.wait()
             server.finish_gate.set()

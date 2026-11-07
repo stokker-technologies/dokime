@@ -88,7 +88,7 @@ pub(crate) async fn file_watch_artifacts() {
         maximum_bytes: None,
     };
 
-    // A Watch Without An Execution Is Refused Before Any Source Opens
+    // A Watch Without an Execution Is Refused Before Any Source Opens
     let unscoped = watch(
         &client,
         FileWatch {
@@ -103,21 +103,23 @@ pub(crate) async fn file_watch_artifacts() {
     // Refused Initial Admission Must Not Advertise Armed Readiness
     let extra = tree.path().join("logs/second.log");
     std::fs::write(&extra, b"second\n").unwrap();
-    let mut refused = watch(
+    let refused = watch(
         &client,
         FileWatch {
             maximum_files: Some(1),
             ..request("refused", Some(1))
         },
     )
-    .await
-    .unwrap();
-    let failure = loop {
-        match refused.message().await {
-            Ok(Some(frame)) => assert!(!matches!(frame.payload, Some(FileWatchFramePayload::Armed(_)))),
-            Err(error) => break error,
-            Ok(None) => panic!("initial admission unexpectedly succeeded"),
-        }
+    .await;
+    let failure = match refused {
+        Err(error) => error,
+        Ok(mut frames) => loop {
+            match frames.message().await {
+                Ok(Some(frame)) => assert!(!matches!(frame.payload, Some(FileWatchFramePayload::Armed(_)))),
+                Err(error) => break error,
+                Ok(None) => panic!("initial admission unexpectedly succeeded"),
+            }
+        },
     };
     assert_eq!(failure.code(), Code::ResourceExhausted);
     std::fs::remove_file(extra).unwrap();
@@ -196,7 +198,7 @@ pub(crate) async fn file_watch_artifacts() {
 async fn watch(client: &WireClient, request: FileWatch) -> Result<WireStream<FileWatchFrame>, tonic::Status> {
     let mut frames = client.download::<contracts::files::FileWatch>(authenticated(request)).await?.into_inner();
 
-    // A Refusal Before Watching Arrives As The First Frame
+    // A Refusal Before Watching Arrives as the First Frame
     use futures_util::StreamExt;
     let first = frames.message().await?;
     let frames = futures_util::stream::iter(first.map(Ok)).chain(frames.frames);

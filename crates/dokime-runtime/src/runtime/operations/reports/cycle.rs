@@ -119,7 +119,7 @@ async fn sealed(
     Ok(MaterializedReport { report })
 }
 
-// An Active Cycle Renders Every Started Member At Its Own Persisted Boundary
+// An Active Cycle Renders Every Started Member at Its Own Persisted Boundary
 // And Lists Every Unstarted Member As Planned, Keeping Cycle Order.
 async fn current(
     ctx: &Scope, resources: &Resources, id: &TestCycleId, at: &StorageCursor, progress: &Operation, gate: tokio::sync::MutexGuard<'_, ()>,
@@ -178,7 +178,7 @@ async fn current(
             }
             #[cfg(feature = "testing")]
             crate::domains::execution::run::testing::before_member_capture(&execution.test_execution_id).await;
-            // Capture Admission Resolves The Member's Boundary Together With Its Finalization
+            // Capture Admission Resolves the Member's Boundary Together with Its Finalization
             // Intent, Which May Be Persisted After This Report Read The Cycle.
             let inputs = resources.execution_storage.prepare_capture(&source, execution, at, false).await?;
             let defaults = resources.settings.read_application_settings().await?.settings.report;

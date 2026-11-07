@@ -16,7 +16,7 @@ Dokime SHALL resolve bundled organization defaults with optional folder override
 ### Requirement: Native Installer Assembly
 The authoring tool SHALL expose `cargo dokime installer package`, which uses an installer manifest, local or pinned verified release artifacts, and organization assets. Packaging SHALL preserve its input artifacts and SHALL not compile application source. Windows packaging SHALL customize icon resources on a staged GUI executable before signing and integrity recording. Packaging SHALL retain the startup identity and bundled-plugin integrity inventory.
 
-#### Scenario: Product Or Company Assembly
+#### Scenario: Product or Company Assembly
 - **WHEN** native packaging receives valid local artifacts or a verified exact release payload
 - **THEN** it produces the requested Windows NSIS or Linux DEB/RPM output, resolves company branding and cleans ephemeral generated inputs.
 
@@ -36,7 +36,7 @@ The authoring tool SHALL expose `cargo dokime installer package`, which uses an 
 - **WHEN** the resolved organization pack supplies installer.sidebar_image
 - **THEN** packaging uses that pack-relative image instead of sidebar_color for install and uninstall sidebars, validates its reference and content, and fails on invalid input instead of silently using the color.
 
-### Requirement: Harmonized Authoring And Validation
+### Requirement: Harmonized Authoring and Validation
 The authoring tool SHALL group new, build, package, dev and inspect under sidecar. Build SHALL produce a .dokime bundle; package SHALL only assemble existing outputs. Product CI SHALL use the candidate installer command, including in nightly CI. Native packaging SHALL use Tauri/NSIS default compression and SHALL NOT inspect completed installer contents. The authoring tool SHALL NOT expose an installer inspect command.
 
 #### Scenario: Existing Artifact Packaging

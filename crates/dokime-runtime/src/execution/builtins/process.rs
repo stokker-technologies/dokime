@@ -60,7 +60,7 @@ pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch
         return Err("a process needs a program".into());
     }
 
-    // Run In The Artifact Folder With The Execution's Identity
+    // Run in the Artifact Folder with the Execution's Identity
     let artifacts = binding.artifacts.clone();
     let folder = tokio::task::spawn_blocking(move || artifacts.root())
         .await
@@ -95,7 +95,7 @@ pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch
     let stdout = route(&binding, child.stdout.take(), request.stdout_artifact.clone(), Level::Info)?;
     let stderr = route(&binding, child.stderr.take(), request.stderr_artifact.clone(), Level::Warn)?;
 
-    // Wait For The Exit, Or Terminate On Cancellation
+    // Wait for the Exit, or Terminate on Cancellation
     let grace = Duration::from_millis(request.grace_ms.unwrap_or(DEFAULT_GRACE_MS).into());
     let (status, cancelled) = tokio::select! {
         status = child.wait() => (status, false),
@@ -110,7 +110,7 @@ pub(super) async fn run(binding: Binding, request: RunProcess, mut cancel: watch
     }
     let status = status.map_err(|error| format!("{} could not be awaited: {error}", request.program))?;
 
-    // Record The Exit
+    // Record the Exit
     let exit = ProcessExit {
         exit_code: status.code(),
         duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX),

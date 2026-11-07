@@ -259,7 +259,7 @@ impl State {
                     if through > head.sequence {
                         return Err(Error::Data("file snapshot exceeds saved frontier"));
                     }
-                    // Bind Published Bytes To The Original Saved View
+                    // Bind Published Bytes to the Original Saved View
                     if reference.position.sequence <= through {
                         let mut statement =
                             connection.prepare("SELECT body,digest FROM storage_data_entries WHERE kind='file' AND position=?1")?;

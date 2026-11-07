@@ -107,7 +107,13 @@ Workspace backtraces retain source locations; type and variable inspection
 require rebuilding the affected crate with full debug information.
 Debug assertions and overflow checks remain enabled.
 
-## Tests And Checks
+## Tests and Checks
+
+`lint:rust` runs Clippy with warnings denied; `check:rust` includes it and CI
+Check / Rust gates it. Build, test, bench and fixture tasks do not run Clippy.
+Focused compilation retains compiler preflight; Clippy is an explicit choice with
+`mise run build:rust:focused -- clippy <arguments>`.
+Use `mise run lint:rust --extended` for local compatibility lint coverage.
 
 Build matching artifacts, then run every test lane concurrently (the five-minute
 execution target is advisory and excludes compilation):
@@ -162,7 +168,7 @@ concurrency group; each keeps its own public bootstrap and required platform leg
 Use `mise run test:rust:acceptance -- --select 'test(=facade::typescript_facade_bridge)'` for one native acceptance story from the Tests archive.
 Use `mise run test:rust:system -- --select 'test(=plugin::remote_scripts)'` for one native system story from the same archive.
 Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
-Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/containers/history and its dependent attachment/recovery (`native-desktop`), native plugin installation/activation and settings (`desktop-configuration`), distribution/organization (`desktop-appearance`), remote access (`desktop-remote`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux. The configuration story exercises the native chooser, restart and installed plugin settings; other independent stories launch with the prepared plugin fixture. Every story retains the same five-minute deadline.
+Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/containers/history and its dependent attachment/recovery (`native-desktop`), native plugin installation/activation and settings (`desktop-configuration`), distribution/organization (`desktop-appearance`), remote access (`desktop-remote`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux. The configuration story exercises the native chooser, restart and installed plugin settings; other independent stories launch with the prepared plugin fixture. Lane hang guards come from `[conventions.testing.deadlines]` in `tools/project.toml`.
 Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 
 During implementation, run targeted checks for changed behavior. Once all agreed
@@ -194,7 +200,7 @@ Product enables neither testing feature. Focus one small guard with
 
 Python acceptance and coverage also consume the matching Tests fixtures. All native
 artifact consumers select the graph profile through `TEST_PROFILE`. Coverage uses
-the ordinary story budgets multiplied by five, including retained-report validation;
+the ordinary hang guards multiplied by five, including retained-report validation;
 Rust compile contracts remain owned and executed by Build / Tests.
 
 Product and Tests build independently. Tests use Cargo's unoptimized test
@@ -206,7 +212,10 @@ authorized ready PR and enable auto-merge without waiting for local completion.
 
 ### System Story Reports
 
-Both Rust and native desktop system lanes enforce a 300-second budget per story.
+Lane deadlines are hang guards configured in `[conventions.testing.deadlines]`
+in `tools/project.toml`. Native runners terminate hung stories, and script lanes
+also terminate their process tree at the lane deadline. A completed story keeps
+its runner result regardless of its reported duration; timings are measurements.
 Keep workloads proportional to the behavior under test; retain boundary sizes
 when the boundary is the point. Terminal interruption groups each native script
 family into an independently selectable plugin recovery story; transport
@@ -225,9 +234,8 @@ which do not produce execution reports have explicit reasons in
 Native shutdown stories exercise their stop boundary first; finalization runs on
 their recovered session's ordinary teardown. Filtered desktop runs name their
 selected journeys in JUnit. The default lane runs the walkthrough workflows
-with every maintained scene; each has its own fixture, JUnit result and enforced
-story budget. Owned-backend startup has its own storage root and story; it does
-not consume the attached configuration fixture's budget.
+with every maintained scene; each has its own fixture and JUnit result.
+Owned-backend startup has its own storage root and story.
 The native harness logs scene totals and retains per-step timings in each story's
 `timings.json` under `target/tests/<profile>/<native>/system-typescript/`.
 Categories distinguish launches, subprocesses, execution waits, polling, native
@@ -279,6 +287,28 @@ concurrent lifetimes, with process-local parent IDs in metadata. Normal completi
 flushes export; killed processes may omit open spans or leave unreadable files,
 which the summary lists. Test totals come from JUnit and include harness overhead.
 
+### Document Query Benchmark
+
+The integration-runtime Criterion group `document_queries` ingests three days
+at 307,200, 1,536,000 and 3,072,000 samples through the real runtime. Each document
+has 30 distinct telemetry streams/plots and maintained count/min/max/mean/RMS tiles. `structure` measures the
+first structure event; `cards_and_plots` measures all bindings and the 30 bounded
+plot payloads at one saved cut, deriving requests from the actual card descriptors
+through the same mapping as the GUI. Each pass verifies sample coverage without
+a raw-history scan. Setup uses bounded batches outside the timings.
+The `median/1000000` case uses one stream and measures its exact median together
+with the other maintained tiles and one bounded plot at the saved cut, under the
+unchanged query limits.
+The shared resource probe reports current process RSS on Linux and Windows,
+including its baseline and sampled peak for each measurement window. Compare
+the same visible output at increasing retained row counts; RSS includes the
+whole process and periodic sampling can miss short peaks.
+
+```sh
+mise run build:rust:bench --binary integration-runtime
+mise run bench:rust:integration -- --binary integration-runtime -- document_queries
+```
+
 ### Storage Benchmarks
 
 The runtime's `integration-storage` Criterion target uses the actual SQLite
@@ -318,6 +348,51 @@ The standard runner retains native Criterion results under `.stkr/benchmarks/`.
 Keep workload, settings, compiler profile and hardware consistent when comparing
 before and after results; these timings are not correctness-test deadlines.
 
+### Sidecar Stream Ingestion
+
+The `system-runtime` target includes `sidecar_ingest`: the real OBC plugin
+publishes scalar, 16-field, 4 KiB and 64 KiB rows through its sidecar into durable storage,
+with zero, one and 64 document plots for numeric cases and zero plots for the
+payload fixtures. Each iteration uses a fresh root and
+checks durable row and plot-binding counts. Benchmark-feature OBC builds retain
+the ingest/capture fixtures and the steady/recovery suites used by report and
+server workflow benchmarks. Shipping builds retain the product catalog. Runtime startup and fixture registration are outside
+the interval; publication, preview checkpoints and the final storage flush are inside.
+
+```sh
+mise run build:rust:bench --binary system-runtime
+mise run bench:rust:system -- --binary system-runtime -- sidecar_ingest
+```
+
+For one diagnostic pass per case, append `--test` after `sidecar_ingest`.
+These passes retain explicit measurements without producing a Criterion estimate.
+`DOKIME_INGEST_ROWS` selects the row count (default 100,000, maximum 1,000,000);
+`DOKIME_INGEST_PAYLOAD_ROWS` selects the 4 KiB and 64 KiB case row count (default
+10,000). Each payload contains an f64 and deterministic, row-varying printable
+text; the benchmark rereads durable Arrow batches and verifies the total byte
+length outside the timed interval. Payload MiB/s excludes metadata and framing
+and measures admitted logical bytes, independently of Arrow compression.
+`DOKIME_INGEST_PROFILE=1` enables inclusive admission, host, writer, normalization,
+IPC write/hash/sync and catalog-stage spans. Profiling adds
+overhead and must be compared separately from ordinary throughput runs.
+Each measurement prints JSON containing elapsed time, rows/s, payload MiB/s,
+CPU milliseconds by live process/PID and per 100,000 rows, Arrow/catalog/WAL bytes
+and SQLite table allocation. It also records telemetry writer flush calls, Arrow
+sync calls (files and Unix parent directories), SQLite VFS sync calls (with a
+separate WAL count), post-commit
+SQLite VFS notifications, explicit catalog commit calls and cumulative lock-wait nanoseconds for admission, the SQLite writer,
+the telemetry store and the tail. The benchmark-only VFS observer delegates each
+sync and file-control call unchanged. Native commit notifications include
+autocommit transactions; explicit commit calls also include no-op commits.
+Sync counts are successful native file sync requests, independent of commit cadence. Counts cover the host's SQLite and Arrow durability
+calls inside the measured interval; sidecar CPU is measured separately, while
+sidecar-internal sync calls are outside that observer. Scalar/wide payload rates
+still count only 8/128 numeric bytes per row. Inclusive stage times overlap and
+must not be added; async spans sum active poll/thread time, while lock waits and
+`ingest.host.stage.elapsed` include suspension. Repeat on a
+busy workstation and retain each result, rather than interpreting contention as
+a product regression. See [Measured Stream Performance](docs/product-guide.md#measured-stream-performance).
+
 ### Large-Cycle Report Saves
 
 Report-save timing belongs to the ordinary Criterion `system-runtime` target.
@@ -356,13 +431,25 @@ JSON timings and runtime/report tracing on stderr, then run:
 mise run build:rust:focused -- bench --locked -p dokime-runtime --features testing,fault-injection --bench integration-runtime -- long_execution
 ```
 
-The focused task retains the standard compiler preflight and Clippy. Use
+The focused task retains the standard compiler preflight. Use
 `DOKIME_FINALIZE_MEASURE=criterion` with the same selection for repeated native
 Criterion measurements. Fresh fixture construction is outside
 the measured intervals. The long workloads do not run without this explicit opt-in.
 Run measurements without concurrent validation and preserve the original executable
 before changing production source. A running execution uses Stop; Cancel skips an
 execution that has not started and retains its own report/evidence boundary.
+
+Set `DOKIME_HEAVY_PATHS=cycles`, `files`, `finalizer` or `all` to measure the
+cycle summaries, saved 64 KiB windows and report verification paths. The cycle
+fixture uses 128 members; file paging and finalizer probes use one member with
+a 2 MiB log to isolate its reads and verification. Each prints seven samples
+and checks the returned data. A smaller sealed cycle compares historical inspection
+within the existing working-memory limit. Use an absolute `DOKIME_TEST_TRACE_DIR`
+to retain runtime and rendering spans beside the timing samples.
+
+```sh
+mise run build:rust:focused -- bench --locked -p dokime-runtime --features testing --bench integration-runtime -- heavy_paths
+```
 
 ## Pull Requests
 

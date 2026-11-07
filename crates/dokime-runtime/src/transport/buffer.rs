@@ -34,7 +34,7 @@ use dokime_domain::model::identity::PromptId;
 /* === Constants === */
 
 // Replay Frames Retained Per Execution; Only Host-Confirmed Frames Are Evicted By Progress.
-const RETAINED_FRAMES: usize = 1024;
+const RETAINED_FRAMES: usize = crate::execution::listen::EVIDENCE_ROWS;
 
 // Lease Gaps Retained Per Stream: The Earliest Ones Plus The Latest In The Final Slot.
 const RETAINED_STREAM_GAPS: usize = 64;
@@ -172,7 +172,7 @@ impl ExecutionState {
     }
 
     pub(crate) fn local_sample(&mut self, mut sample: crate::telemetry::TelemetrySample) -> Result<(), String> {
-        if self.local_samples.len() as u64 >= 1024 {
+        if self.local_samples.len() >= crate::execution::listen::EVIDENCE_ROWS {
             return Err("local sample buffer is full; consume local evidence while executing".into());
         }
         if self.local_inputs {
@@ -211,7 +211,7 @@ impl ExecutionState {
             },
             local_admitted: 0,
             callbacks: crate::execution::Callbacks::default(),
-            listening: crate::execution::listening_rows(1024),
+            listening: crate::execution::listening_rows(crate::execution::listen::EVIDENCE_ROWS),
             controls: Arc::new(super::control::Controls::new(request.mode == "interactive", 4096)),
             request,
             cancel,
@@ -460,11 +460,14 @@ impl ExecutionState {
             Ok(false) => return false,
             Err(message) => {
                 self.cancel();
-                self.push(BufferedFrame::terminal(SidecarExecutionOutcome {
-                    passed: false,
-                    message: Some(message),
-                    ..Default::default()
-                }));
+                self.push(BufferedFrame::terminal(
+                    SidecarExecutionOutcome {
+                        passed: false,
+                        message: Some(message),
+                        ..Default::default()
+                    },
+                    false,
+                ));
                 return false;
             }
         }
@@ -1042,11 +1045,12 @@ impl BufferedFrame {
         }
     }
 
-    pub(crate) fn terminal(outcome: SidecarExecutionOutcome) -> Self {
+    pub(crate) fn terminal(outcome: SidecarExecutionOutcome, cancelled: bool) -> Self {
+        let informational = outcome.passed || (cancelled && outcome.failed_in.is_none() && outcome.detail_json.is_none());
         Self {
             diagnostic: outcome.message.clone().map(|message| {
                 crate::execution::log::Entry::new(
-                    if outcome.passed { crate::execution::log::Level::Info } else { crate::execution::log::Level::Error },
+                    if informational { crate::execution::log::Level::Info } else { crate::execution::log::Level::Error },
                     message,
                 )
             }),
@@ -1179,6 +1183,27 @@ mod tests {
     use dokime_domain::model::identity::TestExecutionId;
     use dokime_domain::model::time::Timestamp;
     use dokime_domain::model::values::Value;
+
+    #[test]
+    fn terminal_severity() {
+        use crate::execution::log::Level;
+        use crate::transport::SidecarExecutionOutcome;
+
+        let outcome = SidecarExecutionOutcome {
+            message: Some("stopped".into()),
+            ..Default::default()
+        };
+        let stopped = super::BufferedFrame::terminal(outcome.clone(), true);
+        assert_eq!(stopped.diagnostic.unwrap().level, Level::Info as i32);
+        let failed = super::BufferedFrame::terminal(outcome.clone(), false);
+        assert_eq!(failed.diagnostic.unwrap().level, Level::Error as i32);
+        let cleanup = SidecarExecutionOutcome {
+            detail_json: Some("{}".into()),
+            ..outcome
+        };
+        let failed_cleanup = super::BufferedFrame::terminal(cleanup, true);
+        assert_eq!(failed_cleanup.diagnostic.unwrap().level, Level::Error as i32);
+    }
 
     #[test]
     fn output_wakes_readers() {
@@ -1347,6 +1372,9 @@ mod tests {
     #[test]
     fn local_sample_replay_keeps_automatic_timestamp() {
         let request = crate::transport::protocol::RunExecution {
+            publication_rows: 1024,
+            publication_bytes: 1024 * 1024,
+            publication_delay_micros: 0,
             execution_token: "fixture".into(),
             test_cycle_id: crate::model::identity::new_id::<dokime_domain::model::identity::TestCycleId>().to_string(),
             test_execution_id: crate::model::identity::new_id::<TestExecutionId>().to_string(),

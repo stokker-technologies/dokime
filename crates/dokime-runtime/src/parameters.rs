@@ -27,7 +27,7 @@ mod tests {
     #[dokime_runtime::parameters]
     pub struct HoldTimes {
         #[parameter(
-            label = "Hold times",
+            label = "Hold Times",
             default = vec![30, 60, 120],
             min_items = 1,
             max_items = 8,
@@ -37,7 +37,7 @@ mod tests {
 
     #[dokime_runtime::parameters]
     pub struct Soak {
-        #[parameter(label = "Target temperature", unit = "°C", default = 60.0, min = -50.0, max = 200.0)]
+        #[parameter(label = "Target Temperature", unit = "°C", default = 60.0, min = -50.0, max = 200.0)]
         pub target_c: f64,
 
         #[parameter(default = 5, min = 1)]
@@ -49,16 +49,16 @@ mod tests {
         #[parameter(min_items = 1, max_items = 2)]
         pub ports: Vec<String>,
 
-        #[parameter(label = "How the sweep runs")]
+        #[parameter(label = "How the Sweep Runs")]
         pub sweep: Sweep,
     }
 
     #[dokime_runtime::parameters]
     pub struct Sweeps {
-        #[parameter(label = "Sweeps to run", min_items = 1)]
+        #[parameter(label = "Sweeps to Run", min_items = 1)]
         pub sweeps: Vec<Sweep>,
 
-        #[parameter(label = "Fallback sweep")]
+        #[parameter(label = "Fallback Sweep")]
         pub fallback: Option<Sweep>,
     }
 
@@ -101,7 +101,7 @@ mod tests {
     pub enum Sweep {
         Fast,
 
-        #[choice(label = "Slow and careful")]
+        #[choice(label = "Slow and Careful")]
         Slow,
     }
 
@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn list_param_vec() {
-        let definition = Parameter::list("hold_times", "Hold times", ValueType::Integer)
+        let definition = Parameter::list("hold_times", "Hold Times", ValueType::Integer)
             .min_items(1)
             .max_items(8)
             .default(vec![30, 60, 120])
@@ -348,7 +348,7 @@ mod tests {
 
     #[test]
     fn list_refuses_value() {
-        let definition = Parameter::list("hold_times", "Hold times", ValueType::Integer).try_into_definition().unwrap();
+        let definition = Parameter::list("hold_times", "Hold Times", ValueType::Integer).try_into_definition().unwrap();
 
         let error = materialized_parameter(&definition, ParameterSource::Operator, Value::Integer(30)).unwrap_err();
 
@@ -420,7 +420,7 @@ mod tests {
             sweep.extensions.get("choice_labels"),
             Some(&Value::Object(BTreeMap::from([
                 ("fast".to_owned(), Value::from("Fast")),
-                ("slow".to_owned(), Value::from("Slow and careful")),
+                ("slow".to_owned(), Value::from("Slow and Careful")),
             ])))
         );
     }

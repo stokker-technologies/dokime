@@ -393,7 +393,7 @@ function ArtifactFile({
             className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             disabled={nativeDownloadBusy || nativeOpenBusy}
             size="icon-sm"
-            title={nativeDownloadError ?? "Download artifact"}
+            title={nativeDownloadError ?? "Download Artifact"}
             type="button"
             variant="ghost"
             onClick={() => onDownloadArtifact(artifact)}

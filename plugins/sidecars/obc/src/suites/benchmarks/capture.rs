@@ -7,7 +7,7 @@
  * ***
  */
 
-// Generated Telemetry And Two Operator Checkpoints
+// Generated Telemetry and Two Operator Checkpoints
 
 /* === Modules === */
 

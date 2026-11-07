@@ -71,6 +71,7 @@ struct Member<'a> {
     parameter_definitions: u32,
     planned_documents: DocumentRefs,
     documents: DocumentRefs,
+    telemetry_outputs: Vec<crate::streams::AggregateOutput>,
 }
 
 #[derive(Deserialize)]
@@ -96,6 +97,7 @@ struct DecodedMember {
     parameter_definitions: u32,
     planned_documents: DocumentRefs,
     documents: DocumentRefs,
+    telemetry_outputs: Vec<crate::streams::AggregateOutput>,
 }
 
 /* === Enums === */
@@ -129,15 +131,25 @@ impl Serialize for Members<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(Some(self.executions.len()))?;
         for (id, execution) in self.executions {
-            // One Lean Copy At A Time Keeps The Encoder's Peak Memory To One Member
+            // One Lean Copy at a Time Keeps the Encoder's Peak Memory to One Member
             let snapshot = &execution.snapshot;
-            let lean = lean_clone(execution);
+            let mut lean = lean_clone(execution);
+            let mut telemetry_outputs = Vec::new();
+            lean.output_parameters.retain(|key, parameter| {
+                if let Some(output) = crate::streams::AggregateOutput::from_parameter(key, parameter) {
+                    telemetry_outputs.push(output);
+                    false
+                } else {
+                    true
+                }
+            });
             let member = Member {
                 execution: &lean,
                 template: snapshot.template().map(|template| position(&self.shared.templates, template)),
                 parameter_definitions: position(&self.shared.parameter_definitions, snapshot.parameter_definitions()),
                 planned_documents: self.shared.documents(snapshot.documents()),
                 documents: self.shared.documents(&execution.documents),
+                telemetry_outputs,
             };
             map.serialize_entry(id, &member)?;
         }
@@ -157,6 +169,7 @@ impl DecodedShared {
             parameter_definitions,
             planned_documents,
             documents,
+            telemetry_outputs,
         } = member;
         let lean = &execution.snapshot;
         let template = template.map(|index| resolve(&self.templates, index, "template")).transpose()?;
@@ -172,6 +185,12 @@ impl DecodedShared {
             self.documents(planned_documents)?,
         );
         execution.documents = self.documents(documents)?;
+        for output in telemetry_outputs {
+            let parameter = output.parameter()?;
+            if execution.output_parameters.insert(output.key(), parameter).is_some() {
+                return Err("state repeats a generated telemetry output".into());
+            }
+        }
         Ok(execution)
     }
 }

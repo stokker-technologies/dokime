@@ -86,6 +86,9 @@ pub(crate) async fn current_document_rows() {
     assert_eq!(
         client
             .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
+                structure_only: false,
+                card_ids: Vec::new(),
+                page: None,
                 scope: Some(selected.clone()),
                 document_id: "default".into(),
             })
@@ -98,6 +101,9 @@ pub(crate) async fn current_document_rows() {
     // frame is a header scoped to the cycle alone.
     let cycle_header = client
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
+            structure_only: false,
+            card_ids: Vec::new(),
+            page: None,
             scope: Some(model::documents::wire::DocumentScope {
                 cycle_id: cycle.to_string(),
                 execution_id: String::new(),
@@ -120,6 +126,9 @@ pub(crate) async fn current_document_rows() {
     let epoch = handle.process_epoch().to_string();
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
+            structure_only: false,
+            card_ids: Vec::new(),
+            page: None,
             scope: Some(selected.clone()),
             document_id: "default".into(),
         }))
@@ -163,6 +172,9 @@ pub(crate) async fn current_document_rows() {
     assert_eq!(complete.unwrap().frame_count, frames);
     let unknown = client
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(contracts::documents::CaptureCurrentDocument {
+            structure_only: false,
+            card_ids: Vec::new(),
+            page: None,
             scope: Some(selected),
             document_id: "missing".into(),
         }))
@@ -244,6 +256,9 @@ pub(crate) async fn summary_complete_telemetry() {
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
+            structure_only: false,
+            card_ids: Vec::new(),
+            page: None,
             scope: Some(model::documents::wire::DocumentScope {
                 cycle_id: cycle.to_string(),
                 execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string(),
@@ -257,8 +272,10 @@ pub(crate) async fn summary_complete_telemetry() {
     let mut complete = false;
     while let Some(frame) = stream.message().await.unwrap() {
         match frame.frame.unwrap() {
-            Frame::Header(presentation) => {
-                let cut = presentation.frontiers.unwrap().telemetry.unwrap();
+            Frame::Header(presentation) => assert!(presentation.frontiers.unwrap().evidence.is_none()),
+            Frame::EvidenceCut(evidence) => {
+                assert!(evidence.telemetry);
+                let cut = evidence.cut.unwrap();
                 assert_eq!(cut.store, durable.history.store.as_str());
                 assert_eq!(cut.epoch, durable.history.epoch.as_str());
                 assert!(cut.position >= durable.sequence);
@@ -271,6 +288,63 @@ pub(crate) async fn summary_complete_telemetry() {
     }
     assert!(complete);
     assert_eq!(tile.unwrap().to_core().unwrap(), Value::Number(299.0));
+    let scope = Some(model::documents::wire::DocumentScope {
+        cycle_id: cycle.to_string(),
+        execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string(),
+    });
+    let mut projection = client
+        .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
+            structure_only: true,
+            card_ids: Vec::new(),
+            page: None,
+            scope: scope.clone(),
+            document_id: "default".into(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let mut pending = None;
+    let mut structure = false;
+    while let Some(frame) = projection.message().await.unwrap() {
+        match frame.frame.unwrap() {
+            Frame::Binding(binding) if matches!(binding.result, Some(model::documents::wire::DocumentBindingResult::Pending(_))) => {
+                pending = Some(binding.metadata.unwrap().identifier)
+            }
+            Frame::StructureComplete(_) => structure = true,
+            Frame::SummaryTile(_) => panic!("structure projection evaluated a card"),
+            Frame::EvidenceCut(_) => assert!(structure),
+            Frame::Completion(completion) => assert!(completion.partial),
+            _ => {}
+        }
+    }
+    let id = pending.unwrap();
+    let mut selected = client
+        .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
+            structure_only: false,
+            card_ids: vec![id.clone()],
+            page: None,
+            scope,
+            document_id: "default".into(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let mut completed_card = false;
+    while let Some(frame) = selected.message().await.unwrap() {
+        match frame.frame.unwrap() {
+            Frame::CardComplete(card) => {
+                assert_eq!(card, id);
+                completed_card = true;
+            }
+            Frame::SummaryTile(tile) => assert_eq!(tile.value.unwrap().to_core().unwrap(), Value::Number(299.0)),
+            Frame::Completion(completion) => {
+                assert!(completed_card);
+                assert!(completion.partial);
+            }
+            _ => {}
+        }
+    }
+    assert!(completed_card);
     gate.release.notify_one();
     server.shutdown().await.unwrap();
     drop(handle);
@@ -339,6 +413,9 @@ pub(crate) async fn duration_x_axis() {
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(contracts::documents::CaptureCurrentDocument {
+            structure_only: false,
+            card_ids: Vec::new(),
+            page: None,
             scope: Some(model::documents::wire::DocumentScope {
                 cycle_id: cycle.to_string(),
                 execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].to_string(),

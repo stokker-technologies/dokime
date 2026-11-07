@@ -131,7 +131,7 @@ async fn timeout_kills_child(directory: &Path) {
 // The cargo deadline must outlast the fake cargo starting its compiler
 // descendant, which reports readiness by writing its pid.
 async fn deadline_stops_descendants(directory: &Path) {
-    // Fake Cargo That Runs A Compiler Descendant
+    // Fake Cargo That Runs a Compiler Descendant
     let pid = directory.join("descendant.pid");
     let executable = std::env::current_exe().unwrap();
     let cargo = directory.join(if cfg!(windows) { "cargo.cmd" } else { "cargo" });
@@ -147,7 +147,7 @@ async fn deadline_stops_descendants(directory: &Path) {
         std::fs::set_permissions(&cargo, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
 
-    // Packaging Build Under The Deadline
+    // Packaging Build Under the Deadline
     let mut command = dokime::domain::process::command(&executable);
     command
         .args(["--exact", "process::process", "--nocapture"])
