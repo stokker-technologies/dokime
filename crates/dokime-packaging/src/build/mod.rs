@@ -129,32 +129,35 @@ async fn metadata(args: &Options, dependencies: bool) -> Result<cargo_metadata::
 
 async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Result<PathBuf, Error> {
     let package = select_package(&metadata, args.package.as_deref())?.clone();
-    let binary = binary(&package)?.to_owned();
-    let settings = BuildSettings {
-        backend: BuildBackend::Sidecar,
-        manifest: package.manifest_path.clone().into_std_path_buf(),
-        packages: vec![package.name.to_string()],
-        target: args.target.clone(),
-        target_directory: args.target_dir.clone().map(std::path::absolute).transpose()?,
-        profile: profile(&args)?,
-        timings: false,
-        features: args.features.clone(),
-        default_features: !args.no_default_features,
-        locked: args.locked,
-    };
-    let terminal = dokime::terminal::Terminal::default();
-    terminal.status(format!("Building {} ({binary})", package.name));
-    let mut build = blocking(args.cargo_timeout, "Cargo compilation", move |cancellation| {
+    let settings = settings(&args, &package)?;
+    dokime::terminal::Terminal::default().status(format!("Building {}", package.name));
+    let build = blocking(args.cargo_timeout, "Cargo compilation", move |cancellation| {
         harmos_packaging::build_with_cancellation(&settings, cancellation)
     })
     .await?;
-    build.artifacts.retain(|artifact| artifact.name == binary);
     let target_dir = args.target_dir.unwrap_or_else(|| metadata.target_directory.into_std_path_buf());
     let output = args.output.unwrap_or_else(|| target_dir.join("dokime").join(format!("{}-{}.dokime", package.name, package.version)));
     bundle(package, build, output, args.cargo_timeout).await
 }
 
-async fn bundle(package: Package, build: Build, output: PathBuf, timeout: Option<Duration>) -> Result<PathBuf, Error> {
+fn settings(args: &Options, package: &Package) -> Result<BuildSettings, Error> {
+    Ok(BuildSettings {
+        backend: BuildBackend::Sidecar,
+        manifest: package.manifest_path.clone().into_std_path_buf(),
+        packages: vec![package.name.to_string()],
+        target: args.target.clone(),
+        target_directory: args.target_dir.clone().map(std::path::absolute).transpose()?,
+        profile: profile(args)?,
+        timings: false,
+        features: args.features.clone(),
+        default_features: !args.no_default_features,
+        locked: args.locked,
+    })
+}
+
+async fn bundle(package: Package, mut build: Build, output: PathBuf, timeout: Option<Duration>) -> Result<PathBuf, Error> {
+    let binary = binary(&package)?.to_owned();
+    build.artifacts.retain(|artifact| artifact.name == binary);
     let terminal = dokime::terminal::Terminal::default();
     terminal.status("Building verified plugin bundle");
     let root = package.manifest_path.parent().expect("Cargo manifest has a parent").as_std_path().to_owned();

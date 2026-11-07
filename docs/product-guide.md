@@ -1388,6 +1388,10 @@ Exercised by [control-device](../packages/dokime-client/examples/remote/cli/cont
 | `cargo dokime sidecar dev` | Rebuild on change and run the bundle in an isolated host. | `-p`, `--headless`, `--port` |
 | `cargo dokime sidecar inspect` | Verify a bundle and print its manifest as JSON. | |
 
+`sidecar dev` uses the `harmos-packaging` dev loop: it watches the plugin's Cargo
+inputs through file notifications and rebuilds once edits settle. `--watch` adds
+paths, `--ignore` excludes them, and `r` + Enter reloads the last successful bundle.
+
 Generated projects lock tools for Linux x64 and Windows x64, matching the
 published native authoring executables. Their `mise.toml` pins `cargo-dokime`
 and the `dokime` CLI, which `sidecar dev` uses to launch the host, at the release

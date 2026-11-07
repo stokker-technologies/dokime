@@ -20,7 +20,7 @@ use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
     process::Stdio,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 
 // Third Party Imports
@@ -39,8 +39,6 @@ use dokime_packaging::process::Child;
 /* === Constants === */
 
 const VERSION_TIMEOUT_MS: u64 = 10_000;
-const DEVELOPMENT_POLL_MS: u64 = 500;
-const DEVELOPMENT_RETRY_MS: u64 = 150;
 const DEVELOPMENT_COMMAND_ITEMS: u64 = 8;
 const DEVELOPMENT_DRAIN_MS: u64 = 30_000;
 const PROCESS_STOP_MS: u64 = 5_000;
@@ -53,8 +51,6 @@ const DEVELOPMENT_REPLY_BYTES: u64 = 65_536;
 /* === Macros === */
 
 /* === Type Aliases === */
-
-type Snapshot = BTreeMap<PathBuf, (SystemTime, u64)>;
 
 /* === Structs === */
 
@@ -207,40 +203,70 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
     let (state, _temporary) = development_state(args.state_dir.as_deref(), root.as_deref())?;
     terminal.field("Development data", state.display());
     let manifest = args.build.manifest_path.clone().unwrap_or_else(|| PathBuf::from("Cargo.toml")).canonicalize()?;
-    args.build.manifest_path = Some(manifest.clone());
-    let root = manifest.parent().expect("manifest parent");
-    args.build.output = Some(state.join("development.dokime"));
-    let mut excluded = vec![state.clone(), std::path::absolute(args.build.target_dir.clone().unwrap_or_else(|| root.join("target")))?];
-    excluded.extend(args.ignore.iter().map(std::path::absolute).collect::<Result<Vec<_>, _>>()?);
-    // A broken first build still has a source root to watch and recover from.
-    let mut roots = vec![root.to_owned()];
-    for path in &args.watch {
-        roots.push(std::path::absolute(path)?);
-    }
-    roots.sort();
-    roots.dedup();
-    let mut observed = Snapshot::new();
+    args.build.manifest_path = Some(manifest);
+    let bundle = state.join("development.dokime");
+    let project = dokime_packaging::build::Project::resolve(&args.build).await?;
+    terminal.field("Plugin", &project.package.name);
+    compatible(&identity, &project.sdk_version)?;
+    terminal.field("SDK", format!("{} · {}", project.sdk_version, project.sdk_source.as_deref().unwrap_or("local path")));
+    terminal.success("Compatibility checked");
+    let mut ignore = vec![state.clone()];
+    ignore.extend(args.ignore.iter().map(std::path::absolute).collect::<Result<Vec<_>, _>>()?);
+    let policy = harmos_packaging::config::DevSettings {
+        watch: args.watch.iter().map(std::path::absolute).collect::<Result<_, _>>()?,
+        ignore,
+        ..Default::default()
+    };
+    let cancellation = harmos_packaging::BuildCancellation::default();
+    let (builds, mut built) = tokio::sync::mpsc::channel(1);
+    let watcher = {
+        let settings = project.settings.clone();
+        let cancellation = cancellation.clone();
+        tokio::task::spawn_blocking(move || {
+            harmos_packaging::dev(&settings, policy, &cancellation, |event| match event {
+                harmos_packaging::DevEvent::Started { attempt } => {
+                    if attempt > 1 {
+                        Terminal::default().status("Source changed · rebuilding…");
+                    }
+                    Ok(())
+                }
+                // Hold the next build until this one is packaged, so Cargo never rewrites the executable mid-bundle.
+                harmos_packaging::DevEvent::Finished { result, .. } => {
+                    let (packaged, done) = tokio::sync::oneshot::channel::<()>();
+                    builds.blocking_send((result, packaged)).map_err(|_| harmos_packaging::Error::Cancelled)?;
+                    let _ = done.blocking_recv();
+                    Ok(())
+                }
+            })
+        })
+    };
     let mut running: Option<Host> = None;
-    let mut first = true;
     let mut last_bundle = None;
     let mut controls = controls(args.shutdown_stdin)?;
     let mut input_open = true;
     let result = async {
         loop {
-            let mut retry = false;
-            if !first {
-                tokio::select! {
-                    _ = tokio::signal::ctrl_c() => break,
-                    control = controls.recv(), if input_open => match control {
-                        Some(Control::Quit) => break,
-                        Some(Control::Retry) => {
-                            retry = true;
-                            last_bundle = None;
-                            terminal.status("Retry requested · rebuilding…");
-                        }
-                        None => input_open = false,
-                    },
-                    exit = wait_for_exit(&mut running) => match exit? {
+            let iteration_started = Instant::now();
+            let packaged = tokio::select! {
+                _ = tokio::signal::ctrl_c() => break,
+                control = controls.recv(), if input_open => match control {
+                    Some(Control::Quit) => break,
+                    Some(Control::Retry) if bundle.is_file() => {
+                        last_bundle = None;
+                        terminal.status("Retry requested · reloading the last build…");
+                        Ok(())
+                    }
+                    Some(Control::Retry) => {
+                        terminal.warn("No successful build yet · save a change to rebuild");
+                        continue;
+                    }
+                    None => {
+                        input_open = false;
+                        continue;
+                    }
+                },
+                exit = wait_for_exit(&mut running) => {
+                    match exit? {
                         ProcessExit::Backend(status) => {
                             terminal.error(format!("Development host exited ({}). Waiting for changes…", status));
                             if let Some(mut host) = running.take() {
@@ -248,43 +274,20 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
                             }
                         }
                         ProcessExit::Gui(status) => {
-                            terminal.warn(format!(
-                                "Development GUI exited ({}); stopping the development session",
-                                status
-                            ));
+                            terminal.warn(format!("Development GUI exited ({}); stopping the development session", status));
                             break;
                         }
-                    },
-                    _ = tokio::time::sleep(Duration::from_millis(DEVELOPMENT_POLL_MS)) => {}
+                    }
+                    continue;
                 }
-            }
-            let changed = snapshot(&roots, &excluded)?;
-            if !first && !retry && changed == observed {
-                continue;
-            }
-            if !first && !retry {
-                terminal.status("Source changed · rebuilding…");
-            }
-            first = false;
-            observed = changed;
-            let iteration_started = Instant::now();
-            // Coalesce editor save bursts before starting a Cargo invocation.
-            tokio::time::sleep(Duration::from_millis(DEVELOPMENT_RETRY_MS)).await;
-            observed = snapshot(&roots, &excluded)?;
-            // Process execution owns cancellation so compiler descendants are settled before host shutdown.
-            let built = async {
-                let (refreshed, target, metadata) = watch_roots(&args.build, &args.watch, &manifest, &identity, &terminal).await?;
-                excluded[1] = target;
-                if roots != refreshed {
-                    roots = refreshed;
-                    observed = snapshot(&roots, &excluded)?;
-                }
-                let bundle = metadata.build().await?;
-                Ok::<_, Error>(bundle)
-            }
-            .await;
-            match built {
-                Ok(bundle) => {
+                result = built.recv() => match result {
+                    Some((Ok(build), _packaged)) => project.package(build, bundle.clone()).await.map(drop).map_err(Error::from),
+                    Some((Err(error), _packaged)) => Err(Error::Invalid(error.to_string())),
+                    None => break,
+                },
+            };
+            match packaged {
+                Ok(()) => {
                     use sha2::Digest;
                     let bytes = std::fs::read(&bundle)?;
                     let digest = sha2::Sha256::digest(&bytes).to_vec();
@@ -331,21 +334,26 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
                     terminal.hint(if running.is_some() {
                         "Previous plugin build is still running. Watching for changes · r + Enter to retry · q + Enter to stop"
                     } else {
-                        "No development host is running. Watching for changes · r + Enter to retry · q + Enter to stop"
+                        "No development host is running. Watching for changes · q + Enter to stop"
                     });
                 }
             }
         }
-        Ok(())
+        Ok::<_, Error>(())
     }
     .await;
+    cancellation.cancel();
+    drop(built);
+    let watched = watcher.await.map_err(|error| Error::Invalid(error.to_string()))?;
     if let Some(mut host) = running {
         stop(&mut host, &terminal).await?;
     }
-    result
+    result?;
+    match watched {
+        Ok(()) | Err(harmos_packaging::Error::Cancelled) => Ok(()),
+        Err(error) => Err(Error::Invalid(format!("source watching stopped: {error}"))),
+    }
 }
-
-/* === Private Functions === */
 
 async fn wait_for_exit(running: &mut Option<Host>) -> Result<ProcessExit, Error> {
     let Some(host) = running.as_mut() else {
@@ -587,59 +595,6 @@ async fn drain(host: &mut Host, terminal: &Terminal) -> Result<(), Error> {
     }
     host.process.wait().await?;
     Ok(())
-}
-
-fn snapshot(roots: &[PathBuf], excluded: &[PathBuf]) -> Result<Snapshot, Error> {
-    fn visit(path: &Path, excluded: &[PathBuf], result: &mut Snapshot) -> Result<(), Error> {
-        if excluded.iter().any(|excluded| path.starts_with(excluded)) {
-            return Ok(());
-        }
-        let metadata = match std::fs::symlink_metadata(path) {
-            Ok(metadata) => metadata,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-            Err(error) => return Err(error.into()),
-        };
-        if metadata.is_symlink() {
-            return Ok(());
-        }
-        if metadata.is_dir() {
-            for entry in std::fs::read_dir(path)? {
-                let entry = entry?;
-                if matches!(entry.file_name().to_str(), Some("target" | ".git" | ".jj" | "node_modules" | ".venv" | "dist")) {
-                    continue;
-                }
-                visit(&entry.path(), excluded, result)?;
-            }
-        } else if metadata.is_file() {
-            result.insert(path.to_owned(), (metadata.modified()?, metadata.len()));
-        }
-        Ok(())
-    }
-    let mut result = Snapshot::new();
-    for root in roots {
-        visit(root, excluded, &mut result)?;
-    }
-    Ok(result)
-}
-
-async fn watch_roots(
-    build: &build::Args, watch: &[PathBuf], manifest: &Path, identity: &Identity, terminal: &Terminal,
-) -> Result<(Vec<PathBuf>, PathBuf, dokime_packaging::build::Project), Error> {
-    let mut options = build.clone();
-    options.manifest_path = Some(manifest.to_owned());
-    let project = dokime_packaging::build::Project::resolve(options).await?;
-    terminal.field("Plugin", project.package_name());
-    let sdk_version = semver::Version::parse(project.sdk_version()).map_err(|error| Error::Invalid(error.to_string()))?;
-    compatible(identity, &sdk_version)?;
-    terminal.field("SDK", format!("{} · {}", project.sdk_version(), project.sdk_source().unwrap_or("local path")));
-    terminal.success("Compatibility checked");
-    let mut roots = project.watch_paths().to_vec();
-    for path in watch {
-        roots.push(std::path::absolute(path)?);
-    }
-    roots.sort();
-    roots.dedup();
-    Ok((roots, project.target_directory().to_owned(), project))
 }
 
 fn resolve_cwd(explicit: Option<&Path>) -> Result<PathBuf, Error> {
