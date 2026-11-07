@@ -612,12 +612,18 @@ enabling, disabling or removing one, take effect in the running backend; nothing
 asks to restart Dokime. The plugin shows **Restarting…** while it starts, is
 replaced or stops. While any cycle is active, the change shows **Restart
 Pending** and applies once no cycle is active; running executions are never
-stopped for it. After a successful live stop, the removed or replaced
-installation's row and bundle are deleted. If deletion fails, its row retains
-the error until startup retries. If a reinstall or update is refused, the previous
+stopped for it. After a successful replacement, every earlier installation of
+that package is discarded, including failed or never-started installations:
+their rows, bundles, boot failures and startup notifications are cleared. Startup
+also clears pending removals left by earlier builds. After a successful live stop,
+the removed installation's row and bundle are deleted. If deletion fails, its row
+retains the error and **Delete** remains available to try again; startup retries too.
+If a reinstall or update is refused, the previous
 version keeps running and stays installed, and the refused bundle is listed as
-**Refused** with its reason until the next start deletes it. A plugin that did not
-start offers **Reload**, which starts only that plugin again, at once even while
+**Refused** with its reason until it is deleted, a later replacement succeeds,
+or the next start deletes it. Failed and refused installations always offer
+**Delete**. An installed plugin that did not start also offers **Reload** and an
+enable switch; a refused replacement offers neither. **Reload** starts only that plugin again, at once even while
 a cycle is active. See
 [Plugins](plugins.md#live-installation-changes) for the admission rules.
 

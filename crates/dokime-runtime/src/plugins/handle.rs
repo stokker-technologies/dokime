@@ -109,6 +109,14 @@ impl RuntimeHandle {
             Err(PluginError::Unknown(_)) => return Ok(None),
             Err(error) => return Err(error),
         };
+        // A Failed Or Refused Installation Has No Generation To Stop, Even During A Cycle.
+        let running = self.running_package(install).is_some();
+        let changing = package(&entry).is_some_and(|package| self.plugin_bundle_restart(package) != PluginRestart::Idle);
+        if !running && !changing {
+            let removed = store.discard_stopped(&[install].into()).await?;
+            self.plugin_boot.write().expect("plugin boot lock poisoned").retain(|id, _| !removed.contains(id));
+            return if removed.contains(&install) { Ok(None) } else { store.get(install).await.map(Some) };
+        }
         self.apply_plugin_change(&entry, false);
         Ok(Some(entry))
     }

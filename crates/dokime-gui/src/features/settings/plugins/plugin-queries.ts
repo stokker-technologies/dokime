@@ -26,7 +26,7 @@ import {
   setNativePluginEnabled,
 } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
-import { toast } from "@/lib/notifications";
+import { clearPluginNotifications, toast } from "@/lib/notifications";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Query Keys === */
@@ -45,7 +45,8 @@ export function PluginStartNotifications() {
   const navigate = useNavigate();
   const seen = useRef(new Set<string>());
   useEffect(() => {
-    for (const entry of query.data ?? []) {
+    if (!query.data || !session.identity.isCurrent()) return;
+    for (const entry of query.data) {
       const title = startNotification(entry);
       if (!title || entry.last_boot?.state !== "failed") continue;
       const key = `${session.identity.generation}:${entry.install_id}:${entry.last_boot.at}`;
@@ -73,7 +74,11 @@ export function PluginStartNotifications() {
             : undefined,
       });
     }
-  }, [query.data, session.identity.generation, navigate]);
+    const installations = new Set(query.data.map((entry) => entry.install_id));
+    void clearPluginNotifications(session.identity.generation, installations).catch((error: unknown) =>
+      toast.error(failureOf(error, "Notification History Unavailable"), { context: "background" }),
+    );
+  }, [query.data, session.identity.generation, session.identity.isCurrent, navigate]);
   return null;
 }
 

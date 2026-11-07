@@ -303,14 +303,28 @@ impl PluginStore {
             .await
     }
 
-    /// Discard Stopped Installations, Retaining Failed Boots Until Startup.
-    pub(crate) async fn discard_stopped(&self, stopped: &BTreeSet<Uuid>) -> Result<(), PluginError> {
-        self.discard(|id, plugin| {
-            stopped.contains(&id)
-                && plugin.state == PluginState::RemovalPending
-                && !matches!(plugin.last_boot, Some(PluginLastBoot::Failed { .. }))
-        })
-        .await
+    /// Discard Installations Once Their Programs Have Stopped, Including Failed Boots.
+    pub(crate) async fn discard_stopped(&self, stopped: &BTreeSet<Uuid>) -> Result<BTreeSet<Uuid>, PluginError> {
+        self.discard(|id, plugin| stopped.contains(&id) && plugin.state == PluginState::RemovalPending).await
+    }
+
+    /// Successful Activation Supersedes Every Pending Installation Of The Same Package.
+    pub(crate) async fn discard_replaced(&self, active: Uuid) -> Result<BTreeSet<Uuid>, PluginError> {
+        let entry = self.get(active).await?;
+        let Some(metadata) = entry.metadata.filter(|_| entry.installation.state == PluginState::Installed) else {
+            return Ok(BTreeSet::new());
+        };
+        let replaced = self
+            .list()
+            .await?
+            .into_iter()
+            .filter_map(|entry| {
+                let pending = entry.installation.state == PluginState::RemovalPending;
+                let same_package = entry.metadata.is_some_and(|other| other.identity.name == metadata.identity.name);
+                (pending && same_package).then_some(entry.installation.install_id)
+            })
+            .collect();
+        self.discard_stopped(&replaced).await
     }
 
     pub async fn sweep(&self) -> Result<(), PluginError> {
@@ -375,13 +389,13 @@ impl PluginStore {
         }
     }
 
-    async fn discard(&self, selected: impl Fn(Uuid, &PluginSettings) -> bool) -> Result<(), PluginError> {
+    async fn discard(&self, selected: impl Fn(Uuid, &PluginSettings) -> bool) -> Result<BTreeSet<Uuid>, PluginError> {
         let candidates: Vec<Uuid> = self
             .settings
             .read(|document| document.plugins.iter().filter(|(id, plugin)| selected(**id, plugin)).map(|(id, _)| *id).collect())
             .await?;
         if candidates.is_empty() {
-            return Ok(());
+            return Ok(BTreeSet::new());
         }
         let mut failures = Vec::new();
         for id in &candidates {
@@ -392,6 +406,7 @@ impl PluginStore {
             }
         }
         sync_directory(&self.root)?;
+        let removed = candidates.iter().filter(|id| !failures.iter().any(|(failed, _)| failed == *id)).copied().collect();
         self.settings
             .edit(move |document| {
                 for id in &candidates {
@@ -415,9 +430,10 @@ impl PluginStore {
                         });
                     }
                 }
-                Ok(())
+                Ok::<_, PluginError>(())
             })
-            .await
+            .await?;
+        Ok(removed)
     }
 }
 
