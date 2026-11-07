@@ -59,6 +59,22 @@ Use `ctx.artifacts().import(path, name)` to keep one local file as it stands, an
 
 Keep `suites/mod.rs` as the suite catalog and module declarations. Put each template in `suites/<suite>/<template>.rs`, with its suite declaration in `suites/<suite>/mod.rs`. Suite names carry no product prefix. Retain the repository skeleton and its section markers without an additional item-order rule.
 
+## Document Identity
+
+```rust
+let mut document = Document::new("Hold at Temperature");
+document.id("hold"); // Optional Stable Key Across Label Edits
+```
+
+Document identifiers derive from labels through the same normalization as
+traceability and sections. Validation refuses invalid or empty derived identifiers
+and colliding document keys in one registry, naming the labels and directing the
+author to set `.id(...)`. Each template declares one document; the runtime owns
+its internal `default` execution view and merges authored content into it.
+
+Python uses `document = dokime.Document("Hold at Temperature")` and the optional
+`document.id("hold")`, passed as `document=document` to `@dokime.template`.
+
 ## Step Traceability
 
 Traceability is dynamic execution content, contributed through the step context like documents. No template `traceability()` lifecycle method, `TraceabilityContext` or `TraceabilityFuture` exists.
