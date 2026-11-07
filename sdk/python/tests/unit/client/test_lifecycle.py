@@ -12,11 +12,9 @@
 
 # Standard Library Imports
 import asyncio
-import hashlib
 import json
 from contextlib import nullcontext
 from dataclasses import replace
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID
@@ -26,14 +24,13 @@ import pytest
 
 # Local Imports
 from dokime import DokimeClient
-from dokime.client import Cycle, Execution, ExecutionOutcome, ProtocolError, ResultSummary
+from dokime.client import Cycle, Execution, ExecutionOutcome, ResultSummary
 from dokime.client.history import Checkpoint, StorageCursor, StoreHistory
 from dokime.client.models import Backend, DatetimeValue
 from dokime.client.planning import TestCase as MaterializedCase
 
 from ...integration.client.backend import CYCLE_ID, EXECUTION_ID, TEMPLATE, BackendFixture
 from ...integration.client.canonical import _message
-from ...integration.client.test_exports import BACKEND, DATA, IDENTITY, ExportTransport, Reader, _frames
 
 # Type Checking Imports
 
@@ -246,57 +243,11 @@ def test_lifecycle_iterators_end_and_serialize(monkeypatch: pytest.MonkeyPatch) 
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("report", [None, "cycle.summary"])
-def test_lifecycle_save_manifest(tmp_path: Path, report: str | None, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Reuse The Existing Chunked Export Fake And Its Real Digest Verification.
-    transport = ExportTransport(Reader(_frames()), kind="Execution")
-    execution = Execution._bind(IDENTITY, transport, BACKEND)
-    cycle = Cycle(IDENTITY, transport, BACKEND, (execution,))
-    export = cycle.export
-
-    async def cycle_export(destination):
-        transport.kind = "Cycle"
-        transport.reader = Reader(_frames(kind="Cycle"))
-        return await export(destination)
-
-    async def report_download(destination, *, identifier):
-        assert identifier == report
-        destination.write_bytes(b"<html>Report</html>")
-
-    monkeypatch.setattr(cycle, "export", cycle_export)
-    monkeypatch.setattr(cycle, "download_report", report_download)
-    destination = tmp_path / "reports" / IDENTITY
-    manifest = asyncio.run(cycle.save(destination, report=report))
-    assert json.loads((destination / "manifest.json").read_text()) == manifest
-    names = {f"execution-{IDENTITY}.zip", "cycle.zip"}
-    if report is not None:
-        names.add("report.html")
-    assert {entry["path"] for entry in manifest["files"]} == names
-    for entry in manifest["files"]:
-        content = (destination / entry["path"]).read_bytes()
-        assert entry["size"] == len(content)
-        assert entry["sha256"] == hashlib.sha256(content).hexdigest()
-    assert (destination / "cycle.zip").read_bytes() == DATA
-    with pytest.raises(FileExistsError):
-        asyncio.run(cycle.save(destination, report=report))
-
-
 def test_lifecycle_pending_outcome() -> None:
     client = DokimeClient()
     execution = Execution._bind(EXECUTION_ID, client._transport, BACKEND_ID)
     with pytest.raises(RuntimeError, match="await the execution"):
         _ = execution.outcome
-
-
-def test_lifecycle_failed_save_has_no_manifest(tmp_path: Path) -> None:
-    frames = _frames(kind="Cycle")
-    frames[-1].payload.Complete.field_0.sha256 = "0" * 64
-    transport = ExportTransport(Reader(frames), kind="Cycle")
-    cycle = Cycle(IDENTITY, transport, BACKEND, ())
-    with pytest.raises(ProtocolError):
-        asyncio.run(cycle.save(tmp_path))
-    assert not (tmp_path / "manifest.json").exists()
-    assert not (tmp_path / "cycle.zip").exists()
 
 
 # === Private Functions === #

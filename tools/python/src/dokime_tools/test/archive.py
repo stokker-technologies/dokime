@@ -205,7 +205,7 @@ def fixtures(
 
 def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate Existing Test Inputs")
-    parser.add_argument("--profile", choices=policy.PROFILES, default="dev")
+    parser.add_argument("--profile", choices=paths.PROFILES, default="dev")
     parser.add_argument("--install-wheels", action="store_true")
     parser.add_argument("--target")
     options = parser.parse_args(arguments)

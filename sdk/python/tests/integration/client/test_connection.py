@@ -13,6 +13,9 @@
 # Standard Library Imports
 import asyncio
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -259,6 +262,56 @@ def test_remote_candidates_choose_verified_identity_and_remember(tmp_path: Path)
                 await refused.close()
 
     asyncio.run(scenario())
+
+
+def test_query_tabular_core_imports() -> None:
+    script = """
+import importlib.abc
+import sys
+class MissingExtras(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in ('polars', 'pandas'):
+            raise ModuleNotFoundError(fullname, name=fullname)
+sys.meta_path.insert(0, MissingExtras())
+from dokime import DokimeClient
+from dokime.client.query import tabular
+assert not {'polars', 'pandas'}.intersection(sys.modules)
+reader = DokimeClient().executions(status='failed')
+assert not reader.closed
+import asyncio
+from unittest.mock import AsyncMock
+from dokime import QueryDependencyError
+from dokime.client import _wire
+from dokime.client.execution import Execution
+from dokime.client._contracts import operation
+from dokime.client.models import Backend
+async def scenario():
+    client = DokimeClient()
+    execution = Execution._bind('00000000-0000-0000-0000-000000000001', client._transport,
+        Backend('example', 'epoch', '1', 'Example', frozenset()))
+    reply = operation('Query', 'ListRecords').response()
+    _wire.copy(reply, {'rows': [{'record_id': 'row-1', 'severity': {'Info': {}}, 'details': _wire.encode({'count': 7}, 64)}],
+        'schema': {'identity': 'example.event'}, 'snapshot': {'token': 'cut', 'identity': 'cut-1'},
+        'limits': {'rows': 10, 'bytes': 65536}, 'complete': True})
+    client._transport.call = AsyncMock(return_value=reply)
+    for extra in ('polars', 'pandas'):
+        query = execution.query_records('example.event')
+        try:
+            await getattr(query, 'to_' + extra)()
+        except QueryDependencyError as error:
+            assert error.extra == extra
+        else:
+            raise AssertionError('Missing extra was not reported')
+        assert client._transport.call.await_count == 0
+        rows = [row async for row in query]
+        assert rows[0].details['count'] == 7 and query.complete
+        client._transport.call.reset_mock()
+    await client.close()
+asyncio.run(scenario())
+"""
+    environment = dict(os.environ, PYTHONPATH=os.pathsep.join(sys.path))
+    result = subprocess.run([sys.executable, "-c", script], check=False, env=environment, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 # === Private Functions === #

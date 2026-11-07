@@ -8,34 +8,36 @@ checks, deadlines and cancellation. The provisional distribution is
 
 ## Install
 
-Use CPython 3.13 or newer and [uv](https://docs.astral.sh/uv/). Until the package
-name is settled, install this candidate from Git with Rust available through
-mise; uv builds the native extension without a manual download:
+Use CPython 3.13 or newer and [uv](https://docs.astral.sh/uv/). Download the
+matching `dokime_python-<version>-cp313-abi3-<platform>.whl` from the
+[release assets](https://github.com/stokker-technologies/dokime/releases).
+Keep the wheel and backend from the same release. In your project, install the
+downloaded wheel (Windows x86-64 shown):
 
 ```sh
-uv init --python 3.13 bench
-cd bench
-mise use rust@1.99.0 protoc@36.2
-mise exec -- uv add "dokime-python @ git+https://github.com/stokker-technologies/dokime.git@feat/dokime-python#subdirectory=sdk/python"
-```
-
-Pin the agreed candidate commit in place of `feat/dokime-python` for reproducible
-use. The `dokime` project on PyPI is unrelated. Native wheels need no compiler;
-source builds also need the platform's C toolchain (Visual Studio Build Tools on
-Windows, GCC or Clang on Linux).
-In a matching source checkout, build with `mise run build:python`. From a separate
-uv project on Windows, install the resulting native artifact:
-
-```sh
-uv add C:/path/to/dokime/target/build/dev/windows-x86_64/python/dokime_python-0.1.2-cp313-abi3-win_amd64.whl
+uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl
 uv run python -c "import dokime; print(dokime.__version__)"
 ```
 
-On Linux use the wheel under `target/build/dev/linux-x86_64/python/` instead.
-The stable ABI supports CPython 3.13 and newer on the wheel's platform. Runtime
-dependencies are `protobuf` and `python-dotenv`; no Python gRPC transport is used.
-The [remote tutorial](../../docs/remote/python.md) keeps host and client on the
-same candidate and prepares a wheel environment for transfer.
+Choose the Linux x86-64 wheel on Linux. Native wheels need no Rust compiler;
+`uv add` installs their runtime dependencies, `protobuf` and `python-dotenv`.
+The `dokime` project on PyPI is unrelated; registry publication awaits the naming
+decision. The stable ABI supports CPython 3.13 and newer on the wheel's platform.
+
+For development, build a wheel in a matching source checkout with
+`mise run build:python` and install the file under
+`target/build/dev/<native-target>/python/`. A source installation requires Rust,
+protoc and the platform's C toolchain (Visual Studio Build Tools on Windows,
+GCC or Clang on Linux):
+
+```sh
+mise use rust@1.99.0 protoc@36.2
+mise exec -- uv add "dokime-python @ git+https://github.com/stokker-technologies/dokime.git@dev#subdirectory=sdk/python"
+```
+
+Pin a commit in place of `dev` for reproducible source builds. The
+[remote tutorial](../../docs/remote/python.md) prepares a matching wheel environment
+for transfer.
 
 Finite query iteration needs no dataframe library. Install either optional extra
 for local conversion, keeping the client and backend revisions matched:

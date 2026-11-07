@@ -547,7 +547,7 @@ depends = ["bench:rust:unit", "bench:rust:integration", "bench:rust:system"]
 description = "Measure Python Batch Publication"
 depends = ["prepare"]
 run = [
-  "{{vars.tools}} dokime_tools.test.archive --profile dev --install-wheels",
+  "{{vars.tools}} dokime_tools.test.archive --profile bench --install-wheels",
   "{{vars.tools}} dokime_tools.test.run bench --language python --category system --project sdk/python -- -s",
 ]
 

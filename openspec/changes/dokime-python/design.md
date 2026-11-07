@@ -136,9 +136,9 @@ The install guide uses uv with a candidate Git reference (Rust provided by mise)
 The owner retains the change during the build freeze: push the feature branch without PR, dev merge, full simulation or specification retirement. `check:repository` is separate from the known-failing native `stkr project check`; inherited native-policy findings stay with the later sweep, and its residual audit remains explicitly open in task 6.1.
 
 
-## Proof After the Ingest Fix
+## Historical Measurements Before the Ingest Fix
 
-The feature tree includes dev PRs #328 (saved file windows from indexed descriptors) and #329, `61a5447fe70cb18d054b9d52797fc5aa0553978a` (indexed sealed-output retirement), merged before the final measurement. No force push, PR, dev merge, full simulation or specification finish is part of this slice.
+These measurements predate PR #332 and must not be attributed to the ingest fix. The feature tree included dev PRs #328 (saved file windows from indexed descriptors) and #329, `61a5447fe70cb18d054b9d52797fc5aa0553978a` (indexed sealed-output retirement), merged before the final measurement. No force push, PR, dev merge, full simulation or specification finish is part of this slice.
 
 Windows CPython 3.15 proof: two focused portable-value unit cases; 35 selected profile/callback integration cases, including the two new ownership/shutdown stories; four selected installed-wheel acceptance cases; and one generated-project system story on the final merged tree. All pass. The final system story takes 18.83 s, including restart without the plugin and byte-identical sealed report retrieval. The refreshed `cp313-abi3-win_amd64` wheel is 42,173,168 bytes. Installation into a separate uv project with `uv add`, isolated native import and strict stubtest all pass (42 shipped modules). SDK source typing has no errors and retains 333 configured reflection/test warnings. `check:rust`, Python formatting/lint and `check:repository` pass; strict OpenSpec validation and the full candidate's required-term scan pass. These are targeted proofs, not full-lane counts or a simulation.
 

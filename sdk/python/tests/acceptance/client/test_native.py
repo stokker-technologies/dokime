@@ -180,6 +180,9 @@ def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
             assert len(filtered) == 1 and filtered[0].id == records[-1].id
             replay = [s async for s in handle.samples(page_size=2)]
             assert {s.id for s in samples} == {s.id for s in replay}
+            # Small Forward Pages Must Reach The Retained Seal Without Duplicates.
+            single_rows = [s async for s in handle.samples(page_size=1)]
+            assert [s.id for s in single_rows] == [s.id for s in replay]
 
             # Sealed History Holds the Execution's Own Evidence
             point = await handle.checkpoint()

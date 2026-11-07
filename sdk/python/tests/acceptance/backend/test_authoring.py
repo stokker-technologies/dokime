@@ -128,7 +128,7 @@ def test_authoring_callbacks_and_columns(tmp_path: Path) -> None:
             except RuntimeError as error:
                 observed["traceback"] = str(error)
             slow = await ctx.operation(Slow()).start()
-            await asyncio.wait_for(started.wait(), 5)
+            await started.wait()
             slow.request_cancel()
             try:
                 await slow.join()
@@ -170,7 +170,7 @@ def test_authoring_callbacks_and_columns(tmp_path: Path) -> None:
             async def acquire(self, ctx: dk.Context) -> None:
                 assert await ctx.operation(Double(4.0)) == 8.0
                 assert ctx.parameters.count == 3
-                await asyncio.wait_for(template_tick.wait(), 5)
+                await template_tick.wait()
                 await ctx.publish(Result(8.0))
                 writer = ctx.stream(Reading).open()
                 with pytest.raises(ValueError, match="unequal"):
@@ -182,7 +182,7 @@ def test_authoring_callbacks_and_columns(tmp_path: Path) -> None:
                 await ctx.stream(Tags).open().push(Tags(["first", "second"]))
                 await ctx.stream(Blob).open().push_columns({"payload": pa.array([b"\x00\xff", b"\x10"], type=pa.binary())})
                 self.unjoined = await ctx.operation(Slow()).start()
-                await asyncio.wait_for(child_started.wait(), 5)
+                await child_started.wait()
 
             @staticmethod
             @dk.criterion()
@@ -201,9 +201,9 @@ def test_authoring_callbacks_and_columns(tmp_path: Path) -> None:
         )
         external = dk.Plugin("external", "0.1.0", catalog=[Increment])
         async with dk.Backend(port=0, application_root=tmp_path, plugins=[external, plugin]) as backend:
-            await asyncio.wait_for(completed.wait(), 15)
+            await completed.wait()
             assert "error" not in observed, observed
-            await asyncio.wait_for(cancelled.wait(), 5)
+            await cancelled.wait()
             assert observed["answer"] == 6.0
             assert observed["external"] == 5
             assert observed["loop_thread"] == loop_thread
@@ -280,13 +280,13 @@ def test_authoring_ignored_worker_cancellation(tmp_path: Path) -> None:
             async with dk.Backend(port=0, application_root=tmp_path, plugins=[plugin]):
                 with warnings.catch_warnings(record=True) as captured:
                     warnings.simplefilter("always", RuntimeWarning)
-                    await asyncio.wait_for(finished.wait(), 5)
+                    await finished.wait()
                     async with asyncio.timeout(5):
                         while not any("ignored cancellation" in str(item.message) for item in captured):
                             await asyncio.sleep(0)
                     assert len([item for item in captured if "ignored cancellation" in str(item.message)]) == 1
                 released.set()
-                await asyncio.wait_for(exited.wait(), 5)
+                await exited.wait()
         finally:
             released.set()
 

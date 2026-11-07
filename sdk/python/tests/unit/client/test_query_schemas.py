@@ -82,11 +82,11 @@ def fake_catalog(client: DokimeClient, monkeypatch: pytest.MonkeyPatch, call: An
 def test_query_schemas_lazy_paging_and_declared_columns(monkeypatch: pytest.MonkeyPatch) -> None:
     async def scenario() -> None:
         client = DokimeClient()
-        requests: list[tuple[str, Any]] = []
+        observed_requests: list[tuple[str, Any]] = []
 
         async def call(service: str, method: str, request: Any) -> Any:
             assert service == "Catalog"
-            requests.append((method, type(request).FromString(request.SerializeToString())))
+            observed_requests.append((method, type(request).FromString(request.SerializeToString())))
             if method == "GetRecordSchema":
                 schema = declaration(request.record_type)
                 if request.record_type == "example.a":
@@ -100,7 +100,7 @@ def test_query_schemas_lazy_paging_and_declared_columns(monkeypatch: pytest.Monk
 
         fake_catalog(client, monkeypatch, call)
         reader = client.record_schemas(page_rows=1)
-        assert not requests
+        assert not observed_requests
         schema = await anext(reader)
         assert isinstance(schema, RecordSchema)
         assert schema.record_type == "example.a" and schema.schema_version == 3 and schema.label == "Measurement"
@@ -108,12 +108,17 @@ def test_query_schemas_lazy_paging_and_declared_columns(monkeypatch: pytest.Monk
             RecordField("voltage.rms", RecordValueType.NUMBER, "Voltage", "V", True, False),
             RecordField("state", RecordValueType.TEXT, None, None, False, True),
         )
-        assert [method for method, _ in requests] == ["ListRecordSchemas", "GetRecordSchema"]
+        assert [method for method, _ in observed_requests] == ["ListRecordSchemas", "GetRecordSchema"]
         assert [item.record_type async for item in reader] == ["example.b"]
-        second_page = requests[2][1]
+        second_page = observed_requests[2][1]
         assert second_page.limit == 1 and second_page.after_record_type == "example.a"
         assert second_page.cursor.epoch == "epoch" and second_page.cursor.position == 1
-        assert [method for method, _ in requests] == ["ListRecordSchemas", "GetRecordSchema", "ListRecordSchemas", "GetRecordSchema"]
+        assert [method for method, _ in observed_requests] == [
+            "ListRecordSchemas",
+            "GetRecordSchema",
+            "ListRecordSchemas",
+            "GetRecordSchema",
+        ]
         await client.close()
 
     asyncio.run(scenario())

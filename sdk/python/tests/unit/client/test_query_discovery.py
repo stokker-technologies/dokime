@@ -204,12 +204,14 @@ def execution_row(identifier: str = "execution-1") -> dict[str, Any]:
 def test_query_discovery_lazy_filters_paging(monkeypatch: pytest.MonkeyPatch) -> None:
     async def scenario() -> None:
         client = DokimeClient(query_settings=QuerySettings(page_rows=5))
-        requests: list[Any] = []
+        observed_requests: list[Any] = []
 
         async def call(op: Any, request: Any) -> Any:
-            requests.append(type(request).FromString(request.SerializeToString()))
+            observed_requests.append(type(request).FromString(request.SerializeToString()))
             reply = query_page(
-                "ListExecutions", [execution_row(f"execution-{len(requests)}")], after="next" if len(requests) == 1 else None
+                "ListExecutions",
+                [execution_row(f"execution-{len(observed_requests)}")],
+                after="next" if len(observed_requests) == 1 else None,
             )
             reply.limits.rows = 5
             return reply
@@ -227,11 +229,11 @@ def test_query_discovery_lazy_filters_paging(monkeypatch: pytest.MonkeyPatch) ->
         rows = [row async for row in reader]
         assert [row.id for row in rows] == ["execution-1", "execution-2"]
         assert rows[0].status is ExecutionStatus.FAILED and not rows[0].checkpoint_available
-        assert requests[0].selection.template_ids == ["example.measurement"]
-        assert [_wire.enum_name(item) for item in requests[0].selection.statuses] == ["failed", "passed"]
-        assert requests[0].selection.started_at.end.seconds - requests[0].selection.started_at.start.seconds == 86400
-        assert requests[0].page.rows == 5 and not requests[0].page.HasField("after")
-        assert requests[1].page.after == "next" and requests[1].at.Token.field_0 == "cut"
+        assert observed_requests[0].selection.template_ids == ["example.measurement"]
+        assert [_wire.enum_name(item) for item in observed_requests[0].selection.statuses] == ["failed", "passed"]
+        assert observed_requests[0].selection.started_at.end.seconds - observed_requests[0].selection.started_at.start.seconds == 86400
+        assert observed_requests[0].page.rows == 5 and not observed_requests[0].page.HasField("after")
+        assert observed_requests[1].page.after == "next" and observed_requests[1].at.Token.field_0 == "cut"
         assert reader.snapshot is not None and reader.snapshot.token == "cut" and reader.complete
         with pytest.raises(RuntimeError):
             reader.pages()

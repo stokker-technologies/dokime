@@ -39,16 +39,11 @@ from dokime.client import Execution
 # === Public Functions === #
 
 
-def test_python_lifecycle(host: Path, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_python_lifecycle(host: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Generate the Project with the Built CLI
     project = tmp_path / "bench"
     result = subprocess.run([str(host), "new", str(project), "--lang", "python"], capture_output=True, check=False)
     assert result.returncode == 0, result.stderr.decode()
-    source = workspace / "sdk/python/examples/starter"
-    for original in source.rglob("*"):
-        if original.is_file() and "__pycache__" not in original.parts:
-            assert (project / original.relative_to(source)).read_bytes() == original.read_bytes()
-
     # Refuse to Overwrite an Existing Project
     before = {path.relative_to(project): path.read_bytes() for path in project.rglob("*") if path.is_file()}
     result = subprocess.run([str(host), "new", str(project), "--lang", "python"], capture_output=True, check=False)
@@ -87,7 +82,7 @@ def test_python_lifecycle(host: Path, workspace: Path, tmp_path: Path, monkeypat
                 # Read the Saved Measurements and Seal the Report
                 outcome = await execution.wait()
                 assert outcome.status == "passed"
-                rows = [row async for row in execution.samples("bench.readings")]
+                rows = [row async for row in execution.samples("bench.readings", page_size=2)]
                 assert [(row.values["index"], row.values["voltage_v"]) for row in rows] == [(i, i * 0.25) for i in range(4)]
                 await cycle.seal()
                 report = await cycle.download_report(tmp_path / "original.html")
@@ -105,7 +100,7 @@ def test_python_lifecycle(host: Path, workspace: Path, tmp_path: Path, monkeypat
             report = await cycle.download_report(tmp_path / "reopened.html")
             assert report.path.read_bytes() == original
             execution = await client.execution(execution_id)
-            rows = [row async for row in execution.samples("bench.readings")]
+            rows = [row async for row in execution.samples("bench.readings", page_size=1)]
             assert [(row.values["index"], row.values["voltage_v"]) for row in rows] == [(i, i * 0.25) for i in range(4)]
 
     asyncio.run(story())

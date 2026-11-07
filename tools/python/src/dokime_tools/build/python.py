@@ -15,7 +15,7 @@
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import configuration, wheel
+from dokime_tools.build import configuration, paths, wheel
 
 # Type Checking Imports
 
@@ -43,4 +43,4 @@ def build(profile: str) -> list[str]:
 # === Entry Point === #
 
 if __name__ == "__main__":
-    raise SystemExit(configuration.invoke(build))
+    raise SystemExit(configuration.invoke(build, profiles=paths.PROFILES))
