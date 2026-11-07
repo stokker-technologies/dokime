@@ -11,8 +11,8 @@
 
 /* === Modules === */
 
-mod content;
 mod media;
+mod transfer;
 
 /* === Re-Exports === */
 
@@ -48,19 +48,19 @@ use super::*;
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_artifacts() {
-    Box::pin(content::small_frame_transfer()).await;
-    Box::pin(content::large_frame_transfer()).await;
-    Box::pin(content::artifact_upload_owned()).await;
-    Box::pin(content::artifact_upload_large()).await;
-    Box::pin(content::artifact_upload_digest()).await;
-    Box::pin(content::artifact_upload_match()).await;
-    Box::pin(content::artifact_upload_completion()).await;
-    Box::pin(content::open_report_states()).await;
+    Box::pin(transfer::small_frame_transfer()).await;
+    Box::pin(transfer::large_frame_transfer()).await;
+    Box::pin(transfer::artifact_upload_owned()).await;
+    Box::pin(transfer::artifact_upload_large()).await;
+    Box::pin(transfer::artifact_upload_digest()).await;
+    Box::pin(transfer::artifact_upload_match()).await;
+    Box::pin(transfer::artifact_upload_completion()).await;
+    Box::pin(transfer::open_report_states()).await;
     Box::pin(media::media_capture_artifacts()).await;
 }
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn artifact_upload_idle_deadlines() {
-    content::artifact_upload_idle_deadlines().await;
+    transfer::artifact_upload_idle_deadlines().await;
 }

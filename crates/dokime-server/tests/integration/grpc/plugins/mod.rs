@@ -11,8 +11,8 @@
 
 /* === Modules === */
 
+mod lifecycle;
 mod plugin_admission;
-mod plugins;
 
 /* === Re-Exports === */
 
@@ -48,17 +48,17 @@ use super::*;
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn plugin_lifecycle() {
-    Box::pin(plugins::plugin_install_identity()).await;
-    Box::pin(plugins::full_control_plugin_operations()).await;
-    Box::pin(plugins::invalid_uploads_mutate()).await;
-    Box::pin(plugins::listener_shutdown_admission()).await;
-    Box::pin(plugins::result_budget_atomicity()).await;
-    Box::pin(plugins::bounded_installed_metadata()).await;
+    Box::pin(lifecycle::plugin_install_identity()).await;
+    Box::pin(lifecycle::full_control_plugin_operations()).await;
+    Box::pin(lifecycle::invalid_uploads_mutate()).await;
+    Box::pin(lifecycle::listener_shutdown_admission()).await;
+    Box::pin(lifecycle::result_budget_atomicity()).await;
+    Box::pin(lifecycle::bounded_installed_metadata()).await;
     Box::pin(plugin_admission::cancelled_admission_ownership()).await;
 }
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn plugin_install_idle_deadlines() {
-    plugins::plugin_install_idle_deadlines().await;
+    lifecycle::plugin_install_idle_deadlines().await;
 }

@@ -12,8 +12,8 @@
 /* === Modules === */
 
 mod authoring;
-mod catalog;
 mod documents;
+mod inventory;
 
 /* === Re-Exports === */
 
@@ -51,8 +51,8 @@ use super::*;
 async fn authoring_catalog() {
     authoring::untyped_artifact_refused();
     Box::pin(authoring::declared_row_home()).await;
-    Box::pin(catalog::schemas_exact_pages()).await;
-    Box::pin(catalog::catalog_suite_extensions()).await;
+    Box::pin(inventory::schemas_exact_pages()).await;
+    Box::pin(inventory::catalog_suite_extensions()).await;
     Box::pin(documents::current_document_rows()).await;
     Box::pin(documents::summary_complete_telemetry()).await;
     Box::pin(documents::duration_x_axis()).await;

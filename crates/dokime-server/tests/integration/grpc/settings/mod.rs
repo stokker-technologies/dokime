@@ -13,7 +13,7 @@
 
 mod appearance;
 mod authorization;
-mod settings;
+mod persistence;
 
 /* === Re-Exports === */
 
@@ -49,10 +49,10 @@ use super::*;
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn settings() {
-    stage(Box::pin(settings::frame_readable_probe())).await;
-    stage(Box::pin(settings::storage_sources())).await;
-    stage(Box::pin(settings::plugin_settings())).await;
-    stage(Box::pin(settings::application_settings())).await;
+    stage(Box::pin(persistence::frame_readable_probe())).await;
+    stage(Box::pin(persistence::storage_sources())).await;
+    stage(Box::pin(persistence::plugin_settings())).await;
+    stage(Box::pin(persistence::application_settings())).await;
 }
 
 #[dokime_tracing::trace_test]

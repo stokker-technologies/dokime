@@ -12,7 +12,7 @@
 /* === Modules === */
 
 mod plots;
-mod telemetry;
+mod watch;
 
 /* === Re-Exports === */
 
@@ -48,7 +48,7 @@ use super::*;
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn telemetry_watch_plot() {
-    Box::pin(telemetry::telemetry_pages_window()).await;
+    Box::pin(watch::telemetry_pages_window()).await;
     Box::pin(plots::sample_watch_fixed_frontier_and_resume()).await;
     Box::pin(plots::plot_points_admission()).await;
     Box::pin(plots::late_samples_keep_time_order()).await;
