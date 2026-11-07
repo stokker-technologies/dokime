@@ -534,7 +534,8 @@ pub(crate) async fn bounded_pages_unknown() {
 
 pub(crate) async fn startup_reclaims_extraction() {
     let root = tempfile::tempdir().unwrap();
-    let config = crate::service_support::config(root.path());
+    let application = tempfile::tempdir().unwrap();
+    let config = crate::service_support::config(root.path()).with_application_root(application.path());
     let extraction = config.application.root.join("cache/plugins");
     let orphan = extraction.join("0".repeat(64));
     let staging = extraction.join("harmos-plugin-not-a-digest");
