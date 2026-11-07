@@ -40,11 +40,11 @@
 
 ## 6. Final Validation
 
-- [ ] 6.1 Run the targeted checks and review the full diff, including required-term scans.
+- [x] 6.1 Run the targeted checks and review the full diff, including required-term scans.
 
 ## Workflow Follow-Up
 
-- Current delivery inventory: merge fresh dev normally and retain the newer Harmos pin; review the complete SDK replacement and its native source-policy audit; retain and prove bounded sample paging, native row bounds and retained seals; finish Nightly Python system wiring; run requested Windows proof and Linux container proof where existing provisioning permits it; measure NumPy, Arrow and Rust using the bench profile; update affected installation documentation; archive with Purpose filled, scan CLEAN, squash PR to dev and retire owned artifacts/worktree. No full simulation, force push or WatchFile redesign is authorized.
-- Task 6.1 owns final checks, audit repair and full diff review. Task 5.2's Nightly-only native Linux/Windows graph and artifact inputs are reviewed. Linux execution and requested executable proof remain in 6.1. Native sample paging regressions use small pages through retained seals; no timing assertions are added.
+- Completed source inventory: native SDK, facade/server integration, client replacement, Python starter, Windows/Linux Nightly wiring, build/package/release ownership, installation guidance, SDK audit repairs, bounded paging regressions and bench measurements. Publication and workspace retirement are separate authorized delivery operations. No full simulation or WatchFile redesign is part of this change.
+- Final SDK checks, full diff review, required-term scan, native SDK export/ownership audit repairs, Linux wheel/system proof and bench measurements are performed and recorded in design.md. The repository-wide native audit still fails for baseline findings assigned to the separate sweep; no passing full native audit or full simulation is claimed. Native sample paging regressions use small pages through retained seals, without timing assertions.
 - Registry publication remains blocked on the owner's naming decision. Native release wheels are the installation path for this delivery.
 - Packaging Python plugins as distributable bundles stays out of this change.

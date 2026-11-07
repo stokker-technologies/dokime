@@ -1,6 +1,6 @@
 # Design
 
-Foundation, client, backend and authoring decisions describe source on the feature branch. Tasks 4.x consume the unified `ctx.operation` API; their proof and the later tasks remain explicit in `tasks.md`.
+Foundation, client, backend and authoring decisions describe the delivered native SDK. Steps and observers use the unified `ctx.operation` API.
 
 ## Flow
 
@@ -106,13 +106,13 @@ The gRPC service, Harmos sidecar lifecycle, `local.lock`, reports and Python-cli
 
 - The native callback implementation exposed missing facade names for Harmos's existing native factory types. Harmos PR #170 adds only the public re-exports and is squash-merged as `7b189844ebbacd459ec8786b4f973e6d8e2d6bc7`; four focused binding cases and `check:rust` pass. This is the adopted feature-branch pin, including PR #169. The callback wrapper implements the existing `OperationHost` and uses the existing `Invocation`; it resolves native registered definitions and sends the canonical encoded call with per-call retry settings, never a Python operation scheduler.
 
-- Owner disposition (2026-11-07): implement the minimal additive Harmos runtime-defined encoded binding, per-call encoded retry override and public plugin-scoped observer staging on fresh Harmos dev. The paired worktree is `harmos.wt/runtime-bindings`, branch `feat/runtime-defined-operations`. Preserve existing Invocation/OperationHost admission, authorization, deadlines, cancellation and child metadata; unknown replay safety still refuses retries and attempts remain recorded. Publish one Harmos PR and squash immediately, then pin its published revision only on `feat/dokime-python`. No full simulation or Dokime PR is authorized for this slice. Clean and retire the paired worktree after adoption.
+- Owner disposition (2026-11-07): implement the minimal additive Harmos runtime-defined encoded binding, per-call encoded retry override and public plugin-scoped observer staging on fresh Harmos dev. The paired worktree is `harmos.wt/runtime-bindings`, branch `feat/runtime-defined-operations`. Preserve existing Invocation/OperationHost admission, authorization, deadlines, cancellation and child metadata; unknown replay safety still refuses retries and attempts remain recorded. Publish one Harmos PR and squash immediately, then pin its published revision only on `feat/dokime-python`. The paired worktree was retired after adoption; the current delivery authorization supersedes that earlier slice's publication limits.
 - Upstream disposition: Harmos PR #169 is squash-merged as `934cbcb11cd43190444358b114cb22b20c2dda2e`. Its 50 focused operation-wire cases, `check:rust` and Python lint pass; no full simulation ran. `EncodedBinding` stages runtime-owned unary canonical contracts through prepared-native admission. `Contract::from_schema` derives identity in Harmos. Manager/caller/context encoded submissions and retained callbacks accept per-call retry overrides. Plugin-scoped observer staging and matching resource-scope activation are public. Endpoint streaming and gRPC projection remain outside this minimal runtime binding. Only this feature branch adopts the published revision; Dokime dev is untouched.
 
 - Fresh `origin/dev` is merged before this slice, including unified `OperationHost` invocation. Python uses `ctx.operation(request)` with builder overrides for one call; declarations retain default policy ownership. Removed generated Python wire files stay removed; the Rust-reflected client consumes updated contracts.
 - GUI availability uses the existing live suite catalog after a successful read, matching the execution's template identity. An absent template marks the terminal control card and removes its new-attempt action, while captured evidence continues through the existing document path. Pending or failed catalog queries make no absence claim, and active execution controls remain independent. This applies equally to ephemeral Python and removed native templates; admission still rechecks availability at the backend.
 - Windows GUI proof: all 15 selected cycle unit tests and all eight selected lifecycle integration tests pass, including terminal-state availability, pending-catalog behavior, retained running controls and rendering without a new-attempt button. `check:rust`, `check:repository`, TypeScript formatting/lint and `check:typescript:generated --source` pass. The candidate diff's required-term scan is empty. Overlapping GUI task invocations initially corrupted their shared compiler report; both affected selections passed when rerun sequentially. No full simulation ran. That checkpoint preceded executable Python authoring; the current README now describes the implemented surface.
-- Source inventory for tasks 4.1–4.4 and 4.6: native embedded-provider composition and telemetry publication; execution identity and callback ownership passed into native observers; `sdk/python/src/authoring/{schema,provider,template,callback,context,columns}.rs`; Python declarations and callback scheduling; matching root, backend and native stubs; installed-wheel stories and the native batch example; dependency pins, optional arrays dependencies and affected plugin documentation. Tasks 5.x and specification retirement remain deferred. Task 6.1 retains the native policy audit repairs and is not waived by narrower task checks.
+- Source inventory for tasks 4.1–4.4 and 4.6: native embedded-provider composition and telemetry publication; execution identity and callback ownership passed into native observers; `sdk/python/src/authoring/{schema,provider,template,callback,context,columns}.rs`; Python declarations and callback scheduling; matching root, backend and native stubs; installed-wheel stories and the native batch example; dependency pins, optional arrays dependencies and affected plugin documentation. The later delivery includes tests, documentation and specification retirement.
 - Callback admission and closure share one gate. The existing native `Callbacks` tracker owns child-call and publication settlement, including cancellation before an execution seals; its existing cancel operation is public for this binding. Native invocation futures remain the operation owner. Python workers are cooperative and report ignored cancellation after the callee's grace; abandoned worker errors are consumed without reviving a closed context. Native template observers inherit the real execution identity and the same callback tracker as steps.
 - Runtime contract lookup uses native registered definitions, not `host.catalog`, which a plugin does not implicitly have permission to call. Python validates the expected request/response fingerprint against that definition; native submission still owns grants and admission. Plugin and operation background publication use the admitted plugin stream scope; inherited execution metadata does not grant execution publication rights.
 - Settings sections share native flat setting identities and one native status operation. Native builders own parameter defaults and units. Template initializer resources are shared with static observers; criteria are static, run after cleanup and inspect the bounded native evidence snapshot. The root `dokime.operation` name is the authoring decorator after client-module imports; direct imports from the existing `dokime.operation` client-contract module remain available.
@@ -127,18 +127,18 @@ The gRPC service, Harmos sidecar lifecycle, `local.lock`, reports and Python-cli
 
 The tasks 5.x slice merges fresh dev before implementation. `sdk/python/examples/starter/` is the single runnable Python starter embedded by `dokime new <directory> --lang python`. It creates `main.py`, a uv project and plugin-owned operation and suite modules, refuses an existing destination, and performs no compilation or dependency installation. Driver work stays inside operation handlers; steps build named requests and use `ctx.operation(operation)`.
 
-The system story consumes the built CLI and native wheel. It generates the starter, runs its Python plugin, exports pairing, connects through the file, answers a prompt, captures exact rows, seals and downloads a report, stops, then reopens the same root without the plugin and verifies identical report bytes and retained samples. Nightly alone selects this job on Windows and Linux; its declared inputs are the native CLI and Python wheel, not the desktop, sidecars or test archive. Nightly's final report includes its verdict. The Windows task passes in its first run; Linux execution awaits Nightly under the owner's freeze.
+The system story consumes the built CLI and native wheel. It generates the starter, runs its Python plugin, exports pairing, connects through the file, answers a prompt, captures exact rows, seals and downloads a report, stops, then reopens the same root without the plugin and verifies identical report bytes and retained samples. Nightly alone selects this job on Windows and Linux; its declared inputs are the native CLI and Python wheel, not the desktop, sidecars or test archive. Nightly's final report includes its verdict. Windows and Linux container execution are recorded under Delivery Audit and Proof.
 
 New focused value, callback ownership and installed-wheel column stories assert conversion, shared resource identity, decoded-response independence, closure, cancellation, exception propagation and atomic refusal. Nullable fields follow native query semantics: absent nullable values are absent keys, and publication timestamps are separate native metadata. Performance is removed from acceptance assertions and measured with pytest-benchmark. The Python measurement separates synchronous snapshot/encoding/value preparation from awaited admitted ingestion; the Rust example retains the same workload and acknowledgment boundary.
 
 The install guide uses uv with a candidate Git reference (Rust provided by mise) or the task-built native wheel. Naming still blocks registry upload. Installed-wheel proof now creates a separate uv project and runs `uv add` with the documented native artifact path before isolated import and strict stubtest.
 
-The owner retains the change during the build freeze: push the feature branch without PR, dev merge, full simulation or specification retirement. `check:repository` is separate from the known-failing native `stkr project check`; inherited native-policy findings stay with the later sweep, and its residual audit remains explicitly open in task 6.1.
+`check:repository` is separate from the native `stkr project check`. SDK audit repairs and inherited policy findings are distinguished under Delivery Audit and Proof.
 
 
 ## Historical Measurements Before the Ingest Fix
 
-These measurements predate PR #332 and must not be attributed to the ingest fix. The feature tree included dev PRs #328 (saved file windows from indexed descriptors) and #329, `61a5447fe70cb18d054b9d52797fc5aa0553978a` (indexed sealed-output retirement), merged before the final measurement. No force push, PR, dev merge, full simulation or specification finish is part of this slice.
+These measurements predate PR #332 and must not be attributed to the ingest fix. The feature tree included dev PRs #328 (saved file windows from indexed descriptors) and #329, `61a5447fe70cb18d054b9d52797fc5aa0553978a` (indexed sealed-output retirement), merged before the final measurement.
 
 Windows CPython 3.15 proof: two focused portable-value unit cases; 35 selected profile/callback integration cases, including the two new ownership/shutdown stories; four selected installed-wheel acceptance cases; and one generated-project system story on the final merged tree. All pass. The final system story takes 18.83 s, including restart without the plugin and byte-identical sealed report retrieval. The refreshed `cp313-abi3-win_amd64` wheel is 42,173,168 bytes. Installation into a separate uv project with `uv add`, isolated native import and strict stubtest all pass (42 shipped modules). SDK source typing has no errors and retains 333 configured reflection/test warnings. `check:rust`, Python formatting/lint and `check:repository` pass; strict OpenSpec validation and the full candidate's required-term scan pass. These are targeted proofs, not full-lane counts or a simulation.
 
@@ -146,7 +146,7 @@ The same 10,000 rows in batches of 1,000, one i64 counter and one f64 value, are
 
 No material Python penalty is measured against Rust in this run; the earlier roughly twofold gap is not reproduced. Synchronous bridge snapshot, encoding and value conversion account for about 2.5% of the Python publication time. Awaited native publication/ingestion accounts for the remainder, so this evidence points to the shared backend/storage path, not interpreter crossings, as the dominant cost. Workstation variability and the corrected readiness boundary prevent attributing the earlier gap to a single fix solely from these observations. Fast Stream Support still owns throughput targets.
 
-Task 6.1 remains open for the native project-policy audit, which still exits nonzero. SDK Cargo inheritance/grouping and changed source skeleton spacing are repaired; private `_native` export mapping, generated Ruff ownership and inherited baseline findings remain explicit audit work. The owner's later sweep owns inherited dev findings. Linux system execution awaits the declared Nightly job. The source-complete branch is retained for the build-freeze handoff, with retirement deliberately deferred.
+That checkpoint preceded the final native export/ownership audit repairs and Linux container proof recorded below. The inherited repository-wide native policy audit remains a separately reported failure.
 
 ## Delivery Audit and Proof
 
@@ -203,3 +203,42 @@ remain the same: 10,000 rows, batches of 1,000, prepared i64/f64 inputs, backend
 readiness before timing, separate Python bridge preparation and admitted
 publication. Initial native comparison and desktop check attempts exhausted
 Windows allocation capacity; subsequent compilation uses two Cargo jobs.
+
+### Final Bench Measurements
+
+All measured native artifacts identify writer commit
+`648d589ade230f996fedd4375f0d35a0c6a3274b`, which includes the #332 ingest fix
+through the normal dev merge. The reproducible bench harness is committed in
+`452aa2bde`. Final measurements run after this task's compilation stops, on a
+shared Windows workstation whose other activity is uncontrolled. NumPy/Arrow
+figures are means over three rounds; Rust uses the reciprocal of the mean elapsed
+time over three matching 10,000-row runs.
+
+| Path | Native Profile | Bridge Preparation (s) | Admitted Publication (s) | Rows/s |
+| --- | --- | --- | --- | --- |
+| NumPy | bench | 0.016827 | 0.595019 | 16,344 |
+| Arrow | bench | 0.020266 | 0.778063 | 12,526 |
+| Rust | bench | Included Below | 0.419492 | 23,838 |
+
+Rust's combined encoding/publication times are 0.484947, 0.390530 and 0.382999 s
+(all exits 0). Python's benchmark task exits 0 with two cases passed. Its overall
+story timer also includes backend lifecycle; the old Arrow lifecycle baseline
+reports a +184.2% regression warning. That older baseline lacks exact native
+profile tracking, so it is not a controlled comparison with these bench artifacts.
+The publication rates above use only the separately recorded bridge and admitted
+publication intervals. The earlier loader diagnostic, under owned compilation,
+observed 18,194 NumPy and 20,756 Arrow rows/s; those are not substituted for the
+final measurements.
+
+These observations show substantial shared-host variation. Python spends most
+of the measured interval awaiting native publication/ingestion. The different
+profile and later ingest code prevent attributing the change from the historical
+dev measurements to #332 alone. Fast Stream Support retains throughput targets.
+
+Final `check:rust` exits 0 after the two-job allocation retry, including all three
+lint selections and cargo-machete. Final `check:python`, source typing,
+`check:repository`, Rust/TOML formatting and strict OpenSpec validation exit 0.
+No full simulation runs, per the delivery instruction. The final fresh dev merge
+adds #350 (`f98e6e127`), limited to plot tables, embedded report presentation and
+its guide; SDK interfaces and Python's watch surface are unchanged. SDK execution
+proof and measurements above identify their actual artifact/source checkpoints.
