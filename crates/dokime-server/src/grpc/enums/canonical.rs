@@ -21,7 +21,7 @@
 use dokime::operations::plots;
 use dokime::{
     ExecutionFileContentKind, ExecutionFileStreamState,
-    document::{AxisScale, FftDetrend, FftWindow, FilterOperator, FrequencyLevelUnit, PlotAxisKind, PlotStyle, PlotType, ReferenceAxis},
+    document::{AxisScale, FftDetrend, FftWindow, FilterOperator, FrequencyLevelUnit, PlotAxisKind, PlotStyle, PlotType},
     runtime::query::DownsampleTechnique,
 };
 
@@ -99,7 +99,6 @@ encode!(frequency_level_unit: FrequencyLevelUnit -> dokime::domain::model::plots
     Dbm,
 });
 
-encode!(reference_axis: ReferenceAxis -> dokime::domain::model::documents::wire::ReferenceAxis { X, Y });
 
 encode!(execution_file_kind: ExecutionFileContentKind -> dokime::domain::model::content::wire::ExecutionFileKind {
     Text,

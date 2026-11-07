@@ -190,11 +190,15 @@ pub struct PlotPresentation {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotReferenceValue {
+    pub constant: Option<f64>,
+    pub expression: Option<DataExpression>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotReferenceLine {
-    pub axis: ReferenceAxis,
-    pub value: Option<f64>,
-    pub source: Option<DataExpression>,
-    pub source_scale: f64,
+    pub value: PlotReferenceValue,
     pub label: Option<String>,
     pub color: String,
 }
@@ -202,13 +206,12 @@ pub struct PlotReferenceLine {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotReferenceBand {
-    pub axis: ReferenceAxis,
-    pub min: Option<f64>,
-    pub max: Option<f64>,
+    pub min: Option<PlotReferenceValue>,
+    pub max: Option<PlotReferenceValue>,
     pub label: Option<String>,
     pub color: String,
-    pub center: Option<DataExpression>,
-    pub tolerance: Option<DataExpression>,
+    pub center: Option<PlotReferenceValue>,
+    pub tolerance: Option<PlotReferenceValue>,
 }
 
 #[harmos::message]
@@ -445,14 +448,6 @@ pub enum PlotStyle {
     Points,
     LinePoints,
     Step,
-}
-
-#[harmos::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ReferenceAxis {
-    Unspecified,
-    X,
-    Y,
 }
 
 #[harmos::message]
