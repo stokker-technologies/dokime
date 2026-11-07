@@ -1193,7 +1193,7 @@ voltage.y(Row::column_dc_voltage_v().on(stream));
 let mut charging = Section::new("Battery Charging");
 charging.plot(voltage);
 
-let mut document = Document::new("default", "Charger Qualification");
+let mut document = Document::new("Charger Qualification");
 document.section(charging);
 ```
 

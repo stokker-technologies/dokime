@@ -103,7 +103,7 @@ impl Probe {
         declared.id("documents.checks.declared");
         declared.plot(voltage);
 
-        let mut document = Document::new("default", "Probe");
+        let mut document = Document::new("Probe");
         document.section(declared);
 
         document

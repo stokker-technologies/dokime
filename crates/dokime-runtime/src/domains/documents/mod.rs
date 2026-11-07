@@ -62,7 +62,9 @@ pub(crate) const DEFAULT_DOCUMENT_ID: &str = "default";
 /* === Public Functions === */
 
 pub(crate) fn default_document(label: impl Into<String>) -> DocumentDefinition {
-    DocumentDefinition::new(DEFAULT_DOCUMENT_ID, label)
+    let mut document = DocumentDefinition::new(label);
+    document.id(DEFAULT_DOCUMENT_ID);
+    document
 }
 
 pub(crate) fn cycle_document(label: impl Into<String>) -> DocumentDefinition {
@@ -130,20 +132,12 @@ fn complete_execution_document(
         None => return None,
     };
     if is_default {
-        document.prepend_sections(built_in_execution_result_sections());
-        for section in built_in_execution_evidence_sections() {
+        document.prepend_sections(construction::sections(&construction::RESULT_SECTIONS));
+        for section in construction::sections(&construction::EVIDENCE_SECTIONS) {
             document.upsert_section(section);
         }
     }
     Some(document)
-}
-
-fn built_in_execution_result_sections() -> Vec<DocumentSection> {
-    construction::sections(&construction::RESULT_SECTIONS)
-}
-
-fn built_in_execution_evidence_sections() -> Vec<DocumentSection> {
-    construction::sections(&construction::EVIDENCE_SECTIONS)
 }
 
 fn built_in_card(identifier: &str, label: &str, order: i32, body: DocumentCardBody) -> DocumentCard {

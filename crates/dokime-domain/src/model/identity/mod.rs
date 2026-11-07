@@ -81,6 +81,12 @@ pub use pattern::IdentifierPattern;
 /* === Public Functions === */
 
 pub(crate) fn identifier_from_label(value: &str) -> Identifier {
+    let normalized = normalized_identifier(value);
+    let identifier = if normalized.is_empty() { "document.item" } else { &normalized };
+    Identifier::new(identifier).expect("normalized document identifier is valid")
+}
+
+pub(crate) fn normalized_identifier(value: &str) -> String {
     let mut normalized = String::with_capacity(value.len());
     let mut last_was_separator = false;
     for character in value.chars().flat_map(char::to_lowercase) {
@@ -92,10 +98,7 @@ pub(crate) fn identifier_from_label(value: &str) -> Identifier {
             last_was_separator = true;
         }
     }
-    let normalized = normalized.trim_matches('.');
-    let identifier = if normalized.is_empty() { "document.item" } else { normalized };
-
-    Identifier::new(identifier).expect("normalized document identifier is valid")
+    normalized.trim_matches('.').to_owned()
 }
 
 /* === Private Functions === */

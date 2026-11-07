@@ -97,7 +97,7 @@ impl Template {
             plot.y(dokime::expressions::telemetry("obc.benchmarks.wide", "value"));
             section.plot(plot);
         }
-        let mut document = Document::new("default", "Stream Ingest");
+        let mut document = Document::new("Stream Ingest");
         document.section(section);
         document
     }

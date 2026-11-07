@@ -56,6 +56,7 @@ struct ValidationMemory {
 pub fn validate_document_definition(
     definition: &DocumentDefinition, maximum_depth: usize, maximum_plot_points: usize,
 ) -> Result<(), Vec<String>> {
+    definition.validate_identity().map_err(|issue| vec![issue])?;
     let (cards, layout) = definition.normalized_parts();
     validate_normalized_parts(&cards, &layout, maximum_depth, maximum_plot_points)
 }

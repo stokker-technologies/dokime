@@ -189,7 +189,7 @@ async fn exact_numeric_outputs() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), fixture.clone()).await;
     *fixture.storage.lock().unwrap() = Some(runtime.storage().clone());
     let mut suite = custom_suite();
-    let mut document = dokime_runtime::document::Document::new("default", "Numeric Evidence");
+    let mut document = dokime_runtime::document::Document::new("Numeric Evidence");
     let mut section = dokime_runtime::document::DocumentSection::new("Measurements");
     let mut plot = dokime_runtime::document::Plot::time_series("Distance");
     plot.id("fixture.numeric");

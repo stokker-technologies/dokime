@@ -395,7 +395,7 @@ impl Template {
         signals.id("{{crate}}.soak.signals");
         signals.plot(temperature);
 
-        let mut document = Document::new("default", "Hold at Temperature");
+        let mut document = Document::new("Hold at Temperature");
         document.section(signals);
 
         document

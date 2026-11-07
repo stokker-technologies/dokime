@@ -84,7 +84,7 @@ impl Template {
 
     fn document() -> Document {
         let section = Section::new("Ingest");
-        let mut document = Document::new("default", "Stream Ingest");
+        let mut document = Document::new("Stream Ingest");
         document.section(section);
         document
     }

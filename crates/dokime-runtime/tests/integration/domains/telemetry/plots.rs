@@ -370,7 +370,7 @@ async fn execution_plots_samples() {
         .await
         .unwrap();
     let mut suite = fixture_suite(&["passed"]);
-    let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Plot Settings");
+    let mut document = dokime_runtime::document::DocumentDefinition::new("Plot Settings");
     let mut section = dokime_runtime::document::DocumentSection::new("Settings");
     let mut plot = dokime_runtime::document::Plot::time_series("Captured Plot");
     plot.id("captured.plot");

@@ -268,7 +268,7 @@ pub fn benchmark(criterion: &mut Criterion) {
 
 /* === Private Functions === */
 fn document(plots: usize) -> Document {
-    let mut document = Document::new("default", "Document Queries");
+    let mut document = Document::new("Document Queries");
     let mut section = DocumentSection::new("Measurements");
     let field = dokime_runtime::expressions::telemetry("bench.plot.0", "value");
     let mut group = TelemetrySummaryGroupDefinition::new("signal", "Signal");

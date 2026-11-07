@@ -292,7 +292,7 @@ pub(super) async fn current_fact_frontiers() {
     summary.group(group);
     let mut section = dokime_runtime::document::DocumentSection::new("Captured Records");
     section.card(DocumentCard::telemetry_summary(summary));
-    let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Capture");
+    let mut document = dokime_runtime::document::DocumentDefinition::new("Capture");
     document.section(section);
     let mut repeated = dokime_runtime::document::DocumentSection::new("Resources");
     repeated.id("fixture.record.resources");
@@ -405,7 +405,7 @@ pub(super) async fn summary_queries() {
         }
         let mut summary = TelemetrySummaryDefinition::new();
         summary.group(group);
-        let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Queries");
+        let mut document = dokime_runtime::document::DocumentDefinition::new("Queries");
         let mut section = dokime_runtime::document::DocumentSection::new("Measurements");
         section.card(DocumentCard::telemetry_summary(summary));
         if text_bytes != 0 {
@@ -537,7 +537,7 @@ pub(super) async fn document_queries_captured_scope() {
     summary.group(group);
     let mut section = dokime_runtime::document::DocumentSection::new("Captured Evidence");
     section.card(DocumentCard::telemetry_summary(summary));
-    let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Capture");
+    let mut document = dokime_runtime::document::DocumentDefinition::new("Capture");
     document.section(section);
     suite.test_case_templates[0].document = Some(document);
     register_python_suite(&runtime, suite.clone()).await;
@@ -602,7 +602,7 @@ pub(super) async fn repeated_sections_follow() {
     let mut section = DocumentSection::new("Channels");
     section.note("One section per channel the scan saw.");
     section.each(channel.clone(), "Channel {value}").only(channel.ne(13));
-    let mut document = DocumentDefinition::new("default", "Channels");
+    let mut document = DocumentDefinition::new("Channels");
     document.section(section);
     let mut suite = fixture_suite(&["passed"]);
     suite.test_case_templates[0].document = Some(document);
@@ -664,7 +664,7 @@ pub(super) async fn repeated_pages_keep_their_cut() {
     repeated.card(DocumentCard::text("fixture.before", "Before", ""));
     repeated.card(count);
     repeated.card(DocumentCard::text("fixture.after", "After", ""));
-    let mut definition = DocumentDefinition::new("default", "Pages");
+    let mut definition = DocumentDefinition::new("Pages");
     definition.section(repeated);
     let (definitions, mut layout) = definition.normalized_parts();
     let dokime_runtime::document::DocumentNode::Section(networks) = &mut layout.nodes[0] else { panic!("network section") };
@@ -866,7 +866,7 @@ pub(super) async fn repeated_sections_freeze() {
         rows: (0..table_rows).map(|index| std::collections::BTreeMap::from([("Index".to_owned(), Value::Integer(index))])).collect(),
     };
     plain.card(readings);
-    let mut document = DocumentDefinition::new("default", "Networks");
+    let mut document = DocumentDefinition::new("Networks");
     document.section(networks);
     document.section(plain);
     let mut suite = fixture_suite(&["passed"]);
@@ -1035,7 +1035,7 @@ fn suite_with_authored_document() -> TestSuite {
         },
     });
 
-    let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Custom Template");
+    let mut document = dokime_runtime::document::DocumentDefinition::new("Custom Template");
     document.section(signals);
     suite.test_case_templates[0].document = Some(document);
     suite
@@ -1046,7 +1046,7 @@ fn suite_with_authored_document() -> TestSuite {
 pub(super) async fn saved_report_evidence(runtime: &RuntimeHandle) {
     use dokime_runtime::document::{DocumentDefinition, DocumentSection, PlotDefinition, PlotType};
     let mut suite = custom_suite();
-    let mut document = DocumentDefinition::new("default", "Analysis");
+    let mut document = DocumentDefinition::new("Analysis");
     let mut section = DocumentSection::new("Samples");
     let mut plot = PlotDefinition::with_type("Mean Distance", PlotType::TimeSeries);
     plot.id("analysis.mean-distance");

@@ -286,8 +286,7 @@ fn execution_documents(
     case: &TestCase, template: Option<&TestCaseTemplate>,
 ) -> BTreeMap<dokime_domain::model::identity::DocumentId, DocumentDefinition> {
     let id = dokime_domain::model::identity::DocumentId::from_identifier("default").expect("default document id is valid");
-    let mut document = DocumentDefinition::new(
-        "default",
+    let mut document = crate::documents::default_document(
         template.map(|template| template.metadata.label.clone()).unwrap_or_else(|| case.metadata.label.clone()),
     );
     if let Some(authored) = template.and_then(|template| template.document.as_ref()) {
