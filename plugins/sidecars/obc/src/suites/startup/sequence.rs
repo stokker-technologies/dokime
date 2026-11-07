@@ -324,11 +324,12 @@ impl Template {
 
     #[dokime::step(
         label = "Tail the Charger Log",
-        description = "Captures the charger's log file while it reports its first readings.\nThe capture is the host's `WatchFile` operation: it captures only what the charger writes after the watch starts into the `charger/device.log` artifact, and its matcher turns every status line into a row of the charger log stream. The producer cancels and seals the bounded watch after writing its readings."
+        description = "Captures the charger's log file while it reports its first readings.\nThe capture is the host's `StartCapture` operation: it captures only what the charger writes after it starts into the `charger/device.log` artifact, and its matcher turns every status line into a row of the charger log stream. The step stops and seals the capture after writing its readings."
     )]
     async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         // Start Capture
-        let matcher = LineMatcher::publishing::<ChargerLog>(r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)");
+        let matcher =
+            LineMatcher::publishing::<ChargerLog>(r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)");
         let request = StartCapture::new(FileSource::file(&self.log), "charger/device.log", StreamCapture::plain().matcher(matcher));
         let capture = ctx.operation(request).await?;
 
