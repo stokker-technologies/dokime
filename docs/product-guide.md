@@ -2406,8 +2406,8 @@ schema or evidence format; each run uses a fresh root with its measured v1 schem
 
 Counts below cover execution start through the inspection prompt and saved barrier,
 including control/setup commits inside that interval. Sync counts observe host
-Arrow-file sync calls and native SQLite VFS sync requests, including WAL and
-checkpoint requests. Post-commit VFS notifications count native catalog commits;
+Arrow sync calls (files and Unix parent directories) and native SQLite VFS sync
+requests, including WAL and checkpoint requests. Post-commit VFS notifications count native catalog commits;
 explicit commit-call counts, including no-op calls, remain separately available.
 Sidecar-internal sync calls are outside this observer. Lock wait sums the named
 admission, SQLite writer, store and tail acquisitions in the benchmark output.

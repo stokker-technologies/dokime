@@ -15,7 +15,7 @@ The benchmark SHALL measure durable scalar, wide, 4 KiB and 64 KiB ingestion thr
 #### Scenario: Observe Durability Without Changing It
 
 - **WHEN** a native fixture reaches its durable barrier
-- **THEN** the benchmark reports observed host Arrow and SQLite VFS sync requests, telemetry writer calls and explicit catalog commits inside that interval, preserving the existing cadence and durability points
+- **THEN** the benchmark reports observed host Arrow file/Unix parent-directory and SQLite VFS sync requests, telemetry writer calls and explicit catalog commits inside that interval, preserving the existing cadence and durability points
 
 #### Scenario: Measure Payload and Contention
 

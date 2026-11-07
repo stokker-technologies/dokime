@@ -441,7 +441,11 @@ fn footer(file: &mut HashedFile, schema: &arrow_schema::Schema, blocks: &[Block]
 
 fn sync_parent(path: &Path) -> Result<()> {
     #[cfg(unix)]
-    File::open(path.parent().ok_or(Error::Invalid("IPC file has no parent"))?)?.sync_all()?;
+    {
+        let parent = File::open(path.parent().ok_or(Error::Invalid("IPC file has no parent"))?)?;
+        let _span = tracing::debug_span!("ingest.ipc.sync").entered();
+        parent.sync_all()?;
+    }
     #[cfg(not(unix))]
     let _ = path;
     Ok(())

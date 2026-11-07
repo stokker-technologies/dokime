@@ -348,7 +348,8 @@ overhead and must be compared separately from ordinary throughput runs.
 Each measurement prints JSON containing elapsed time, rows/s, payload MiB/s,
 CPU milliseconds by live process/PID and per 100,000 rows, Arrow/catalog/WAL bytes
 and SQLite table allocation. It also records telemetry writer flush calls, Arrow
-file sync calls, SQLite VFS sync calls (with a separate WAL count), post-commit
+sync calls (files and Unix parent directories), SQLite VFS sync calls (with a
+separate WAL count), post-commit
 SQLite VFS notifications, explicit catalog commit calls and cumulative lock-wait nanoseconds for admission, the SQLite writer,
 the telemetry store and the tail. The benchmark-only VFS observer delegates each
 sync and file-control call unchanged. Native commit notifications include
