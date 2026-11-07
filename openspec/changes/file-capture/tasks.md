@@ -49,9 +49,9 @@ Order is by dependency. One integration branch, `feat/file-capture`, holds every
 
 ## Validation
 
-- [ ] 8.1 Run `openspec validate file-capture --strict` and targeted tests through focused `mise` tasks for changed behavior on Linux and Windows.
+- [x] 8.1 Run `openspec validate file-capture --strict`, targeted tests through focused `mise` tasks on Windows and a clean workspace build, the delivery gate; hosted CI carries Linux and the compile contracts.
 
 ## Workflow Follow-Up
 
-- Run `stkr specification finish file-capture` as the candidate's last commit, then deliver per `stkr-publish` when authorized, with the single `mise run ci:simulate` in parallel with hosted CI.
+- Run `stkr specification finish file-capture` as the candidate's last commit, then deliver per `stkr-publish`; hosted CI covers everything past the clean build.
 - External plugins migrate in their own repositories after this lands. The owner receives the required changes as a report.
