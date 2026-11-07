@@ -44,14 +44,8 @@ pub struct Options {
     #[arg(short, long)]
     pub package: Option<String>,
 
-    #[arg(long = "bin", value_name = "BIN", help = "Native binaries to include; empty selects the package's default binary.")]
-    pub binaries: Vec<String>,
-
     #[arg(short = 'F', long, help = "Features to activate; repeat or use comma/space-separated names.")]
     pub features: Vec<String>,
-
-    #[arg(long, help = "Activate all available features.")]
-    pub all_features: bool,
 
     #[arg(long, help = "Disable default features.")]
     pub no_default_features: bool,
@@ -59,16 +53,13 @@ pub struct Options {
     #[arg(long, help = "Require Cargo.lock to remain unchanged.")]
     pub locked: bool,
 
-    #[arg(long, help = "Resolve and compile without accessing the network.")]
-    pub offline: bool,
-
     #[arg(long)]
     pub target: Option<String>,
 
     #[arg(long, conflicts_with = "profile")]
     pub release: bool,
 
-    #[arg(long)]
+    #[arg(long, help = "Cargo profile: dev, test, release or bench.")]
     pub profile: Option<String>,
 
     #[arg(long)]
@@ -95,26 +86,6 @@ pub struct Options {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Options {
-    pub fn cargo_options(&self) -> Vec<String> {
-        let mut options = Vec::new();
-        for features in &self.features {
-            options.extend(["--features".to_owned(), features.clone()]);
-        }
-        for (enabled, flag) in [
-            (self.all_features, "--all-features"),
-            (self.no_default_features, "--no-default-features"),
-            (self.locked, "--locked"),
-            (self.offline, "--offline"),
-        ] {
-            if enabled {
-                options.push(flag.to_owned());
-            }
-        }
-        options
-    }
-}
 
 /* === Public Functions === */
 

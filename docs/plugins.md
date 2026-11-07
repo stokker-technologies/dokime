@@ -314,9 +314,12 @@ Template runners stop cooperatively through `Signal<T>` with
 Cancelling the owning Harmos invocation aborts its child calls, including evidence
 delivery, so run policies retain immediate abort for that control path.
 
-`cargo dokime sidecar build` compiles the selected native executable, runs its bounded
-catalog export, and creates a `.dokime` bundle containing the executable,
-frozen registrations and `assets/`. Ordinary `cargo build` only compiles.
+`cargo dokime sidecar build` compiles the selected native executable through
+`harmos-packaging`, runs its bounded catalog export, and creates a `.dokime`
+bundle containing the executable without debug sections, frozen registrations,
+`dokime.json` and `assets/`. A PDB Cargo emitted ships beside the executable
+unless `[package.metadata.dokime] debuginfo = false`. Ordinary `cargo build`
+only compiles.
 Catalog export must be deterministic: declaration identities use stable seeds,
 while runtime execution identities remain fresh.
 
