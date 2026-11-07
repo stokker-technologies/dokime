@@ -128,12 +128,12 @@ def require(directory: Path, profile: str) -> Path:
 
 
 def install_wheels(directory: Path, profile: str, native: str | None = None) -> None:
-    targets = [native] if native is not None else [paths.target(), "any"]
+    targets = [native or paths.target()]
     roots = [paths.output(directory, "build", profile, target) / "python" for target in targets]
     wheels = sorted(path for root in roots for path in root.glob("*.whl"))
     names = [path.name.split("-", 1)[0].replace("_", "-").lower() for path in wheels]
     if len(names) != len(set(names)):
-        raise policy.TestError("ambiguous built wheels across selected native/any outputs")
+        raise policy.TestError("ambiguous built wheels in the native output")
     if any(root.is_dir() for root in roots) and not wheels:
         raise policy.TestError("missing built wheels in the selected profile/target")
     if wheels:

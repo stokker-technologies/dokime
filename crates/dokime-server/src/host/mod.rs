@@ -82,7 +82,8 @@ struct ExpectedPlugin {
 
 impl Session {
     pub async fn start(
-        args: &Args, mut config: dokime::config::Config, server_config: crate::grpc::Config, mut on_phase: impl FnMut(&str) + Send,
+        args: &Args, mut config: dokime::config::Config, server_config: crate::grpc::Config,
+        providers: Vec<Arc<dyn dokime::runtime::EmbeddedProvider>>, mut on_phase: impl FnMut(&str) + Send,
     ) -> Result<Self> {
         let config_root = config.output_root.clone();
         if let Some(title) = &args.title {
@@ -90,6 +91,9 @@ impl Session {
         }
         config.label = args.label.clone();
         config.explicit_plugins = if args.dev_control { Vec::new() } else { args.plugins.clone() };
+        for provider in providers {
+            config = config.register(provider);
+        }
         let expected = expected_plugins(&args.plugins, SERVER_PLUGIN_BUNDLE_BYTES, &config.schema)?;
         on_phase("storage");
         let prepared_server = crate::grpc::Service::prepare(server_config)?;
@@ -117,7 +121,8 @@ impl Session {
             };
         }
         on_phase("requests");
-        match prepared_server.ready().await?.listen().await {
+        let listener = async { prepared_server.ready().await?.listen().await }.await;
+        match listener {
             Ok(server) => {
                 session.resources.as_mut().unwrap().server = Some(server);
                 Ok(session)
@@ -141,6 +146,14 @@ impl Session {
 
     pub fn address(&self) -> SocketAddr {
         self.resources.as_ref().and_then(|resources| resources.server.as_ref()).expect("ready session owns listener").address()
+    }
+
+    pub async fn export_pairing(&self, path: &Path, label: String) -> Result<()> {
+        let server = self.resources.as_ref().and_then(|resources| resources.server.as_ref()).ok_or(Error::NotAccepting)?;
+        let pairing = server.create_pairing(label).await?;
+        let bytes = serde_json::to_vec_pretty(&pairing.pairing)?;
+        dokime::harmos::filesystem::publication::write(path, &bytes).map_err(crate::grpc::Error::from)?;
+        Ok(())
     }
 
     pub async fn reload(&mut self, path: &Path, rerun: bool) -> Result<Option<String>> {
@@ -379,7 +392,7 @@ mod tests {
     async fn reacquire(args: &Args) -> Session {
         tokio::time::timeout(std::time::Duration::from_secs(10), async {
             loop {
-                match Session::start(args, args.configuration().unwrap(), args.network.config().unwrap(), |_| {}).await {
+                match Session::start(args, args.configuration().unwrap(), args.network.config().unwrap(), Vec::new(), |_| {}).await {
                     Ok(session) => break session,
                     Err(_) => tokio::time::sleep(std::time::Duration::from_millis(10)).await,
                 }
@@ -393,7 +406,7 @@ mod tests {
     async fn startup_unwind_drains() {
         let root = tempfile::tempdir().unwrap();
         let args = arguments(root.path());
-        let startup = Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), |phase| {
+        let startup = Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), Vec::new(), |phase| {
             if phase == "plugins" {
                 panic!("deliberate startup cancellation");
             }
@@ -406,7 +419,8 @@ mod tests {
     async fn session_drop_drains() {
         let root = tempfile::tempdir().unwrap();
         let args = arguments(root.path());
-        let session = Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), |_| {}).await.unwrap();
+        let session =
+            Session::start(&args, args.configuration().unwrap(), args.network.config().unwrap(), Vec::new(), |_| {}).await.unwrap();
         let address = session.address();
         drop(session);
         let mut replacement = reacquire(&args).await;

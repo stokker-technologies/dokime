@@ -123,6 +123,27 @@ impl Registry {
 }
 
 impl Controller {
+    pub(in crate::grpc) async fn export_pairing(self: &Arc<Self>, label: String) -> Result<CreatedPairing, Error> {
+        let settings = {
+            let state = self.state.lock().await;
+            if state.closing {
+                return Err(Error::Configuration("remote listener is closing"));
+            }
+            state.document.settings.clone()
+        };
+        if !settings.enabled {
+            let settings = dokime::domain::model::remote::RemoteListenerSettings {
+                enabled: true,
+                address: "127.0.0.1:0".into(),
+                tls_enabled: true,
+                authentication_enabled: true,
+                ..settings
+            };
+            self.change(super::Change::Settings(settings)).await?;
+        }
+        self.create_pairing(label).await
+    }
+
     pub(super) async fn create_pairing(self: &Arc<Self>, label: String) -> Result<CreatedPairing, Error> {
         // Persist And Publish Even When The Native Caller Cancels.
         let controller = self.clone();

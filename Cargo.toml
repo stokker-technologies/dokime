@@ -25,6 +25,25 @@ members = [
   "crates/dokime-server",
   "plugins/sidecars/obc",
   "plugins/sidecars/obc/runtime",
+  "sdk/python",
+]
+# Native Python Is Built Only By Its Explicit Producer.
+default-members = [
+  "crates/dokime",
+  "crates/dokime-tracing",
+  "crates/dokime-cli",
+  "crates/dokime-runtime",
+  "crates/dokime-client",
+  "crates/dokime-domain",
+  "crates/dokime-operations",
+  "crates/cargo-dokime",
+  "crates/dokime-packaging",
+  "crates/dokime-gui/src-tauri",
+  "plugins/sidecars/host",
+  "crates/dokime-macros",
+  "crates/dokime-server",
+  "plugins/sidecars/obc",
+  "plugins/sidecars/obc/runtime",
 ]
 resolver = "2"
 
@@ -75,6 +94,7 @@ keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
 libc = { version = "0.2.190" }
 process-wrap = { version = "10.0.1" }
+pyo3 = { version = "0.29.3", features = ["abi3-py313"] }
 rand = { version = "0.10.3" }
 regex = { version = "1.13.1" }
 semver = { version = "1.0.28" }
@@ -99,12 +119,12 @@ handlebars = { version = "6.4.4" }
 hound = { version = "3.5.1" }
 # Excludes default image codecs; consumers select their required formats explicitly.
 image = { version = "0.25.10", default-features = false }
+postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 prost = { version = "0.14.4" }
 prost-reflect = { version = "0.16.5", features = ["serde"] }
 prost-types = { version = "=0.14.4" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154" }
-postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 toml = { version = "1.1.8" }
 toml_edit = { version = "0.25.17" }
 
@@ -138,6 +158,7 @@ syn = { version = "3.0.9", features = ["extra-traits", "full"] }
 # Async
 async-trait = { version = "0.1.92" }
 futures-util = { version = "0.3.34" }
+pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
 tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "=0.1.19" }
 tokio-util = { version = "=0.7.20" }

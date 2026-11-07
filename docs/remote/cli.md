@@ -1,6 +1,6 @@
 # Remote CLI Workflows
 
-Scripts: `packages/dokime-client/examples/remote/cli/`. Commands below run from that folder.
+Scripts: `sdk/python/examples/remote/cli/`. Commands below run from that folder.
 
 Control the simulated OBC device, run independent attempts with live observations,
 and answer a confirmation using an installed Dokime CLI on another computer.

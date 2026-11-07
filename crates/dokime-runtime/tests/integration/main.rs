@@ -49,6 +49,7 @@ mod record_queries;
 mod runtime;
 mod runtime_queries;
 mod settings_backends;
+mod storage_format;
 mod storage_recovery;
 
 #[path = "../support/engine/mod.rs"]

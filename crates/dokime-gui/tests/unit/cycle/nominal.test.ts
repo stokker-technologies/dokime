@@ -336,7 +336,19 @@ test("Execution Controls", () => {
   assert.deepEqual(executionControlState(input({ status: "passed" })).actions, ["Re-Run"]);
   assert.equal(executionControlState(input({ status: "failed" })).line, "Ended · Failed");
 
-  // The Cycle Names the Executions Waiting on Input
+  // Missing Plugins Preserve The Terminal State And Offer No New Attempt
+  for (const status of ["passed", "failed", "interrupted", "stopped"] as const) {
+    const unavailable = executionControlState(input({ pluginAvailable: false, status }));
+    assert.equal(unavailable.phase, "ended");
+    assert.deepEqual(unavailable.actions, []);
+    assert.ok(unavailable.detail);
+  }
+
+  // A Pending Catalog Does Not Assert Absence; Running Controls Remain Available
+  assert.deepEqual(executionControlState(input({ pluginAvailable: undefined, status: "passed" })).actions, ["Re-Run"]);
+  assert.deepEqual(executionControlState(input({ controls: running, pluginAvailable: false })).actions, ["Stop"]);
+
+  // The Cycle Names The Executions Waiting On Input
   assert.equal(inputNeededLabel([1, 3]), "Input needed on #1, #3");
   assert.equal(inputNeededLabel([]), null);
 });

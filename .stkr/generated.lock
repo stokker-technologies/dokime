@@ -118,7 +118,6 @@
     "crates/cargo-dokime/templates/tools/python/src/project_tools/test/runners.py.tmpl": "d83f097bc660fb066d61221ef9ec1af6caf332c1f92bcf92631e6f366be2b87c",
     "crates/cargo-dokime/templates/tools/python/src/project_tools/test/vitest.py.tmpl": "13ad067d9b050d0b5fbee51439b82a846d800a6544788a686abfd2558dc25768",
     "crates/cargo-dokime/templates/typos.toml.tmpl": "777d9c2e10702f205b4190714387ab2983434c934634ea809ed2d4dff8104829",
-    "packages/dokime-client/ruff.toml": "ee5a97cf84a1912ce707b7b2d36e962ac1795440e006d1cbad2920c1f3373d2f",
     "rustfmt.toml": "62a61be289564ff61eb7c2847eee6712deae7a94c918247e09f4755c88d46906",
     "taplo.toml": "851ddd5002ac7af1a708ff9098afcc69c7d5c78f82130e6b253eff4795d155e7",
     "tools/python/ruff.toml": "ee5a97cf84a1912ce707b7b2d36e962ac1795440e006d1cbad2920c1f3373d2f",
@@ -165,6 +164,7 @@
     "tools/python/src/dokime_tools/test/run.py": "3752a0b7e6874653e99e9ac61dd0d51795979c166f8cd81b6d20e423d1c3c7a9",
     "tools/python/src/dokime_tools/test/runners.py": "6898006a2e4187f0b466a16a72f9bd9fb9d0d9069e82957634cc632845d537fe",
     "tools/python/src/dokime_tools/test/vitest.py": "b1ef52e10208604acc1b21cab59faa6456dbb9b9062f1732301ee9953e8beaa8",
-    "typos.toml": "2325a5124fb1d2bd60b5f82dd8f47f74d66a937488a95e527223afe56cdcd87a"
+    "typos.toml": "2325a5124fb1d2bd60b5f82dd8f47f74d66a937488a95e527223afe56cdcd87a",
+    "sdk/python/ruff.toml": "ee5a97cf84a1912ce707b7b2d36e962ac1795440e006d1cbad2920c1f3373d2f"
   }
 }
