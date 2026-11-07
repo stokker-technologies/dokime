@@ -80,7 +80,7 @@ pub fn counts() -> (u64, u64, u64) {
 /* === Private Functions === */
 
 // The Extra Method Table Lives In SQLite's Own File Allocation. All Native Methods
-// Still Receive Their Original File Layout; Only xSync Is Observed, Then Delegated.
+// Still Receive Their Original File Layout; Sync and Commit Calls Are Delegated Unchanged.
 unsafe extern "C" fn open(
     _vfs: *mut ffi::sqlite3_vfs, name: ffi::sqlite3_filename, file: *mut ffi::sqlite3_file, flags: i32, out: *mut i32,
 ) -> i32 {
