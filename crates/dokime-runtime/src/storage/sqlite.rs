@@ -57,6 +57,7 @@ pub(super) static RECORD_CAPTURE_PAGES: AtomicU64 = AtomicU64::new(0);
 pub(super) static RECORD_CAPTURE_ADMISSIONS: AtomicU64 = AtomicU64::new(0);
 pub(super) static TELEMETRY_ANCHOR_ROWS: AtomicU64 = AtomicU64::new(0);
 pub(super) static DATA_SCAN_ROWS: AtomicU64 = AtomicU64::new(0);
+pub(super) static OBJECT_RETENTION_STEPS: AtomicU64 = AtomicU64::new(0);
 
 /* === Macros === */
 
@@ -92,6 +93,9 @@ pub struct StorageCounters {
     pub record_capture_admissions: u64,
     pub telemetry_anchor_rows: u64,
     pub data_scan_rows: u64,
+
+    /// SQLite VM Instructions Spent Selecting Object Retention Candidates.
+    pub object_retention_steps: u64,
 }
 
 #[derive(Clone, Copy, Debug, serde::Serialize)]
@@ -415,6 +419,7 @@ pub fn counters() -> StorageCounters {
         record_capture_admissions: RECORD_CAPTURE_ADMISSIONS.load(Ordering::Relaxed),
         telemetry_anchor_rows: TELEMETRY_ANCHOR_ROWS.load(Ordering::Relaxed),
         data_scan_rows: DATA_SCAN_ROWS.load(Ordering::Relaxed),
+        object_retention_steps: OBJECT_RETENTION_STEPS.load(Ordering::Relaxed),
     }
 }
 

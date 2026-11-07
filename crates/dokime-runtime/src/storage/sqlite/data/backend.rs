@@ -52,7 +52,15 @@ pub struct Backend<C: ObjectCatalog> {
     history: StoreHistory,
     state: State,
     snapshots: std::sync::Mutex<Box<[Arc<Pin>]>>,
-    retention_through: Mutex<u64>,
+    retention: Mutex<Retention>,
+}
+
+#[derive(Default)]
+struct Retention {
+    sequence: u64,
+    generation: u64,
+    reclaimed_generation: Option<u64>,
+    release_pending: bool,
 }
 
 // One Pinned Cut: Reads Filter Retired Rows Newer Than Its Generation, And
@@ -107,7 +115,7 @@ impl<C: ObjectCatalog> Backend<C> {
             history,
             state,
             snapshots: std::sync::Mutex::new(Box::default()),
-            retention_through: Mutex::new(0),
+            retention: Mutex::new(Retention::default()),
         })
     }
 
@@ -477,13 +485,13 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     ) -> StorageFuture<'a, ()> {
         Box::pin(async move {
             self.history.check(&through.history)?;
-            let mut retention = self.retention_through.lock().await;
+            let mut retention = self.retention.lock().await;
             self.state
                 .data_release_object_history(schema.clone(), item.clone(), through.clone())
                 .await
                 .map_err(|error| failure("release SQLite object history", error))?;
-            // Revisit Previously Saved Revisions After A New Lifecycle Release.
-            *retention = 0;
+            // The Durable Release Generation Selects Its Key Without Rewinding Other Keys.
+            retention.release_pending = true;
             Ok(())
         })
     }
@@ -494,17 +502,30 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     ) -> StorageFuture<'a, bool> {
         Box::pin(async move {
             self.history.check(&through.history)?;
-            let mut retention = self.retention_through.lock().await;
-            let oldest = self.snapshots.lock().unwrap().iter().map(|pin| pin.generation).min();
-            let after = if *retention <= through.sequence { *retention } else { 0 };
-            let (logical, complete) = self
+            let mut retention = self.retention.lock().await;
+            if self.state.0.closing.load(Ordering::Acquire) {
+                return Err(failure("prune SQLite objects", Error::Closed));
+            }
+            let oldest = self.snapshots.lock().unwrap().iter().map(|pin| pin.generation).min().unwrap_or(u64::MAX);
+            // Releasing A Read Pin Only Matters When It Advances The Reclamation Horizon.
+            let unchanged = retention.sequence == through.sequence && !retention.release_pending;
+            let reclaimed = retention.reclaimed_generation.is_some_and(|reclaimed| oldest <= reclaimed);
+            if unchanged && reclaimed {
+                return Ok(true);
+            }
+            let (after, released_after) =
+                if retention.sequence <= through.sequence { (retention.sequence, retention.generation) } else { (0, 0) };
+            let (logical, complete, generation) = self
                 .state
-                .data_prune::<C>(through.clone(), after, oldest, max_entries, retention_policy)
+                .data_prune::<C>(through.clone(), after, released_after, oldest, max_entries, retention_policy)
                 .await
                 .map_err(|error| failure("prune SQLite objects", error))?;
             if logical {
-                *retention = through.sequence;
+                retention.sequence = through.sequence;
+                retention.generation = generation;
+                retention.release_pending = false;
             }
+            retention.reclaimed_generation = complete.then_some(oldest);
             Ok(complete)
         })
     }
