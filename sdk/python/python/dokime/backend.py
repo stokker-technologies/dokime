@@ -20,6 +20,7 @@ from typing import Self
 # Third Party Imports
 # Local Imports
 from . import _native
+from .authoring import Plugin
 from .client.client import DokimeClient
 from .client.errors import DokimeError
 
@@ -90,7 +91,7 @@ class Backend:
         port: int | None = None,
         root: str | Path | None = None,
         application_root: str | Path | None = None,
-        plugins: Sequence[_native.EmbeddedProvider] = (),
+        plugins: Sequence[Plugin | _native.EmbeddedProvider] = (),
     ) -> None:
         self._port = port
         self._root = Path(root) if root is not None else None
@@ -104,11 +105,17 @@ class Backend:
         if self._entered or self._closed:
             raise BackendClosed("Backend contexts can be entered once")
         self._entered = True
-        self._inner = await _native.Backend.start(self._port, self._root, self._application_root, self._plugins)
+        plugins = tuple(plugin._bind() if isinstance(plugin, Plugin) else plugin for plugin in self._plugins)
+        self._inner = await _native.Backend.start(self._port, self._root, self._application_root, plugins)
         return self
 
     async def __aexit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: TracebackType | None) -> None:
-        await self.close()
+        try:
+            await self.close()
+        except BackendError as error:
+            if exc is not None:
+                raise error from exc
+            raise
 
     @property
     def endpoint(self) -> str:

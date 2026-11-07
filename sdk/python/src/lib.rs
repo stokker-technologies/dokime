@@ -13,6 +13,7 @@
 
 /* === Modules === */
 
+mod authoring;
 mod backend;
 mod client;
 
@@ -49,6 +50,7 @@ use pyo3::prelude::*;
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
     backend::register(module)?;
+    authoring::register(module)?;
     client::register(module)
 }
 

@@ -53,7 +53,7 @@ pub struct PyBackend {
 // A Metadata-Only Provider Is Useful Before Any Templates Are Declared.
 #[pyclass(name = "EmbeddedProvider", module = "dokime._native", frozen)]
 pub struct PyEmbeddedProvider {
-    inner: Arc<dyn EmbeddedProvider>,
+    pub(crate) inner: Arc<dyn EmbeddedProvider>,
 }
 
 struct CatalogProvider {

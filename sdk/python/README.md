@@ -67,7 +67,76 @@ for an occupied address, `StorageFormatMismatch` for foreign or unmarked stored
 data, and `PluginIdConflict` for an embedded ID reserved by an installed plugin,
 including a disabled installation. These inherit `BackendError`; format refusal
 exposes `root`, both build identities and both formats and never resets data.
-Python decorators and execution callbacks remain under development.
+
+## Author An Embedded Plugin
+
+Python declarations use the native plugin catalog, operation admission, settings,
+observers and execution workflow. Pass `Plugin` declarations to `Backend(plugins=...)`:
+
+```python
+import asyncio
+import dokime as dk
+
+
+@dk.operation(id="example.double", response=float, policy=dk.OperationPolicy(5, 5))
+class Double:
+    value: float
+
+    async def run(self, ctx):
+        return self.value * 2
+
+
+@dk.observer(id="sample", interval_ms=1000)
+async def sample(ctx):
+    print(await ctx.operation(Double(3)))
+
+
+plugin = dk.Plugin("example", "0.1.0", catalog=[Double, sample])
+
+
+async def main():
+    async with dk.Backend(port=0, plugins=[plugin]):
+        await asyncio.sleep(3)
+
+
+asyncio.run(main())
+```
+
+Use dataclass fields for portable requests, responses and rows. `Annotated` fields
+can select `u32`, `u64`, `i32`, `i64`, `f32` or `f64`; ordinary `int` and `float`
+select `i64` and `f64`. Optional fields, lists, nested dataclasses, enums and bytes
+retain native encoding and validation. Declarations own default operation policies.
+`await ctx.operation(request).retry(policy)` overrides retries for one call;
+`.start()` returns an instance with `join()` and `request_cancel()`. Enabled retries
+require declared replay safety and retain native deadlines and attempt records.
+
+Async callbacks run on the loop that entered `Backend`; sync callbacks use worker
+threads. Cancellation closes the callback context and cancels its Python task and
+child calls. A sync worker must cooperate through `ctx.cancelled`; Python cannot
+terminate a running thread. A callback that ignores its native cancellation grace
+reports a warning. Exceptions carry their Python traceback to the native caller.
+
+`@settings` groups dataclass `@section` declarations. Fields use
+`parameter(default=..., min=..., max=..., step=...)`; defaults and saved overrides
+are resolved by the backend. `ctx.settings` is the resolved snapshot. Plugin IDs
+share the installed-plugin namespace and collisions are refused.
+
+`@suite(templates=[...])` owns `@template` classes. Template IDs extend their
+suite ID. Templates declare `requires`, `streams`, `subscribes` and `prompts` as
+lists. `initialize(self, ctx)` may return shared resources; steps use template
+state, static observers use shared `ctx.resources`, and `cleanup(self, ctx)` sees
+`ctx.reason`. Static criteria take `ctx` after cleanup and inspect `ctx.evidence()`:
+the native selected evidence snapshot, bounded to 64 MiB. Criteria can log and
+call declared operations but cannot mutate documents or publish rows.
+
+For column publication install the `arrays` extra and declare a `@stream` row:
+`await ctx.stream(Reading).open().push_columns({"counter": counters, "value": values})`.
+NumPy arrays and Arrow arrays cross once per batch. Encoding and admitted
+publication run outside the interpreter. Column names, equal lengths, types and
+nullability are validated before publication; a batch supports scalar columns,
+including binary values. `push(row)` also supports nested and repeated fields
+for low-rate publication. Arrays are snapshotted before awaiting,
+so callers can reuse them after the call returns.
 
 ## Named Backend Profiles
 

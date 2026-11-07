@@ -23,12 +23,12 @@
 
 ## 4. Plugin Authoring
 
-- [ ] 4.1 Extend `EmbeddedProvider` with operations, observers and settings sections.
-- [ ] 4.2 Implement the Rust-to-Python callback bridge: event loop, worker threads, cancellation and tracebacks.
-- [ ] 4.3 Implement the decorators and registration validation from the mapping table.
-- [ ] 4.4 Implement batch stream publication from NumPy and Arrow columns.
+- [x] 4.1 Extend `EmbeddedProvider` with operations, observers and settings sections.
+- [x] 4.2 Implement the Rust-to-Python callback bridge: event loop, worker threads, cancellation and tracebacks.
+- [x] 4.3 Implement the decorators and registration validation from the mapping table.
+- [x] 4.4 Implement batch stream publication from NumPy and Arrow columns.
 - [x] 4.5 Show an unavailable plugin clearly in the GUI for finished Python executions.
-- [ ] 4.6 Write stubs for the backend and authoring surface.
+- [x] 4.6 Write stubs for the backend and authoring surface.
 
 ## 5. Tests And Documentation
 

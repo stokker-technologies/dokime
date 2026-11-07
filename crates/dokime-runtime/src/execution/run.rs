@@ -226,6 +226,8 @@ async fn execute<T: SidecarTemplate>(
             token: token.clone(),
             source: source.clone(),
             caller: caller.clone(),
+            identity: environment.identity().as_ref().clone(),
+            callbacks: environment.callbacks().clone(),
             binding: binding.clone(),
             own: Arc::clone(&own),
             parameters: Arc::clone(&typed),

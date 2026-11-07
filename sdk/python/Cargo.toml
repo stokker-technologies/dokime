@@ -39,6 +39,9 @@ dokime-server = { workspace = true }
 pyo3 = { version = "0.29.3", features = ["abi3-py313"] }
 pyo3-async-runtimes = { version = "0.29", features = ["tokio-runtime"] }
 serde_json = { workspace = true }
+serde = { workspace = true }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
@@ -49,7 +52,7 @@ tonic = { workspace = true }
 # === Dev Dependencies === #
 
 [dev-dependencies]
-serde = { workspace = true }
+tempfile = { workspace = true }
 
 # === Target Dependencies === #
 
@@ -62,6 +65,10 @@ serde = { workspace = true }
 [[example]]
 name = "client-contracts"
 path = "tests/fixtures/contracts.rs"
+
+[[example]]
+name = "authoring-batch"
+path = "tests/fixtures/authoring_batch.rs"
 
 # === Workspace Lints === #
 

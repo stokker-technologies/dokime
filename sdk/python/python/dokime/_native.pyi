@@ -1,25 +1,57 @@
-from collections.abc import Awaitable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
-from typing import final
+from typing import Any, final
 
 __all__ = [
     "Backend",
+    "CallbackContext",
     "Client",
     "EmbeddedProvider",
+    "OperationInstance",
     "Stream",
     "__version__",
     "contracts",
     "decode_profiles",
     "descriptors",
+    "embedded_provider",
     "load_profile",
     "preferences",
     "profile_path",
     "read_pairing",
     "remember_endpoint",
+    "validate_plugin",
     "validate_target",
 ]
 
 __version__: str
+
+@final
+class CallbackContext:
+    def evidence(self) -> str: ...
+    @property
+    def parameters(self) -> str: ...
+    @property
+    def settings(self) -> str: ...
+    @property
+    def execution(self) -> str | None: ...
+    @property
+    def cancelled(self) -> bool: ...
+    def start(
+        self, operation: str, request: str, request_shape: str, response_shape: str, retry: str | None = None
+    ) -> Awaitable[OperationInstance]: ...
+    def push_columns(self, stream: str, columns: dict[str, Any]) -> Awaitable[int]: ...
+    def push(self, stream: str, row: str) -> Awaitable[int]: ...
+    def command(self, kind: str, payload: str) -> Awaitable[str]: ...
+
+@final
+class OperationInstance:
+    @property
+    def id(self) -> int: ...
+    def request_cancel(self) -> None: ...
+    def join(self) -> Awaitable[str]: ...
+
+def validate_plugin(spec: str) -> str: ...
+def embedded_provider(spec: str, callbacks: Mapping[str, Callable[..., Any]]) -> EmbeddedProvider: ...
 
 @final
 class EmbeddedProvider:

@@ -49,6 +49,8 @@ pub(super) struct Scope<O, I> {
     pub token: String,
     pub source: String,
     pub caller: super::Caller,
+    pub identity: super::ExecutionIdentity,
+    pub callbacks: super::Callbacks,
     pub binding: Option<Arc<dyn std::any::Any + Send + Sync>>,
     pub own: Arc<O>,
     pub parameters: Arc<I>,
@@ -194,6 +196,8 @@ async fn watching<T: SidecarTemplate>(
             scope.streams.clone(),
             scope.deliveries.clone(),
         )
+        .identified(scope.identity.clone())
+        .with_callbacks(scope.callbacks.clone())
         .calling(scope.caller.clone())
         .declaring(Arc::clone(&scope.document))
         .holding(Arc::clone(&scope.own));

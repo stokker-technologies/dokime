@@ -578,12 +578,31 @@ pub(crate) async fn cancellation_retains_verdict() {
         let log_path = log.relative_path.clone();
         let checkpoint = handle.execution_saved_checkpoint(execution.test_execution_id.clone()).await.unwrap();
         let log = without_timestamps(std::str::from_utf8(&content.bytes).unwrap());
+        let mut diagnostics = String::new();
+        let mut attempts = Vec::new();
+        for line in log.lines() {
+            if let Some(payload) = line.strip_prefix("[INFO] ")
+                && let Ok(attempt) = serde_json::from_str::<serde_json::Value>(payload)
+                && attempt["kind"] == "operation_attempt"
+            {
+                attempts.push(attempt);
+            } else {
+                diagnostics.push_str(line);
+                diagnostics.push('\n');
+            }
+        }
+        assert_eq!(attempts.len(), 1);
+        assert_eq!(attempts[0]["operation"], "dokime.template.run");
+        assert_eq!(attempts[0]["attempt"], 0);
+        assert!(attempts[0]["instance"].as_u64().unwrap() > 0);
+        assert!(attempts[0]["generation"].as_u64().unwrap() > 0);
         if mode == Settlement::Refused {
-            assert!(log.starts_with("[ERROR] "), "{log}");
-            assert!(log.contains("run refused during cancellation"), "{log}");
+            assert!(diagnostics.starts_with("[ERROR] "), "{diagnostics}");
+            assert!(diagnostics.contains("run refused during cancellation"), "{diagnostics}");
         } else {
+            assert_eq!(attempts[0]["outcome"], "succeeded");
             assert_eq!(
-                log,
+                diagnostics,
                 "[TRACE] trace detail\n[DEBUG] debug detail\n[INFO] fixture cancellation settled\n[WARN] warning\n[WARN] continued\n[ERROR] error detail\n[INFO] \n[UNKNOWN(99)] unknown detail\n"
             );
         }

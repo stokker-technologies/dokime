@@ -70,7 +70,7 @@ structure, so you can use any instrument library.
 
 | | Dokime | OpenHTF | OpenTAP / PathWave | NI TestStand |
 | --- | --- | --- | --- | --- |
-| **Authoring Language** | Rust; Python and C++ planned | Python | C#, Python | Several |
+| **Authoring Language** | Rust and Python; C++ planned | Python | C#, Python | Several |
 | **Licence** | Apache-2.0 | Apache-2.0 | MPL-2.0, Keysight GUI bundle | Commercial |
 | **Ready-Made Instrument Drivers** | Plugin's choice | Some plugs | Vendor ecosystem | Extensive |
 | **End-Of-Line Readiness** | Planned | Yes | Yes | Yes |
@@ -133,6 +133,8 @@ dokime operation list --backend lab
 Python can start a native backend with `async with Backend(port=0)` and export a
 GUI pairing file with `backend.export_pairing(path, label="Bench")`. The backend
 loads installed plugins and releases its data root when the context exits.
+Pass `plugins=[Plugin(...)]` to contribute Python operations, observers, settings
+and templates; see [Python Authoring](sdk/python/README.md#author-an-embedded-plugin).
 The async Python client controls a running backend with owned cycle contexts,
 terminal evidence iterators and saved bundles with digest manifests. Lazy history
 and evidence queries read a fixed snapshot; optional Polars/Pandas helpers create

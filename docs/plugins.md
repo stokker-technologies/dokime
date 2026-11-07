@@ -1,5 +1,12 @@
 # Dokime Plugins
 
+Python processes can contribute embedded operations, observers, settings and
+execution templates through `dokime.Plugin` and `Backend(plugins=[...])`. They use
+the same managed generation and publication boundaries as native providers. See
+[Python Authoring](../sdk/python/README.md#author-an-embedded-plugin) for declarations,
+callback ownership and batch publication. These providers live with their Python
+backend; distributable Python plugin bundles remain outside the current SDK.
+
 Startup failures appear in a desktop notification and in Settings › Plugins,
 with the bundle's display name and the underlying cause. The verified ordinary
 settings remain editable even when the plugin could not start. Secret declarations
