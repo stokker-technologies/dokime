@@ -673,6 +673,36 @@ mod tests {
     use dokime::domain::model::plots::wire::{PlotEnvelope, PlotStreamFrame, PlotStreamKind};
 
     #[test]
+    fn xy_request_style_roundtrip() {
+        use dokime::document::{PlotStyle, PlotType};
+        use dokime::runtime::query::PlotPayloadRequest;
+
+        for style in [PlotStyle::Line, PlotStyle::Points, PlotStyle::LinePoints, PlotStyle::Step] {
+            let request = PlotPayloadRequest {
+                stream: "tracking".into(),
+                plot_type: Some(PlotType::Xy),
+                style: style.clone(),
+                x_key: Some("easting_m".into()),
+                y_keys: vec!["northing_m".into()],
+                ..Default::default()
+            };
+            let wire = plot_request_wire(&request).unwrap();
+            let (decoded, _) = super::super::cursor::decode_plot_requests(vec![wire]).unwrap();
+            assert_eq!(decoded[0].plot_type, request.plot_type);
+            assert_eq!(decoded[0].style, style);
+            assert_eq!(decoded[0].x_key, request.x_key);
+            assert_eq!(decoded[0].y_keys, request.y_keys);
+        }
+        let wire = dokime::domain::model::plots::wire::PlotRequest {
+            stream: "tracking".into(),
+            plot_type: dokime::domain::model::plots::wire::PlotType::Xy,
+            ..Default::default()
+        };
+        let (decoded, _) = super::super::cursor::decode_plot_requests(vec![wire]).unwrap();
+        assert_eq!(decoded[0].style, PlotStyle::Line);
+    }
+
+    #[test]
     fn complete_stream_frame_limits() {
         let mut frame = PlotStreamFrame {
             kind: PlotStreamKind::Error,
