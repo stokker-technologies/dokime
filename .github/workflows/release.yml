@@ -231,9 +231,7 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
     - name: Extract package:python / package
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-any.tar.zst --profile ${{ env.PROFILE }} --target any
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-unix
@@ -241,9 +239,7 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
     - name: Extract package:rust / package
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-windows
@@ -251,9 +247,7 @@ jobs:
         run-id: ${{ github.run_id }}
         github-token: ${{ github.token }}
     - name: Extract package:rust / package
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst --profile ${{ env.PROFILE }}
     - name: Verify Target Commit Required CI
       shell: python
       run: |-
@@ -428,9 +422,7 @@ jobs:
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
     - name: Extract build / cli
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst --profile ${{ env.PROFILE }}
       if: >-
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
@@ -444,9 +436,7 @@ jobs:
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
     - name: Extract build / generator
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/build-generator-${{ env.PROFILE }}-windows.tar.zst --profile ${{ env.PROFILE }}
       if: >-
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
@@ -460,9 +450,7 @@ jobs:
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
     - name: Extract build / gui
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst --profile ${{ env.PROFILE }}
       if: >-
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
@@ -476,9 +464,7 @@ jobs:
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
     - name: Extract build / packaging
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-packaging-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/build-packaging-${{ env.PROFILE }}-windows.tar.zst --profile ${{ env.PROFILE }}
       if: >-
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
@@ -492,9 +478,7 @@ jobs:
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
     - name: Extract build / plugins
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst --profile ${{ env.PROFILE }}
       if: >-
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
@@ -508,9 +492,7 @@ jobs:
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
     - name: Extract package:rust / package
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-release-rust-windows.tar.zst\",\"--profile\",\"release\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-release-rust-windows.tar.zst --profile release
       if: >-
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
@@ -526,9 +508,7 @@ jobs:
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
     - name: Archive package
-      uses: ./.github/actions/archive-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f7061636b6167652f7b70726f66696c657d2f7b7461726765747d2f72757374225d\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts pack --archive target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst --profile ${{ env.PROFILE }} --paths 5b227461726765742f7061636b6167652f7b70726f66696c657d2f7b7461726765747d2f72757374225d
       if: >-
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
@@ -639,9 +619,7 @@ jobs:
         && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - name: Extract package:python / package
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-any.tar.zst --profile ${{ env.PROFILE }} --target any
       if: >-
         matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
         && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
@@ -657,9 +635,7 @@ jobs:
         && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - name: Extract package:rust / package
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst --profile ${{ env.PROFILE }}
       if: >-
         matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
         && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
@@ -751,9 +727,7 @@ jobs:
         'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - name: Extract package:python / package
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-any.tar.zst --profile ${{ env.PROFILE }} --target any
       if: >-
         matrix.platform == 'windows' && (always() && !contains(needs.*.result,
         'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
@@ -769,9 +743,7 @@ jobs:
         'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - name: Extract package:rust / package
-      uses: ./.github/actions/extract-build
-      with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst --profile ${{ env.PROFILE }}
       if: >-
         matrix.platform == 'windows' && (always() && !contains(needs.*.result,
         'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
