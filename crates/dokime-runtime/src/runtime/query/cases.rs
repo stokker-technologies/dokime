@@ -54,6 +54,16 @@ pub struct CaseInspection {
     pub projection: CaseProjection,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CaseHeader {
+    pub suite_id: String,
+    pub case_id: CaseId,
+    pub template_id: dokime_domain::model::identity::TemplateId,
+    pub metadata: dokime_domain::model::identity::Metadata,
+    pub ordinal: usize,
+    pub projection: CaseProjection,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CaseProjection {
     pub status: Option<CaseStatus>,
@@ -81,7 +91,108 @@ pub struct CaseActions {
 
 /* === Implementations === */
 
+impl MemorySize for CaseHeader {
+    fn memory_size(&self) -> usize {
+        let fields = [
+            (self.suite_id.memory_size(), std::mem::size_of_val(&self.suite_id)),
+            (self.case_id.memory_size(), std::mem::size_of_val(&self.case_id)),
+            (self.template_id.memory_size(), std::mem::size_of_val(&self.template_id)),
+            (self.metadata.memory_size(), std::mem::size_of_val(&self.metadata)),
+            (self.projection.latest_execution_id.memory_size(), std::mem::size_of_val(&self.projection.latest_execution_id)),
+            (
+                self.projection.actions.unavailable_reasons.memory_size(),
+                std::mem::size_of_val(&self.projection.actions.unavailable_reasons),
+            ),
+        ];
+        fields.into_iter().fold(std::mem::size_of_val(self), |bytes, (owned, inline)| bytes.saturating_add(owned.saturating_sub(inline)))
+    }
+}
+
+impl CaseHeader {
+    pub fn new(case: &crate::definition::TestCase, ordinal: usize, projection: CaseProjection) -> Self {
+        Self {
+            suite_id: case.suite_id.clone(),
+            case_id: case.test_case_id.clone(),
+            template_id: case.test_case_template_id.clone(),
+            metadata: case.metadata.clone(),
+            ordinal,
+            projection,
+        }
+    }
+}
+
 impl RuntimeHandle {
+    pub async fn saved_cycle_cases(&self, id: &dokime_domain::model::identity::TestCycleId) -> RuntimeResult<Option<Vec<CaseHeader>>> {
+        let limits = self.query_config().limits();
+        tokio::time::timeout(limits.active_time, async {
+            let Some(header) = crate::storage::objects::cycle::read(self.storage(), id, ObjectVersion::Latest).await? else {
+                return Ok(None);
+            };
+            let Some(seal) = &header.value.saved else { return Ok(None) };
+            if !header.position.covers(&seal.evidence_through)? {
+                return Err(Error::conflict("invalid_cycle_membership", "cycle members exceed their saved boundary"));
+            }
+            let header_bytes = header.value.memory_size() as u64;
+            if header_bytes > limits.working_bytes {
+                return Err(Error::overload("cycle_inspection_budget", "cycle inspection exceeds the working budget"));
+            }
+            let members = seal.executions.iter().map(|member| (member.execution_id.to_string(), member.position.sequence)).collect();
+            let headers =
+                self.local_storage.cycle_case_headers(id.to_string(), members, limits.working_bytes - header_bytes).await.map_err(
+                    |error| match error {
+                        error @ crate::storage::Error::Budget { .. } => Error::overload("cycle_inspection_budget", error.to_string()),
+                        error => error.into(),
+                    },
+                )?;
+            if headers.len() != seal.executions.len() {
+                return Err(Error::conflict(
+                    "case_index_missing",
+                    format!(
+                        "cycle case headers differ from sealed membership: expected {}, found {}",
+                        seal.executions.len(),
+                        headers.len()
+                    ),
+                ));
+            }
+            let mut cases: Vec<CaseHeader> = Vec::new();
+            let mut retained = header_bytes.saturating_add(std::mem::size_of_val(&cases) as u64);
+            let mut ordinals = BTreeMap::new();
+            let reason = header.value.phase.ensure_active().err().map(str::to_owned).into_iter().collect::<Vec<_>>();
+            for (mut case, member) in headers.into_iter().zip(&seal.executions) {
+                if case.projection.latest_execution_id.as_ref() != Some(&member.execution_id) {
+                    return Err(Error::conflict("invalid_case_membership", "case header differs from its owning cycle"));
+                }
+                if let Some(&ordinal) = ordinals.get(&case.case_id) {
+                    let first: &mut CaseHeader = &mut cases[ordinal];
+                    first.projection.status = case.projection.status;
+                    first.projection.latest_execution_id = case.projection.latest_execution_id;
+                    first.projection.latest_execution_status = case.projection.latest_execution_status;
+                    first.projection.attempt_count = first
+                        .projection
+                        .attempt_count
+                        .checked_add(1)
+                        .ok_or_else(|| Error::overload("case_attempt_count", "case attempt count overflows"))?;
+                    continue;
+                }
+                let ordinal = cases.len();
+                ordinals.insert(case.case_id.clone(), ordinal);
+                case.ordinal = ordinal;
+                case.projection.actions = CaseActions {
+                    delete: false,
+                    unavailable_reasons: reason.clone(),
+                };
+                retained = retained.saturating_add(case.memory_size() as u64);
+                if retained > limits.working_bytes {
+                    return Err(Error::overload("cycle_inspection_budget", "cycle inspection exceeds the working budget"));
+                }
+                cases.push(case);
+            }
+            Ok(Some(cases))
+        })
+        .await
+        .map_err(|_| Error::timeout("cycle_cases_deadline", "cycle cases exceeded their active-work deadline"))?
+    }
+
     pub async fn inspect_case(
         &self, cycle_id: &dokime_domain::model::identity::TestCycleId, case_id: &CaseId,
     ) -> RuntimeResult<CaseInspection> {
@@ -217,7 +328,7 @@ fn attempts<'a>(cycle: &'a CycleView, test_case_id: &CaseId) -> Vec<&'a TestExec
     cycle.test_executions.iter().filter(|execution| &execution.test_case_id == test_case_id).collect()
 }
 
-fn status(latest: Option<&TestExecution>) -> CaseStatus {
+pub(crate) fn status(latest: Option<&TestExecution>) -> CaseStatus {
     let Some(execution) = latest else {
         return CaseStatus::Planned;
     };

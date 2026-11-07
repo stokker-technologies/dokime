@@ -95,6 +95,11 @@ emit work projections in their state journal transaction, so status filters and
 cycle running counts observe committed work before the next checkpoint. Native
 checkpoints retain the latest committed lifecycle projection. Revision indexes support
 exact template/status/cycle/archive filters and normalized UTC time/ID seeks.
+Sealed execution projections retain case headers. Opening a cycle reads its header
+and indexed case count; listing its cases reads those headers in the sealed member
+order, retaining the first case definition and the latest attempt status and count.
+Complete cycle inspection still validates every member's exact saved execution.
+Development roots without sealed case headers require a fresh storage root.
 Later metadata and archive changes append projections; earlier catalog cuts
 keep their original membership, values and ordering. Cycle membership is indexed
 at the same revision. History capture flushes only the fixed admitted metadata
