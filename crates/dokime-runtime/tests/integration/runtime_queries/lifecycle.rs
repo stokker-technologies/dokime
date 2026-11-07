@@ -110,11 +110,24 @@ pub(crate) async fn old_incompatible_startup() {
     std::fs::create_dir_all(&legacy).unwrap();
     std::fs::write(legacy.join("journal.jsonl"), b"incompatible old history\n").unwrap();
     std::fs::write(legacy.join("state.json"), b"invalid snapshot").unwrap();
-    let (mut runtime, handle) = booted(root.path()).await;
-    assert!(!handle.is_shutting_down());
-    drop(handle);
-    runtime.shutdown().await.unwrap();
+    let error = Runtime::start(config(root.path())).await.err().unwrap();
+    let mut current = Some(&error as &(dyn std::error::Error + 'static));
+    let mut refused = false;
+    while let Some(error) = current {
+        if matches!(
+            error.downcast_ref::<dokime_runtime::storage::Error>(),
+            Some(dokime_runtime::storage::Error::StorageFormatMismatch { .. })
+        ) {
+            refused = true;
+            break;
+        }
+        current = error.source();
+    }
+    assert!(refused);
     assert_eq!(std::fs::read(legacy.join("journal.jsonl")).unwrap(), b"incompatible old history\n");
+    assert_eq!(std::fs::read(legacy.join("state.json")).unwrap(), b"invalid snapshot");
+    assert!(!root.path().join("local.sqlite").exists());
+    assert!(!root.path().join(dokime_runtime::storage::format::RECORD).exists());
 }
 
 /* === Tests === */

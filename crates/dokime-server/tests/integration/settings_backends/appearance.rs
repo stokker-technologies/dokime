@@ -65,7 +65,8 @@ fn failure(status: tonic::Status, code: Code, kind: model::appearance::wire::App
 
 pub(crate) async fn appearance_asset_bound() {
     let root = tempfile::tempdir().unwrap();
-    let path = root.path().join("logo.svg");
+    let assets = tempfile::tempdir().unwrap();
+    let path = assets.path().join("logo.svg");
     let bytes = vec![b'a'; 150_000];
     std::fs::write(&path, &bytes).unwrap();
     let prepared_owner = dokime_server::grpc::Service::prepare(keyed()).unwrap();
@@ -199,7 +200,8 @@ pub(crate) async fn appearance_asset_bound() {
 
 pub(crate) async fn appearance_refuses_transfer() {
     let root = tempfile::tempdir().unwrap();
-    let path = root.path().join("logo.svg");
+    let assets = tempfile::tempdir().unwrap();
+    let path = assets.path().join("logo.svg");
     let file = std::fs::File::create(&path).unwrap();
     file.set_len(8 * 1024 * 1024 + 1).unwrap();
     let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();

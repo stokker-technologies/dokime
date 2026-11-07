@@ -534,7 +534,8 @@ pub(crate) async fn bounded_pages_unknown() {
 
 pub(crate) async fn startup_reclaims_extraction() {
     let root = tempfile::tempdir().unwrap();
-    let config = crate::service_support::config(root.path());
+    let application = tempfile::tempdir().unwrap();
+    let config = crate::service_support::config(root.path()).with_application_root(application.path());
     let extraction = config.application.root.join("cache/plugins");
     let orphan = extraction.join("0".repeat(64));
     let staging = extraction.join("harmos-plugin-not-a-digest");
@@ -562,11 +563,11 @@ pub(crate) async fn app_roots_independent() {
 
 pub(crate) async fn unauthorized_files_kept() {
     let root = tempfile::tempdir().unwrap();
+    let (store, store_database) = store(root.path()).await;
     let plugins = dokime_runtime::paths::ApplicationPaths::new(root.path()).plugins();
     fs::create_dir_all(&plugins).unwrap();
     fs::write(plugins.join("manual.dokime"), bundle("manual", "manual", "1.0.0")).unwrap();
     fs::write(plugins.join(".tmpABC123"), b"interrupted stage").unwrap();
-    let (store, store_database) = store(root.path()).await;
     assert!(store.list().await.unwrap().is_empty());
     assert!(store.installed().await.unwrap().is_empty());
     store.sweep().await.unwrap();
