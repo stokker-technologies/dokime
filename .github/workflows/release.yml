@@ -345,7 +345,7 @@ jobs:
       group: release-publication
       cancel-in-progress: false
     needs:
-    - package_signing_windows_rust
+    - package_signing_windows_rust_windows
     - validated
   validated:
     name: Review / Release
@@ -395,10 +395,10 @@ jobs:
       github.event.pull_request.merged && github.event.pull_request.base.ref == 'dev' &&
       startsWith(github.event.pull_request.head.ref, 'release/v')) ||
       (startsWith(github.ref, 'refs/tags/v'))
-  package_signing_windows_rust:
-    name: Package / Rust / Signing (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
+  package_signing_windows_rust_windows:
+    name: Package / Rust / Signing (windows)
+    runs-on: windows-latest
+    timeout-minutes: 120
     needs:
     - validated
     steps:
@@ -416,8 +416,8 @@ jobs:
         caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[]"
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-cli-${{ env.PROFILE }}-windows
@@ -425,15 +425,15 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-generator-${{ env.PROFILE }}-windows
@@ -441,15 +441,15 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - name: Extract build / generator
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-gui-${{ env.PROFILE }}-windows
@@ -457,15 +457,15 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - name: Extract build / gui
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-packaging-${{ env.PROFILE }}-windows
@@ -473,15 +473,15 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - name: Extract build / packaging
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-packaging-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-plugins-${{ env.PROFILE }}-windows
@@ -489,15 +489,15 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-release-rust-windows
@@ -505,15 +505,15 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - name: Extract package:rust / package
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-release-rust-windows.tar.zst\",\"--profile\",\"release\"]"
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - run: |-
         if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) { throw 'Missing Required Package Signing Secret: TAURI_SIGNING_PRIVATE_KEY' }
         if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) { throw 'Missing Required Package Signing Secret: TAURI_SIGNING_PRIVATE_KEY_PASSWORD' }
@@ -523,15 +523,15 @@ jobs:
         TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - name: Archive package
       uses: ./.github/actions/archive-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f7061636b6167652f7b70726f66696c657d2f7b7461726765747d2f72757374225d\"]"
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: package-${{ env.PROFILE }}-rust-windows
@@ -540,48 +540,45 @@ jobs:
         retention-days: 7
         compression-level: 0
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (true)
+        startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true'
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (success() && (github.ref ==
-        'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
+        (startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true') && (success() && (github.ref == 'refs/heads/dev' && github.event_name
+        != 'pull_request') && steps.setup_windows.outputs.cargo_downloads-cache-hit !=
+        'true')
       with:
         key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
         path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (success() && (github.ref ==
-        'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.mise-cache-hit != 'true')
+        (startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true') && (success() && (github.ref == 'refs/heads/dev' && github.event_name
+        != 'pull_request') && steps.setup_windows.outputs.mise-cache-hit != 'true')
       with:
         key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
         path: ${{ steps.setup_windows.outputs.mise-path }}
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (success() && (github.ref ==
-        'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.pnpm-cache-hit != 'true')
+        (startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true') && (success() && (github.ref == 'refs/heads/dev' && github.event_name
+        != 'pull_request') && steps.setup_windows.outputs.pnpm-cache-hit != 'true')
       with:
         key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
         path: ${{ steps.setup_windows.outputs.pnpm-path }}
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (success() && (github.ref ==
-        'refs/heads/dev' && github.event_name != 'pull_request') &&
-        steps.setup_windows.outputs.uv-cache-hit != 'true')
+        (startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true') && (success() && (github.ref == 'refs/heads/dev' && github.event_name
+        != 'pull_request') && steps.setup_windows.outputs.uv-cache-hit != 'true')
       with:
         key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup_windows.outputs.uv-path }}
     - name: Cache Summary
       if: >-
-        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
-        needs.validated.outputs.stable_release == 'true') && (always())
+        (startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release
+        == 'true') && (always())
       env:
         CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
       uses: ./.github/actions/save-caches
@@ -596,20 +593,10 @@ jobs:
         aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
       MISE_TASK_SKIP: build
       PROFILE: release
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-        - windows
-        include:
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          container: ""
-  verify:
-    name: Release / Verify (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
+  verify_unix:
+    name: Release / Verify (unix)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
     - name: Configure Checkout Git
       run: git config --global core.longpaths true
@@ -625,9 +612,8 @@ jobs:
         caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[]"
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-python-any
@@ -635,17 +621,15 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - name: Extract package:python / package
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-unix
@@ -653,17 +637,15 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - name: Extract package:rust / package
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - name: Download Release Manifest
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -672,62 +654,86 @@ jobs:
         run-id: ${{ github.run_id }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - run: mise run release:verify
       env:
         GH_TOKEN: ${{ github.token }}
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v'))) && (success() &&
+        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
+        steps.setup_unix.outputs.cargo_downloads-cache-hit != 'true')
       with:
         key: ${{ steps.setup_unix.outputs.cargo_downloads-cache-primary-key }}
         path: ${{ steps.setup_unix.outputs.cargo_downloads-path }}
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup_unix.outputs.mise-cache-hit != 'true')
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v'))) && (success() &&
+        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
+        steps.setup_unix.outputs.mise-cache-hit != 'true')
       with:
         key: ${{ steps.setup_unix.outputs.mise-cache-primary-key }}
         path: ${{ steps.setup_unix.outputs.mise-path }}
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup_unix.outputs.pnpm-cache-hit != 'true')
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v'))) && (success() &&
+        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
+        steps.setup_unix.outputs.pnpm-cache-hit != 'true')
       with:
         key: ${{ steps.setup_unix.outputs.pnpm-cache-primary-key }}
         path: ${{ steps.setup_unix.outputs.pnpm-path }}
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup_unix.outputs.uv-cache-hit != 'true')
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v'))) && (success() &&
+        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
+        steps.setup_unix.outputs.uv-cache-hit != 'true')
       with:
         key: ${{ steps.setup_unix.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup_unix.outputs.uv-path }}
     - name: Cache Summary
       if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (always())
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v'))) && (always())
       env:
         CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_unix.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_unix.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_unix.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_unix.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_unix.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_unix.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
       uses: ./.github/actions/save-caches
       with:
         summary-module: ""
+    env:
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
+      MISE_TASK_SKIP: package:python,package:rust
+      PROFILE: ${{ needs.validated.outputs.review_profile }}
+      RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}
+      RELEASE_BUILD_SHA: ${{ needs.validated.outputs.review_sha }}
+      RELEASE_BUILD_VERSION: ${{ needs.validated.outputs.review_version }}
+    environment: release
+    needs:
+    - publish
+    - validated
+    if: >-
+      (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
+    permissions:
+      contents: read
+      actions: read
+  verify_windows:
+    name: Release / Verify (windows)
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+    - name: Configure Checkout Git
+      run: git config --global core.longpaths true
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
     - id: setup_windows
       uses: ./.github/actions/setup
       with:
@@ -737,9 +743,8 @@ jobs:
         caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[]"
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-python-any
@@ -747,17 +752,15 @@ jobs:
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - name: Extract package:python / package
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-windows
@@ -765,17 +768,15 @@ jobs:
         run-id: ${{ github.run_id }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - name: Extract package:rust / package
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - name: Download Release Manifest
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -784,58 +785,54 @@ jobs:
         run-id: ${{ github.run_id }}
         github-token: ${{ github.token }}
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - run: mise run release:verify
       env:
         GH_TOKEN: ${{ github.token }}
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (true)
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v')))
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup_windows.outputs.cargo_downloads-cache-hit !=
-        'true')
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v'))) && (success() &&
+        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
+        steps.setup_windows.outputs.cargo_downloads-cache-hit != 'true')
       with:
         key: ${{ steps.setup_windows.outputs.cargo_downloads-cache-primary-key }}
         path: ${{ steps.setup_windows.outputs.cargo_downloads-path }}
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup_windows.outputs.mise-cache-hit != 'true')
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v'))) && (success() &&
+        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
+        steps.setup_windows.outputs.mise-cache-hit != 'true')
       with:
         key: ${{ steps.setup_windows.outputs.mise-cache-primary-key }}
         path: ${{ steps.setup_windows.outputs.mise-path }}
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup_windows.outputs.pnpm-cache-hit != 'true')
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v'))) && (success() &&
+        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
+        steps.setup_windows.outputs.pnpm-cache-hit != 'true')
       with:
         key: ${{ steps.setup_windows.outputs.pnpm-cache-primary-key }}
         path: ${{ steps.setup_windows.outputs.pnpm-path }}
     - uses: ./.github/actions/save-caches
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (success() && (github.ref == 'refs/heads/dev' && github.event_name !=
-        'pull_request') && steps.setup_windows.outputs.uv-cache-hit != 'true')
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v'))) && (success() &&
+        (github.ref == 'refs/heads/dev' && github.event_name != 'pull_request') &&
+        steps.setup_windows.outputs.uv-cache-hit != 'true')
       with:
         key: ${{ steps.setup_windows.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup_windows.outputs.uv-path }}
     - name: Cache Summary
       if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
-        'refs/tags/v'))) && (always())
+        (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+        'cancelled') && (startsWith(github.ref, 'refs/tags/v'))) && (always())
       env:
         CACHE_RESTORES: "{\"Mise\":\"${{ steps.setup_windows.outputs.mise-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.mise-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.mise-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"Cargo\":\"${{ steps.setup_windows.outputs.cargo_downloads-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.cargo_downloads-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.cargo_downloads-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"UV\":\"${{ steps.setup_windows.outputs.uv-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.uv-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.uv-outcome == 'success' && 'Miss' || 'Unavailable' }}\",\"PNPM\":\"${{ steps.setup_windows.outputs.pnpm-cache-hit == 'true' && 'Exact Hit' || steps.setup_windows.outputs.pnpm-cache-hit == 'false' && 'Partial Hit' || steps.setup_windows.outputs.pnpm-outcome == 'success' && 'Miss' || 'Unavailable' }}\"}"
       uses: ./.github/actions/save-caches
@@ -858,18 +855,3 @@ jobs:
     permissions:
       contents: read
       actions: read
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-        - unix
-        - windows
-        include:
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          container: ""
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          container: ""
