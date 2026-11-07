@@ -8,4 +8,4 @@
 ## Final Validation
 
 - [x] 2.1 Run the owner-required focused locked workspace Rust check and TypeScript GUI build with CARGO_BUILD_JOBS=8, reducing on allocation failure.
-- [ ] 2.2 Review the complete diff and run the owner-provided scanner to CLEAN before delivery.
+- [x] 2.2 Review the complete diff and run the owner-provided scanner to CLEAN before delivery.
