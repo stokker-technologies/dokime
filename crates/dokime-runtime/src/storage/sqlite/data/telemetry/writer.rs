@@ -347,6 +347,7 @@ impl Store {
                                 .find(|scope| scope.test_execution_id.as_ref() == Some(execution))
                                 .or(entry.sample.scope.as_ref())
                                 .ok_or(Error::Invalid("captured sample scope is absent"))?;
+                            let _distinct = tracing::debug_span!("ingest.distinct").entered();
                             super::super::distinct::insert(
                                 &transaction,
                                 super::super::distinct::Row {
