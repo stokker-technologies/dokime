@@ -17,7 +17,7 @@
 
 ## Final Validation
 
-- [ ] 2.1 Run focused storage/telemetry and unchanged document query/report parity tests, exact report replay, repeated all-shape ingest benchmarks, document query scaling and check:rust; inspect the forbidden-term diff. No full simulation, as explicitly requested.
+- [x] 2.1 Run focused storage/telemetry and unchanged document query/report parity tests, exact report replay, repeated all-shape ingest benchmarks, document query scaling and check:rust; inspect the forbidden-term diff. No full simulation, as explicitly requested.
 - [x] 2.2 Merge fresh origin/dev into the combined candidate and revalidate affected behavior before authorized delivery.
 
 ## Workflow Follow-Up
