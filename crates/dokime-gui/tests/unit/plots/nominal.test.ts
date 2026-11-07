@@ -26,6 +26,8 @@ import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import type { NativePlotPayloadEnvelope, NativePlotStreamMessage } from "@/lib/api/native-plots";
+import * as appearance from "@/lib/appearance";
+import { ApplicationThemeProvider } from "@/lib/application-theme";
 import { formatUnitLabel } from "@/lib/format";
 import {
   formatStatValue,
@@ -66,8 +68,11 @@ import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ER
 import { PlotSettingsEditorContext } from "@/plots/plot-settings";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { m4Indices, windowIndices } from "@/plots/reduce";
+import { usePlotPalette } from "@/plots/use-plot-palette";
 import { attachPan, heldViewport, PLOT_DRAG_OPTIONS, pannedRange } from "@/plots/viewport";
 import { readReportPayload } from "@/report/report-data";
+import { applyReportAppearance } from "@/report/report-appearance";
+import { applyThemeVariables } from "@/lib/theme";
 import { useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Re-Exports === */
@@ -1034,13 +1039,66 @@ test("Legend Rows Contain Only Traces on Both Surfaces", () => {
   }
 });
 
+test("Application Theme Selects the Plot Palette Without a Browser Theme Provider", () => {
+  const light = ["#123456", "#654321"];
+  const dark = ["#abcdef", "#fedcba"];
+  const family: appearance.RuntimeThemeFamily = {
+    plugin_id: "organization",
+    theme_id: "plot-visibility",
+    label: "Plot Visibility",
+    light: { variables: {}, plot_palette: light },
+    dark: { variables: {}, plot_palette: dark },
+  };
+  const frame: ReturnType<typeof appearance.useAppearance> = {
+    app_name: "Plot Test",
+    logos: [],
+    themes: [family],
+    active_theme: family.theme_id,
+    theme_family_locked: false,
+    mode_policy: "user_or_system",
+    mode_locked: false,
+    source_plugin_id: null,
+  };
+  const readAppearance = vi.spyOn(appearance, "useAppearance").mockReturnValue(frame);
+  onTestFinished(() => readAppearance.mockRestore());
+  function Palette() {
+    return createElement("output", null, JSON.stringify(usePlotPalette()));
+  }
+  for (const mode of ["light", "dark"] as const) {
+    const html = renderToStaticMarkup(
+      createElement(ApplicationThemeProvider, { value: { resolvedTheme: mode, setTheme() {} }, children: createElement(Palette) }),
+    );
+    assert.equal(html, renderToStaticMarkup(createElement("output", null, JSON.stringify(family[mode].plot_palette))));
+  }
+
+  // Frozen Reports Read the Palette Already Applied for Their Displayed Mode.
+  const originalClass = document.documentElement.className;
+  const originalStyle = document.documentElement.style.cssText;
+  const originalTitle = document.title;
+  onTestFinished(() => {
+    applyThemeVariables(null);
+    document.documentElement.className = originalClass;
+    document.documentElement.style.cssText = originalStyle;
+    document.title = originalTitle;
+    vi.unstubAllGlobals();
+  });
+  readAppearance.mockReturnValue({ ...frame, themes: [], active_theme: null });
+  for (const mode of ["light", "dark"] as const) {
+    vi.stubGlobal("matchMedia", () => ({ matches: mode === "dark" }));
+    applyReportAppearance(frame);
+    assert.equal(document.documentElement.style.colorScheme, mode);
+    const html = renderToStaticMarkup(createElement(Palette));
+    assert.equal(html, renderToStaticMarkup(createElement("output", null, JSON.stringify(family[mode].plot_palette))));
+  }
+});
+
 test("Point Marks", () => {
   const color = "rgb(96, 165, 250)";
   const background = "rgb(10, 10, 10)";
   for (const dense of [false, true]) {
     const solid = seriesPointMarks("points", dense, color, background);
     assert.equal(solid.show, true);
-    assert.equal(solid.stroke, color);
+    assert.equal(solid.stroke, background);
     assert.equal(solid.fill, color);
     assert.ok(solid.width > 0 && solid.width < solid.size / 2);
 
@@ -1168,7 +1226,7 @@ test("Cursor Point Marks", () => {
   const background = "rgb(10, 10, 10)";
   for (const style of ["points", "line_points"] as const) {
     const marks = colors.map((color) => seriesPointMarks(style, false, color, background));
-    const cursor = cursorPointOptions(marks);
+    const cursor = cursorPointOptions(marks, style);
     assert.equal(cursor.width, 0);
     colors.forEach((color, index) => {
       const seriesIdx = index + 1;
