@@ -176,7 +176,12 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
         })
       : undefined,
     plotType: plotType(input.plotType),
-    style: { HarmosVariant: { case: ({ line: "Line", points: "Points", line_points: "LinePoints", step: "Step" } as const)[input.style ?? "line"], value: {} } },
+    style: {
+      HarmosVariant: {
+        case: ({ line: "Line", points: "Points", line_points: "LinePoints", step: "Step" } as const)[input.style ?? "line"],
+        value: {},
+      },
+    },
     xScale: axisScale(input.xScale),
     yScale: axisScale(input.yScale),
     ...(input.zExpression == null ? {} : { zExpression: dataExpression(input.zExpression) }),

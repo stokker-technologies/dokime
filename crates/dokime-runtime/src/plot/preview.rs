@@ -1041,6 +1041,53 @@ mod tests {
     }
 
     #[test]
+    fn xy_style_reduction() {
+        for style in [PlotStyle::Points, PlotStyle::Line, PlotStyle::LinePoints, PlotStyle::Step] {
+            let request = PlotPayloadRequest {
+                stream: "tracking".into(),
+                plot_type: Some(PlotType::Xy),
+                style: style.clone(),
+                x_key: Some("easting".into()),
+                y_keys: vec!["northing".into()],
+                ..Default::default()
+            };
+            // Exercise Both Incremental Reduction And Merges Crossing The Exact Limit.
+            for split in [None, Some(4), Some(8)] {
+                let mut preview = Preview::default();
+                let mut tail = Preview::default();
+                for index in 0..12 {
+                    let target = if split.is_some_and(|split| index >= split) { &mut tail } else { &mut preview };
+                    target.sample(sample(index, index as f64, index as f64), &request, limits()).unwrap();
+                }
+                if split.is_some() {
+                    preview.merge(tail, &request, limits()).unwrap();
+                }
+                preview = serde_json::from_slice(&serde_json::to_vec(&preview).unwrap()).unwrap();
+                let trace = preview.series.values().next().unwrap();
+                let result = payload(&preview, &request);
+                assert_eq!(trace.count, 12);
+                assert_eq!(trace.moments.count, 12);
+                assert_eq!(result.series[0].raw_points, 12);
+                assert!(result.series[0].points.len() <= result.max_points);
+                if style == PlotStyle::Points {
+                    assert_eq!(trace.grid.cells.values().map(|cell| cell.count).sum::<u64>(), 12);
+                    assert_eq!(result.series[0].points.iter().map(|point| point.z.unwrap() as u64).sum::<u64>(), 12);
+                    assert_eq!(result.summaries[0].count, 12);
+                    assert_eq!(result.summaries[0].mean, Some(5.5));
+                } else {
+                    assert!(trace.grid.cells.is_empty());
+                    assert!(!trace.envelope.buckets.is_empty());
+                    let points = &result.series[0].points;
+                    assert!(!points.is_empty());
+                    assert!(points.iter().all(|point| point.z.is_none()));
+                    assert!(points.windows(2).all(|pair| pair[0].x.as_f64().unwrap() <= pair[1].x.as_f64().unwrap()));
+                    assert!(result.summaries.is_empty());
+                }
+            }
+        }
+    }
+
+    #[test]
     fn grouped_counts() {
         let request = PlotPayloadRequest {
             stream: "tracking".into(),

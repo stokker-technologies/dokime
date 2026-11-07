@@ -25,7 +25,7 @@ import type { ConnectedSession } from "@/app/native-session/session";
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
-import type { NativePlotPayloadEnvelope, NativePlotStreamMessage } from "@/lib/api/native-plots";
+import { toNativePlotRequest, type NativePlotPayloadEnvelope, type NativePlotStreamMessage } from "@/lib/api/native-plots";
 import * as appearance from "@/lib/appearance";
 import { ApplicationThemeProvider } from "@/lib/application-theme";
 import { formatUnitLabel } from "@/lib/format";
@@ -1233,6 +1233,30 @@ test("Cursor Point Marks", () => {
       assert.equal(callPointOption(cursor.stroke, seriesIdx), color);
       assert.ok(Number(callPointOption(cursor.size, seriesIdx)) > marks[index].size);
     });
+  }
+});
+
+test("XY Styles Reach the Native Request", () => {
+  for (const style of ["line", "points", "line_points", "step"] as const) {
+    const plot = {
+      plot_id: "tracking.path",
+      title: "Tracking Path",
+      stream: "tracking",
+      plot_type: "xy",
+      x: "easting_m",
+      y: ["northing_m"],
+      style,
+    } as DocumentViewPlot;
+    const request = plotRequestForDocumentPlot(plot, { scope: null });
+    assert.equal(request.plotType, "xy");
+    assert.equal(request.style, style);
+    const native = toNativePlotRequest(request);
+    assert.equal(native.plotType?.HarmosVariant.case, "Xy");
+    assert.equal(native.style?.HarmosVariant.case, { line: "Line", points: "Points", line_points: "LinePoints", step: "Step" }[style]);
+    const spec = documentPlotSpec({ plot, payload: hostFrame([1, 2], [[3, 4]]), title: plot.title, position: 0 });
+    assert.equal(spec.style, style);
+    const html = renderToStaticMarkup(createElement(PlotInteractionProvider, {}, createElement(XyPlot, { plot: spec })));
+    assert.match(html, /plot-follow/);
   }
 });
 
