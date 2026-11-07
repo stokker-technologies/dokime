@@ -89,6 +89,7 @@ pub(crate) struct Query {
     pub filters: Vec<Predicate>,
     pub order: Option<Field>,
     pub key: Option<[u8; 32]>,
+    pub journal: Option<(String, u64)>,
 }
 
 #[cfg(feature = "native")]
@@ -286,6 +287,12 @@ fn read_page(
             AND NOT EXISTS(SELECT 1 FROM storage_distinct_values preferred WHERE preferred.execution=d.execution AND preferred.kind=d.kind
                 AND preferred.source=d.source AND preferred.path=?4 AND preferred.value_key=d.value_key)))"
         );
+    }
+    if let Some((epoch, revision)) = query.journal {
+        arguments.push(Sql::Text(epoch));
+        let epoch = arguments.len();
+        arguments.push(Sql::Text(super::position(revision)));
+        selected.push_str(&format!(" AND EXISTS(SELECT 1 FROM storage_record_visibility v WHERE v.position=p.record_position AND (v.epoch IS NULL OR v.epoch<>?{epoch} OR v.sequence<=?{}))", arguments.len()));
     }
     for (field, value) in [
         ("session_id", query.scope.session_id.as_ref().map(ToString::to_string)),
@@ -590,6 +597,7 @@ mod tests {
                     fallback: None,
                 }),
                 key: None,
+                journal: None,
             };
             let page = state
                 .distinct_page(cut.clone(), query, after, 3, super::super::super::QueryWork::document(config.clone(), "fixture"))
@@ -704,6 +712,7 @@ mod tests {
             filters: vec![],
             order: None,
             key: None,
+            journal: None,
         };
         let page = state
             .distinct_page(cut.clone(), query.clone(), None, 10, super::super::super::QueryWork::document(config.clone(), "fixture"))

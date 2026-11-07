@@ -20,11 +20,11 @@ use futures_util::{FutureExt, StreamExt, future::LocalBoxFuture, stream::Futures
 use tokio::sync::mpsc;
 
 // Local Imports
-use super::acquire::DocumentAcquisitionFailure;
+use crate::document::query::complete_card;
 use crate::document::{
     DocumentCardDefinition, DocumentDefinition, DocumentSelection,
-    bounded::{DocumentLimits, document_size},
-    capture::{Capture, CardBinding, CardBindingResult, CardFailure, SectionBinding},
+    bounded::DocumentLimits,
+    capture::{Capture, CardBinding, SectionBinding},
 };
 use crate::{RuntimeHandle, queries::RuntimeStateSnapshot};
 use dokime_domain::model::execution::RecordScope;
@@ -76,6 +76,14 @@ pub enum CurrentDocumentEvent {
     Page { current: String, next: Option<String> },
 }
 
+#[derive(Debug, thiserror::Error)]
+enum PreparationFailure {
+    #[error("document selection not found")]
+    Missing,
+    #[error("selected evidence capture is incomplete")]
+    IncompleteCapture,
+}
+
 enum DocumentWork {
     Card { binding: CardBinding, result: crate::runtime::Result<CardBinding> },
     Expansion(crate::runtime::Result<crate::document::page::Expansion>),
@@ -85,31 +93,30 @@ enum DocumentWork {
 
 /* === Implementations === */
 
+impl From<PreparationFailure> for crate::runtime::Error {
+    fn from(error: PreparationFailure) -> Self {
+        match error {
+            PreparationFailure::Missing => Self::not_found("document_not_found", error.to_string()),
+            PreparationFailure::IncompleteCapture => Self::conflict("document_capture_incomplete", error.to_string()),
+        }
+    }
+}
+
 impl RuntimeHandle {
     pub fn prepare_current_cycle_document(
         &self, cycle_id: &TestCycleId, document_id: &DocumentId,
     ) -> crate::runtime::Result<PreparedCurrentDocument> {
         if document_id.as_str() != super::DEFAULT_DOCUMENT_ID {
-            return Err(DocumentAcquisitionFailure::Missing.into());
+            return Err(PreparationFailure::Missing.into());
         }
         let snapshot = self.watch_state().latest();
-        let cycle = snapshot.state().cycles.get(cycle_id).ok_or(DocumentAcquisitionFailure::Missing)?;
-        if cycle.execution_ids.len() as u64 > 100000_u64 {
-            return Err(DocumentAcquisitionFailure::Limit.into());
-        }
-        let limits = DocumentLimits::default();
-        document_size(&cycle.metadata, usize::try_from(65536_u64).expect("validated document metadata size"), limits.depth)
-            .map_err(|_| DocumentAcquisitionFailure::Limit)?;
-        let scopes = harmos::btree_map_memory::<&TestExecutionId, ()>(cycle.execution_ids.len());
-        if scopes > limits.source_bytes {
-            return Err(DocumentAcquisitionFailure::Limit.into());
-        }
+        let cycle = snapshot.state().cycles.get(cycle_id).ok_or(PreparationFailure::Missing)?;
         let mut selection = DocumentSelection {
             scope: RecordScope::default().with_cycle(cycle_id.clone()),
         };
         selection.scope.session_id = cycle.session_id.clone();
         crate::document::input::Context::ordered(&cycle.execution_ids, &snapshot.state().executions, &selection.scope)
-            .ok_or(DocumentAcquisitionFailure::IncompleteCapture)?;
+            .ok_or(PreparationFailure::IncompleteCapture)?;
         let definition = super::cycle_document(cycle.metadata.label.clone());
         Ok(PreparedCurrentDocument {
             runtime: self.clone(),
@@ -125,42 +132,13 @@ impl RuntimeHandle {
     ) -> crate::runtime::Result<PreparedCurrentDocument> {
         let snapshot = self.watch_state().latest();
         let state = snapshot.state();
-        let cycle = state.cycles.get(cycle_id).ok_or(DocumentAcquisitionFailure::Missing)?;
+        state.cycles.get(cycle_id).ok_or(PreparationFailure::Missing)?;
         let execution = state
             .executions
             .get(execution_id)
             .filter(|execution| &execution.test_cycle_id == cycle_id)
-            .ok_or(DocumentAcquisitionFailure::Missing)?;
-        let definitions = &execution.documents;
-        if definitions.len() as u64 > 10000_u64 {
-            return Err(DocumentAcquisitionFailure::Limit.into());
-        }
-        let limits = DocumentLimits::default();
-        if let Some(definition) = definitions.values().find(|definition| &definition.document_id == document_id) {
-            document_size(definition, limits.source_bytes, limits.depth).map_err(|_| DocumentAcquisitionFailure::Limit)?;
-        }
-        document_size(&cycle.metadata, usize::try_from(65536_u64).expect("validated metadata size"), limits.depth)
-            .map_err(|_| DocumentAcquisitionFailure::Limit)?;
-        {
-            if state
-                .suites
-                .suites()
-                .flat_map(|suite| suite.suite.test_case_templates.iter())
-                .take(usize::try_from(100000_u64).expect("validated document template scan limit").saturating_add(1))
-                .count() as u64
-                > 100000_u64
-            {
-                return Err(DocumentAcquisitionFailure::Limit.into());
-            }
-            document_size(&execution.snapshot.case().metadata, usize::try_from(65536_u64).expect("validated metadata size"), limits.depth)
-                .map_err(|_| DocumentAcquisitionFailure::Limit)?;
-            if let Some(template) = super::selected_execution_template(execution) {
-                document_size(&template.metadata, usize::try_from(65536_u64).expect("validated metadata size"), limits.depth)
-                    .map_err(|_| DocumentAcquisitionFailure::Limit)?;
-            }
-        }
-        let definition =
-            super::captured_authored_document(&state.suites, execution, document_id).ok_or(DocumentAcquisitionFailure::Missing)?;
+            .ok_or(PreparationFailure::Missing)?;
+        let definition = super::captured_authored_document(&state.suites, execution, document_id).ok_or(PreparationFailure::Missing)?;
         let selection = DocumentSelection { scope: execution.scope.clone() };
         Ok(PreparedCurrentDocument {
             runtime: self.clone(),
@@ -206,7 +184,7 @@ impl PreparedCurrentDocument {
             selection: &self.selection,
             data: self.query_data()?,
         };
-        let scan = crate::document::resolve::RepeatScan::new([&self.definition])?;
+        let scan = crate::document::resolve::RepeatDefinitions::new([&self.definition])?;
         let pending_repeats = !scan.is_empty();
         let empty_repeats = scan.finish();
         let mut queries = Vec::new();
@@ -255,7 +233,10 @@ impl PreparedCurrentDocument {
                 .await
                 .map_err(|_| crate::runtime::Error::cancelled("document_cancelled", "document receiver closed"))?;
         }
-        let context = crate::document::query::Context::new(&self.runtime, &self.snapshot, &self.selection, &at);
+        let mut context = crate::document::query::Context::new(&self.runtime, &self.snapshot, &self.selection, &at);
+        if let Some(resume) = &self.continuation {
+            context.environment.journal = Some((&resume.saved.process_epoch, resume.saved.state_revision));
+        }
         context.validate_membership()?;
         let pending = FuturesUnordered::<LocalBoxFuture<'_, DocumentWork>>::new();
         for card in queries {
@@ -399,7 +380,7 @@ impl PreparedCurrentDocument {
         Ok(crate::document::input::BorrowedData {
             context: match &self.continuation {
                 Some(resume) => crate::document::input::Context::captured(&resume.saved.context, &self.selection.scope),
-                None => binding_context(&self.snapshot, &self.definition, &self.selection, DocumentLimits::default().source_bytes)?,
+                None => binding_context(&self.snapshot, &self.definition, &self.selection)?,
             },
             records: Default::default(),
             telemetry: &[],
@@ -431,7 +412,7 @@ impl PreparedCurrentDocument {
             data,
         };
         let cursor = self.continuation.as_ref().map_or_else(Default::default, |resume| resume.saved.cursor.clone());
-        crate::document::page::expand(&self.runtime, input, at, cursor).await
+        crate::document::page::expand(context.environment, input, at, cursor).await
     }
 }
 
@@ -492,50 +473,24 @@ fn fail_repeat_sections(
     }
 }
 
-fn complete_card(mut binding: CardBinding, result: crate::runtime::Result<CardBinding>, limits: DocumentLimits) -> CardBinding {
-    let result = result.and_then(|card| {
-        crate::document::bounded::card_size(&card, limits.materialized_bytes, limits.depth, card.metadata.identifier.as_str())?;
-        Ok(card)
-    });
-    match result {
-        Ok(card) => card,
-        Err(error) => {
-            let failure = match error {
-                crate::runtime::Error::Dokime(error) => CardFailure::document(error),
-                error => CardFailure {
-                    code: error.code().unwrap_or("document_query_failed").to_owned(),
-                    message: format!("card {}: {error}", binding.metadata.identifier),
-                    budget: None,
-                },
-            };
-            binding.result = CardBindingResult::Failed { failure };
-            binding
-        }
-    }
-}
-
 fn binding_context<'a>(
-    snapshot: &'a RuntimeStateSnapshot, definition: &DocumentDefinition, selection: &'a DocumentSelection, source_bytes: usize,
+    snapshot: &'a RuntimeStateSnapshot, definition: &DocumentDefinition, selection: &'a DocumentSelection,
 ) -> crate::runtime::Result<crate::document::input::Context<'a>> {
     use crate::document::input::Context;
     if !crate::document::binding::context_needed(definition) {
         return Ok(Context::default());
     }
     if let Some(id) = &selection.scope.test_execution_id {
-        let execution = snapshot.state().executions.get(id).ok_or(DocumentAcquisitionFailure::Missing)?;
+        let execution = snapshot.state().executions.get(id).ok_or(PreparationFailure::Missing)?;
         return Ok(Context::new(std::slice::from_ref(execution), &selection.scope));
     }
     let cycle = snapshot
         .state()
         .cycles
-        .get(selection.scope.test_cycle_id.as_ref().ok_or(DocumentAcquisitionFailure::Missing)?)
-        .ok_or(DocumentAcquisitionFailure::Missing)?;
-    let bytes = harmos::btree_map_memory::<&TestExecutionId, ()>(cycle.execution_ids.len());
-    if bytes > source_bytes {
-        return Err(DocumentAcquisitionFailure::Limit.into());
-    }
+        .get(selection.scope.test_cycle_id.as_ref().ok_or(PreparationFailure::Missing)?)
+        .ok_or(PreparationFailure::Missing)?;
     Context::ordered(&cycle.execution_ids, &snapshot.state().executions, &selection.scope)
-        .ok_or_else(|| DocumentAcquisitionFailure::IncompleteCapture.into())
+        .ok_or_else(|| PreparationFailure::IncompleteCapture.into())
 }
 
 /* === Tests === */
@@ -543,6 +498,7 @@ fn binding_context<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::document::capture::CardBindingResult;
 
     #[test]
     fn output_budget_is_local_to_its_card() {

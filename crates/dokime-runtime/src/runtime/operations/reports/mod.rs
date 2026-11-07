@@ -154,6 +154,7 @@ impl Resources {
                     renderer: crate::report::Renderer,
                 },
                 runtime.local_storage.clone(),
+                runtime.query_config().clone(),
             ),
         }
     }

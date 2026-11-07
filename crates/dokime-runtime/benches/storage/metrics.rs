@@ -63,11 +63,13 @@ impl Probe {
     fn begin(sample: impl Fn() -> usize + Send + 'static) -> Self {
         let stop = Arc::new((Mutex::new(false), Condvar::new()));
         let signal = Arc::clone(&stop);
+        let (ready, started) = std::sync::mpsc::sync_channel(0);
         let thread = thread::spawn(move || {
             let mut observed = Observed {
                 rss_baseline_bytes: rss(),
                 ..Observed::default()
             };
+            ready.send(()).unwrap();
             loop {
                 let write = sample();
                 observed.pending_write_bytes = observed.pending_write_bytes.max(write);
@@ -87,6 +89,7 @@ impl Probe {
             }
             observed
         });
+        started.recv().unwrap();
         Self { stop, thread: Some(thread) }
     }
 
@@ -180,7 +183,18 @@ fn rss() -> Option<usize> {
     let row = status.lines().find(|line| line.starts_with("VmRSS:"))?;
     row.split_whitespace().nth(1)?.parse::<usize>().ok()?.checked_mul(1024)
 }
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
+fn rss() -> Option<usize> {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+    thread_local! { static SYSTEM: std::cell::RefCell<Option<System>> = std::cell::RefCell::new(System::new().ok()); }
+    SYSTEM.with_borrow_mut(|system| {
+        let system = system.as_mut()?;
+        let pid = sysinfo::get_current_pid().ok()?;
+        system.refresh_processes_specifics(ProcessesToUpdate::Some(&[pid]), false, ProcessRefreshKind::nothing().with_memory());
+        usize::try_from(system.process(pid)?.memory()).ok()
+    })
+}
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 fn rss() -> Option<usize> {
     None
 }

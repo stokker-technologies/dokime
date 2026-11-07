@@ -92,7 +92,7 @@ pub(crate) struct ScopedRecord {
 impl super::State {
     #[cfg(feature = "native")]
     pub(crate) async fn document_records(
-        &self, at: StorageCursor, execution: String, after: (String, u64),
+        &self, at: StorageCursor, execution: String, after: (String, u64), journal: Option<(String, u64)>,
     ) -> Result<(Vec<ScopedRecord>, Option<(String, u64)>), Error> {
         self.read(move |connection| {
             Ok((|| {
@@ -100,16 +100,26 @@ impl super::State {
                 let selected = "SELECT position,scope,attempt FROM (
                 SELECT position,scope,coalesce(json_extract(scope,'$.origin.attempt_id'),'') AS attempt
                 FROM storage_record_visibility v WHERE execution=?1 AND position<=?2
+                AND (?5 IS NULL OR epoch IS NULL OR epoch<>?5 OR sequence<=?6)
                 AND (coalesce(json_extract(scope,'$.origin.attempt_id'),''),position)>(?3,?4)
                 AND NOT EXISTS(SELECT 1 FROM storage_record_captures c WHERE c.execution=?1 AND c.position=v.position)
                 ORDER BY attempt,position LIMIT 256)
                 UNION ALL SELECT position,scope,attempt FROM (
                 SELECT position,scope,coalesce(json_extract(scope,'$.origin.attempt_id'),'') AS attempt
                 FROM storage_record_captures WHERE execution=?1 AND position<=?2
+                AND (?5 IS NULL OR epoch IS NULL OR epoch<>?5 OR sequence<=?6)
                 AND (coalesce(json_extract(scope,'$.origin.attempt_id'),''),position)>(?3,?4)
                 ORDER BY attempt,position LIMIT 256)
                 ORDER BY attempt,position LIMIT 256";
-                let args = vec![execution.clone().into(), position(at.sequence).into(), after.0.into(), position(after.1).into()];
+                let (epoch, revision) = journal.map_or((None, u64::MAX), |(epoch, revision)| (Some(epoch), revision));
+                let args = vec![
+                    execution.clone().into(),
+                    position(at.sequence).into(),
+                    after.0.into(),
+                    position(after.1).into(),
+                    epoch.map_or(rusqlite::types::Value::Null, Into::into),
+                    position(revision).into(),
+                ];
                 let mut statement = connection.prepare(selected)?;
                 let mut metadata = std::collections::BTreeMap::new();
                 let mut rows = statement.query(rusqlite::params_from_iter(args.iter()))?;

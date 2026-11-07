@@ -72,10 +72,10 @@ impl Cursor {
 /* === Public Functions === */
 
 pub(crate) async fn next(
-    runtime: &crate::RuntimeHandle, selection: &super::DocumentSelection, at: &harmos::storage::StorageCursor,
+    environment: super::query::Environment<'_>, selection: &super::DocumentSelection, at: &harmos::storage::StorageCursor,
     repeat: &DocumentSectionRepeat, data: BorrowedData<'_>, cursor: &mut Cursor,
 ) -> crate::runtime::Result<Option<Value>> {
-    let targets = targets(runtime, selection, at, repeat, data).await?;
+    let targets = targets(environment, selection, at, repeat, data).await?;
     if cursor.sources.is_empty() {
         cursor.sources.resize(targets.len(), SourceCursor::default());
     }
@@ -84,7 +84,7 @@ pub(crate) async fn next(
     }
     let mut heads = Vec::with_capacity(targets.len());
     for (target, source) in targets.iter().zip(&cursor.sources) {
-        heads.push(head(runtime, at, target, source, None).await?);
+        heads.push(head(environment, at, target, source, None).await?);
     }
     loop {
         let candidate = heads.iter().enumerate().filter_map(|(index, value)| value.as_ref().map(|value| (index, value))).min_by(
@@ -97,7 +97,7 @@ pub(crate) async fn next(
             if other == index {
                 continue;
             }
-            if let Some(value) = head(runtime, at, target, &SourceCursor::default(), Some(key)).await? {
+            if let Some(value) = head(environment, at, target, &SourceCursor::default(), Some(key)).await? {
                 first = first.min((value.first, other));
             }
         }
@@ -108,14 +108,15 @@ pub(crate) async fn next(
             cursor.emitted = true;
             return Ok(Some(selected.value));
         }
-        heads[index] = head(runtime, at, &targets[index], &cursor.sources[index], None).await?;
+        heads[index] = head(environment, at, &targets[index], &cursor.sources[index], None).await?;
     }
 }
 
 /* === Private Functions === */
 
 async fn head(
-    runtime: &crate::RuntimeHandle, at: &harmos::storage::StorageCursor, target: &Target, cursor: &SourceCursor, key: Option<[u8; 32]>,
+    environment: super::query::Environment<'_>, at: &harmos::storage::StorageCursor, target: &Target, cursor: &SourceCursor,
+    key: Option<[u8; 32]>,
 ) -> crate::runtime::Result<Option<Selected>> {
     if cursor.done {
         return Ok(None);
@@ -128,15 +129,9 @@ async fn head(
     let mut value = if let Some(query) = &target.query {
         let mut query = query.clone();
         query.key = if target.constant.is_some() { None } else { key };
-        runtime
-            .local_storage
-            .distinct_page(
-                at.clone(),
-                query,
-                cursor.after,
-                1,
-                QueryWork::document(runtime.query_config().clone(), "dokime.documents.repeat"),
-            )
+        environment
+            .storage
+            .distinct_page(at.clone(), query, cursor.after, 1, QueryWork::document(environment.config.clone(), "dokime.documents.repeat"))
             .await?
             .values
             .into_iter()
@@ -170,7 +165,7 @@ async fn head(
 }
 
 async fn targets(
-    runtime: &crate::RuntimeHandle, selection: &super::DocumentSelection, at: &harmos::storage::StorageCursor,
+    environment: super::query::Environment<'_>, selection: &super::DocumentSelection, at: &harmos::storage::StorageCursor,
     repeat: &DocumentSectionRepeat, data: BorrowedData<'_>,
 ) -> crate::runtime::Result<Vec<Target>> {
     let mut targets = Vec::new();
@@ -235,12 +230,12 @@ async fn targets(
         let sources = if let DataSource::Record { record_type } = &repeat.value.source {
             vec![("record", record_type.clone())]
         } else {
-            let contracts = runtime
-                .local_storage
+            let contracts = environment
+                .storage
                 .query_telemetry_contracts(
                     crate::storage::sqlite::snapshots::Scope::Execution(execution.to_string()),
                     at.sequence,
-                    runtime.query_config().limits().schema_bytes as usize,
+                    environment.config.limits().schema_bytes as usize,
                     "dokime.documents.repeat",
                 )
                 .await?;
@@ -295,6 +290,10 @@ async fn targets(
                     filters,
                     order,
                     key: None,
+                    journal: (kind == "record")
+                        .then_some(environment.journal)
+                        .flatten()
+                        .map(|(epoch, revision)| (epoch.to_owned(), revision)),
                 }),
                 constant: constant.clone(),
                 ordered: repeat.order_by.is_some(),

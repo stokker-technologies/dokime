@@ -36,6 +36,7 @@ pub(crate) struct Scope {
     state: harmos::state::StateManager<Dokime>,
     resources: Resources,
     pub(crate) storage: crate::storage::sqlite::State,
+    pub(crate) query: crate::config::QueryConfig,
 }
 
 /* === Enums === */
@@ -45,8 +46,11 @@ pub(crate) struct Scope {
 /* === Implementations === */
 
 impl Scope {
-    pub(crate) fn new(state: harmos::state::StateManager<Dokime>, resources: Resources, storage: crate::storage::sqlite::State) -> Self {
-        Self { state, resources, storage }
+    pub(crate) fn new(
+        state: harmos::state::StateManager<Dokime>, resources: Resources, storage: crate::storage::sqlite::State,
+        query: crate::config::QueryConfig,
+    ) -> Self {
+        Self { state, resources, storage, query }
     }
 
     pub(crate) fn state(&self) -> &harmos::state::StateManager<Dokime> {

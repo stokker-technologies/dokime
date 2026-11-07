@@ -86,7 +86,7 @@ pub(crate) struct RepeatValues {
 
 /// Folds the distinct values of every repeat of a document across evidence
 /// pages, in evidence order, as one complete read would.
-pub(crate) struct RepeatScan {
+pub(crate) struct RepeatDefinitions {
     repeats: Vec<(DocumentSectionRepeat, Distinct)>,
 }
 
@@ -499,7 +499,7 @@ impl RepeatValues {
     }
 }
 
-impl RepeatScan {
+impl RepeatDefinitions {
     /// Every distinct repeat the definitions declare, at any depth. A repeat
     /// selecting on a correlated transform is refused before any evidence is read.
     pub(crate) fn new<'d>(definitions: impl IntoIterator<Item = &'d crate::document::DocumentDefinition>) -> Result<Self> {
@@ -534,50 +534,8 @@ impl RepeatScan {
         Ok(Self { repeats })
     }
 
-    fn expressions(&self) -> impl Iterator<Item = &DataExpression> {
-        self.repeats.iter().flat_map(|(repeat, _)| {
-            std::iter::once(&repeat.value).chain(&repeat.order_by).chain(repeat.filters.iter().map(|filter| &filter.expression))
-        })
-    }
-
     pub(crate) fn is_empty(&self) -> bool {
         self.repeats.is_empty()
-    }
-
-    pub(crate) fn needs_records(&self) -> bool {
-        self.expressions().any(|expression| matches!(expression.source, DataSource::Record { .. }))
-    }
-
-    pub(crate) fn needs_telemetry(&self, context: super::input::Context<'_>) -> bool {
-        self.expressions().any(|expression| binding::expression_needs_telemetry(expression, context))
-    }
-
-    /// The one telemetry stream every telemetry-reading repeat selects, when
-    /// they agree, so a scan need not read the execution's other streams.
-    pub(crate) fn telemetry_stream(&self, context: super::input::Context<'_>) -> Option<&str> {
-        let mut streams =
-            self.expressions().filter(|expression| binding::expression_needs_telemetry(expression, context)).map(|expression| {
-                match &expression.source {
-                    DataSource::Telemetry { stream, .. } => Some(stream.as_str()),
-                    _ => None,
-                }
-            });
-        let first = streams.next()??;
-        streams.all(|stream| stream == Some(first)).then_some(first)
-    }
-
-    /// Folds one evidence page; pages arrive in evidence order.
-    pub(crate) fn fold(&mut self, selection: &crate::document::DocumentSelection, data: BorrowedData<'_>) {
-        let evidence = Evidence {
-            records: data.records,
-            artifacts: data.artifacts,
-            telemetry: data.telemetry,
-            context: data.context,
-            selection: Some(selection),
-        };
-        for (repeat, values) in &mut self.repeats {
-            values.fold(repeat, evidence);
-        }
     }
 
     pub(crate) fn finish(self) -> RepeatValues {

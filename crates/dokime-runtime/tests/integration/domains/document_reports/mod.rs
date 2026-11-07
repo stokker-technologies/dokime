@@ -280,24 +280,6 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     drop(database);
     runtime.prepare_current_document(&cycle_id, execution_id, &document_id).unwrap().capture().await.unwrap();
     runtime.prepare_current_cycle_document(&cycle_id, &document_id).unwrap().capture().await.unwrap();
-    let selection = dokime_runtime::document::DocumentSelection {
-        scope: cycle.test_executions[0].scope.clone(),
-    };
-    assert!(runtime.resolve_cycle_document(&cycle_id, &document_id, selection.clone()).await.unwrap().is_some());
-    let view = runtime
-        .query_runtime_view(RuntimeViewQuery {
-            scope: Some(selection.scope),
-            topic: RuntimeViewTopic::Document { document_id: document_id.clone() },
-            window: RuntimeWindow::Full,
-            resolution: RuntimeResolution::Summary,
-            cursor: None,
-        })
-        .await
-        .unwrap();
-    let RuntimeViewPayload::Document { frame } = view.payload else { panic!("expected document frame") };
-    assert!(frame.error.is_none(), "{:?}", frame.error);
-    assert!(frame.document.is_some());
-
     for selected_scope in [
         cycle.test_executions[0].scope.clone(),
         RecordScope {
@@ -591,22 +573,6 @@ async fn scoped_evidence_ignores_corrupt_other_executions() {
     let captured = captured.unwrap();
     let count = captured.capture.cards.iter().find_map(|card| match &card.result {
         dokime_runtime::document::capture::CardBindingResult::Summary { groups } => groups.first()?.tiles.first()?.value.clone(),
-        _ => None,
-    });
-    assert_eq!(count, Some(Value::Unsigned(1)));
-    let resolved = runtime
-        .resolve_cycle_document(
-            &cycle_id,
-            &document_id,
-            dokime_runtime::document::DocumentSelection {
-                scope: cycle.test_executions[0].scope.clone(),
-            },
-        )
-        .await
-        .unwrap()
-        .unwrap();
-    let count = resolved.cards.iter().find_map(|card| match &card.body {
-        dokime_runtime::document::DocumentCardBodyPayload::TelemetrySummary { groups } => groups.first()?.tiles.first()?.value.clone(),
         _ => None,
     });
     assert_eq!(count, Some(Value::Unsigned(1)));
@@ -924,7 +890,7 @@ async fn document_report_live() {
     capture::undeclared_records_settle().await;
     construction::section_run_report().await;
     construction::current_fact_frontiers().await;
-    construction::document_routes_samples().await;
+    construction::document_queries_captured_scope().await;
     construction::repeated_sections_follow().await;
     construction::repeated_sections_freeze().await;
     reports::report_opens_anytime().await;
