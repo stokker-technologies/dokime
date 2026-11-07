@@ -87,6 +87,8 @@ CREATE INDEX IF NOT EXISTS storage_data_live_object_key_covering
 CREATE INDEX IF NOT EXISTS storage_data_retired_object_position
     ON storage_data_entries(position, retired_at)
     WHERE kind='object' AND retired_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS storage_object_releases_generation
+    ON storage_object_releases(schema_id, generation, item);
 CREATE INDEX IF NOT EXISTS storage_data_scope ON storage_data_entries(kind, scope, position);
 CREATE INDEX IF NOT EXISTS storage_data_schema_scope ON storage_data_entries(kind, schema_key, scope, position);
 CREATE INDEX IF NOT EXISTS storage_data_schema_position ON storage_data_entries(kind, schema_key, position);

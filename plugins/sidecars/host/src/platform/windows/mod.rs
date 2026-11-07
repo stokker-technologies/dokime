@@ -9,6 +9,7 @@
 
 /* === Modules === */
 
+pub mod apartment;
 pub mod bluetooth;
 pub mod connectivity;
 pub mod devices;

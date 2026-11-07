@@ -713,10 +713,24 @@ async fn stage_saved_tail() {
 async fn configured_row_flush_preserves_saved_order_and_combines_tail() {
     let fixture = Fixture::new(2).await;
     let saved = fixture.storage.cursor_saved();
+    let writer = fixture.local.0.live.lock().await;
+    let local = fixture.local.clone();
+    let (entered, ready) = tokio::sync::oneshot::channel();
+    let (release, released) = tokio::sync::oneshot::channel();
+    let held = tokio::task::spawn_blocking(move || {
+        let _store = local.0.telemetry.lock().unwrap();
+        entered.send(()).unwrap();
+        released.blocking_recv().unwrap();
+    });
+    ready.await.unwrap();
+    // Admission And Its Live Read Complete Even While Disk Writes Cannot Run.
     let first = fixture.admit(&[(1, 10)]).await;
     assert_eq!(fixture.storage.cursor_saved(), saved);
     assert!(fixture.read(&saved, fixture.selection()).await.is_empty());
     assert_eq!(fixture.read(&first, fixture.selection()).await.len(), 1);
+    release.send(()).unwrap();
+    held.await.unwrap();
+    drop(writer);
     let second = fixture.admit(&[(2, 20)]).await;
     fixture.saved(&second).await;
     let third = fixture.admit(&[(3, 30)]).await;

@@ -66,6 +66,7 @@ struct Apartment;
 
 impl Apartment {
     fn new() -> Result<Self> {
+        crate::platform::windows::apartment::retain()?;
         unsafe { RoInitialize(RO_INIT_MULTITHREADED) }.map_err(probe)?;
         Ok(Self)
     }

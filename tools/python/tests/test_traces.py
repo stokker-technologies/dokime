@@ -86,7 +86,7 @@ class TraceSummaryTests(unittest.TestCase):
 
             destinations = []
 
-            def execute(command, cwd, environment):
+            def execute(command, cwd, environment, *, timeout_s=None):
                 trace_directory = Path(environment["DOKIME_TEST_TRACE_DIR"])
                 self.assertTrue(trace_directory.is_relative_to(root))
                 destinations.append(trace_directory.parent)

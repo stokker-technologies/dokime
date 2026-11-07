@@ -1,5 +1,15 @@
 # Repository Tooling
 
+`lint:rust` owns Clippy with warnings denied. `check:rust` includes it, and CI
+Check / Rust gates it. Build, test, bench, fixture and focused compilation tasks
+retain compiler preflight without running Clippy. Use an explicit
+`mise run build:rust:focused -- clippy <arguments>` for a selected Clippy run.
+
+Desktop and benchmark selections are covered by `lint:rust`.
+
+`mise run lint:rust --extended` lints the optional compatibility selections;
+`build:rust:compatibility` checks them without Clippy. Extended lint remains local-only.
+
 Mise is the public entry point. Python modules in `tools/python/src/dokime_tools/`
 own environment setup, synchronization, version metadata, binding generation,
 frontend preparation, native packaging, CI and
@@ -69,12 +79,14 @@ the root environment without a staged wheel. A focused integration selection use
 `mise run test:python:integration --select <expression>` and also checks source.
 Full Python unit and integration tasks retain their built-wheel input.
 
-## Hosted-Runner Test Budgets
+## Test Hang Guards
 
-Test-time budgets are doubled so hosted runners, whose disks can stall for over a
-minute, finish stories reliably on Linux and Windows. `[conventions.testing.deadlines]`
-in `tools/project.toml` sets each lane's per-story deadline, which the test runner
-passes to nextest, pytest and Vitest. Rust fixture operations and in-story waits
+`[conventions.testing.deadlines]` in `tools/project.toml` owns the lane hang guards.
+The test runner passes these values to nextest, pytest and Vitest. Script lanes,
+including native desktop system tests, also have a whole-lane process-tree timeout
+using the same configured deadline. These guards terminate hangs; completed story
+durations remain measurements and never change a runner's pass/fail result.
+Rust fixture operations and in-story waits
 share `STORY_BOUND` and `FIXTURE_POLICY` in
 `crates/dokime-runtime/tests/support/settings.rs`; the desktop stories size their
 waits with the constants at the top of `crates/dokime-gui/e2e/native-desktop.mjs`.
