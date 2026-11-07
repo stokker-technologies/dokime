@@ -21,9 +21,10 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 # Third Party Imports
+from harmos_tools.build import paths
+from harmos_tools.test import policy
+
 # Local Imports
-from ..build import paths
-from . import policy
 
 # Type Checking Imports
 

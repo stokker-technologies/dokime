@@ -20,8 +20,9 @@ from pathlib import Path
 from zipfile import ZipFile
 
 # Third Party Imports
+from harmos_tools.build import paths
+
 # Local Imports
-from dokime_tools.build import paths
 
 # Type Checking Imports
 

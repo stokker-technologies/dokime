@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.13, <3.16"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -187,6 +187,7 @@ name = "dokime-tools"
 version = "0.0.0"
 source = { editable = "tools/python" }
 dependencies = [
+    { name = "harmos-tools" },
     { name = "packaging" },
 ]
 
@@ -198,7 +199,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "packaging", specifier = "==26.3" }]
+requires-dist = [
+    { name = "harmos-tools", git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=5b63c87056bb1c7f080e579625c00053c7cf7d12" },
+    { name = "packaging", specifier = "==26.3" },
+]
 
 [package.metadata.requires-dev]
 dev = [
@@ -256,6 +260,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5c/cf/6720e720bfa80fcb1ace873f66724eb3c8b03bba2fa078a30c12cab3212e/grpcio-1.84.0-cp315-cp315-win32.whl", hash = "sha256:edb6f87fc60ff438557291501b3e16c7a77c3b01a52d782cf276dccc7c5dd89c", size = 4561981, upload-time = "2026-09-14T06:59:27.275Z" },
     { url = "https://files.pythonhosted.org/packages/7f/b9/69d8a709df225bc2e06e028e9465166b174c24b3da07cc72d9a5ddc63194/grpcio-1.84.0-cp315-cp315-win_amd64.whl", hash = "sha256:4119efa6519871719ad81f33bc95ab87857dcb1c5801f30a6e592f2c41164169", size = 5394757, upload-time = "2026-09-14T06:59:30.118Z" },
 ]
+
+[[package]]
+name = "harmos-tools"
+version = "0.0.0"
+source = { git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=5b63c87056bb1c7f080e579625c00053c7cf7d12#5b63c87056bb1c7f080e579625c00053c7cf7d12" }
 
 [[package]]
 name = "hatchling"

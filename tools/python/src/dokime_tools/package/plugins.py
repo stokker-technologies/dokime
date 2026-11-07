@@ -20,10 +20,11 @@ import zipfile
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.build import paths
+from harmos_tools.release import policy
+
 # Local Imports
-from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output
-from dokime_tools.release import policy
 
 # Type Checking Imports
 

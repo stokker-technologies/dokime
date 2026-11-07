@@ -13,7 +13,10 @@ Desktop and benchmark selections are covered by `lint:rust`.
 Mise is the public entry point. Python modules in `tools/python/src/dokime_tools/`
 own environment setup, synchronization, version metadata, binding generation,
 frontend preparation, native packaging, CI and
-test execution. The shared Python environment lives at repository-root `.venv/`.
+test execution. The project-neutral modules come from `harmos-tools`, the
+`tools/python` package of the Harmos repository, pinned in
+`tools/python/pyproject.toml` to the same revision as the Harmos crates. The shared
+Python environment lives at repository-root `.venv/`.
 
 After changing Python dependencies, `mise run prepare --refresh-lock` refreshes
 the workspace `uv.lock` before the ordinary locked synchronization. The test group
@@ -94,7 +97,7 @@ Product operation policies keep their own deadlines.
 
 ## Workstation Builds
 
-Compiling tasks run through `tools/python/src/dokime_tools/build/machine.py`, which starts the
+Compiling tasks run through `harmos_tools.build.machine`, which starts the
 shared compiler cache for the command. Nothing serializes compilation: tasks in
 any repository or worktree run at the same time, and no worker or compiler
 thread limits are added.

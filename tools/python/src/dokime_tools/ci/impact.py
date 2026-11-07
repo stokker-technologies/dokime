@@ -17,8 +17,9 @@ import subprocess
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.process import spawn_flags
+
 # Local Imports
-from ..process import spawn_flags
 
 # Type Checking Imports
 

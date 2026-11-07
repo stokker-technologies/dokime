@@ -45,7 +45,7 @@ class RunTests(unittest.TestCase):
     def setUpClass(cls):
         cls.runners = [run]
         for path in sorted((ROOT / "crates/cargo-dokime/templates").rglob("test/run.py.tmpl")):
-            namespace = runpy.run_path(str(path), run_name=f"{run.__package__}.template_runner")
+            namespace = runpy.run_path(str(path), run_name="harmos_tools.test.template_runner")
             module = ModuleType(namespace["__name__"])
             module.__dict__.update(namespace)
             cls.runners.append(module)

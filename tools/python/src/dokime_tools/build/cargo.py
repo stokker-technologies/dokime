@@ -20,10 +20,12 @@ from pathlib import Path
 from typing import Any
 
 # Third Party Imports
+from harmos_tools.build import paths
+from harmos_tools.ci import summary
+from harmos_tools.process import spawn_flags
+
 # Local Imports
-from ..ci import summary
-from ..process import spawn_flags
-from . import paths, storage
+from . import storage
 
 # Type Checking Imports
 
@@ -55,8 +57,9 @@ def clippy(directory: Path, arguments: Sequence[str], *, environment: Mapping[st
 
 
 def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
+    from harmos_tools.test import policy
+
     from ..test import archive as reader
-    from ..test import policy
 
     if profile not in policy.PROFILES:
         raise policy.TestError("unknown build profile")

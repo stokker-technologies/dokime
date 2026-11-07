@@ -17,9 +17,9 @@ from pathlib import Path
 
 # Third Party Imports
 import pytest
+from harmos_tools.build import paths
 
 # Local Imports
-from dokime_tools.build import paths
 
 # Type Checking Imports
 

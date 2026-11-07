@@ -21,9 +21,11 @@ from pathlib import Path
 from time import perf_counter
 
 # Third Party Imports
+from harmos_tools.build import paths
+from harmos_tools.test import policy
+
 # Local Imports
-from dokime_tools.build import frontend, paths
-from dokime_tools.test import policy
+from dokime_tools.build import frontend
 
 # Type Checking Imports
 

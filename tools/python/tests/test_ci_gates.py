@@ -26,9 +26,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 # Third Party Imports
+from harmos_tools.release import policy
+
 # Local Imports
 from dokime_tools.ci import impact, simulate
-from dokime_tools.release import nightly, pins, policy, registry
+from dokime_tools.release import nightly, pins, registry
 
 # Type Checking Imports
 

@@ -302,7 +302,7 @@ jobs:
     - name: Archive python
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f616e792f707974686f6e225d\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f616e792f707974686f6e225d\",\"--target\",\"any\"]"
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: build-product-python-${{ env.PROFILE }}-any
@@ -388,7 +388,7 @@ jobs:
     - name: Extract package:python / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-windows
@@ -397,7 +397,7 @@ jobs:
     - name: Extract package:rust / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-unix
@@ -406,7 +406,7 @@ jobs:
     - name: Extract package:rust / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.ci.build
@@ -521,7 +521,7 @@ jobs:
     - name: Extract package:python / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-windows
@@ -530,7 +530,7 @@ jobs:
     - name: Extract package:rust / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-unix
@@ -539,7 +539,7 @@ jobs:
     - name: Extract package:rust / package
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - run: mise run release:rehearse
     - uses: ./.github/actions/save-caches
       if: >-
@@ -642,7 +642,7 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.test.archive --profile ${{ env.PROFILE }} --install-wheels
@@ -724,7 +724,7 @@ jobs:
     - name: Extract build / clients
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - run: >-
         mise exec -- uv run --locked --project tools/python python -m
         dokime_tools.test.archive --profile ${{ env.PROFILE }} --install-wheels
@@ -806,7 +806,7 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
     - run: mise run test:python:unit --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -896,7 +896,7 @@ jobs:
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-plugins-${{ env.PROFILE }}-unix
@@ -904,7 +904,7 @@ jobs:
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-product-python-${{ env.PROFILE }}-any
@@ -912,7 +912,7 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-tests-${{ env.PROFILE }}-unix
@@ -920,7 +920,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - run: mise run test:python:acceptance --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -1012,7 +1012,7 @@ jobs:
     - name: Extract build / clients
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - run: mise run test:typescript:unit --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -1102,7 +1102,7 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
     - run: mise run test:python:integration --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -1201,12 +1201,12 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
     - run: mise run package:python --profile ${{ env.PROFILE }}
     - name: Archive package
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f7061636b6167652f7b70726f66696c657d2f616e792f707974686f6e225d\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-python-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f7061636b6167652f7b70726f66696c657d2f616e792f707974686f6e225d\",\"--target\",\"any\"]"
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: package-${{ env.PROFILE }}-python-any
@@ -1290,7 +1290,7 @@ jobs:
     - name: Extract build / clients
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
     - run: mise run test:typescript:integration --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -1389,7 +1389,7 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1403,7 +1403,7 @@ jobs:
     - name: Archive cli
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d65225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d65225d\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1420,7 +1420,7 @@ jobs:
     - name: Archive clients
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f67656e6572617465642f74797065736372697074225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f67656e6572617465642f74797065736372697074225d\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1437,7 +1437,7 @@ jobs:
     - name: Archive generator
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f636172676f2d646f6b696d65225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f636172676f2d646f6b696d65225d\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1454,7 +1454,7 @@ jobs:
     - name: Archive gui
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d652d677569225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d652d677569225d\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1471,7 +1471,7 @@ jobs:
     - name: Archive packaging
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-packaging-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f70726f64756374222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f776562225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-packaging-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f70726f64756374222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f776562225d\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1488,7 +1488,7 @@ jobs:
     - name: Archive plugins
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f706c7567696e73225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f706c7567696e73225d\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1579,7 +1579,7 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1593,7 +1593,7 @@ jobs:
     - name: Archive cli
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d652e657865225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d652e657865225d\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1610,7 +1610,7 @@ jobs:
     - name: Archive clients
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f67656e6572617465642f74797065736372697074225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f67656e6572617465642f74797065736372697074225d\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1627,7 +1627,7 @@ jobs:
     - name: Archive generator
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f636172676f2d646f6b696d652e657865225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f636172676f2d646f6b696d652e657865225d\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1644,7 +1644,7 @@ jobs:
     - name: Archive gui
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d652d6775692e657865225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f62696e2f646f6b696d652d6775692e657865225d\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1661,7 +1661,7 @@ jobs:
     - name: Archive packaging
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-packaging-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f70726f64756374222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f776562225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-packaging-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f70726f64756374222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f776562225d\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1678,7 +1678,7 @@ jobs:
     - name: Archive plugins
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f706c7567696e73225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f706c7567696e73225d\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build')) && (true)
@@ -1818,7 +1818,7 @@ jobs:
     - name: Archive tests
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f7465737473222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f6669787475726573225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f7465737473222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f6669787475726573225d\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (true)
@@ -1908,7 +1908,7 @@ jobs:
     - name: Archive tests
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f7465737473222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f6669787475726573225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f7465737473222c227461726765742f6275696c642f7b70726f66696c657d2f7b7461726765747d2f6669787475726573225d\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'build:rust:tests')) && (true)
@@ -2240,7 +2240,7 @@ jobs:
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2264,7 +2264,7 @@ jobs:
     - name: Extract build / generator
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2288,7 +2288,7 @@ jobs:
     - name: Extract build / gui
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2312,7 +2312,7 @@ jobs:
     - name: Extract build / packaging
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-packaging-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-packaging-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2336,7 +2336,7 @@ jobs:
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2357,7 +2357,7 @@ jobs:
     - name: Archive package
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f7061636b6167652f7b70726f66696c657d2f7b7461726765747d2f72757374225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f7061636b6167652f7b70726f66696c657d2f7b7461726765747d2f72757374225d\"]"
       if: >-
         matrix.platform == 'unix' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2482,7 +2482,7 @@ jobs:
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2506,7 +2506,7 @@ jobs:
     - name: Extract build / generator
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2530,7 +2530,7 @@ jobs:
     - name: Extract build / gui
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2554,7 +2554,7 @@ jobs:
     - name: Extract build / packaging
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-packaging-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-packaging-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2578,7 +2578,7 @@ jobs:
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2599,7 +2599,7 @@ jobs:
     - name: Archive package
       uses: ./.github/actions/archive-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f7061636b6167652f7b70726f66696c657d2f7b7461726765747d2f72757374225d\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"pack\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--paths\",\"5b227461726765742f7061636b6167652f7b70726f66696c657d2f7b7461726765747d2f72757374225d\"]"
       if: >-
         matrix.platform == 'windows' && (((github.event_name == 'schedule' ||
         github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v') ||
@@ -2765,7 +2765,7 @@ jobs:
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2779,7 +2779,7 @@ jobs:
     - name: Extract build / clients
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2793,7 +2793,7 @@ jobs:
     - name: Extract build / generator
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2807,7 +2807,7 @@ jobs:
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2821,7 +2821,7 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2835,7 +2835,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2922,7 +2922,7 @@ jobs:
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2936,7 +2936,7 @@ jobs:
     - name: Extract build / clients
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2950,7 +2950,7 @@ jobs:
     - name: Extract build / generator
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-generator-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2964,7 +2964,7 @@ jobs:
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2978,7 +2978,7 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -2992,7 +2992,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:acceptance')) && (true)
@@ -3125,7 +3125,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) && (true)
@@ -3212,7 +3212,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:integration')) && (true)
@@ -3358,7 +3358,7 @@ jobs:
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
@@ -3372,7 +3372,7 @@ jobs:
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
@@ -3386,7 +3386,7 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
@@ -3400,7 +3400,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
@@ -3487,7 +3487,7 @@ jobs:
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
@@ -3501,7 +3501,7 @@ jobs:
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
@@ -3515,7 +3515,7 @@ jobs:
     - name: Extract build:python / python
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\",\"--target\",\"any\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
@@ -3529,7 +3529,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:system')) && (true)
@@ -3660,7 +3660,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (true)
@@ -3747,7 +3747,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:rust:unit')) && (true)
@@ -3876,7 +3876,7 @@ jobs:
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) && (true)
@@ -3890,7 +3890,7 @@ jobs:
     - name: Extract build / clients
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) && (true)
@@ -3904,7 +3904,7 @@ jobs:
     - name: Extract build / gui
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) && (true)
@@ -3918,7 +3918,7 @@ jobs:
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) && (true)
@@ -3932,7 +3932,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'unix' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) && (true)
@@ -4021,7 +4021,7 @@ jobs:
     - name: Extract build / cli
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-cli-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) && (true)
@@ -4035,7 +4035,7 @@ jobs:
     - name: Extract build / clients
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-clients-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) && (true)
@@ -4049,7 +4049,7 @@ jobs:
     - name: Extract build / gui
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-gui-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) && (true)
@@ -4063,7 +4063,7 @@ jobs:
     - name: Extract build / plugins
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-plugins-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) && (true)
@@ -4077,7 +4077,7 @@ jobs:
     - name: Extract build:rust:tests / tests
       uses: ./.github/actions/extract-build
       with:
-        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+        command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"harmos_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/build-tests-${{ env.PROFILE }}-windows.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
       if: >-
         matrix.platform == 'windows' && ((true) && needs.impact.result == 'success' &&
         contains(fromJSON(needs.impact.outputs.jobs), 'test:typescript:system')) && (true)

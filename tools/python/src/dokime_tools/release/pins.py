@@ -15,8 +15,9 @@ import os
 from pathlib import Path
 
 # Third Party Imports
+from harmos_tools.release import policy
+
 # Local Imports
-from . import policy
 
 # Type Checking Imports
 
