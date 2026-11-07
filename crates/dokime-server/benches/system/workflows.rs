@@ -665,6 +665,7 @@ async fn first_frame(client: &Client, cycle_id: &str, execution_id: &str) -> mod
     let request = PlotRequest {
         plot_id: Some("bench.recovery.voltage".into()),
         plot_type: PlotType::TimeSeries,
+        style: model::documents::wire::PlotStyle::Line,
         x_scale: AxisScale::Linear,
         y_scale: AxisScale::Linear,
         stream: RECOVERY_STREAM.into(),
