@@ -51,6 +51,7 @@ struct Fixture {
     cycle: TestCycleId,
     execution: TestExecutionId,
     rows: usize,
+    plots: usize,
     _root: tempfile::TempDir,
 }
 
@@ -60,12 +61,12 @@ struct Fixture {
 
 /* === Implementations === */
 impl Fixture {
-    async fn new(rows: usize) -> Self {
+    async fn new(rows: usize, plots: usize) -> Self {
         let root = tempfile::tempdir().unwrap();
         let executor = Arc::new(BlockingPublishingExecutor::new());
         let mut config = super::plots::config(root.path());
         let contract = config.installed_plugins[0].telemetry_contracts[0].clone();
-        config.installed_plugins[0].telemetry_contracts = (0..PLOTS)
+        config.installed_plugins[0].telemetry_contracts = (0..plots)
             .map(|index| {
                 let mut contract = contract.clone();
                 contract.stream = identifier(&format!("bench.plot.{index}"));
@@ -76,7 +77,7 @@ impl Fixture {
         let owner = dokime_runtime::Runtime::with_execution_fixture(config, "testdb", executor.clone()).await.unwrap();
         let runtime = owner.handle();
         let mut suite = fixture_suite(&["passed"]);
-        suite.test_case_templates[0].document = Some(document());
+        suite.test_case_templates[0].document = Some(document(plots));
         register_custom_suite(&runtime, suite.clone()).await;
         let registration = runtime.test_suites().await.into_iter().find(|entry| entry.suite == suite).unwrap();
         let cases = materialize_cases(&registration.suite_id, &suite);
@@ -99,8 +100,8 @@ impl Fixture {
         executor.wait_until_entered().await;
         let scope = runtime.watch_state().latest().state().executions[&execution].capture_scope();
         let waveform = super::waveforms::samples(1);
-        let per_plot = rows / PLOTS;
-        for plot in 0..PLOTS {
+        let per_plot = rows / plots;
+        for plot in 0..plots {
             let stream = identifier(&format!("bench.plot.{plot}"));
             for first in (0..per_plot).step_by(2_000) {
                 let samples = (first..(first + 2_000).min(per_plot))
@@ -143,6 +144,7 @@ impl Fixture {
             cycle,
             execution,
             rows,
+            plots,
             _root: root,
         }
     }
@@ -180,7 +182,9 @@ impl Fixture {
                 .capture
                 .cards
                 .iter()
-                .all(|card| !matches!(card.result, dokime_runtime::document::capture::CardBindingResult::Failed { .. }))
+                .all(|card| !matches!(card.result, dokime_runtime::document::capture::CardBindingResult::Failed { .. })),
+            "{}",
+            serde_json::to_string(&captured.capture.cards).unwrap()
         );
         let scope = self.runtime.watch_state().latest().state().executions[&self.execution].capture_scope();
         let requests = captured
@@ -195,9 +199,9 @@ impl Fixture {
         let before = self.runtime.storage_read_counters();
         let payloads = self.runtime.query_plot_payloads_at(requests, captured.evidence_cut.as_ref().unwrap()).await.unwrap();
         assert_eq!(self.runtime.storage_read_counters().data_scan_rows, before.data_scan_rows);
-        assert_eq!(payloads.len(), PLOTS);
+        assert_eq!(payloads.len(), self.plots);
         for payload in payloads {
-            assert_eq!(payload.payload.series[0].raw_points, self.rows / PLOTS);
+            assert_eq!(payload.payload.series[0].raw_points, self.rows / self.plots);
         }
         started.elapsed()
     }
@@ -219,7 +223,7 @@ pub fn benchmark(criterion: &mut Criterion) {
         let mut fixture = None;
         for measurement in ["structure", "cards_and_plots"] {
             group.bench_function(BenchmarkId::new(measurement, rows), |bencher| {
-                let fixture = fixture.get_or_insert_with(|| executor.block_on(Fixture::new(rows)));
+                let fixture = fixture.get_or_insert_with(|| executor.block_on(Fixture::new(rows, PLOTS)));
                 bencher.iter_custom(|iterations| {
                     executor.block_on(async {
                         let probe = super::metrics::Probe::start(fixture.runtime.storage().clone());
@@ -242,11 +246,28 @@ pub fn benchmark(criterion: &mut Criterion) {
             executor.block_on(fixture.close());
         }
     }
+    let rows = 1_000_000;
+    let mut fixture = None;
+    group.bench_function(BenchmarkId::new("median", rows), |bencher| {
+        let fixture = fixture.get_or_insert_with(|| executor.block_on(Fixture::new(rows, 1)));
+        bencher.iter_custom(|iterations| {
+            executor.block_on(async {
+                let mut elapsed = Duration::ZERO;
+                for _ in 0..iterations {
+                    elapsed += fixture.cards().await;
+                }
+                elapsed
+            })
+        });
+    });
+    if let Some(fixture) = fixture {
+        executor.block_on(fixture.close());
+    }
     group.finish();
 }
 
 /* === Private Functions === */
-fn document() -> Document {
+fn document(plots: usize) -> Document {
     let mut document = Document::new("default", "Document Queries");
     let mut section = DocumentSection::new("Measurements");
     let field = dokime_runtime::expressions::telemetry("bench.plot.0", "value");
@@ -260,10 +281,13 @@ fn document() -> Document {
     ] {
         group.tile(TelemetrySummaryTileDefinition::new(label, expression));
     }
+    if plots == 1 {
+        group.tile(TelemetrySummaryTileDefinition::new("Median", field.median()));
+    }
     let mut summary = TelemetrySummaryDefinition::new();
     summary.group(group);
     section.card(DocumentCard::telemetry_summary(summary));
-    for index in 0..PLOTS {
+    for index in 0..plots {
         let mut plot = Plot::time_series(format!("Signal {index}"));
         plot.id(format!("bench.signal.{index}"));
         plot.y(dokime_runtime::expressions::telemetry(format!("bench.plot.{index}"), "value"));

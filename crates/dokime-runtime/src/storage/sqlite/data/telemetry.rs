@@ -200,7 +200,13 @@ impl State {
 
     pub(super) async fn arrow_write(&self, batch: StorageBatch<StoredRow>) -> Result<SavedData, Error> {
         let owner = self.0.clone();
-        self.call(move |connection| Ok(owner.telemetry.lock().unwrap().write(connection, batch))).await?
+        self.call(move |connection| {
+            let waiting = std::time::Instant::now();
+            let mut store = owner.telemetry.lock().unwrap();
+            tracing::debug!(name: "ingest.lock.store.writer", elapsed_ns = waiting.elapsed().as_nanos() as u64);
+            Ok(store.write(connection, batch))
+        })
+        .await?
     }
 
     pub(crate) async fn finalize_telemetry(&self, execution: String) -> Result<(), Error> {

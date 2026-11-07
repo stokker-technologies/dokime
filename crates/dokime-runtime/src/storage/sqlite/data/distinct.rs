@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
 use rusqlite::{Connection, params};
@@ -28,11 +29,15 @@ use dokime_domain::model::{execution::RecordScope, values::Value};
 /* === Constants === */
 
 pub(super) const SCHEMA: &str = "
+CREATE TABLE IF NOT EXISTS storage_distinct_fields (
+    execution TEXT NOT NULL, source TEXT NOT NULL, field TEXT NOT NULL,
+    PRIMARY KEY(execution,source,field)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS storage_distinct_values (
     execution TEXT NOT NULL, kind TEXT NOT NULL, source TEXT NOT NULL, path TEXT NOT NULL,
     value_key BLOB NOT NULL, value BLOB NOT NULL, sort_key BLOB NOT NULL,
     PRIMARY KEY(execution,kind,source,path,value_key)
-) WITHOUT ROWID;
+);
 CREATE INDEX IF NOT EXISTS storage_distinct_order
     ON storage_distinct_values(execution,kind,source,path,sort_key,value_key);
 CREATE INDEX IF NOT EXISTS storage_distinct_key
@@ -45,7 +50,7 @@ CREATE TABLE IF NOT EXISTS storage_value_postings (
     PRIMARY KEY(execution,kind,source,path,value_key,position),
     FOREIGN KEY(execution,kind,source,path,value_key)
         REFERENCES storage_distinct_values(execution,kind,source,path,value_key)
-) WITHOUT ROWID;
+);
 CREATE INDEX IF NOT EXISTS storage_value_field_position
     ON storage_value_postings(execution,kind,source,path,position,value_key);
 CREATE INDEX IF NOT EXISTS storage_value_numeric
@@ -128,6 +133,28 @@ pub(crate) enum Field {
 
 /* === Implementations === */
 
+impl super::State {
+    pub(crate) async fn register_distinct_fields(
+        &self, execution: String, fields: BTreeMap<String, BTreeSet<String>>,
+    ) -> Result<(), Error> {
+        self.call(move |connection| {
+            Ok((|| -> Result<(), Error> {
+                let transaction = connection.transaction()?;
+                let mut insert = transaction.prepare_cached("INSERT OR IGNORE INTO storage_distinct_fields VALUES (?1,?2,?3)")?;
+                for (source, fields) in fields {
+                    for field in fields {
+                        insert.execute(params![execution, source, field])?;
+                    }
+                }
+                drop(insert);
+                super::super::commit(transaction)?;
+                Ok(())
+            })())
+        })
+        .await?
+    }
+}
+
 #[cfg(feature = "native")]
 impl super::State {
     pub(crate) async fn distinct_page(
@@ -168,6 +195,12 @@ impl super::State {
 }
 
 /* === Public Functions === */
+
+pub(super) fn telemetry_fields(connection: &Connection, execution: &str, source: &str) -> Result<BTreeSet<String>, Error> {
+    let mut statement = connection.prepare_cached("SELECT field FROM storage_distinct_fields WHERE execution=?1 AND source=?2")?;
+    let fields = statement.query_map(params![execution, source], |row| row.get(0))?.collect::<rusqlite::Result<_>>()?;
+    Ok(fields)
+}
 
 pub(super) fn insert<'a>(
     connection: &Connection, row: Row<'_>, fields: impl IntoIterator<Item = (&'a str, &'a Value)>,

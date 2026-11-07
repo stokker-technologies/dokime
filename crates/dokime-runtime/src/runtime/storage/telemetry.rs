@@ -166,6 +166,7 @@ impl ScopedTelemetry {
 }
 
 impl TelemetryAdmission {
+    #[tracing::instrument(level = "debug", name = "ingest.host.commit", skip_all)]
     pub(crate) async fn commit(mut self, closure: Option<&crate::services::telemetry::Sampling>) -> Result<CommittedTelemetry> {
         let mut accepted = crate::domains::telemetry::telemetry_slots(self.rows.len())?;
         accepted.resize(self.rows.len(), false);

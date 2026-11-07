@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
@@ -70,6 +70,75 @@ impl Cursor {
 }
 
 /* === Public Functions === */
+
+pub(crate) fn fields<'a>(
+    documents: impl IntoIterator<Item = &'a super::DocumentDefinition>, contracts: &[dokime_domain::model::telemetry::TelemetryContract],
+    context: &BTreeMap<String, Value>,
+) -> BTreeMap<String, BTreeSet<String>> {
+    let mut selected = BTreeMap::<String, BTreeSet<String>>::new();
+    for document in documents {
+        let mut repeats = document.sections.iter().filter_map(|section| section.repeat.as_ref()).collect::<Vec<_>>();
+        let mut nodes = document.layout.nodes.iter().collect::<Vec<_>>();
+        while let Some(node) = nodes.pop() {
+            if let super::DocumentNode::Section(section) = node {
+                repeats.extend(section.repeat.as_ref());
+                nodes.extend(&section.children);
+            }
+        }
+        for repeat in repeats {
+            let contextual = |expression: &DataExpression| match &expression.source {
+                DataSource::Parameter { .. } => true,
+                DataSource::Dimension { name } => context.contains_key(name),
+                _ => false,
+            };
+            let constant = contextual(&repeat.value);
+            let sampled = repeat.filters.iter().any(|filter| {
+                !contextual(&filter.expression)
+                    && matches!(filter.expression.source, DataSource::Telemetry { .. } | DataSource::Dimension { .. })
+            });
+            if constant && !sampled {
+                continue;
+            }
+            for contract in contracts {
+                if let DataSource::Telemetry { stream, .. } = &repeat.value.source
+                    && !super::plot_inputs::stream_matches_alias(contract.stream.as_str(), stream)
+                {
+                    continue;
+                }
+                if matches!(repeat.value.source, DataSource::Record { .. } | DataSource::Artifact { .. }) {
+                    continue;
+                }
+                let expressions = std::iter::once(&repeat.value)
+                    .chain(repeat.order_by.iter().filter(|_| !constant))
+                    .chain(repeat.filters.iter().map(|filter| &filter.expression));
+                for expression in expressions {
+                    if contextual(expression) {
+                        continue;
+                    }
+                    let name = match &expression.source {
+                        DataSource::Telemetry { stream, field }
+                            if super::plot_inputs::stream_matches_alias(contract.stream.as_str(), stream) =>
+                        {
+                            field
+                        }
+                        DataSource::Dimension { name } => name,
+                        _ => continue,
+                    };
+                    let fields = selected.entry(contract.stream.to_string()).or_default();
+                    fields.insert(name.clone());
+                    if let Some((_, alias)) = name.rsplit_once('.') {
+                        fields.insert(alias.to_owned());
+                    }
+                }
+                // Context Repeats Use a Telemetry Row to Establish Filtered Presence.
+                if constant {
+                    selected.entry(contract.stream.to_string()).or_default().insert("timestamp".into());
+                }
+            }
+        }
+    }
+    selected
+}
 
 pub(crate) async fn next(
     environment: super::query::Environment<'_>, selection: &super::DocumentSelection, at: &harmos::storage::StorageCursor,
@@ -355,3 +424,44 @@ fn field(expression: &DataExpression, context: Option<super::context::Entry<'_>>
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nested_repeat_indexes_selectors_and_aliases_without_plot_fields() {
+        let mut document = super::super::DocumentDefinition::new("fixture", "Fixture");
+        let mut section = super::super::DocumentSection::new("Values");
+        let repeat = section.each(crate::expressions::telemetry("sensor", "schema.mode"), "{value}");
+        repeat.order_by = Some(crate::expressions::telemetry("sensor", "order"));
+        repeat.filters.push(super::super::DocumentFilter {
+            expression: crate::expressions::telemetry("sensor", "enabled"),
+            operator: super::super::FilterOperator::Exists,
+            value: None,
+        });
+        let mut plot = super::super::Plot::time_series("Continuous");
+        plot.y(crate::expressions::telemetry("sensor", "continuous"));
+        section.plot(plot);
+        let child = super::super::DocumentNode::Section(Box::new(super::super::DocumentSectionNode {
+            node_id: section.metadata.identifier.clone(),
+            metadata: section.metadata.clone(),
+            repeat: section.repeat.take(),
+            children: vec![],
+        }));
+        let parent = super::super::DocumentSection::new("Parent");
+        document.layout.nodes.push(super::super::DocumentNode::Section(Box::new(super::super::DocumentSectionNode {
+            node_id: parent.metadata.identifier.clone(),
+            metadata: parent.metadata,
+            repeat: None,
+            children: vec![child],
+        })));
+        document.sections.push(section);
+        let contracts = [dokime_domain::model::telemetry::TelemetryContract::declared("sensor", "Sensor")];
+        let selected = fields([&document], &contracts, &BTreeMap::new());
+        assert_eq!(
+            selected,
+            BTreeMap::from([("sensor".into(), BTreeSet::from(["schema.mode".into(), "mode".into(), "order".into(), "enabled".into(),]))])
+        );
+    }
+}

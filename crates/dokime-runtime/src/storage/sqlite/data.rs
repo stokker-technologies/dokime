@@ -322,10 +322,10 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
         connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_data_head')", [], |row| row.get(0))?;
     if exists {
         let indexed: bool = connection.query_row(
-            "SELECT count(*)=10 FROM sqlite_master WHERE type='table' AND name IN
+            "SELECT count(*)=11 FROM sqlite_master WHERE type='table' AND name IN
                 ('files','streams','storage_record_visibility','storage_record_captures',
                  'storage_numeric_summaries','storage_numeric_checkpoints','storage_report_previews','stream_samples',
-                 'storage_distinct_values','storage_value_postings')",
+                 'storage_distinct_values','storage_value_postings','storage_distinct_fields')",
             [],
             |row| row.get(0),
         )?;
@@ -354,6 +354,7 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
                 "SELECT cycle,sequence,epoch FROM storage_record_captures LIMIT 0",
                 "SELECT sequence,epoch,scope FROM storage_record_visibility LIMIT 0",
                 "SELECT value_type,position,scope FROM storage_value_postings LIMIT 0",
+                "SELECT execution,source,field FROM storage_distinct_fields LIMIT 0",
             ] {
                 connection
                     .prepare(query)

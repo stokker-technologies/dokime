@@ -99,9 +99,12 @@ impl PreparedPublication {
 }
 
 impl RuntimeHandle {
+    #[tracing::instrument(level = "debug", name = "ingest.admission.prepare", skip_all)]
     pub(crate) async fn prepare_sample_admission(&self, samples: Vec<TelemetrySample>, payloads: Payloads) -> Result<PreparedPublication> {
         self.storage().retry_transient_persistence();
+        let waiting = std::time::Instant::now();
         let order = self.telemetry_admission.clone().lock_owned().await;
+        tracing::debug!(name: "ingest.lock.admission", elapsed_ns = waiting.elapsed().as_nanos() as u64);
         let mut supplied = slots(samples.len())?;
         supplied.extend(
             samples
@@ -213,6 +216,7 @@ impl RuntimeHandle {
         Ok(publication.receipt)
     }
 
+    #[tracing::instrument(level = "debug", name = "ingest.admission.commit", skip_all)]
     pub(super) async fn admit_samples_owned(&self, admission: PreparedPublication) -> Result<CapturedPublication> {
         let PreparedPublication {
             order,
