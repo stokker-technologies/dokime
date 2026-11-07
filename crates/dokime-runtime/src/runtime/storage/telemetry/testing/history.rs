@@ -205,7 +205,11 @@ pub async fn telemetry(days: u64, per_day: u64) {
     let (mut after, mut read) = (0, 0);
     loop {
         let options = ReadOptions { after, ..Default::default() };
+        let before = local.read_counters();
         let page = collect_page(&storage, &at, &selection, &Default::default(), options, &local).await.unwrap();
+        let scanned = local.read_counters().data_scan_rows - before.data_scan_rows;
+        // One Schema Row and Only the Requested Telemetry Page Are Materialized.
+        assert!(scanned <= page.samples.len() as u64 + 1, "scanned {scanned} rows for {} samples", page.samples.len());
         assert!(page.samples.len() <= 64);
         if page.samples.is_empty() {
             break;
