@@ -11,7 +11,7 @@
 
 /* === Modules === */
 
-pub(crate) mod artifacts;
+pub(crate) mod publication;
 pub(crate) mod diagnostics;
 
 /* === Re-Exports === */
@@ -45,10 +45,10 @@ pub(crate) mod diagnostics;
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn engine_artifacts() {
-    artifacts::importing_file_whole();
-    artifacts::importing_missing_nothing();
+    publication::importing_file_whole();
+    publication::importing_missing_nothing();
     #[cfg(unix)]
-    artifacts::import_fails_opened();
+    publication::import_fails_opened();
     diagnostics::one_redacted_diagnostic();
     diagnostics::redacted_diagnostic_directory();
 }
@@ -56,16 +56,16 @@ async fn engine_artifacts() {
 #[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn engine_artifacts_paused() {
-    artifacts::directory::file_sent_piece().await;
-    artifacts::directory::file_shrank_had().await;
-    artifacts::directory::rewrite_same_time().await;
-    artifacts::directory::file_past_skipped().await;
-    artifacts::directory::file_outgrows_opened().await;
-    artifacts::directory::name_refuses_directory().await;
-    artifacts::directory::sweep_finalizes_directory().await;
-    artifacts::directory::one_name_refused().await;
-    artifacts::directory::one_directory_cleanup().await;
-    artifacts::directory::closed_backlog_tick().await;
+    publication::directory::file_sent_piece().await;
+    publication::directory::file_shrank_had().await;
+    publication::directory::rewrite_same_time().await;
+    publication::directory::file_past_skipped().await;
+    publication::directory::file_outgrows_opened().await;
+    publication::directory::name_refuses_directory().await;
+    publication::directory::sweep_finalizes_directory().await;
+    publication::directory::one_name_refused().await;
+    publication::directory::one_directory_cleanup().await;
+    publication::directory::closed_backlog_tick().await;
 }
 
 /* === Tests === */

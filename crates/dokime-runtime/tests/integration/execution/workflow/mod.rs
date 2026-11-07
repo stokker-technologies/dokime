@@ -20,7 +20,7 @@ pub(crate) mod session;
 #[cfg(feature = "simulation")]
 pub(crate) mod simulation;
 pub(crate) mod steps;
-pub(crate) mod workflow;
+pub(crate) mod commands;
 
 /* === Re-Exports === */
 
@@ -57,31 +57,31 @@ pub(crate) use crate::service_support::prelude::*;
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn execution_workflow() {
-    workflow::interactive_commands_downstream().await;
-    workflow::interactive_idle_stop().await;
-    workflow::embedded_execution_output().await;
-    workflow::refused_publication_fails().await;
-    workflow::runtime_bindings_metadata().await;
-    workflow::stated_section_step().await;
-    workflow::step_failure_isolation().await;
-    workflow::lifecycle_logs_failure().await;
-    workflow::context_scoped_stable().await;
-    workflow::declared_stream_decides().await;
-    workflow::streamed_artifact_chunks().await;
-    workflow::watched_directory_in().await;
-    workflow::cancelled_run_produced().await;
-    workflow::criterion_could_failed().await;
-    workflow::unanswered_question_id().await;
-    workflow::cancelling_waiting_execution().await;
-    workflow::cleanup_runs_pass().await;
-    workflow::initialize_failure_execution().await;
-    workflow::initialize_cancellation_cleanup().await;
-    workflow::cleanup_procedure_failure().await;
-    workflow::resources_release_verdict().await;
-    workflow::record_wait_publication().await;
-    workflow::capture_declared_scope().await;
-    workflow::settlement_late_receipt().await;
-    workflow::callbacks::interrupted_join_teardown().await;
+    commands::interactive_commands_downstream().await;
+    commands::interactive_idle_stop().await;
+    commands::embedded_execution_output().await;
+    commands::refused_publication_fails().await;
+    commands::runtime_bindings_metadata().await;
+    commands::stated_section_step().await;
+    commands::step_failure_isolation().await;
+    commands::lifecycle_logs_failure().await;
+    commands::context_scoped_stable().await;
+    commands::declared_stream_decides().await;
+    commands::streamed_artifact_chunks().await;
+    commands::watched_directory_in().await;
+    commands::cancelled_run_produced().await;
+    commands::criterion_could_failed().await;
+    commands::unanswered_question_id().await;
+    commands::cancelling_waiting_execution().await;
+    commands::cleanup_runs_pass().await;
+    commands::initialize_failure_execution().await;
+    commands::initialize_cancellation_cleanup().await;
+    commands::cleanup_procedure_failure().await;
+    commands::resources_release_verdict().await;
+    commands::record_wait_publication().await;
+    commands::capture_declared_scope().await;
+    commands::settlement_late_receipt().await;
+    commands::callbacks::interrupted_join_teardown().await;
 }
 
 // Embedded Provider Stages Own Process-Wide Fixture Registrations.
@@ -139,7 +139,7 @@ async fn execution_workflow_pooled() {
     steps::harness_copy_truncate_retains_the_previous_segment().await;
     steps::capture_seals_with_or_without_a_stop().await;
     steps::capture_spans_steps().await;
-    workflow::artifact_backpressure().await;
+    commands::artifact_backpressure().await;
 }
 
 #[dokime_tracing::trace_test]
@@ -195,18 +195,18 @@ async fn execution_workflow_asking_threaded() {
 #[dokime_tracing::trace_test]
 #[tokio::test(start_paused = true)]
 async fn execution_workflow_paused() {
-    workflow::unacknowledged_invoke_callback().await;
-    workflow::cleanup_joins_release().await;
-    workflow::pending_sampler_cleanup().await;
-    workflow::stalled_criterion_indeterminate().await;
-    workflow::record_nobody_error().await;
-    workflow::callbacks::shutdown_joins_owners().await;
+    commands::unacknowledged_invoke_callback().await;
+    commands::cleanup_joins_release().await;
+    commands::pending_sampler_cleanup().await;
+    commands::stalled_criterion_indeterminate().await;
+    commands::record_nobody_error().await;
+    commands::callbacks::shutdown_joins_owners().await;
 }
 
 #[dokime_tracing::trace_test]
 #[test]
 fn execution_workflow_sync() {
-    workflow::signal_refuses_deliveries();
+    commands::signal_refuses_deliveries();
     handle::scoped_parameter_values();
     definition::doc_example_contract().unwrap();
     definition::doc_example_matrix().unwrap();

@@ -1190,7 +1190,7 @@ pub(crate) async fn step_failure_isolation() {
     assert_eq!(detail.chain, vec![r#"the operator answered "no""#]);
     // The location is the generated call into authored code, in the file the
     // template was written in — not a line in the engine that ran it.
-    assert!(detail.location.replace('\\', "/").contains("tests/integration/execution/workflow/workflow.rs"), "{}", detail.location);
+    assert!(detail.location.replace('\\', "/").contains("tests/integration/execution/workflow/commands.rs"), "{}", detail.location);
     assert!(detail.span_trace.iter().any(|span| span.contains("step=start")), "{:?}", detail.span_trace);
     assert!(detail.span_trace.iter().any(|span| span.contains(TEMPLATE) && span.contains(SOURCE)), "{:?}", detail.span_trace);
     assert!(detail.backtrace.contains("0:"), "{}", detail.backtrace);
@@ -1207,7 +1207,7 @@ pub(crate) async fn step_failure_isolation() {
     assert_eq!(panic_detail.message, format!("step `start` failed in {TEMPLATE}"));
     assert_eq!(panic_detail.chain, vec!["plugin panicked: the probe blew up"]);
     assert!(
-        panic_detail.location.replace('\\', "/").contains("tests/integration/execution/workflow/workflow.rs"),
+        panic_detail.location.replace('\\', "/").contains("tests/integration/execution/workflow/commands.rs"),
         "{}",
         panic_detail.location
     );

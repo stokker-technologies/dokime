@@ -13,7 +13,7 @@
 
 pub(crate) mod activation;
 pub(crate) mod leases;
-pub(crate) mod store;
+pub(crate) mod installation;
 
 /* === Re-Exports === */
 
@@ -49,20 +49,20 @@ pub(crate) use crate::service_support::prelude::*;
 #[tokio::test]
 async fn plugin_store_leases() {
     activation::broken_configured_loud().await;
-    store::direct_installation().await;
-    store::replacement_preserves_bytes().await;
-    store::collisions_preserve_installations().await;
-    store::refused_result_preserved().await;
-    store::unavailable_bytes_metadata().await;
-    store::installed_survive_cleanup().await;
+    installation::direct_installation().await;
+    installation::replacement_preserves_bytes().await;
+    installation::collisions_preserve_installations().await;
+    installation::refused_result_preserved().await;
+    installation::unavailable_bytes_metadata().await;
+    installation::installed_survive_cleanup().await;
     #[cfg(unix)]
-    store::failed_settings_bytes().await;
-    store::removal_cleanup_retry().await;
-    store::disabled_reserves_owners().await;
-    store::bounded_pages_unknown().await;
-    store::startup_reclaims_extraction().await;
-    store::app_roots_independent().await;
-    store::unauthorized_files_kept().await;
+    installation::failed_settings_bytes().await;
+    installation::removal_cleanup_retry().await;
+    installation::disabled_reserves_owners().await;
+    installation::bounded_pages_unknown().await;
+    installation::startup_reclaims_extraction().await;
+    installation::app_roots_independent().await;
+    installation::unauthorized_files_kept().await;
 }
 
 #[dokime_tracing::trace_test]
