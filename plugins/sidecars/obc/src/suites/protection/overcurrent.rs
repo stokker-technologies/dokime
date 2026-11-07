@@ -244,7 +244,7 @@ impl Template {
             // Sample Charger
             let operation = SampleCharger {
                 device_id: self.device.device_id,
-                elapsed_s: elapsed_s,
+                elapsed_s,
             };
             let sample = ctx.operation(operation).await?.into_owned();
             self.device = sample.charger;

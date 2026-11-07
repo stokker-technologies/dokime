@@ -112,6 +112,6 @@ Templates keep the procedure linear and call the vertical operation slices in
 `src/operations/`. Charger operations retain native devices in the plugin-owned
 `Chargers` resource and return plugin-owned snapshots and readings. Each opened
 device has its own handle; release stops it and removes its temporary log.
-The system observer reads through `operations/system/collect.rs`. The Public
+The system observer reads through `operations/system/collect.rs`. The public
 manual-device operations retain their existing IDs and response fields.
 Traceability IDs derive from labels; this sample has no label-independent edit keys.

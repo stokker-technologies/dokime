@@ -897,7 +897,7 @@ use dokime::definition::ParameterDefault;
 #[dokime::parameters]
 pub struct Parameters {
     #[parameter(
-        label = "AC Voltage (RMS)", unit = "V",
+        label = "AC RMS Voltage", unit = "V",
         expansion = "cartesian",
         default = ParameterDefault::space([207.0, 230.0, 253.0]),
     )]

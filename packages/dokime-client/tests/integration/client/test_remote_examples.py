@@ -269,18 +269,19 @@ def test_existing_execution_reader_drains_before_return(tmp_path: Path, monkeypa
     run = namespace["run"]
     monkeypatch.chdir(tmp_path)
     drained: list[str] = []
+    record_ready = asyncio.Event()
 
     class ExistingExecution:
         id = EXECUTION
         start = AsyncMock()
 
         async def records(self):
-            await asyncio.sleep(0)
             drained.append("record")
+            record_ready.set()
             yield SimpleNamespace(to_json=lambda: json.dumps({"sequence": 1}))
 
         async def samples(self):
-            await asyncio.sleep(0)
+            await record_ready.wait()
             drained.append("sample")
             yield SimpleNamespace(to_json=lambda: json.dumps({"sequence": 2}))
 

@@ -55,8 +55,9 @@ fn assert_record_contract(request: model::records::publication::RecordPublishReq
     let contract = dokime::catalog::entries::<plugin_obc::suites::Suites, dokime::catalog::Suites>()
         .into_iter()
         .flat_map(|definition| definition().record_contracts)
+        .chain(model::records::builtin_record_contracts())
         .find(|contract| contract.record_type == request.record_type)
-        .expect("emitted record is declared");
+        .unwrap_or_else(|| panic!("emitted record {} is declared", request.record_type));
     let record = request.into_record(
         dokime::model::identity::new_id::<dokime::RecordId>(),
         contract.schema_version,

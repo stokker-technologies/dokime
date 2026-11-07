@@ -402,7 +402,6 @@ impl Template {
 
         document
     }
-
 }
 
 /* === Public Functions === */

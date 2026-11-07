@@ -57,8 +57,8 @@ pub struct ReleaseCharger {
 impl Operation for ReleaseCharger {
     type Error = Refusal;
     async fn run(self, ctx: Context<'_, Self>) -> Result<Response<()>, Refusal> {
-        let value = dokime::plugin::refusal(ctx.resource::<Chargers>().release(self.device_id))?;
-        Ok(Response::new(value))
+        dokime::plugin::refusal(ctx.resource::<Chargers>().release(self.device_id))?;
+        Ok(Response::new(()))
     }
 }
 

@@ -417,7 +417,6 @@ impl Template {
             for index in ctx.progress("Measuring start-up inrush", remaining) {
                 let index = index as u64;
                 // Sample Charger
-                let index = index;
                 let operation = SampleCharger {
                     device_id: self.device.device_id,
                     elapsed_s: index as f64 * interval_s,
@@ -484,7 +483,6 @@ impl Template {
             for index in ctx.progress("Observing settling", remaining) {
                 let index = index as u64;
                 // Sample Charger
-                let index = index;
                 let operation = SampleCharger {
                     device_id: self.device.device_id,
                     elapsed_s: index as f64 * interval_s,

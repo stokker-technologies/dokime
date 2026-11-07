@@ -21,7 +21,6 @@
 
 // Local Imports
 use crate::domain::model::prompts::checkpoint::SteadyCheck;
-use dokime::prelude::*;
 
 /* === Constants === */
 
