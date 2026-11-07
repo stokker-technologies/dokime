@@ -415,14 +415,19 @@ pub(crate) async fn plugin_install_identity() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(removed.installation.unwrap().state, model::plugins::wire::PluginInstallationState::RemovalPending);
-    let current = client
+    assert!(removed.installation.is_none());
+    let error = client
         .unary::<contracts::plugins::GetInstallation>(authenticated(contracts::plugins::GetInstallation { install_id: staged.install_id }))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), tonic::Code::NotFound);
+    let page = client
+        .unary::<contracts::plugins::ListInstallations>(authenticated(contracts::plugins::ListInstallations::default()))
         .await
         .unwrap()
         .into_inner();
-    assert!(!current.active);
-    assert_eq!(current.state, model::plugins::wire::PluginInstallationState::RemovalPending);
+    assert!(page.installations.is_empty());
+    assert_eq!(page.total_count, 0);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
