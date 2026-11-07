@@ -324,7 +324,9 @@ The `system-runtime` target includes `sidecar_ingest`: the real OBC plugin
 publishes scalar, 16-field, 4 KiB and 64 KiB rows through its sidecar into durable storage,
 with zero, one and 64 document plots for numeric cases and zero plots for the
 payload fixtures. Each iteration uses a fresh root and
-checks the durable row count. Runtime startup and fixture registration are outside
+checks durable row and plot-binding counts. Benchmark-feature OBC builds retain
+the ingest/capture fixtures and the steady/recovery suites used by report and
+server workflow benchmarks. Shipping builds retain the product catalog. Runtime startup and fixture registration are outside
 the interval; publication, preview checkpoints and the final storage flush are inside.
 
 ```sh
@@ -346,11 +348,12 @@ overhead and must be compared separately from ordinary throughput runs.
 Each measurement prints JSON containing elapsed time, rows/s, payload MiB/s,
 CPU milliseconds by live process/PID and per 100,000 rows, Arrow/catalog/WAL bytes
 and SQLite table allocation. It also records telemetry writer flush calls, Arrow
-sync calls, SQLite VFS sync calls (with a separate WAL count), SQLite VFS commit-phase-two notifications and explicit catalog
-commit calls and cumulative lock-wait nanoseconds for admission, the SQLite writer,
+file sync calls, SQLite VFS sync calls (with a separate WAL count), post-commit
+SQLite VFS notifications, explicit catalog commit calls and cumulative lock-wait nanoseconds for admission, the SQLite writer,
 the telemetry store and the tail. The benchmark-only VFS observer delegates each
-sync and file-control call unchanged; these are successful native sync requests, not inferred counts
-from the commit cadence. Counts cover the host's SQLite and Arrow durability
+sync and file-control call unchanged. Native commit notifications include
+autocommit transactions; explicit commit calls also include no-op commits.
+Sync counts are successful native file sync requests, independent of commit cadence. Counts cover the host's SQLite and Arrow durability
 calls inside the measured interval; sidecar CPU is measured separately, while
 sidecar-internal sync calls are outside that observer. Scalar/wide payload rates
 still count only 8/128 numeric bytes per row. Inclusive stage times overlap and
