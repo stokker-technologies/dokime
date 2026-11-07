@@ -20,10 +20,10 @@
 
 ## Slice 4: Frozen Reports and Benchmark
 
-- [ ] 4.1 Report materialization uses the same card queries at sealed cuts, retaining complete paged tables and repeated sections; remove old acquisition and superseded tests.
-- [ ] 4.2 Add deterministic sealed report parity proof and update product/GUI/query guides and affected README claims.
-- [ ] 4.3 Wire integration benchmark into existing bench inventory and native resource probe: three days, several million samples, 30 plots, structure/card latency and peak-memory scaling with Linux and Windows RSS support.
-- [ ] 4.4 Run focused proof, check:rust and applicable GUI/binding checks; run requested benchmark and scan diff.
+- [x] 4.1 Document query/repeat/page, indexed record/distinct storage, report scope/materialization and runtime query/view owners: share storage/configuration-backed card evaluation at sealed cuts, drain repeated pages and retain full authored tables. Retire raw acquisition, RuntimeDocumentData/Input, resolve_cycle_document, the obsolete Document view/frame and their superseded tests; migrate meaningful scope/layout behaviors to current captures. Bound live record summaries and indexed repeats by the prepared journal epoch/revision as well as the physical evidence cut.
+- [x] 4.2 Add deterministic sealed report parity proof and update product/GUI/query guides and affected README claims.
+- [x] 4.3 Integration-runtime bench inventory, bounded real-ingest fixture and shared storage resource probe: three days, several million samples, 30 plots, structure/card latency including plot payloads and peak-memory scaling with Linux and Windows RSS support. Preserve native Criterion/resource outputs.
+- [x] 4.4 Run focused proof, check:rust and applicable GUI/binding checks; run requested benchmark and scan diff.
 
 ## Workflow Follow-Up
 

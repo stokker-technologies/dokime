@@ -21,7 +21,6 @@ use std::num::NonZeroUsize;
 // Local Imports
 use super::ExecutionFileStream;
 use super::saved::SavedOutputs;
-use crate::document::{DocumentPayload, DocumentSelection};
 use crate::handle::RuntimeHandle;
 use crate::{
     execution_runtime::{
@@ -69,61 +68,6 @@ impl RuntimeHandle {
         update.validate(&self.state_read())?;
         self.commit(update).await.map_err(|error| crate::runtime::Error::conflict("plot_settings_rejected", error.to_string()))?;
         Ok(())
-    }
-
-    pub async fn resolve_cycle_document(
-        &self, test_cycle_id: &TestCycleId, document_id: &dokime_domain::model::identity::DocumentId, mut selection: DocumentSelection,
-    ) -> Result<Option<harmos::storage::ReadBatch<DocumentPayload>>> {
-        if selection.scope.test_execution_id.is_none() {
-            return Err(crate::runtime::Error::Operation("document selection requires an execution".into()));
-        }
-        if selection.scope.test_cycle_id.is_none() {
-            selection.scope.test_cycle_id = Some(test_cycle_id.clone());
-        }
-        let snapshot = self.capture_state().await?;
-        let data = self.document_data(&selection, &snapshot).await?;
-        let state = snapshot.state();
-        let Some(cycle) = state.cycles.get(test_cycle_id) else {
-            return Ok(None);
-        };
-
-        let resolved = crate::documents::resolve_cycle_document(
-            state,
-            cycle,
-            document_id,
-            selection,
-            data,
-            crate::document::bounded::DocumentLimits::default(),
-        )?
-        .try_map(|result| result)?;
-        if resolved.is_none() {
-            return Ok(None);
-        }
-        Ok(Some(resolved.try_map(|document| -> Result<_> { Ok(document.expect("the retained document is present")) })?))
-    }
-
-    pub(crate) async fn document_data(
-        &self, selection: &DocumentSelection, snapshot: &crate::queries::RuntimeStateSnapshot,
-    ) -> Result<super::RuntimeDocumentData> {
-        let mut selection = selection.clone();
-        let execution = selection.scope.test_execution_id.as_ref().and_then(|id| snapshot.state().executions.get(id));
-        let cycle = selection.scope.test_cycle_id.as_ref().and_then(|id| snapshot.state().cycles.get(id));
-        let valid = cycle.is_some_and(|cycle| super::validate_selection(snapshot.state(), cycle, &selection.scope).is_ok());
-        let Some(execution) = execution.filter(|_| valid) else {
-            return Ok(super::RuntimeDocumentData {
-                records: harmos::storage::ReadBatch::new(Vec::new()),
-                telemetry: harmos::storage::ReadBatch::new(Vec::new()),
-                artifacts: harmos::storage::ReadBatch::new(Vec::new()),
-            });
-        };
-        super::normalize_execution_selection(execution, &mut selection.scope);
-        let at = self.saved_through(snapshot.revision()).await?;
-        let acquired = super::acquire::acquire(self, &selection, snapshot, true, true, true, at).await?;
-        Ok(super::RuntimeDocumentData {
-            records: acquired.records,
-            telemetry: acquired.telemetry.expect("telemetry was requested"),
-            artifacts: acquired.artifacts.expect("artifacts were requested"),
-        })
     }
 
     pub async fn execution_files(&self, test_execution_id: &TestExecutionId) -> Result<Vec<ExecutionFileEntry>> {

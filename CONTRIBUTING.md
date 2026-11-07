@@ -279,6 +279,25 @@ concurrent lifetimes, with process-local parent IDs in metadata. Normal completi
 flushes export; killed processes may omit open spans or leave unreadable files,
 which the summary lists. Test totals come from JUnit and include harness overhead.
 
+### Document Query Benchmark
+
+The integration-runtime Criterion group `document_queries` ingests three days
+at 307,200, 1,536,000 and 3,072,000 samples through the real runtime. Each document
+has 30 distinct telemetry streams/plots and maintained count/min/max/mean/RMS tiles. `structure` measures the
+first structure event; `cards_and_plots` measures all bindings and the 30 bounded
+plot payloads at one saved cut, deriving requests from the actual card descriptors
+through the same mapping as the GUI. Each pass verifies sample coverage without
+a raw-history scan. Setup uses bounded batches outside the timings.
+The shared resource probe reports current process RSS on Linux and Windows,
+including its baseline and sampled peak for each measurement window. Compare
+the same visible output at increasing retained row counts; RSS includes the
+whole process and periodic sampling can miss short peaks.
+
+```sh
+mise run build:rust:bench --binary integration-runtime
+mise run bench:rust:integration -- --binary integration-runtime -- document_queries
+```
+
 ### Storage Benchmarks
 
 The runtime's `integration-storage` Criterion target uses the actual SQLite

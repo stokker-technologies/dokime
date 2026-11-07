@@ -21,14 +21,12 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::document::capture::{Capture, CardBindingResult};
-use crate::document::{DocumentCardBody, DocumentWarning};
-use crate::expressions::{DataSource, DataTransform};
+use crate::document::DocumentWarning;
+use crate::expressions::DataSource;
 use crate::plot::{PlotPayload, PlotPayloadRequest, PlotPoint, PlotSeries, PlotSeriesSummary};
 use crate::runtime::Result;
 use crate::storage::sqlite::data::telemetry::{aggregates::NumericSummary, previews::FieldPreview};
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -277,73 +275,6 @@ pub(crate) fn plot(
     }
     let payload = crate::plot::finish_plot_frame(payload, request)?;
     Ok((super::value::Value::from_serializable(&payload, source.report_defaults.value_depth as usize)?, warning))
-}
-
-pub(crate) fn summaries(
-    capture: &mut Capture, exact: &[NumericSummary], fields: &[FieldPreview], context: crate::document::input::Context<'_>,
-) {
-    for binding in &mut capture.cards {
-        let CardBindingResult::Summary { groups } = &mut binding.result else { continue };
-        let definition = capture
-            .definition
-            .cards
-            .iter()
-            .map(|card| (&card.metadata, &card.filters, &card.body))
-            .chain(
-                capture
-                    .definition
-                    .sections
-                    .iter()
-                    .flat_map(|section| section.cards.iter().map(|card| (&card.metadata, &card.filters, &card.body))),
-            )
-            .find(|(metadata, _, _)| metadata.identifier == binding.source_id);
-        let Some((_, filters, body)) = definition else { continue };
-        let DocumentCardBody::TelemetrySummary { summary } = body else { continue };
-        // A Repeated Copy Carries Its Instance Filter, Which the Execution-Wide
-        // Exact Summaries Cannot Honour.
-        let repeated = binding.metadata.identifier != binding.source_id;
-        for (group, source) in groups.iter_mut().zip(&summary.groups) {
-            for (tile, source) in group.tiles.iter_mut().zip(&source.tiles) {
-                let needs_history = |expression: &crate::expressions::DataExpression| {
-                    crate::document::binding::expression_needs_telemetry(expression, context)
-                        || matches!(expression.source, DataSource::Record { .. })
-                };
-                let history =
-                    needs_history(&source.value) || filters.iter().chain(&source.filters).any(|filter| needs_history(&filter.expression));
-                if !history {
-                    continue;
-                }
-                let result = (|| {
-                    if repeated || !filters.is_empty() || !source.filters.is_empty() {
-                        return None;
-                    }
-                    let DataSource::Telemetry { stream, field } = &source.value.source else { return None };
-                    let name = match source.value.transforms.as_slice() {
-                        [] => {
-                            return fields
-                                .iter()
-                                .find(|preview| crate::plot::stream_matches_alias(&preview.stream, stream) && preview.field == *field)
-                                .and_then(|preview| preview.envelope.buckets.values().next_back())
-                                .map(|bucket| Value::Number(bucket.last.value));
-                        }
-                        [DataTransform::Aggregate(aggregate)] => aggregate.name().to_owned(),
-                        _ => return None,
-                    };
-                    let summary = exact
-                        .iter()
-                        .find(|summary| crate::plot::stream_matches_alias(&summary.stream, stream) && summary.field == *field)?;
-                    summary.statistics.iter().find(|(key, _)| *key == name).map(|(_, value)| Value::Number(*value))
-                })();
-                tile.value = result;
-                tile.unavailable = tile
-                    .value
-                    .is_none()
-                    .then(|| "This history-dependent summary has no exact incremental index; full evidence is retained.".into());
-                tile.state =
-                    tile.value.as_ref().and_then(|value| crate::document::resolve::matching_summary_state(value, &source.conditions));
-            }
-        }
-    }
 }
 
 pub(crate) fn warning(message: String) -> DocumentWarning {

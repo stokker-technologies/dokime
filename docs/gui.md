@@ -141,6 +141,11 @@ reject estimated definition-size-times-row work. Plots retain their
 existing independent query path. Actual output and expansion limits report the
 budget, limit, amount reached and affected card.
 
+Saved HTML uses the same card query evaluator at its frozen evidence cut.
+It includes all repeated-section pages and complete authored tables, rather than
+only the page currently displayed in the GUI. A failed data binding retains its
+card diagnostic in the saved document.
+
 ## Telemetry Plots
 
 Live and frozen report plots retain samples from the selected execution,

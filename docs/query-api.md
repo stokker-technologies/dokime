@@ -172,7 +172,9 @@ typed pages, with exact order statistics spilling scratch where required.
 Null telemetry roots do not create occurrence rows; their saved schema preserves
 field presence, alias precedence and null predicates across contract versions.
 Record bindings seek execution-owned record pages and preserve subscribed capture
-scope. The document structure is authored metadata, with no row-based evaluation
+scope. Live record summaries and distinct repeats also retain the prepared journal
+epoch/revision, excluding records admitted later in that epoch even if the physical
+saved cursor has advanced. Continuations retain both coordinates. The document structure is authored metadata, with no row-based evaluation
 estimate or document source-row ceiling. Encoded output and actual expansion have
 presentation budgets independently of raw evidence retention.
 
@@ -186,6 +188,12 @@ its document and scope. Numeric values order exactly across signed integers,
 unsigned integers and floats; other values use a deterministic typed order.
 The current development storage layout remains v1 and requires a fresh root;
 existing roots are neither migrated nor reset.
+
+Frozen report materialization supplies the same evaluator with storage, query
+configuration, captured scalar context and its sealed cursor. It drains indexed
+repeat pages and evaluates each binding at that cursor. The former raw document
+acquisition and Document runtime view/frame APIs have been removed; use the
+current capture operation for live documents.
 
 The capture operation supports metadata and selected-binding projections:
 

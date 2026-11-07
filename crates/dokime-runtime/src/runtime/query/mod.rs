@@ -50,7 +50,7 @@ pub use cases::{
     CaseActions, CaseInspection, CaseProjection, CaseStatus, CaseTally, case_projection, case_tally, historical_case_projection,
 };
 pub use cycles::{CycleFilter, CycleOrder, CycleOrderKey, ExecutionInspection};
-pub use documents::{RuntimeDocumentFrame, RuntimeDocumentRecord, RuntimeResolvedDocumentFrame, RuntimeResolvedDocumentRead};
+pub use documents::{RuntimeDocumentFrame, RuntimeDocumentRecord};
 pub use executions::{ExecutionControls, ExecutionFilter, ExecutionOrder, ExecutionOrderKey, execution_controls};
 pub use frame::{RuntimeListFrame, RuntimeOverviewFrame, RuntimeViewFrame, RuntimeViewPayload};
 pub use installed_plugins::{RuntimeInstalledPluginFrame, RuntimeInstalledPluginRecord};

@@ -1216,6 +1216,12 @@ its definition size multiplied by source rows, and there is no document source-r
 ceiling. Limits apply to actual encoded output and expanded nodes; an exceeded
 card budget identifies the card, budget, limit and reached amount.
 
+Frozen documents use the same card queries at the sealed evidence cut. Report
+materialization drains every repeated-section page and retains every authored
+table row. It reads no full telemetry or record history into document inputs;
+telemetry and record previews remain bounded separately from document content.
+Later evidence cannot change the sealed statistics or repeated sections.
+
 ## Finite Evidence Queries
 
 The Python client discovers executions and cycles in the connected backend's
