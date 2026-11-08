@@ -68,6 +68,7 @@ pub fn managed_storage_defaults() -> ManagedStorageSettings {
 #[cfg(feature = "storage")]
 pub fn local_storage_defaults() -> crate::storage::sqlite::Settings {
     crate::storage::sqlite::Settings {
+        commit: crate::storage::sqlite::commit_policy::defaults(),
         previews: crate::storage::sqlite::PreviewSettings {
             exact_points: NonZeroUsize::new(2_000).unwrap(),
             grid_columns: NonZeroUsize::new(64).unwrap(),
