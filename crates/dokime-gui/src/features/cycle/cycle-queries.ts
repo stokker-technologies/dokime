@@ -36,7 +36,6 @@ import {
   pauseNativeTestExecution,
   renameNativeTestCycle,
   renameNativeTestExecution,
-  reopenNativeTestCycle,
   rerunNativeTestCycle,
   resumeNativeTestExecution,
   sealNativeTestCycle,
@@ -173,10 +172,6 @@ export function useCycleCommands(cycleId: string) {
     }),
     rerunCycle: useMutation({
       mutationFn: () => rerunNativeTestCycle(session().identity, cycleId),
-      onSettled: invalidateAll,
-    }),
-    copyCycle: useMutation({
-      mutationFn: () => reopenNativeTestCycle(session().identity, cycleId),
       onSettled: invalidateAll,
     }),
     deleteCase: useMutation({

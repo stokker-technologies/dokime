@@ -11,7 +11,6 @@
 
 mod append_executions;
 mod cancel_execution;
-mod copy_cycle;
 mod create_cycle;
 mod delete_case;
 mod get_case;
@@ -45,7 +44,6 @@ mod update_cycle_policy;
 
 pub use append_executions::{AppendExecutions, ExecutionBinding};
 pub use cancel_execution::CancelExecution;
-pub use copy_cycle::CopyCycle;
 pub use create_cycle::CreateCycle;
 pub use delete_case::DeleteCase;
 pub use get_case::GetCase;
@@ -97,7 +95,6 @@ use dokime_domain::model::execution::wire::*;
 crate::hosted!(
     AppendExecutions,
     CancelExecution,
-    CopyCycle,
     CreateCycle,
     DeleteCase,
     GetCase,
@@ -142,7 +139,6 @@ crate::hosted!(
 #[harmos::catalog]
 pub enum Operations {
     ListExecutionSteps(ListExecutionSteps),
-    CopyCycle(CopyCycle),
     CreateCycle(CreateCycle),
     RerunCycle(RerunCycle),
     GetCycle(GetCycle),

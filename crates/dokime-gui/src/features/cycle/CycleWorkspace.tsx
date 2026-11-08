@@ -338,14 +338,6 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
         setRerunNotices(response.cycleId, response);
         await navigate({ to: "/cycles/$cycleId", params: { cycleId: response.cycleId } });
       }),
-    onCopyCycle: () =>
-      run({ done: "Cycle Copied", failed: "The Cycle Could Not Be Copied" }, async () => {
-        const response = await commands.copyCycle.mutateAsync();
-        await navigate({
-          to: "/cycles/$cycleId",
-          params: { cycleId: response.plan.test_cycle.test_cycle_id },
-        });
-      }),
     onOpenReport: () => openReport(null),
     onSettings: () => setSettingsOpen(true),
     onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),

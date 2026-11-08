@@ -163,7 +163,6 @@ matrix! {
     "/dokime.v1.Evidence/ListRecords", unary, contracts::evidence::ListRecords;
     "/dokime.v1.Evidence/WatchRecords", download, contracts::evidence::WatchRecords;
     "/dokime.v1.Execution/AppendExecutions", unary, contracts::execution::AppendExecutions;
-    "/dokime.v1.Execution/CopyCycle", unary, contracts::execution::CopyCycle;
     "/dokime.v1.Execution/CreateCycle", unary, contracts::execution::CreateCycle;
     "/dokime.v1.Execution/DeleteCase", unary, contracts::execution::DeleteCase;
     "/dokime.v1.Execution/GetCase", unary, contracts::execution::GetCase;

@@ -223,7 +223,7 @@ test("Node Menus", () => {
   // Cycle Menu Opens Its Report and Archives, with No Bundle, Folder or Clearing
   const items: string[] = nodeMenuGroups("cycle", false).flat();
   assert.deepEqual(nodeMenuGroups("cycle", false), [
-    ["Rerun Cycle", "Copy Cycle", "Add Cases", "Follow Active"],
+    ["Rerun Cycle", "Add Cases", "Follow Active"],
     ["Open Report", "Settings"],
     ["Archive"],
   ]);

@@ -54,7 +54,7 @@ pub use lifecycle::{
 pub use notes::{AddOperatorNote, CreateOperatorNote, EditOperatorNote};
 pub use outputs::FinalizeExecutionOutputs;
 pub use parameters::UpsertScopedParameter;
-pub use planning::{AppendExecutions, CopyCycle, CreateCycle, CycleDefinition, RegisterCases};
+pub use planning::{AppendExecutions, CreateCycle, CycleDefinition, RegisterCases};
 pub use plugins::{InstallHostPlugin, ReconcileProviders, ReloadProviderCatalog};
 pub use prompts::{RequestPrompt, SubmitPromptResponse};
 pub use provider::RunProvider;
@@ -208,7 +208,6 @@ pub enum Transactions {
     RenameLabel(RenameLabel),
     AppendExecutions(AppendExecutions),
     CreateCycle(CreateCycle),
-    CopyCycle(CopyCycle),
     RunProvider(RunProvider),
     PrepareAttempt(PrepareAttempt),
     DispatchProvider(DispatchProvider),

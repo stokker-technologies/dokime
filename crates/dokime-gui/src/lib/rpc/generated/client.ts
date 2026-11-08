@@ -98,9 +98,6 @@ export const executionAppendExecutions = (session: SessionIdentity, request: Par
 import { Row1Schema as executionCancelExecutionRequest } from "@generated/dokime/v1/ExecutionMessages/CancelExecution/messages_pb.js";
 import { Row2Schema as executionCancelExecutionResponse } from "@generated/dokime/v1/ExecutionMessages/CancelExecution/messages_pb.js";
 export const executionCancelExecution = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionCancelExecutionRequest, typeof executionCancelExecutionResponse>>[4]) => unary("/dokime.v1.Execution/CancelExecution", executionCancelExecutionRequest, executionCancelExecutionResponse, session, request, 120000);
-import { Row1Schema as executionCopyCycleRequest } from "@generated/dokime/v1/ExecutionMessages/CopyCycle/messages_pb.js";
-import { Row2Schema as executionCopyCycleResponse } from "@generated/dokime/v1/ExecutionMessages/CopyCycle/messages_pb.js";
-export const executionCopyCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionCopyCycleRequest, typeof executionCopyCycleResponse>>[4]) => unary("/dokime.v1.Execution/CopyCycle", executionCopyCycleRequest, executionCopyCycleResponse, session, request, 120000);
 import { Row1Schema as executionCreateCycleRequest } from "@generated/dokime/v1/ExecutionMessages/CreateCycle/messages_pb.js";
 import { Row2Schema as executionCreateCycleResponse } from "@generated/dokime/v1/ExecutionMessages/CreateCycle/messages_pb.js";
 export const executionCreateCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionCreateCycleRequest, typeof executionCreateCycleResponse>>[4]) => unary("/dokime.v1.Execution/CreateCycle", executionCreateCycleRequest, executionCreateCycleResponse, session, request, 120000);

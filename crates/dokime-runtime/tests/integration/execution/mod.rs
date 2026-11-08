@@ -186,11 +186,9 @@ fn execution_seal_report_sync() {
     cycles::admission_validates_parameters();
     cycles::terminal_traceability_history();
     cycles::bounded_cycle_admission();
-    cycles::copied_cycle_reusing();
     cycles::recovery_requires_request();
     cycles::recovery_keeps_intent();
     cycles::recovery_seals_receipts();
-    cycles::copied_cycle_membership();
     cycles::cycle_admission_provenance();
     cycles::request_queues_evidence();
     cycles::request_admission_owner();
