@@ -47,7 +47,6 @@ mod record_queries;
 mod config;
 mod runtime;
 mod storage;
-mod storage_format;
 
 #[path = "../support/engine/mod.rs"]
 pub mod engine_support;

@@ -23,7 +23,6 @@ version = { workspace = true }
 
 [features]
 # Host-Only Inputs For The Runtime Storage Identity Build.
-storage-format = []
 # Captures error chains, span traces and backtraces into a `Diagnostic`.
 diagnostics = ["dep:tracing-error"]
 

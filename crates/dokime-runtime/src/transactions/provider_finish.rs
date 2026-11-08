@@ -67,7 +67,6 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.provider.finish")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FinishProvider {
     pub installed_plugin_errors: u64,
@@ -78,6 +77,8 @@ pub struct FinishProvider {
     pub outcome: Result<ProviderCycleOutcome, ProviderExecutionFailure>,
     pub finished_at: Timestamp,
 }
+
+retained_transaction!(FinishProvider, "dokime.execution.provider.finish");
 
 struct FinishPlan {
     evidence: Drafts,
@@ -725,7 +726,7 @@ fn append_provider_evidence(
             )),
             draft.timestamp.clone(),
             record_type,
-            contract.schema_version,
+            contract.schema_version(),
             "provider",
             draft.severity,
         );

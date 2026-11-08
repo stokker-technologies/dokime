@@ -12,6 +12,7 @@
 /* === Modules === */
 
 pub(crate) mod engine_storage;
+mod format;
 
 /* === Re-Exports === */
 

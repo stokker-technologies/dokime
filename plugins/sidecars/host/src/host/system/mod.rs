@@ -81,7 +81,7 @@ impl dokime::StreamSpec for System {
 
 impl TelemetryStream for System {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::System).typed::<crate::System>()
+        crate::host_telemetry_contract(HostTelemetryStream::System)
     }
 }
 

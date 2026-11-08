@@ -230,7 +230,7 @@ mod tests {
             opaque: r#"{ "value": [1, true] }"#.into(),
         };
         let contract = TelemetryContract::declared("roundtrip.fixture", "Round Trip")
-            .typed::<Reading>()
+            .typed::<Reading>(1)
             .column(TelemetryColumn::declared("clock", "Clock", ValueType::Datetime, TelemetryRole::Value))
             .column(TelemetryColumn::declared("opaque", "Opaque", ValueType::Object, TelemetryRole::Value));
         let codec = crate::storage::telemetry::codec(&contract, &Default::default()).unwrap();

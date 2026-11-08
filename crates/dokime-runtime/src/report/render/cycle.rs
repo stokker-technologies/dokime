@@ -112,7 +112,6 @@ impl Report<'_> {
                 },
             )?;
             fields.field("plots", &self.header.plots.unwrap_or(&BTreeMap::new()))?;
-            fields.field("schema_version", &1u8)?;
             fields.raw("snapshot", |writer| self.write_snapshot(writer, rows))?;
             fields.field("test_cycle_plan", &PlanRows(self))?;
             fields.field("test_executions", &Rows(self, Section::Executions))?;
@@ -400,6 +399,12 @@ impl MemberRows {
                 }
             }
         }
+        let original = spec["columns"].as_array().expect("stream columns serialize as an array");
+        if original.len() == columns.len()
+            && original.iter().all(|column| columns.get(column["name"].as_str().expect("column name is text")) == Some(column))
+        {
+            return writer.write_all(&bytes);
+        }
         spec["columns"] = columns.into_values().collect::<Vec<_>>().into();
         output::write_json(writer, &spec)
     }
@@ -435,7 +440,7 @@ impl Serialize for DocumentWarningText<'_> {
 
 impl Serialize for Report<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut fields = serializer.serialize_map(Some(12))?;
+        let mut fields = serializer.serialize_map(Some(11))?;
         fields.serialize_entry("appearance", self.appearance)?;
         fields.serialize_entry("report_defaults", self.report_defaults)?;
         fields.serialize_entry("case_runs", &Rows(self, Section::Cases))?;
@@ -450,7 +455,6 @@ impl Serialize for Report<'_> {
             },
         )?;
         fields.serialize_entry("plots", &self.header.plots.unwrap_or(&BTreeMap::new()))?;
-        fields.serialize_entry("schema_version", &1u8)?;
         fields.serialize_entry("snapshot", &SnapshotRows(self))?;
         fields.serialize_entry("test_cycle_plan", &PlanRows(self))?;
         fields.serialize_entry("test_executions", &Rows(self, Section::Executions))?;

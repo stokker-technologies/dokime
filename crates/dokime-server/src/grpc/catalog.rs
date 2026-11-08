@@ -234,7 +234,7 @@ async fn list_record_schemas(
     for entry in rows {
         schemas.push(dokime::domain::model::catalog::wire::RecordSchemaIdentity {
             record_type: entry.record_type.to_string(),
-            schema_version: entry.schema_version,
+            schema_version: entry.schema_version(),
             metadata: Some(canonical::metadata(&entry.metadata)?),
         });
     }

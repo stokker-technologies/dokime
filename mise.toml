@@ -414,8 +414,11 @@ env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:unit"]
 description = "Test Unit Rust"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language rust"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--select <select>" help="Narrow the Nextest Filterset"
+'''
+run = '{{vars.lane}} --profile {{usage.profile}} --category unit --language rust {% if usage.select %}-- -E "{{usage.select}}"{% endif %}'
 env.CARGO_INCREMENTAL = "0"
 
 [tasks."test:rust:integration"]

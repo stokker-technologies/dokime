@@ -83,6 +83,7 @@ impl State {
         C::definitions().try_for_each(|definition| {
             let schema = definition.schema()?;
             let (keep, released) = match retention(&schema)? {
+                ObjectRetention::All => return Ok(()),
                 ObjectRetention::UntilReleased => (1, true),
                 policy => (i64::try_from(policy.versions().get()).map_err(|_| Error::Data("retention count exceeds SQLite range"))?, false),
             };

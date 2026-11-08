@@ -151,7 +151,7 @@ impl SpikeChecks {
     fn telemetry() -> Vec<TelemetryContract> {
         vec![
             TelemetryContract::declared(STREAM_ID, "Spike Pulse")
-                .typed::<PulseRow>()
+                .typed::<PulseRow>(<PulseRow as dokime_runtime::StreamSpec>::WINDOW)
                 .for_template(Probe::template_id())
                 .column(TelemetryColumn::declared("value", "Value", ValueType::Number, TelemetryRole::Value))
                 .strict(),

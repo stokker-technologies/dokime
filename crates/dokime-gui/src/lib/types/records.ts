@@ -156,7 +156,6 @@ export type PromptRequest = {
   correlation_id: string;
   template_id: string;
   prompt_type?: string | null;
-  schema_version?: number | null;
   kind: "form" | "confirmation" | "choice" | "status" | "verification";
   /** The author's declared level, on the record severity scale. */
   level: Severity;
@@ -183,7 +182,6 @@ export type PromptRequest = {
 
 export type PromptTypeSpec = {
   prompt_type: string;
-  schema_version: number;
   template_id?: string | null;
   owner?: string | null;
   kind: PromptRequest["kind"];
@@ -196,7 +194,6 @@ export type PromptTypeSpec = {
 };
 
 export type ContractRegistrySnapshot = {
-  schema_version: number;
   session_id: string;
   revision: number;
   records: RecordTypeSpec[];

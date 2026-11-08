@@ -293,7 +293,7 @@ fn wide_config(root: &Path) -> RuntimeConfig {
     let contract = TelemetryContract {
         columns,
         interval: Some(dokime_runtime::DurationMillis(1_000)),
-        ..TelemetryContract::declared(STREAM, "Fixture Wide").with_storage_schema(wide_schema())
+        ..TelemetryContract::declared(STREAM, "Fixture Wide").with_storage_schema(wide_schema(), 1)
     };
     let mut settings = config(root).with_installed_plugins([dokime_runtime::InstalledPlugin {
         source: "fixture_host".to_owned(),
@@ -324,7 +324,11 @@ fn wide_schema() -> harmos::schema::graph::Schema {
         kind: Kind::F64,
         cardinality: Cardinality::Required,
     }));
-    Schema { root: 0, definitions: vec![fields] }
+    Schema {
+        root: 0,
+        definitions: vec![fields],
+        representations: Default::default(),
+    }
 }
 
 fn wide_batch(scope: RecordScope) -> TelemetryBatch {

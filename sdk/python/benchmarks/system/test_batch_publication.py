@@ -15,7 +15,6 @@
 import asyncio
 import importlib.machinery
 import importlib.util
-import json
 import os
 import sys
 import time
@@ -71,7 +70,6 @@ def test_batch_publication(benchmark: Any, library: str) -> None:
         else {"counter": pa.array(range(batch)), "value": pa.array([float(i) for i in range(batch)])}
     )
     measured: list[tuple[float, float]] = []
-    builds: set[str] = set()
 
     async def story() -> None:
         ready = asyncio.Event()
@@ -107,9 +105,7 @@ def test_batch_publication(benchmark: Any, library: str) -> None:
 
         plugin = dokime.Plugin("batch", "0.1.0", catalog=[Reading, publish])
         with TemporaryDirectory(prefix="dokime-batch-") as root:
-            async with dokime.Backend(port=0, application_root=root, plugins=[plugin]) as backend:
-                identity = json.loads((backend.root / "storage-format.json").read_bytes())
-                builds.add(identity["writer_build"])
+            async with dokime.Backend(port=0, application_root=root, plugins=[plugin]):
                 ready.set()
                 await completed.wait()
         if failure:
@@ -123,7 +119,6 @@ def test_batch_publication(benchmark: Any, library: str) -> None:
     publication_s = sum(item[1] for item in measured) / len(measured)
     benchmark.extra_info.update(
         native_profile="bench",
-        writer_builds=sorted(builds),
         rows=rows,
         batch=batch,
         rows_s=rows / (bridge_s + publication_s),

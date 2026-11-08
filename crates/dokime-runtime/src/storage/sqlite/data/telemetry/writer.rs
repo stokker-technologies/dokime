@@ -423,7 +423,8 @@ impl Store {
                     return Err(Error::Invalid("telemetry values are not a message"));
                 };
                 let graph = payload_graph(&schema.schema, definition)?;
-                let mut contract = TelemetryContract::declared(row.stream.as_str(), row.stream.as_str()).with_storage_schema(graph);
+                let mut contract = TelemetryContract::declared(row.stream.as_str(), row.stream.as_str());
+                contract.storage_schema = Some(graph);
                 contract.schema_version = row.record.schema.version.get();
                 contract
             }
@@ -597,7 +598,9 @@ fn payload_graph(graph: &harmos::schema::graph::Schema, root: usize) -> Result<h
         definitions.push(fields);
         next += 1;
     }
-    Ok(Schema { root: 0, definitions })
+    let representations =
+        graph.representations.iter().filter_map(|(index, value)| indices.get(index).map(|mapped| (*mapped, value.clone()))).collect();
+    Ok(Schema { root: 0, definitions, representations })
 }
 
 /* === Tests === */

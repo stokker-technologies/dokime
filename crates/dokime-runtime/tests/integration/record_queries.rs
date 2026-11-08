@@ -31,7 +31,7 @@ use dokime_domain::model::{
         predicate::{Operator, Predicate, Scalar},
         selection::{CycleScope, RecordScope},
     },
-    records::{RecordContract, RecordField},
+    records::RecordField,
     values::{Value, ValueType},
 };
 use dokime_operations::query::ListRecords;
@@ -55,16 +55,6 @@ use dokime_runtime::{config, runtime::query::snapshots::Scope, testing::RecordQu
 
 /* === Private Functions === */
 
-fn contract() -> RecordContract {
-    let mut contract = RecordContract::declared("example.measurement", "Measurement");
-    let mut field = RecordField::new(Metadata::new(Identifier::new("counter.value").unwrap(), "Counter", None), ValueType::Integer);
-    field.required = false;
-    field.nullable = true;
-    field.default = Some(Value::Unsigned(99));
-    contract.fields.push(field);
-    contract
-}
-
 fn term(field: &str, operator: Operator, value: Scalar) -> Predicate {
     Predicate {
         field: field.into(),
@@ -81,7 +71,7 @@ async fn restart_selection() {
     let mut queued = f.entry(13);
     queued.sequence = 100;
     f.insert(13, &f.epoch, queued).await;
-    let cut = f.snapshot(Scope::Execution(f.execution.to_string()), 13, Some(20), vec![contract()]).await;
+    let cut = f.snapshot(Scope::Execution(f.execution.to_string()), 13, Some(20), vec![Fixture::contract()]).await;
     let mut request = f.request();
     request.between = Some(dokime_domain::model::query::selection::Window {
         start: Some(Timestamp { seconds: 0, nanos: 10 }),
@@ -91,7 +81,7 @@ async fn restart_selection() {
         term("@severity", Operator::Eq, Scalar::Severity(dokime_domain::model::identity::wire::Severity::Warn)),
         term("@received_at", Operator::Gte, Scalar::Datetime(Timestamp { seconds: 0, nanos: 0 })),
         term("@source", Operator::Eq, Scalar::Text("observer.fixture".into())),
-        term("@schema_version", Operator::Eq, Scalar::Unsigned(1)),
+        term("@schema_version", Operator::Eq, Scalar::Unsigned(u64::from(Fixture::contract().schema_version()))),
     ];
     let first = f.read(&request, &cut, None).await.unwrap();
     assert_eq!(first.rows.len(), 2);
@@ -111,7 +101,7 @@ async fn sparse_pages() {
     for position in 10..15 {
         f.insert(position, &f.epoch, f.entry(position)).await;
     }
-    let snapshot = f.snapshot(Scope::Execution(f.execution.to_string()), 14, Some(14), vec![contract()]).await;
+    let snapshot = f.snapshot(Scope::Execution(f.execution.to_string()), 14, Some(14), vec![Fixture::contract()]).await;
     let mut request = f.request();
     request.r#where = vec![term("counter.value", Operator::Gte, Scalar::Unsigned(14))];
     let first = f.read(&request, &snapshot, None).await.unwrap();
@@ -139,7 +129,7 @@ async fn capture_attribution() {
     });
     entry.captured_scopes = vec![f.native_scope(&f.execution), f.native_scope(&f.second)];
     f.insert(10, &f.epoch, entry.clone()).await;
-    let cut = f.snapshot(Scope::Cycle(f.cycle.to_string()), 10, Some(10), vec![contract()]).await;
+    let cut = f.snapshot(Scope::Cycle(f.cycle.to_string()), 10, Some(10), vec![Fixture::contract()]).await;
     let mut request = f.request();
     for scope in [
         RecordScope::Execution(f.execution.to_string()),
@@ -158,7 +148,7 @@ async fn capture_attribution() {
             RecordScope::Execution(id) => Scope::Execution(id.clone()),
             RecordScope::Cycle(scope) => Scope::Cycle(scope.cycle_id.clone()),
         };
-        let snapshot = f.snapshot(scope, 10, Some(10), vec![contract()]).await;
+        let snapshot = f.snapshot(scope, 10, Some(10), vec![Fixture::contract()]).await;
         let page = f.read(&request, &snapshot, None).await.unwrap();
         assert!(page.complete && page.rows.len() == 1);
         let row = &page.rows[0];
@@ -193,7 +183,7 @@ async fn fixed_frontiers() {
     let mut later = f.entry(13);
     later.scope = Some(f.native_scope(&new_member));
     f.insert(13, &f.epoch, later).await;
-    let cut = f.snapshot(Scope::Cycle(f.cycle.to_string()), 13, Some(20), vec![contract()]).await;
+    let cut = f.snapshot(Scope::Cycle(f.cycle.to_string()), 13, Some(20), vec![Fixture::contract()]).await;
     f.insert(14, &f.epoch, f.entry(14)).await;
     f.append_member(new_member).await;
     let mut request = f.request();
@@ -208,7 +198,7 @@ async fn fixed_frontiers() {
         [f.entry(10).record_id.as_str(), f.entry(12).record_id.as_str()]
     );
     // A Checkpoint Has Only Its Original Physical Boundary, Independent Of Journal Sequence.
-    let checkpoint = f.snapshot(Scope::Execution(f.execution.to_string()), 11, None, vec![contract()]).await;
+    let checkpoint = f.snapshot(Scope::Execution(f.execution.to_string()), 11, None, vec![Fixture::contract()]).await;
     let page = f.read(&f.request(), &checkpoint, None).await.unwrap();
     assert_eq!(page.rows.len(), 2);
     f.close().await;
@@ -220,17 +210,17 @@ async fn captured_projection() {
     missing.details.clear();
     let mut null = f.entry(11);
     null.details.insert("counter.value".into(), Value::Null);
+    let mut second = Fixture::contract();
+    second.fields.push(RecordField::new(Metadata::new(Identifier::new("optional").unwrap(), "Optional", None), ValueType::Text));
+    let second_version = second.schema_version();
     let mut large = f.entry(12);
-    large.schema_version = 2;
+    large.schema_version = second_version;
     large.details.insert("counter.value".into(), Value::Unsigned(u64::MAX));
     large.details.insert("undeclared".into(), Value::Text("extra".into()));
     for (position, row) in [(10, missing), (11, null), (12, large)] {
         f.insert(position, &f.epoch, row).await;
     }
-    let mut second = contract();
-    second.schema_version = 2;
-    second.fields.push(RecordField::new(Metadata::new(Identifier::new("optional").unwrap(), "Optional", None), ValueType::Text));
-    let cut = f.snapshot(Scope::Execution(f.execution.to_string()), 12, Some(12), vec![contract(), second]).await;
+    let cut = f.snapshot(Scope::Execution(f.execution.to_string()), 12, Some(12), vec![Fixture::contract(), second]).await;
     let mut request = f.request();
     let all = f.read(&request, &cut, None).await.unwrap();
     assert_eq!(all.rows.len(), 3);
@@ -244,20 +234,22 @@ async fn captured_projection() {
     request.r#where = vec![term("counter.value", Operator::Eq, Scalar::Unsigned(u64::MAX))];
     let page = f.read(&request, &cut, None).await.unwrap();
     assert_eq!(page.rows.len(), 1);
-    assert_eq!(page.rows[0].schema_version, 2);
-    request.versions = vec![1];
+    assert_eq!(page.rows[0].schema_version, second_version);
+    request.versions = vec![Fixture::contract().schema_version()];
     assert!(f.read(&request, &cut, None).await.unwrap().rows.is_empty());
     request.record_type = "example.unknown".into();
     assert_eq!(f.read(&request, &cut, None).await.err().unwrap().reason, Reason::ContractNotFound);
-    let mut changed = contract();
-    changed.schema_version = 2;
+    let mut changed = Fixture::contract();
     changed.fields[0].value_type = ValueType::Text;
-    let incompatible = f.snapshot(Scope::Execution(f.execution.to_string()), 12, Some(12), vec![contract(), changed]).await;
+    let changed_version = changed.schema_version();
+    let incompatible = f.snapshot(Scope::Execution(f.execution.to_string()), 12, Some(12), vec![Fixture::contract(), changed]).await;
     request = f.request();
     let failure = f.read(&request, &incompatible, None).await.err().unwrap();
     assert_eq!(failure.reason, Reason::IncompatibleSchema);
-    assert_eq!(failure.available_versions, vec![1, 2]);
-    request.versions = vec![1];
+    let mut expected_versions = vec![Fixture::contract().schema_version(), changed_version];
+    expected_versions.sort_unstable();
+    assert_eq!(failure.available_versions, expected_versions);
+    request.versions = vec![Fixture::contract().schema_version()];
     assert_eq!(f.read(&request, &incompatible, None).await.unwrap().rows.len(), 2);
     f.close().await;
 }
@@ -268,7 +260,7 @@ async fn budget_failures() {
     let mut oversized = deferred.entry(11);
     oversized.message = Some("x".repeat(20_000));
     deferred.insert(11, &deferred.epoch, oversized).await;
-    let cut = deferred.snapshot(Scope::Execution(deferred.execution.to_string()), 11, Some(11), vec![contract()]).await;
+    let cut = deferred.snapshot(Scope::Execution(deferred.execution.to_string()), 11, Some(11), vec![Fixture::contract()]).await;
     let mut request = deferred.request();
     request.page.rows = Some(1);
     request.page.bytes = Some(8192);
@@ -283,7 +275,7 @@ async fn budget_failures() {
     f.insert(10, &f.epoch, row).await;
     f.insert(11, &f.epoch, f.entry(11)).await;
     f.insert(12, &f.epoch, f.entry(12)).await;
-    let cut = f.snapshot(Scope::Execution(f.execution.to_string()), 12, Some(12), vec![contract()]).await;
+    let cut = f.snapshot(Scope::Execution(f.execution.to_string()), 12, Some(12), vec![Fixture::contract()]).await;
     let mut request = f.request();
     request.page.bytes = Some(8192);
     assert_eq!(f.read(&request, &cut, None).await.err().unwrap().reason, Reason::ResourceLimit);
@@ -312,7 +304,7 @@ async fn byte_pages() {
         row.message = Some("x".repeat(2000));
         f.insert(position, &f.epoch, row).await;
     }
-    let cut = f.snapshot(Scope::Execution(f.execution.to_string()), 13, Some(13), vec![contract()]).await;
+    let cut = f.snapshot(Scope::Execution(f.execution.to_string()), 13, Some(13), vec![Fixture::contract()]).await;
     let mut request = f.request();
     request.page.bytes = Some(8192);
     let mut next = None;
@@ -330,7 +322,7 @@ async fn byte_pages() {
         assert!(next.is_some());
     }
     assert_eq!(ids, (10..14).map(|position| f.entry(position).record_id.to_string()).collect::<Vec<_>>());
-    let empty = f.snapshot(Scope::Execution(f.execution.to_string()), 3, Some(3), vec![contract()]).await;
+    let empty = f.snapshot(Scope::Execution(f.execution.to_string()), 3, Some(3), vec![Fixture::contract()]).await;
     let page = f.read(&f.request(), &empty, None).await.unwrap();
     assert!(page.complete && page.rows.is_empty() && page.schema.is_some());
     request.r#where = vec![term("missing", Operator::Eq, Scalar::Unsigned(1))];
@@ -342,7 +334,7 @@ async fn unavailable_evidence() {
     let f = Fixture::new(1).await;
     f.insert(10, &f.epoch, f.entry(10)).await;
     f.insert(11, &f.epoch, f.entry(11)).await;
-    let cut = f.snapshot(Scope::Execution(f.execution.to_string()), 11, Some(11), vec![contract()]).await;
+    let cut = f.snapshot(Scope::Execution(f.execution.to_string()), 11, Some(11), vec![Fixture::contract()]).await;
     let request = f.request();
     let first = f.read(&request, &cut, None).await.unwrap();
     assert!(!first.complete && first.next.is_some());

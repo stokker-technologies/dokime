@@ -163,42 +163,6 @@ nokhwa = { workspace = true, optional = true, features = ["input-native"] }
 
 # === Build Dependencies === #
 
-[build-dependencies]
-# Local
-dokime-domain = { version = "0.1.2", path = "../dokime-domain", features = ["storage-format"] }
-
-# Git
-harmos = { workspace = true }
-
-# Error Handling
-
-# Logging
-
-# Utilities
-sha2 = { workspace = true }
-
-# Serialization
-serde_json = { workspace = true }
-
-# Configuration
-
-# Filesystem
-
-# Parsing
-proc-macro2 = { workspace = true }
-
-# Concurrency
-
-# Async
-
-# Networking
-
-# Storage
-
-# UI
-
-# Testing
-
 # === Dev Dependencies === #
 
 [dev-dependencies]

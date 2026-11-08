@@ -403,10 +403,10 @@ fn gateway_artifact() -> InstalledPlugin {
         enabled: true,
         telemetry_contracts: vec![
             TelemetryContract::declared("gateway.rssi", "Gateway signal")
-                .typed::<GatewayRow>()
+                .typed::<GatewayRow>(1)
                 .column(TelemetryColumn::declared("rssi", "RSSI", ValueType::Number, TelemetryRole::Value))
                 .every(200),
-            TelemetryContract::declared("gateway.status", "Gateway status").typed::<GatewayRow>().column(TelemetryColumn::declared(
+            TelemetryContract::declared("gateway.status", "Gateway status").typed::<GatewayRow>(1).column(TelemetryColumn::declared(
                 "rssi",
                 "RSSI",
                 ValueType::Number,

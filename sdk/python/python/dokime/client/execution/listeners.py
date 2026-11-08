@@ -88,6 +88,11 @@ async def read_records(
                         raise
                     reconnect = False
                 finally:
+                    if pending is not None:
+                        pending.cancel()
+                        with suppress(asyncio.CancelledError, StopAsyncIteration, RpcError):
+                            await pending
+                        pending = None
                     if reader is not None:
                         await reader.close()
                         reader = None

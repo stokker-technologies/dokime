@@ -52,7 +52,7 @@ impl dokime::telemetry::TelemetryStream for HomedRow {
     fn contract() -> dokime::telemetry::TelemetryContract {
         dokime::telemetry::TelemetryContract::declared(<Self as dokime::StreamSpec>::ID, "Steady Events")
             .columns(<Self as dokime::telemetry::TelemetryRow>::columns())
-            .typed::<Self>()
+            .typed::<Self>(<Self as dokime::StreamSpec>::WINDOW)
             .strict()
     }
 }

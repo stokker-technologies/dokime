@@ -81,7 +81,7 @@ impl dokime::StreamSpec for Bluetooth {
 
 impl TelemetryStream for Bluetooth {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::Bluetooth).typed::<crate::Bluetooth>()
+        crate::host_telemetry_contract(HostTelemetryStream::Bluetooth)
     }
 }
 

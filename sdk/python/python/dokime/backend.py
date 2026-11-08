@@ -60,20 +60,6 @@ class BackendAddressUnavailable(BackendError):
         self.address = address
 
 
-class StorageFormatMismatch(BackendError):
-    """The Root Was Written By Another Storage Format"""
-
-    def __init__(
-        self, message: str, root: Path, writer_build: str, running_build: str, writer_format: str | None, running_format: str
-    ) -> None:
-        super().__init__(message)
-        self.root = root
-        self.writer_build = writer_build
-        self.running_build = running_build
-        self.writer_format = writer_format
-        self.running_format = running_format
-
-
 class PluginIdConflict(BackendError):
     """An Embedded Plugin Uses An Installed Plugin's ID"""
 

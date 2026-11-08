@@ -19,7 +19,6 @@ import type { EvidenceAnalysisResult, PlotPayload } from "@/lib/types";
 const REPORT_DATA_ID = "hub-report-data";
 
 const EMPTY_REPORT_PAYLOAD: ReportPayload = {
-  schema_version: 1,
   generated_at: null,
   snapshot: null,
   documents: {},

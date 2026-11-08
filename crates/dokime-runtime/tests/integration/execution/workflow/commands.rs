@@ -226,7 +226,7 @@ impl dokime_runtime::StreamSpec for PulseRow {
 impl dokime_runtime::telemetry::TelemetryStream for PulseRow {
     fn contract() -> dokime_runtime::telemetry::TelemetryContract {
         dokime_runtime::telemetry::TelemetryContract::declared(<Self as dokime_runtime::StreamSpec>::ID, "Probe Pulse")
-            .typed::<Self>()
+            .typed::<Self>(<Self as dokime_runtime::StreamSpec>::WINDOW)
             .columns(<Self as dokime_runtime::telemetry::TelemetryRow>::columns())
             .strict()
     }

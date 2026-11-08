@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 
 // Third Party Imports
 use harmos::{
-    DefinitionId, Identified,
+    Identified,
     storage::{FileReference, ObjectRetention, ObjectRevision, ObjectVersion, StorageCursor, StoredObject},
 };
 
@@ -156,9 +156,7 @@ impl<'a> Input<'a> {
 }
 
 impl Identified for Cycle {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("dokime.object.cycle"), 1)
-    }
+    const ID: &'static str = "dokime.object.cycle";
 }
 
 impl StoredObject for Cycle {

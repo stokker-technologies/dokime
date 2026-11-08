@@ -56,7 +56,6 @@ impl EmbeddedProvider for Publisher {
             enabled: true,
             record_contracts: vec![RecordContract {
                 record_type: identifier("fixture.sidecar.observed"),
-                schema_version: 1,
                 metadata: metadata("fixture.sidecar.observed", "Observed"),
                 display: Default::default(),
                 template_id: None,

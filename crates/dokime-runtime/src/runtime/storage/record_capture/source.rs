@@ -337,8 +337,7 @@ fn project(envelope: &harmos::state::Envelope<&serde_json::Value>) -> harmos::Re
             return Err(projection_error("unsupported Dokime persistence encoding"));
         }
         let record = persisted.payload;
-        if record.record.source != owner || record.record.record_type.as_str() != fact.name || record.record.schema_version != fact.version
-        {
+        if record.record.source != owner || record.record.record_type.as_str() != fact.name {
             return Err(projection_error("native fact identity differs from its envelope"));
         }
         record

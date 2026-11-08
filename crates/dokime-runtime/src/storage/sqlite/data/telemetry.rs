@@ -564,7 +564,7 @@ mod tests {
             ));
             let storage = Manager::new(StorageBackends { primary: backend, state }, crate::config::storage_defaults()).unwrap();
             let runtime = Runtime::<App>::launch((), Config { storage: Some(storage.clone()) }).await.unwrap();
-            let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>();
+            let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>(1);
             let codec = Arc::new(telemetry::codec(&contract, &Default::default()).unwrap());
             storage.write_schema(codec.schema().clone(), codec.graph().clone()).await.unwrap();
             storage.flush().await.unwrap();
@@ -678,7 +678,7 @@ mod tests {
     #[tokio::test]
     async fn time_series_views_share_field_state_and_preserve_exact_rows() {
         let fixture = Fixture::new(1024).await;
-        let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>().column(
+        let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>(1).column(
             crate::telemetry::TelemetryColumn::declared("value", "Value", crate::ValueType::Number, crate::telemetry::TelemetryRole::Value),
         );
         let request = crate::plot::PlotPayloadRequest {
@@ -788,7 +788,7 @@ mod tests {
     #[tokio::test]
     async fn unindexed_medians_preserve_nullable_large_integers_at_saved_cuts() {
         let fixture = Fixture::new(8).await;
-        let contract = crate::telemetry::TelemetryContract::declared("unsigned.fixture", "Unsigned").typed::<UnsignedReading>();
+        let contract = crate::telemetry::TelemetryContract::declared("unsigned.fixture", "Unsigned").typed::<UnsignedReading>(1);
         let codec = Arc::new(telemetry::codec(&contract, &Default::default()).unwrap());
         fixture.storage.write_schema(codec.schema().clone(), codec.graph().clone()).await.unwrap();
         fixture.storage.flush().await.unwrap();
@@ -1278,7 +1278,7 @@ mod tests {
         let actual =
             projected.into_iter().map(|(position, row)| (position, row.timestamp, row.sequence, row.values[0])).collect::<Vec<_>>();
         assert_eq!(actual, expected);
-        let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>().column(
+        let contract = crate::telemetry::TelemetryContract::declared("arrow.fixture", "Arrow").typed::<Reading>(1).column(
             crate::telemetry::TelemetryColumn::declared("value", "Value", crate::ValueType::Number, crate::telemetry::TelemetryRole::Value),
         );
         let outputs = crate::telemetry_runtime::output::project_saved(

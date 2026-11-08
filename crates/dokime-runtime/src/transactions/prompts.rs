@@ -50,7 +50,7 @@ use dokime_domain::model::values::ValueType;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.prompts.request")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RequestPrompt {
     pub prompt: PromptRequest,
     pub command_id: CommandId,
@@ -58,7 +58,7 @@ pub struct RequestPrompt {
 }
 
 #[harmos::transaction(id = "dokime.prompts.response.submit")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitPromptResponse {
     pub prompt_id: PromptId,
     pub action: String,
@@ -208,7 +208,7 @@ pub(crate) fn settle_prompts(
             records.next_id(),
             at.clone(),
             settlement.record_type().identifier(),
-            contract.schema_version,
+            contract.schema_version(),
             "runtime",
             settlement.severity(),
         );
@@ -396,7 +396,7 @@ fn prepare_prompt_record(
     details: BTreeMap<String, Value>, at: Timestamp,
 ) -> Result<crate::transactions::records::draft::Drafts, Error> {
     let contract = record_type.contract();
-    let mut record = Record::new(state.next_record_id(), at, record_type.identifier(), contract.schema_version, "runtime", severity);
+    let mut record = Record::new(state.next_record_id(), at, record_type.identifier(), contract.schema_version(), "runtime", severity);
     record.message = message;
     record.scope = scope;
     record.details = details;
@@ -407,7 +407,7 @@ fn prepare_prompt_record(
             vec![ValidationIssue {
                 path: format!("records.{}", record.record_type.as_str()),
                 message: error.to_string(),
-                expected: Some(format!("schema_version {}", contract.schema_version)),
+                expected: Some(format!("schema_version {}", contract.schema_version())),
             }],
         )
     })?;

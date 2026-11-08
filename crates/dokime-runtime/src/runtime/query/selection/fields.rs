@@ -62,10 +62,10 @@ struct Captured {
 pub(super) fn records(
     contracts: &[RecordContract], id: &str, request: &SelectionRequest<'_>, config: &QueryConfig,
 ) -> Result<Schema, Box<Failure>> {
-    let selected = select(contracts.iter().filter(|c| c.record_type.as_str() == id).map(|c| c.schema_version), id, request, config)?;
+    let selected = select(contracts.iter().filter(|c| c.record_type.as_str() == id).map(|c| c.schema_version()), id, request, config)?;
     let mut versions = Vec::new();
     let mut schema_bytes = 0_usize;
-    for contract in contracts.iter().filter(|c| c.record_type.as_str() == id && selected.contains(&c.schema_version)) {
+    for contract in contracts.iter().filter(|c| c.record_type.as_str() == id && selected.contains(&c.schema_version())) {
         config.bound(contract.fields.len(), config.limits().fields, "fields", request.operation)?;
         config.bound(versions.len() + 1, config.limits().versions, "versions", request.operation)?;
         schema_bytes = schema_bytes.saturating_add(harmos::MemorySize::memory_size(contract));
@@ -77,7 +77,10 @@ pub(super) fn records(
                 declared(field.metadata.identifier.as_str(), &field.value_type, !field.required || field.nullable, field.unit.as_ref())
             })
             .collect();
-        versions.push(Captured { version: contract.schema_version, fields });
+        versions.push(Captured {
+            version: contract.schema_version(),
+            fields,
+        });
     }
     merge(versions, id, request, config)
 }

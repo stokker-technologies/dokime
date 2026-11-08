@@ -33,7 +33,7 @@ use harmos::storage::query::{
         sort::{Sort, SortKey},
     },
 };
-use harmos::{Application, DefinitionId, Identified, Message, Runtime, state::Never, storage::*};
+use harmos::{Application, Identified, Message, Runtime, state::Never, storage::*};
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -111,9 +111,7 @@ impl Application for App {
 }
 
 impl Identified for Subject {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("story.subject"), 1)
-    }
+    const ID: &'static str = "story.subject";
 }
 
 impl StoredObject for Subject {

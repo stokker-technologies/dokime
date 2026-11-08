@@ -31,7 +31,7 @@ use crate::model::time::Timestamp;
 
 /* === Structs === */
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HealthItem {
     pub health_item_id: HealthItemId,
     pub scope: RecordScope,
@@ -43,7 +43,7 @@ pub struct HealthItem {
 
 /* === Enums === */
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HealthSeverity {
     Info,

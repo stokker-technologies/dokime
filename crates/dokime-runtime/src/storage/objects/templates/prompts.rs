@@ -43,9 +43,6 @@ pub struct Prompt {
     prompt_type: String,
 
     #[serde(default)]
-    schema_version: u32,
-
-    #[serde(default)]
     archetype: String,
 
     #[serde(default)]
@@ -258,7 +255,6 @@ impl TryFrom<&PromptDefinition> for Prompt {
         }
         Ok(Self {
             prompt_type: value.prompt_type.as_str().to_owned(),
-            schema_version: value.schema_version,
             archetype: archetype_name(&value.archetype).to_owned(),
             title: value.title.as_str().to_owned(),
             message: value.message.as_deref().map(str::to_owned),
@@ -303,7 +299,6 @@ impl TryFrom<Prompt> for PromptDefinition {
         }
         Ok(Self {
             prompt_type: dokime_domain::model::identity::Identifier::new(row.prompt_type)?,
-            schema_version: row.schema_version,
             archetype: archetype(&row.archetype)?,
             title: row.title,
             message: row.message,

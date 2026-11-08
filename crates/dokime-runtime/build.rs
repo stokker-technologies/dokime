@@ -9,9 +9,6 @@
 
 /* === Modules === */
 
-#[path = "build/mod.rs"]
-mod storage_format;
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -44,7 +41,6 @@ use std::path::{Path, PathBuf};
 /* === Private Functions === */
 
 fn main() {
-    storage_format::emit();
     println!("cargo:rustc-env=DOKIME_NATIVE_TARGET={}", env::var("TARGET").expect("Cargo supplies TARGET"));
 
     if env::var_os("CARGO_FEATURE_NATIVE").is_some() {

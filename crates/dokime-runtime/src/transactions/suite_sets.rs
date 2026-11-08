@@ -31,15 +31,16 @@ use crate::state::RuntimeState;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.catalog.set")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SetSuiteSet {
     pub source: String,
     pub catalog: SuiteSet,
 }
 
+retained_transaction!(SetSuiteSet, "dokime.execution.catalog.set");
+
 #[harmos::transaction(id = "dokime.execution.catalog.unregister-source")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RemoveSuiteSet {
     pub source: String,
 }

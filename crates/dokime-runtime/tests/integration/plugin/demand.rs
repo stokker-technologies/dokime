@@ -692,7 +692,14 @@ pub(crate) mod observers {
         use dokime_runtime::telemetry::TelemetryStream;
         let contract = Revisioned::contract();
         assert_eq!(contract.stream.as_str(), "owned_stream.revisioned");
-        assert_eq!(contract.schema_version, harmos::domain::streams::revision(contract.storage_schema.as_ref().unwrap(), 1).unwrap());
+        assert_eq!(
+            contract.schema_version,
+            harmos::domain::streams::revision(
+                contract.storage_schema.as_ref().unwrap(),
+                <Revisioned as dokime_runtime::StreamSpec>::WINDOW
+            )
+            .unwrap()
+        );
         assert_eq!(contract.metadata.label, "Revisioned");
         assert_eq!(contract.metadata.description.as_deref(), Some("Shared row metadata"));
         assert_eq!(contract.metadata.tags, vec!["instrument"]);

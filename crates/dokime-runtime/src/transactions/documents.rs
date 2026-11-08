@@ -37,7 +37,6 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.documents.execution.add")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddExecutionDocumentParts {
     pub scope: RecordScope,
@@ -45,8 +44,10 @@ pub struct AddExecutionDocumentParts {
     pub occurred_at: Timestamp,
 }
 
+retained_transaction!(AddExecutionDocumentParts, "dokime.documents.execution.add");
+
 #[harmos::transaction(id = "dokime.documents.plot.settings")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct UpdatePlotSettings {
     pub cycle_id: TestCycleId,
     pub execution_id: TestExecutionId,

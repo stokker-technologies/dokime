@@ -230,7 +230,7 @@ impl OperationSpec {
 impl StreamSpec {
     pub fn telemetry(&self) -> dokime::telemetry::TelemetryContract {
         let mut contract = dokime::telemetry::TelemetryContract::declared(&self.id, &self.label)
-            .with_storage_schema(self.row.schema.clone())
+            .with_storage_schema(self.row.schema.clone(), self.window)
             .columns(self.columns.clone());
         contract.metadata.description = self.description.clone();
         contract

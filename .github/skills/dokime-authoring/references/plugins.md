@@ -10,7 +10,12 @@ Stream row revisions derive automatically from their schema. Changing fields nee
 only a rebuild and plugin Reload, with no author version bump or backend restart.
 Saved rows retain their definitions. Documents and queries select stream ids and
 columns; absent columns contribute no values and incompatible columns are named
-on affected bindings without discarding readable evidence. Development contracts remain v1.
+on affected bindings without discarding readable evidence. Record revisions also
+derive from their declared fields; never author a record schema version. Rebuild
+plugins against the matching Harmos SDK. Plugin-owned records, stored objects and
+system facts retain their stored definitions, including when the plugin is absent;
+unknown plugin objects use `ObjectRetention::All`. Only unreadable Dokime-owned
+persistent state can require a fresh root.
 
 Declare records, streams, prompts and settings once in their domain owner. Dokime declares each operation, its policy and family catalog in `dokime-operations`; its `runtime`-gated implementation dispatches through host-provided resources. Plugin-provided operations follow their own operation families and one definition per operation. Public visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
 

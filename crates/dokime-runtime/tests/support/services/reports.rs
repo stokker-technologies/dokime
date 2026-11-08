@@ -181,11 +181,14 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
         .unwrap(),
     };
     let mut record_contracts: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
-    for record in &input.records {
-        let mut contract = RecordContract::declared(record.record_type.as_str(), "Fixture Record");
-        contract.schema_version = record.schema_version;
+    let mut records = Vec::new();
+    for mut record in &input.records {
+        let contract = RecordContract::declared(record.record_type.as_str(), "Fixture Record");
+        record.schema_version = contract.schema_version();
         record_contracts.entry(record.record_type.clone()).or_default().insert(record.schema_version, contract);
+        records.push(record);
     }
+    input.records = records.into();
     let mut telemetry_contracts: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
     for sample in &input.telemetry {
         let mut contract = TelemetryContract::declared(sample.stream.as_str(), "Fixture Stream");

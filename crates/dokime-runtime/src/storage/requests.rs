@@ -17,7 +17,7 @@
 
 // Third Party Imports
 use harmos::{
-    DefinitionId, Identified,
+    Identified,
     storage::{ObjectRetention, StoredObject},
 };
 
@@ -105,9 +105,7 @@ pub struct Command {
 /* === Implementations === */
 
 impl Identified for Request {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("dokime.object.request"), 1)
-    }
+    const ID: &'static str = "dokime.object.request";
 }
 
 impl StoredObject for Request {
@@ -169,9 +167,7 @@ impl Request {
 }
 
 impl Identified for Command {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("dokime.object.command"), 1)
-    }
+    const ID: &'static str = "dokime.object.command";
 }
 
 impl StoredObject for Command {

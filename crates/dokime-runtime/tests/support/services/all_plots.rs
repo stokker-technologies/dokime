@@ -83,7 +83,7 @@ impl AllPlots {
                 let stream = format!("fixture.plot.s{index}");
                 TelemetryContract {
                     stream: identifier(&stream),
-                    schema_version: 1,
+                    schema_version: harmos::domain::streams::revision(&schema, 1).unwrap(),
                     metadata: metadata(&stream, "Plot Samples"),
                     template_id: None,
                     owner: None,

@@ -30,7 +30,6 @@ from dokime import (
     BackendRunning,
     DokimeClient,
     PluginIdConflict,
-    StorageFormatMismatch,
     _native,
 )
 from dokime.client.contracts import operation
@@ -130,37 +129,6 @@ def test_backend_exception_releases_root(tmp_path: Path) -> None:
             await client.connect()
 
     asyncio.run(story())
-
-
-@pytest.mark.parametrize("record", ["different", "missing", "invalid"])
-def test_backend_storage_format_refusal(tmp_path: Path, record: str) -> None:
-    root = tmp_path / "data"
-    root.mkdir()
-    (root / "evidence.bin").write_bytes(b"preserve evidence")
-    if record == "different":
-        (root / "storage-format.json").write_text(json.dumps({"format": "0" * 64, "writer_build": "other-build"}))
-    elif record == "invalid":
-        (root / "storage-format.json").write_text("invalid")
-    before = {path.name: (path.read_bytes(), path.stat().st_mtime_ns) for path in root.iterdir()}
-
-    async def story() -> None:
-        with pytest.raises(StorageFormatMismatch) as caught:
-            async with Backend(port=0, root=root, application_root=tmp_path / "application"):
-                pytest.fail("incompatible storage was admitted")
-        refusal = caught.value
-        assert refusal.root == root
-        assert refusal.running_build and refusal.running_format
-        assert refusal.writer_build in str(refusal)
-        assert refusal.running_build in str(refusal)
-        assert str(root) in str(refusal)
-        if record == "different":
-            assert refusal.writer_build == "other-build"
-            assert refusal.writer_format == "0" * 64
-        else:
-            assert refusal.writer_format is None
-
-    asyncio.run(story())
-    assert {path.name: (path.read_bytes(), path.stat().st_mtime_ns) for path in root.iterdir()} == before
 
 
 @pytest.mark.parametrize("enabled", [True, False])

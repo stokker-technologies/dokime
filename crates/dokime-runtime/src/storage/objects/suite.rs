@@ -17,7 +17,7 @@
 
 // Third Party Imports
 use harmos::{
-    DefinitionId, Identified,
+    Identified,
     storage::{ObjectRetention, ObjectVersion, StoredObject},
 };
 
@@ -48,9 +48,7 @@ pub struct Suite {
 /* === Implementations === */
 
 impl Identified for Suite {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("dokime.object.suite"), 1)
-    }
+    const ID: &'static str = "dokime.object.suite";
 }
 
 impl StoredObject for Suite {

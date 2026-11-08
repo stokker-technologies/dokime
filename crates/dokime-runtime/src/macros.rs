@@ -37,6 +37,30 @@ macro_rules! product_error {
     };
 }
 
+// Preserve An Individually Undescribable Transaction Without Inventing A Schema.
+#[cfg(feature = "native")]
+macro_rules! retained_transaction {
+    ($name:ty, $id:literal) => {
+        impl $name {
+            pub const ID: &'static str = $id;
+
+            pub fn definition() -> (harmos::DefinitionId, u32) {
+                (harmos::DefinitionId::new(Self::ID), 1)
+            }
+
+            pub fn restore<'de, D>(version: u32, payload: D) -> std::result::Result<Option<Self>, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                if version != Self::definition().1 {
+                    return Ok(None);
+                }
+                serde::Deserialize::deserialize(payload).map(Some)
+            }
+        }
+    };
+}
+
 macro_rules! json_message {
     ($message:ty) => {
         impl harmos::Message for $message {

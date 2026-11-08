@@ -20,7 +20,7 @@ pub(crate) mod work;
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{MemorySize, Message, storage::ObjectEntry};
+use harmos::{Identified, MemorySize, Message, storage::ObjectEntry};
 use rusqlite::{Connection, OptionalExtension, params, types::Value};
 use serde::{Deserialize, Serialize};
 
@@ -275,10 +275,13 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
 }
 
 pub(super) fn index(connection: &Connection, object: &ObjectEntry) -> Result<(), Error> {
-    if matches!(object.value.schema.id.as_str(), "dokime.object.execution" | "dokime.object.cycle")
-        && object.value.schema.version.get() != 1
-    {
-        return Err(Error::Incompatible("unsupported history object version".into()));
+    let expected = match object.value.schema.id.as_str() {
+        "dokime.object.execution" => Some(crate::storage::objects::execution::Execution::definition().1),
+        "dokime.object.cycle" => Some(crate::storage::objects::cycle::Cycle::definition().1),
+        _ => None,
+    };
+    if expected.is_some_and(|version| object.value.schema.version.get() != version) {
+        return Err(Error::Incompatible(format!("unsupported history object shape {}; use a fresh storage root", object.value.schema.id)));
     }
     let position = super::data::position(object.position.sequence);
     let mut members = Vec::new();
@@ -858,7 +861,7 @@ mod tests {
             value: ObjectValue {
                 schema: SchemaKey {
                     id: Identifier::new("dokime.object.cycle").unwrap(),
-                    version: 1.try_into().unwrap(),
+                    version: <crate::storage::objects::cycle::Cycle as harmos::Identified>::definition().1.try_into().unwrap(),
                     payload_encoding: Default::default(),
                 },
                 item: ObjectKey::new(id.as_str(), 4096.try_into().unwrap()).unwrap(),

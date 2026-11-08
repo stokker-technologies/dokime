@@ -42,7 +42,6 @@ use crate::model::values::ValueType;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecordContract {
     pub record_type: Identifier,
-    pub schema_version: u32,
     pub metadata: Metadata,
 
     #[serde(default)]
@@ -169,12 +168,72 @@ impl harmos::MemorySize for RecordDisplay {
 }
 
 impl RecordContract {
+    pub fn storage_schema(&self) -> harmos::schema::graph::Schema {
+        use harmos::schema::{
+            Cardinality, Described,
+            graph::{Field, Kind, Schema},
+        };
+
+        let settings = harmos::config::SchemaSettings::default();
+        let dynamic = Schema::from_declaration(Value::DEFINITION, &settings).expect("finite dynamic value schema");
+        let mut definitions = vec![Vec::new()];
+        let mut representations = std::collections::BTreeMap::new();
+        let mut fields: Vec<_> = self.fields.iter().collect();
+        fields.sort_by(|left, right| left.metadata.identifier.cmp(&right.metadata.identifier));
+        for (index, field) in fields.into_iter().enumerate() {
+            let kind = match field.value_type {
+                ValueType::Boolean => Kind::Bool,
+                ValueType::Integer => Kind::I64,
+                ValueType::Number => Kind::F64,
+                ValueType::Text | ValueType::File | ValueType::Datetime => Kind::String,
+                ValueType::Object | ValueType::Array => {
+                    let offset = definitions.len();
+                    representations.extend(dynamic.representations.iter().map(|(index, value)| (index + offset, value.clone())));
+                    for fields in &dynamic.definitions {
+                        definitions.push(
+                            fields
+                                .iter()
+                                .cloned()
+                                .map(|mut field| {
+                                    if let Kind::Message { definition } = &mut field.kind {
+                                        *definition += offset;
+                                    }
+                                    field
+                                })
+                                .collect(),
+                        );
+                    }
+                    Kind::Message { definition: offset + dynamic.root }
+                }
+            };
+            let definition = definitions.len();
+            let value_type = serde_json::to_value(&field.value_type).expect("record value type serializes");
+            definitions.push(vec![Field {
+                name: value_type.as_str().expect("record value type is named").to_owned().into(),
+                tag: 1,
+                kind,
+                cardinality: if field.nullable { Cardinality::Optional } else { Cardinality::Required },
+            }]);
+            let kind = Kind::Message { definition };
+            definitions[0].push(Field {
+                name: field.metadata.identifier.to_string().into(),
+                tag: u32::try_from(index + 1).expect("record field count fits u32"),
+                kind,
+                cardinality: if field.required { Cardinality::Required } else { Cardinality::Optional },
+            });
+        }
+        Schema { root: 0, definitions, representations }
+    }
+
+    pub fn schema_version(&self) -> u32 {
+        harmos::schema::identity::revision(&self.storage_schema()).expect("finite record schema")
+    }
+
     pub fn declared(record_type: impl Into<String>, label: impl Into<String>) -> Self {
         let record_type = Identifier::declared(record_type, "record");
         Self {
             metadata: Metadata::new(record_type.clone(), label, None),
             record_type,
-            schema_version: 1,
             display: RecordDisplay::default(),
             template_id: None,
             owner: None,
@@ -289,3 +348,25 @@ fn retained_memory<const N: usize>(inline: usize, fields: [(usize, usize); N]) -
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn record_shape_identity_tracks_fields_without_presentation_or_order() {
+        let original = RecordContract::declared("fixture.reading", "Reading")
+            .field(RecordField::new(Metadata::new(Identifier::new("value").unwrap(), "Value", None), ValueType::Number));
+        let mut relabeled = original.clone();
+        relabeled.metadata.label = "Changed Label".into();
+        relabeled.fields[0].metadata.label = "Changed Field Label".into();
+        assert_eq!(original.schema_version(), relabeled.schema_version());
+        let changed =
+            original.clone().field(RecordField::new(Metadata::new(Identifier::new("added").unwrap(), "Added", None), ValueType::Integer));
+        assert_ne!(original.schema_version(), changed.schema_version());
+        let mut reordered = changed.clone();
+        reordered.fields.reverse();
+        assert_eq!(changed.schema_version(), reordered.schema_version());
+        assert_eq!(crate::model::records::BuiltinRecordType::ToolConnectionAcquired.schema_version(), 3948733078);
+    }
+}
