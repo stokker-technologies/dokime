@@ -13,6 +13,7 @@
 
 pub(crate) mod diagnostics;
 pub(crate) mod publication;
+mod temporary_cleanup;
 
 /* === Re-Exports === */
 
