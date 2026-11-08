@@ -599,6 +599,28 @@ async fn inventory_matches_dispatch() {
     runtime.operations.call_encoded(&owned(<SetPower as OperationDeclaration>::ID), SetPower { enabled: false }.encode()).await.unwrap();
     served.push((<SetPower as OperationDeclaration>::ID.to_owned(), <SetPower as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
 
+    // Canonical Flows Expose Instrument Work As Operations Too.
+    use plugin_obc::operations::{charger::*, system::CollectSystem, wait::Wait};
+    for (operation, timeout) in [
+        (<CollectSystem as OperationDeclaration>::ID, <CollectSystem as OperationDeclaration>::POLICY.timeout),
+        (<Wait as OperationDeclaration>::ID, <Wait as OperationDeclaration>::POLICY.timeout),
+        (<InitializeCharger as OperationDeclaration>::ID, <InitializeCharger as OperationDeclaration>::POLICY.timeout),
+        (<StartCharger as OperationDeclaration>::ID, <StartCharger as OperationDeclaration>::POLICY.timeout),
+        (<ReadCharger as OperationDeclaration>::ID, <ReadCharger as OperationDeclaration>::POLICY.timeout),
+        (<SampleCharger as OperationDeclaration>::ID, <SampleCharger as OperationDeclaration>::POLICY.timeout),
+        (<SampleChargerBatch as OperationDeclaration>::ID, <SampleChargerBatch as OperationDeclaration>::POLICY.timeout),
+        (<SetChargerLoad as OperationDeclaration>::ID, <SetChargerLoad as OperationDeclaration>::POLICY.timeout),
+        (<InjectChargerFault as OperationDeclaration>::ID, <InjectChargerFault as OperationDeclaration>::POLICY.timeout),
+        (<ClearChargerFault as OperationDeclaration>::ID, <ClearChargerFault as OperationDeclaration>::POLICY.timeout),
+        (<ProbeChargerRestart as OperationDeclaration>::ID, <ProbeChargerRestart as OperationDeclaration>::POLICY.timeout),
+        (<StopCharger as OperationDeclaration>::ID, <StopCharger as OperationDeclaration>::POLICY.timeout),
+        (<ReleaseCharger as OperationDeclaration>::ID, <ReleaseCharger as OperationDeclaration>::POLICY.timeout),
+        (<EncodeChargerSummary as OperationDeclaration>::ID, <EncodeChargerSummary as OperationDeclaration>::POLICY.timeout),
+    ] {
+        dispatch(&runtime.operations, &owned(operation), Vec::new()).await;
+        served.push((operation.to_owned(), timeout.as_millis() as u64));
+    }
+
     // Demand drives the real host probe; two rows cover its retained reader
     // across ticks rather than testing sysinfo in an inline unit test.
     let system = runtime.streams.current_publication("obc.system").unwrap();

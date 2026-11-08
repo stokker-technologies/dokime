@@ -57,6 +57,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
   if (process.platform === "win32") assert.ok(existsSync(browserPath), "Chromium is available for canvas proof");
   const scratch = await mkdtemp(join(tmpdir(), "dokime-plot-canvas-"));
   let child: ReturnType<typeof spawn> | undefined;
+  let closed: Promise<void> | undefined;
   let socket: WebSocket | undefined;
   try {
     await build({
@@ -89,6 +90,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
       { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] },
     );
     const browser = child;
+    closed = new Promise((accept) => browser.once("close", () => accept()));
     let diagnostics = "";
     const endpoint = await new Promise<string>((accept, reject) => {
       const timeout = setTimeout(() => reject(new Error(`Canvas browser startup timed out: ${diagnostics}`)), 30_000);
@@ -255,14 +257,13 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     }
     assert.equal(await evaluate(`document.querySelectorAll('script[src],link[rel="stylesheet"][href]').length`), 0);
     await command("Browser.close", {});
-    if (browser.exitCode === null) await once(browser, "exit", { signal: AbortSignal.timeout(30_000) });
+    await closed;
   } finally {
     socket?.close();
-    if (child && child.exitCode === null) {
-      const exited = once(child, "exit");
+    if (child && child.exitCode === null && child.signalCode === null) {
       child.kill();
-      await exited;
     }
+    await closed;
     await rm(scratch, { recursive: true, force: true });
   }
 });
