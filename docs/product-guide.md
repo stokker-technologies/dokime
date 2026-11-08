@@ -1892,6 +1892,7 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 - [Remote OBC Walkthrough](remote/overview.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
 - [OBC Plugin](plugin-obc.md) — the charger simulation and complete test templates.
 - [Plugins](plugins.md) — the host telemetry plugin, plugin lifecycle, bundles and installation.
+- [Remote Plugins and Automation (Proposal)](remote-plugins.md) — plugins as user-run gRPC servers added by URL, and the published automation contract.
 - [Desktop GUI](gui.md) — frontend layout, generated outputs and the desktop transport rules.
 - [Repository Tooling](tooling.md) — mise tasks, Python tooling and desktop development processes.
 - [Screenshots](../screenshots/README.md) — the published product images and how to regenerate them.
