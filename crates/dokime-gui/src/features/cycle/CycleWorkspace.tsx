@@ -344,8 +344,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       runningRow?.execution && progress
         ? {
             ordinal: runningRow.ordinal,
-            step: stepLabel(runningRow.execution, progress.stepId, progress.phase),
-            stepId: progress.stepId,
+            step: stepLabel(runningRow.execution, progress.stepId),
           }
         : null,
   });
@@ -406,9 +405,8 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
             {live ? (
               <ControlCard
                 actions={seal}
-                detail={control.detail}
                 label="Cycle Controls"
-                progress={runningRow && progress ? { completed: progress.completed, total: progress.total } : null}
+                progress={runningRow && progress ? { completed: progress.completed, phase: progress.phase, total: progress.total } : null}
                 state={control.line}
               >
                 {phase === "seal_failed" && plan.test_cycle.seal_failure ? (

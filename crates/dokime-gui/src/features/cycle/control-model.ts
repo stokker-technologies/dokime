@@ -49,7 +49,7 @@ export type ExecutionControlState = {
   phase: ExecutionPhase;
   /** The state line: what the node does now, the running step's own label. */
   line: string;
-  /** Secondary text after the line, muted: the running step's id. */
+  /** Secondary text after the line, muted: a failed report's cause or why the plugin is unavailable. */
   detail: string | null;
   actions: ExecutionAction[];
 };
@@ -61,8 +61,8 @@ export type ExecutionControlInput = {
   report?: TestExecution["report"];
   status: TestExecution["status"];
   controls: TestExecution["controls"];
-  /** The live step progress, when the runtime streams one for this execution. */
-  progress: { label: string; id: string; completed: number; total: number } | null;
+  /** The live step progress, when the runtime streams one for this execution, with its step's label. */
+  progress: { label: string; completed: number; total: number } | null;
   /** Whether a prompt of this execution waits for an answer. */
   promptWaiting: boolean;
   /** Whether this page's own Stop is in flight. */
@@ -72,7 +72,6 @@ export type ExecutionControlInput = {
 /** The cycle's Control card. */
 export type CycleControlState = {
   line: string;
-  detail: string | null;
   /** Seal Cycle while the cycle is Active, Retry Seal and Archive once its seal failed, nothing once it seals. */
   actions: CycleAction[];
 };
@@ -81,8 +80,8 @@ export type CycleAction = "Seal Cycle" | "Retry Seal" | "Archive";
 
 export type CycleControlInput = {
   phase: TestCycle["phase"];
-  /** The member running now, with its step's label and id. */
-  running: { ordinal: number; step: string | null; stepId: string | null } | null;
+  /** The member running now, with its step's label. */
+  running: { ordinal: number; step: string | null } | null;
 };
 
 /* === Classes === */
@@ -134,8 +133,8 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
   }
   return {
     actions: [...pause, ...stop],
-    detail: progress && progress.id !== progress.label ? progress.id : null,
-    line: progress?.label ?? "Running",
+    detail: null,
+    line: progress?.label || "Running",
     phase: "running",
   };
 }
@@ -146,13 +145,12 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
  * stays saved either way, and the card states the cause beneath.
  */
 export function cycleControlState({ phase, running }: CycleControlInput): CycleControlState {
-  if (phase === "sealing") return { actions: [], detail: null, line: "Sealing · saving evidence" };
-  if (phase === "seal_failed") return { actions: ["Retry Seal", "Archive"], detail: null, line: "Seal failed · evidence kept" };
-  if (phase === "sealed") return { actions: [], detail: null, line: "Sealed · evidence saved" };
-  if (!running) return { actions: ["Seal Cycle"], detail: null, line: "Idle · no execution running" };
+  if (phase === "sealing") return { actions: [], line: "Sealing · saving evidence" };
+  if (phase === "seal_failed") return { actions: ["Retry Seal", "Archive"], line: "Seal failed · evidence kept" };
+  if (phase === "sealed") return { actions: [], line: "Sealed · evidence saved" };
+  if (!running) return { actions: ["Seal Cycle"], line: "Idle · no execution running" };
   return {
     actions: ["Seal Cycle"],
-    detail: running.stepId && running.stepId !== running.step ? running.stepId : null,
     line: running.step ? `Execution ${running.ordinal} · ${running.step}` : `Execution ${running.ordinal} running`,
   };
 }

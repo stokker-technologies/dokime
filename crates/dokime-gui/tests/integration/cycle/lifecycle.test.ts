@@ -172,7 +172,7 @@ test("Durable Stop Seal", async () => {
 
 test("Container Seal Controls", () => {
   // An Active Cycle Offers Seal Cycle Alone, Whatever Its Members Did
-  for (const running of [null, { ordinal: 2, step: "Energize Charger", stepId: "energize" }]) {
+  for (const running of [null, { ordinal: 2, step: "Energize Charger" }]) {
     const state = cycleControlState({ phase: "active", running });
     assert.deepEqual(state.actions, ["Seal Cycle"]);
     const html = renderToStaticMarkup(
@@ -188,17 +188,13 @@ test("Container Seal Controls", () => {
   }
   assert.equal(cycleControlState({ phase: "active", running: null }).line, "Idle · no execution running");
   assert.equal(
-    cycleControlState({ phase: "active", running: { ordinal: 2, step: "Energize Charger", stepId: "energize" } }).line,
+    cycleControlState({ phase: "active", running: { ordinal: 2, step: "Energize Charger" } }).line,
     "Execution 2 · Energize Charger",
   );
 
   // Sealing and Sealed Offer Nothing
-  assert.deepEqual(cycleControlState({ phase: "sealing", running: null }), {
-    actions: [],
-    detail: null,
-    line: "Sealing · saving evidence",
-  });
-  assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], detail: null, line: "Sealed · evidence saved" });
+  assert.deepEqual(cycleControlState({ phase: "sealing", running: null }), { actions: [], line: "Sealing · saving evidence" });
+  assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], line: "Sealed · evidence saved" });
 
   // A Failed Seal Offers Retry and Archive, Never a Running Control
   assert.deepEqual(cycleControlState({ phase: "seal_failed", running: null }).actions, ["Retry Seal", "Archive"]);
