@@ -18,9 +18,6 @@ mod release;
 #[cfg(windows)]
 mod resources;
 
-#[cfg(windows)]
-mod signing;
-
 /* === Re-Exports === */
 
 /* === Imports === */

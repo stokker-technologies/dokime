@@ -6,11 +6,11 @@
 
 ## Validation
 
-- [ ] 2.1 Run packaging focused tests and focused Cargo check through mise.
+- [x] 2.1 Run packaging focused tests and focused Cargo check through mise.
 - [ ] 2.2 Run format, project check, one final lint:rust and commit scan; report every failure and unavailable certificate/native-platform proof.
 
 ## Workflow Follow-Up
 
 The orchestrator owns release/nightly workflow edits, combined batch validation and delivery. This worker commits only its owned paths and never pushes or opens a PR. Native Linux/Windows managed installation and actual certificate signing remain qualification obligations.
 
-Rust validation remains open: the shared runtime passes SQLite savepoints to `insert_entries`, which requires a transaction, in `crates/dokime-runtime/src/storage/sqlite/data.rs`. A unit-test retry also encountered a missing `close_stopped_attempt` call in `crates/dokime-runtime/src/domains/execution/run/session.rs`. Those owners must close the compiler failures before packaging tests can execute. Repository formatting and convention findings outside the introduced signing code also remain integration obligations. Implementation checkboxes denote source changes, not passed Rust proof or delivery.
+Validation remains open until the batch gate confirms clean lint and convention checks. The signing subprocess story belongs to acceptance and uses the required Dokime process launcher with the repository's acceptance deadline. Shared runtime compilation repairs belong to their existing owners. Implementation checkboxes denote source changes, not complete project proof or delivery.
