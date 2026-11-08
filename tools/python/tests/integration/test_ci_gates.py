@@ -23,7 +23,7 @@ import unittest
 import urllib.error
 import urllib.parse
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # Third Party Imports
 # Local Imports
@@ -44,6 +44,92 @@ ROOT = Path(__file__).resolve().parents[4]
 
 
 class SimulationTests(unittest.TestCase):
+    def test_native_job_excludes_machine_mise_configuration(self):
+        job = {
+            "key": "isolation",
+            "id": "check:repository",
+            "platform": "windows",
+            "executor": "native",
+            "pipeline": "pr",
+            "inputs": [],
+            "outputs": {},
+            "setup": "",
+            "bootstrap": [],
+            "commands": [],
+            "minutes": 1,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            candidate = root / "candidate"
+            candidate.mkdir()
+            (candidate / "mise.toml").write_text('[env]\nSIMULATION_PROJECT = "loaded"\n', encoding="utf-8")
+            machine = root / "machine"
+            machine.mkdir()
+            (machine / "config.toml").write_text("invalid TOML [", encoding="utf-8")
+            (machine / "mise.lock").write_text("invalid lockfile [", encoding="utf-8")
+            scratch = root / "scratch"
+            scratch.mkdir()
+            owner = Mock(root=scratch)
+            inherited = {
+                "MISE_CONFIG_DIR": str(machine),
+                "MISE_GLOBAL_CONFIG_FILE": str(machine / "config.toml"),
+                "MISE_AQUA_GITHUB_ATTESTATIONS": "false",
+                "CARGO_BUILD_JOBS": "8",
+            }
+
+            def execute(command, workspace, values, *arguments):
+                self.assertNotIn("MISE_AQUA_GITHUB_ATTESTATIONS", values)
+                self.assertEqual(values["CARGO_BUILD_JOBS"], "8")
+                configs = subprocess.run(
+                    ["mise", "config", "ls", "--json"], cwd=workspace, env=values, capture_output=True, text=True, check=False, timeout=30
+                )
+                self.assertEqual(configs.returncode, 0, configs.stderr)
+                self.assertNotIn(str(machine).replace("\\", "/"), configs.stdout.replace("\\\\", "/"))
+                loaded = subprocess.run(
+                    ["mise", "env", "--json"], cwd=workspace, env=values, capture_output=True, text=True, check=False, timeout=30
+                )
+                self.assertEqual(loaded.returncode, 0, loaded.stderr)
+                self.assertEqual(json.loads(loaded.stdout)["SIMULATION_PROJECT"], "loaded")
+                return 1
+
+            with (
+                patch.dict(os.environ, inherited),
+                patch.object(simulate.workspaces, "job", return_value=contextlib.nullcontext(owner)),
+                patch.object(simulate, "stream", side_effect=execute),
+            ):
+                simulate._run_job(job, candidate, root, root / "cache", "repository", "run", "dev")
+
+    def test_docker_isolates_host_and_container_mise(self):
+        owner = Mock(record={"container": "test-container", "volume": "test-volume"})
+        values = {"PROFILE": "dev", "CARGO_BUILD_JOBS": "8", "PRIVATE_VALUE": "excluded"}
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            with (
+                patch.dict(os.environ, MISE_AQUA_GITHUB_ATTESTATIONS="false", MISE_GLOBAL_CONFIG_FILE="machine-config"),
+                patch.object(simulate.containers, "job", return_value=contextlib.nullcontext(owner)),
+                patch.object(simulate, "source_archive", side_effect=lambda workspace, archive, modes: archive.touch() or {}),
+                patch.object(simulate.subprocess, "run"),
+                patch.object(simulate, "stream", return_value=1) as stream,
+                patch.object(Path, "unlink"),
+                io.StringIO() as log,
+            ):
+                simulate.docker(
+                    {"key": "isolation", "image": "ubuntu:22.04", "minutes": 1}, workspace, root, "repo", "run", values, [], {}, log, {}
+                )
+            arguments = owner.create.call_args.args[0]
+            forwarded = dict(arguments[index + 1].split("=", 1) for index, value in enumerate(arguments) if value == "--env")
+            self.assertNotIn("PRIVATE_VALUE", forwarded)
+            self.assertEqual(forwarded["CARGO_BUILD_JOBS"], values["CARGO_BUILD_JOBS"])
+            self.assertEqual(forwarded["MISE_TRUSTED_CONFIG_PATHS"], "/workspace")
+            self.assertEqual(forwarded["MISE_GLOBAL_CONFIG_FILE"], forwarded["MISE_CONFIG_DIR"] + "/config.toml")
+            host = stream.call_args.args[2]
+            self.assertEqual(host["MISE_TRUSTED_CONFIG_PATHS"], str(workspace))
+            self.assertEqual(Path(host["MISE_GLOBAL_CONFIG_FILE"]).parent, Path(host["MISE_CONFIG_DIR"]))
+            self.assertNotEqual(host["MISE_GLOBAL_CONFIG_FILE"], "machine-config")
+            self.assertNotIn("MISE_AQUA_GITHUB_ATTESTATIONS", host)
+
     def test_worktree_candidate(self):
         with tempfile.TemporaryDirectory(prefix="dokime-candidate-test-") as temporary:
             root = Path(temporary)
