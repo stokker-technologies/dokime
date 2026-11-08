@@ -188,6 +188,15 @@ RUSTC_WRAPPER= mise run build:rust
 In PowerShell use `$env:RUSTC_WRAPPER = ''; mise run build:rust`, then remove
 the override with `Remove-Item Env:RUSTC_WRAPPER`.
 
+## Simulation Environment
+
+`mise run ci:simulate` isolates mise's global configuration and lockfile from
+the workstation. Each job uses an empty global configuration location and trusts
+only its staged workspace through `MISE_TRUSTED_CONFIG_PATHS`, including the host
+Docker shim and Linux containers before bootstrap. Machine `MISE_*` overrides are
+not inherited by jobs; repository provenance verification remains enabled.
+`CARGO_BUILD_JOBS` is forwarded to both native and container jobs when supplied.
+
 ## Simulation Scratch Recovery
 
 Simulation scratch stays in the system temporary directory. Each workspace is

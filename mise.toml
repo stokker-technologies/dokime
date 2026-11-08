@@ -599,6 +599,7 @@ run = [
 
 [tasks."ci:simulate"]
 description = "Simulate the Declared CI Graph Locally"
+env = { MISE_CONFIG_DIR = "{{config_root}}/target/ci/mise-config", MISE_GLOBAL_CONFIG_FILE = "{{config_root}}/target/ci/mise-config/config.toml" }
 usage = '''
 flag "--pipeline <kind>" default=pr
 flag "--platform <platform>"
