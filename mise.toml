@@ -411,7 +411,7 @@ run = [
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:coverage"]
-description = "Measure Python Coverage over Instrumented Lanes"
+description = "Measure Python Coverage of the SDK Python Modules; Native PyO3 Code Is Excluded"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
