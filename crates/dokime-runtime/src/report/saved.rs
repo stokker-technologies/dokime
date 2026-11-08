@@ -85,7 +85,7 @@ pub struct CapturedExecutionReportInput {
 pub struct PreparedExecutionReport {
     captured: harmos::storage::ReadBatch<CapturedExecutionReportInput>,
     outputs: Arc<harmos::storage::ReadBatch<Vec<ExecutionOutput>>>,
-    context: ReportFile,
+    context: ReportContext,
     report: ReportFile,
     sealed_at: Option<Timestamp>,
 }
@@ -117,6 +117,12 @@ struct ReportFileIdentity<'a> {
 }
 
 /* === Enums === */
+
+// A Final Report Reuses Its Durable Completion Context; Only A Current Report Spools One.
+enum ReportContext {
+    Spooled(ReportFile),
+    Frozen(Option<FileReference>),
+}
 
 /* === Traits === */
 
@@ -286,7 +292,7 @@ impl PreparedExecutionReport {
         {
             return Err(report_invalid("frozen report context belongs to another owner or evidence boundary"));
         }
-        self.context.finished = Some(context);
+        self.context = ReportContext::Frozen(Some(context));
         Ok(())
     }
 
@@ -305,11 +311,21 @@ impl PreparedExecutionReport {
         captured.validate()?;
         validate_outputs(&captured.execution_id, saved, outputs.as_slice())
             .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
-        let (context, report) = ReportFile::capture(&html)?;
+        let (context, report) = if captured.final_report {
+            let report = ReportFile::render(&html, captured.execution_id.as_str(), uuid::Uuid::now_v7(), ".report")?;
+            (ReportContext::Frozen(None), report)
+        } else {
+            let (context, report) = ReportFile::capture(&html)?;
+            (ReportContext::Spooled(context), report)
+        };
+        let spooled = match &context {
+            ReportContext::Spooled(context) => Some(&context.data.metadata.id),
+            ReportContext::Frozen(_) => None,
+        };
         if outputs
             .iter()
             .filter_map(|output| output.file.as_ref())
-            .any(|file| file.metadata.id == context.data.metadata.id || file.metadata.id == report.data.metadata.id)
+            .any(|file| Some(&file.metadata.id) == spooled || file.metadata.id == report.data.metadata.id)
         {
             return Err(Error::InvalidReportInputs("report production reuses an output file identity".into()));
         }
@@ -326,9 +342,7 @@ impl PreparedExecutionReport {
         &mut self, manager: &Manager, revision: &ExecutionRevision,
     ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
         self.captured.validate()?;
-        tokio::try_join!(self.context.write(manager), self.report.write(manager))?;
-        let context = self.context.finish(manager).await?;
-        let report = self.report.finish(manager).await?;
+        let (context, report) = self.finish_files(manager).await?;
         let last = [&context.position, &report.position].into_iter().max_by_key(|cursor| cursor.sequence).unwrap();
         let dependencies_saved = manager.flush_until(last).await?;
         let mut publication = crate::storage::reports::Prepared::new(
@@ -363,9 +377,7 @@ impl PreparedExecutionReport {
         }
         manager.flush_until(&self.captured.evidence_through).await?;
         // Stage Frozen Context And HTML Before Publication.
-        tokio::try_join!(self.context.write(manager), self.report.write(manager),)?;
-        let context = self.context.finish(manager).await?;
-        let report = self.report.finish(manager).await?;
+        let (context, report) = self.finish_files(manager).await?;
         let last = [&context.position, &report.position].into_iter().max_by_key(|cursor| cursor.sequence).unwrap();
         let dependencies_saved = manager.flush_until(last).await?;
         for file in [&context, &report] {
@@ -388,6 +400,17 @@ impl PreparedExecutionReport {
         };
         seal.validate(self.captured.execution()?).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
         Ok(seal)
+    }
+
+    async fn finish_files(&mut self, manager: &Manager) -> Result<(FileReference, FileReference)> {
+        match &mut self.context {
+            ReportContext::Spooled(context) => {
+                tokio::try_join!(context.write(manager), self.report.write(manager))?;
+                Ok((context.finish(manager).await?, self.report.finish(manager).await?))
+            }
+            ReportContext::Frozen(Some(context)) => Ok((context.clone(), self.report.finish(manager).await?)),
+            ReportContext::Frozen(None) => Err(report_invalid("final report requires its durable completion context")),
+        }
     }
 }
 
@@ -618,6 +641,34 @@ mod tests {
         let digest = Sha256::digest(payload.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
         assert_eq!(digest, PAYLOAD_SHA256);
         drop(report);
+    }
+
+    #[test]
+    fn final_report_renders_the_same_html_without_a_context_spool() {
+        let fixture = || {
+            let mut captured: CapturedExecutionReportInput =
+                serde_json::from_str(include_str!("fixtures/execution-report-input.json")).unwrap();
+            // Preparation Validates Declarations; This Fixture Omits Those Of Its Evidence.
+            captured.input.records = Default::default();
+            captured.input.telemetry = Default::default();
+            let evidence = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(captured.source(&[]))).unwrap();
+            let captured = harmos::storage::ReadBatch::new(()).try_map(|_| Ok::<_, Error>(captured)).unwrap();
+            HtmlReport::from_capture(captured, evidence).unwrap()
+        };
+        let html = fixture();
+        assert!(html.captured_input().unwrap().final_report);
+        let saved = html.captured_input().unwrap().evidence_through.clone();
+        let (_, expected) = ReportFile::capture(&fixture()).unwrap();
+        let outputs = Arc::new(harmos::storage::ReadBatch::new(Vec::new()));
+        let prepared = PreparedExecutionReport::prepare_html(html, outputs, &saved).unwrap();
+        assert!(matches!(prepared.context, ReportContext::Frozen(None)));
+        let read = |file: &ReportFile| {
+            let mut bytes = Vec::new();
+            file.data.spool.lock().unwrap().read_to_end(&mut bytes).unwrap();
+            bytes
+        };
+        assert_eq!(prepared.report.data.metadata.expected_sha256, expected.data.metadata.expected_sha256);
+        assert!(read(&prepared.report) == read(&expected));
     }
 
     #[test]
