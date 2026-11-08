@@ -56,10 +56,6 @@ fn metadata(id: &str) -> FileMetadata {
     }
 }
 
-unsafe extern "C" fn crash_checkpoint_sync(_: *mut rusqlite::ffi::sqlite3_file, _: i32) -> i32 {
-    std::process::exit(74)
-}
-
 /* === Tests === */
 
 #[tokio::test]
@@ -74,6 +70,7 @@ async fn queued_writers_share_one_durable_commit() {
             ..dokime_runtime::config::local_storage_defaults()
         };
         let backend = Arc::new(Backend::<()>::primary_with(root.path().to_owned(), settings).await.unwrap());
+        backend.open().await.unwrap();
         let state = backend.local_state();
         let commits = Arc::new(AtomicUsize::new(0));
         let count = commits.clone();
@@ -120,6 +117,7 @@ async fn queued_writers_share_one_durable_commit() {
 async fn failed_file_creation_does_not_publish_a_production() {
     let root = tempfile::tempdir().unwrap();
     let backend = Backend::<()>::primary(root.path().to_owned()).await.unwrap();
+    backend.open().await.unwrap();
     let staging = root.path().join("staging");
     std::fs::write(&staging, b"blocked directory").unwrap();
     assert!(backend.create_production(&metadata("retry")).await.is_err());
@@ -133,6 +131,7 @@ async fn failed_file_creation_does_not_publish_a_production() {
     backend.create_production(&metadata("retry")).await.unwrap();
     backend.local_state().close().await.unwrap();
     let reopened = Backend::<()>::primary(root.path().to_owned()).await.unwrap();
+    reopened.open().await.unwrap();
     let recovered = reopened
         .recover_productions(harmos::storage::ReadLimits {
             rows: 4.try_into().unwrap(),
@@ -149,6 +148,7 @@ async fn failed_file_creation_does_not_publish_a_production() {
 async fn rejected_group_acknowledges_no_writer() {
     let root = tempfile::tempdir().unwrap();
     let backend = Backend::<()>::primary(root.path().to_owned()).await.unwrap();
+    backend.open().await.unwrap();
     backend.create_production(&metadata("acknowledged")).await.unwrap();
     let state = backend.local_state();
     state.call(|connection| connection.commit_hook(Some(|| true))).await.unwrap();
@@ -169,7 +169,7 @@ async fn rejected_group_acknowledges_no_writer() {
 async fn crashes_preserve_acknowledged_productions() {
     for mode in ["commit", "checkpoint"] {
         let root = tempfile::tempdir().unwrap();
-        let status = std::process::Command::new(std::env::current_exe().unwrap())
+        let status = dokime_domain::process::command(std::env::current_exe().unwrap())
             .args(["--exact", "storage::group_commit::crash_child", "--ignored", "--nocapture"])
             .env("DOKIME_COMMIT_CRASH_ROOT", root.path())
             .env("DOKIME_COMMIT_CRASH_MODE", mode)
@@ -177,6 +177,7 @@ async fn crashes_preserve_acknowledged_productions() {
             .unwrap();
         assert_eq!(status.code(), Some(if mode == "commit" { 73 } else { 74 }));
         let backend = Backend::<()>::primary(root.path().to_owned()).await.unwrap();
+        backend.open().await.unwrap();
         let limits = harmos::storage::ReadLimits {
             rows: 16.try_into().unwrap(),
             bytes: 1_048_576.try_into().unwrap(),
@@ -199,6 +200,7 @@ async fn crashes_preserve_acknowledged_productions() {
 async fn crash_child() {
     let root = std::path::PathBuf::from(std::env::var_os("DOKIME_COMMIT_CRASH_ROOT").unwrap());
     let backend = Backend::<()>::primary(root).await.unwrap();
+    backend.open().await.unwrap();
     let metadata = metadata("acknowledged");
     let file = backend.create_production(&metadata).await.unwrap();
     backend.write_file(&file, 0, b"payload".to_vec().into()).await.unwrap();
@@ -242,6 +244,9 @@ async fn crash_child() {
             // SAFETY: The Table Copy Retains Every Original Method Except xSync. Its
             // Leaked Lifetime Extends Through The Intentional Process Exit In xSync.
             unsafe {
+                unsafe extern "C" fn crash_checkpoint_sync(_: *mut rusqlite::ffi::sqlite3_file, _: i32) -> i32 {
+                    std::process::exit(74)
+                }
                 let mut methods = Box::new(std::ptr::read((*file).pMethods));
                 methods.xSync = Some(crash_checkpoint_sync);
                 (*file).pMethods = Box::into_raw(methods);
