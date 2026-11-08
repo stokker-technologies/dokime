@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod backend_profiles;
+mod commands;
 mod execution_inputs;
 mod operation_inputs;
 
@@ -19,6 +20,8 @@ mod operation_inputs;
 mod configuration;
 
 /* === Re-Exports === */
+
+pub use dokime_cli::{Error, Result};
 
 /* === Imports === */
 
