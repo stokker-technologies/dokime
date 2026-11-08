@@ -100,7 +100,6 @@ from .backend import BackendClosed as BackendClosed
 from .backend import BackendError as BackendError
 from .backend import BackendRunning as BackendRunning
 from .backend import PluginIdConflict as PluginIdConflict
-from .backend import StorageFormatMismatch as StorageFormatMismatch
 from .client._transport import DiscoveredOperation as DiscoveredOperation
 from .client.aggregate import Aggregate as Aggregate
 from .client.client import DokimeClient as DokimeClient

@@ -42,16 +42,6 @@ class BackendAddressUnavailable(BackendError):
     address: str
     def __init__(self, message: str, address: str) -> None: ...
 
-class StorageFormatMismatch(BackendError):
-    root: Path
-    writer_build: str
-    running_build: str
-    writer_format: str | None
-    running_format: str
-    def __init__(
-        self, message: str, root: Path, writer_build: str, running_build: str, writer_format: str | None, running_format: str
-    ) -> None: ...
-
 class PluginIdConflict(BackendError):
     plugin_id: str
     def __init__(self, message: str, plugin_id: str) -> None: ...

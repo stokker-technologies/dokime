@@ -78,10 +78,11 @@ context runs. Context exit stops listeners and plugins before releasing storage.
 Export after shutdown starts raises `BackendClosed` without writing a file.
 
 Startup raises `BackendRunning` for an owned root, `BackendAddressUnavailable`
-for an occupied address, `StorageFormatMismatch` for foreign or unmarked stored
-data, and `PluginIdConflict` for an embedded ID reserved by an installed plugin,
-including a disabled installation. These inherit `BackendError`; format refusal
-exposes `root`, both build identities and both formats and never resets data.
+for an occupied address, and `PluginIdConflict` for an embedded ID reserved by an
+installed plugin, including a disabled installation. These inherit `BackendError`.
+Unreadable product state raises `BackendError` with its underlying cause and
+fresh-root advice. Obsolete source-digest markers are ignored and preserved;
+plugin shape changes retain captured evidence and never reset data.
 
 ## Author an Embedded Plugin
 
