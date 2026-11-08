@@ -191,7 +191,8 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
     input.records = records.into();
     let mut telemetry_contracts: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
     let mut telemetry = Vec::new();
-    for mut sample in &input.telemetry {
+    for sample in &input.telemetry {
+        let mut sample = sample.clone();
         let schema =
             crate::service_support::contracts::fixture_schema(sample.stream.as_str()).expect("report fixture declares its row schema");
         let contract = TelemetryContract::declared(sample.stream.as_str(), "Fixture Stream").with_storage_schema(schema, 1);

@@ -244,11 +244,13 @@ mod tests {
 
     fn contracts() -> (Vec<RecordContract>, Vec<TelemetryContract>) {
         #[harmos::message]
+        #[derive(serde::Serialize)]
         struct Object {
             value: String,
         }
 
         #[harmos::message]
+        #[derive(serde::Serialize)]
         struct Measurement {
             #[serde(rename = "cpu.load")]
             cpu_load: Option<i64>,
