@@ -21,6 +21,12 @@
 use std::time::SystemTime;
 
 // Third Party Imports
+use sha2::Digest;
+use {
+    model::files::wire::CapturedArtifact, model::files::wire::FileLocation, model::files::wire::FileRule, model::files::wire::FileSource,
+    model::files::wire::LineField, model::files::wire::LineFieldKind, model::files::wire::LineMarker, model::files::wire::LineMatcher,
+    model::files::wire::MirrorCapture, model::files::wire::StreamCapture,
+};
 
 // Local Imports
 use super::*;
@@ -30,12 +36,6 @@ use dokime_runtime::artifacts::ArtifactStatus;
 use dokime_runtime::domains::evidence::RecordSelection;
 use dokime_runtime::domains::files::{CAPPED, GapReason, INVALID, MISSING, Phase, UNSUPPORTED, UNTRUSTED};
 use dokime_runtime::runtime::Error;
-use sha2::Digest;
-use {
-    model::files::wire::CapturedArtifact, model::files::wire::FileLocation, model::files::wire::FileRule, model::files::wire::FileSource,
-    model::files::wire::LineField, model::files::wire::LineFieldKind, model::files::wire::LineMarker, model::files::wire::LineMatcher,
-    model::files::wire::MirrorCapture, model::files::wire::StreamCapture,
-};
 
 /* === Constants === */
 
@@ -54,6 +54,7 @@ use {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // A Step's Call Carries Its Execution In The Call Context.
 fn scoped(execution: &str) -> harmos::operations::CallContext {
     let mut context = harmos::operations::CallContext::default();
@@ -84,8 +85,6 @@ fn phases(events: &[CaptureEvent], wanted: Phase) -> Vec<(String, u64)> {
 fn code(error: &Error) -> &str {
     error.code().unwrap_or_default()
 }
-
-/* === Tests === */
 
 // A stop is an ordinary request: it holds its reply while the files seal, past
 // any run-stop reply budget, and leaves the execution running meanwhile.
@@ -1526,3 +1525,5 @@ async fn capture_failure_isolated_during_stop() {
     assert!(handle.open_execution_report(&execution).await.is_ok());
     owner.shutdown().await.unwrap();
 }
+
+/* === Tests === */

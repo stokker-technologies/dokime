@@ -52,7 +52,7 @@ impl<'a> TraceabilityHandle<'a> {
         Self { index, transport }
     }
 
-    /// Add Or Replace A Complete Section By Identifier.
+    // Add Or Replace A Complete Section By Identifier.
     pub fn section(&mut self, section: TraceabilitySection) {
         if let Err(reason) = validate_section(&section) {
             self.refuse(reason);
@@ -63,7 +63,7 @@ impl<'a> TraceabilityHandle<'a> {
         self.transport.traceability(vec![section]);
     }
 
-    /// Add Or Replace A Row In An Existing Section By Identifier.
+    // Add Or Replace A Row In An Existing Section By Identifier.
     pub fn row(&mut self, section_id: &str, row: TraceabilityRow) {
         let mut index = self.index.lock().unwrap_or_else(PoisonError::into_inner);
         let Some(section) = index.sections.iter_mut().find(|section| section.identifier.as_str() == section_id) else {

@@ -22,9 +22,7 @@ use serde::Serialize;
 // Local Imports
 use crate::model::definition::wire::*;
 use crate::model::identity::wire::Metadata;
-
 use crate::model::identity::wire::*;
-
 use crate::model::plots::wire::*;
 use crate::model::values::wire::Value;
 
@@ -56,6 +54,7 @@ pub struct DocumentFrontiers {
         description = "SHA-256 of this captured artifact/report descriptor input, not a journal position or published checkpoint. These owners have no shared revision."
     )]
     pub artifacts_sha256: Option<String>,
+
     pub evidence: Option<DocumentTelemetryCut>,
 }
 

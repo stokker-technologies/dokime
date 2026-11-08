@@ -42,7 +42,7 @@ pub trait RecordSource: Send + Sync {
     fn delivered(&self, index: usize) -> Option<Record>;
 
     #[cfg(feature = "native")]
-    /// Retain One Signal And Wake All Registered Readers After Publication Or Closure.
+    // Retain One Signal And Wake All Registered Readers After Publication Or Closure.
     fn changed(&self) -> Arc<tokio::sync::Notify>;
 
     #[cfg(feature = "native")]

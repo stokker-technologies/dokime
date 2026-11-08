@@ -18,11 +18,11 @@
 // Standard Library Imports
 
 // Third Party Imports
+use model::document::{Plot, PlotDefinition, format, validate_plot_definition};
+use model::expressions::telemetry;
 
 // Local Imports
 use dokime_domain::model;
-use model::document::{Plot, PlotDefinition, format, validate_plot_definition};
-use model::expressions::telemetry;
 
 /* === Constants === */
 
@@ -41,6 +41,7 @@ use model::expressions::telemetry;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn reconnection(field: &str) -> model::expressions::DataExpression {
     telemetry("bench.reconnection", field)
 }

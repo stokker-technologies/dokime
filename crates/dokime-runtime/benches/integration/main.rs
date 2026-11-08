@@ -12,15 +12,18 @@
 #![recursion_limit = "256"]
 
 /* === Modules === */
+
 mod capture;
 mod documents;
 mod finalization;
 mod heavy_paths;
+
 #[path = "../storage/metrics.rs"]
 #[allow(dead_code)]
 mod metrics;
 mod plots;
 mod telemetry;
+
 #[path = "../storage/waveforms.rs"]
 #[allow(dead_code)]
 mod waveforms;
@@ -32,6 +35,7 @@ pub mod service_support;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -42,6 +46,7 @@ use criterion::{criterion_group, criterion_main};
 /* === Constants === */
 
 /* === Macros === */
+
 criterion_group!(
     benches,
     documents::benchmark,
@@ -51,6 +56,7 @@ criterion_group!(
     plots::benchmark,
     telemetry::benchmark
 );
+
 criterion_main!(benches);
 
 /* === Type Aliases === */

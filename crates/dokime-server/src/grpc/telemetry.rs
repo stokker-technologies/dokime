@@ -15,24 +15,22 @@ pub(super) mod projection;
 
 /* === Imports === */
 
-use crate::grpc::transcode::Transcode;
-
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
-use dokime::harmos::{Context, Response};
 use tonic::Status;
 
 // Local Imports
 use super::value::{self, canonical};
+use crate::grpc::transcode::Transcode;
 use dokime::app::LiveRuntime;
-
 use dokime::domain::model::identity::IdentifierPattern;
 use dokime::domain::model::identity::wire as common;
 use dokime::domain::model::time::Timestamp;
 use dokime::domains::evidence::ScopeSelection;
 use dokime::domains::evidence::TelemetrySelection;
+use dokime::harmos::{Context, Response};
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::operations::telemetry as wire;
 
@@ -64,6 +62,10 @@ enum ProjectionError {
     Storage(dokime::harmos::storage::Error),
 }
 
+/* === Traits === */
+
+/* === Implementations === */
+
 impl From<Status> for ProjectionError {
     fn from(error: Status) -> Self {
         Self::Status(error)
@@ -87,10 +89,6 @@ impl ProjectionError {
         }
     }
 }
-
-/* === Traits === */
-
-/* === Implementations === */
 
 impl Serve<wire::ListSamples> for Resources {
     fn serve<'a>(
@@ -265,7 +263,7 @@ pub(super) fn prepare(
 
 /* === Private Functions === */
 
-/// An Empty Complete Page Keeps Every Cursor And Proves The Followed Stream Is Alive.
+// An Empty Complete Page Keeps Every Cursor And Proves The Followed Stream Is Alive.
 fn heartbeat() -> dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
     dokime::domain::model::telemetry::wire::TelemetrySamplesReply {
         samples: Vec::new(),

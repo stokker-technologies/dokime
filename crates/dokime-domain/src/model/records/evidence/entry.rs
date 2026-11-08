@@ -34,6 +34,7 @@ use crate::model::records::evidence::Record;
 #[serde(deny_unknown_fields)]
 pub struct RecordEntry {
     pub sequence: u64,
+
     #[serde(skip)]
     pub ordinal: u64,
 

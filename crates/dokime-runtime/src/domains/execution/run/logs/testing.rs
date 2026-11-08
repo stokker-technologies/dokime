@@ -37,6 +37,7 @@ use super::*;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub async fn logs(days: u64, per_day: u64) {
     use dokime_domain::model::execution::result::CycleView;
 

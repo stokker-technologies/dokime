@@ -36,21 +36,21 @@ pub(super) const COMMAND_POLL: Duration = Duration::from_millis(200);
 
 /* === Structs === */
 
-/// The Part Of A Committed State That One Execution's Supervisor Acts On.
+// The Part Of A Committed State That One Execution's Supervisor Acts On.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Concern {
     cycle_active: bool,
     stopped: bool,
 }
 
-/// Owns Which Wakes Reach One Execution's Supervisor And Whether A Command Needs Reconciliation.
+// Owns Which Wakes Reach One Execution's Supervisor And Whether A Command Needs Reconciliation.
 #[derive(Debug)]
 pub(super) struct Supervision {
     concern: Concern,
     command_open: bool,
 }
 
-/// Names The Execution Whose Concern Is Read From Committed States.
+// Names The Execution Whose Concern Is Read From Committed States.
 pub(super) struct Subject<'a> {
     pub cycle: &'a TestCycleId,
     pub request: Option<&'a CommandId>,
@@ -58,7 +58,7 @@ pub(super) struct Subject<'a> {
 
 /* === Enums === */
 
-/// What Woke A Supervisor: A Global Commit, Or A Change Signalled On Its Own Session.
+// What Woke A Supervisor: A Global Commit, Or A Change Signalled On Its Own Session.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Wake {
     Commit(Concern),
@@ -79,14 +79,14 @@ impl Concern {
         Self { cycle_active, stopped }
     }
 
-    /// Whether This Concern Ends The Run: Its Cycle Left The Active Phase Or Its Request Was Stopped.
+    // Whether This Concern Ends The Run: Its Cycle Left The Active Phase Or Its Request Was Stopped.
     pub(super) fn halts(self) -> bool {
         !self.cycle_active || self.stopped
     }
 }
 
 impl Supervision {
-    /// A Run May Resume With A Durable Pending Command, So The First Reconciliation Queries Storage.
+    // A Run May Resume With A Durable Pending Command, So The First Reconciliation Queries Storage.
     pub(super) fn new(concern: Concern) -> Self {
         Self { concern, command_open: true }
     }
@@ -95,12 +95,12 @@ impl Supervision {
         self.concern
     }
 
-    /// Whether A Committed State Changed What This Execution Acts On; Unrelated Commits Are Filtered Here.
+    // Whether A Committed State Changed What This Execution Acts On; Unrelated Commits Are Filtered Here.
     pub(super) fn concerns(&self, concern: Concern) -> bool {
         concern != self.concern
     }
 
-    /// Takes A Wake And Answers Whether The Supervisor Acts On It.
+    // Takes A Wake And Answers Whether The Supervisor Acts On It.
     pub(super) fn wake(&mut self, wake: Wake) -> bool {
         match wake {
             Wake::Commit(concern) => {
@@ -117,7 +117,7 @@ impl Supervision {
         }
     }
 
-    /// Whether A Pending Command Still Needs Receipt Reconciliation.
+    // Whether A Pending Command Still Needs Receipt Reconciliation.
     pub(super) fn command_open(&self) -> bool {
         self.command_open
     }

@@ -67,6 +67,7 @@ pub(crate) struct Writer {
     dictionaries: DictionaryTracker,
     context: IpcWriteContext,
     finished: bool,
+
     #[cfg(test)]
     fail_sync: bool,
 }

@@ -68,7 +68,7 @@ tonic = { workspace = true, optional = true }
 
 [dev-dependencies]
 # Local
-dokime-tracing = { workspace = true }
+dokime-tracing = { path = "../dokime-tracing" }
 
 # Git
 

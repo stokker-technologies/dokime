@@ -25,6 +25,7 @@ use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
+
 const VALUES: [f64; 8] = [3.0, -7.0, 11.0, 0.0, 3.0, 99.0, 0.0, -7.0];
 
 /* === Macros === */
@@ -32,6 +33,7 @@ const VALUES: [f64; 8] = [3.0, -7.0, 11.0, 0.0, 3.0, 99.0, 0.0, -7.0];
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 struct NumericFixture {
     storage: std::sync::Mutex<Option<dokime_runtime::storage::Manager>>,
@@ -172,8 +174,6 @@ impl ExecutionFixture for NumericFixture {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -319,3 +319,5 @@ async fn exact_numeric_outputs() {
     assert_eq!(&view.execution().output_parameters, outputs, "exact outputs survive storage recovery");
     owner.shutdown().await.unwrap();
 }
+
+/* === Tests === */

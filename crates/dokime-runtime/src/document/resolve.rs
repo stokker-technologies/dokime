@@ -76,16 +76,16 @@ struct DocumentMaterializer<'a> {
     summary_queries: Option<&'a mut Vec<DocumentCardDefinition>>,
 }
 
-/// The distinct values each repeated section expands over, resolved ahead of a
-/// capture whose own rows are a bounded preview of the evidence.
+// The distinct values each repeated section expands over, resolved ahead of a
+// capture whose own rows are a bounded preview of the evidence.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RepeatValues {
     definitions: Vec<(DocumentSectionRepeat, Vec<Value>)>,
     path: Option<Vec<Value>>,
 }
 
-/// Folds the distinct values of every repeat of a document across evidence
-/// pages, in evidence order, as one complete read would.
+// Folds the distinct values of every repeat of a document across evidence
+// pages, in evidence order, as one complete read would.
 pub(crate) struct RepeatDefinitions {
     repeats: Vec<(DocumentSectionRepeat, Distinct)>,
 }
@@ -500,8 +500,8 @@ impl RepeatValues {
 }
 
 impl RepeatDefinitions {
-    /// Every distinct repeat the definitions declare, at any depth. A repeat
-    /// selecting on a correlated transform is refused before any evidence is read.
+    // Every distinct repeat the definitions declare, at any depth. A repeat
+    // selecting on a correlated transform is refused before any evidence is read.
     pub(crate) fn new<'d>(definitions: impl IntoIterator<Item = &'d crate::document::DocumentDefinition>) -> Result<Self> {
         fn nodes(items: &[DocumentNode], repeats: &mut Vec<(DocumentSectionRepeat, Distinct)>) -> Result<()> {
             for node in items {
@@ -677,13 +677,6 @@ pub(crate) fn capture_with_queries(
         warnings: Vec::new(),
     })
 }
-/* === Private Functions === */
-
-fn push_exact<T>(values: &mut Vec<T>, value: T) -> Result<()> {
-    values.try_reserve_exact(1).map_err(|_| DocumentFailure::Limit)?;
-    values.push(value);
-    Ok(())
-}
 
 pub(super) fn resolve(input: DocumentResolveInput, materialize_plots: bool, limits: DocumentLimits) -> Result<DocumentPayload> {
     let selection = input.selection;
@@ -702,13 +695,6 @@ pub(super) fn resolve(input: DocumentResolveInput, materialize_plots: bool, limi
         materialize_plots,
         limits,
     )
-}
-
-fn resolve_parts(
-    definition: crate::document::DocumentDefinition, selection: crate::document::DocumentSelection, data: BorrowedData<'_>,
-    materialize_plots: bool, limits: DocumentLimits,
-) -> Result<DocumentPayload> {
-    resolve_normalized(normalize_definition(definition), selection, data, materialize_plots, limits)
 }
 
 pub(crate) fn normalize_definition(mut definition: crate::document::DocumentDefinition) -> crate::document::DocumentDefinition {
@@ -782,6 +768,139 @@ pub(crate) fn resolve_normalized(
         artifact_lists,
         warnings,
     })
+}
+
+pub(super) fn telemetry_summary_tile_payload(
+    tile: &TelemetrySummaryTileDefinition, card_filters: &[DocumentFilter], evidence: Evidence<'_>, unavailable_reason_bytes: usize,
+) -> Result<TelemetrySummaryTilePayload> {
+    let result = (|| {
+        binding::validate_predicates(&tile.value, card_filters.iter().chain(tile.filters.iter()))?;
+        for filter in card_filters.iter().chain(tile.filters.iter()) {
+            binding::validate_filter(&filter.expression)?;
+        }
+        binding::evaluate(&tile.value, evidence, |sample| {
+            row_matches_filters(sample, card_filters.iter().chain(tile.filters.iter()), evidence)
+        })
+    })();
+    let (value, unavailable) = match result {
+        Ok(value) => (value, None),
+        Err(error) => (None, Some(unavailable_reason(error, unavailable_reason_bytes)?)),
+    };
+    Ok(summary_tile_value(tile, value, unavailable))
+}
+
+pub(super) fn summary_tile_value(
+    tile: &TelemetrySummaryTileDefinition, value: Option<Value>, unavailable: Option<String>,
+) -> TelemetrySummaryTilePayload {
+    let state = value.as_ref().and_then(|value| matching_summary_state(value, &tile.conditions));
+    TelemetrySummaryTilePayload {
+        metadata: tile.metadata.clone(),
+        value,
+        unavailable,
+        stat: tile.stat.clone(),
+        format: tile.format.clone(),
+        presentation: tile.presentation.clone(),
+        unit: tile.unit.clone(),
+        state,
+    }
+}
+
+pub(crate) fn matching_summary_state(
+    value: &Value, conditions: &[TelemetrySummaryCondition],
+) -> Option<crate::document::definition::TelemetrySummaryState> {
+    conditions
+        .iter()
+        .find(|condition| value_matches_operator(Some(value), condition.operator.clone(), Some(&condition.value)))
+        .map(|condition| condition.state.clone())
+}
+
+pub(super) fn row_matches_filters<'a>(
+    row: Row<'_>, filters: impl Iterator<Item = &'a DocumentFilter> + Clone, evidence: Evidence<'_>,
+) -> bool {
+    if let Row::Context(context) = row
+        && filters.clone().any(|filter| row.needs_sample(&filter.expression))
+    {
+        return evidence
+            .telemetry
+            .iter()
+            .filter(|sample| evidence.selected(sample) && context.covers(sample.scope.as_ref()))
+            .any(|sample| row_matches_filters(evidence.sample(sample), filters.clone(), evidence));
+    }
+    filters.into_iter().all(|filter| {
+        value_matches_operator(
+            expression_value(row, &filter.expression, evidence).as_deref(),
+            filter.operator.clone(),
+            filter.value.as_ref(),
+        )
+    })
+}
+
+pub(crate) fn value_matches_operator(actual: Option<&Value>, operator: FilterOperator, expected: Option<&Value>) -> bool {
+    match operator {
+        FilterOperator::Exists => actual.is_some_and(traceable_value),
+        FilterOperator::Eq => expected.is_some_and(|expected| actual.is_some_and(|actual| values_equal(actual, expected))),
+        FilterOperator::Ne => expected.is_none_or(|expected| actual.is_none_or(|actual| !values_equal(actual, expected))),
+        FilterOperator::Gt => compare_values(actual, expected).is_some_and(|ordering| matches!(ordering, Ordering::Greater)),
+        FilterOperator::Gte => {
+            compare_values(actual, expected).is_some_and(|ordering| matches!(ordering, Ordering::Greater | Ordering::Equal))
+        }
+        FilterOperator::Lt => compare_values(actual, expected).is_some_and(|ordering| matches!(ordering, Ordering::Less)),
+        FilterOperator::Lte => {
+            compare_values(actual, expected).is_some_and(|ordering| matches!(ordering, Ordering::Less | Ordering::Equal))
+        }
+        FilterOperator::Contains => expected.is_some_and(|expected| actual.is_some_and(|actual| value_contains(actual, expected))),
+    }
+}
+
+pub(super) fn value_label_size(value: &Value) -> usize {
+    struct Counter(usize);
+    impl std::fmt::Write for Counter {
+        fn write_str(&mut self, value: &str) -> std::fmt::Result {
+            self.0 = self.0.checked_add(value.len()).ok_or(std::fmt::Error)?;
+            Ok(())
+        }
+    }
+    impl std::io::Write for Counter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0 = self.0.checked_add(bytes.len()).ok_or_else(|| std::io::Error::other("label length overflow"))?;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counter = Counter(0);
+    let result = match value {
+        Value::Null => return 0,
+        Value::Bool(value) => std::fmt::write(&mut counter, format_args!("{value}")),
+        Value::Integer(value) => std::fmt::write(&mut counter, format_args!("{value}")),
+        Value::Unsigned(value) => std::fmt::write(&mut counter, format_args!("{value}")),
+        Value::Number(value) => std::fmt::write(&mut counter, format_args!("{value}")),
+        Value::Text(value) => return value.len(),
+        Value::Datetime(value) => {
+            return value
+                .to_offset(time::UtcOffset::UTC)
+                .format_into(&mut counter, &time::format_description::well_known::Rfc3339)
+                .map_or(usize::MAX, |_| counter.0);
+        }
+        Value::Array(_) | Value::Object(_) => return "value".len(),
+    };
+    result.map_or(usize::MAX, |_| counter.0)
+}
+
+/* === Private Functions === */
+
+fn push_exact<T>(values: &mut Vec<T>, value: T) -> Result<()> {
+    values.try_reserve_exact(1).map_err(|_| DocumentFailure::Limit)?;
+    values.push(value);
+    Ok(())
+}
+
+fn resolve_parts(
+    definition: crate::document::DocumentDefinition, selection: crate::document::DocumentSelection, data: BorrowedData<'_>,
+    materialize_plots: bool, limits: DocumentLimits,
+) -> Result<DocumentPayload> {
+    resolve_normalized(normalize_definition(definition), selection, data, materialize_plots, limits)
 }
 
 fn warnings(
@@ -862,41 +981,6 @@ fn telemetry_summary_payload(
     Ok(groups)
 }
 
-pub(super) fn telemetry_summary_tile_payload(
-    tile: &TelemetrySummaryTileDefinition, card_filters: &[DocumentFilter], evidence: Evidence<'_>, unavailable_reason_bytes: usize,
-) -> Result<TelemetrySummaryTilePayload> {
-    let result = (|| {
-        binding::validate_predicates(&tile.value, card_filters.iter().chain(tile.filters.iter()))?;
-        for filter in card_filters.iter().chain(tile.filters.iter()) {
-            binding::validate_filter(&filter.expression)?;
-        }
-        binding::evaluate(&tile.value, evidence, |sample| {
-            row_matches_filters(sample, card_filters.iter().chain(tile.filters.iter()), evidence)
-        })
-    })();
-    let (value, unavailable) = match result {
-        Ok(value) => (value, None),
-        Err(error) => (None, Some(unavailable_reason(error, unavailable_reason_bytes)?)),
-    };
-    Ok(summary_tile_value(tile, value, unavailable))
-}
-
-pub(super) fn summary_tile_value(
-    tile: &TelemetrySummaryTileDefinition, value: Option<Value>, unavailable: Option<String>,
-) -> TelemetrySummaryTilePayload {
-    let state = value.as_ref().and_then(|value| matching_summary_state(value, &tile.conditions));
-    TelemetrySummaryTilePayload {
-        metadata: tile.metadata.clone(),
-        value,
-        unavailable,
-        stat: tile.stat.clone(),
-        format: tile.format.clone(),
-        presentation: tile.presentation.clone(),
-        unit: tile.unit.clone(),
-        state,
-    }
-}
-
 fn unavailable_reason(error: crate::Error, maximum_bytes: usize) -> Result<String> {
     match error {
         error @ crate::Error::Document(DocumentFailure::TelemetryColumn { .. }) => {
@@ -909,53 +993,6 @@ fn unavailable_reason(error: crate::Error, maximum_bytes: usize) -> Result<Strin
             Ok(message.to_owned())
         }
         error => Err(error),
-    }
-}
-
-pub(crate) fn matching_summary_state(
-    value: &Value, conditions: &[TelemetrySummaryCondition],
-) -> Option<crate::document::definition::TelemetrySummaryState> {
-    conditions
-        .iter()
-        .find(|condition| value_matches_operator(Some(value), condition.operator.clone(), Some(&condition.value)))
-        .map(|condition| condition.state.clone())
-}
-
-pub(super) fn row_matches_filters<'a>(
-    row: Row<'_>, filters: impl Iterator<Item = &'a DocumentFilter> + Clone, evidence: Evidence<'_>,
-) -> bool {
-    if let Row::Context(context) = row
-        && filters.clone().any(|filter| row.needs_sample(&filter.expression))
-    {
-        return evidence
-            .telemetry
-            .iter()
-            .filter(|sample| evidence.selected(sample) && context.covers(sample.scope.as_ref()))
-            .any(|sample| row_matches_filters(evidence.sample(sample), filters.clone(), evidence));
-    }
-    filters.into_iter().all(|filter| {
-        value_matches_operator(
-            expression_value(row, &filter.expression, evidence).as_deref(),
-            filter.operator.clone(),
-            filter.value.as_ref(),
-        )
-    })
-}
-
-pub(crate) fn value_matches_operator(actual: Option<&Value>, operator: FilterOperator, expected: Option<&Value>) -> bool {
-    match operator {
-        FilterOperator::Exists => actual.is_some_and(traceable_value),
-        FilterOperator::Eq => expected.is_some_and(|expected| actual.is_some_and(|actual| values_equal(actual, expected))),
-        FilterOperator::Ne => expected.is_none_or(|expected| actual.is_none_or(|actual| !values_equal(actual, expected))),
-        FilterOperator::Gt => compare_values(actual, expected).is_some_and(|ordering| matches!(ordering, Ordering::Greater)),
-        FilterOperator::Gte => {
-            compare_values(actual, expected).is_some_and(|ordering| matches!(ordering, Ordering::Greater | Ordering::Equal))
-        }
-        FilterOperator::Lt => compare_values(actual, expected).is_some_and(|ordering| matches!(ordering, Ordering::Less)),
-        FilterOperator::Lte => {
-            compare_values(actual, expected).is_some_and(|ordering| matches!(ordering, Ordering::Less | Ordering::Equal))
-        }
-        FilterOperator::Contains => expected.is_some_and(|expected| actual.is_some_and(|actual| value_contains(actual, expected))),
     }
 }
 
@@ -1025,42 +1062,6 @@ fn expression_field_name(expression: &DataExpression) -> Option<&str> {
         DataSource::Record { record_type } => Some(record_type),
         DataSource::Artifact { artifact } => Some(artifact),
     }
-}
-
-pub(super) fn value_label_size(value: &Value) -> usize {
-    struct Counter(usize);
-    impl std::fmt::Write for Counter {
-        fn write_str(&mut self, value: &str) -> std::fmt::Result {
-            self.0 = self.0.checked_add(value.len()).ok_or(std::fmt::Error)?;
-            Ok(())
-        }
-    }
-    impl std::io::Write for Counter {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.0 = self.0.checked_add(bytes.len()).ok_or_else(|| std::io::Error::other("label length overflow"))?;
-            Ok(bytes.len())
-        }
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-    let mut counter = Counter(0);
-    let result = match value {
-        Value::Null => return 0,
-        Value::Bool(value) => std::fmt::write(&mut counter, format_args!("{value}")),
-        Value::Integer(value) => std::fmt::write(&mut counter, format_args!("{value}")),
-        Value::Unsigned(value) => std::fmt::write(&mut counter, format_args!("{value}")),
-        Value::Number(value) => std::fmt::write(&mut counter, format_args!("{value}")),
-        Value::Text(value) => return value.len(),
-        Value::Datetime(value) => {
-            return value
-                .to_offset(time::UtcOffset::UTC)
-                .format_into(&mut counter, &time::format_description::well_known::Rfc3339)
-                .map_or(usize::MAX, |_| counter.0);
-        }
-        Value::Array(_) | Value::Object(_) => return "value".len(),
-    };
-    result.map_or(usize::MAX, |_| counter.0)
 }
 
 fn value_label(value: &Value) -> String {

@@ -13,12 +13,16 @@ pub(super) mod analyses;
 pub(crate) mod builtins;
 mod cartesian;
 mod groups;
+
 #[cfg(feature = "storage")]
 mod projection;
+
 #[cfg(feature = "storage")]
 mod records;
+
 #[cfg(feature = "storage")]
 mod retained;
+
 #[cfg(feature = "storage")]
 pub(crate) mod spilled;
 mod types;
@@ -29,6 +33,7 @@ pub use analyses::{
     BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow,
     WifiChannelCount, WifiScan,
 };
+
 #[cfg(feature = "storage")]
 pub(crate) use retained::{
     finish as finish_retained_plot_payload, frame_owned as finish_plot_frame, project as project_retained_plot_payload,
@@ -143,76 +148,6 @@ pub(crate) fn plot_streams(request: &PlotPayloadRequest) -> Vec<String> {
     streams
 }
 
-fn visit_plot_streams(request: &PlotPayloadRequest, mut visit: impl FnMut(&str)) {
-    visit(&request.stream);
-    visit(RECORD_CONTEXT_STREAM);
-    if let Some(stream) = &request.z_stream {
-        visit(stream);
-    }
-    let expressions = request
-        .x_expression
-        .iter()
-        .chain(&request.y_expressions)
-        .chain(&request.series_by_expression)
-        .chain(&request.z_expression)
-        .chain(request.filters.iter().map(|filter| &filter.expression));
-    for expression in expressions {
-        if let DataSource::Telemetry { stream, .. } = &expression.source {
-            visit(stream);
-        }
-    }
-}
-
-fn request_z_index<'a>(telemetry: &'a [TelemetrySample], request: &'a PlotPayloadRequest) -> ZIndex<'a> {
-    match request.z_expression.as_ref() {
-        Some(expression) => match &expression.source {
-            DataSource::Telemetry { stream, field } => {
-                self::z_index(telemetry, &request.stream, Some(stream), Some(field), request.scope.as_ref())
-            }
-            _ => ZIndex::Expression(expression),
-        },
-        None => z_index(telemetry, &request.stream, request.z_stream.as_deref(), request.z_field.as_deref(), request.scope.as_ref()),
-    }
-}
-
-fn payload_from_series(
-    samples: &[&TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest, generated_at: &str,
-    format_context: &PlotPayloadContext, series: Vec<PlotSeries>,
-) -> PlotPayload {
-    let context = plot_context(request, samples);
-    // Every series in one payload reads the same declared y axis, so they
-    // share the one resolved winner: a plot override or a column's declared
-    // format apply uniformly, not per series.
-    let mut series = series;
-    for entry in &mut series {
-        entry.format = format_context.series_format.cloned();
-    }
-
-    PlotPayload {
-        computed: None,
-        stream: request.stream.clone(),
-        x_key: request.x_key.as_deref().unwrap_or("timestamp").to_owned(),
-        series_by: request.series_by.clone(),
-        context,
-        series,
-        cartesian: None,
-        analysis: None,
-        markers: plot_markers(
-            records,
-            &request.marker_record_types,
-            request.scope.as_ref(),
-            request.max_points.unwrap_or(format_context.default_max_points),
-        ),
-        max_points: request.max_points.unwrap_or(format_context.default_max_points),
-        window_s: request.window_s,
-        generated_at: generated_at.to_owned(),
-        x_format: format_context.x_format.cloned(),
-        run_started_at: format_context.run_started_at.map(str::to_owned),
-        cycle_started_at: format_context.cycle_started_at.map(str::to_owned),
-        summaries: Vec::new(),
-    }
-}
-
 pub(crate) fn resolved_format<'a>(plot: Option<&'a ValueFormat>, column: Option<&'a TelemetryColumn>) -> Option<&'a ValueFormat> {
     plot.or_else(|| column.and_then(|column| column.format.as_ref()))
 }
@@ -289,27 +224,27 @@ pub(crate) fn normalize_analysis_fields(request: &mut PlotPayloadRequest) {
     }
 }
 
-/// The query a descriptor resolves to: its declared request, mapped once
-/// through [`canonical_plot_query`], the same mapping a live query applies to
-/// the declared request a client sends back.
+// The query a descriptor resolves to: its declared request, mapped once
+// through [`canonical_plot_query`], the same mapping a live query applies to
+// the declared request a client sends back.
 pub fn plot_payload_request_for_descriptor(
     descriptor: &PlotDescriptor, scope: Option<RecordScope>, max_points: Option<usize>, window_s: Option<f64>,
 ) -> PlotPayloadRequest {
     canonical_plot_query(declared_plot_request(descriptor, scope, max_points, window_s))
 }
 
-/// The query-time mapping of a declared request: a histogram's declared x
-/// becomes the binned series, and simple analysis fields become field keys.
-/// It runs exactly once per query; a mapped request is not a declaration.
+// The query-time mapping of a declared request: a histogram's declared x
+// becomes the binned series, and simple analysis fields become field keys.
+// It runs exactly once per query; a mapped request is not a declaration.
 pub(crate) fn canonical_plot_query(mut request: PlotPayloadRequest) -> PlotPayloadRequest {
     normalize_histogram_value(&mut request);
     normalize_analysis_fields(&mut request);
     request
 }
 
-/// A descriptor's request as the document declares it, before the query-time
-/// mapping: what a document definition carries to a client, and what the
-/// client's live watch sends back.
+// A descriptor's request as the document declares it, before the query-time
+// mapping: what a document definition carries to a client, and what the
+// client's live watch sends back.
 pub fn declared_plot_request(
     descriptor: &PlotDescriptor, scope: Option<RecordScope>, max_points: Option<usize>, window_s: Option<f64>,
 ) -> PlotPayloadRequest {
@@ -396,15 +331,6 @@ pub(crate) fn aggregate_method(expression: &DataExpression) -> Option<Aggregate>
     })
 }
 
-fn expression_group_input<'a>(sample: &'a TelemetrySample, expression: &DataExpression) -> Option<&'a Value> {
-    match &expression.source {
-        DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => sample_value(sample, field),
-        DataSource::Dimension { name: field } | DataSource::Parameter { name: field } => sample_value(sample, field),
-        DataSource::Telemetry { .. } => None,
-        _ => None,
-    }
-}
-
 pub(crate) fn sample_value<'a>(sample: &'a TelemetrySample, key: &str) -> Option<&'a Value> {
     sample.values.get(key).or_else(|| key.rsplit_once('.').and_then(|(_, field)| sample.values.get(field)))
 }
@@ -457,12 +383,148 @@ pub(crate) fn sample_matches_filters(sample: &TelemetrySample, filters: &[Docume
     filters.iter().all(|filter| sample_matches_filter(sample, filter))
 }
 
-/* === Private Functions === */
-
 pub(crate) fn dimension_context_for_scope(execution: &TestExecution) -> BTreeMap<String, Value> {
     let mut context = BTreeMap::new();
     visit_dimension_context(execution, |key, value| insert_context_value(&mut context, key, value));
     context
+}
+
+pub(super) fn sort_plot_samples(samples: &mut [&TelemetrySample], x_key: &str) {
+    // Every Reference Comes From The Same Input Slice. Address Order Is Its
+    // Capture Order, Preserving Stable Ties Without A Sort Scratch Allocation.
+    let capture_order =
+        |left: &&TelemetrySample, right: &&TelemetrySample| std::ptr::from_ref(*left).addr().cmp(&std::ptr::from_ref(*right).addr());
+    samples.sort_unstable_by(|left, right| left.timestamp.cmp(&right.timestamp).then_with(|| capture_order(left, right)));
+    if x_key != "timestamp" {
+        samples.sort_unstable_by(|left, right| {
+            x_sort_value(left, x_key)
+                .total_cmp(&x_sort_value(right, x_key))
+                .then_with(|| left.timestamp.cmp(&right.timestamp))
+                .then_with(|| capture_order(left, right))
+        });
+    }
+}
+
+pub(super) fn marker_indices(count: usize, maximum: usize) -> Vec<usize> {
+    if maximum == 0 || count <= maximum {
+        return (0..count).collect();
+    }
+    if maximum == 1 {
+        return vec![count - 1];
+    }
+    // Uniform Coverage Includes Both Ends Without Overflowing Native Indices.
+    (0..maximum).map(|index| ((index as u128 * (count - 1) as u128) / (maximum - 1) as u128) as usize).collect()
+}
+
+pub(super) fn plot_markers(
+    records: crate::records::view::View<'_>, marker_record_types: &[String], scope: Option<&RecordScope>, maximum: usize,
+) -> Vec<PlotMarker> {
+    if marker_record_types.is_empty() {
+        return Vec::new();
+    }
+    let selected = records
+        .iter()
+        .filter(|record| marker_record_types.iter().any(|value| record.record_type.as_str() == value))
+        .filter(|record| scope.is_none_or(|scope| record.is_visible_in(scope)));
+    let count = selected.clone().count();
+    let maximum = if maximum == 0 { count } else { maximum.min(count) };
+    let mut indices = marker_indices(count, maximum).into_iter().peekable();
+    let mut markers = Vec::with_capacity(maximum);
+    markers.extend(selected.enumerate().filter_map(|(index, record)| {
+        if indices.peek() != Some(&index) {
+            return None;
+        }
+        indices.next();
+        let record_type = record.record_type.as_str().to_owned();
+        Some(PlotMarker {
+            x: JsonValue::String(record.timestamp.as_str().to_owned()),
+            label: record.message.clone().unwrap_or_else(|| record_type.clone()),
+            color: marker_color(&record_type),
+            record_type,
+        })
+    }));
+    markers
+}
+
+/* === Private Functions === */
+
+fn visit_plot_streams(request: &PlotPayloadRequest, mut visit: impl FnMut(&str)) {
+    visit(&request.stream);
+    visit(RECORD_CONTEXT_STREAM);
+    if let Some(stream) = &request.z_stream {
+        visit(stream);
+    }
+    let expressions = request
+        .x_expression
+        .iter()
+        .chain(&request.y_expressions)
+        .chain(&request.series_by_expression)
+        .chain(&request.z_expression)
+        .chain(request.filters.iter().map(|filter| &filter.expression));
+    for expression in expressions {
+        if let DataSource::Telemetry { stream, .. } = &expression.source {
+            visit(stream);
+        }
+    }
+}
+
+fn request_z_index<'a>(telemetry: &'a [TelemetrySample], request: &'a PlotPayloadRequest) -> ZIndex<'a> {
+    match request.z_expression.as_ref() {
+        Some(expression) => match &expression.source {
+            DataSource::Telemetry { stream, field } => {
+                self::z_index(telemetry, &request.stream, Some(stream), Some(field), request.scope.as_ref())
+            }
+            _ => ZIndex::Expression(expression),
+        },
+        None => z_index(telemetry, &request.stream, request.z_stream.as_deref(), request.z_field.as_deref(), request.scope.as_ref()),
+    }
+}
+
+fn payload_from_series(
+    samples: &[&TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest, generated_at: &str,
+    format_context: &PlotPayloadContext, series: Vec<PlotSeries>,
+) -> PlotPayload {
+    let context = plot_context(request, samples);
+    // Every series in one payload reads the same declared y axis, so they
+    // share the one resolved winner: a plot override or a column's declared
+    // format apply uniformly, not per series.
+    let mut series = series;
+    for entry in &mut series {
+        entry.format = format_context.series_format.cloned();
+    }
+
+    PlotPayload {
+        computed: None,
+        stream: request.stream.clone(),
+        x_key: request.x_key.as_deref().unwrap_or("timestamp").to_owned(),
+        series_by: request.series_by.clone(),
+        context,
+        series,
+        cartesian: None,
+        analysis: None,
+        markers: plot_markers(
+            records,
+            &request.marker_record_types,
+            request.scope.as_ref(),
+            request.max_points.unwrap_or(format_context.default_max_points),
+        ),
+        max_points: request.max_points.unwrap_or(format_context.default_max_points),
+        window_s: request.window_s,
+        generated_at: generated_at.to_owned(),
+        x_format: format_context.x_format.cloned(),
+        run_started_at: format_context.run_started_at.map(str::to_owned),
+        cycle_started_at: format_context.cycle_started_at.map(str::to_owned),
+        summaries: Vec::new(),
+    }
+}
+
+fn expression_group_input<'a>(sample: &'a TelemetrySample, expression: &DataExpression) -> Option<&'a Value> {
+    match &expression.source {
+        DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => sample_value(sample, field),
+        DataSource::Dimension { name: field } | DataSource::Parameter { name: field } => sample_value(sample, field),
+        DataSource::Telemetry { .. } => None,
+        _ => None,
+    }
 }
 
 fn visit_dimension_context(execution: &TestExecution, mut visit: impl FnMut(&str, &Value)) {
@@ -491,6 +553,7 @@ fn visit_dimension_context(execution: &TestExecution, mut visit: impl FnMut(&str
         }
     }
 }
+
 fn traceability_context_for_scope(traceability: &[TraceabilitySnapshot], scope: &RecordScope) -> BTreeMap<String, Value> {
     let mut context = BTreeMap::new();
 
@@ -515,22 +578,6 @@ fn insert_context_value(context: &mut BTreeMap<String, Value>, key: &str, value:
         && alias != key
     {
         context.insert(alias.to_owned(), value.clone());
-    }
-}
-
-pub(super) fn sort_plot_samples(samples: &mut [&TelemetrySample], x_key: &str) {
-    // Every Reference Comes From The Same Input Slice. Address Order Is Its
-    // Capture Order, Preserving Stable Ties Without A Sort Scratch Allocation.
-    let capture_order =
-        |left: &&TelemetrySample, right: &&TelemetrySample| std::ptr::from_ref(*left).addr().cmp(&std::ptr::from_ref(*right).addr());
-    samples.sort_unstable_by(|left, right| left.timestamp.cmp(&right.timestamp).then_with(|| capture_order(left, right)));
-    if x_key != "timestamp" {
-        samples.sort_unstable_by(|left, right| {
-            x_sort_value(left, x_key)
-                .total_cmp(&x_sort_value(right, x_key))
-                .then_with(|| left.timestamp.cmp(&right.timestamp))
-                .then_with(|| capture_order(left, right))
-        });
     }
 }
 
@@ -687,47 +734,6 @@ fn value_contains(actual: &Value, expected: &Value) -> bool {
         Value::Array(values) => values.iter().any(|candidate| values_equal(candidate, expected)),
         _ => false,
     }
-}
-
-pub(super) fn marker_indices(count: usize, maximum: usize) -> Vec<usize> {
-    if maximum == 0 || count <= maximum {
-        return (0..count).collect();
-    }
-    if maximum == 1 {
-        return vec![count - 1];
-    }
-    // Uniform Coverage Includes Both Ends Without Overflowing Native Indices.
-    (0..maximum).map(|index| ((index as u128 * (count - 1) as u128) / (maximum - 1) as u128) as usize).collect()
-}
-
-pub(super) fn plot_markers(
-    records: crate::records::view::View<'_>, marker_record_types: &[String], scope: Option<&RecordScope>, maximum: usize,
-) -> Vec<PlotMarker> {
-    if marker_record_types.is_empty() {
-        return Vec::new();
-    }
-    let selected = records
-        .iter()
-        .filter(|record| marker_record_types.iter().any(|value| record.record_type.as_str() == value))
-        .filter(|record| scope.is_none_or(|scope| record.is_visible_in(scope)));
-    let count = selected.clone().count();
-    let maximum = if maximum == 0 { count } else { maximum.min(count) };
-    let mut indices = marker_indices(count, maximum).into_iter().peekable();
-    let mut markers = Vec::with_capacity(maximum);
-    markers.extend(selected.enumerate().filter_map(|(index, record)| {
-        if indices.peek() != Some(&index) {
-            return None;
-        }
-        indices.next();
-        let record_type = record.record_type.as_str().to_owned();
-        Some(PlotMarker {
-            x: JsonValue::String(record.timestamp.as_str().to_owned()),
-            label: record.message.clone().unwrap_or_else(|| record_type.clone()),
-            color: marker_color(&record_type),
-            record_type,
-        })
-    }));
-    markers
 }
 
 fn z_index<'a>(

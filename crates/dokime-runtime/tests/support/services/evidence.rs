@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -39,6 +41,7 @@ use {dokime_domain::model::execution::result::ExecutionStatus, dokime_domain::mo
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ProviderIdentity<'a> {
     pub module: &'a str,
     pub registrations: u64,
@@ -52,6 +55,7 @@ pub struct ProviderIdentity<'a> {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn cycle_outcome(
     cycle: &CycleView, provider: ProviderIdentity<'_>, outcome: impl Fn(&TestCase, &TestExecution) -> ProviderExecutionOutcome,
 ) -> ProviderCycleOutcome {
@@ -482,6 +486,7 @@ pub fn samples_from(stream: &str, first: usize, count: usize, scope: Option<Reco
 }
 
 /* === Private Functions === */
+
 fn stream_columns(stream: &str, index: usize) -> Vec<(&'static str, Value)> {
     match stream {
         "host.wifi.scan" => vec![

@@ -35,6 +35,7 @@ use dokime_runtime::runtime::query::plot_payload_request_for_descriptor;
 use dokime_runtime::{CurrentDocumentEvent, CurrentDocumentQuery};
 
 /* === Constants === */
+
 const COUNTS: [usize; 3] = [307_200, 1_536_000, 3_072_000];
 const DAYS: u64 = 3;
 const PLOTS: usize = 30;
@@ -44,6 +45,7 @@ const PLOTS: usize = 30;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Fixture {
     owner: dokime_runtime::Runtime,
     runtime: RuntimeHandle,
@@ -60,6 +62,7 @@ struct Fixture {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Fixture {
     async fn new(rows: usize, plots: usize) -> Self {
         let root = tempfile::tempdir().unwrap();
@@ -214,6 +217,7 @@ impl Fixture {
 }
 
 /* === Public Functions === */
+
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     let mut group = criterion.benchmark_group("document_queries");
@@ -267,6 +271,7 @@ pub fn benchmark(criterion: &mut Criterion) {
 }
 
 /* === Private Functions === */
+
 fn document(plots: usize) -> Document {
     let mut document = Document::new("Document Queries");
     let mut section = DocumentSection::new("Measurements");

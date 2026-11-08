@@ -12,10 +12,12 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
+
 // Local Imports
 use dokime_runtime::harmos;
 
@@ -34,6 +36,7 @@ use dokime_runtime::harmos;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
     bundle_with_registrations(package, owner, version, vec![])
 }
@@ -47,6 +50,40 @@ pub fn bundle_with_settings(package: &str, owner: &str, settings: dokime_runtime
     };
     bundle_with_registrations(package, owner, "1.0.0", vec![registration])
 }
+
+pub fn plugin_obc_bundle() -> std::path::PathBuf {
+    built_bundle("fixtures/plugins/plugin-obc.dokime")
+}
+
+pub fn host_plugin_bundle() -> std::path::PathBuf {
+    built_bundle("fixtures/plugins/plugin-host.dokime")
+}
+
+// The Host Plugin Bundle Under Another Package Version: The Same Programs In Changed Bytes.
+pub fn host_plugin_version(version: &str) -> Vec<u8> {
+    bundle_version(host_plugin_bundle(), version)
+}
+
+pub fn plugin_obc_version(version: &str) -> Vec<u8> {
+    bundle_version(plugin_obc_bundle(), version)
+}
+
+pub fn host_plugin() -> dokime_runtime::plugins::PluginBundle {
+    let settings = [
+        "system_interval_ms",
+        "network_interval_ms",
+        "wifi_link_interval_ms",
+        "wifi_scan_interval_ms",
+        "wifi_latency_interval_ms",
+        "bluetooth_interval_ms",
+    ]
+    .map(|setting| (setting, super::budgets::CADENCE_MS))
+    .into_iter()
+    .collect::<std::collections::BTreeMap<_, _>>();
+    dokime_runtime::plugins::PluginBundle::new(host_plugin_bundle()).configured("plugin_host", settings).unwrap()
+}
+
+/* === Private Functions === */
 
 fn bundle_with_registrations(package: &str, owner: &str, version: &str, registrations: Vec<harmos::sidecar::Registration>) -> Vec<u8> {
     let identity = Identity {
@@ -93,38 +130,6 @@ fn bundle_with_registrations(package: &str, owner: &str, version: &str, registra
     .to_vec()
 }
 
-pub fn plugin_obc_bundle() -> std::path::PathBuf {
-    built_bundle("fixtures/plugins/plugin-obc.dokime")
-}
-
-pub fn host_plugin_bundle() -> std::path::PathBuf {
-    built_bundle("fixtures/plugins/plugin-host.dokime")
-}
-
-// The Host Plugin Bundle Under Another Package Version: The Same Programs In Changed Bytes.
-pub fn host_plugin_version(version: &str) -> Vec<u8> {
-    bundle_version(host_plugin_bundle(), version)
-}
-
-pub fn plugin_obc_version(version: &str) -> Vec<u8> {
-    bundle_version(plugin_obc_bundle(), version)
-}
-
-pub fn host_plugin() -> dokime_runtime::plugins::PluginBundle {
-    let settings = [
-        "system_interval_ms",
-        "network_interval_ms",
-        "wifi_link_interval_ms",
-        "wifi_scan_interval_ms",
-        "wifi_latency_interval_ms",
-        "bluetooth_interval_ms",
-    ]
-    .map(|setting| (setting, super::budgets::CADENCE_MS))
-    .into_iter()
-    .collect::<std::collections::BTreeMap<_, _>>();
-    dokime_runtime::plugins::PluginBundle::new(host_plugin_bundle()).configured("plugin_host", settings).unwrap()
-}
-
 fn built_bundle(relative: &str) -> std::path::PathBuf {
     let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
     assert!(matches!(profile.as_str(), "dev" | "release"));
@@ -142,8 +147,6 @@ fn built_bundle(relative: &str) -> std::path::PathBuf {
     assert!(path.is_file(), "missing built artifact {}; run `mise run build`", path.display());
     path
 }
-
-/* === Private Functions === */
 
 fn bundle_version(path: std::path::PathBuf, version: &str) -> Vec<u8> {
     let bytes = std::fs::read(path).unwrap();

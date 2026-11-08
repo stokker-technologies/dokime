@@ -35,6 +35,7 @@ use dokime_client::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 struct Secrets {
     values: Mutex<BTreeMap<String, String>>,
@@ -48,11 +49,16 @@ struct Case {
     valid: bool,
 }
 
+struct Credentials {
+    values: Mutex<BTreeMap<String, String>>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl SecretStore for Secrets {
     fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
         if self.unavailable {
@@ -76,11 +82,39 @@ impl SecretStore for Secrets {
     }
 }
 
+impl SecretStore for Credentials {
+    fn read(&self, key: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
+        Ok(self.values.lock().unwrap().get(key).cloned().map(Zeroizing::new))
+    }
+
+    fn write(&self, key: &str, token: &str) -> Result<(), SecretError> {
+        self.values.lock().unwrap().insert(key.to_owned(), token.to_owned());
+        Ok(())
+    }
+
+    fn remove(&self, key: &str) -> Result<(), SecretError> {
+        self.values.lock().unwrap().remove(key);
+        Ok(())
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
 
+fn pairing(key: char) -> dokime_domain::model::remote::PairingFile {
+    dokime_domain::model::remote::PairingFile {
+        version: 1,
+        endpoints: vec!["http://127.0.0.1:8765".into()],
+        backend_identifier: "backend".into(),
+        label: "Lab Backend".into(),
+        ca_certificate_pem: None,
+        access_key: Some(key.to_string().repeat(32)),
+    }
+}
+
 /* === Tests === */
+
 #[dokime_tracing::trace_test]
 #[test]
 fn profiles() {
@@ -253,4 +287,34 @@ fn profiles() {
     assert_eq!(secrets.read(&remembered.credential_key()).unwrap().unwrap().as_str(), key.as_str());
     assert!(store.remember_endpoint(&selected, "http://unselected:8765").is_err());
     assert!(store.remember_endpoint(&selected, &pairing.endpoints[0]).is_err());
+}
+
+#[test]
+fn pairing_profiles_keep_independent_credentials() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::new(root.path().join("backends.json"));
+    let secrets = Credentials { values: Mutex::new(BTreeMap::new()) };
+    let first = store.import_pairing(&pairing('a'), "first", &secrets).unwrap();
+    let second = store.import_pairing(&pairing('b'), "second", &secrets).unwrap();
+    let first_key = profiles::selection(&first).unwrap().credential_key();
+    let second_key = profiles::selection(&second).unwrap().credential_key();
+    assert_ne!(first_key, second_key);
+    assert_eq!(secrets.read(&first_key).unwrap().unwrap().as_str(), "a".repeat(32));
+    assert_eq!(secrets.read(&second_key).unwrap().unwrap().as_str(), "b".repeat(32));
+    assert!(store.load().unwrap().default.is_none());
+    assert!(store.import_pairing(&pairing('c'), "first", &secrets).is_err());
+    assert_eq!(secrets.read(&first_key).unwrap().unwrap().as_str(), "a".repeat(32));
+}
+
+#[test]
+fn invalid_pairing_never_opens_registry_or_keyring() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("absent/backends.json");
+    let store = Store::new(&path);
+    let secrets = Credentials { values: Mutex::new(BTreeMap::new()) };
+    let mut invalid = pairing('a');
+    invalid.endpoints = vec!["http://0.0.0.0:8765".into()];
+    assert!(store.import_pairing(&invalid, "first", &secrets).is_err());
+    assert!(!path.parent().unwrap().exists());
+    assert!(secrets.values.lock().unwrap().is_empty());
 }

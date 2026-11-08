@@ -47,6 +47,7 @@ pub(crate) struct StreamFile {
     pub last_at: Option<i64>,
     pub batches: Vec<Batch>,
     pub summaries: Vec<Summary>,
+
     #[serde(skip)]
     pub path: PathBuf,
 
@@ -192,6 +193,7 @@ pub(super) fn files(
     }
     Ok(files)
 }
+
 /* === Private Functions === */
 
 // A Complete Owned File Retains Its Original Bytes And Catalog Identity.

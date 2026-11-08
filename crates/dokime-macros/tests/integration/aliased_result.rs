@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use sdk::definition::DeclaredTemplate;
 use sdk::execution::{CriterionContext, ObserverContext, StepContext};
+
 // Local Imports
 
 /* === Constants === */
@@ -24,9 +26,11 @@ use sdk::execution::{CriterionContext, ObserverContext, StepContext};
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 /* === Structs === */
+
 #[derive(Debug)]
 struct Error;
 
@@ -41,14 +45,15 @@ struct Row {
 
 /* === Enums === */
 
-/* === Traits === */
-
 #[sdk::catalog]
 enum SamplesStreams {
     Row(Row),
 }
 
+/* === Traits === */
+
 /* === Implementations === */
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("probe failed")

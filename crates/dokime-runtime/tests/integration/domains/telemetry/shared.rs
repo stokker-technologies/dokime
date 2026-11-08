@@ -15,8 +15,15 @@
 
 // Standard Library Imports
 use std::collections::BTreeSet;
+
 // Third Party Imports
 use async_trait::async_trait;
+use harmos::sidecar::StreamDeclaration;
+use harmos::storage::{
+    Query,
+    query::{RowSlice, SchemaSelection, Source},
+};
+
 // Local Imports
 use crate::service_support::prelude::*;
 use dokime_runtime::InstalledPlugin;
@@ -24,13 +31,9 @@ use dokime_runtime::definition::SuiteSet;
 use dokime_runtime::execution::Runnable;
 use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::schema::Described;
-use harmos::sidecar::StreamDeclaration;
-use harmos::storage::{
-    Query,
-    query::{RowSlice, SchemaSelection, Source},
-};
 
 /* === Constants === */
+
 const SOURCE: &str = "fixture_shared";
 const SUITE: &str = "fixture.shared.checks";
 
@@ -39,6 +42,7 @@ const SUITE: &str = "fixture.shared.checks";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::stream(id = "fixture.shared.samples", window = 32, label = "Samples")]
 struct Sample {
     value: f64,
@@ -55,6 +59,7 @@ struct SharedProvider {
 }
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 enum Streams {
     Sample(Sample),
@@ -69,6 +74,7 @@ enum Templates {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[dokime_runtime::suite(id = "fixture.shared.checks", label = "Checks", templates = Templates)]
 impl Checks {}
 
@@ -153,11 +159,11 @@ impl EmbeddedProvider for SharedProvider {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn shared_stream_refusal(detail: &str) -> bool {
     detail.contains("telemetry definition fixture.shared.samples is already registered")
 }
 
-/* === Tests === */
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn shared_stream_publishes() {
@@ -261,3 +267,5 @@ async fn shared_owner_refused() {
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
+
+/* === Tests === */

@@ -11,11 +11,13 @@
 // gains files, and an in-process FTP server; and live follows of native outputs.
 
 /* === Modules === */
+
 pub(crate) mod capture;
 pub(crate) mod follow;
 pub(crate) mod ftp;
 
 /* === Re-Exports === */
+
 pub(crate) use crate::service_support::prelude::*;
 
 /* === Imports === */
@@ -24,18 +26,19 @@ pub(crate) use crate::service_support::prelude::*;
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
+use {
+    model::files::wire::CaptureMode, model::files::wire::FileRule, model::files::wire::FileSource, model::files::wire::MirrorCapture,
+    model::files::wire::StreamCapture,
+};
 
 // Local Imports
 use dokime_domain::model;
 use dokime_operations::files::StartCapture;
 use dokime_runtime::artifacts::{ArtifactRecord, ArtifactStatus};
 use dokime_runtime::domains::files::{CaptureEvent, FileCapture};
-use {
-    model::files::wire::CaptureMode, model::files::wire::FileRule, model::files::wire::FileSource, model::files::wire::MirrorCapture,
-    model::files::wire::StreamCapture,
-};
 
 /* === Constants === */
+
 // The artifact folder every story captures into.
 pub(crate) const OUTPUT: &str = "capture";
 
@@ -44,6 +47,7 @@ pub(crate) const OUTPUT: &str = "capture";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // A runtime whose only execution stays running until released.
 pub(crate) struct Bench {
     pub(crate) owner: crate::service_support::system_reports::Runtime,
@@ -58,6 +62,7 @@ pub(crate) struct Bench {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Bench {
     pub(crate) async fn start(configure: impl FnOnce(RuntimeConfig, &Path) -> RuntimeConfig) -> Self {
         let root = tempdir().unwrap();
@@ -81,6 +86,7 @@ impl Bench {
 }
 
 /* === Public Functions === */
+
 // A capture over a tree into the output every story reads.
 pub(crate) fn request(root: &Path, rules: impl IntoIterator<Item = FileRule>, mode: impl Into<CaptureMode>) -> StartCapture {
     StartCapture::new(FileSource::tree(root, rules), OUTPUT, mode)

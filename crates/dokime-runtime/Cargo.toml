@@ -117,12 +117,12 @@ arrow-buffer = { workspace = true }
 arrow-ipc = { workspace = true }
 arrow-schema = { workspace = true }
 base64 = { workspace = true, optional = true }
-flate2 = { workspace = true, optional = true }
 flatbuffers = { workspace = true }
+flate2 = { workspace = true, optional = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true, features = ["jpeg", "png"] }
-prost = { workspace = true }
 postcard = { workspace = true, optional = true }
+prost = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 toml = { workspace = true, optional = true }
@@ -167,7 +167,7 @@ nokhwa = { workspace = true, optional = true, features = ["input-native"] }
 
 [dev-dependencies]
 # Local
-dokime-tracing = { workspace = true }
+dokime-tracing = { path = "../dokime-tracing" }
 plugin-host = { workspace = true }
 
 # Git
@@ -361,7 +361,7 @@ required-features = ["native"]
 
 [[test]]
 name = "invocation"
-path = "tests/invocation.rs"
+path = "tests/plugin/main.rs"
 required-features = ["native"]
 
 # === Bench Targets === #

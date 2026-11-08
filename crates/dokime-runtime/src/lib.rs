@@ -15,11 +15,6 @@
 #[doc(hidden)]
 pub mod testing;
 
-// Public Within The Unit-Test Build Only: Each Target Uses Its Own Part Of The Shared Story Support.
-#[cfg(all(test, feature = "native"))]
-#[path = "../tests/support/services/mod.rs"]
-pub mod service_support;
-
 #[macro_use]
 mod macros;
 pub mod artifacts;
@@ -44,48 +39,18 @@ pub mod plugin;
 #[cfg(feature = "native")]
 pub mod prelude;
 
+pub mod analysis;
 #[cfg(feature = "native")]
 pub mod process;
 pub mod prompts;
 pub mod publication;
 pub mod records;
 
-pub mod analysis;
 #[cfg(feature = "storage")]
 pub mod storage;
 pub mod telemetry;
 pub mod traceability;
 pub mod transport;
-pub mod __answer {
-    pub trait Answer {
-        type Ok;
-        type Err;
-    }
-
-    impl<T, E> Answer for Result<T, E> {
-        type Ok = T;
-        type Err = E;
-    }
-
-    pub trait Initialized<T> {
-        type Own;
-        fn into_parts(self) -> (T, Self::Own);
-    }
-
-    impl<T> Initialized<T> for T {
-        type Own = ();
-        fn into_parts(self) -> (T, ()) {
-            (self, ())
-        }
-    }
-
-    impl<T, Own> Initialized<T> for (T, Own) {
-        type Own = Own;
-        fn into_parts(self) -> (T, Own) {
-            self
-        }
-    }
-}
 
 #[cfg(feature = "native")]
 pub mod app;
@@ -120,11 +85,6 @@ pub mod streams;
 #[cfg(feature = "native")]
 pub mod transactions;
 
-#[cfg(feature = "native")]
-pub mod brand {
-    pub use crate::domains::installed_plugins::brand::theme;
-}
-
 /* === Re-Exports === */
 
 pub use definition::{Parameter, ParameterDefault, ParameterExpansion};
@@ -137,7 +97,6 @@ pub use dokime_domain::model::execution::*;
 pub use dokime_domain::model::expressions;
 pub use dokime_domain::model::identity::*;
 pub use dokime_domain::model::secrets::*;
-
 pub use dokime_domain::model::settings;
 pub use dokime_domain::model::time::*;
 pub use dokime_domain::model::validation::*;
@@ -156,12 +115,12 @@ pub use publication::Publishable;
 // Harmos plugin, its device operations are Harmos operations, and its domains
 // reach the host as Harmos contributions.
 pub use contributions::{Evidence, Records, RunStart, Settings, Suites};
+pub use harmos;
 pub use harmos::Plugin;
 pub use harmos::catalog::RequirementEntry as Requirement;
 pub use harmos::operations::{CallContext, Operation, OperationDeclaration};
 pub use harmos::plugin::{Contribution, Grant};
 
-pub use harmos;
 #[cfg(feature = "native")]
 pub use harmos::sidecar::{Refusal, Supervisor};
 pub use values::{FieldError, FieldValue};
@@ -266,4 +225,109 @@ pub const MACRO_CONTRACT: u32 = 28;
 
 /* === Private Functions === */
 
+pub mod __answer {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    pub trait Answer {
+        type Ok;
+        type Err;
+    }
+
+    pub trait Initialized<T> {
+        type Own;
+        fn into_parts(self) -> (T, Self::Own);
+    }
+
+    /* === Implementations === */
+
+    impl<T, E> Answer for Result<T, E> {
+        type Ok = T;
+        type Err = E;
+    }
+
+    impl<T> Initialized<T> for T {
+        type Own = ();
+        fn into_parts(self) -> (T, ()) {
+            (self, ())
+        }
+    }
+
+    impl<T, Own> Initialized<T> for (T, Own) {
+        type Own = Own;
+        fn into_parts(self) -> (T, Own) {
+            self
+        }
+    }
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    /* === Tests === */
+}
+
+#[cfg(feature = "native")]
+pub mod brand {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    pub use crate::domains::installed_plugins::brand::theme;
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    /* === Tests === */
+}
+
 /* === Tests === */
+
+// Public Within The Unit-Test Build Only: Each Target Uses Its Own Part Of The Shared Story Support.
+#[cfg(all(test, feature = "native"))]
+#[path = "../tests/support/services/mod.rs"]
+pub mod service_support;

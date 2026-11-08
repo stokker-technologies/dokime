@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,6 +26,7 @@ use dokime_runtime::runtime::query::{
 };
 
 /* === Constants === */
+
 const PLOT_POINTS: usize = 400;
 
 /* === Macros === */
@@ -42,6 +44,7 @@ const PLOT_POINTS: usize = 400;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // snapshot query with all window uses all samples before downsampling.
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -693,8 +696,6 @@ fn band_scan(band: &str, occupied: usize, total: usize, peak: usize) -> WifiBand
     }
 }
 
-/* === Tests === */
-
 // distribution query bins its x column and does not limit evidence to the display budget.
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -1119,3 +1120,5 @@ async fn numeric_query_reductions_match_spilled_results() {
         owner.shutdown().await.unwrap();
     }
 }
+
+/* === Tests === */

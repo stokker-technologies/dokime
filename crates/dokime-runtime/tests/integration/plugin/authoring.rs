@@ -8,81 +8,18 @@
  */
 
 /* === Modules === */
+
 #[path = "authoring/error.rs"]
 pub(crate) mod error;
-pub(crate) mod catalog_lifecycle {
-    use super::*;
-    use dokime_runtime::catalog::{SuiteRunners, Suites};
-    use dokime_runtime::definition::DeclaredSuite;
-    use dokime_runtime::harmos::operations::ServingError;
-    use std::sync::Mutex;
-
-    static RECORDS: Mutex<Vec<&str>> = Mutex::new(Vec::new());
-    struct CountedSuite;
-
-    impl DeclaredSuite for CountedSuite {
-        const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
-        const ID: &'static str = "counted";
-        const TEMPLATE_IDENTIFIERS: &'static [dokime_runtime::catalog::Node<&'static str>] = &[];
-        const OPERATIONS: &'static [dokime_runtime::harmos::catalog::Node<dokime_runtime::harmos::operations::WireDeclaration>] = &[];
-        const STREAMS: &'static [dokime_runtime::harmos::catalog::Node<dokime_runtime::catalog::Publication>] = &[];
-
-        fn definition() -> dokime_runtime::domains::TestSuiteDefinition {
-            RECORDS.lock().unwrap().push("catalog");
-            SpikeChecks::definition()
-        }
-
-        fn bind<P: dokime_runtime::harmos::Plugin + dokime_runtime::harmos::plugin::Declared>(
-            _: &mut dokime_runtime::harmos::Setup<P>, _: &str, _: &[dokime_runtime::records::RecordContract],
-        ) -> Result<(), ServingError> {
-            Ok(())
-        }
-
-        fn runners() -> Vec<Arc<dyn dokime_runtime::execution::Runnable>> {
-            RECORDS.lock().unwrap().push("factories");
-
-            Vec::new()
-        }
-    }
-
-    #[dokime_runtime::catalog]
-    enum CountedSuites {
-        CountedSuite(CountedSuite),
-    }
-
-    #[dokime_tracing::trace_test]
-    #[test]
-    fn registration_inert_once() {
-        use dokime_runtime::harmos::plugin::Contribution;
-
-        let mut registrar = dokime_runtime::harmos::plugin::Registrar::new();
-        dokime_runtime::Suites::<CountedSuites>::register(&mut registrar).unwrap();
-        assert_eq!(registrar.finish().len(), 1);
-        assert_eq!(RECORDS.lock().unwrap().as_slice(), ["catalog"]);
-        RECORDS.lock().unwrap().clear();
-
-        // Collecting the catalog's entries asks for nothing; only calling an
-        // entry builds the executable half, and each call builds it once.
-        let runners = dokime_runtime::catalog::entries::<CountedSuites, SuiteRunners>();
-        let definitions = dokime_runtime::catalog::entries::<CountedSuites, Suites>();
-        assert!(RECORDS.lock().unwrap().is_empty());
-        for runner in runners {
-            runner();
-        }
-        assert_eq!(RECORDS.lock().unwrap().as_slice(), ["factories"]);
-        for definition in definitions {
-            definition();
-        }
-        assert_eq!(RECORDS.lock().unwrap().as_slice(), ["factories", "catalog"]);
-    }
-}
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+
 // Third Party Imports
 
 // Local Imports
@@ -99,6 +36,7 @@ use dokime_runtime::{Value, ValueType};
 use error::Error;
 
 /* === Constants === */
+
 const SUITE_ID: &str = "spike.checks";
 const TEMPLATE_ID: &str = "spike.checks.probe";
 const STREAM_ID: &str = "spike.pulse";
@@ -112,6 +50,7 @@ const PULSE_CRITERION_ID: &str = "spike.pulses.acceptance";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct SpikeChecks;
 
 struct Probe;
@@ -145,6 +84,7 @@ struct PulseResources {
 struct PulseRow {
     #[row(role = counter)]
     index: i64,
+
     value: f64,
 }
 
@@ -167,18 +107,40 @@ pub struct PulseParameters {
 
 /* === Enums === */
 
-/* === Traits === */
-
 #[dokime_runtime::catalog]
 enum RowsStreams {
     PulseRow(PulseRow),
 }
 
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum SpikeChecksTemplates {
     Probe(Probe),
 }
+
+#[dokime_runtime::catalog]
+enum ProbeRecords {
+    Started(Started),
+}
+
+#[dokime_runtime::catalog]
+enum ProbeSubscribes {
+    Started(Started),
+}
+
+#[dokime_runtime::catalog]
+enum PulseChecksTemplates {
+    Pulse(Pulse),
+}
+
+#[dokime_runtime::catalog]
+enum SpikeSuites {
+    SpikeChecks(SpikeChecks),
+    PulseChecks(PulseChecks),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
 
 #[dokime_runtime::suite(
     id = SUITE_ID,
@@ -195,16 +157,6 @@ impl SpikeChecks {
                 .strict(),
         ]
     }
-}
-
-#[dokime_runtime::catalog]
-enum ProbeRecords {
-    Started(Started),
-}
-
-#[dokime_runtime::catalog]
-enum ProbeSubscribes {
-    Started(Started),
 }
 
 #[dokime_runtime::template(
@@ -233,11 +185,6 @@ impl Probe {
     fn complete(&mut self, _run: &mut StepContext<'_>) -> Result<(), Error> {
         Ok(())
     }
-}
-
-#[dokime_runtime::catalog]
-enum PulseChecksTemplates {
-    Pulse(Pulse),
 }
 
 #[dokime_runtime::suite(
@@ -305,15 +252,10 @@ impl Pulse {
     }
 }
 
-#[dokime_runtime::catalog]
-enum SpikeSuites {
-    SpikeChecks(SpikeChecks),
-    PulseChecks(PulseChecks),
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn pulse_start() -> RunExecution {
     RunExecution {
         publication_rows: 1024,
@@ -376,6 +318,105 @@ async fn attributed_functions_runs() {
     assert_eq!(outcome.criteria[0].identifier, PULSE_CRITERION_ID);
     assert_eq!(SidecarCriterionStatus::try_from(outcome.criteria[0].status), Ok(SidecarCriterionStatus::Passed));
     execution.shutdown().await;
+}
+
+pub(crate) mod catalog_lifecycle {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+    use std::sync::Mutex;
+
+    // Third Party Imports
+
+    // Local Imports
+    use super::*;
+    use dokime_runtime::catalog::{SuiteRunners, Suites};
+    use dokime_runtime::definition::DeclaredSuite;
+    use dokime_runtime::harmos::operations::ServingError;
+
+    /* === Constants === */
+
+    static RECORDS: Mutex<Vec<&str>> = Mutex::new(Vec::new());
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    struct CountedSuite;
+
+    /* === Enums === */
+
+    #[dokime_runtime::catalog]
+    enum CountedSuites {
+        CountedSuite(CountedSuite),
+    }
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    impl DeclaredSuite for CountedSuite {
+        const CATALOGS: &'static [dokime_runtime::harmos::Catalog] = &[];
+        const ID: &'static str = "counted";
+        const TEMPLATE_IDENTIFIERS: &'static [dokime_runtime::catalog::Node<&'static str>] = &[];
+        const OPERATIONS: &'static [dokime_runtime::harmos::catalog::Node<dokime_runtime::harmos::operations::WireDeclaration>] = &[];
+        const STREAMS: &'static [dokime_runtime::harmos::catalog::Node<dokime_runtime::catalog::Publication>] = &[];
+
+        fn definition() -> dokime_runtime::domains::TestSuiteDefinition {
+            RECORDS.lock().unwrap().push("catalog");
+            SpikeChecks::definition()
+        }
+
+        fn bind<P: dokime_runtime::harmos::Plugin + dokime_runtime::harmos::plugin::Declared>(
+            _: &mut dokime_runtime::harmos::Setup<P>, _: &str, _: &[dokime_runtime::records::RecordContract],
+        ) -> Result<(), ServingError> {
+            Ok(())
+        }
+
+        fn runners() -> Vec<Arc<dyn dokime_runtime::execution::Runnable>> {
+            RECORDS.lock().unwrap().push("factories");
+
+            Vec::new()
+        }
+    }
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    /* === Tests === */
+
+    #[dokime_tracing::trace_test]
+    #[test]
+    fn registration_inert_once() {
+        use dokime_runtime::harmos::plugin::Contribution;
+
+        let mut registrar = dokime_runtime::harmos::plugin::Registrar::new();
+        dokime_runtime::Suites::<CountedSuites>::register(&mut registrar).unwrap();
+        assert_eq!(registrar.finish().len(), 1);
+        assert_eq!(RECORDS.lock().unwrap().as_slice(), ["catalog"]);
+        RECORDS.lock().unwrap().clear();
+
+        // Collecting the catalog's entries asks for nothing; only calling an
+        // entry builds the executable half, and each call builds it once.
+        let runners = dokime_runtime::catalog::entries::<CountedSuites, SuiteRunners>();
+        let definitions = dokime_runtime::catalog::entries::<CountedSuites, Suites>();
+        assert!(RECORDS.lock().unwrap().is_empty());
+        for runner in runners {
+            runner();
+        }
+        assert_eq!(RECORDS.lock().unwrap().as_slice(), ["factories"]);
+        for definition in definitions {
+            definition();
+        }
+        assert_eq!(RECORDS.lock().unwrap().as_slice(), ["factories", "catalog"]);
+    }
 }
 
 /* === Tests === */

@@ -108,7 +108,7 @@ impl Transaction<RuntimeState> for SetArchived {
 
 /* === Public Functions === */
 
-/// Whether the cycle's seal has settled: sealed, or failed with its cause recorded.
+// Whether the cycle's seal has settled: sealed, or failed with its cause recorded.
 pub fn cycle_settled(phase: CyclePhase) -> bool {
     matches!(phase, CyclePhase::Sealed | CyclePhase::SealFailed)
 }

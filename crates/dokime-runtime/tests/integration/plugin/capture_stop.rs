@@ -31,6 +31,7 @@ use dokime_runtime::prelude::{InitializationContext, StepContext};
 use dokime_runtime::transport::ExecutionSignal;
 
 /* === Constants === */
+
 const TEMPLATE: &str = "capture_stop.checks.capture";
 static STEP_WAITING: tokio::sync::Notify = tokio::sync::Notify::const_new();
 
@@ -39,8 +40,11 @@ static STEP_WAITING: tokio::sync::Notify = tokio::sync::Notify::const_new();
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Plugin;
+
 struct Checks;
+
 struct Capture;
 
 #[dokime_runtime::parameters]
@@ -50,6 +54,7 @@ struct Parameters {
 }
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 enum Suites {
     Checks(Checks),
@@ -63,6 +68,7 @@ enum Templates {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::builtins::lifecycle::Policy for Plugin {
     const INITIALIZATION_POLICY: harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: harmos::operations::OperationPolicy = super::native::POLICY;
@@ -107,8 +113,6 @@ impl Capture {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -198,3 +202,5 @@ async fn captured_stop_settles() {
     native.shutdown().await;
     bench.stop().await;
 }
+
+/* === Tests === */

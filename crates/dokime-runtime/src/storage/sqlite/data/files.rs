@@ -519,6 +519,17 @@ pub(super) fn verify(path: &Path, reference: &FileReference) -> Result<(), Error
     verify_opened(&mut file, reference, &mut VerifiedPrefix::default())
 }
 
+pub(super) fn remove(path: &Path) -> Result<(), Error> {
+    regular(path)?;
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/* === Private Functions === */
+
 fn verify_opened(file: &mut File, reference: &FileReference, prefix: &mut VerifiedPrefix) -> Result<(), Error> {
     if file.metadata()?.len() != reference.length {
         return Err(Error::Data("file finish length differs"));
@@ -536,17 +547,6 @@ fn verify_opened(file: &mut File, reference: &FileReference, prefix: &mut Verifi
     }
     Ok(())
 }
-
-pub(super) fn remove(path: &Path) -> Result<(), Error> {
-    regular(path)?;
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.into()),
-    }
-}
-
-/* === Private Functions === */
 
 // A Finished Row Commits Only After Its Content Name Was Published Durably.
 // An Unfinished Intent Alone Does Not Establish That Proof.

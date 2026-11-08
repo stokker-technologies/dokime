@@ -77,6 +77,7 @@ pub(crate) enum Command {
 
     #[command(subcommand, about = "Diagnose This Machine Without A Backend.")]
     Doctor(doctor::Command),
+
     Server(server::Args),
     Gui(gui::Args),
     Version(version::Args),

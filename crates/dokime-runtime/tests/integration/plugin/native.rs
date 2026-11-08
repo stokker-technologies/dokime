@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -32,20 +33,23 @@ use dokime_runtime::transport::{
     EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, StepAdmission,
 };
 use {dokime_runtime::records::RecordPublication, model::records::publication::RecordPublishRequest};
+
 /* === Constants === */
+
 // Initialization carries the configuration and the host's operation assignments.
 const SDK_BYTES: usize = 64 * 1024;
 const PREPARATION_BYTES: usize = 4 * 1024 * 1024;
-
 pub(super) const POLICY: harmos::operations::OperationPolicy = crate::service_support::budgets::settings::FIXTURE_POLICY;
 
 /* === Macros === */
-/* === Type Aliases === */
-type Notices = Arc<dyn Fn(&harmos::ServiceContext<Fixture>, Notice) + Send + Sync>;
 
+/* === Type Aliases === */
+
+type Notices = Arc<dyn Fn(&harmos::ServiceContext<Fixture>, Notice) + Send + Sync>;
 pub(super) type Operations = harmos::operations::OperationManager<Lanes>;
 
 /* === Structs === */
+
 pub(super) struct Fixture;
 
 pub(super) struct Native<A: Attach> {
@@ -90,28 +94,18 @@ struct Backend {
     shutdown_attempted: bool,
 }
 
-/* === Enums === */
-#[harmos::lanes]
-pub(super) enum Lanes {
-    #[default]
-    Open,
-}
-
-/* === Traits === */
-
-/* === Implementations === */
-impl harmos::Application for Fixture {
-    type Lanes = Lanes;
-    type State = ();
-    type Transaction = harmos::state::Never;
-    type Record = ();
-    type Streams = ();
-}
-
 #[derive(Default, serde::Deserialize)]
 pub(super) struct FixtureConfig {
     #[serde(skip)]
     log: Option<Arc<HostLog>>,
+}
+
+/* === Enums === */
+
+#[harmos::lanes]
+pub(super) enum Lanes {
+    #[default]
+    Open,
 }
 
 #[harmos::catalog]
@@ -124,6 +118,18 @@ enum HostOperations {
     Start(StartCapture),
     Stop(StopCapture),
     Publish(harmos::builtins::streams::Publish),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+
+impl harmos::Application for Fixture {
+    type Lanes = Lanes;
+    type State = ();
+    type Transaction = harmos::state::Never;
+    type Record = ();
+    type Streams = ();
 }
 
 impl harmos::Lifecycle for Fixture {
@@ -440,12 +446,14 @@ impl Serve<StopCapture> for Hosting {
 }
 
 /* === Public Functions === */
+
 pub(super) fn attach<P>() -> harmos::sidecar::PluginNative<P>
 where
     P: harmos::Plugin<Context = harmos::sidecar::Supervisor> + harmos::plugin::Declared,
 {
     harmos::sidecar::PluginNative::<P>::new(NonZeroUsize::new(128).unwrap()).unwrap()
 }
+
 // A sidecar serves its operations on the wire under `<plugin id>.<operation id>`.
 pub(super) async fn call_wire<O>(operations: &Operations, owner: &str, request: O::Request) -> harmos::Result<O::Response>
 where

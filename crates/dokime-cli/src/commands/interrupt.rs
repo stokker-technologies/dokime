@@ -37,7 +37,7 @@
 
 /* === Public Functions === */
 
-/// Resolve When The Operator Presses Ctrl+C, Or Ctrl+Break On Windows.
+// Resolve When The Operator Presses Ctrl+C, Or Ctrl+Break On Windows.
 pub(crate) async fn requested() -> std::io::Result<()> {
     #[cfg(windows)]
     {

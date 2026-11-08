@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -33,32 +34,44 @@ use crate::storage::{Error, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Prompt {
     #[serde(default)]
     prompt_type: String,
+
     #[serde(default)]
     archetype: String,
+
     #[serde(default)]
     title: String,
+
     #[serde(default)]
     message: Option<String>,
+
     #[serde(default)]
     fields: Vec<Field>,
+
     #[serde(default)]
     actions: Vec<Action>,
+
     #[serde(default)]
     rules: Vec<Rule>,
+
     #[serde(default)]
     condition: Option<conditions::Condition>,
+
     #[serde(default)]
     owner: Option<String>,
+
     #[serde(default)]
     template_identifier: Option<String>,
+
     #[serde(default)]
     examples: Vec<Map>,
+
     // Empty reads as Info, the level a prompt has unless its author raised it.
     #[serde(default)]
     level: String,
@@ -70,18 +83,25 @@ pub struct Prompt {
 pub(super) struct Field {
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     value_type: String,
+
     #[serde(default)]
     kind: String,
+
     #[serde(default)]
     multiple: bool,
+
     #[serde(default)]
     required: bool,
+
     #[serde(default)]
     default: Option<Value>,
+
     #[serde(default)]
     choices: Vec<String>,
+
     #[serde(default)]
     validation: Validation,
 }
@@ -92,10 +112,13 @@ pub(super) struct Field {
 pub(super) struct Action {
     #[serde(default)]
     id: String,
+
     #[serde(default)]
     label: String,
+
     #[serde(default)]
     emphasis: String,
+
     #[serde(default)]
     requires_condition: bool,
 }
@@ -106,6 +129,7 @@ pub(super) struct Action {
 pub(super) struct Rule {
     #[serde(default)]
     predicate: expressions::Boolean,
+
     #[serde(default)]
     message: String,
 }
@@ -116,16 +140,22 @@ pub(super) struct Rule {
 pub(super) struct Validation {
     #[serde(default)]
     min_length: Option<u64>,
+
     #[serde(default)]
     max_length: Option<u64>,
+
     #[serde(default)]
     pattern: Option<String>,
+
     #[serde(default)]
     minimum: Option<Value>,
+
     #[serde(default)]
     maximum: Option<Value>,
+
     #[serde(default)]
     min_items: Option<u64>,
+
     #[serde(default)]
     max_items: Option<u64>,
 }
@@ -135,6 +165,7 @@ pub(super) struct Validation {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Prompt {
     pub fn encoding_memory(value: &PromptDefinition) -> Result<usize> {
         let condition = value.condition.as_ref().map(conditions::Condition::encoding_memory).transpose()?.unwrap_or(0);
@@ -515,6 +546,7 @@ impl TryFrom<Validation> for FieldValidation {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn encoded_length(value: usize) -> Result<u64> {
     u64::try_from(value).map_err(|_| Error::Invalid("prompt validation length overflows"))
 }

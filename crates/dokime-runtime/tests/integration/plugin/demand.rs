@@ -8,128 +8,11 @@
  */
 
 /* === Modules === */
-pub(crate) mod observers {
-    use super::*;
-
-    #[dokime_runtime::row]
-    #[derive(Clone)]
-    pub(super) struct Row {
-        #[row(label = "Measured Value", unit = "V", format = fixed(2), description = "A shared measurement")]
-        pub(super) value: i64,
-        pub(super) index: i64,
-    }
-    #[dokime_runtime::stream(id = "owned_stream.auxiliary",
-        window = 64,
-        row = Row,
-        label = "Auxiliary",
-        description = "One shape, two streams: each of them is a type, and neither of them is the shape, so each observer says which \
-        of them its rows are.")]
-    pub(super) struct Auxiliary;
-
-    #[dokime_runtime::stream(id = "owned_stream.measurement", window = 64, row = Row, label = "Measurement")]
-    pub(super) struct Measurement;
-
-    #[dokime_runtime::stream(
-        id = "owned_stream.revisioned",
-        label = "Revisioned",
-        tags("instrument"),
-        attributes(source = "test"),
-        window = 64,
-        row = Row, description = "Shared row metadata")]
-    struct Revisioned;
-
-    #[dokime_tracing::trace_test]
-    #[test]
-    fn native_metadata_revision() {
-        use dokime_runtime::telemetry::TelemetryStream;
-        let contract = Revisioned::contract();
-        assert_eq!(contract.stream.as_str(), "owned_stream.revisioned");
-        assert_eq!(
-            contract.schema_version,
-            harmos::domain::streams::revision(
-                contract.storage_schema.as_ref().unwrap(),
-                <Revisioned as dokime_runtime::StreamSpec>::WINDOW
-            )
-            .unwrap()
-        );
-        assert_eq!(contract.metadata.label, "Revisioned");
-        assert_eq!(contract.metadata.description.as_deref(), Some("Shared row metadata"));
-        assert_eq!(contract.metadata.tags, vec!["instrument"]);
-        assert_eq!(contract.metadata.attributes["source"], dokime_runtime::Value::Text("test".into()));
-        let value = contract.columns.iter().find(|column| column.metadata.identifier.as_str() == "value").unwrap();
-        assert_eq!(value.metadata.label, "Measured Value");
-        assert_eq!(value.metadata.description.as_deref(), Some("A shared measurement"));
-        assert!(value.format.is_some());
-    }
-
-    pub(super) struct Auxiliaries {
-        probe: Arc<Probe>,
-    }
-
-    impl dokime_runtime::harmos::plugin::inventory::observers::Declared for Auxiliaries {
-        const ENTRY: dokime_runtime::harmos::plugin::inventory::observers::Entry =
-            dokime_runtime::harmos::plugin::inventory::observers::Entry {
-                id: <Self as dokime_runtime::harmos::sidecar::Observer<Publishing>>::ID,
-                description: "",
-                activation: <Self as dokime_runtime::harmos::sidecar::Observer<Publishing>>::ACTIVATION,
-                streams: <Self as dokime_runtime::harmos::sidecar::Observer<Publishing>>::STREAMS,
-                demand_keys: &[],
-            };
-    }
-
-    impl dokime_runtime::harmos::sidecar::Observer<Publishing> for Auxiliaries {
-        type Error = Error;
-        const ID: &'static str = "fixture.auxiliaries";
-        const STREAMS: &'static [dokime_runtime::harmos::plugin::inventory::publications::Entry] =
-            &[dokime_runtime::harmos::plugin::inventory::publications::Entry::of::<Auxiliary>()];
-        const ACTIVATION: dokime_runtime::harmos::sidecar::Activation = dokime_runtime::harmos::sidecar::Activation::Demand;
-        const INTERVAL: std::time::Duration = Duration::from_millis(5);
-
-        async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
-            let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
-            Ok(Self { probe: Arc::clone(&resource.0) })
-        }
-
-        async fn observe(&mut self, ctx: &ObserverContext<'_, Publishing>) -> Result<(), Error> {
-            self.probe.bump(&self.probe.auxiliary_samples);
-            ctx.publish_on::<Auxiliary>(&Row {
-                value: 2,
-                index: (ctx.tick().ordinal() - 1) as i64,
-            })
-            .await?;
-            Ok(())
-        }
-    }
-
-    pub(super) struct Measurements {
-        probe: Arc<Probe>,
-    }
-
-    #[dokime_runtime::observer(interval_ms = 5, streams(Measurement), activation = "demand")]
-    impl Measurements {
-        async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
-            let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
-            resource.0.bump(&resource.0.observer_starts);
-            Ok(Self { probe: Arc::clone(&resource.0) })
-        }
-
-        async fn observe(&mut self, ctx: &ObserverContext<'_, Publishing>) -> Result<(), Error> {
-            self.probe.bump(&self.probe.samples);
-            let index = (ctx.tick().ordinal() - 1) as i64;
-            ctx.publish_on::<Measurement>(&Row { value: 1, index }).await?;
-            Ok(())
-        }
-
-        async fn stop(&mut self) -> Result<(), Error> {
-            self.probe.bump(&self.probe.observer_stops);
-            Ok(())
-        }
-    }
-}
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{
@@ -137,25 +20,30 @@ use std::sync::{
     atomic::{AtomicU64, AtomicUsize, Ordering},
 };
 use std::time::Duration;
+
 // Third Party Imports
-use dokime_runtime::harmos::plugin::Declared;
-use dokime_runtime::harmos::sidecar::{DemandKey, ObserverAttachment, ObserverContext, Publisher};
 use harmos::Message;
+
 // Local Imports
 use dokime_domain::model;
+use dokime_runtime::harmos::plugin::Declared;
+use dokime_runtime::harmos::sidecar::{DemandKey, ObserverAttachment, ObserverContext, Publisher};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::{Publishable, Refusal, Supervisor};
 
 /* === Constants === */
-static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> = LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
 
+static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> = LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
 const UNIT_NOTED: DemandKey = DemandKey::new("dokime.record", "owned.unit.noted");
 
 /* === Macros === */
+
 /* === Type Aliases === */
+
 type Publishing = Publisher<Measured>;
 
 /* === Structs === */
+
 #[derive(Default)]
 struct Probe {
     opens: AtomicUsize,
@@ -244,14 +132,18 @@ struct RawIdentifiers {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error(transparent)]
     Publication(#[from] dokime_runtime::harmos::sidecar::PublishError),
+
     #[error(transparent)]
     Undeclared(#[from] dokime_runtime::harmos::sidecar::PublicationError),
+
     #[error(transparent)]
     Published(#[from] dokime_runtime::Error),
+
     #[error("resource is temporarily unavailable")]
     Unavailable,
 }
@@ -277,6 +169,7 @@ enum MeasuredRecords {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Probe {
     // Counts one event and wakes every story waiting on the probe.
     fn bump(&self, counter: &AtomicUsize) -> usize {
@@ -456,6 +349,7 @@ impl Echoed {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn registered(probe: &Arc<Probe>) -> String {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let token = format!("probe-{}", NEXT.fetch_add(1, Ordering::SeqCst));
@@ -503,8 +397,6 @@ fn connected(serial: &str) -> dokime_runtime::plugin::Delivery {
     filed.details = [("serial".to_owned(), dokime_runtime::Value::from(serial))].into();
     dokime_runtime::plugin::Delivery::of(&filed)
 }
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -630,21 +522,6 @@ async fn listener_publishes_asked() {
 }
 
 #[dokime_tracing::trace_test]
-#[test]
-fn raw_field_keys() {
-    use dokime_runtime::telemetry::TelemetryRow;
-
-    let columns = RawIdentifiers::columns();
-    assert_eq!(columns[0].metadata.identifier.as_str(), "type");
-    assert_eq!(RawIdentifiers::column_type().field(), "type");
-
-    let values = RawIdentifiers { r#type: "probe".to_owned() }.into_row();
-    assert_eq!(values["type"], dokime_runtime::Value::Text("probe".into()));
-    assert!(!values.contains_key("r#type"));
-    assert_eq!(RawIdentifiers::from_row(&values).unwrap().r#type, "probe");
-}
-
-#[dokime_tracing::trace_test]
 #[tokio::test]
 async fn record_demand_cancel() {
     let probe = Arc::new(Probe::default());
@@ -680,4 +557,173 @@ async fn record_demand_cancel() {
     assert!(waiting.await.unwrap_err().is_cancelled());
     probe.until(|probe| probe.record_stops.load(Ordering::SeqCst) == 2).await;
     native.shutdown().await;
+}
+
+pub(crate) mod observers {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+    use super::*;
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    #[dokime_runtime::row]
+    #[derive(Clone)]
+    pub(super) struct Row {
+        #[row(label = "Measured Value", unit = "V", format = fixed(2), description = "A shared measurement")]
+        pub(super) value: i64,
+
+        pub(super) index: i64,
+    }
+
+    #[dokime_runtime::stream(id = "owned_stream.auxiliary",
+        window = 64,
+        row = Row,
+        label = "Auxiliary",
+        description = "One shape, two streams: each of them is a type, and neither of them is the shape, so each observer says which \
+        of them its rows are.")]
+    pub(super) struct Auxiliary;
+
+    #[dokime_runtime::stream(id = "owned_stream.measurement", window = 64, row = Row, label = "Measurement")]
+    pub(super) struct Measurement;
+
+    #[dokime_runtime::stream(
+        id = "owned_stream.revisioned",
+        label = "Revisioned",
+        tags("instrument"),
+        attributes(source = "test"),
+        window = 64,
+        row = Row, description = "Shared row metadata")]
+    struct Revisioned;
+
+    pub(super) struct Auxiliaries {
+        probe: Arc<Probe>,
+    }
+
+    pub(super) struct Measurements {
+        probe: Arc<Probe>,
+    }
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    impl dokime_runtime::harmos::plugin::inventory::observers::Declared for Auxiliaries {
+        const ENTRY: dokime_runtime::harmos::plugin::inventory::observers::Entry =
+            dokime_runtime::harmos::plugin::inventory::observers::Entry {
+                id: <Self as dokime_runtime::harmos::sidecar::Observer<Publishing>>::ID,
+                description: "",
+                activation: <Self as dokime_runtime::harmos::sidecar::Observer<Publishing>>::ACTIVATION,
+                streams: <Self as dokime_runtime::harmos::sidecar::Observer<Publishing>>::STREAMS,
+                demand_keys: &[],
+            };
+    }
+
+    impl dokime_runtime::harmos::sidecar::Observer<Publishing> for Auxiliaries {
+        type Error = Error;
+        const ID: &'static str = "fixture.auxiliaries";
+        const STREAMS: &'static [dokime_runtime::harmos::plugin::inventory::publications::Entry] =
+            &[dokime_runtime::harmos::plugin::inventory::publications::Entry::of::<Auxiliary>()];
+        const ACTIVATION: dokime_runtime::harmos::sidecar::Activation = dokime_runtime::harmos::sidecar::Activation::Demand;
+        const INTERVAL: std::time::Duration = Duration::from_millis(5);
+
+        async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
+            let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
+            Ok(Self { probe: Arc::clone(&resource.0) })
+        }
+
+        async fn observe(&mut self, ctx: &ObserverContext<'_, Publishing>) -> Result<(), Error> {
+            self.probe.bump(&self.probe.auxiliary_samples);
+            ctx.publish_on::<Auxiliary>(&Row {
+                value: 2,
+                index: (ctx.tick().ordinal() - 1) as i64,
+            })
+            .await?;
+            Ok(())
+        }
+    }
+
+    #[dokime_runtime::observer(interval_ms = 5, streams(Measurement), activation = "demand")]
+    impl Measurements {
+        async fn initialize(context: &dokime_runtime::harmos::ExecutionContext) -> Result<Self, Error> {
+            let resource = context.resource::<Resource>().expect("plugin prepares its observer resources");
+            resource.0.bump(&resource.0.observer_starts);
+            Ok(Self { probe: Arc::clone(&resource.0) })
+        }
+
+        async fn observe(&mut self, ctx: &ObserverContext<'_, Publishing>) -> Result<(), Error> {
+            self.probe.bump(&self.probe.samples);
+            let index = (ctx.tick().ordinal() - 1) as i64;
+            ctx.publish_on::<Measurement>(&Row { value: 1, index }).await?;
+            Ok(())
+        }
+
+        async fn stop(&mut self) -> Result<(), Error> {
+            self.probe.bump(&self.probe.observer_stops);
+            Ok(())
+        }
+    }
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    /* === Tests === */
+
+    #[dokime_tracing::trace_test]
+    #[test]
+    fn native_metadata_revision() {
+        use dokime_runtime::telemetry::TelemetryStream;
+        let contract = Revisioned::contract();
+        assert_eq!(contract.stream.as_str(), "owned_stream.revisioned");
+        assert_eq!(
+            contract.schema_version,
+            harmos::domain::streams::revision(
+                contract.storage_schema.as_ref().unwrap(),
+                <Revisioned as dokime_runtime::StreamSpec>::WINDOW
+            )
+            .unwrap()
+        );
+        assert_eq!(contract.metadata.label, "Revisioned");
+        assert_eq!(contract.metadata.description.as_deref(), Some("Shared row metadata"));
+        assert_eq!(contract.metadata.tags, vec!["instrument"]);
+        assert_eq!(contract.metadata.attributes["source"], dokime_runtime::Value::Text("test".into()));
+        let value = contract.columns.iter().find(|column| column.metadata.identifier.as_str() == "value").unwrap();
+        assert_eq!(value.metadata.label, "Measured Value");
+        assert_eq!(value.metadata.description.as_deref(), Some("A shared measurement"));
+        assert!(value.format.is_some());
+    }
+}
+
+/* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[test]
+fn raw_field_keys() {
+    use dokime_runtime::telemetry::TelemetryRow;
+
+    let columns = RawIdentifiers::columns();
+    assert_eq!(columns[0].metadata.identifier.as_str(), "type");
+    assert_eq!(RawIdentifiers::column_type().field(), "type");
+
+    let values = RawIdentifiers { r#type: "probe".to_owned() }.into_row();
+    assert_eq!(values["type"], dokime_runtime::Value::Text("probe".into()));
+    assert!(!values.contains_key("r#type"));
+    assert_eq!(RawIdentifiers::from_row(&values).unwrap().r#type, "probe");
 }

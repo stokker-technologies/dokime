@@ -39,6 +39,7 @@ use tracing_subscriber::{
 use dokime_runtime::{Runtime, RuntimeConfig, Value, plugins::PluginBundle, runtime::command::CommandContext};
 
 /* === Constants === */
+
 static PROFILE: std::sync::OnceLock<Timings> = std::sync::OnceLock::new();
 
 /* === Macros === */

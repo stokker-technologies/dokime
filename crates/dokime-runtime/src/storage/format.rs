@@ -25,6 +25,18 @@ use super::{Error, Result};
 
 /* === Constants === */
 
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
 /* === Public Functions === */
 
 // Refuse Only The Obsolete Product State That This Runtime Cannot Replay.
@@ -37,3 +49,7 @@ pub fn check(root: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

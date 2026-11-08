@@ -12,7 +12,9 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 
 // Local Imports
@@ -58,7 +60,6 @@ async fn wait_for_telemetry(
     .await
 }
 
-/* === Tests === */
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn checkpointed_telemetry_kill() {
@@ -161,3 +162,5 @@ async fn run_telemetry_kill_child(published: usize) {
 
     std::future::pending::<()>().await;
 }
+
+/* === Tests === */

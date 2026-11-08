@@ -302,16 +302,21 @@ impl Fixture {
 
 /* === Tests === */
 
-#[tokio::test]
-async fn temporary_fixture_cleanup() {
-    for failure in [false, true] {
-        let fixture = Fixture::new(2).await;
-        let path = fixture._root.path().to_owned();
-        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-            let _fixture = fixture;
-            assert!(!failure, "injected fixture failure");
-        }));
-        assert_eq!(outcome.is_err(), failure);
-        assert!(!path.exists(), "fixture storage survived teardown: {}", path.display());
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn temporary_fixture_cleanup() {
+        for failure in [false, true] {
+            let fixture = Fixture::new(2).await;
+            let path = fixture._root.path().to_owned();
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+                let _fixture = fixture;
+                assert!(!failure, "injected fixture failure");
+            }));
+            assert_eq!(outcome.is_err(), failure);
+            assert!(!path.exists(), "fixture storage survived teardown: {}", path.display());
+        }
     }
 }

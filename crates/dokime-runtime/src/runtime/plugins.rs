@@ -827,6 +827,43 @@ impl PluginHost {
 
 /* === Public Functions === */
 
+pub(super) fn start_error(plugin: &str, name: &str, error: &harmos::Error) -> dokime_domain::model::plugins::wire::PluginStartFailure {
+    let cause = error.failure();
+    let report = cause.and_then(harmos::operations::StartupReport::from_failure);
+    if let Some(failure) = cause {
+        tracing::debug!(plugin_id = plugin, failure = %serde_json::to_string(failure).expect("plugin failure serializes"), "plugin startup diagnostics");
+    }
+    let secret = |failure: &harmos::domain::Failure| {
+        (failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE))
+            .then(|| failure.detail("dokime.secret").map(str::to_owned))
+            .flatten()
+    };
+    let missing_secret =
+        report.as_ref().and_then(|report| report.roots.iter().find_map(|issue| secret(&issue.failure))).or_else(|| cause.and_then(secret));
+    let prose = |failure: &harmos::domain::Failure| {
+        secret(failure).map(|secret| crate::Error::UnavailableSecret(secret).to_string()).unwrap_or_else(|| failure.cause().to_owned())
+    };
+    let message = report
+        .as_ref()
+        .map(|report| report.roots.iter().map(|issue| prose(&issue.failure)).collect::<Vec<_>>().join("; "))
+        .unwrap_or_else(|| cause.map(prose).unwrap_or_else(|| harmos::domain::failure::Report(error).to_string()));
+    let code = report
+        .as_ref()
+        .and_then(|report| report.roots.iter().find_map(|issue| issue.failure.refusal_code()))
+        .or_else(|| cause.and_then(|failure| failure.refusal_code()));
+    dokime_domain::model::plugins::wire::PluginStartFailure {
+        plugin_id: plugin.to_owned(),
+        plugin_name: name.to_owned(),
+        message: format!("Plugin {name} could not start: {message}"),
+        code: code.map(|code| code.to_string()),
+        missing_secret,
+        consequences: report
+            .map(|report| report.consequences.into_iter().map(|issue| issue.failure.cause().to_owned()).collect())
+            .unwrap_or_default(),
+        carrier: cause.map(|failure| failure.encode()).unwrap_or_default(),
+    }
+}
+
 /* === Private Functions === */
 
 async fn remove_extraction(path: &std::path::Path) -> std::io::Result<()> {
@@ -1002,8 +1039,8 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, handle: &super:
     })
 }
 
-/// Extracts an installed bundle once per archive digest. The directory is
-/// renamed into place complete, so its presence means it is ready to reuse.
+// Extracts an installed bundle once per archive digest. The directory is
+// renamed into place complete, so its presence means it is ready to reuse.
 fn cached_extraction(
     bundle: &harmos_packaging::bundle::Bundle, extraction: &std::path::Path, content_digest: &str,
 ) -> std::result::Result<PathBuf, harmos_packaging::Error> {
@@ -1375,43 +1412,6 @@ async fn record(store: &PluginStore, input: &PluginBundle, error: Option<dokime_
         && let Err(error) = store.record_boot(*install_id, error).await
     {
         tracing::warn!(%install_id, %error, "could not record plugin boot outcome");
-    }
-}
-
-pub(super) fn start_error(plugin: &str, name: &str, error: &harmos::Error) -> dokime_domain::model::plugins::wire::PluginStartFailure {
-    let cause = error.failure();
-    let report = cause.and_then(harmos::operations::StartupReport::from_failure);
-    if let Some(failure) = cause {
-        tracing::debug!(plugin_id = plugin, failure = %serde_json::to_string(failure).expect("plugin failure serializes"), "plugin startup diagnostics");
-    }
-    let secret = |failure: &harmos::domain::Failure| {
-        (failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE))
-            .then(|| failure.detail("dokime.secret").map(str::to_owned))
-            .flatten()
-    };
-    let missing_secret =
-        report.as_ref().and_then(|report| report.roots.iter().find_map(|issue| secret(&issue.failure))).or_else(|| cause.and_then(secret));
-    let prose = |failure: &harmos::domain::Failure| {
-        secret(failure).map(|secret| crate::Error::UnavailableSecret(secret).to_string()).unwrap_or_else(|| failure.cause().to_owned())
-    };
-    let message = report
-        .as_ref()
-        .map(|report| report.roots.iter().map(|issue| prose(&issue.failure)).collect::<Vec<_>>().join("; "))
-        .unwrap_or_else(|| cause.map(prose).unwrap_or_else(|| harmos::domain::failure::Report(error).to_string()));
-    let code = report
-        .as_ref()
-        .and_then(|report| report.roots.iter().find_map(|issue| issue.failure.refusal_code()))
-        .or_else(|| cause.and_then(|failure| failure.refusal_code()));
-    dokime_domain::model::plugins::wire::PluginStartFailure {
-        plugin_id: plugin.to_owned(),
-        plugin_name: name.to_owned(),
-        message: format!("Plugin {name} could not start: {message}"),
-        code: code.map(|code| code.to_string()),
-        missing_secret,
-        consequences: report
-            .map(|report| report.consequences.into_iter().map(|issue| issue.failure.cause().to_owned()).collect())
-            .unwrap_or_default(),
-        carrier: cause.map(|failure| failure.encode()).unwrap_or_default(),
     }
 }
 

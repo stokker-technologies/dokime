@@ -39,6 +39,7 @@ pub struct TestRecordSet {
 
     #[serde(default)]
     capture_owner: Option<crate::model::identity::TestExecutionId>,
+
     capture_through: u64,
 
     #[serde(default)]

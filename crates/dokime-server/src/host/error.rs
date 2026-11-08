@@ -66,6 +66,7 @@ pub enum Error {
     IncompatibleStorage {
         root: PathBuf,
         reason: String,
+
         #[source]
         source: Box<dokime::runtime::Error>,
     },
@@ -89,6 +90,7 @@ pub enum Error {
     StartupCleanup {
         #[source]
         source: Box<Error>,
+
         cleanup: Box<Error>,
     },
 

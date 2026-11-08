@@ -1,6 +1,6 @@
 /* ***
  *
- * {{package}}
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod model;
 
 /* === Re-Exports === */
@@ -15,6 +16,7 @@ pub mod model;
 pub use crate::{Error, Result};
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

@@ -805,80 +805,85 @@ fn selected_samples(samples: &[crate::report::cycle::Sample], maximum: usize) ->
 
 /* === Tests === */
 
-#[test]
-fn preview_selection_preserves_order_and_terminal_endpoint() {
-    for (length, maximum, expected) in [
-        (0, 0, vec![]),
-        (1, 0, vec![0]),
-        (5, 0, vec![4]),
-        (5, 1, vec![4]),
-        (5, 5, vec![0, 1, 2, 3, 4]),
-        (8, 4, vec![0, 3, 6, 7]),
-        (9, 4, vec![0, 3, 6, 8]),
-        (10, 4, vec![0, 4, 8, 9]),
-    ] {
-        let indices = selection(length, maximum);
-        assert_eq!(indices.clone().count(), expected.len());
-        assert_eq!(indices.collect::<Vec<_>>(), expected);
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn fixture_report_save_measurement() {
-    use crate::report::{CapturedExecutionReportInput, cycle::CycleMember};
-    use std::{
-        io::{BufWriter, Read},
-        sync::atomic::Ordering,
-        time::Instant,
-    };
-    let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("../fixtures/execution-report-input.json")).unwrap();
-    let input = harmos::storage::ReadBatch::new(captured);
-    let CycleMember::Captured(member) = CycleMember::capture(input.clone()).unwrap() else { unreachable!() };
-    let mut index = Index::new();
-    index.push_capture(&input).unwrap();
-    index.sort();
-    let read = |_| member.read().map(crate::report::html::Member::Captured);
-    let report = Report {
-        header: (&input.input).into(),
-        index: &index,
-        appearance: &input.context.appearance,
-        report_defaults: &input.report_defaults,
-        read: &read,
-    };
-    let mut baseline_file = None;
-    let started = Instant::now();
-    for _ in 0..20 {
-        let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
-        drop(member.read().unwrap());
-        report.write(&mut writer).unwrap();
-        writer.flush().unwrap();
-        baseline_file = Some(writer.into_inner().unwrap());
+    #[test]
+    fn preview_selection_preserves_order_and_terminal_endpoint() {
+        for (length, maximum, expected) in [
+            (0, 0, vec![]),
+            (1, 0, vec![0]),
+            (5, 0, vec![4]),
+            (5, 1, vec![4]),
+            (5, 5, vec![0, 1, 2, 3, 4]),
+            (8, 4, vec![0, 3, 6, 7]),
+            (9, 4, vec![0, 3, 6, 8]),
+            (10, 4, vec![0, 4, 8, 9]),
+        ] {
+            let indices = selection(length, maximum);
+            assert_eq!(indices.clone().count(), expected.len());
+            assert_eq!(indices.collect::<Vec<_>>(), expected);
+        }
     }
-    let before = started.elapsed() / 20;
-    let mut baseline_bytes = Vec::new();
-    let mut baseline_file = baseline_file.unwrap();
-    std::io::Seek::rewind(&mut baseline_file).unwrap();
-    baseline_file.read_to_end(&mut baseline_bytes).unwrap();
-    let baseline_decodes = member.decodes.load(Ordering::Relaxed);
-    let mut candidate_file = None;
-    let started = Instant::now();
-    for _ in 0..20 {
-        let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
-        let captured = member.read().unwrap();
-        let rows = MemberRows::new().unwrap();
-        rows.capture(0, &captured, report.header).unwrap();
-        drop(captured);
-        report.write_prepared(&mut writer, &rows).unwrap();
-        writer.flush().unwrap();
-        candidate_file = Some(writer.into_inner().unwrap());
+
+    #[test]
+    fn fixture_report_save_measurement() {
+        use crate::report::{CapturedExecutionReportInput, cycle::CycleMember};
+        use std::{
+            io::{BufWriter, Read},
+            sync::atomic::Ordering,
+            time::Instant,
+        };
+        let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("../fixtures/execution-report-input.json")).unwrap();
+        let input = harmos::storage::ReadBatch::new(captured);
+        let CycleMember::Captured(member) = CycleMember::capture(input.clone()).unwrap() else { unreachable!() };
+        let mut index = Index::new();
+        index.push_capture(&input).unwrap();
+        index.sort();
+        let read = |_| member.read().map(crate::report::html::Member::Captured);
+        let report = Report {
+            header: (&input.input).into(),
+            index: &index,
+            appearance: &input.context.appearance,
+            report_defaults: &input.report_defaults,
+            read: &read,
+        };
+        let mut baseline_file = None;
+        let started = Instant::now();
+        for _ in 0..20 {
+            let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
+            drop(member.read().unwrap());
+            report.write(&mut writer).unwrap();
+            writer.flush().unwrap();
+            baseline_file = Some(writer.into_inner().unwrap());
+        }
+        let before = started.elapsed() / 20;
+        let mut baseline_bytes = Vec::new();
+        let mut baseline_file = baseline_file.unwrap();
+        std::io::Seek::rewind(&mut baseline_file).unwrap();
+        baseline_file.read_to_end(&mut baseline_bytes).unwrap();
+        let baseline_decodes = member.decodes.load(Ordering::Relaxed);
+        let mut candidate_file = None;
+        let started = Instant::now();
+        for _ in 0..20 {
+            let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
+            let captured = member.read().unwrap();
+            let rows = MemberRows::new().unwrap();
+            rows.capture(0, &captured, report.header).unwrap();
+            drop(captured);
+            report.write_prepared(&mut writer, &rows).unwrap();
+            writer.flush().unwrap();
+            candidate_file = Some(writer.into_inner().unwrap());
+        }
+        let after = started.elapsed() / 20;
+        let mut candidate_bytes = Vec::new();
+        let mut candidate_file = candidate_file.unwrap();
+        std::io::Seek::rewind(&mut candidate_file).unwrap();
+        candidate_file.read_to_end(&mut candidate_bytes).unwrap();
+        assert_eq!(member.decodes.load(Ordering::Relaxed) - baseline_decodes, 20);
+        assert!(baseline_decodes > 20);
+        assert_eq!(candidate_bytes, baseline_bytes);
+        eprintln!("Fixture Report Save: before={before:?}, after={after:?}, bytes={}", candidate_bytes.len());
     }
-    let after = started.elapsed() / 20;
-    let mut candidate_bytes = Vec::new();
-    let mut candidate_file = candidate_file.unwrap();
-    std::io::Seek::rewind(&mut candidate_file).unwrap();
-    candidate_file.read_to_end(&mut candidate_bytes).unwrap();
-    assert_eq!(member.decodes.load(Ordering::Relaxed) - baseline_decodes, 20);
-    assert!(baseline_decodes > 20);
-    assert_eq!(candidate_bytes, baseline_bytes);
-    eprintln!("Fixture Report Save: before={before:?}, after={after:?}, bytes={}", candidate_bytes.len());
 }

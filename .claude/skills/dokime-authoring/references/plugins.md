@@ -6,6 +6,17 @@ Embed the product runtime through the product entry library by default. Declare 
 
 When crash isolation or a native library requires a separate process, host that runtime as a sidecar on the same machine with the same operation contracts. The plugin requires those operations and consumes that product's portable contract crates, beside its Dokime authoring dependency. Dokime data contracts live in `dokime-domain`; its operation declarations live in `dokime-operations` without the `runtime` feature.
 
+Stream row revisions derive automatically from their schema. Changing fields needs
+only a rebuild and plugin Reload, with no author version bump or backend restart.
+Saved rows retain their definitions. Documents and queries select stream ids and
+columns; absent columns contribute no values and incompatible columns are named
+on affected bindings without discarding readable evidence. Record revisions also
+derive from their declared fields; never author a record schema version. Rebuild
+plugins against the matching Harmos SDK. Plugin-owned records, stored objects and
+system facts retain their stored definitions, including when the plugin is absent;
+unknown plugin objects use `ObjectRetention::All`. Only unreadable Dokime-owned
+persistent state can require a fresh root.
+
 Declare records, streams, prompts and settings once in their domain owner. Dokime declares each operation, its policy and family catalog in `dokime-operations`; its `runtime`-gated implementation dispatches through host-provided resources. Plugin-provided operations follow their own operation families and one definition per operation. Public visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
 
 A template lists its calls in its `requires` catalog. Its plugin's own `Private` or `Public` operations can answer without a plugin-level requirement. Calls to another plugin require a `Public` operation and a declared plugin requirement. `Host` operations cannot satisfy a template call.
@@ -161,6 +172,17 @@ Use `?` by default for operation failures in a step.
   `Row`, `Required`, `Streams` and `Prompts`. Catalog variants match their
   operation names.
 - Cleanup attempts everything and logs a warning for each failure.
+
+Use `Plot::xy(label)` for explicit X and Y axes; style defaults to `Line`.
+Choose `PlotStyle::Points` for density-grid reduction, or `Line`, `LinePoints`
+or `Step` for the ordered envelope.
+
+Plot references are plot-owned Y-axis values in stored units. Use
+`plot.reference_band("Limits", lower, upper)`,
+`plot.reference_tolerance("Target ± Band", center, tolerance)` and
+`plot.reference_line("Limit", value)` with literals or expression handles.
+`plot.scale(...)` scales them with the data in live views and frozen reports.
+Do not associate references with a quantity or select an X reference axis.
 
 Canonical examples contain no placeholders.
 

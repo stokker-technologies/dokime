@@ -39,7 +39,8 @@ use dokime::{
 
 const METADATA_MAX_BYTES: usize = 1024 * 1024;
 const RELEASE_API: &str = "https://api.github.com/repos/stokker-technologies/dokime/releases/tags";
-/// The Mutable Prerelease Channel Whose Distribution Metadata Supplies Its Dokime Version.
+
+// The Mutable Prerelease Channel Whose Distribution Metadata Supplies Its Dokime Version.
 pub const NIGHTLY: &str = "nightly";
 
 /* === Macros === */

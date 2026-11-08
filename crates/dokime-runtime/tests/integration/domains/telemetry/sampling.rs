@@ -17,13 +17,13 @@
 use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
-use dokime_runtime::telemetry::{SamplingScope, TelemetryBatch, TelemetrySamplingRequest, TelemetrySourceKind};
-use dokime_runtime::{Identifier, Metadata, TestCycleId, Timestamp};
 use tempfile::TempDir;
 
 // Local Imports
 use crate::service_support::waits::until_telemetry;
 use dokime_runtime::domains::telemetry::{Sampler, SamplerSession, SettlementError};
+use dokime_runtime::telemetry::{SamplingScope, TelemetryBatch, TelemetrySamplingRequest, TelemetrySourceKind};
+use dokime_runtime::{Identifier, Metadata, TestCycleId, Timestamp};
 use dokime_runtime::{Runtime, RuntimeHandle};
 
 /* === Constants === */
@@ -33,6 +33,7 @@ use dokime_runtime::{Runtime, RuntimeHandle};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Default)]
 struct CountingSampler {
     opens: Count,
@@ -53,6 +54,7 @@ struct CountingSession {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Count {
     fn add(&self) {
         self.0.send_modify(|count| *count += 1);
@@ -104,6 +106,7 @@ impl Drop for CountingSession {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn test_runtime() -> (TempDir, Runtime, RuntimeHandle) {
     let root = tempfile::tempdir().unwrap();
     let runtime_owner = {
@@ -138,8 +141,6 @@ fn request(id: &str, interval_ms: u64) -> TelemetrySamplingRequest {
         start_after: None,
     }
 }
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
@@ -322,3 +323,5 @@ async fn host_publishers_required() {
         assert!(error.to_string().contains(stream), "{error}");
     }
 }
+
+/* === Tests === */

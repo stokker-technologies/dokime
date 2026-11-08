@@ -35,6 +35,7 @@ use {
 };
 
 /* === Constants === */
+
 const USER: &str = "bench";
 const PASSWORD: &str = "bench-secret";
 const SECRET: &str = "bench-ftp";
@@ -44,6 +45,7 @@ const SECRET: &str = "bench-ftp";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Debug)]
 struct BenchLogin;
 
@@ -52,6 +54,7 @@ struct BenchLogin;
 /* === Traits === */
 
 /* === Implementations === */
+
 #[async_trait::async_trait]
 impl Authenticator for BenchLogin {
     async fn authenticate(&self, username: &str, secrets: &Credentials) -> Result<Principal, AuthenticationError> {
@@ -68,6 +71,7 @@ impl Authenticator for BenchLogin {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // Serves `root` on a free loopback port until the runtime stops.
 async fn serve(root: &Path) -> u16 {
     let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
@@ -147,8 +151,6 @@ async fn refusing_resume(port: u16) -> (u16, tokio::task::JoinHandle<()>) {
     });
     (proxy_port, task)
 }
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
@@ -252,3 +254,5 @@ async fn stream_ftp_source() {
     drop(capture);
     bench.stop().await;
 }
+
+/* === Tests === */

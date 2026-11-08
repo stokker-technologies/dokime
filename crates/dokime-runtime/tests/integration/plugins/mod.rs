@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub(crate) mod store;
+
 mod recovery;
 
 /* === Re-Exports === */

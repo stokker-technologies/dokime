@@ -19,6 +19,7 @@ pub mod evidence;
 pub mod execution;
 pub mod files;
 pub mod history;
+
 #[cfg(feature = "runtime")]
 pub mod hosting;
 pub mod media;
@@ -178,7 +179,7 @@ pub enum Operations {
 
 /* === Public Functions === */
 
-/// The gRPC method path an operation declares, such as `/dokime.v1.Notes/CreateNote`.
+// The gRPC method path an operation declares, such as `/dokime.v1.Notes/CreateNote`.
 pub fn path<O: OperationDeclaration>() -> String {
     O::GRPC.expect("product operations declare their gRPC binding").path()
 }

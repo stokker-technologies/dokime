@@ -23,19 +23,17 @@ pub(crate) use detail::result as result_summary;
 
 /* === Imports === */
 
-use crate::grpc::transcode::Transcode;
-
 // Standard Library Imports
 use std::sync::Arc;
 
 // Third Party Imports
-use dokime::harmos::Context;
 use prost::Message;
 use tonic::{Code, Status};
 
 // Local Imports
 use super::value;
 use super::value::canonical;
+use crate::grpc::transcode::Transcode;
 use dokime::app::LiveRuntime;
 use dokime::definition::TestCase;
 use dokime::domain::model::diagnostics::ValidationIssue;
@@ -45,6 +43,7 @@ use dokime::domain::model::execution::result::CycleView;
 use dokime::domain::model::execution::result::ExecutionStatus;
 use dokime::domain::model::execution::wire_cursor::Cursor;
 use dokime::domain::model::identity::TestCycleId;
+use dokime::harmos::Context;
 use dokime::operations::execution as wire;
 use dokime::operations::hosting::{Host, Serve, Served};
 use dokime::runtime::Error;
@@ -309,66 +308,11 @@ pub(super) fn summary(
     cycle_summary(cycle, state.cases_for_cycle(cycle).count() as u64, tally, state.archived_cycles.contains(&cycle.test_cycle_id), cursor)
 }
 
-fn cycle_summary(
-    cycle: &dokime::domain::model::execution::result::TestCycle, case_count: u64, tally: dokime::runtime::query::CaseTally, archived: bool,
-    cursor: Cursor,
-) -> Result<dokime::domain::model::execution::wire::CycleSummary, Status> {
-    Ok(dokime::domain::model::execution::wire::CycleSummary {
-        cycle_id: cycle.test_cycle_id.to_string(),
-        metadata: Some(canonical::metadata(&cycle.metadata)?),
-        phase: cycle.phase,
-        status: match cycle.lifecycle {
-            CycleStatus::Ready => dokime::domain::model::execution::wire::CycleStatus::Ready,
-            CycleStatus::Running => dokime::domain::model::execution::wire::CycleStatus::Running,
-            CycleStatus::Paused => dokime::domain::model::execution::wire::CycleStatus::Paused,
-            CycleStatus::Stopping => dokime::domain::model::execution::wire::CycleStatus::Stopping,
-            CycleStatus::Completed => dokime::domain::model::execution::wire::CycleStatus::Completed,
-            CycleStatus::Failed => dokime::domain::model::execution::wire::CycleStatus::Failed,
-            CycleStatus::Blocked => dokime::domain::model::execution::wire::CycleStatus::Blocked,
-            CycleStatus::Stopped => dokime::domain::model::execution::wire::CycleStatus::Stopped,
-        },
-        archived,
-        sealed: cycle.saved.is_some(),
-        case_count,
-        execution_count: cycle.execution_ids.len() as u64,
-        continue_automatically: cycle.continue_automatically,
-        observed_cursor: Some(cursor),
-        created_at: Some(canonical::timestamp(&cycle.created_at)?),
-        started_at: cycle.started_at.as_ref().map(canonical::timestamp).transpose()?,
-        updated_at: Some(canonical::timestamp(&cycle.updated_at)?),
-        result: cycle.result.as_ref().map(detail::result),
-        running_count: tally.running,
-        queued_count: tally.queued,
-        seal_failure: cycle.seal_failure.clone(),
-    })
-}
-
 pub(super) fn case_summary(
     case: &TestCase, ordinal: usize, projection: CaseProjection,
 ) -> Result<dokime::domain::model::execution::wire::CaseSummary, Status> {
     let header = dokime::runtime::query::cases::CaseHeader::new(case, ordinal, projection);
     case_header_summary(header)
-}
-
-fn case_header_summary(
-    case: dokime::runtime::query::cases::CaseHeader,
-) -> Result<dokime::domain::model::execution::wire::CaseSummary, Status> {
-    let projection = case.projection;
-    Ok(dokime::domain::model::execution::wire::CaseSummary {
-        suite_id: case.suite_id,
-        case_id: case.case_id.to_string(),
-        template_id: case.template_id.to_string(),
-        metadata: Some(canonical::metadata(&case.metadata)?),
-        ordinal: case.ordinal as u64,
-        status: projection.status.map_or(dokime::domain::model::execution::wire::CaseStatus::Unspecified, case_status),
-        latest_execution_id: projection.latest_execution_id.as_ref().map(|id| id.as_str().to_owned()),
-        latest_execution_status: projection.latest_execution_status.as_ref().map(execution_status),
-        attempt_count: projection.attempt_count,
-        actions: Some(dokime::domain::model::execution::wire::CaseActions {
-            delete: projection.actions.delete,
-            unavailable_reasons: projection.actions.unavailable_reasons,
-        }),
-    })
 }
 
 pub(super) fn historical_case_summary(
@@ -415,7 +359,77 @@ pub(super) fn execution_summary(
     }
 }
 
+pub(super) fn cycle_filter(filter: Option<&dokime::domain::model::execution::wire::CycleFilter>) -> Result<CycleFilter, Status> {
+    let Some(filter) = filter else {
+        return Ok(CycleFilter::default());
+    };
+
+    value::collection(filter.statuses.len())?;
+    Ok(CycleFilter {
+        text: filter.text.clone(),
+        statuses: filter.statuses.iter().copied().map(cycle_status).collect::<Result<_, Status>>()?,
+        created_after: filter.created_after.map(canonical::decoded_timestamp).transpose()?,
+        created_before: filter.created_before.map(canonical::decoded_timestamp).transpose()?,
+        archive: archive_scope(filter.archive),
+    })
+}
+
 /* === Private Functions === */
+
+fn cycle_summary(
+    cycle: &dokime::domain::model::execution::result::TestCycle, case_count: u64, tally: dokime::runtime::query::CaseTally, archived: bool,
+    cursor: Cursor,
+) -> Result<dokime::domain::model::execution::wire::CycleSummary, Status> {
+    Ok(dokime::domain::model::execution::wire::CycleSummary {
+        cycle_id: cycle.test_cycle_id.to_string(),
+        metadata: Some(canonical::metadata(&cycle.metadata)?),
+        phase: cycle.phase,
+        status: match cycle.lifecycle {
+            CycleStatus::Ready => dokime::domain::model::execution::wire::CycleStatus::Ready,
+            CycleStatus::Running => dokime::domain::model::execution::wire::CycleStatus::Running,
+            CycleStatus::Paused => dokime::domain::model::execution::wire::CycleStatus::Paused,
+            CycleStatus::Stopping => dokime::domain::model::execution::wire::CycleStatus::Stopping,
+            CycleStatus::Completed => dokime::domain::model::execution::wire::CycleStatus::Completed,
+            CycleStatus::Failed => dokime::domain::model::execution::wire::CycleStatus::Failed,
+            CycleStatus::Blocked => dokime::domain::model::execution::wire::CycleStatus::Blocked,
+            CycleStatus::Stopped => dokime::domain::model::execution::wire::CycleStatus::Stopped,
+        },
+        archived,
+        sealed: cycle.saved.is_some(),
+        case_count,
+        execution_count: cycle.execution_ids.len() as u64,
+        continue_automatically: cycle.continue_automatically,
+        observed_cursor: Some(cursor),
+        created_at: Some(canonical::timestamp(&cycle.created_at)?),
+        started_at: cycle.started_at.as_ref().map(canonical::timestamp).transpose()?,
+        updated_at: Some(canonical::timestamp(&cycle.updated_at)?),
+        result: cycle.result.as_ref().map(detail::result),
+        running_count: tally.running,
+        queued_count: tally.queued,
+        seal_failure: cycle.seal_failure.clone(),
+    })
+}
+
+fn case_header_summary(
+    case: dokime::runtime::query::cases::CaseHeader,
+) -> Result<dokime::domain::model::execution::wire::CaseSummary, Status> {
+    let projection = case.projection;
+    Ok(dokime::domain::model::execution::wire::CaseSummary {
+        suite_id: case.suite_id,
+        case_id: case.case_id.to_string(),
+        template_id: case.template_id.to_string(),
+        metadata: Some(canonical::metadata(&case.metadata)?),
+        ordinal: case.ordinal as u64,
+        status: projection.status.map_or(dokime::domain::model::execution::wire::CaseStatus::Unspecified, case_status),
+        latest_execution_id: projection.latest_execution_id.as_ref().map(|id| id.as_str().to_owned()),
+        latest_execution_status: projection.latest_execution_status.as_ref().map(execution_status),
+        attempt_count: projection.attempt_count,
+        actions: Some(dokime::domain::model::execution::wire::CaseActions {
+            delete: projection.actions.delete,
+            unavailable_reasons: projection.actions.unavailable_reasons,
+        }),
+    })
+}
 
 fn inspection_reply<T: dokime::harmos::domain::Portable>(service: &Resources, value: T) -> Result<T, Status> {
     if value.wire_len()? > service.max_message_bytes {
@@ -437,21 +451,6 @@ fn case_status(status: CaseStatus) -> dokime::domain::model::execution::wire::Ca
         CaseStatus::Cancelled => dokime::domain::model::execution::wire::CaseStatus::Cancelled,
         CaseStatus::Interrupted => dokime::domain::model::execution::wire::CaseStatus::Interrupted,
     }
-}
-
-pub(super) fn cycle_filter(filter: Option<&dokime::domain::model::execution::wire::CycleFilter>) -> Result<CycleFilter, Status> {
-    let Some(filter) = filter else {
-        return Ok(CycleFilter::default());
-    };
-
-    value::collection(filter.statuses.len())?;
-    Ok(CycleFilter {
-        text: filter.text.clone(),
-        statuses: filter.statuses.iter().copied().map(cycle_status).collect::<Result<_, Status>>()?,
-        created_after: filter.created_after.map(canonical::decoded_timestamp).transpose()?,
-        created_before: filter.created_before.map(canonical::decoded_timestamp).transpose()?,
-        archive: archive_scope(filter.archive),
-    })
 }
 
 fn cycle_order(order: Option<&dokime::domain::model::execution::wire::CycleOrder>) -> CycleOrder {
@@ -558,31 +557,36 @@ fn execution_page<'a>(
 
 /* === Tests === */
 
-#[test]
-fn report_failure_details() {
-    use dokime::domain::model::{evidence::wire::CapturedRecordError, reports::wire::ReportSubject};
-    use dokime::harmos::grpc::{Transcoded, Wire};
-    use harmos_sdk::grpc::DecodeInput;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let execution = "00000000-0000-7000-8000-000000000123";
-    let root = std::env::current_dir().unwrap();
-    let source = std::io::Error::other(format!("fixture-save-root: {}", root.join("report.html").display()));
-    let error = Error::ReportSave {
-        subject: ReportSubject::Execution(execution.into()),
-        stage: "execution report publication",
-        source: Box::new(Error::ReportUnavailable(Box::new(source.into()))),
-    };
-    let status = status(error);
-    assert_eq!(status.code(), Code::Internal);
-    let envelope = tonic_types::Status::decode(status.details()).unwrap();
-    let detail = envelope.details.iter().find(|detail| detail.type_url.ends_with("CapturedRecordError")).unwrap();
-    let (detail, _) =
-        <Transcoded as Wire<CapturedRecordError>>::decode_admitted(DecodeInput::new(&detail.value), |_| Ok::<_, Status>(())).unwrap();
-    assert_eq!(detail.code.as_deref(), Some("report_not_saved"));
-    assert!(detail.message.contains(execution));
-    assert!(detail.message.contains("execution report publication"));
-    assert!(detail.cause_chain.len() >= 2);
-    assert_eq!(detail.cause_chain.last().unwrap().message, "fixture-save-root: report.html");
-    assert!(!detail.cause_chain.iter().any(|cause| cause.message.contains(&root.display().to_string())));
-    assert!(detail.source.is_some());
+    #[test]
+    fn report_failure_details() {
+        use dokime::domain::model::{evidence::wire::CapturedRecordError, reports::wire::ReportSubject};
+        use dokime::harmos::grpc::{Transcoded, Wire};
+        use harmos_sdk::grpc::DecodeInput;
+
+        let execution = "00000000-0000-7000-8000-000000000123";
+        let root = std::env::current_dir().unwrap();
+        let source = std::io::Error::other(format!("fixture-save-root: {}", root.join("report.html").display()));
+        let error = Error::ReportSave {
+            subject: ReportSubject::Execution(execution.into()),
+            stage: "execution report publication",
+            source: Box::new(Error::ReportUnavailable(Box::new(source.into()))),
+        };
+        let status = status(error);
+        assert_eq!(status.code(), Code::Internal);
+        let envelope = tonic_types::Status::decode(status.details()).unwrap();
+        let detail = envelope.details.iter().find(|detail| detail.type_url.ends_with("CapturedRecordError")).unwrap();
+        let (detail, _) =
+            <Transcoded as Wire<CapturedRecordError>>::decode_admitted(DecodeInput::new(&detail.value), |_| Ok::<_, Status>(())).unwrap();
+        assert_eq!(detail.code.as_deref(), Some("report_not_saved"));
+        assert!(detail.message.contains(execution));
+        assert!(detail.message.contains("execution report publication"));
+        assert!(detail.cause_chain.len() >= 2);
+        assert_eq!(detail.cause_chain.last().unwrap().message, "fixture-save-root: report.html");
+        assert!(!detail.cause_chain.iter().any(|cause| cause.message.contains(&root.display().to_string())));
+        assert!(detail.source.is_some());
+    }
 }

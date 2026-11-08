@@ -56,6 +56,7 @@ struct Plan {
     contracts: Vec<TelemetryContract>,
     limits: Limits,
     context: BTreeMap<String, dokime_domain::model::values::Value>,
+
     #[serde(skip)]
     preview: Preview,
 }
@@ -342,46 +343,6 @@ impl Checkpoint {
 
 /* === Public Functions === */
 
-fn uses_shared_fields(request: &PlotPayloadRequest, contracts: &[TelemetryContract]) -> bool {
-    let numeric = |field: &str| {
-        !field.contains('.')
-            && contracts.iter().any(|contract| {
-                crate::plot::stream_matches_alias(contract.stream.as_str(), &request.stream)
-                    && contract.normalized().columns.iter().any(|column| {
-                        column.metadata.identifier.as_str() == field
-                            && matches!(
-                                column.value_type,
-                                dokime_domain::model::values::ValueType::Integer | dokime_domain::model::values::ValueType::Number
-                            )
-                    })
-            })
-    };
-    request.analysis.is_none()
-        && request.filters.is_empty()
-        && request.series_by.is_none()
-        && request.series_by_expression.is_none()
-        && request.z_expression.is_none()
-        && request.z_stream.is_none()
-        && request.z_field.is_none()
-        && request.x_expression.is_none()
-        && request.x_key.as_deref().is_none_or(|key| key == "timestamp")
-        && request.summary_window.is_none()
-        && request.marker_record_types.is_empty()
-        && request.scope.as_ref().is_none_or(|scope| scope.step_id.is_none() && scope.criterion_id.is_none())
-        && matches!(request.plot_type, None | Some(crate::document::PlotType::TimeSeries))
-        && request.y_expressions.iter().all(|expression| {
-            matches!(&expression.source, crate::expressions::DataSource::Telemetry { stream, .. }
-                if crate::plot::stream_matches_alias(&request.stream, stream))
-                && expression.transforms.is_empty()
-        })
-        && (!request.y_keys.is_empty() || !request.y_expressions.is_empty())
-        && request.y_keys.iter().all(|field| numeric(field))
-        && request
-            .y_expressions
-            .iter()
-            .all(|expression| matches!(&expression.source,crate::expressions::DataSource::Telemetry { field,.. } if numeric(field)))
-}
-
 pub(crate) fn uses_numeric_mean(request: &PlotPayloadRequest) -> bool {
     request
         .analysis
@@ -455,16 +416,6 @@ pub(crate) fn decorate(payload: &mut PlotPayload, contracts: &[TelemetryContract
     }
 }
 
-/* === Private Functions === */
-
-fn decode_plan(bytes: &[u8]) -> Result<Plan, Error> {
-    serde_json::from_slice(bytes).map_err(|error| {
-        Error::Incompatible(format!(
-            "Plot preview layout is incompatible; use a fresh storage root and preserve the existing evidence: {error}"
-        ))
-    })
-}
-
 // Checkpoints That Advanced Past The Cut Are Omitted So Their Plots Rebuild Through It.
 pub(crate) fn checkpoints(connection: &Connection, execution: &str, at: u64) -> Result<BTreeMap<String, Checkpoint>, Error> {
     let mut query = connection.prepare(
@@ -494,6 +445,56 @@ pub(crate) fn checkpoints(connection: &Connection, execution: &str, at: u64) -> 
         checkpoints.insert(row.get(0)?, checkpoint);
     }
     Ok(checkpoints)
+}
+
+/* === Private Functions === */
+
+fn uses_shared_fields(request: &PlotPayloadRequest, contracts: &[TelemetryContract]) -> bool {
+    let numeric = |field: &str| {
+        !field.contains('.')
+            && contracts.iter().any(|contract| {
+                crate::plot::stream_matches_alias(contract.stream.as_str(), &request.stream)
+                    && contract.normalized().columns.iter().any(|column| {
+                        column.metadata.identifier.as_str() == field
+                            && matches!(
+                                column.value_type,
+                                dokime_domain::model::values::ValueType::Integer | dokime_domain::model::values::ValueType::Number
+                            )
+                    })
+            })
+    };
+    request.analysis.is_none()
+        && request.filters.is_empty()
+        && request.series_by.is_none()
+        && request.series_by_expression.is_none()
+        && request.z_expression.is_none()
+        && request.z_stream.is_none()
+        && request.z_field.is_none()
+        && request.x_expression.is_none()
+        && request.x_key.as_deref().is_none_or(|key| key == "timestamp")
+        && request.summary_window.is_none()
+        && request.marker_record_types.is_empty()
+        && request.scope.as_ref().is_none_or(|scope| scope.step_id.is_none() && scope.criterion_id.is_none())
+        && matches!(request.plot_type, None | Some(crate::document::PlotType::TimeSeries))
+        && request.y_expressions.iter().all(|expression| {
+            matches!(&expression.source, crate::expressions::DataSource::Telemetry { stream, .. }
+                if crate::plot::stream_matches_alias(&request.stream, stream))
+                && expression.transforms.is_empty()
+        })
+        && (!request.y_keys.is_empty() || !request.y_expressions.is_empty())
+        && request.y_keys.iter().all(|field| numeric(field))
+        && request
+            .y_expressions
+            .iter()
+            .all(|expression| matches!(&expression.source,crate::expressions::DataSource::Telemetry { field,.. } if numeric(field)))
+}
+
+fn decode_plan(bytes: &[u8]) -> Result<Plan, Error> {
+    serde_json::from_slice(bytes).map_err(|error| {
+        Error::Incompatible(format!(
+            "Plot preview layout is incompatible; use a fresh storage root and preserve the existing evidence: {error}"
+        ))
+    })
 }
 
 fn load_plan(

@@ -12,11 +12,13 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use sdk::definition::DeclaredTemplate;
 use sdk::execution::{CriterionContext, ObserverContext, StepContext};
+
 // Local Imports
 
 /* === Constants === */
@@ -26,6 +28,7 @@ use sdk::execution::{CriterionContext, ObserverContext, StepContext};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Probe;
 
 struct Checks;
@@ -47,8 +50,6 @@ struct StableSamples;
 
 /* === Enums === */
 
-/* === Traits === */
-
 #[sdk::catalog]
 enum SamplesStreams {
     Samples(Samples),
@@ -59,7 +60,15 @@ enum StableSamplesStreams {
     StableSamples(StableSamples),
 }
 
+#[sdk::catalog]
+enum ChecksTemplates {
+    Probe(Probe),
+}
+
+/* === Traits === */
+
 /* === Implementations === */
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("probe failed")
@@ -67,11 +76,6 @@ impl std::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
-
-#[sdk::catalog]
-enum ChecksTemplates {
-    Probe(Probe),
-}
 
 #[sdk::suite(label = "Checks", templates = ChecksTemplates)]
 impl Checks {}

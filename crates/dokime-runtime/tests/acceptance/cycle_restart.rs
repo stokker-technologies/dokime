@@ -27,6 +27,7 @@ use crate::service_support::publication::{PublicationBackend, PublicationFault};
 use dokime_runtime::storage::objects::cycle::Cycle;
 
 /* === Constants === */
+
 const ROOT: &str = "DOKIME_CYCLE_RESTART_ROOT";
 const PHASE: &str = "DOKIME_CYCLE_RESTART_PHASE";
 const CHILD: &str = "cycle_restart::cycle_restart_child";
@@ -38,6 +39,7 @@ const BEFORE_ADOPTION: i32 = 74;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct CrashAdoption {
     inner: Arc<dyn StateBackend>,
     root: PathBuf,
@@ -49,6 +51,7 @@ struct CrashAdoption {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl StateBackend for CrashAdoption {
     fn history(&self) -> &StoreHistory {
         self.inner.history()
@@ -95,8 +98,6 @@ impl StateBackend for CrashAdoption {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/* === Tests === */
 
 fn has_cycle_adoption(value: &serde_json::Value) -> bool {
     match value {
@@ -267,3 +268,5 @@ async fn cycle_crash_recovery() {
         owner.shutdown().await.unwrap();
     }
 }
+
+/* === Tests === */

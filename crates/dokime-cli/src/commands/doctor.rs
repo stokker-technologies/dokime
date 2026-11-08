@@ -21,12 +21,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 // Third Party Imports
+
+// Local Imports
 use dokime::harmos::storage::{
     BackendFailure, ByteRange, CaptureConsistency, FileMetadata, Identifier, StorageBackend, StorageBackends, StorageFuture, Worker,
     WorkerOwner,
 };
-
-// Local Imports
 
 /* === Constants === */
 
@@ -42,6 +42,7 @@ const PROBE_BYTES: &[u8] = b"dokime storage probe\n";
 pub(crate) struct StorageArgs {
     #[arg(long, help = "Data root to probe instead of the resolved Dokime data root.")]
     data_root: Option<PathBuf>,
+
     #[arg(long = "path", help = "Additional directory to probe; repeatable.")]
     paths: Vec<PathBuf>,
 }

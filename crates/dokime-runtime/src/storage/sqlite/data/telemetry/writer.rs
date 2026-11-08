@@ -47,6 +47,7 @@ pub(crate) struct Store {
     pub root: PathBuf,
     pub settings: super::super::super::Settings,
     open: BTreeMap<String, Stream>,
+
     #[cfg(test)]
     fail_sync: bool,
 }

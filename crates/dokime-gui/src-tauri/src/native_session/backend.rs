@@ -26,7 +26,6 @@ use dokime_server::host;
 
 const DESKTOP_READINESS_TIMEOUT_MS: u64 = 60_000;
 const DESKTOP_STARTUP_DIAGNOSTIC_BYTES: u64 = 65_536;
-
 const REDACTED: &str = "<redacted>";
 const BEARER: &str = "bearer";
 const AUTHORIZATION: &str = "authorization";
@@ -196,11 +195,15 @@ fn quote_or_blank(byte: u8) -> bool {
 /* === Tests === */
 
 #[cfg(test)]
-#[test]
-fn diagnostics_redact_secrets() {
-    let message = redact("Authorization: Bearer fixture-access-key\npassword='fixture-password' token=fixture-token");
-    for secret in ["fixture-access-key", "fixture-password", "fixture-token"] {
-        assert!(!message.contains(secret));
+mod tests {
+    use super::*;
+
+    #[test]
+    fn diagnostics_redact_secrets() {
+        let message = redact("Authorization: Bearer fixture-access-key\npassword='fixture-password' token=fixture-token");
+        for secret in ["fixture-access-key", "fixture-password", "fixture-token"] {
+            assert!(!message.contains(secret));
+        }
+        assert!(message.contains(REDACTED));
     }
-    assert!(message.contains(REDACTED));
 }
