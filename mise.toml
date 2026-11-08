@@ -215,7 +215,7 @@ description = "Check Rust"
 run = [{ task = "format:rust --check" }, { task = "lint:rust" }, "cargo-machete --skip-target-dir"]
 
 [tasks."check:typescript"]
-description = "Check TypeScript Formatting and Lint; Type Checking Runs in check:typescript:generated"
+description = "Check TypeScript Formatting and Lint Without Type Checking"
 run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }]
 
 [tasks."check:typescript:generated"]
