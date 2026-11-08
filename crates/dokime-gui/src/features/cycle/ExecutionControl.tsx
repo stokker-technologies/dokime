@@ -69,7 +69,7 @@ const ACTION_ICONS: Record<ExecutionAction, ReactNode> = {
 
 export type ExecutionActions = {
   state: ExecutionControlState;
-  progress: { completed: number; total: number } | null;
+  progress: { completed: number; phase: string; total: number } | null;
   /** Whether the action's command is in flight or refused right now. */
   disabled: (action: ExecutionAction) => boolean;
   run: (action: ExecutionAction) => void;

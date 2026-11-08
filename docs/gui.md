@@ -76,6 +76,14 @@ journal and logs. Beside the bar it shows the runtime's progress phase and
 count, `Samples 38/100`, or the count alone when the phase is empty. The cycle's
 Control reads `Execution 2 · Sample Loop` with the same bar.
 
+The cycle's menu offers **Rerun Cycle** in every phase, sealed and archived
+alike. It calls `Execution.RerunCycle` and opens the new cycle. When the reply
+skips cases or drops parameters, that cycle's Control card states them, one line
+per reason: `2 cases skipped: obc.pulse, obc.sweep, its suite no longer declares
+this case`. The notices live in `src/stores/rerun-notice-store.ts` for the
+session only. A rerun cycle's summary reads `Rerun of <source title>`, linking to
+the source.
+
 The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
 current live cycles and durable sealed cycle headers as one list, with the same
 filter, ordering and continuation rules. A live cycle supersedes its saved

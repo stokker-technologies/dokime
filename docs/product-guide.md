@@ -163,6 +163,20 @@ Starting an unrun case in an open cycle after its plugin is removed fails clearl
 with `execution_plugin_unavailable`; install the original revision or add a case
 from an available plugin.
 
+**Rerun Cycle** creates a new Active cycle from any existing cycle, whether
+Active, Sealed or archived. It takes the source's planned cases in order and
+plans each again by suite, case and parameters, unrun and without attempts or
+evidence. The new cycle keeps the source's title unless another is given, its
+description, tags, attributes and Continue Automatically, and records the source
+in its `rerun_of` attribute, which `CycleSummary.rerun_of` exposes. The source is
+untouched. Cases resolve against the plugin installed now, not the source's
+definition revision, so a changed plugin runs its current version. A case whose
+suite or case is no longer declared is skipped, and parameters the current case
+no longer declares are dropped; the reply reports both with their reasons. When
+no case survives, the rerun is refused with `rerun_no_cases`, naming the plugin
+and the missing cases, and nothing is created. Copy Cycle, by contrast, clones
+the source's frozen executions.
+
 Seal Failed is settled: later startups do not seal it again. Retry Seal resumes
 from the saved evidence, without requiring the plugin, and returns to
 Seal Failed with the new cause if the seal still cannot complete. Archive hides
@@ -1405,6 +1419,7 @@ and [control-prompt](../sdk/python/examples/remote/cli/control-prompt.sh).
 | --- | --- | --- |
 | `dokime cycle create` | Create an empty active cycle. | `--label`, `--continue-automatically`, `--id-only` |
 | `dokime cycle append` | Register executions in an existing cycle. | `--case-id`, `--id-only`, `--cancel-on-interrupt` |
+| `dokime cycle rerun` | Create a new planned cycle from an existing cycle's cases. | `--label`, `--json`, `--id-only` |
 | `dokime cycle seal` | Close admission, stop the cycle's work and wait for sealing. | `--json` |
 | `dokime cycle report` | Download a running or sealed cycle's HTML report. | `--output`, `--overwrite`, `--identifier` |
 | `dokime cycle export` | Download the evidence ZIP of a sealed cycle. | `--output`, `--overwrite` |

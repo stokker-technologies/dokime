@@ -13,7 +13,9 @@
 # Local Imports
 from ._transport import DiscoveredOperation as DiscoveredOperation
 from .aggregate import Aggregate as Aggregate
+from .client import CycleRerun as CycleRerun
 from .client import DokimeClient as DokimeClient
+from .client import RerunNotice as RerunNotice
 from .errors import BackendChanged as BackendChanged
 from .errors import ClientClosed as ClientClosed
 from .errors import DokimeError as DokimeError

@@ -218,6 +218,7 @@ async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleS
       started_at: timestampIso(summary.startedAt),
       finished_at: summary.phase?.HarmosVariant.case === "Sealed" ? timestampIso(summary.updatedAt) : null,
       seal_failure: summary.sealFailure ?? null,
+      rerun_of: summary.rerunOf ?? null,
       duration_s: durationSeconds(summary.startedAt, summary.updatedAt),
       duration_delta_s: null,
       metadata: metadataJson(summary.metadata),

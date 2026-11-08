@@ -136,7 +136,16 @@ export type FollowState = {
 };
 
 /** One entry of a node's "…" menu. */
-export type NodeMenuItem = "Copy Cycle" | "Add Cases" | "Settings" | "Follow Active" | "Open Report" | "Archive" | "Unarchive" | "Re-Run";
+export type NodeMenuItem =
+  | "Rerun Cycle"
+  | "Copy Cycle"
+  | "Add Cases"
+  | "Settings"
+  | "Follow Active"
+  | "Open Report"
+  | "Archive"
+  | "Unarchive"
+  | "Re-Run";
 
 /** The page bar's Download Report button as it stands. */
 export type ReportDownloadState = {
@@ -327,11 +336,13 @@ export function finishedCaseCount(cases: readonly CycleCase[]): number {
  * there and always enabled: the runtime answers with the sealed report, the
  * one regenerated from sealed evidence, or one rendered from the run so far.
  * The last group archives the node, or unarchives one already archived.
+ * Rerun Cycle is offered in every phase, sealed and archived alike: it plans
+ * a new cycle and leaves this one untouched.
  */
 export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): NodeMenuItem[][] {
   const archive: NodeMenuItem = archived ? "Unarchive" : "Archive";
   return kind === "cycle"
-    ? [["Copy Cycle", "Add Cases", "Follow Active"], ["Open Report", "Settings"], [archive]]
+    ? [["Rerun Cycle", "Copy Cycle", "Add Cases", "Follow Active"], ["Open Report", "Settings"], [archive]]
     : [["Re-Run"], ["Open Report", "Settings"], [archive]];
 }
 

@@ -97,6 +97,9 @@ async fn execution_seal_report() {
     stage(lifecycle::continuation_after_failure()).await;
     stage(planning::empty_cycle_grows()).await;
     stage(planning::empty_cycle_seals()).await;
+    stage(planning::sealed_cycle_reruns()).await;
+    stage(planning::rerun_skips_missing_cases()).await;
+    stage(planning::rerun_without_cases_refused()).await;
 }
 
 #[dokime_tracing::trace_test]

@@ -19,7 +19,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { Archive, ArchiveRestore, Copy, Ellipsis, FileText, Plus, RotateCcw, Settings2 } from "lucide-react";
+import { Archive, ArchiveRestore, Copy, Ellipsis, FileText, Plus, Repeat, RotateCcw, Settings2 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 
 // Local Imports
@@ -55,6 +55,8 @@ export type CycleMenu = {
   followActive: boolean;
   onAddCases: () => void;
   onCopyCycle: () => void;
+  /** Plans a new cycle with this one's cases against the installed plugin, and opens it. */
+  onRerunCycle: () => void;
   /** Opens the report the cycle has now: current or sealed. */
   onOpenReport: () => void;
   /** Opens the cycle's Settings: title, description, Continue Automatically. */
@@ -161,6 +163,13 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
   }
   if (menu.kind !== "cycle") return null;
   switch (item) {
+    case "Rerun Cycle":
+      return (
+        <DropdownMenuItem onSelect={menu.onRerunCycle}>
+          <Repeat />
+          Rerun Cycle
+        </DropdownMenuItem>
+      );
     case "Copy Cycle":
       return (
         <DropdownMenuItem onSelect={menu.onCopyCycle}>
