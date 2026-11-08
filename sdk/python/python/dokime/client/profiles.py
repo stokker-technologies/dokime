@@ -52,7 +52,7 @@ def load(identifier: str, *, path: str | Path | None = None) -> Profile:
 
 def decode(data: bytes) -> Document:
     value = json.loads(_native.decode_profiles(data))
-    return Document(version=value["version"], default=value.get("default"), profiles=tuple(_profile(item) for item in value["profiles"]))
+    return Document(default=value.get("default"), profiles=tuple(_profile(item) for item in value["profiles"]))
 
 
 def remember_endpoint(profile: Profile, path: Path, endpoint: str) -> None:

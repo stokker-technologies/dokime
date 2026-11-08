@@ -62,7 +62,7 @@ def test_named_profile_selection(tmp_path, monkeypatch):
     assert client._transport._expected_backend_id == "machine-1"
 
     # Loaded Profiles Are Snapshots of the Document
-    path.write_text('{"version":1,"profiles":[]}')
+    path.write_text('{"profiles":[]}')
     assert profile.expected_backend_id == "machine-1"
     assert client._transport._expected_backend_id == "machine-1"
     with pytest.raises(ValueError):
