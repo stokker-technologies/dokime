@@ -233,19 +233,25 @@ impl RecordContract {
         Schema { root: 0, definitions, representations }
     }
 
-    /// Derives the revision of this contract's storage schema, computed once per distinct field shape.
+    // Derives The Revision Of This Contract's Storage Schema Once Per Distinct Field Shape.
     pub fn schema_version(&self) -> u32 {
         static REVISIONS: LazyLock<RwLock<HashMap<u64, Vec<(Vec<FieldShape>, u32)>>>> = LazyLock::new(Default::default);
 
         let key = self.shape_hash();
-        let cached = REVISIONS.read().unwrap_or_else(std::sync::PoisonError::into_inner).get(&key).and_then(|shapes| {
-            shapes.iter().find(|(shape, _)| self.has_shape(shape)).map(|(_, revision)| *revision)
-        });
+        let cached = REVISIONS
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&key)
+            .and_then(|shapes| shapes.iter().find(|(shape, _)| self.has_shape(shape)).map(|(_, revision)| *revision));
         if let Some(revision) = cached {
             return revision;
         }
         let revision = self.derived_schema_version();
-        let shape = self.fields.iter().map(|field| (field.metadata.identifier.clone(), field.value_type.clone(), field.nullable, field.required)).collect();
+        let shape = self
+            .fields
+            .iter()
+            .map(|field| (field.metadata.identifier.clone(), field.value_type.clone(), field.nullable, field.required))
+            .collect();
         let mut revisions = REVISIONS.write().unwrap_or_else(std::sync::PoisonError::into_inner);
         let shapes = revisions.entry(key).or_default();
         if !shapes.iter().any(|(shape, _)| self.has_shape(shape)) {
@@ -433,7 +439,14 @@ mod tests {
         optional.fields[0].required = !optional.fields[0].required;
         let extended =
             base.clone().field(RecordField::new(Metadata::new(Identifier::new("label").unwrap(), "Label", None), ValueType::Text));
-        let contracts = [base.clone(), retyped, nullable, optional, extended, crate::model::records::BuiltinRecordType::ToolConnectionAcquired.contract()];
+        let contracts = [
+            base.clone(),
+            retyped,
+            nullable,
+            optional,
+            extended,
+            crate::model::records::BuiltinRecordType::ToolConnectionAcquired.contract(),
+        ];
         for contract in &contracts {
             assert_eq!(contract.schema_version(), contract.derived_schema_version());
             assert_eq!(contract.schema_version(), contract.derived_schema_version());

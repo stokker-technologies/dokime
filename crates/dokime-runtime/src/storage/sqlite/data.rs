@@ -815,8 +815,7 @@ mod tests {
                     scope: (sequence % 3 == 0).then(|| harmos::Identifier::new(format!("scope-{}", sequence % 2)).unwrap()),
                     item: harmos::Identifier::new("fixture").unwrap(),
                     source: None,
-                    source_time: (sequence % 5 != 0)
-                        .then(|| std::time::UNIX_EPOCH + std::time::Duration::from_micros(sequence * 7)),
+                    source_time: (sequence % 5 != 0).then(|| std::time::UNIX_EPOCH + std::time::Duration::from_micros(sequence * 7)),
                     payload: sequence.to_le_bytes().to_vec(),
                 },
             })
@@ -839,13 +838,12 @@ mod tests {
 
     #[test]
     fn batched_inserts_store_the_rows_and_indexes_of_single_row_inserts() {
-        let root = tempfile::tempdir().unwrap();
-        let mut batched = Connection::open(root.path().join("batched.sqlite")).unwrap();
+        let root = std::path::Path::new("");
+        let mut batched = Connection::open_in_memory().unwrap();
         let head = open(&mut batched, None).unwrap();
         // Two Full Multi-Row Statements And A Single-Row Remainder.
         let rows = stream_rows(&head.history, 0, 2 * INSERT_ROWS as u64 + 7);
-        let saved = write(&mut batched, root.path(), StorageBatch::new(rows.clone()), &mut Default::default(), &mut Default::default())
-            .unwrap();
+        let saved = write(&mut batched, root, StorageBatch::new(rows.clone()), &mut Default::default(), &mut Default::default()).unwrap();
         assert_eq!(saved.sequence, rows.len() as u64);
 
         // The Former Path Inserted Each Encoded Row With One Statement.
@@ -876,7 +874,7 @@ mod tests {
         assert_eq!(entries(&batched), entries(&single));
         assert!(consistent(&batched) && consistent(&single));
 
-        // A Batch Interrupted Before Its Commit Leaves Nothing Of Itself Visible After Reopening.
+        // A Batch Interrupted Before Its Commit Leaves Nothing Of Itself Visible.
         batched
             .execute_batch(&format!(
                 "CREATE TRIGGER interrupt BEFORE INSERT ON storage_data_entries WHEN NEW.position='{}' BEGIN SELECT RAISE(ABORT,'interrupted'); END",
@@ -884,18 +882,17 @@ mod tests {
             ))
             .unwrap();
         let later = stream_rows(&head.history, rows.len() as u64, 2 * INSERT_ROWS as u64);
-        assert!(write(&mut batched, root.path(), StorageBatch::new(later), &mut Default::default(), &mut Default::default()).is_err());
-        drop(batched);
-        let reopened = Connection::open(root.path().join("batched.sqlite")).unwrap();
-        assert_eq!(entries(&reopened), entries(&single));
-        assert_eq!(saved_position(&reopened), rows.len() as u64);
-        assert!(consistent(&reopened));
+        assert!(write(&mut batched, root, StorageBatch::new(later), &mut Default::default(), &mut Default::default()).is_err());
+        assert!(batched.is_autocommit());
+        assert_eq!(entries(&batched), entries(&single));
+        assert_eq!(saved_position(&batched), rows.len() as u64);
+        assert!(consistent(&batched));
     }
 
     #[test]
     fn rows_above_the_saved_frontier_are_refused_as_before() {
-        let root = tempfile::tempdir().unwrap();
-        let mut connection = Connection::open(root.path().join("frontier.sqlite")).unwrap();
+        let root = std::path::Path::new("");
+        let mut connection = Connection::open_in_memory().unwrap();
         let head = open(&mut connection, None).unwrap();
         let rows = stream_rows(&head.history, 0, 2);
         let entry = Encoded::new(Borrowed::from(&rows[0])).unwrap();
@@ -905,7 +902,7 @@ mod tests {
                 params![position(entry.position), entry.identity, entry.digest.as_slice()],
             )
             .unwrap();
-        let refused = write(&mut connection, root.path(), StorageBatch::new(rows), &mut Default::default(), &mut Default::default());
+        let refused = write(&mut connection, root, StorageBatch::new(rows), &mut Default::default(), &mut Default::default());
         assert!(matches!(refused, Err(Error::Corrupt("position retry exceeds saved frontier"))));
     }
 
