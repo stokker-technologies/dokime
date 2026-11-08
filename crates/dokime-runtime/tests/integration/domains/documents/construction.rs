@@ -375,10 +375,10 @@ pub(super) async fn summary_queries() {
     };
     use dokime_runtime::expressions::telemetry;
     use harmos::Message;
+    // Every Numeric Case Exceeds The Accumulator Memory Budget, So Median Takes Its Spilled Path; Scale Lives In Benches.
     for (plot_count, total, text_bytes, distinct) in
-        [(64, 301, 0, 301), (0, 10_001, 32_768, 10_001), (0, 3_001, 0, 3_001), (0, 250_003, 0, 1_024)]
+        [(64, 301, 0, 301), (0, 2_001, 32_768, 2_001), (0, 3_001, 0, 3_001), (0, 4_003, 0, 1_024)]
     {
-        let stage = std::time::Instant::now();
         let root = tempdir().unwrap();
         let executor = Arc::new(BlockingPublishingExecutor::new());
         let settings = config(root.path()).with_installed_plugins([dokime_runtime::InstalledPlugin {
@@ -426,12 +426,8 @@ pub(super) async fn summary_queries() {
         let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
         let execution = &cycle.test_executions[0];
         let document_id = dokime_runtime::DocumentId::from_identifier("default").unwrap();
-        eprintln!("scale rows={total} setup={:?}", stage.elapsed());
-        let mut generation = std::time::Duration::ZERO;
-        let mut admission = std::time::Duration::ZERO;
         let mut raw = Vec::<f64>::new();
         while raw.len() < total {
-            let generated = std::time::Instant::now();
             let first = raw.len();
             let count = (total - first).min(2_000);
             let samples = (first..first + count)
@@ -465,17 +461,10 @@ pub(super) async fn summary_queries() {
                 Value::Number(value) => value,
                 _ => panic!("numeric fixture column"),
             }));
-            generation += generated.elapsed();
-            let published = std::time::Instant::now();
             runtime.publish_telemetry_batch(batch).await.unwrap();
-            admission += published.elapsed();
         }
-        eprintln!("scale rows={total} generation={generation:?} admission={admission:?}");
-        let captured = std::time::Instant::now();
         let current =
             runtime.prepare_current_document(&cycle_id, &execution.test_execution_id, &document_id).unwrap().capture().await.unwrap();
-        eprintln!("scale rows={total} capture={:?}", captured.elapsed());
-        let finished = std::time::Instant::now();
         assert_eq!(current.capture.cards.iter().filter(|card| matches!(card.result, CardBindingResult::Plot { .. })).count(), plot_count);
         let values = current
             .capture
@@ -515,7 +504,6 @@ pub(super) async fn summary_queries() {
         wait_for_cycle_outcome(&runtime, &cycle_id, ResultStatus::Passed).await;
         drop(runtime);
         owner.shutdown().await.unwrap();
-        eprintln!("scale rows={total} finish={:?} total={:?}", finished.elapsed(), stage.elapsed());
     }
 }
 
