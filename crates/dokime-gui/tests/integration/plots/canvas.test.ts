@@ -175,29 +175,32 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     );
     for (const zoom of [false, true])
       for (const dark of [false, true]) {
+        await evaluate(`window.canvasFixture.mount("points", false, ${zoom}, ${dark})`);
+        await evaluate(`window.canvasFixture.toggle(0)`);
+        await evaluate(`window.canvasFixture.toggle(1)`);
+        assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [0]);
+        const unmarked = await evaluate(`document.querySelector('canvas').toDataURL()`);
         await evaluate(`window.canvasFixture.mount("points", false, ${zoom}, ${dark}, true)`);
-        assert.deepEqual(
-          await evaluate(`Array.from(document.querySelectorAll('tbody tr')).slice(2).map(row => row.cells[3].textContent)`),
-          ["2", "1", "1", "1"],
-        );
+        assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('tbody tr')).map(row => row.cells[3].textContent)`), [
+          "10",
+          "10",
+        ]);
         const image = await evaluate(`document.querySelector('canvas').toDataURL()`);
-        await evaluate(`window.canvasFixture.toggle(2)`);
+        await evaluate(`window.canvasFixture.toggle(0)`);
         assert.notEqual(await evaluate(`document.querySelector('canvas').toDataURL()`), image);
         assert.deepEqual(
           await evaluate(`Array.from(document.querySelectorAll('tbody tr')).map(row => !!row.querySelector('[data-trace-hidden]'))`),
-          [false, false, true, false, false, false],
+          [true, false],
         );
-        assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [20]);
-        await evaluate(`window.canvasFixture.toggle(2)`);
-        assert.equal(await evaluate(`document.querySelector('canvas').toDataURL()`), image);
-        await evaluate(`window.canvasFixture.toggle(4)`);
-        assert.notEqual(await evaluate(`document.querySelector('canvas').toDataURL()`), image);
-        await evaluate(`window.canvasFixture.toggle(4)`);
-        assert.equal(await evaluate(`document.querySelector('canvas').toDataURL()`), image);
+        assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [10]);
+        await evaluate(`window.canvasFixture.toggle(1)`);
+        assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [0]);
+        assert.notEqual(await evaluate(`document.querySelector('canvas').toDataURL()`), unmarked);
         await evaluate(`window.canvasFixture.toggle(0)`);
         assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [10]);
-        await evaluate(`window.canvasFixture.toggle(0)`);
+        await evaluate(`window.canvasFixture.toggle(1)`);
         assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [20]);
+        assert.equal(await evaluate(`document.querySelector('canvas').toDataURL()`), image);
         const screenshot = await command("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
         assert.ok(screenshot?.data);
         const evidence = resolve("../../target/tests/plots");
