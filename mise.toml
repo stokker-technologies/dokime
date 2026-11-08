@@ -41,6 +41,11 @@ taplo = "0.10.0"
 protoc = "36.2"
 
 # Release and Signing
+"aqua:anchore/syft" = "1.57.0"
+"aqua:EmbarkStudios/cargo-deny" = "0.20.2"
+"aqua:rustsec/rustsec/cargo-audit" = "0.22.2"
+"github:CycloneDX/cyclonedx-rust-cargo" = "cargo-cyclonedx-0.5.9"
+"github:EmbarkStudios/cargo-about" = "0.9.3"
 git-cliff = "2.14.2"
 minisign = "0.12"
 
@@ -189,6 +194,15 @@ run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
 # === Check === #
 
+[tasks.sbom]
+description = "Generate CycloneDX Inventories for a Rust Target and Release Artifacts"
+usage = 'arg "target" help="Rust Target Triple"; flag "--artifacts <path>"; flag "--output <path>" default="target/sbom"'
+run = "{{vars.tools}} dokime_tools.release.sbom --target {{usage.target}} --output {{usage.output}}{% if usage.artifacts %} --artifacts {{usage.artifacts}}{% endif %}"
+
+[tasks.notices]
+description = "Generate Third-Party Notices"
+run = "{{vars.tools}} dokime_tools.release.notices"
+
 [tasks.check]
 description = "Check Every Language and Conventions"
 run = [{ task = "check:repository" }, { task = "check:rust" }, { task = "check:python" }, { task = "check:typescript" }]
@@ -213,6 +227,15 @@ run = [{ task = "format:toml --check" }, "{{vars.tools}} dokime_tools.ci.mise", 
 [tasks."check:rust"]
 description = "Check Rust"
 run = [{ task = "format:rust --check" }, { task = "lint:rust" }, "cargo-machete --skip-target-dir"]
+
+[tasks."check:supply"]
+description = "Check Dependency Advisories, Licenses and Sources"
+run = [
+  "cargo deny --locked check advisories bans licenses sources",
+  "cargo audit",
+  "pnpm --dir crates/dokime-gui audit --prod",
+  "uv audit --locked",
+]
 
 [tasks."check:typescript"]
 description = "Check TypeScript Formatting and Lint Without Type Checking"

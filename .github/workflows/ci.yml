@@ -28,6 +28,24 @@ env:
   pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
+  supply:
+    name: Check / Supply Chain
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    if: github.event.action != 'closed'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        persist-credentials: false
+    - uses: ./.github/actions/setup
+      with:
+        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
+        bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
+    - run: mise run check:supply
   source:
     name: Check / Repository
     runs-on: ubuntu-latest

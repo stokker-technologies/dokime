@@ -291,7 +291,7 @@ jobs:
         path: target/release-assets/upload.json
         if-no-files-found: error
         retention-days: 7
-    - name: Attest Release Downloads
+    - name: Attest Installer, CLI, Sidecar and Wheel Digests
       uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
       with:
         subject-checksums: target/release-assets/any/SHA256SUMS
