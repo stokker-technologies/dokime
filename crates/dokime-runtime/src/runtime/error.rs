@@ -19,6 +19,7 @@
 use thiserror::Error as ThisError;
 
 // Local Imports
+use crate::document::DocumentFailure;
 use dokime_domain::model::diagnostics::ValidationIssue;
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 
@@ -181,6 +182,9 @@ impl Error {
     /// Returns the recovery action supplied by the evidence or finalization owner.
     pub fn report_evidence_message(&self) -> Option<String> {
         match self {
+            Self::Dokime(crate::Error::Document(error @ (DocumentFailure::Limit | DocumentFailure::Budget { .. }))) => {
+                Some(error.to_string())
+            }
             Self::Storage(
                 error @ (crate::storage::Error::TelemetryIntegrity { .. } | crate::storage::Error::TelemetryProjection { .. }),
             ) => Some(error.to_string()),

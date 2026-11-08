@@ -911,7 +911,7 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
         .find(|entry| entry.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "nominal.supply"))
         .expect("the stated section carries the DUT supply it read");
     assert_eq!(supply.unit.as_deref(), Some("V"));
-    assert_eq!(supply.source.as_deref(), Some("device"));
+    assert_eq!(supply.source.as_deref(), Some("traceability.template.device"));
 
     // The stream measures at its declared cadence for as long as the prompt
     // is pending, so read every page: an oversized limit is clamped to what
