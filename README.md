@@ -44,36 +44,36 @@ Dokime keeps them together: publish your streams, and Dokime handles storage,
 live plots and the HTML report. Plugins are native processes with a clear
 structure, so you can use any instrument library.
 
-| Gate | Dokime | Manual Testing | Hand-Rolled Scripts | pytest Harness | OpenHTF | OpenTAP / PathWave | NI TestStand |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| **Getting Started** | | | | | | | |
-| Low Setup Effort | ✓ | ✓ | ✓ | ✓ | ◐ | ◐ | ✗ |
-| Open Source | ✓ | – | – | ✓ | ✓ | ◐ | ✗ |
-| Repeatable Procedures | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Pass/Fail Criteria | ✓ | ◐ | ◐ | ✓ | ✓ | ✓ | ✓ |
-| **Running It with People** | | | | | | | |
-| GUI & Operator Flow | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
-| Device & Bench Traceability | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
-| HTML Report Generation | ✓ | ✗ | ✗ | ◐ | ◐ | ◐ | ✓ |
-| **Scaling the Test** | | | | | | | |
-| Parameter Sweeps | ✓ | ✗ | ◐ | ✓ | ◐ | ✓ | ✓ |
-| Storage Layer Abstraction | ✓ | ✗ | ✗ | ✗ | ◐ | ◐ | ◐ |
-| Live Measurements | ✓ | ✗ | ◐ | ✗ | ◐ | ◐ | ◐ |
-| Remote Control | ✓ | ✗ | ◐ | ✗ | ◐ | ✓ | ✓ |
-| Long-Run Reliability | ✓ \* | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
-| **Extending and Pushing Limits** | | | | | | | |
-| Plugin Template | ✓ | ✗ | ✗ | ✗ | ◐ | ✓ | ✓ |
-| Sidecar Plugin System | ✓ | ✗ | ✗ | ✗ | ✗ | ◐ | ◐ |
-| Fast Stream Support | ✓ \* | ✗ | ◐ | ✗ | ✗ | ◐ | ◐ |
+| Feature | Dokime | pytest Harness | OpenHTF | OpenTAP / PathWave | NI TestStand |
+| --- | :-: | :-: | :-: | :-: | :-: |
+| **Getting Started** | | | | | |
+| Low Setup Effort | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Open Source | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Repeatable Procedures | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Pass/Fail Criteria | ✓ | ✗ | ✓ | ✗ | ✓ |
+| **Running It with People** | | | | | |
+| GUI & Operator Flow | ✓ | ✗ | ✓ | ✓ | ✓ |
+| Device & Bench Traceability | ✓ | ✗ | ✓ | ✓ | ✓ |
+| HTML Report Generation | ✓ | ✓ | ✗ | ✓ | ✓ |
+| **Scaling the Test** | | | | | |
+| Parameter Sweeps | ✓ | ✓ | ✗ | ✓ | ✓ |
+| Storage Layer Abstraction | ✓ | ✗ | ✓ | ✓ | ✓ |
+| Live Measurements | ✓ | ✗ | ✓ | ✓ | ✓ |
+| Remote Control | ✓ | ✗ | ✓ | ✓ | ✓ |
+| Long-Run Reliability | Planned | ✗ | ✗ | ✗ | ✗ |
+| End-Of-Line Readiness | Planned | ✗ | ✓ | ✓ | ✓ |
+| **Extending and Pushing Limits** | | | | | |
+| Plugin Template | ✓ | ✓ | ✗ | ✓ | ✗ |
+| Sidecar Plugin System | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Fast Stream Support | Planned | ✗ | ✗ | ✗ | ✗ |
+| Ready-Made Instrument Drivers | Not Planned | ✗ | ✗ | ✓ | ✓ |
 
-✓ Built In · ◐ Partial Or Add-On · ✗ Build It Yourself · – Not Applicable · \* Target, Not Yet Proven
+✓ Has It · Planned Will Be Implemented · Not Planned Not Planned by Us · ✗ Does Not Have It. A framework has a feature only when it or its vendor ships it; competitor cells were checked against their documentation on 2026-11-08.
 
 | | Dokime | OpenHTF | OpenTAP / PathWave | NI TestStand |
 | --- | --- | --- | --- | --- |
 | **Authoring Language** | Rust and Python (embedded); C++ planned | Python | C#, Python | Several |
 | **Licence** | Apache-2.0 | Apache-2.0 | MPL-2.0, Keysight GUI bundle | Commercial |
-| **Ready-Made Instrument Drivers** | Plugin's choice | Some plugs | Vendor ecosystem | Extensive |
-| **End-Of-Line Readiness** | Planned | Yes | Yes | Yes |
 | **Maturity** | Young | Established | Established | Industry standard |
 
 Dokime is young. Choose an established test executive if you need mature
