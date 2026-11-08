@@ -16,10 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{
-    Identified,
-    storage::{ObjectRetention, ObjectVersion, StoredObject},
-};
+use harmos::storage::{ObjectRetention, ObjectVersion, StoredObject};
 
 // Local Imports
 use super::templates;
@@ -47,9 +44,7 @@ pub struct Suite {
 
 /* === Implementations === */
 
-impl Identified for Suite {
-    const ID: &'static str = "dokime.object.suite";
-}
+crate::storage::object_identity!(Suite, "dokime.object.suite");
 
 impl StoredObject for Suite {
     type Key = str;

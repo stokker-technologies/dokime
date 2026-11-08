@@ -13,7 +13,8 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from .._profiles import Document as Document, Profile as Profile
+from .._profiles import Document as Document
+from .._profiles import Profile as Profile
 
 # Type Checking Imports
 

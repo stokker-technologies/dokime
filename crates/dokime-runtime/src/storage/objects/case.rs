@@ -16,10 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{
-    Identified,
-    storage::{ObjectRetention, ObjectVersion, StoredObject},
-};
+use harmos::storage::{ObjectRetention, ObjectVersion, StoredObject};
 
 // Local Imports
 use super::metadata;
@@ -72,9 +69,7 @@ pub struct Registration {
 
 /* === Implementations === */
 
-impl Identified for Case {
-    const ID: &'static str = "dokime.object.case";
-}
+crate::storage::object_identity!(Case, "dokime.object.case");
 
 impl StoredObject for Case {
     type Key = str;
@@ -85,9 +80,7 @@ impl StoredObject for Case {
     }
 }
 
-impl Identified for Registration {
-    const ID: &'static str = "dokime.object.case_registration";
-}
+crate::storage::object_identity!(Registration, "dokime.object.case_registration");
 
 impl StoredObject for Registration {
     type Key = str;

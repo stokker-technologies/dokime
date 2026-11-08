@@ -17,10 +17,7 @@
 use std::collections::BTreeSet;
 
 // Third Party Imports
-use harmos::{
-    Identified,
-    storage::{FileReference, ObjectRetention, ObjectRevision, ObjectVersion, StorageCursor, StoredObject},
-};
+use harmos::storage::{FileReference, ObjectRetention, ObjectRevision, ObjectVersion, StorageCursor, StoredObject};
 
 // Local Imports
 use super::{annotations, metadata};
@@ -155,9 +152,7 @@ impl<'a> Input<'a> {
     }
 }
 
-impl Identified for Cycle {
-    const ID: &'static str = "dokime.object.cycle";
-}
+crate::storage::object_identity!(Cycle, "dokime.object.cycle");
 
 impl StoredObject for Cycle {
     type Key = str;
