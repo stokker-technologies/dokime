@@ -7,6 +7,13 @@ the same managed generation and publication boundaries as native providers. See
 callback ownership and batch publication. These providers live with their Python
 backend; distributable Python plugin bundles remain outside the current SDK.
 
+## Security
+
+Read [Plugin Security](plugin-security.md) before installing or distributing a
+plugin. It defines bundle verification, native process authority, secret handling,
+the threat model, private-plugin approval and current API compatibility limits.
+Publisher signing, organization allowlists and WebAssembly isolation remain proposals.
+
 ## Python Projects
 
 Create a project with `dokime new bench --lang python`, install the matching SDK
