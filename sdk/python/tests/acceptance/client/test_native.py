@@ -25,7 +25,7 @@ from typing import IO, Any
 import pytest
 
 # Local Imports
-from dokime.client import DokimeClient, Execution, ExecutionEvidence
+from dokime.client import DokimeClient, Execution, ExecutionEvidence, history
 
 # Type Checking Imports
 
@@ -126,7 +126,9 @@ def native(
                     process.wait()
 
 
-def test_native_capture(native: Host, workspace: Path, tmp_path: Path) -> None:
+def test_native_capture(native: Host, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Exercise Native Continuations Independently Of How Many Samples Arrive Before The Prompt.
+    monkeypatch.setattr(history, "PAGE_ITEMS", 1)
     output = tmp_path / "capture"
 
     async def scenario() -> None:
