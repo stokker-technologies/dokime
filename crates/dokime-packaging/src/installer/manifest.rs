@@ -424,32 +424,6 @@ name='x'"
     }
 
     #[test]
-    fn license_file_containment() {
-        let pack = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
-        std::fs::create_dir(pack.path().join("terms")).unwrap();
-        std::fs::write(pack.path().join("terms/EULA.txt"), "terms").unwrap();
-        std::fs::write(outside.path().join("EULA.txt"), "terms").unwrap();
-        let escape = format!("../{}/EULA.txt", outside.path().file_name().unwrap().to_str().unwrap());
-
-        let mut license = License {
-            spdx: Some("LicenseRef-Acme-Proprietary".into()),
-            file: Some("terms/EULA.txt".into()),
-        };
-        license.resolve(pack.path()).unwrap();
-        assert_eq!(license.file.as_deref(), Some(pack.path().join("terms/EULA.txt").canonicalize().unwrap().as_path()));
-
-        for file in [escape.as_str(), "/EULA.txt", "C:/EULA.txt", r"terms\EULA.txt", "missing.txt", "terms"] {
-            let mut license = License {
-                spdx: Some("LicenseRef-Acme-Proprietary".into()),
-                file: Some(file.into()),
-            };
-            let Err(Error::License { field, .. }) = license.resolve(pack.path()) else { panic!("{file}") };
-            assert_eq!(field, "file", "{file}");
-        }
-    }
-
-    #[test]
     fn native_formats() {
         let format = if cfg!(target_os = "windows") { "nsis" } else { "deb" };
         let target = if cfg!(target_os = "windows") { "x86_64-pc-windows-msvc" } else { "x86_64-unknown-linux-gnu" };

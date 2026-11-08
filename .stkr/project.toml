@@ -37,9 +37,13 @@ include = ["**/*.rs", "**/*.py", "**/Cargo.toml", "mise.toml", ".stkr/project.to
 exclude = ["crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 
 [barrels]
-# Deliberate public façades, not accidental re-export files: the authoring
-# prelude and the one namespace a sidecar author imports from.
-exclude = ["crates/dokime-runtime/src/prelude.rs", "crates/dokime-runtime/src/plugin/sidecar.rs"]
+# Deliberate Public Import Surfaces: Authoring, Criterion Evidence And GUI Test Ports.
+exclude = [
+  "crates/dokime-runtime/src/prelude.rs",
+  "crates/dokime-runtime/src/plugin/sidecar.rs",
+  "crates/dokime-runtime/src/evidence.rs",
+  "crates/dokime-gui/src-tauri/src/testing.rs",
+]
 
 [markdown]
 include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**", "openspec/**", "docs/**/*.md"]

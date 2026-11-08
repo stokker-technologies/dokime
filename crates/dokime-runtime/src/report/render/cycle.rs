@@ -828,12 +828,11 @@ mod tests {
     }
 
     #[test]
-    fn fixture_report_save_measurement() {
+    fn fixture_report_save_preserves_bytes_and_decodes_once_per_member() {
         use crate::report::{CapturedExecutionReportInput, cycle::CycleMember};
         use std::{
             io::{BufWriter, Read},
             sync::atomic::Ordering,
-            time::Instant,
         };
         let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("../fixtures/execution-report-input.json")).unwrap();
         let input = harmos::storage::ReadBatch::new(captured);
@@ -850,7 +849,6 @@ mod tests {
             read: &read,
         };
         let mut baseline_file = None;
-        let started = Instant::now();
         for _ in 0..20 {
             let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
             drop(member.read().unwrap());
@@ -858,14 +856,12 @@ mod tests {
             writer.flush().unwrap();
             baseline_file = Some(writer.into_inner().unwrap());
         }
-        let before = started.elapsed() / 20;
         let mut baseline_bytes = Vec::new();
         let mut baseline_file = baseline_file.unwrap();
         std::io::Seek::rewind(&mut baseline_file).unwrap();
         baseline_file.read_to_end(&mut baseline_bytes).unwrap();
         let baseline_decodes = member.decodes.load(Ordering::Relaxed);
         let mut candidate_file = None;
-        let started = Instant::now();
         for _ in 0..20 {
             let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
             let captured = member.read().unwrap();
@@ -876,7 +872,6 @@ mod tests {
             writer.flush().unwrap();
             candidate_file = Some(writer.into_inner().unwrap());
         }
-        let after = started.elapsed() / 20;
         let mut candidate_bytes = Vec::new();
         let mut candidate_file = candidate_file.unwrap();
         std::io::Seek::rewind(&mut candidate_file).unwrap();
@@ -884,6 +879,5 @@ mod tests {
         assert_eq!(member.decodes.load(Ordering::Relaxed) - baseline_decodes, 20);
         assert!(baseline_decodes > 20);
         assert_eq!(candidate_bytes, baseline_bytes);
-        eprintln!("Fixture Report Save: before={before:?}, after={after:?}, bytes={}", candidate_bytes.len());
     }
 }
