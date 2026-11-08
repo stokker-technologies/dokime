@@ -260,7 +260,7 @@ pub(crate) fn chain_message(error: &(dyn std::error::Error + 'static)) -> String
 
 fn report_save_message(subject: &dokime_domain::model::reports::wire::ReportSubject, stage: &str, source: &Error) -> String {
     if let Some(message) = source.report_evidence_message() {
-        return message;
+        return format!("Report for {} could not be saved during {stage}: {message}", report_subject(subject));
     }
     format!("The report could not be saved during {stage} for {}. Retry sealing the cycle to save it again.", report_subject(subject))
 }

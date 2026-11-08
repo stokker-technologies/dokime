@@ -399,6 +399,12 @@ impl MemberRows {
                 }
             }
         }
+        let original = spec["columns"].as_array().expect("stream columns serialize as an array");
+        if original.len() == columns.len()
+            && original.iter().all(|column| columns.get(column["name"].as_str().expect("column name is text")) == Some(column))
+        {
+            return writer.write_all(&bytes);
+        }
         spec["columns"] = columns.into_values().collect::<Vec<_>>().into();
         output::write_json(writer, &spec)
     }
