@@ -91,7 +91,6 @@ impl Store {
     #[tracing::instrument(level = "debug", name = "ingest.writer", skip_all)]
     pub(super) fn write(
         &mut self, connection: &mut Connection, batch: StorageBatch<StoredRow>, contracts: &super::RegisteredContracts,
-        mut retained: BTreeMap<u64, Admitted>,
     ) -> Result<SavedData> {
         let rows = batch.as_slice();
         let mut head = saved(connection)?;
@@ -122,7 +121,7 @@ impl Store {
             if stream.codec.schema() != &row.record.schema {
                 return Err(Error::Conflict("stream contract changed within its execution"));
             }
-            let mut entry = stream.codec.admission(row, retained.remove(&row.record.position.sequence))?;
+            let mut entry = stream.codec.decode_admission(row)?;
             {
                 let _span = tracing::debug_span!("ingest.normalize.writer").entered();
                 ipc::normalize_values(stream.schema.field(1), &mut entry.entry.sample.values)?;

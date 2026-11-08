@@ -73,7 +73,7 @@ pub async fn telemetry(days: u64, per_day: u64) {
         )
         .typed(&Reading { value: "bounded".into() });
         let signals = codec.payload_signals(sample.storage_payload.as_deref().unwrap(), &sample.values).unwrap();
-        prepare_staged(&epoch, &sample, None, minute, &codec, &signals, false).unwrap().0.into_input()
+        prepare_staged(&epoch, &sample, None, minute, &codec, &signals).unwrap().into_input()
     };
     assert!(per_day > 100);
     let streams = vec![contract.stream.clone().into()];

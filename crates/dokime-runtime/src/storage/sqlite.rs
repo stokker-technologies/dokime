@@ -123,8 +123,6 @@ struct Owner {
     telemetry: std::sync::Mutex<data::telemetry::Store>,
     telemetry_contracts: data::telemetry::RegisteredContracts,
     telemetry_tail: std::sync::Mutex<data::telemetry::Tail>,
-    // Admissions Retained By Storage Position So The Writer Need Not Decode Payloads The Host Already Projected.
-    telemetry_retained: std::sync::Mutex<std::collections::BTreeMap<u64, crate::storage::telemetry::Admitted>>,
     telemetry_tasks: tokio::sync::Mutex<Vec<tokio::task::JoinHandle<Result<(), Error>>>>,
     settings: Settings,
     close: tokio::sync::Mutex<()>,
@@ -278,7 +276,6 @@ impl State {
                 telemetry: std::sync::Mutex::new(data::telemetry::Store::new(root, settings)),
                 telemetry_contracts: Default::default(),
                 telemetry_tail: Default::default(),
-                telemetry_retained: Default::default(),
                 telemetry_tasks: Default::default(),
                 settings,
                 close: Default::default(),

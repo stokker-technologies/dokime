@@ -84,8 +84,6 @@ struct SharedTelemetry {
     sample: Arc<crate::telemetry::TelemetrySample>,
     codec: Arc<telemetry::TypedCodec>,
     signals: Vec<telemetry::Signal>,
-    // Values Are This Codec's Projection Of The Payload, So Storage Can Retain The Admission Instead Of Decoding It.
-    decoded: bool,
 }
 
 pub(crate) struct ScopedTelemetry {
@@ -159,7 +157,7 @@ impl ScopedTelemetry {
         self.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref())
     }
 
-    fn input(&self) -> Result<(StreamInput, Option<telemetry::Admitted>)> {
+    fn input(&self) -> Result<StreamInput> {
         let mut captured;
         let sample = if self.captures.is_empty() {
             &*self.row.sample
@@ -168,9 +166,8 @@ impl ScopedTelemetry {
             captured.captured_scopes = self.captures.iter().map(|(_, scope)| scope.clone()).collect();
             &captured
         };
-        let (prepared, admitted) =
-            prepare_staged(&self.row.epoch, sample, self.scope.as_ref(), self.ordinal, &self.row.codec, &self.row.signals, self.row.decoded)?;
-        Ok((prepared.into_input(), admitted))
+        let prepared = prepare_staged(&self.row.epoch, sample, self.scope.as_ref(), self.ordinal, &self.row.codec, &self.row.signals)?;
+        Ok(prepared.into_input())
     }
 }
 
@@ -217,17 +214,14 @@ impl TelemetryAdmission {
             let mut staged = crate::domains::telemetry::telemetry_slots(count)?;
             let encode_span = tracing::debug_span!("ingest.host.encode").entered();
             for row in writes {
-                let admitted = match row.input() {
-                    Ok((input, admitted)) => {
-                        inputs.push(input);
-                        admitted
-                    }
+                match row.input() {
+                    Ok(input) => inputs.push(input),
                     Err(source) if accepted.iter().any(|accepted| *accepted) => {
                         failure = Some(source);
                         break 'groups;
                     }
                     Err(source) => return Err(source),
-                };
+                }
                 let epoch = row.row.epoch.clone();
                 let mut sample = match Arc::try_unwrap(row.row) {
                     Ok(shared) => Arc::unwrap_or_clone(shared.sample),
@@ -236,14 +230,11 @@ impl TelemetryAdmission {
                 sample.scope = row.scope;
                 sample.captured_scopes = row.captures.into_iter().map(|(_, scope)| scope).collect();
                 sample.storage_payload = None;
-                staged.push((
-                    TelemetryEntry {
-                        epoch: (*epoch).clone(),
-                        ordinal: row.ordinal,
-                        sample,
-                    },
-                    admitted,
-                ));
+                staged.push(TelemetryEntry {
+                    epoch: (*epoch).clone(),
+                    ordinal: row.ordinal,
+                    sample,
+                });
             }
             drop(encode_span);
             let mut writes = inputs.into_iter();
@@ -631,7 +622,6 @@ pub(crate) fn stage_rows(
                     sample: Arc::clone(&row.sample),
                     codec: Arc::clone(codec),
                     signals,
-                    decoded,
                 }))
             }
         };
@@ -982,14 +972,14 @@ fn query_path(field: &str) -> Result<harmos::storage::query::transform::FieldPat
 fn prepare_staged(
     epoch: &dokime_domain::model::identity::SessionId, sample: &crate::telemetry::TelemetrySample,
     scope: Option<&dokime_domain::model::execution::RecordScope>, ordinal: u64, codec: &telemetry::TypedCodec,
-    signals: &[telemetry::Signal], decoded: bool,
-) -> Result<(PreparedTelemetry, Option<telemetry::Admitted>)> {
-    let (payload, admitted) = codec.encode_retained(epoch, ordinal, sample, scope, signals, decoded)?;
+    signals: &[telemetry::Signal],
+) -> Result<PreparedTelemetry> {
+    let payload = codec.encode_staged(epoch, ordinal, sample, scope, signals)?;
     let scope = scope.and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str());
     let identifier = |value: &str| Identifier::new(value).map_err(crate::storage::Error::from);
     let at = sample.timestamp.to_datetime().map_err(|_| invalid("typed telemetry timestamp is invalid"))?;
     let seconds = u64::try_from(at.unix_timestamp()).map_err(|_| invalid("typed telemetry predates 1970"))?;
-    let prepared = PreparedTelemetry {
+    Ok(PreparedTelemetry {
         schema: codec.schema().clone(),
         stream: identifier(sample.stream.as_str())?,
         item: identifier(sample.sample_id.as_str())?,
@@ -1000,8 +990,7 @@ fn prepare_staged(
             .checked_add(std::time::Duration::new(seconds, at.nanosecond()))
             .ok_or_else(|| invalid("typed telemetry timestamp overflows"))?,
         payload,
-    };
-    Ok((prepared, admitted))
+    })
 }
 
 async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: Option<&str>) {

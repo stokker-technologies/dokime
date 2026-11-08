@@ -220,14 +220,7 @@ impl State {
             let waiting = std::time::Instant::now();
             let mut store = owner.telemetry.lock().unwrap();
             tracing::debug!(name: "ingest.lock.store.writer", elapsed_ns = waiting.elapsed().as_nanos() as u64);
-            // Take The Batch's Retained Admissions; Positions At Or Below It Are Then Written Or Superseded.
-            let through = batch.as_slice().iter().map(|row| row.record.position.sequence).max().unwrap_or_default();
-            let retained = {
-                let mut admissions = owner.telemetry_retained.lock().unwrap();
-                let later = admissions.split_off(&through.saturating_add(1));
-                std::mem::replace(&mut *admissions, later)
-            };
-            Ok(store.write(connection, batch, &owner.telemetry_contracts, retained))
+            Ok(store.write(connection, batch, &owner.telemetry_contracts))
         })
         .await?
     }
@@ -627,7 +620,7 @@ mod tests {
         async fn admit(&self, points: &[(u64, i64)]) -> StorageCursor {
             let (rows, entries): (Vec<_>, Vec<_>) = points.iter().map(|(index, time)| self.row(*index, *time)).unzip();
             let cursor = self.storage.write_stream(rows).await.unwrap();
-            self.local.stage_telemetry(self.storage.clone(), cursor.clone(), entries.into_iter().map(|entry| (entry, None)).collect()).await.unwrap();
+            self.local.stage_telemetry(self.storage.clone(), cursor.clone(), entries).await.unwrap();
             cursor
         }
 
@@ -817,7 +810,7 @@ mod tests {
             })
             .unzip();
         let at = fixture.storage.write_stream(rows).await.unwrap();
-        fixture.local.stage_telemetry(fixture.storage.clone(), at.clone(), entries.into_iter().map(|entry| (entry, None)).collect()).await.unwrap();
+        fixture.local.stage_telemetry(fixture.storage.clone(), at.clone(), entries).await.unwrap();
         fixture.storage.flush_until(&at).await.unwrap();
         let query = crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
         for (omitted, expected) in [(0, 9_007_199_254_740_995), (1, 9_007_199_254_740_994), (2, 9_007_199_254_740_993)] {
@@ -1037,7 +1030,7 @@ mod tests {
             entries.push(entry);
         }
         let through = fixture.storage.write_stream(rows).await.unwrap();
-        fixture.local.stage_telemetry(fixture.storage.clone(), through.clone(), entries.into_iter().map(|entry| (entry, None)).collect()).await.unwrap();
+        fixture.local.stage_telemetry(fixture.storage.clone(), through.clone(), entries).await.unwrap();
         fixture.storage.flush_until(&through).await.unwrap();
 
         // Neither Identity Resolution Nor Snapshot Pinning Needs The Writer.
@@ -1643,7 +1636,7 @@ mod tests {
             entries.push(entry);
         }
         let through = fixture.storage.write_stream(rows).await.unwrap();
-        fixture.local.stage_telemetry(fixture.storage.clone(), through.clone(), entries.into_iter().map(|entry| (entry, None)).collect()).await.unwrap();
+        fixture.local.stage_telemetry(fixture.storage.clone(), through.clone(), entries).await.unwrap();
         fixture.storage.flush().await.unwrap();
         let (files,artifacts,sessions):(i64,i64,i64) = fixture.local.call(|connection|connection.query_row(
             "SELECT (SELECT count(*) FROM files WHERE kind='telemetry'),(SELECT count(*) FROM artifacts),(SELECT count(*) FROM streams WHERE execution IS NULL)",

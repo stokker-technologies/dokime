@@ -192,26 +192,15 @@ impl TypedCodec {
     }
 
     // Staged Rows Carry Payloads Their Admission Already Checked Or Decoded With This Codec.
-    // Encodes A Staged Row And, When Its Values Are This Codec's Projection Of Its Payload, Also Returns The Admission The
-    // Storage Writer Would Decode From Those Bytes, So The Writer Need Not Read The Payload Again.
-    pub(crate) fn encode_retained(
+    pub(crate) fn encode_staged(
         &self, epoch: &SessionId, ordinal: u64, sample: &crate::telemetry::TelemetrySample, scope: Option<&RecordScope>,
-        projected: &[Signal], decoded: bool,
-    ) -> Result<(Vec<u8>, Option<Admitted>)> {
+        projected: &[Signal],
+    ) -> Result<Vec<u8>> {
         let metadata = self.metadata(epoch, ordinal, sample, scope, projected.to_vec())?;
         let payload = sample.storage_payload.as_deref().ok_or(Error::Invalid("typed telemetry sample has no original row payload"))?;
         let length = metadata.encoded_size().checked_add(payload.len()).ok_or(Error::Invalid("typed telemetry frame length overflows"))?;
-        let retained = if decoded && !self.payload_has_timestamp()? {
-            // The Payload Projection Never Holds A Timestamp, So Admission Added Any Present One Beside It.
-            let mut values = sample.values.clone();
-            values.remove("timestamp");
-            Some((metadata.clone(), values))
-        } else {
-            None
-        };
         let bytes = encode_metadata(metadata, payload, length)?;
-        let admitted = retained.map(|(metadata, values)| self.admit(metadata, values, payload)).transpose()?;
-        Ok((bytes, admitted))
+        Ok(bytes)
     }
 
     pub fn encode(&self, entry: &TelemetryEntry, maximum: usize) -> Result<Vec<u8>> {
@@ -240,12 +229,6 @@ impl TypedCodec {
     pub(crate) fn decode_payload(&self, payload: &[u8]) -> Result<BTreeMap<String, Value>> {
         payload_pass();
         self.project_payload(payload)
-    }
-
-    fn payload_has_timestamp(&self) -> Result<bool> {
-        let root = values_definition(&self.graph)?;
-        let fields = self.graph.definitions.get(root).ok_or(Error::Invalid("telemetry values schema is absent"))?;
-        Ok(fields.iter().any(|field| field.name == "timestamp"))
     }
 
     fn project_payload(&self, payload: &[u8]) -> Result<BTreeMap<String, Value>> {
@@ -304,19 +287,7 @@ impl TypedCodec {
     }
 
     pub(crate) fn decode_admission(&self, row: &harmos::storage::StoredRow) -> Result<Admitted> {
-        self.admission(row, None)
-    }
-
-    // Checks A Row's Admission Against Its Storage Envelope, Decoding The Payload Only Without A Retained Admission.
-    pub(crate) fn admission(&self, row: &harmos::storage::StoredRow, retained: Option<Admitted>) -> Result<Admitted> {
-        // A Retained Admission Whose Payload Is Not This Row's Is Stale And Falls Back To Decoding.
-        let retained = retained.filter(|admitted| {
-            admitted.entry.sample.storage_payload.as_deref().is_some_and(|payload| row.record.payload.ends_with(payload))
-        });
-        let admitted = match retained {
-            Some(admitted) => admitted,
-            None => self.decode_arrow(&row.record.payload, usize::MAX)?,
-        };
+        let admitted = self.decode_arrow(&row.record.payload, usize::MAX)?;
         let entry = &admitted.entry;
         let sample = &entry.sample;
         let scope = sample.scope.as_ref().and_then(|scope| scope.test_execution_id.as_ref()).map(|id| id.as_str());
@@ -358,12 +329,7 @@ impl TypedCodec {
         if uppercase_epoch {
             return Err(Error::Invalid("stored telemetry metadata is not canonical"));
         }
-        let decoded = self.project_payload(payload)?;
-        self.admit(metadata, decoded, payload)
-    }
-
-    // Restores A Row From Its Canonical Metadata And The Projection Of Its Payload.
-    fn admit(&self, metadata: Metadata, mut decoded: BTreeMap<String, Value>, payload: &[u8]) -> Result<Admitted> {
+        let mut decoded = self.project_payload(payload)?;
         let original_metadata = serde_json::to_string(&metadata)?;
         let mut strings = Vec::new();
         for (name, value) in &decoded {
@@ -891,66 +857,5 @@ mod tests {
         let mut corrupted = metadata.encode();
         corrupted.extend_from_slice(reader.remaining());
         assert!(codec.decode(&corrupted, usize::MAX).is_err());
-    }
-
-    #[harmos::message]
-    #[derive(Clone, PartialEq)]
-    struct Labelled {
-        label: String,
-        value: f64,
-    }
-
-    #[harmos::message]
-    #[derive(Clone, PartialEq)]
-    struct Stamped {
-        timestamp: String,
-        value: f64,
-    }
-
-    #[test]
-    fn retained_admissions_equal_the_rows_storage_decodes() {
-        let settings = harmos::config::SchemaSettings::default();
-        let contract = TelemetryContract::declared("fixture.retained", "Retained").typed::<Labelled>(1);
-        let codec = codec(&contract, &settings).unwrap();
-        let epoch = SessionId::from_seed("retained.epoch");
-        let scope = RecordScope {
-            test_execution_id: Some(dokime_domain::model::identity::TestExecutionId::from_seed("retained.execution")),
-            ..Default::default()
-        };
-        for (ordinal, label) in ["first", "second reading", ""].into_iter().enumerate() {
-            let at = crate::model::time::now_utc();
-            let mut sample = crate::telemetry::TelemetrySample::new(
-                crate::model::identity::new_id(),
-                contract.stream.clone(),
-                ordinal as u64,
-                at.clone(),
-                "fixture.retained",
-            )
-            .typed(&Labelled { label: label.to_owned(), value: ordinal as f64 + 0.5 });
-            // The Host's One Payload Pass: Projected Values Plus The Admission Timestamp.
-            sample.values = codec.decode_payload(sample.storage_payload.as_deref().unwrap()).unwrap();
-            sample.values.insert("timestamp".into(), Value::from(at));
-            sample.scope = Some(scope.clone());
-            let projected = signals(&sample.values);
-            let (bytes, retained) = codec.encode_retained(&epoch, ordinal as u64, &sample, Some(&scope), &projected, true).unwrap();
-            let retained = retained.expect("projected values are retained");
-            let decoded = codec.decode_arrow(&bytes, usize::MAX).unwrap();
-            assert_eq!(retained.entry, decoded.entry);
-            assert_eq!(retained.metadata, decoded.metadata);
-            assert_eq!(retained.strings, decoded.strings);
-            let (unchecked, none) = codec.encode_retained(&epoch, ordinal as u64, &sample, Some(&scope), &projected, false).unwrap();
-            assert_eq!((unchecked, none.is_none()), (bytes, true));
-        }
-
-        // A Payload That Carries Its Own Timestamp Cannot Be Told Apart From The Admission's, So It Is Decoded.
-        let stamped = TelemetryContract::declared("fixture.stamped", "Stamped").typed::<Stamped>(1);
-        let codec = super::codec(&stamped, &settings).unwrap();
-        let at = crate::model::time::now_utc();
-        let mut sample =
-            crate::telemetry::TelemetrySample::new(crate::model::identity::new_id(), stamped.stream.clone(), 1, at.clone(), "fixture.stamped")
-                .typed(&Stamped { timestamp: at.as_str().to_owned(), value: 1.0 });
-        sample.values = codec.decode_payload(sample.storage_payload.as_deref().unwrap()).unwrap();
-        let projected = signals(&sample.values);
-        assert!(codec.encode_retained(&epoch, 1, &sample, None, &projected, true).unwrap().1.is_none());
     }
 }
