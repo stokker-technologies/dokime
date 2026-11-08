@@ -46,3 +46,10 @@ unknown-argument = "warn"
 
 [tool.pytest.ini_options]
 addopts = ["--strict-config", "--strict-markers", "--import-mode=importlib", "--timeout-method=thread"]
+
+# Tests Import The Installed Wheel; Native PyO3 Code Is Not Python Coverage.
+[tool.coverage.run]
+source_pkgs = ["dokime"]
+
+[tool.coverage.paths]
+dokime = ["python/dokime", "*/site-packages/dokime"]

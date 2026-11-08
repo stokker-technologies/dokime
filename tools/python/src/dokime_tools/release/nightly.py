@@ -67,7 +67,7 @@ def publish(directory: Path) -> None:
     with policy.credential_free(settings, profile=PROFILE):
         run._refuse_overrides(directory)
         content = _notes(directory, settings, sha, source_run, previous_notes)
-        run.dry(directory, settings, profile=PROFILE, require_all=True, release_notes=content)
+        run.dry(directory, settings, profile=PROFILE, require_all=True, release_notes=content, channel=TAG)
 
     files = layout.uploads(directory, staged=True)
     notes = (directory / run.ASSETS / run.SHARED / "CHANGELOG.md").read_text(encoding="utf-8")

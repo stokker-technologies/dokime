@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tomllib
 import urllib.parse
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 
@@ -45,6 +46,8 @@ from . import layout, pins, policy, registry, screenshots, version
 
 STABLE = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 SUMS = "SHA256SUMS"
+# Downloads.json Repeats SHA256SUMS Digests, So It Is Uploaded Beside, Never Inside, SHA256SUMS.
+DOWNLOADS = "downloads.json"
 STATE = "published.json"
 # Staged downloads live under <target>/; SHA256SUMS and the publication state span targets and live under any/.
 ASSETS = "target/release-assets"
@@ -127,7 +130,7 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
         name = layout.asset_name(directory, settings, definition, selected, tag, source)
         if name is None:
             continue
-        reserved = {SUMS, STATE, "CHANGELOG.md", "plugins.json", "upload.json", ".", ".."}
+        reserved = {SUMS, STATE, DOWNLOADS, "CHANGELOG.md", "plugins.json", "upload.json", ".", ".."}
         if Path(name).name != name or name in reserved or "\\" in name or any(ord(character) < 32 for character in name):
             raise policy.ToolError(f"invalid release asset name: {name}")
         if not source.is_file() or source.is_symlink():
@@ -150,6 +153,7 @@ def stage(
     signed: bool = False,
     source_revision: str | None = None,
     release_notes: str | None = None,
+    channel: str = "stable",
 ) -> list[dict]:
     """Copy Each Target's Release Downloads Into Its target/release-assets/<target>/ And Their SHA256SUMS Into any/."""
     profile = policy.profile() if profile is None else profile
@@ -193,6 +197,22 @@ def stage(
         files.append(_describe(root, feed))
     (root / SHARED / SUMS).write_text("".join(f"{item['sha256']}  {item['name']}\n" for item in files), encoding="utf-8")
     files.append(_describe(root, root / SHARED / SUMS))
+    executables = {
+        item["name"]: "cli" if item["command"] == settings["product"] else item["command"]
+        for item in policy.config(directory).get("package", {}).get("executables", [])
+    }
+    manifest = layout.downloads(
+        settings,
+        executables,
+        version=tag[1:],
+        channel=channel,
+        tag=tag if channel == "stable" else channel,
+        published=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        files=files,
+        sums=(root / SHARED / SUMS).read_text(encoding="utf-8"),
+    )
+    policy.write_json(root / SHARED / DOWNLOADS, manifest)
+    files.append(_describe(root, root / SHARED / DOWNLOADS))
     layout.upload_manifest(directory, root, files)
     return files
 
@@ -304,6 +324,7 @@ def dry(
     source_revision: str | None = None,
     release_notes: str | None = None,
     targets: list[str] | None = None,
+    channel: str = "stable",
 ) -> None:
     """Stage The Active Profile's Packages Like A Release And Run The Native Downloads From Them, Offline."""
     tag = release_tag(directory)
@@ -318,14 +339,14 @@ def dry(
         raise policy.ToolError(f"{profile} packages are missing for release targets: {', '.join(missing)}")
     if missing:
         print(f"note: no local {profile} packages for {', '.join(missing)}; CI stages every release target")
-    stage(directory, settings, tag, present, profile=profile, source_revision=source_revision, release_notes=release_notes)
+    stage(directory, settings, tag, present, profile=profile, source_revision=source_revision, release_notes=release_notes, channel=channel)
     files = layout.uploads(directory, staged=True)
     _checksums(root / SHARED / SUMS, {item["name"]: item for item in files})
     native = _native()
     if native in present:
         # The staged bytes themselves run, from an isolated directory, exactly as a user's download would.
         packages.verify(directory, profile, native, root / native)
-    print(f"staged {len(files) - 1} download(s) and {SUMS} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}")
+    print(f"staged {len(files) - 2} download(s), {SUMS} and {DOWNLOADS} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}")
 
 
 def publish(directory: Path, settings: dict) -> None:
@@ -595,7 +616,7 @@ def run(directory: Path, verb: str, *, target: str | None = None, profile: str |
 
 
 def _checksums(path: Path, inventory: dict) -> None:
-    expected = {name: item["sha256"] for name, item in inventory.items() if name != SUMS}
+    expected = {name: item["sha256"] for name, item in inventory.items() if name not in {SUMS, DOWNLOADS}}
     actual = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         digest, separator, name = line.partition("  ")

@@ -215,18 +215,14 @@ description = "Check Rust"
 run = [{ task = "format:rust --check" }, { task = "lint:rust" }, "cargo-machete --skip-target-dir"]
 
 [tasks."check:typescript"]
-description = "Check TypeScript"
+description = "Check TypeScript Formatting and Lint Without Type Checking"
 run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }]
 
 [tasks."check:typescript:generated"]
-description = "Check the Generated TypeScript Client"
+description = "Type Check the GUI Against Freshly Generated Modules, Never Staged Build Output"
 depends = ["prepare:generated"]
-usage = '''
-flag "--profile <profile>" default="dev"
-flag "--source" help="Check freshly prepared bindings instead of staged Product artifacts"
-'''
+usage = 'flag "--profile <profile>" default="dev" help="Profile Label for Callers That Pass One; Generation Always Uses the Dev Compiler Profile"'
 run = [
-  "{% if not usage.source %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
   "{{vars.tools}} dokime_tools.prepare.resources --check",
   "pnpm --dir crates/dokime-gui run typecheck",
   "pnpm --dir crates/dokime-gui exec biome lint --config-path=biome.json --vcs-use-ignore-file=false ../../target/generated/typescript",
@@ -411,7 +407,7 @@ run = [
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:python:coverage"]
-description = "Measure Python Coverage over Instrumented Lanes"
+description = "Measure Python Coverage of the SDK Python Modules; Native PyO3 Code Is Excluded"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
@@ -537,7 +533,7 @@ depends = [
 env = { CARGO_INCREMENTAL = "0" }
 
 [tasks."test:typescript:unit"]
-description = "Test Unit TypeScript"
+description = "Test Unit TypeScript Against Freshly Generated Modules Without Rewriting Sources"
 depends = ["{% if usage.prepared %}prepare{% else %}prepare:generated{% endif %}"]
 usage = '''
 flag "--profile <profile>" default="dev"
@@ -545,12 +541,12 @@ flag "--prepared"
 flag "--select <select>"
 '''
 run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category unit --language typescript{% else %}{% if not usage.select %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}{% endif %}''',
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category unit --language typescript{% endif %}''',
   '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category unit --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/unit{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]
 
 [tasks."test:typescript:integration"]
-description = "Test Integration TypeScript"
+description = "Test Integration TypeScript Against Freshly Generated Modules Without Rewriting Sources"
 depends = ["{% if usage.prepared %}prepare{% else %}prepare:generated{% endif %}"]
 usage = '''
 flag "--profile <profile>" default="dev"
@@ -558,7 +554,7 @@ flag "--prepared"
 flag "--select <select>"
 '''
 run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language typescript{% else %}{% if not usage.select %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}{% endif %}''',
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language typescript{% endif %}''',
   '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category integration --language typescript --project crates/dokime-gui -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/integration{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]
 env = { CARGO_INCREMENTAL = "0" }
@@ -572,7 +568,7 @@ flag "--prepared"
 flag "--select <story>" help="Run One Native Desktop Story"
 '''
 run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language typescript{% else %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}''',
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language typescript{% endif %}''',
   '''{% if not usage.prepared %}{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/system.mjs --profile {{usage.profile}} --junit {junit} {% if usage.select %}--select {{usage.select}}{% endif %}{% endif %}''',
 ]
 env = { CARGO_INCREMENTAL = "0" }

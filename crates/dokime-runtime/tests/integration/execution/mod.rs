@@ -30,6 +30,7 @@ pub(crate) mod report_cancellation;
 pub(crate) mod report_publication;
 pub(crate) mod report_restart;
 pub(crate) mod run;
+mod step_failures;
 pub(crate) mod storage;
 mod stream_revisions;
 pub(crate) mod streams;
@@ -125,6 +126,7 @@ async fn execution_report_recovery() {
     stage(report_publication::dependency_publication_retry()).await;
     stage(report_publication::admitted_create_window()).await;
     stage(report_restart::persisted_cycle_restart()).await;
+    stage(report_restart::batched_member_freeze_restart()).await;
     stage(report_cancellation::stopped_report_boundary()).await;
 }
 

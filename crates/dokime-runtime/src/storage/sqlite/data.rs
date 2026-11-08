@@ -586,13 +586,13 @@ fn insert_entries(transaction: &rusqlite::Transaction<'_>, entries: Vec<Encoded<
     const COLUMNS: &str = "(?,?,?,?,?,?,?,?,?,?,?,?,NULL)";
     static CHUNK: std::sync::LazyLock<String> =
         std::sync::LazyLock::new(|| format!("INSERT INTO storage_data_entries VALUES {}", vec![COLUMNS; INSERT_ROWS].join(",")));
-    let mut chunks = entries.chunks_exact(INSERT_ROWS);
-    for chunk in chunks.by_ref() {
+    let (chunks, remainder) = entries.as_chunks::<INSERT_ROWS>();
+    for chunk in chunks {
         let mut insert = transaction.prepare_cached(&CHUNK)?;
         let parameters = chunk.iter().flat_map(entry_parameters);
         insert.execute(rusqlite::params_from_iter(parameters)).map_err(inserted)?;
     }
-    for entry in chunks.remainder() {
+    for entry in remainder {
         let mut insert = transaction.prepare_cached(&format!("INSERT INTO storage_data_entries VALUES {COLUMNS}"))?;
         insert.execute(rusqlite::params_from_iter(entry_parameters(entry))).map_err(inserted)?;
     }

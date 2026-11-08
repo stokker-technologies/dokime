@@ -2425,7 +2425,8 @@ async function cycleJourney(session, cycleId) {
   assert.match(startupSighting.header ?? "", /\d+ prompts? waiting/, "The prompt queue must count the open prompts");
   const progress = startupSighting.progress;
   assert.ok(progress && progress.tracks.length === 4, "Control must mount state, progress, count and actions in one row");
-  assert.match(progress.count, /^\d+\/\d+$/);
+  assert.match(progress.count, /^(?:.+ )?\d+\/\d+$/);
+  assert.ok(progress.count.startsWith("Measuring start-up inrush "), "Control must show the OBC startup step's progress phase");
   assert.ok(progress.radius >= progress.height / 2, "The progress bar must have rounded ends");
   const centers = progress.tracks.map((track) => track.center);
   assert.ok(Math.max(...centers) - Math.min(...centers) < 3, "Progress row tracks must share a vertical center");

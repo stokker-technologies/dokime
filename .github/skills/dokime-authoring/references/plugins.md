@@ -204,6 +204,37 @@ fn measurements_ok(ctx: &CriterionContext<'_>) -> Result<bool> {
 }
 ```
 
+## Parameters and Choices
+
+Declare a closed set of parameter, prompt or setting values with
+`#[dokime::choice]` on an enum of unit variants; write no per-variant attributes
+in the normal form:
+
+```rust
+#[dokime::choice]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(u16)]
+pub enum Channel {
+    /// 2.4 GHz
+    Ch1 = 1,
+    /// 5 GHz, UNII-1
+    Ch36 = 36,
+}
+```
+
+- Id: the written discriminant as text (`"36"`), otherwise the variant name in
+  snake case (`ch36`). A discriminant that is not an integer literal needs an id.
+- Label: the variant name split on case and digit boundaries, acronyms kept
+  (`Ch 36`); a doc comment's first line follows a middle dot (`Ch 36 · 5 GHz, UNII-1`).
+- Value: an integer `#[repr]` with discriminants adds `const fn value(self)`
+  returning the discriminant. Read the number with `value()`, never an `as` cast:
+  the enum's codec tags variants by name.
+- `#[choice(id = "...", label = "...")]` on a variant overrides either.
+
+Ids are stable text: saved parameters and settings store them. Renaming a
+variant or changing its discriminant changes its id, so pin the old one with
+`#[choice(id = "...")]` instead.
+
 ## Layout
 
 ```text

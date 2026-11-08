@@ -44,6 +44,8 @@ use crate::model::values::ValueType;
 
 // A Field's Contribution to the Storage Schema: Identifier, Value Type, Nullable, Required.
 type FieldShape = (Identifier, ValueType, bool, bool);
+type CachedRevision = (Vec<FieldShape>, u32);
+type RevisionCache = HashMap<u64, Vec<CachedRevision>>;
 
 /* === Structs === */
 
@@ -235,7 +237,7 @@ impl RecordContract {
 
     // Derives The Revision Of This Contract's Storage Schema Once Per Distinct Field Shape.
     pub fn schema_version(&self) -> u32 {
-        static REVISIONS: LazyLock<RwLock<HashMap<u64, Vec<(Vec<FieldShape>, u32)>>>> = LazyLock::new(Default::default);
+        static REVISIONS: LazyLock<RwLock<RevisionCache>> = LazyLock::new(Default::default);
 
         let key = self.shape_hash();
         let cached = REVISIONS
