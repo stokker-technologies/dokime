@@ -69,11 +69,10 @@ const POINT_MARK_RENDER_LIMIT = GUI_POINT_MARK_THRESHOLD;
    either theme, and dense captures keep smaller marks. */
 const DENSE_POINT_MARK_SIZE = 5;
 const DEFAULT_POINT_MARK_SIZE = 8;
-const SOLID_POINT_BACKGROUND_OUTLINE_WIDTH = 1;
+const POINT_BACKGROUND_OUTLINE_WIDTH = 1;
 const SERIES_LINE_WIDTH = 2;
 /* The hover mark grows by this many CSS pixels over the drawn mark. */
 const CURSOR_POINT_GROWTH = 2;
-const CURSOR_POINT_FALLBACK_COLOR = "currentColor";
 const EMPTY_TRACES: ReadonlySet<string> = new Set();
 const NO_MARKERS: PlotMarker[] = [];
 const NO_PROMPTS: PromptMarker[] = [];
@@ -344,11 +343,8 @@ export const CartesianPlot = memo(function CartesianPlot({
     const resolvedMarkerColors = kindsRef.current.map((_, index) => themeColors.palette[index % themeColors.palette.length]);
     markerColorsRef.current = resolvedMarkerColors;
     const plotFont = resolvePlotFont(root);
-    const fallbackSeriesColor = themeColors.palette[0] ?? themeColors.foreground;
-    const resolvedSeriesColors = renderedSeries.map((item) => {
-      const index = series.indexOf(item);
-      return resolvePlotCssColor(colors[index] ?? themeColors.palette[index % themeColors.palette.length], root, fallbackSeriesColor);
-    });
+    const resolvedSeriesColors = renderedSeries.map((item) => seriesPaletteColor(colors, themeColors.palette, series.indexOf(item), root));
+    const fallbackSeriesColor = seriesPaletteColor([], themeColors.palette, 0, root);
     const faceted = chartFrame.mode === "faceted";
     const chartHeight = 230;
     const chartSize = () => ({
@@ -468,7 +464,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       cursor: {
         drag: { ...PLOT_DRAG_OPTIONS },
         focus: { prox: -1 },
-        points: cursorPointOptions(pointMarks, style),
+        points: cursorPointOptions(pointMarks),
         sync:
           timeAxis && syncKey
             ? {
@@ -1263,20 +1259,27 @@ function plotPixelRatio(): number {
   return window.devicePixelRatio || 1;
 }
 
-/** Solid points have a background outline; line points are series-colour rings over the background. */
+/**
+ * The one colour of rendered series `index` for its line, point marks and legend swatch: its
+ * declared colour, else the plot palette at the series index, resolved for canvas drawing.
+ */
+export function seriesPaletteColor(colors: readonly string[], palette: readonly string[], index: number, element?: Element | null): string {
+  const paletteColor = palette.length ? palette[index % palette.length] : undefined;
+  return resolvePlotCssColor(colors[index] ?? paletteColor, element, palette[0]);
+}
+
+/** Every point mark is a disc in the series colour with a plot-background outline for contrast. */
 export function seriesPointMarks(style: DocumentPlotStyle, densePoints: boolean, color: string, background: string): PointMarks {
-  const size = densePoints ? DENSE_POINT_MARK_SIZE : DEFAULT_POINT_MARK_SIZE;
-  if (style === "points") {
-    return { show: true, size, width: SOLID_POINT_BACKGROUND_OUTLINE_WIDTH, stroke: background, fill: color };
-  }
-  return {
-    show: style === "line_points" && !densePoints,
-    filter: isolatedAlignedPoints,
-    size,
-    width: SERIES_LINE_WIDTH,
-    stroke: color,
-    fill: background,
+  const marks = {
+    size: densePoints ? DENSE_POINT_MARK_SIZE : DEFAULT_POINT_MARK_SIZE,
+    width: POINT_BACKGROUND_OUTLINE_WIDTH,
+    stroke: background,
+    fill: color,
   };
+  if (style === "points") {
+    return { show: true, ...marks };
+  }
+  return { show: style === "line_points" && !densePoints, filter: isolatedAlignedPoints, ...marks };
 }
 
 /** A gap leaves a lone sample without a segment, even when ordinary line marks are off. */
@@ -1302,16 +1305,15 @@ function isolatedAlignedPoints(plot: uPlot, seriesIdx: number, show: boolean): n
   return isolated.length ? isolated : null;
 }
 
-/** The hover mark is a solid disc in the series colour, a little larger than its drawn marks. */
-export function cursorPointOptions(marks: readonly PointMarks[], style: DocumentPlotStyle): uPlot.Cursor.Points {
+/** The hover mark is the series' point mark, a little larger. */
+export function cursorPointOptions(marks: readonly PointMarks[]): uPlot.Cursor.Points {
   // uPlot numbers data series from 1; marks follow the rendered series from 0.
-  const color = (_plot: uPlot, seriesIdx: number) =>
-    (style === "points" ? marks[seriesIdx - 1]?.fill : marks[seriesIdx - 1]?.stroke) ?? CURSOR_POINT_FALLBACK_COLOR;
+  const mark = (seriesIdx: number) => marks[seriesIdx - 1] ?? marks[0];
   return {
-    size: (_plot, seriesIdx) => (marks[seriesIdx - 1]?.size ?? DEFAULT_POINT_MARK_SIZE) + CURSOR_POINT_GROWTH,
-    width: 0,
-    stroke: color,
-    fill: color,
+    size: (_plot, seriesIdx) => (mark(seriesIdx)?.size ?? DEFAULT_POINT_MARK_SIZE) + CURSOR_POINT_GROWTH,
+    width: POINT_BACKGROUND_OUTLINE_WIDTH,
+    stroke: (_plot, seriesIdx) => mark(seriesIdx)?.stroke ?? "",
+    fill: (_plot, seriesIdx) => mark(seriesIdx)?.fill ?? "",
   };
 }
 
