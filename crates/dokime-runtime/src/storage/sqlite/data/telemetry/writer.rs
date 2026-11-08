@@ -88,6 +88,24 @@ impl Store {
         self.fail_sync = true;
     }
 
+    pub(super) fn prepare(
+        &mut self, connection: &mut Connection, rows: &[StoredRow], contracts: &super::RegisteredContracts,
+    ) -> Result<()> {
+        let head = saved(connection)?;
+        for row in rows {
+            head.history.check(&row.record.position.history)?;
+            if row.record.position.sequence <= head.sequence {
+                continue;
+            }
+            let id = identity(row);
+            if !self.open.contains_key(&id) {
+                let stream = self.create(connection, &id, row, contracts)?;
+                self.open.insert(id, stream);
+            }
+        }
+        Ok(())
+    }
+
     #[tracing::instrument(level = "debug", name = "ingest.writer", skip_all)]
     pub(super) fn write(
         &mut self, connection: &mut Connection, batch: StorageBatch<StoredRow>, contracts: &super::RegisteredContracts,
@@ -133,7 +151,7 @@ impl Store {
         drop(decode_span);
         let checkpoints = groups.keys().map(|id| (id.clone(), self.open[id].writer.checkpoint())).collect::<Vec<_>>();
         let result = (|| {
-            let transaction = connection.transaction()?;
+            let transaction = connection.savepoint()?;
             let mut aggregates = super::aggregates::Batch::default();
             let mut previews = super::previews::Batch::new(self.settings.previews);
             for (id, entries) in groups {
@@ -192,6 +210,7 @@ impl Store {
                         stream.writer.fail_next_sync();
                     }
                     let index = stream.writer.append(&batch)?;
+                    super::super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     drop(arrow_span);
                     let catalog_span = tracing::debug_span!("ingest.catalog").entered();
                     let first_at = *times.iter().min().ok_or(Error::Invalid("empty telemetry batch"))?;
@@ -396,7 +415,7 @@ impl Store {
             plots.save(&transaction)?;
             drop(plot_span);
             transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
-            super::super::super::commit(transaction)?;
+            super::super::super::release(transaction)?;
             Ok(head)
         })();
         if result.is_err() {
@@ -461,7 +480,13 @@ impl Store {
             if cataloged {
                 return Err(Error::Corrupt("telemetry file has no stream catalog"));
             }
-            if path.try_exists()? { ipc::Writer::recover_empty(&path, arrow.clone())? } else { ipc::Writer::create(&path, arrow.clone())? }
+            if path.try_exists()? {
+                ipc::Writer::recover_empty(&path, arrow.clone())?
+            } else {
+                let writer = ipc::Writer::create(&path, arrow.clone())?;
+                super::super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                writer
+            }
         };
         let codec = contracts.read().unwrap().get(&key).map(|(codec, _)| codec.clone());
         let codec = match codec {
@@ -483,11 +508,11 @@ impl Store {
         for id in ids {
             let stream = self.open.get_mut(&id).expect("telemetry writer exists");
             let (size, digest) = stream.writer.finish()?;
-            let transaction = connection.transaction()?;
+            let transaction = connection.savepoint()?;
             transaction
                 .execute("UPDATE files SET size_bytes=?2,sha256=?3 WHERE id=?1", params![id, catalog::integer(size)?, digest.as_slice()])?;
             transaction.execute("UPDATE streams SET finalized=1 WHERE file_id=?1", [&id])?;
-            super::super::super::commit(transaction)?;
+            super::super::super::release(transaction)?;
             // Close Before Removing Ownership; Windows Never Renames Or Deletes An Open File.
             self.open.remove(&id);
         }
@@ -517,11 +542,11 @@ impl Store {
             let indices = super::reader::indices(connection, &id)?;
             let checkpoint = ipc::Checkpoint { end, hash, batches: indices.len() };
             let (size, hash) = ipc::recover(&self.root.join(format!("telemetry/{id}.arrow")), schema, &indices, &checkpoint)?;
-            let transaction = connection.transaction()?;
+            let transaction = connection.savepoint()?;
             transaction
                 .execute("UPDATE files SET size_bytes=?2,sha256=?3 WHERE id=?1", params![id, catalog::integer(size)?, hash.as_slice()])?;
             transaction.execute("UPDATE streams SET finalized=1 WHERE file_id=?1", [&id])?;
-            super::super::super::commit(transaction)?;
+            super::super::super::release(transaction)?;
         }
         Ok(())
     }

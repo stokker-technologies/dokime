@@ -215,11 +215,19 @@ impl State {
     }
 
     pub(super) async fn arrow_write(&self, batch: StorageBatch<StoredRow>) -> Result<SavedData, Error> {
-        let owner = self.0.clone();
+        let bytes = batch
+            .as_slice()
+            .iter()
+            .try_fold(0usize, |total, row| super::entry::stream_length(row, usize::MAX).map(|bytes| total.saturating_add(bytes)))?;
+        let prepare_owner = self.0.clone();
+        let prepare_batch = batch.clone();
         self.call(move |connection| {
-            let waiting = std::time::Instant::now();
+            Ok(prepare_owner.telemetry.lock().unwrap().prepare(connection, prepare_batch.as_slice(), &prepare_owner.telemetry_contracts))
+        })
+        .await??;
+        let owner = self.0.clone();
+        self.grouped(batch.len(), bytes, move |connection| {
             let mut store = owner.telemetry.lock().unwrap();
-            tracing::debug!(name: "ingest.lock.store.writer", elapsed_ns = waiting.elapsed().as_nanos() as u64);
             Ok(store.write(connection, batch, &owner.telemetry_contracts))
         })
         .await?
@@ -227,7 +235,7 @@ impl State {
 
     pub(crate) async fn finalize_telemetry(&self, execution: String) -> Result<(), Error> {
         let owner = self.0.clone();
-        self.call(move |connection| Ok(owner.telemetry.lock().unwrap().finish(connection, Some(&execution)))).await?
+        self.grouped(1, execution.len(), move |connection| Ok(owner.telemetry.lock().unwrap().finish(connection, Some(&execution)))).await?
     }
 
     pub(crate) async fn telemetry_read(

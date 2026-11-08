@@ -259,8 +259,11 @@ impl State {
         T: Send + Sync + 'static,
         for<'a> Borrowed<'a>: From<&'a T>,
     {
+        let bytes = batch.as_slice().iter().try_fold(0usize, |total, value| {
+            entry::check_size(&Borrowed::from(value), usize::MAX).map(|bytes| total.saturating_add(bytes))
+        })?;
         let owner = self.0.clone();
-        self.call(move |connection| {
+        self.grouped(batch.len(), bytes, move |connection| {
             let mut files = owner.files.lock().unwrap();
             let mut prefix = owner.verification_prefix.lock().unwrap();
             Ok(write(connection, &root, batch, &mut files, &mut prefix))
@@ -431,7 +434,7 @@ pub(super) fn sequence(value: &str) -> Result<u64, Error> {
 // The Backend Must Own Its Durable Identity Before The Native Manager Exists.
 // Only This Bounded Identity Decode Runs Outside Manager-Admitted Scratch.
 fn bootstrap(connection: &mut Connection) -> Result<StoreHistory, Error> {
-    let transaction = connection.transaction()?;
+    let transaction = connection.savepoint()?;
     transaction.execute_batch(HEAD_SCHEMA)?;
     initialize_head(&transaction, None)?;
 
@@ -444,7 +447,7 @@ fn bootstrap(connection: &mut Connection) -> Result<StoreHistory, Error> {
         }
         decode_history(blob(row, 1)?)?
     };
-    super::commit(transaction)?;
+    super::release(transaction)?;
     Ok(history)
 }
 
@@ -481,7 +484,7 @@ fn initialize_head(connection: &Connection, expected: Option<&StoreHistory>) -> 
 }
 
 fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
-    let transaction = connection.transaction()?;
+    let transaction = connection.savepoint()?;
     transaction.execute_batch(HEAD_SCHEMA)?;
     transaction.execute_batch(SCHEMA)?;
     transaction.execute_batch(production::SCHEMA)?;
@@ -499,7 +502,7 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     if let Some(expected) = expected {
         expected.check(&head.history)?;
     }
-    super::commit(transaction)?;
+    super::release(transaction)?;
     Ok(head)
 }
 
@@ -522,7 +525,7 @@ where
         encoded.push(Encoded::new(value)?);
     }
 
-    let transaction = connection.transaction()?;
+    let transaction = connection.savepoint()?;
     let mut head = saved(&transaction)?;
     head.history.check(history)?;
     let mut plots = crate::plot::preview::index::Batch::default();
@@ -571,7 +574,7 @@ where
     insert_entries(&transaction, pending)?;
     plots.save(&transaction)?;
     transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
-    super::commit(transaction)?;
+    super::release(transaction)?;
     super::DATA_BATCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     for value in values {
         if let Borrowed::File(reference) = Borrowed::from(value) {
@@ -582,7 +585,7 @@ where
 }
 
 // Inserts Entries In Position Order Through Cached Multi-Row Statements, Then Single Rows For The Remainder.
-fn insert_entries(transaction: &rusqlite::Transaction<'_>, entries: Vec<Encoded<'_>>) -> Result<(), Error> {
+fn insert_entries(transaction: &Connection, entries: Vec<Encoded<'_>>) -> Result<(), Error> {
     const COLUMNS: &str = "(?,?,?,?,?,?,?,?,?,?,?,?,NULL)";
     static CHUNK: std::sync::LazyLock<String> =
         std::sync::LazyLock::new(|| format!("INSERT INTO storage_data_entries VALUES {}", vec![COLUMNS; INSERT_ROWS].join(",")));

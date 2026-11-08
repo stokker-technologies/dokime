@@ -69,9 +69,9 @@ impl VerifiedPrefix {
 impl State {
     pub(crate) async fn data_create_file(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
         let owner = self.0.clone();
-        self.call(move |connection| {
+        self.grouped(1, entry::check_size(&metadata, usize::MAX)?, move |connection| {
             let result = (|| {
-                let staging = create_file(connection, &root, metadata, false)?;
+                let staging = create_file(connection, &root, metadata, false, &mut owner.publication.lock().unwrap())?;
                 if metadata_for(connection, &staging.id)?.is_some_and(|(_, finished)| finished.is_none()) {
                     let path = staging_path(connection, &root, &staging.id)?;
                     let file = OpenOptions::new().read(true).write(true).open(path)?;
@@ -89,7 +89,7 @@ impl State {
             return Err(Error::Data("file batch must not be empty"));
         }
         let owner = self.0.clone();
-        self.call(move |connection| {
+        self.grouped(1, bytes.len(), move |connection| {
             Ok((|| {
                 let bytes = bytes.as_slice();
                 super::production::check_writable(connection, staging.id.as_str())?;
@@ -145,67 +145,72 @@ impl State {
         &self, root: PathBuf, staging: StagedFile, position: StorageCursor, length: u64, sha256: [u8; 32],
     ) -> Result<FileReference, Error> {
         let owner = self.0.clone();
-        self.call(move |connection| {
-            let result = (|| {
-                super::production::check_writable(connection, staging.id.as_str())?;
-                let head = saved(connection)?;
-                head.history.check(&staging.history)?;
-                head.history.check(&position.history)?;
-                if position.sequence == 0 {
-                    return Err(Error::Data("position zero cannot reference a file"));
-                }
-                let (metadata, finished) = metadata_for(connection, &staging.id)?.ok_or(Error::Data("unknown file staging"))?;
-                let reference = FileReference { metadata, position, length, sha256 };
-                if reference.metadata.expected_length.is_some_and(|value| value != length)
-                    || reference.metadata.expected_sha256.is_some_and(|value| value != sha256)
-                    || finished.as_ref().is_some_and(|value| value != &reference)
-                {
-                    return Err(Error::Conflict("file finish conflicts with metadata or prior finish"));
-                }
-                let encoded = entry::encode(&reference)?;
-                if finish_intent(connection, &staging.id)?.as_ref().is_some_and(|intent| intent != &reference) {
-                    return Err(Error::Conflict("file finish intent has different contents"));
-                }
-                let source = staging_path(connection, &root, &staging.id)?;
-                let destination = final_path(&root, &reference)?;
-                let present = regular(&destination)?;
-                let mut retained = owner.files.lock().unwrap();
-                if present {
-                    retained.remove(&staging.id);
-                    verify(&destination, &reference)?;
-                } else if let Some(file) = retained.get_mut(&staging.id) {
-                    let mut prefix = owner.verification_prefix.lock().unwrap();
-                    verify_opened(file, &reference, &mut prefix)?;
-                } else {
-                    verify(&source, &reference)?;
-                }
-                // Invalid length/hash claims do not bind a finish identity.
-                // Persist the verified intent before changing file visibility.
-                connection
-                    .execute("UPDATE storage_file_stages SET finish_intent=?1 WHERE id=?2", params![&encoded, staging.id.as_str()])?;
-                harmos::filesystem::publication::create_dir_all(destination.parent().expect("immutable file parent"))?;
-                if !present {
-                    if let Some(file) = retained.get(&staging.id) {
-                        harmos::filesystem::publication::install_opened(file, &source, &destination)?;
-                    } else {
-                        harmos::filesystem::publication::install(&source, &destination)?;
+        self.grouped(
+            1,
+            entry::check_size(&staging, usize::MAX)?.saturating_add(entry::check_size(&position, usize::MAX)?).saturating_add(40),
+            move |connection| {
+                let result = (|| {
+                    super::production::check_writable(connection, staging.id.as_str())?;
+                    let head = saved(connection)?;
+                    head.history.check(&staging.history)?;
+                    head.history.check(&position.history)?;
+                    if position.sequence == 0 {
+                        return Err(Error::Data("position zero cannot reference a file"));
                     }
-                    super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                } else if finished.is_none() && !published_content(connection, &reference)? {
-                    // An Interrupted Install May Have Published Its Name Before Its Flush.
-                    confirm_durability(&destination)?;
-                }
-                // The Finished Row Is Committed Only After Durable Publication.
-                // Retries Still Verify Content And The Exact Finish Identity.
-                let transaction = connection.transaction()?;
-                transaction.execute("UPDATE storage_file_stages SET finished=?1 WHERE id=?2", params![encoded, staging.id.as_str()])?;
-                transaction.execute("UPDATE storage_productions SET phase=1 WHERE id=?1", [staging.id.as_str()])?;
-                super::super::commit(transaction)?;
-                remove(&source)?;
-                Ok(reference)
-            })();
-            Ok(result)
-        })
+                    let (metadata, finished) = metadata_for(connection, &staging.id)?.ok_or(Error::Data("unknown file staging"))?;
+                    let reference = FileReference { metadata, position, length, sha256 };
+                    if reference.metadata.expected_length.is_some_and(|value| value != length)
+                        || reference.metadata.expected_sha256.is_some_and(|value| value != sha256)
+                        || finished.as_ref().is_some_and(|value| value != &reference)
+                    {
+                        return Err(Error::Conflict("file finish conflicts with metadata or prior finish"));
+                    }
+                    let encoded = entry::encode(&reference)?;
+                    if finish_intent(connection, &staging.id)?.as_ref().is_some_and(|intent| intent != &reference) {
+                        return Err(Error::Conflict("file finish intent has different contents"));
+                    }
+                    let source = staging_path(connection, &root, &staging.id)?;
+                    let destination = final_path(&root, &reference)?;
+                    let present = regular(&destination)?;
+                    let mut retained = owner.files.lock().unwrap();
+                    if present {
+                        retained.remove(&staging.id);
+                        verify(&destination, &reference)?;
+                    } else if let Some(file) = retained.get_mut(&staging.id) {
+                        let mut prefix = owner.verification_prefix.lock().unwrap();
+                        verify_opened(file, &reference, &mut prefix)?;
+                    } else {
+                        verify(&source, &reference)?;
+                    }
+                    if finished.is_some() {
+                        return Ok(reference);
+                    }
+                    // Invalid length/hash claims do not bind a finish identity.
+                    // Keep The Source Until The Group Commits The Verified Intent And Finished Row.
+                    connection
+                        .execute("UPDATE storage_file_stages SET finish_intent=?1 WHERE id=?2", params![&encoded, staging.id.as_str()])?;
+                    let directory = destination.parent().expect("immutable file parent");
+                    if !directory.is_dir() {
+                        harmos::filesystem::publication::create_dir_all(directory)?;
+                    }
+                    if !present {
+                        owner.publication.lock().unwrap().install(&source, &destination)?;
+                    } else if !published_content(connection, &reference)? {
+                        // An Interrupted Install May Have Published Its Name Before Its Flush.
+                        confirm_durability(&destination)?;
+                    }
+                    // The Finished Row Is Committed Only After Durable Publication.
+                    // Retries Still Verify Content And The Exact Finish Identity.
+                    let transaction = connection.savepoint()?;
+                    transaction.execute("UPDATE storage_file_stages SET finished=?1 WHERE id=?2", params![encoded, staging.id.as_str()])?;
+                    transaction.execute("UPDATE storage_productions SET phase=1 WHERE id=?1", [staging.id.as_str()])?;
+                    super::super::release(transaction)?;
+                    owner.publication.lock().unwrap().retire(source);
+                    Ok(reference)
+                })();
+                Ok(result)
+            },
+        )
         .await?
     }
 
@@ -298,7 +303,10 @@ impl State {
 
 /* === Public Functions === */
 
-pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: FileMetadata, production: bool) -> Result<StagedFile, Error> {
+pub(super) fn create_file(
+    connection: &mut Connection, root: &Path, metadata: FileMetadata, production: bool,
+    publication: &mut super::super::publication::Publication,
+) -> Result<StagedFile, Error> {
     entry::key(metadata.id.as_str())?;
     if let Some(scope) = &metadata.scope {
         entry::key(scope.as_str())?;
@@ -326,7 +334,7 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
         history: head.history,
         id: metadata.id.clone(),
     };
-    let transaction = connection.transaction()?;
+    let transaction = connection.savepoint()?;
     if let Some((existing, _)) = metadata_for(&transaction, &staging.id)? {
         if existing != metadata {
             return Err(Error::Conflict("file staging identity has different metadata"));
@@ -358,20 +366,25 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
     } else {
         None
     };
-    super::super::commit(transaction)?;
     if let Some(path) = path {
-        harmos::filesystem::publication::create_dir_all(path.parent().expect("staging parent"))?;
+        let directory = path.parent().expect("staging parent");
+        if !directory.is_dir() {
+            harmos::filesystem::publication::create_dir_all(directory)?;
+        }
         regular(&path)?;
         OpenOptions::new().create(true).truncate(false).write(true).open(&path)?;
-        if production {
-            confirm_durability(&path)?;
+        if production && active.is_none() {
+            publication.created(&path)?;
         }
     }
+    super::super::release(transaction)?;
     Ok(staging)
 }
 
 pub(super) fn confirm_durability(path: &Path) -> Result<(), Error> {
+    let started = std::time::Instant::now();
     harmos::filesystem::publication::confirm(path)?;
+    super::super::FILE_SYNC_NS.fetch_add(started.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
     super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     Ok(())
 }

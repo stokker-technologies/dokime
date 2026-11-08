@@ -10,10 +10,14 @@
 /* === Modules === */
 
 mod catalog;
+pub mod commit_policy;
 pub(crate) mod data;
 pub(crate) mod history;
+mod probe;
+mod publication;
 mod settings;
 pub(crate) mod snapshots;
+mod worker;
 
 /* === Re-Exports === */
 
@@ -23,6 +27,7 @@ pub use data::Backend;
 pub(crate) use data::telemetry::StreamFile;
 pub(crate) use data::telemetry::aggregates::Moments;
 pub(crate) use data::telemetry::query::{QueryProjection, QueryRead, QueryWork, storage_error};
+pub use probe::SyncCounters;
 pub use rusqlite;
 
 /* === Imports === */
@@ -49,6 +54,12 @@ use tokio::sync::{Mutex, Semaphore};
 
 pub const SCHEMA_VERSION: i64 = 1;
 static COMMITTED_TRANSACTIONS: AtomicU64 = AtomicU64::new(0);
+static FILE_SYNC_NS: AtomicU64 = AtomicU64::new(0);
+static DIRECTORY_SYNCS: AtomicU64 = AtomicU64::new(0);
+static DIRECTORY_SYNC_NS: AtomicU64 = AtomicU64::new(0);
+static COMMIT_NS: AtomicU64 = AtomicU64::new(0);
+static CHECKPOINTS: AtomicU64 = AtomicU64::new(0);
+static CHECKPOINT_NS: AtomicU64 = AtomicU64::new(0);
 static DATA_BATCHES: AtomicU64 = AtomicU64::new(0);
 static DURABLE_FILES: AtomicU64 = AtomicU64::new(0);
 pub(super) static RECORD_CAPTURE_ROWS: AtomicU64 = AtomicU64::new(0);
@@ -70,23 +81,30 @@ pub struct State(Arc<Owner>);
 // Local SQLite Connection Settings; `config::local_storage_defaults` Owns Their Defaults.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Settings {
+    pub commit: commit_policy::StorageCommitPolicy,
     pub previews: PreviewSettings,
     // Reader Connections, One Per Admitted Active Query.
     pub readers: NonZeroUsize,
-    // WAL Pages A Commit May Leave Before It Checkpoints Them Into The Database File; Larger
-    // Spans Write Each Repeatedly Updated Index Page Once Instead Of After Every Commit.
+    // Written WAL Pages That Request A Passive Maintenance Checkpoint After Acknowledgement.
     pub checkpoint_pages: NonZeroU32,
     pub telemetry_rows: NonZeroUsize,
     pub telemetry_interval: Duration,
 }
 
-// Process-Wide SQLite Diagnostics; These Exclude Autocommit Statements And The Harmos State Journal.
+// Process-Wide Diagnostics. SQLite xSync Counts Require DOKIME_STORAGE_PROBE; The Harmos Journal Is Outside This Probe.
 #[derive(Clone, Copy, Debug, serde::Serialize)]
 pub struct StorageCounters {
+    pub sqlite_syncs: SyncCounters,
     pub committed_transactions: u64,
+    pub commit_ns: u64,
+    pub checkpoints: u64,
+    pub checkpoint_ns: u64,
     pub data_batches: u64,
     // Successful File Durability Confirmations, Including Repeated Confirmations Of One File.
     pub durable_files: u64,
+    pub file_sync_ns: u64,
+    pub directory_syncs: u64,
+    pub directory_sync_ns: u64,
     pub record_capture_rows: u64,
     pub record_capture_pages: u64,
     pub record_capture_admissions: u64,
@@ -111,6 +129,9 @@ struct ReadMetrics {
 }
 
 struct Owner {
+    queue: worker::Queue,
+    publication: std::sync::Mutex<publication::Publication>,
+    failed: AtomicBool,
     read_metrics: Arc<ReadMetrics>,
     // The Only Writer Connection; Reads Never Hold It, So Concurrent Queries Cannot Delay A Save.
     live: Arc<Mutex<Option<Live>>>,
@@ -130,6 +151,7 @@ struct Owner {
 
 struct Live {
     connection: Connection,
+    probe: probe::Probe,
     _lease: File,
 }
 
@@ -241,13 +263,14 @@ impl State {
             harmos::filesystem::publication::create_dir_all(&root)?;
             let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
             acquire_lease(&lease)?;
+            let mut probe = probe::Probe::default();
             let mut connection = Connection::open(root.join("local.sqlite"))?;
             let fresh = check_layout(&connection)?;
             connection.execute_batch(
                 "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;
                 PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-65536;",
             )?;
-            connection.pragma_update(None, "wal_autocheckpoint", settings.checkpoint_pages.get())?;
+            connection.pragma_update(None, "wal_autocheckpoint", 0)?;
             // Idempotent DDL over a Current Layout Dirties No Page, So Its Commit Writes And
             // Syncs Nothing; Restamping The Version Would Rewrite The Header On Every Open.
             let transaction = connection.transaction()?;
@@ -256,13 +279,17 @@ impl State {
                 transaction.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             }
             commit(transaction)?;
+            probe.attach(&connection)?;
             let mut idle = Vec::new();
             idle.try_reserve_exact(readers.get()).map_err(std::io::Error::other)?;
             let verification_prefix = data::VerifiedPrefix::default();
             let verification_prefix = std::sync::Mutex::new(verification_prefix);
             Ok(Self(Arc::new(Owner {
+                queue: worker::Queue::default(),
+                publication: Default::default(),
+                failed: AtomicBool::new(false),
                 read_metrics: Arc::new(ReadMetrics::default()),
-                live: Arc::new(Mutex::new(Some(Live { connection, _lease: lease }))),
+                live: Arc::new(Mutex::new(Some(Live { connection, probe, _lease: lease }))),
                 readers: Arc::new(Readers {
                     database: root.join("local.sqlite"),
                     permits: Arc::new(Semaphore::new(count as usize)),
@@ -322,6 +349,10 @@ impl State {
             }
         }
         self.0.closing.store(true, Ordering::Release);
+        self.0.queue.settle().await;
+        if std::env::var_os("DOKIME_STORAGE_PROBE").is_some() {
+            eprintln!("dokime_storage_probe {}", serde_json::to_string(&counters()).unwrap());
+        }
         // Accepted Reads Settle And Return Their Connections Before The Writer Closes.
         let readers = self.0.readers.clone();
         if let Ok(permits) = readers.permits.clone().acquire_many_owned(readers.count).await {
@@ -334,16 +365,18 @@ impl State {
         tracing::debug!(name: "ingest.lock.sqlite", elapsed_ns = waiting.elapsed().as_nanos() as u64);
         let owner = self.0.clone();
         tokio::task::spawn_blocking(move || {
-            if let Some(live) = live.as_mut() {
+            if !owner.failed.load(Ordering::Acquire)
+                && let Some(live) = live.as_mut()
+            {
                 owner.telemetry.lock().unwrap().finish(&mut live.connection, None)?;
             }
             owner.files.lock().unwrap().clear();
             *owner.verification_prefix.lock().unwrap() = data::VerifiedPrefix::default();
-            let Some(Live { connection, _lease }) = live.take() else {
+            let Some(Live { connection, probe, _lease }) = live.take() else {
                 return Ok(());
             };
             connection.close().map_err(|(connection, error)| {
-                *live = Some(Live { connection, _lease });
+                *live = Some(Live { connection, probe, _lease });
                 Error::Sqlite(error)
             })
         })
@@ -353,23 +386,7 @@ impl State {
     pub async fn call<T: Send + 'static>(
         &self, operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {
-        if self.0.closing.load(Ordering::Acquire) {
-            return Err(Error::Closed);
-        }
-        // Acquire before spawning: a cancelled caller cannot leave a queued
-        // older write that overtakes its retry or a subsequent transition.
-        let parent = tracing::Span::current();
-        let waiting = std::time::Instant::now();
-        let mut live = self.0.live.clone().lock_owned().await;
-        tracing::debug!(name: "ingest.lock.sqlite", elapsed_ns = waiting.elapsed().as_nanos() as u64);
-        tokio::task::spawn_blocking(move || {
-            let _parent = parent.enter();
-            let _execute = tracing::debug_span!("storage.sqlite.execute").entered();
-            let result = live.as_mut().ok_or(Error::Closed).and_then(|live| operation(&mut live.connection).map_err(Error::Sqlite));
-            drop(live);
-            result
-        })
-        .await?
+        self.enqueue(0, 0, false, operation).await
     }
 
     // Runs on a Reader Connection Inside One Read Transaction, So It Observes a Single
@@ -411,9 +428,16 @@ impl State {
 
 pub fn counters() -> StorageCounters {
     StorageCounters {
+        sqlite_syncs: probe::counters(),
         committed_transactions: COMMITTED_TRANSACTIONS.load(Ordering::Relaxed),
+        commit_ns: COMMIT_NS.load(Ordering::Relaxed),
+        checkpoints: CHECKPOINTS.load(Ordering::Relaxed),
+        checkpoint_ns: CHECKPOINT_NS.load(Ordering::Relaxed),
         data_batches: DATA_BATCHES.load(Ordering::Relaxed),
         durable_files: DURABLE_FILES.load(Ordering::Relaxed),
+        file_sync_ns: FILE_SYNC_NS.load(Ordering::Relaxed),
+        directory_syncs: DIRECTORY_SYNCS.load(Ordering::Relaxed),
+        directory_sync_ns: DIRECTORY_SYNC_NS.load(Ordering::Relaxed),
         record_capture_rows: RECORD_CAPTURE_ROWS.load(Ordering::Relaxed),
         record_capture_pages: RECORD_CAPTURE_PAGES.load(Ordering::Relaxed),
         record_capture_admissions: RECORD_CAPTURE_ADMISSIONS.load(Ordering::Relaxed),
@@ -424,6 +448,10 @@ pub fn counters() -> StorageCounters {
 }
 
 /* === Private Functions === */
+
+fn release(transaction: rusqlite::Savepoint<'_>) -> rusqlite::Result<()> {
+    transaction.commit()
+}
 
 fn commit(transaction: rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
     let _span = tracing::debug_span!("ingest.catalog.commit").entered();
