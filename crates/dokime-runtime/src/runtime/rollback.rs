@@ -17,6 +17,7 @@
 use std::{fmt, sync::Arc};
 
 // Third Party Imports
+use futures_util::future::BoxFuture;
 use tokio::sync::Mutex;
 
 // Local Imports
@@ -32,7 +33,7 @@ use super::Runtime;
 
 #[derive(Clone)]
 pub struct Receipt {
-    owner: Arc<Mutex<Option<Owner>>>,
+    owner: Arc<Mutex<Option<Box<dyn Cleanup>>>>,
 }
 
 #[derive(Default)]
@@ -53,6 +54,11 @@ enum Owner {
 
 /* === Traits === */
 
+// Errors Retain Cleanup Ownership Without Exposing The Runtime's Auto-Trait Graph.
+trait Cleanup: Send {
+    fn retry(&mut self) -> BoxFuture<'_, crate::runtime::Result<()>>;
+}
+
 /* === Implementations === */
 
 impl Drop for Preparing {
@@ -70,20 +76,30 @@ impl Drop for Preparing {
 impl Receipt {
     pub(super) fn new(runtime: Runtime) -> Self {
         Self {
-            owner: Arc::new(Mutex::new(Some(Owner::Runtime(Box::new(runtime))))),
+            owner: Arc::new(Mutex::new(Some(Box::new(Owner::Runtime(Box::new(runtime)))))),
         }
     }
 
     pub(crate) fn boot(boot: Arc<std::sync::Mutex<Boot>>) -> Self {
         Self {
-            owner: Arc::new(Mutex::new(Some(Owner::Boot(boot)))),
+            owner: Arc::new(Mutex::new(Some(Box::new(Owner::Boot(boot))))),
         }
     }
 
     pub async fn retry(&self) -> crate::runtime::Result<()> {
         let mut owner = self.owner.lock().await;
         if let Some(owned) = owner.as_mut() {
-            match owned {
+            owned.retry().await?;
+            *owner = None;
+        }
+        Ok(())
+    }
+}
+
+impl Cleanup for Owner {
+    fn retry(&mut self) -> BoxFuture<'_, crate::runtime::Result<()>> {
+        Box::pin(async move {
+            match self {
                 Owner::Runtime(runtime) => {
                     runtime.shutdown().await?;
                 }
@@ -103,9 +119,8 @@ impl Receipt {
                     }
                 }
             }
-            *owner = None;
-        }
-        Ok(())
+            Ok(())
+        })
     }
 }
 

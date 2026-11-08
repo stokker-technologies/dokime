@@ -63,13 +63,8 @@ pub fn collect_required_native_batch(stream: HostTelemetryStream) -> TelemetryBa
     let samples = rows
         .into_iter()
         .map(|row| {
-            let mut sample = TelemetrySample::new(
-                dokime::model::identity::new_id(),
-                stream.identifier(),
-                contract.schema_version,
-                row.timestamp,
-                "host",
-            );
+            let mut sample = TelemetrySample::new(dokime::model::identity::new_id(), stream.identifier(), 1, row.timestamp, "host");
+            sample.schema_version = contract.schema_version;
             sample.values = row.values;
             sample.values.insert("timestamp".into(), Value::from(sample.timestamp.clone()));
             sample
