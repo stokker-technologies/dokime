@@ -41,12 +41,12 @@ taplo = "0.10.0"
 protoc = "36.2"
 
 # Release and Signing
-"aqua:anchore/syft" = "1.57.0"
 "aqua:EmbarkStudios/cargo-deny" = "0.20.2"
+"aqua:anchore/syft" = "1.57.0"
 "aqua:rustsec/rustsec/cargo-audit" = "0.22.2"
+git-cliff = "2.14.2"
 "github:CycloneDX/cyclonedx-rust-cargo" = "cargo-cyclonedx-0.5.9"
 "github:EmbarkStudios/cargo-about" = "0.9.3"
-git-cliff = "2.14.2"
 minisign = "0.12"
 
 # Project Statistics
