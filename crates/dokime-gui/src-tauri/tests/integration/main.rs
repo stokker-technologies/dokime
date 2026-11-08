@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+#[cfg(feature = "testing")]
+mod app;
 mod connection;
 mod http;
 mod native_session;
@@ -24,6 +26,7 @@ mod support;
 
 /* === Re-Exports === */
 
+pub use dokime_gui::PRODUCT;
 use support::wire;
 
 /* === Imports === */
