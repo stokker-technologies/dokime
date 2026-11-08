@@ -589,8 +589,8 @@ mod tests {
         assert!(detail.message.contains(execution));
         assert!(detail.message.contains("execution report publication"));
         assert!(detail.cause_chain.len() >= 2);
-        assert_eq!(detail.cause_chain.last().unwrap().message, "fixture-save-root: report.html");
-        assert!(!detail.cause_chain.iter().any(|cause| cause.message.contains(&root.display().to_string())));
+        assert_eq!(detail.cause_chain.last().unwrap().message, format!("fixture-save-root: {}", root.join("report.html").display()));
+        assert!(detail.cause_chain.iter().any(|cause| cause.message.contains(&root.display().to_string())));
         assert!(detail.source.is_some());
     }
 }
