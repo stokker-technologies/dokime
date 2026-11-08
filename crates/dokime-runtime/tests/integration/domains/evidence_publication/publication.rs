@@ -79,7 +79,10 @@ pub(super) async fn evidence_write_revision(runtime: &RuntimeHandle) {
         evidence.records.iter().filter(|record| record.record_type.as_str() == "calibration.field.completed").collect::<Vec<_>>();
     assert_eq!(calibrations.len(), 1);
     assert!(calibrations[0].sequence > 0);
-    assert_eq!(calibrations[0].schema_version, 2);
+    assert_eq!(
+        calibrations[0].schema_version,
+        dokime_domain::model::records::BuiltinRecordType::CalibrationFieldCompleted.schema_version()
+    );
     let observed = evidence.notes.iter().filter(|note| note.message == "Observed setup.").count();
     assert_eq!(observed, 1);
     let warnings = evidence.health.iter().filter(|item| item.message == "Runtime warning.").collect::<Vec<_>>();

@@ -114,10 +114,7 @@ pub(crate) async fn old_incompatible_startup() {
     let mut current = Some(&error as &(dyn std::error::Error + 'static));
     let mut refused = false;
     while let Some(error) = current {
-        if matches!(
-            error.downcast_ref::<dokime_runtime::storage::Error>(),
-            Some(dokime_runtime::storage::Error::StorageFormatMismatch { .. })
-        ) {
+        if matches!(error.downcast_ref::<dokime_runtime::storage::Error>(), Some(dokime_runtime::storage::Error::Incompatible(_))) {
             refused = true;
             break;
         }
@@ -127,7 +124,6 @@ pub(crate) async fn old_incompatible_startup() {
     assert_eq!(std::fs::read(legacy.join("journal.jsonl")).unwrap(), b"incompatible old history\n");
     assert_eq!(std::fs::read(legacy.join("state.json")).unwrap(), b"invalid snapshot");
     assert!(!root.path().join("local.sqlite").exists());
-    assert!(!root.path().join(dokime_runtime::storage::format::RECORD).exists());
 }
 
 /* === Tests === */

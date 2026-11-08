@@ -17,7 +17,7 @@
 
 // Third Party Imports
 use harmos::{
-    DefinitionId, Identified,
+    Identified,
     storage::{ObjectRetention, ObjectVersion, StoredObject},
 };
 
@@ -73,9 +73,7 @@ pub struct Registration {
 /* === Implementations === */
 
 impl Identified for Case {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("dokime.object.case"), 1)
-    }
+    const ID: &'static str = "dokime.object.case";
 }
 
 impl StoredObject for Case {
@@ -88,9 +86,7 @@ impl StoredObject for Case {
 }
 
 impl Identified for Registration {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("dokime.object.case_registration"), 1)
-    }
+    const ID: &'static str = "dokime.object.case_registration";
 }
 
 impl StoredObject for Registration {

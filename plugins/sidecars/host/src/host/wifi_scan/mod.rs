@@ -81,7 +81,7 @@ impl dokime::StreamSpec for WifiScan {
 
 impl TelemetryStream for WifiScan {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::WifiScan).typed::<crate::WifiScan>()
+        crate::host_telemetry_contract(HostTelemetryStream::WifiScan)
     }
 }
 

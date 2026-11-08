@@ -32,7 +32,7 @@ use crate::model::identity::TraceId;
 
 /* === Structs === */
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorCause {
     pub message: String,
     pub code: Option<String>,

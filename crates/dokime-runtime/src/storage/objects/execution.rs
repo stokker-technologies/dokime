@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 
 // Third Party Imports
 use harmos::{
-    DefinitionId, Identified,
+    Identified,
     storage::{FileReference, ObjectRetention, ObjectRevision, ObjectVersion, ObjectVersionToken, StorageCursor, StoredObject},
 };
 
@@ -1131,9 +1131,7 @@ impl TryFrom<Revision> for dokime_domain::model::execution::saved::ExecutionRevi
 }
 
 impl Identified for Execution {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("dokime.object.execution"), 1)
-    }
+    const ID: &'static str = "dokime.object.execution";
 }
 
 impl StoredObject for Execution {

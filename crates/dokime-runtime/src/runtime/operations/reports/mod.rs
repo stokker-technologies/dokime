@@ -160,6 +160,23 @@ impl Resources {
     }
 }
 
+#[cfg(feature = "testing")]
+impl RuntimeHandle {
+    // Exercise The Same Historical Materializer Used By Cycle Composition.
+    pub async fn rebuild_sealed_report(&self, id: &TestExecutionId) -> Result<harmos::storage::FileReference> {
+        let resources = Resources::from_runtime(self);
+        let view = crate::runtime::storage::execution::ExecutionView::open(self.storage(), id, harmos::storage::ObjectVersion::Latest)
+            .await?
+            .ok_or_else(|| Error::InvalidReportInputs("sealed execution is missing".into()))?;
+        let seal = view.execution().saved.as_ref().ok_or_else(|| Error::InvalidReportInputs("execution is unsealed".into()))?;
+        let progress = resources.progress.begin("Rebuilding Sealed Report");
+        let captured = crate::report::materialize::sealed_member(&resources.scope, self.storage(), seal, &progress).await?;
+        let mut prepared = crate::report::Renderer.execution(captured, seal.source.outputs.clone(), &self.storage().cursor_saved())?;
+        let rebuilt = prepared.save_dependencies(self.storage(), &seal.sealed_at, &seal.source.execution).await?;
+        Ok(rebuilt.report)
+    }
+}
+
 /* === Private Functions === */
 
 fn report_failure(error: Error) -> Error {

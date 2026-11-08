@@ -231,7 +231,7 @@ fn native_cycle_projection_and_membership_share_the_object_transaction() {
         value: ObjectValue {
             schema: SchemaKey {
                 id: Identifier::new("dokime.object.cycle").unwrap(),
-                version: 1.try_into().unwrap(),
+                version: <crate::storage::objects::cycle::Cycle as harmos::Identified>::definition().1.try_into().unwrap(),
                 payload_encoding: Default::default(),
             },
             item: ObjectKey::new(id.as_str(), 4096.try_into().unwrap()).unwrap(),

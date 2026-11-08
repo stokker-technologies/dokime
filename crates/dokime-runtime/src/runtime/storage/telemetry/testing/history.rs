@@ -58,7 +58,7 @@ pub async fn telemetry(days: u64, per_day: u64) {
     let capacity = settings.request.max_pending_write_bytes.get();
     let storage = Manager::new(StorageBackends { primary: backend, state }, settings).unwrap();
     let runtime = Runtime::<TestApp>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
-    let contract = crate::telemetry::TelemetryContract::declared("fixture.pending", "Pending").typed::<Reading>();
+    let contract = crate::telemetry::TelemetryContract::declared("fixture.pending", "Pending").typed::<Reading>(1);
     let codec = telemetry::codec(&contract, &Default::default()).unwrap();
     storage.write_schema(codec.schema().clone(), Arc::clone(codec.graph())).await.unwrap();
     storage.flush().await.unwrap();

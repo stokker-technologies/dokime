@@ -136,7 +136,7 @@ pub(crate) async fn fixed_pages_gap() {
     assert_eq!(initial.records.len(), 1);
     let record = &initial.records[0];
     assert!(!record.record_id.is_empty());
-    assert_eq!(record.schema_version, 2);
+    assert_eq!(record.schema_version, model::records::BuiltinRecordType::CalibrationFieldCompleted.schema_version());
     assert_eq!(record.severity, model::identity::wire::Severity::Info);
     assert!(record.timestamp.is_some());
     let schema = client
@@ -309,7 +309,7 @@ pub(crate) async fn filtered_scans_resync() {
         client
             .unary::<contracts::evidence::GetCapturedRecordSchema>(contracts::evidence::GetCapturedRecordSchema {
                 record_type: "calibration.field.completed".into(),
-                schema_version: 2,
+                schema_version: model::records::BuiltinRecordType::CalibrationFieldCompleted.schema_version(),
                 epoch: "old-process".into()
             })
             .await

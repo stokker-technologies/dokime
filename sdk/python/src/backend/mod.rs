@@ -200,24 +200,6 @@ fn error(failure: Error, address: &str) -> PyErr {
                     };
                 }
                 if exception.is_none()
-                    && let Some(dokime::storage::Error::StorageFormatMismatch {
-                        root,
-                        writer_build,
-                        running_build,
-                        writer_format,
-                        running_format,
-                    }) = cause.downcast_ref::<dokime::storage::Error>()
-                {
-                    exception = Some(errors.getattr("StorageFormatMismatch")?.call1((
-                        &message,
-                        root,
-                        writer_build.as_ref(),
-                        *running_build,
-                        writer_format.as_deref(),
-                        *running_format,
-                    ))?);
-                }
-                if exception.is_none()
                     && let Some(dokime::runtime::Error::PluginIdConflict { plugin }) = cause.downcast_ref::<dokime::runtime::Error>()
                 {
                     exception = Some(errors.getattr("PluginIdConflict")?.call1((&message, plugin))?);

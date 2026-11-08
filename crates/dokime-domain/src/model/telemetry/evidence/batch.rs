@@ -64,7 +64,7 @@ impl TelemetryBatch {
         Self {
             batch_id,
             stream,
-            schema_version: 1,
+            schema_version: samples.first().map_or(0, |sample| sample.schema_version),
             samples,
         }
     }

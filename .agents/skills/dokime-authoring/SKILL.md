@@ -22,8 +22,8 @@ Use `Plot::xy(label)` to choose both axes. It defaults to `PlotStyle::Line`;
 set `plot.style(PlotStyle::Points)` for independent points, or use `LinePoints`
 or `Step`. Above the exact preview limit, points use the existing density grid;
 the other styles retain the ordered envelope without a grid. `Trajectory` and
-`XyInterval` keep their own behavior. The document schema stays at v1; incompatible
-development documents require a fresh storage root, preserving existing data.
+`XyInterval` keep their own behavior. Captured document definitions belong to their execution; changes affect new
+executions and never require a fresh storage root.
 
 Plot `unit` is only a label. `plot.scale(1e3)` converts returned time-series y
 values, statistics (except count), cursor/tooltips and y references for display

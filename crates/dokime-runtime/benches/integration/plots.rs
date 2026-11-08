@@ -177,7 +177,7 @@ pub(super) fn config(root: &std::path::Path) -> RuntimeConfig {
         enabled: true,
         telemetry_contracts: vec![TelemetryContract {
             stream: identifier(STREAM),
-            schema_version: 1,
+            schema_version: harmos::domain::streams::revision(&schema, 1).unwrap(),
             metadata: metadata(STREAM, "Plot Bench"),
             template_id: None,
             owner: None,

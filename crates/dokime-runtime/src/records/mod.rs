@@ -29,7 +29,7 @@ pub use declared::{DeclaredRecord, message_of};
 pub use dokime_domain::model::validation::CompatibilityStatus;
 pub use dokime_domain::model::validation::ValidationMode;
 pub use inbox::{Deliveries, RecordSource};
-pub use route::{RECORD_PUBLICATION_VERSION, RecordPublication};
+pub use route::RecordPublication;
 
 /* === Imports === */
 

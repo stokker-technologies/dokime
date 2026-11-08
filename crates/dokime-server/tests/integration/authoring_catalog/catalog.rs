@@ -71,7 +71,7 @@ pub(crate) async fn schemas_exact_pages() {
             .strict(),
     ];
     let mut telemetry = TelemetryContract::declared("fixture.samples", "Samples")
-        .typed::<CountRow>()
+        .typed::<CountRow>(1)
         .column(TelemetryColumn::declared("count", "Count", ValueType::Integer, TelemetryRole::Counter))
         .strict();
     telemetry.columns[1].default = Some(Value::Integer(i64::MAX));

@@ -179,20 +179,8 @@ impl BuiltinRecordType {
         Self::ALL.iter().copied().find(|kind| kind.as_str() == record_type.as_str())
     }
 
-    pub const fn schema_version(self) -> u32 {
-        match self {
-            Self::ToolConnectionAcquired
-            | Self::ToolConnectionLost
-            | Self::TargetLost
-            | Self::TargetAcquired
-            | Self::CalibrationFieldStarted
-            | Self::CalibrationFieldActivity
-            | Self::CalibrationFieldCompleted
-            | Self::CalibrationTiltStarted
-            | Self::CalibrationTiltActivity
-            | Self::CalibrationTiltCompleted => 2,
-            _ => 1,
-        }
+    pub fn schema_version(self) -> u32 {
+        self.contract().schema_version()
     }
 
     pub fn contract(self) -> RecordContract {
@@ -383,7 +371,6 @@ fn simple_contract(record_type: &str, severity: RecordSeverity) -> RecordContrac
 fn contract(record_type: &str, default_severity: RecordSeverity, fields: Vec<RecordField>) -> RecordContract {
     RecordContract {
         record_type: identifier(record_type),
-        schema_version: 1,
         metadata: metadata(record_type),
         display: display_for(record_type, default_severity),
         template_id: None,
@@ -473,7 +460,6 @@ fn product_calibration_contract(record_type: &str) -> RecordContract {
 
 fn product_contract(record_type: &str, fields: Vec<RecordField>) -> RecordContract {
     let mut contract = contract(record_type, RecordSeverity::Info, fields);
-    contract.schema_version = 2;
     contract.allow_extra_fields = false;
     contract
 }
@@ -639,7 +625,7 @@ mod tests {
             let declared = catalog.iter().filter(|contract| contract.record_type.as_str() == kind.as_str()).collect::<Vec<_>>();
             assert_eq!(declared.len(), 1, "{kind} is registered exactly once");
             assert_eq!(declared[0], &kind.contract());
-            assert_eq!(declared[0].schema_version, kind.schema_version());
+            assert_eq!(declared[0].schema_version(), kind.schema_version());
             assert_eq!(BuiltinRecordType::from_identifier(&kind.identifier()), Some(*kind));
             assert!(builtin_record_types().contains(&kind.identifier()));
         }

@@ -59,7 +59,6 @@ export function reportFixturePayload(): ReportPayload {
     documents: { default: reportDocument(null) },
     generated_at: "2026-09-30T12:34:00.000Z",
     plots: {},
-    schema_version: 1,
     snapshot: {
       artifacts: [artifact()],
       health: [],

@@ -251,12 +251,11 @@ back to the compiled identifier when `distribution.json` is absent. Plain Dokime
 defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
-Development roots without durable case registration revisions, or containing earlier telemetry layouts, plugin identities,
-or evidence indexes without incremental numeric summaries, shared field projections and plot bindings, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
-token identities, indexed record producer scopes, indexed telemetry sample identities, sealed case headers, sealed output descriptors, or document-selected distinct fields require a fresh storage root.
-Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
-Each root records a derived storage format digest and its writer commit before evidence writes.
-A mismatched or populated unmarked root refuses with `StorageFormatMismatch`, preserving its contents; choose a fresh root.
+Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Stream and
+record identities derive from their schemas; saved execution evidence retains
+its definitions across plugin changes. Only unreadable Dokime-owned persistent
+state requires a fresh storage root. Dokime reports what cannot be decoded and
+preserves the existing data.
 Scoped evidence reads isolate other cycles; see the
 [storage read policies](docs/product-guide.md#storage-read-isolation)
 for corruption reporting and whole-root failures.

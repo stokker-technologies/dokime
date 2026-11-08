@@ -23,8 +23,6 @@ pub use crate::operations::records::RecordPublication;
 
 /* === Constants === */
 
-pub const RECORD_PUBLICATION_VERSION: u32 = 1;
-
 /* === Macros === */
 
 /* === Type Aliases === */

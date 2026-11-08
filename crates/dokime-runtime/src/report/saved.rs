@@ -34,7 +34,6 @@ use crate::records::RecordContract;
 use crate::storage::Manager;
 use crate::telemetry::contract::TelemetryContract;
 use crate::{
-    RuntimeHandle,
     execution::context::captured::{
         native::source::{MEDIA_TYPE, Source as NativeSource},
         source::CapturedSource,
@@ -178,8 +177,6 @@ impl ReportFileIdentity<'_> {
     }
 }
 
-impl RuntimeHandle {}
-
 impl CapturedExecutionReportInput {
     pub fn validate(&self) -> Result<()> {
         if let Some(anchor) = &self.execution {
@@ -213,7 +210,7 @@ impl CapturedExecutionReportInput {
                 return Err(Error::InvalidReportInputs("captured record type has no declaration".into()));
             }
             for (version, contract) in versions {
-                if kind != &contract.record_type || *version == 0 || *version != contract.schema_version {
+                if kind != &contract.record_type || *version == 0 || *version != contract.schema_version() {
                     return Err(Error::InvalidReportInputs("captured record declaration identity differs".into()));
                 }
             }
@@ -587,7 +584,7 @@ mod tests {
 
     // The Published Payload Of A Fixed Input At Its Original Generator Version.
     const PAYLOAD_HUB: &str = r#""hub":{"generator":"dokime-runtime","name":"Dokime","version":"0.1.0"}"#;
-    const PAYLOAD_SHA256: &str = "cbcdd6309f1758caba6424e48edf01e8715dc52db13ffd5eb9064341391c1302";
+    const PAYLOAD_SHA256: &str = "f989a220876a6cc59f9e05d00148c9de05cf0b23724cf2c73ce43080e54083ad";
 
     #[tokio::test]
     async fn report_digest_is_stable() {

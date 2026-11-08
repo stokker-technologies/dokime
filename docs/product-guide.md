@@ -515,13 +515,23 @@ Queries and documents select stream ids and columns: a missing column contribute
 no values, and an incompatible column is identified on its affected binding while
 other evidence remains readable. Catalogs and live plots show the active stream.
 
-Development contracts remain v1. Use fresh storage when a storage schema or evidence
-format becomes incompatible. There are no migrations, compatibility aliases or
-automatic root resets; existing files and evidence are never silently deleted.
-Before evidence writes, each root records a digest derived from stored schemas and
-normalized codec source, plus its writer commit. A different digest or a populated
-root without that record refuses with `StorageFormatMismatch`, naming the root and
-writer and running builds without changing files. Choose a fresh root to continue.
+Stream and record revisions are opaque identities derived from their schemas,
+compared only for equality. Rebuild plugins against the matching Harmos SDK;
+Python record declarations no longer accept a `schema` argument. Stored evidence
+keeps the definitions captured for its execution, so changing or removing a
+plugin does not invalidate the root or rewrite old evidence.
+
+Root compatibility belongs to Dokime's built-in persistent state: journal replay,
+snapshots and catalogs. An unreadable built-in record names the state that cannot
+be decoded and advises a fresh root. Evidence codecs, document definitions and
+plugin schemas never participate in a whole-root digest. Obsolete digest markers
+are preserved and ignored. The custom interned snapshot encoding retains its
+existing key because Harmos cannot describe that custom Serde representation.
+Database layout and supported input framing remain v1. There are no migrations,
+compatibility aliases or automatic root resets; existing files are never silently
+deleted. Keeping old built-in journal records across a product shape change would
+require storing their definitions with each journal entry and decoding against
+those definitions, rather than the running product's current typed identity.
 
 ## Shared Plugin Secrets
 

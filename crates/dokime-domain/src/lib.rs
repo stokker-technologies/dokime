@@ -16,9 +16,6 @@ pub mod model;
 pub mod process;
 pub mod state;
 
-#[cfg(feature = "storage-format")]
-pub mod storage_format;
-
 /* === Re-Exports === */
 
 pub use error::Error;

@@ -40,7 +40,7 @@ use crate::model::values::Value;
 /* === Structs === */
 
 #[harmos::record(id = "dokime.record")]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Record {
     pub record_id: RecordId,

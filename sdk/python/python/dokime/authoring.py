@@ -632,9 +632,9 @@ def stream[T](*, id: str, label: str, window: int, row: type | None = None, desc
 
 @dataclass_transform(field_specifiers=(parameter,))
 def record[T](
-    *, id: str, label: str, schema: int = 1, severity: Literal["debug", "info", "warning", "error"] = "info", description: str | None = None
+    *, id: str, label: str, severity: Literal["debug", "info", "warning", "error"] = "info", description: str | None = None
 ) -> Callable[[type[T]], type[T]]:
-    return _declare("record", id=id, label=label, schema=schema, severity=severity, description=description)
+    return _declare("record", id=id, label=label, severity=severity, description=description)
 
 
 @dataclass_transform(field_specifiers=(parameter,))
@@ -963,7 +963,6 @@ def _record_spec(kind: type) -> dict[str, Any]:
     ]
     return {
         "record_type": metadata["id"],
-        "schema_version": metadata["schema"],
         "metadata": _metadata(metadata["id"], metadata["label"], metadata["description"]),
         "template_id": None,
         "owner": None,
@@ -994,7 +993,6 @@ def _prompt_spec(kind: type) -> dict[str, Any]:
     ]
     return {
         "prompt_type": metadata["id"],
-        "schema_version": 1,
         "archetype": metadata["archetype"],
         "title": metadata["label"],
         "message": metadata["message"],

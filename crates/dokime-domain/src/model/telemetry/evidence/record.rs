@@ -112,7 +112,7 @@ impl TelemetrySample {
         Self {
             sample_id,
             stream,
-            schema_version: 1,
+            schema_version: 0,
             sequence,
             received_at: timestamp.clone(),
             timestamp,

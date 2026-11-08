@@ -346,11 +346,8 @@ pub async fn declare(manager: &Manager, settings: &harmos::config::SchemaSetting
 }
 
 pub fn schema() -> SchemaKey {
-    SchemaKey {
-        payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
-        id: Identifier::new(SCHEMA_ID).unwrap(),
-        version: 1.try_into().unwrap(),
-    }
+    static KEY: std::sync::OnceLock<SchemaKey> = std::sync::OnceLock::new();
+    KEY.get_or_init(|| crate::storage::schema::<Publication>(SCHEMA_ID)).clone()
 }
 
 pub fn selection(owner: Owner<'_>, report: Option<Identifier>) -> harmos::storage::query::RecordSelection {

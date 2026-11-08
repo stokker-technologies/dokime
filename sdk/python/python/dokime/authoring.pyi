@@ -234,7 +234,7 @@ def stream[T](
 ) -> Callable[[type[T]], type[T]]: ...
 @dataclass_transform(field_specifiers=(parameter,))
 def record[T](
-    *, id: str, label: str, schema: int = 1, severity: Literal["debug", "info", "warning", "error"] = "info", description: str | None = None
+    *, id: str, label: str, severity: Literal["debug", "info", "warning", "error"] = "info", description: str | None = None
 ) -> Callable[[type[T]], type[T]]: ...
 @dataclass_transform(field_specifiers=(parameter,))
 def prompt[T](

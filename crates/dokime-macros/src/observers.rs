@@ -176,7 +176,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
                         &metadata.label,
                     )
                         .columns(<#row as #sdk::telemetry::TelemetryRow>::columns())
-                        .typed::<#row>()
+                        .typed::<#row>(<Self as #sdk::StreamSpec>::WINDOW)
                         #closing
                 }
             }

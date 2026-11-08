@@ -139,9 +139,8 @@ class Scope:
 def _validate_listed(identity: Message, item: Message) -> None:
     same_definition = identity.HasField("definition") and (
         item.definition.prompt_type,
-        item.definition.schema_version,
         item.definition.title,
-    ) == (identity.definition.prompt_type, identity.definition.schema_version, identity.definition.title)
+    ) == (identity.definition.prompt_type, identity.definition.title)
     if not _wire.equal(item.scope, identity.scope) or not _wire.equal(item.created_at, identity.created_at) or not same_definition:
         raise ProtocolError("prompt view differs from listed request")
 

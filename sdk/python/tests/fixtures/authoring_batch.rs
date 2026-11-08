@@ -39,6 +39,8 @@ use dokime_server::host::{Args, NetworkArgs, Session};
 
 /* === Constants === */
 
+const WINDOW: usize = 10_000;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -82,7 +84,9 @@ impl EmbeddedProvider for Provider {
             version: "0.1.0".into(),
             enabled: true,
             telemetry_contracts: vec![
-                dokime::telemetry::TelemetryContract::declared("batch.samples", "Samples").with_storage_schema(schema).columns(columns),
+                dokime::telemetry::TelemetryContract::declared("batch.samples", "Samples")
+                    .with_storage_schema(schema, WINDOW)
+                    .columns(columns),
             ],
             ..Default::default()
         }
@@ -92,7 +96,7 @@ impl EmbeddedProvider for Provider {
             metadata: dokime::Metadata::new(dokime::Identifier::new("batch.samples").unwrap(), "Samples", None),
             row_metadata: vec![],
             id: "batch.samples".into(),
-            window: 10000,
+            window: WINDOW,
             row: Schema::from_declaration(Reading::DEFINITION, &Default::default()).unwrap(),
         }]
     }
@@ -162,11 +166,7 @@ async fn story() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         host.publish(None, &stream, rows).await?;
     }
     let seconds = started.elapsed().as_secs_f64();
-    println!(
-        "AUTHORING_BATCH rows=10000 batch=1000 rust_rows_s={:.0} seconds={seconds:.6} writer_build={}",
-        10000.0 / seconds,
-        dokime::storage::format::BUILD,
-    );
+    println!("AUTHORING_BATCH rows=10000 batch=1000 rust_rows_s={:.0} seconds={seconds:.6}", 10000.0 / seconds,);
     session.shutdown().await?;
     Ok(())
 }

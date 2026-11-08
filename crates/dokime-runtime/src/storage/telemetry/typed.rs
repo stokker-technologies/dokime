@@ -141,12 +141,14 @@ impl TypedCodec {
                 cardinality: Cardinality::Required,
             },
         ]];
+        let mut representations = BTreeMap::new();
         for (graph, offset) in [(&metadata, 1), (payload, payload_offset)] {
+            representations.extend(graph.representations.iter().map(|(index, value)| (index + offset, value.clone())));
             append_definitions(&mut definitions, graph, offset)?;
         }
 
         // Validate and Name the Composed Graph
-        let graph = Schema { root: 0, definitions };
+        let graph = Schema { root: 0, definitions, representations };
         let prepared = graph.prepare(settings);
         let invalid_composition = Error::Invalid("composed telemetry graph exceeds schema limits");
         prepared.map_err(|_| invalid_composition)?;
@@ -784,7 +786,7 @@ mod tests {
     fn cache_reuses_codecs_until_the_graph_changes() {
         let cache = CodecCache::default();
         let settings = harmos::config::SchemaSettings::default();
-        let contract = TelemetryContract::declared("cache.fixture", "Cache").typed::<Reading>();
+        let contract = TelemetryContract::declared("cache.fixture", "Cache").typed::<Reading>(1);
 
         let first = cache.codec(&contract, &settings).unwrap();
         let reused = cache.codec(&contract, &settings).unwrap();
@@ -794,7 +796,7 @@ mod tests {
         assert!(cache.unregistered(&contract, &settings).unwrap().is_none());
 
         // A Changed Row Receives Its Own Revision And Retains The Previous Codec.
-        let redefined = TelemetryContract::declared("cache.fixture", "Cache").typed::<Renamed>();
+        let redefined = TelemetryContract::declared("cache.fixture", "Cache").typed::<Renamed>(1);
         let rebuilt = cache.codec(&redefined, &settings).unwrap();
         assert!(!Arc::ptr_eq(&first, &rebuilt));
         assert_ne!(first.schema(), rebuilt.schema());
@@ -808,8 +810,8 @@ mod tests {
     fn stream_revision_collision_cannot_replace_a_registered_codec() {
         let cache = CodecCache::default();
         let settings = Default::default();
-        let old = TelemetryContract::declared("collision.reading", "Reading").typed::<Reading>();
-        let mut changed = TelemetryContract::declared("collision.reading", "Reading").typed::<Renamed>();
+        let old = TelemetryContract::declared("collision.reading", "Reading").typed::<Reading>(1);
+        let mut changed = TelemetryContract::declared("collision.reading", "Reading").typed::<Renamed>(1);
         let codec = cache.codec(&old, &settings).unwrap();
         cache.mark_registered(&old, &codec);
         changed.schema_version = old.schema_version;
@@ -819,7 +821,7 @@ mod tests {
 
     #[test]
     fn stream_revision_projection_errors_identify_the_stream_and_columns() {
-        let contract = TelemetryContract::declared("projection.reading", "Reading").typed::<Reading>();
+        let contract = TelemetryContract::declared("projection.reading", "Reading").typed::<Reading>(1);
         let codec = codec(&contract, &Default::default()).unwrap();
         assert!(matches!(codec.decode_payload(&[]), Err(Error::TelemetryProjection { stream, column })
             if stream == contract.stream.as_str() && column == "value"));
@@ -827,7 +829,7 @@ mod tests {
 
     #[test]
     fn numeric_projection_is_verified_against_payload() {
-        let contract = TelemetryContract::declared("fixture.numeric", "Numeric").typed::<Reading>();
+        let contract = TelemetryContract::declared("fixture.numeric", "Numeric").typed::<Reading>(1);
         let codec = codec(&contract, &harmos::config::SchemaSettings::default()).unwrap();
         let payload = Reading { value: 7.0 }.encode();
         let values = BTreeMap::from([("value".to_owned(), Value::Number(7.0))]);

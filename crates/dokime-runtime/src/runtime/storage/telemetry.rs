@@ -1024,8 +1024,8 @@ mod admission_tests {
         ));
         let storage = Manager::new(StorageBackends { primary: backend, state }, crate::config::storage_defaults()).unwrap();
         let runtime = Runtime::<TestApp>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
-        let old = crate::telemetry::TelemetryContract::declared("revision.reading", "Reading").typed::<CaptureReading>();
-        let new = crate::telemetry::TelemetryContract::declared("revision.reading", "Reading").typed::<Reading>();
+        let old = crate::telemetry::TelemetryContract::declared("revision.reading", "Reading").typed::<CaptureReading>(1);
+        let new = crate::telemetry::TelemetryContract::declared("revision.reading", "Reading").typed::<Reading>(1);
         let mut captured_rows = Vec::new();
         for (index, (contract, payload)) in [
             (old, harmos::Message::encode(&CaptureReading { value: 7.0 })),
@@ -1108,8 +1108,8 @@ mod admission_tests {
         let storage = Manager::new(StorageBackends { primary: backend, state }, crate::config::storage_defaults()).unwrap();
         let runtime = Runtime::<TestApp>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
         let stream = dokime_domain::model::identity::Identifier::new("integrity.reading").unwrap();
-        let old = crate::telemetry::TelemetryContract::declared(stream.as_str(), "Reading").typed::<CaptureReading>();
-        let new = crate::telemetry::TelemetryContract::declared(stream.as_str(), "Reading").typed::<Reading>();
+        let old = crate::telemetry::TelemetryContract::declared(stream.as_str(), "Reading").typed::<CaptureReading>(1);
+        let new = crate::telemetry::TelemetryContract::declared(stream.as_str(), "Reading").typed::<Reading>(1);
         let old = telemetry::codec(&old, &Default::default()).unwrap();
         let new =
             telemetry::TypedCodec::new(&stream, old.schema().version.get(), new.storage_schema.as_ref().unwrap(), &Default::default())
@@ -1152,7 +1152,7 @@ mod admission_tests {
         ));
         let storage = Manager::new(StorageBackends { primary: backend, state }, crate::config::storage_defaults()).unwrap();
         let runtime = Runtime::<TestApp>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
-        let contract = crate::telemetry::TelemetryContract::declared("capture.reading", "Reading").typed::<CaptureReading>();
+        let contract = crate::telemetry::TelemetryContract::declared("capture.reading", "Reading").typed::<CaptureReading>(1);
         let codec = Arc::new(telemetry::codec(&contract, &Default::default()).unwrap());
         local.register_telemetry_contract(contract.clone(), codec.clone()).await.unwrap();
         storage.write_schema(codec.schema().clone(), codec.graph().clone()).await.unwrap();
@@ -1470,7 +1470,7 @@ mod admission_tests {
             identity::{SessionId, TestExecutionId},
         };
 
-        let contract = crate::telemetry::TelemetryContract::declared("fixture.shared", "Shared").typed::<Reading>();
+        let contract = crate::telemetry::TelemetryContract::declared("fixture.shared", "Shared").typed::<Reading>(1);
         let codec = Arc::new(telemetry::codec(&contract, &Default::default()).unwrap());
         let epoch = SessionId::from_seed("shared.epoch");
         let sample = Arc::new(
@@ -1529,7 +1529,7 @@ mod admission_tests {
         ));
         let storage = Manager::new(StorageBackends { primary: backend, state }, settings).unwrap();
         let runtime = Runtime::<TestApp>::launch((), StorageConfig { storage: Some(storage.clone()) }).await.unwrap();
-        let contract = crate::telemetry::TelemetryContract::declared("partial.fixture", "Partial").typed::<Reading>();
+        let contract = crate::telemetry::TelemetryContract::declared("partial.fixture", "Partial").typed::<Reading>(1);
         let codec = Arc::new(telemetry::codec(&contract, &Default::default()).unwrap());
         local.register_telemetry_contract(contract.clone(), codec.clone()).await.unwrap();
         storage.write_schema(codec.schema().clone(), Arc::clone(codec.graph())).await.unwrap();

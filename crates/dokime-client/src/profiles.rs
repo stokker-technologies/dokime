@@ -83,7 +83,7 @@ pub fn decode(bytes: &[u8]) -> Result<Document, Error> {
     if bytes.len() as u64 > PROFILE_BYTES {
         return Err(invalid("file exceeds the configured profile byte limit"));
     }
-    let document: Document = serde_json::from_slice(bytes).map_err(|_| invalid("file does not match the version 1 profile schema"))?;
+    let document: Document = serde_json::from_slice(bytes).map_err(|_| invalid("file does not match the profile schema"))?;
     validate(&document)?;
     Ok(document)
 }
@@ -98,8 +98,8 @@ pub fn encode(document: &Document) -> Result<Vec<u8>, Error> {
 }
 
 pub fn validate(document: &Document) -> Result<(), Error> {
-    if document.version != 1 || document.profiles.len() as u64 > PROFILES {
-        return Err(invalid("unsupported version or too many profiles"));
+    if document.profiles.len() as u64 > PROFILES {
+        return Err(invalid("too many profiles"));
     }
     let mut identifiers = BTreeSet::new();
     for profile in &document.profiles {

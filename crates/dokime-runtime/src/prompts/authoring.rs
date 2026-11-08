@@ -371,7 +371,6 @@ impl<T: Clone + Send> Prompt for MultipleChoicePrompt<T> {
 pub(super) fn definition(id: &str, label: String, archetype: PromptArchetype) -> PromptDefinition {
     PromptDefinition {
         prompt_type: Identifier::new(id).expect("a prompt identifier is valid"),
-        schema_version: 1,
         archetype,
         title: label,
         message: None,

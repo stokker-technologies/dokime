@@ -48,7 +48,6 @@ pub struct ListPromptDefinitionsReply {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptDefinitionIdentity {
     pub prompt_type: String,
-    pub schema_version: u32,
     pub title: String,
 }
 
@@ -95,7 +94,6 @@ pub struct PromptInstance {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptDefinition {
     pub prompt_type: String,
-    pub schema_version: u32,
     pub archetype: PromptArchetype,
     pub title: String,
     pub message: Option<String>,

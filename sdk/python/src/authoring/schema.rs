@@ -90,8 +90,10 @@ impl Shape {
 
 pub(super) fn contract_schema(request: &Shape, response: &Shape) -> Schema {
     let mut definitions = vec![vec![]];
+    let mut representations = std::collections::BTreeMap::new();
     for (index, (name, shape)) in [("request", request), ("response", response)].into_iter().enumerate() {
         let offset = definitions.len();
+        representations.extend(shape.schema.representations.iter().map(|(index, value)| (index + offset, value.clone())));
         definitions[0].push(Field {
             name: name.into(),
             tag: (index + 1) as u32,
@@ -111,7 +113,7 @@ pub(super) fn contract_schema(request: &Shape, response: &Shape) -> Schema {
                 .collect()
         }));
     }
-    Schema { root: 0, definitions }
+    Schema { root: 0, definitions, representations }
 }
 
 pub(super) fn invalid(error: impl std::fmt::Display) -> MessageError {

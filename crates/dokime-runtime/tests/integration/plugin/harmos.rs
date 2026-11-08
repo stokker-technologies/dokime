@@ -135,7 +135,7 @@ async fn stream_alias_publication() {
     for (name, expected, stream) in [("inlet", vec![7], inlet), ("outlet", vec![8], outlet)] {
         assert_eq!(stream.definition().id(), format!("sdk_streams.{name}"));
         assert_eq!(
-            stream.definition().schema().unwrap(),
+            stream.definition().schema(),
             &harmos::schema::graph::Schema::from_declaration(
                 <DirectReading as harmos::schema::Described>::DEFINITION,
                 &harmos::config::SchemaSettings::default(),

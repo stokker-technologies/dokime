@@ -787,7 +787,7 @@ impl ExecutionState {
                 crate::records::builtin_record_contracts().into_iter().find(|contract| contract.record_type == request.record_type)
             });
             let contract = contract.as_ref();
-            let version = contract.map_or(1, |contract| contract.schema_version);
+            let version = contract.map_or(0, |contract| contract.schema_version());
             request.scope = scope.clone();
             let mut record = request.into_record(
                 dokime_domain::model::identity::RecordId::from_seed(format!("{}:local:{cursor}", self.request.execution_token)),

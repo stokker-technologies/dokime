@@ -60,7 +60,7 @@ fn assert_record_contract(request: model::records::publication::RecordPublishReq
         .unwrap_or_else(|| panic!("emitted record {} is declared", request.record_type));
     let record = request.into_record(
         dokime::model::identity::new_id::<dokime::RecordId>(),
-        contract.schema_version,
+        contract.schema_version(),
         Timestamp::new("2026-01-01T00:00:00Z"),
         plugin_obc::SOURCE,
     );

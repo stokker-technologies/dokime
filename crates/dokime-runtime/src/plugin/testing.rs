@@ -209,7 +209,7 @@ impl Harness {
             crate::model::identity::new_id::<dokime_domain::model::identity::RecordId>(),
             crate::model::time::now_utc(),
             R::record_type(),
-            R::SCHEMA_VERSION,
+            R::contract().schema_version(),
             HOST_SOURCE,
             R::SEVERITY,
         );

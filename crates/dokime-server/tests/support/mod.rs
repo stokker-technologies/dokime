@@ -531,7 +531,15 @@ fn named_case_template(identifier: &str, label: &str, index: usize, result: &str
 fn fixture_progress_contract() -> TelemetryContract {
     TelemetryContract {
         stream: Identifier::new("fixture.progress").unwrap(),
-        schema_version: 1,
+        schema_version: dokime::harmos::domain::streams::revision(
+            &dokime::harmos::schema::graph::Schema::from_declaration(
+                <ProgressRow as dokime::harmos::schema::Described>::DEFINITION,
+                &Default::default(),
+            )
+            .unwrap(),
+            1,
+        )
+        .unwrap(),
         storage_schema: Some(
             dokime::harmos::schema::graph::Schema::from_declaration(
                 <ProgressRow as dokime::harmos::schema::Described>::DEFINITION,

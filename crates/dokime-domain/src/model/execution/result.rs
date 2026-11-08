@@ -51,7 +51,7 @@ product_error!(IllegalCycleTransition, formatter {
 
 /* === Structs === */
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TestCycle {
     #[serde(default)]
@@ -164,7 +164,7 @@ pub struct TestExecution {
     pub result: Option<ResultSummary>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StepAttemptStart {
     pub attempt_id: crate::model::identity::StepAttemptId,
@@ -172,7 +172,7 @@ pub struct StepAttemptStart {
     pub started_at: Timestamp,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TestStepAttempt {
     pub attempt_id: crate::model::identity::StepAttemptId,
@@ -217,7 +217,7 @@ pub struct CriterionResult {
     pub message: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResultSummary {
     pub status: ResultStatus,
     pub passed: u32,
@@ -255,7 +255,7 @@ pub enum CyclePhase {
     SealFailed,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleStatus {
     #[default]
@@ -285,7 +285,7 @@ pub enum TestCaseStatus {
     Interrupted,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionStatus {
     Skipped,
@@ -320,7 +320,7 @@ pub enum CriterionStatus {
     Skipped,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResultStatus {
     Pending,

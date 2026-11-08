@@ -35,12 +35,13 @@ use dokime_domain::model::identity::TestExecutionId;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.outputs.execution.finalize")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FinalizeExecutionOutputs {
     pub test_execution_id: TestExecutionId,
     pub outputs: Vec<AggregateOutput>,
 }
+
+retained_transaction!(FinalizeExecutionOutputs, "dokime.execution.outputs.execution.finalize");
 
 /* === Enums === */
 
