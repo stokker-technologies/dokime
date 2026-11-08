@@ -375,6 +375,7 @@ mod tests {
 
     fn pairing(key: char) -> dokime_domain::model::remote::PairingFile {
         dokime_domain::model::remote::PairingFile {
+            version: 1,
             endpoints: vec!["http://127.0.0.1:8765".into()],
             backend_identifier: "backend".into(),
             label: "Lab Backend".into(),

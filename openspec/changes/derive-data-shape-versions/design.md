@@ -42,8 +42,12 @@ catalog's absent inverse handlers.
 - SQLite's layout sentinel protects the product database layout; it remains independent of plugin and evidence schemas.
 - Record and telemetry definition/catalog/evidence wire fields carry derived historical identities, not authored ordinals.
 
+Native system facts now carry Harmos’s payload-encoding identity. Their captured
+record carries its separate contract identity; projection still checks owner and
+record type, and no longer equates those two different revisions.
+
 Prompt identity comparisons now use prompt type and title; the removed ordinal
-was always a fixed value. The fixed report ordinal was unread. Profile files use
+was always a fixed value. The fixed report ordinal was unread. Profile, remote security and session files use
 structural and resource-bound validation. Page cursors retain fixed-length,
 checkpoint, source and boundary validation after removing their ordinal byte.
 API, plugin release, package and analysis algorithm versions remain unchanged.

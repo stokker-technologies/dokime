@@ -40,7 +40,6 @@ const SERVER_REMOTE_STORE_BYTES: u64 = 262_144;
 
 #[derive(Clone)]
 pub(super) struct Document {
-    pub version: u32,
     pub settings: RemoteListenerSettings,
     pub clients: Vec<Client>,
     pub identity: Option<Identity>,
@@ -66,7 +65,6 @@ pub(super) struct Identity {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Security {
-    version: u32,
     clients: Vec<Client>,
     identity: Option<Identity>,
 }
@@ -80,7 +78,6 @@ struct Security {
 impl Document {
     pub fn initial() -> Self {
         Self {
-            version: 1,
             settings: dokime::domain::model::settings::wire::ApplicationSettings::default().listener,
             clients: Vec::new(),
             identity: None,
@@ -154,14 +151,10 @@ pub(super) fn read(path: &Path, settings: RemoteListenerSettings) -> Result<Docu
     let security: Security = serde_json::from_slice(&bytes)
         .map_err(|_| super::Error::Configuration("incompatible remote security document; use a fresh application root"))?;
     let document = Document {
-        version: security.version,
         settings,
         clients: security.clients,
         identity: security.identity,
     };
-    if document.version != 1 {
-        return Err(super::Error::Configuration("unsupported remote security document version"));
-    }
     validate(&document.settings)?;
     validate_clients(&document.clients)?;
     Ok(document)
@@ -173,7 +166,6 @@ pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error
     private_directory(parent).map_err(super::Error::RemoteStorage)?;
     let bytes = Zeroizing::new(
         serde_json::to_vec(&Security {
-            version: document.version,
             clients: document.clients.clone(),
             identity: document.identity.clone(),
         })
@@ -385,10 +377,6 @@ mod tests {
         assert!(!error.to_string().contains("private material"));
         assert_eq!(std::fs::read(&path).unwrap(), b"invalid private material");
         assert!(read(root.path(), Document::initial().settings).is_err());
-        let mut document = Document::initial();
-        document.version = 2;
-        write(&path, &document).unwrap();
-        assert!(read(&path, Document::initial().settings).is_err());
         std::fs::write(&path, vec![b'a'; usize::try_from(SERVER_REMOTE_STORE_BYTES).unwrap() + 1]).unwrap();
         assert!(read(&path, Document::initial().settings).is_err());
     }

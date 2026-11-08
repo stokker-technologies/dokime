@@ -38,6 +38,7 @@ macro_rules! product_error {
 }
 
 // Preserve An Individually Undescribable Transaction Without Inventing A Schema.
+#[cfg(feature = "native")]
 macro_rules! retained_transaction {
     ($name:ty, $id:literal) => {
         impl $name {

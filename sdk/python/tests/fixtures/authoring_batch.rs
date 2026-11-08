@@ -39,6 +39,8 @@ use dokime_server::host::{Args, NetworkArgs, Session};
 
 /* === Constants === */
 
+const WINDOW: usize = 10_000;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -82,7 +84,9 @@ impl EmbeddedProvider for Provider {
             version: "0.1.0".into(),
             enabled: true,
             telemetry_contracts: vec![
-                dokime::telemetry::TelemetryContract::declared("batch.samples", "Samples").with_storage_schema(schema, 1).columns(columns),
+                dokime::telemetry::TelemetryContract::declared("batch.samples", "Samples")
+                    .with_storage_schema(schema, WINDOW)
+                    .columns(columns),
             ],
             ..Default::default()
         }
@@ -92,7 +96,7 @@ impl EmbeddedProvider for Provider {
             metadata: dokime::Metadata::new(dokime::Identifier::new("batch.samples").unwrap(), "Samples", None),
             row_metadata: vec![],
             id: "batch.samples".into(),
-            window: 10000,
+            window: WINDOW,
             row: Schema::from_declaration(Reading::DEFINITION, &Default::default()).unwrap(),
         }]
     }

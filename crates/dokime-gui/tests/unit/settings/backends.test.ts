@@ -195,8 +195,8 @@ test("Deleting the Active Backend Invalidates Its Generation and Owned Resources
   if (state.phase !== "connected") throw new Error("Expected Connected Session");
   const dispose = vi.fn();
   state.session.own(dispose);
-  fixture.invoke.mockResolvedValueOnce({ version: 1, default: null, profiles: [] });
-  assert.deepEqual(await preferencesCommands.desktopBackendRemove("lab"), { version: 1, default: null, profiles: [] });
+  fixture.invoke.mockResolvedValueOnce({ default: null, profiles: [] });
+  assert.deepEqual(await preferencesCommands.desktopBackendRemove("lab"), { default: null, profiles: [] });
   await owner.disconnect();
   assert.equal(state.session.identity.isCurrent(), false);
   assert.equal(dispose.mock.calls.length, 1);
@@ -215,7 +215,7 @@ test("Registry Commands Preserve Profile Fields Without Bearer Material", async 
     ca_certificate_pem: "fixture-ca",
     secret: "keyring" as const,
   };
-  const document = { version: 1, default: null, profiles: [profile] };
+  const document = { default: null, profiles: [profile] };
   fixture.invoke.mockResolvedValue(document);
   assert.deepEqual(await preferencesCommands.desktopBackendAdd(profile), document);
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_add", { profile }]);
@@ -224,7 +224,7 @@ test("Registry Commands Preserve Profile Fields Without Bearer Material", async 
 });
 
 test("Pairing Commands Pass Only Identifiers and Saved Paths Across IPC", async () => {
-  const document = { version: 1, default: null, profiles: [] };
+  const document = { default: null, profiles: [] };
   fixture.invoke.mockResolvedValueOnce(document);
   assert.deepEqual(await preferencesCommands.desktopBackendImportPairing("lab"), document);
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: "lab" }]);
@@ -243,7 +243,7 @@ test("Pairing Commands Pass Only Identifiers and Saved Paths Across IPC", async 
 test("Startup Attempts the Saved Default Once and Exposes Failure Without Fallback", async () => {
   fixture.invoke.mockImplementation(async (command: string) => {
     if (command === "desktop_session_launch") return { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
-    if (command === "desktop_backends_list") return { version: 1, default: "stale", profiles: [] };
+    if (command === "desktop_backends_list") return { default: "stale", profiles: [] };
     if (command === "desktop_backend_use") return Promise.reject({ kind: "identity_changed" });
     throw new Error(`Unexpected Command: ${command}`);
   });
@@ -266,7 +266,7 @@ test("Startup Attempts the Saved Default Once and Exposes Failure Without Fallba
 test("Startup Without a Saved Default Leaves Selection to the Operator", async () => {
   fixture.invoke.mockImplementation(async (command: string) => {
     if (command === "desktop_session_launch") return { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
-    if (command === "desktop_backends_list") return { version: 1, default: null, profiles: [] };
+    if (command === "desktop_backends_list") return { default: null, profiles: [] };
     throw new Error(`Unexpected Command: ${command}`);
   });
   AppRoot();
@@ -391,7 +391,7 @@ test("Remote Import Starts from the Backend Toolbar", async () => {
   assert.ok(table);
   const action = descendants(table.props.actions).find((element) => element.type === Button && element.props.children === "Import Remote");
   assert.ok(action);
-  fixture.invoke.mockResolvedValueOnce({ version: 1, default: null, profiles: [] });
+  fixture.invoke.mockResolvedValueOnce({ default: null, profiles: [] });
   await action.props.onClick?.();
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: null }]);
 });

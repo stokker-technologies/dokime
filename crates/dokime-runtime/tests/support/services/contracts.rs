@@ -143,7 +143,7 @@ pub fn fixture_record_contract() -> RecordContract {
 pub fn fixture_telemetry_contract() -> TelemetryContract {
     TelemetryContract {
         stream: identifier("fixture.telemetry"),
-        schema_version: 1,
+        schema_version: harmos::domain::streams::revision(&fixture_schema("fixture.telemetry").unwrap(), 1).unwrap(),
         metadata: metadata("fixture.telemetry", "Fixture Telemetry"),
         template_id: None,
         owner: None,
@@ -203,7 +203,7 @@ pub fn suite_telemetry_contracts() -> Vec<TelemetryContract> {
 pub fn tracking_contract() -> TelemetryContract {
     TelemetryContract {
         stream: identifier("tracking"),
-        schema_version: 1,
+        schema_version: harmos::domain::streams::revision(&fixture_schema("tracking").unwrap(), 1).unwrap(),
         metadata: metadata("tracking", "Tracking"),
         template_id: None,
         owner: None,
@@ -260,6 +260,7 @@ pub fn minimal_tracking_contract() -> TelemetryContract {
         default_x: Some("elapsed_s".to_owned()),
         ..tracking_contract()
     }
+    .typed::<MinimalTrackingRow>(1)
 }
 
 pub fn conflicting_tracking_contract() -> TelemetryContract {

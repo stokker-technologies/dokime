@@ -61,7 +61,6 @@ struct State {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Document {
-    version: u32,
     next: u64,
     sessions: Vec<RemoteSession>,
 }
@@ -118,7 +117,6 @@ impl SessionLog {
             (
                 path,
                 Document {
-                    version: 1,
                     next: state.next,
                     sessions: state.sessions.clone(),
                 },
@@ -215,9 +213,6 @@ fn read(path: &Path, maximum: usize) -> Result<Option<Document>, String> {
     }
     let bytes = dokime::harmos::filesystem::input::read(path, maximum).map_err(|error| error.to_string())?;
     let document: Document = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if document.version != 1 {
-        return Err(format!("unsupported version {}", document.version));
-    }
     Ok(Some(document))
 }
 
