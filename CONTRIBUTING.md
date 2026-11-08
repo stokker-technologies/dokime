@@ -191,17 +191,8 @@ Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend
 Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/containers/history and its dependent attachment/recovery (`native-desktop`), native plugin installation/activation and settings (`desktop-configuration`), distribution/organization (`desktop-appearance`), remote access (`desktop-remote`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux. The configuration story exercises the native chooser, restart and installed plugin settings; other independent stories launch with the prepared plugin fixture. Lane hang guards come from `[conventions.testing.deadlines]` in `tools/project.toml`.
 Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 
-During implementation, run targeted checks for changed behavior. Once all agreed
-source work and targeted proof are complete, push the authorized candidate, verify its remote SHA and immediately run
-the full local gate alongside hosted CI:
-
-```sh
-mise run ci:simulate
-```
-
-The default run covers every declared required platform; selecting one platform
-is only partial proof. Local simulation runs independent jobs concurrently in dependency order by default.
-Use `mise run ci:simulate --jobs 1` to execute the same complete graph one job at a time on machines that need serial validation.
+Run targeted tasks locally for changed behavior. Hosted CI and Nightly provide
+full validation across the declared platforms.
 Changes limited to skills, agent guidance, README or
 CONTRIBUTING files select no execution jobs; the required status gate still
 completes. Other documentation uses its declared checks, while mixed source or

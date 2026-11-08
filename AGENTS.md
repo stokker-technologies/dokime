@@ -1,5 +1,9 @@
 # Project Guidance
 
+## Validation
+
+- Run targeted tasks locally. Hosted CI and Nightly provide full validation.
+
 ## Development Storage Policy
 
 - Dokime is in development. Database schemas and evidence formats may change without version bumps for now; keep their baseline at v1.
