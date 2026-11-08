@@ -166,10 +166,7 @@ async fn story() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         host.publish(None, &stream, rows).await?;
     }
     let seconds = started.elapsed().as_secs_f64();
-    println!(
-        "AUTHORING_BATCH rows=10000 batch=1000 rust_rows_s={:.0} seconds={seconds:.6}",
-        10000.0 / seconds,
-    );
+    println!("AUTHORING_BATCH rows=10000 batch=1000 rust_rows_s={:.0} seconds={seconds:.6}", 10000.0 / seconds,);
     session.shutdown().await?;
     Ok(())
 }

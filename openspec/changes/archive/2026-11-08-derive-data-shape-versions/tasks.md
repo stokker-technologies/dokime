@@ -10,9 +10,9 @@
 ## Final Validation and Delivery
 
 - [x] 2.1 Run only specified deterministic targeted tests through mise tasks.
-- [ ] 2.2 Run the owner-required all-targets feature build, TypeScript build and lint:rust; repair failures.
-- [ ] 2.3 Review relevant hosted CI and obtain CLEAN from the owner-specified scan.
-- [ ] 2.4 Prepare the complete candidate for authorized PR delivery and specification retirement.
+- [x] 2.2 Run the owner-required all-targets feature build, TypeScript build and lint:rust; repair failures.
+- [x] 2.3 Review relevant hosted CI and obtain CLEAN from the owner-specified scan.
+- [x] 2.4 Prepare the complete candidate for authorized PR delivery and specification retirement.
 
 ## Workflow Follow-Up
 
