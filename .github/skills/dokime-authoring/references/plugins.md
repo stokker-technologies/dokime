@@ -315,6 +315,11 @@ operations remain in their executable catalog.
 
 ## Shared Secrets
 
+Follow the [Plugin Security Contract](../../../../docs/plugin-security.md) for
+native process authority, identifier-based secrets, log redaction, private-plugin
+release review and API compatibility. Bundle integrity does not authenticate a
+publisher or sandbox native code; the signing and guest policies there are proposals.
+
 ```rust
 #[dokime::section(label = "Cloud")]
 pub struct Cloud {

@@ -129,6 +129,7 @@ tokio = { workspace = true, features = ["test-util"] }
 # UI
 
 # Testing
+criterion = { workspace = true }
 
 # === Target Dependencies === #
 
@@ -224,6 +225,12 @@ path = "tests/integration/main.rs"
 required-features = ["runtime"]
 
 # === Bench Targets === #
+
+[[bench]]
+name = "integration"
+path = "benches/integration/main.rs"
+harness = false
+required-features = ["runtime"]
 
 # === Example Targets === #
 

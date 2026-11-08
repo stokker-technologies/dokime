@@ -2,6 +2,13 @@
 
 Detailed concepts, supported interfaces and existing authoring examples. For installation, start with the [Quick Start](../README.md#quick-start).
 
+The [Privacy and Data Flows](privacy.md) guide inventories evidence, host
+measurements, settings, logs, exports and backups, and provides a customer
+processing-record worksheet. Dokime does not encrypt evidence at rest; evidence
+relies on operating-system disk encryption, which the customer must enable.
+Archiving hides evidence rather than deleting it; scheduled retention and
+per-execution deletion are not available.
+
 ## Install Tools with Mise
 
 Select the CLI and authoring tool from one release in your mise configuration,
@@ -1945,6 +1952,11 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 - [Plugins](plugins.md) — the host telemetry plugin, plugin lifecycle, bundles and installation.
 - [Desktop GUI](gui.md) — frontend layout, generated outputs and the desktop transport rules.
 - [Repository Tooling](tooling.md) — mise tasks, Python tooling and desktop development processes.
+- [Deployment](deployment.md) — Windows code signing, per-machine and silent installation, Linux package verification, network and privilege expectations.
+- [Privacy and Data Flows](privacy.md) — data inventory, storage locations, retention and deletion, support bundle contents.
+- [Plugin Security](plugin-security.md) — the plugin trust boundary and native process authority.
+- [Support](support.md) — support and end-of-life policy.
+- [Compliance](compliance.md) — the compliance assessment and vulnerability reporting.
 - [Screenshots](../screenshots/README.md) — the published product images and how to regenerate them.
 - [Plugin Starter](../crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Entry Library And Plugin SDK](../crates/dokime/src/lib.rs) — public entry point for authoring APIs.
@@ -2410,6 +2422,13 @@ Document bindings retain their 64 MiB bound; large raw evidence remains paged.
 
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
 and diagnostics snapshot artifacts are no longer produced or bundled.
+
+Support bundles contain backend identity, health, settings and a bounded log
+tail, with a `MANIFEST.txt` inventory. Git identity fields, email-containing text
+and user-profile paths are redacted by default; free-form content can still
+contain personal information. Protected secret values are excluded. Collection
+downloads a ZIP without automatically sending it to
+support. Review it before sharing; see [Support Bundles](privacy.md#support-bundles).
 
 ### Measured Stream Performance
 

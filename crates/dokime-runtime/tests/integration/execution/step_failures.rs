@@ -118,11 +118,9 @@ async fn undeclared_question_fails_its_step() {
 
     let ended = cycle_snapshot(&runtime, &cycle).await;
     let execution = &ended.test_executions[0];
-    assert!(
-        matches!(execution.status, ExecutionStatus::Failed | ExecutionStatus::Interrupted),
-        "a refused question ends the execution: {:?}",
-        execution.status
-    );
+    assert_eq!(execution.status, ExecutionStatus::Interrupted);
+    assert!(execution.result.is_none(), "a host refusal is not a test verdict");
+    assert_eq!(ended.result.as_ref().map(|result| result.status.clone()), Some(ResultStatus::Blocked));
     assert!(runtime.pending_prompt_projection().await.is_empty(), "nothing reaches the operator");
     let attempt = execution.step_attempts.last().expect("the step attempt is recorded");
     assert_eq!(attempt.termination, TerminationReason::Failed);

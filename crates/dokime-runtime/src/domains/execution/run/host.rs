@@ -222,101 +222,24 @@ pub(crate) fn prepare(setup: &mut harmos::Setup<crate::app::Dokime>, sessions: &
 
 /* === Tests === */
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use harmos::operations::OperationDeclaration;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::time::Duration;
-
-    static ATTEMPTS: AtomicUsize = AtomicUsize::new(0);
-
-    #[harmos::operation(resources = [harmos::operations::HostContext], id = "invocation.evidence", response = u64,
-        replay = harmos::operations::ReplaySafety::Idempotent,
-        policy = harmos::OperationPolicy { timeout: Duration::from_secs(5), attempt_timeout: Duration::from_secs(1),
-            cancellation_timeout: Duration::ZERO, retries: harmos::RetryPolicy::Never })]
-    struct Read {}
-    impl harmos::Operation for Read {
-        type Error = std::io::Error;
-        async fn run(self, ctx: harmos::Context<'_, Self>) -> Result<harmos::Response<u64>, Self::Error> {
-            ATTEMPTS.fetch_add(1, Ordering::SeqCst);
-            if ctx.resource::<harmos::operations::HostContext>().borrow().attempt() == 0 {
-                return Err(std::io::Error::other("transient read failure"));
-            }
-            Ok(42.into())
-        }
-        fn classify(_: &Self::Error) -> harmos::operations::FailureKind {
-            harmos::operations::FailureKind::Transient
-        }
-    }
-    #[harmos::catalog]
-    enum Operations {
-        Read(Read),
-    }
-
-    #[tokio::test]
-    async fn retry_attempts_are_persisted_under_the_retained_execution_owner() {
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../../report/fixtures/execution-report-input.json")).unwrap();
-        let mut cycle: dokime_domain::model::execution::result::CycleView =
-            serde_json::from_value(fixture["input"]["cycle"].clone()).unwrap();
-        cycle.test_executions[0].saved = None;
-        let execution = &cycle.test_executions[0];
-        let root = tempfile::tempdir().unwrap();
-        let mut owner = crate::Runtime::start(crate::RuntimeConfig::new(root.path(), cycle.metadata.clone())).await.unwrap();
-        let runtime = owner.handle();
-        runtime.execution_storage.acquire(&cycle, execution).await.unwrap();
-        runtime.operations().register::<Operations>(crate::app::Lanes::Open).await.unwrap();
+#[cfg(feature = "testing")]
+impl crate::RuntimeHandle {
+    pub fn retained_attempt_context(&self, execution: crate::TestExecution, operation: &str) -> harmos::operations::CallContext {
         let token = execution.test_execution_id.to_string();
-        let session = Arc::new(super::super::session::Session::new(super::super::session::Opened {
-            context: super::super::ExecutionFixtureContext::new(runtime.clone()),
-            execution: execution.clone(),
+        let session = Arc::new(super::session::Session::new(super::session::Opened {
+            context: super::ExecutionFixtureContext::new(self.clone()),
+            execution,
             source: "host".into(),
-            target: super::super::Target::of(&runtime, "invocation.evidence"),
-            prompts: super::super::PromptBridge::new(Vec::new()),
+            target: super::Target::of(self, operation),
+            prompts: super::PromptBridge::new(Vec::new()),
             phase: Default::default(),
         }));
-        runtime.execution_sessions.insert(&token, session.clone());
+        self.execution_sessions.insert(&token, session);
         let mut context = harmos::operations::CallContext::default();
-        context.insert(AttemptOwner(token.clone())).unwrap();
-        context.insert_portable(ExecutionScope::execution(token.clone()).staged("step/read")).unwrap();
-        let configured = harmos::RetryPolicy::OnTransient {
-            max_retries: 1,
-            backoff: harmos::Backoff::Fixed {
-                delay: Duration::from_millis(1),
-                jitter: harmos::Jitter::None,
-            },
-        };
-        let operations = runtime.operations().with_context(context.clone());
-        assert_eq!(*operations.operation::<Read>(Read {}).retry(configured).await.unwrap(), 42);
-        assert!(operations.operation::<Read>(Read {}).await.is_err());
-        let before = ATTEMPTS.load(Ordering::SeqCst);
-        let tampered = context.with_value(ExecutionScope::execution("another-execution")).unwrap();
-        assert!(matches!(
-            runtime.operations().with_context(tampered).operation::<Read>(Read {}).await,
-            Err(harmos::Error::PermissionDenied)
-        ));
-        assert_eq!(ATTEMPTS.load(Ordering::SeqCst), before);
-        let mut unowned = harmos::operations::CallContext::default();
-        unowned.insert_portable(ExecutionScope::execution(token.clone()).staged("step/forged")).unwrap();
-        assert!(runtime.operations().with_context(unowned).operation::<Read>(Read {}).await.is_err());
-        let content =
-            runtime.execution_storage.native_read(&execution.test_execution_id, "artifacts/execution.log", 0, 8192).await.unwrap().unwrap();
-        let text = std::str::from_utf8(&content.bytes).unwrap();
-        let entries = text
-            .lines()
-            .map(|line| serde_json::from_str::<serde_json::Value>(&line[line.find('{').unwrap()..]).unwrap())
-            .collect::<Vec<_>>();
-        let attempts =
-            entries.iter().map(|entry| (entry["attempt"].as_u64().unwrap(), entry["outcome"].as_str().unwrap())).collect::<Vec<_>>();
-        assert_eq!(attempts, [(0, "failed"), (1, "succeeded"), (0, "failed")]);
-        assert!(entries.iter().all(|entry| entry["stage"] == "step/read" && entry["operation"] == Read::ID));
-        assert_eq!(entries[0]["instance"], entries[1]["instance"]);
-        assert_ne!(entries[1]["instance"], entries[2]["instance"]);
-        drop(content);
-        runtime.execution_sessions.remove(&token);
-        drop(session);
-        drop(runtime);
-        owner.shutdown().await.unwrap();
+        context.insert(AttemptOwner(token)).expect("fixture context has no owner");
+        context
+    }
+    pub fn remove_retained_attempt(&self, token: &str) {
+        self.execution_sessions.remove(token);
     }
 }

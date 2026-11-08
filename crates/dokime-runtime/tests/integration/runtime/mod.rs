@@ -44,3 +44,11 @@ pub(crate) mod secrets;
 /* === Private Functions === */
 
 /* === Tests === */
+
+mod query_failure;
+
+mod log_append_retry;
+
+mod artifact_log_names;
+mod log_rollover;
+mod retained_attempts;

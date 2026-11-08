@@ -67,8 +67,8 @@ struct Manifest<'a> {
     entries: &'a [Entry],
 }
 
-struct CappedFile {
-    file: tempfile::NamedTempFile,
+struct CappedFile<W = tempfile::NamedTempFile> {
+    file: W,
     maximum: u64,
 }
 
@@ -128,9 +128,9 @@ impl Parts {
     }
 }
 
-impl Write for CappedFile {
+impl<W: Write + Seek> Write for CappedFile<W> {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        let position = self.file.as_file_mut().stream_position()?;
+        let position = self.file.stream_position()?;
         let end = position.checked_add(bytes.len() as u64);
         if end.is_none_or(|end| end > self.maximum) {
             return Err(std::io::Error::from(std::io::ErrorKind::FileTooLarge));
@@ -143,7 +143,7 @@ impl Write for CappedFile {
     }
 }
 
-impl Seek for CappedFile {
+impl<W: Seek> Seek for CappedFile<W> {
     fn seek(&mut self, position: std::io::SeekFrom) -> std::io::Result<u64> {
         self.file.seek(position)
     }
@@ -266,7 +266,7 @@ async fn assemble(
     let metadata = dokime::harmos::storage::ReadBatch::new(())
         .try_map(|_| {
             let mut entries = Vec::new();
-            entries.try_reserve_exact(parts.len()).map_err(|_| allocation())?;
+            entries.try_reserve_exact(parts.len() + 1).map_err(|_| allocation())?;
             for part in parts.iter() {
                 entries.push(Entry {
                     path: part.path.clone(),
@@ -275,6 +275,13 @@ async fn assemble(
                     note: part.note.clone(),
                 });
             }
+            let inventory = text_manifest(&entries);
+            entries.push(Entry {
+                path: "MANIFEST.txt".to_owned(),
+                size_bytes: inventory.len() as u64,
+                present: true,
+                note: None,
+            });
             Ok(Metadata {
                 filename: archive_filename(&generated_at)?,
                 generated_at: generated_at.clone(),
@@ -304,6 +311,8 @@ async fn assemble(
             let kind = error.io_error_kind().unwrap_or(std::io::ErrorKind::Other);
             std::io::Error::new(kind, error)
         })?;
+        writer.start_file("MANIFEST.txt", file_options()).map_err(zip_failure)?;
+        writer.write_all(text_manifest(&held.entries).as_bytes())?;
         Ok::<_, std::io::Error>(writer)
     })
     .await
@@ -357,6 +366,9 @@ async fn prepare_json(path: String, mut value: Value) -> Result<ReadBatch<Prepar
     let prepared = tokio::task::spawn_blocking(move || {
         prepared.try_map(|mut prepared| {
             redaction::scrub(&mut value);
+            if !redaction::include_personal_data() {
+                redaction::personal(&mut value, &redaction::profile_paths());
+            }
             let source = (|| {
                 let mut file = tempfile::NamedTempFile::new().map_err(|error| redaction::text(&error.to_string()))?;
                 serde_json::to_writer_pretty(&mut file, &value).map_err(|error| redaction::text(&error.to_string()))?;
@@ -430,7 +442,63 @@ async fn freeze_input(session: &dokime::storage::Manager, source: PathBuf, max_b
         offset,
         limit: Some(file.length() - offset),
     };
-    Ok(Ok(Input::Frozen { file, range }))
+    if redaction::include_personal_data() {
+        return Ok(Ok(Input::Frozen { file, range }));
+    }
+    let mut reader = file.read(range).await.map_err(native_failure)?;
+    let mut bytes = ReadBatch::new(Vec::<u8>::new());
+    while let Some(batch) = reader.next().await.map_err(native_failure)? {
+        bytes = bytes
+            .try_map(|mut bytes| {
+                bytes.try_reserve_exact(batch.bytes().len()).map_err(|_| allocation())?;
+                bytes.extend_from_slice(batch.bytes());
+                Ok(bytes)
+            })
+            .map_err(native_failure)?;
+    }
+    reader.completion().map_err(native_failure)?;
+    let profiles = redaction::profile_paths();
+    let input = tokio::task::spawn_blocking(move || {
+        let mut output = tempfile::NamedTempFile::new()?;
+        for line in bytes.split_inclusive(|byte| *byte == b'\n') {
+            output.write_all(&redaction::personal_line(line, false, &profiles))?;
+        }
+        let length = output.as_file().metadata()?.len();
+        Ok::<_, std::io::Error>(Input::Opened {
+            file: output,
+            range: ByteRange { offset: 0, limit: Some(length) },
+        })
+    })
+    .await
+    .map_err(writer_task_failure)?
+    .map_err(|error| Status::internal(redaction::text(&error.to_string())))?;
+    Ok(Ok(input))
+}
+
+fn text_manifest(entries: &[Entry]) -> String {
+    let mut text = String::from(
+        "Support Bundle Inventory\nMANIFEST.txt: file inventory and data categories\nmanifest.json: backend identifiers, versions, timestamps, file sizes and availability\n",
+    );
+    for entry in entries {
+        if entry.path == "MANIFEST.txt" {
+            continue;
+        }
+        let categories = if entry.path.starts_with("logs/") {
+            "operational events, errors and free-form messages; may include personal or instrument data"
+        } else if entry.path.starts_with("settings/") {
+            "application/plugin settings, endpoints, free-form values and secret availability; no protected secret values"
+        } else if entry.path == "backend/identity.json" {
+            "backend identity, display name, build and API versions"
+        } else {
+            "backend health, readiness, timestamps and free-form status messages"
+        };
+        let availability = if entry.present { "present" } else { "absent" };
+        writeln!(&mut text, "{} ({availability}): {categories}", entry.path).expect("writing to a string");
+    }
+    text.push_str(
+        "Personal data is redacted by default. DOKIME_SUPPORT_INCLUDE_PERSONAL_DATA=1 keeps it. Review all files before sharing.\n",
+    );
+    text
 }
 
 fn file_options() -> SimpleFileOptions {
@@ -527,9 +595,8 @@ mod tests {
     #[test]
     fn zip_writes_preserve_total_ceiling() {
         for (maximum, payload) in [(128, 256), (96, 1)] {
-            let file = tempfile::NamedTempFile::new().unwrap();
-            let observed = file.as_file().try_clone().unwrap();
-            let output = CappedFile { file, maximum };
+            let mut observed = std::io::Cursor::new(Vec::new());
+            let output = CappedFile { file: &mut observed, maximum };
             let mut writer = zip::ZipWriter::new(output);
             let result = (|| {
                 writer.start_file("payload.bin", file_options()).map_err(zip_failure)?;
@@ -538,7 +605,7 @@ mod tests {
             })();
             let error = result.err().expect("the ZIP exceeds its ceiling");
             assert_eq!(error.kind(), std::io::ErrorKind::FileTooLarge);
-            assert!(observed.metadata().unwrap().len() <= maximum);
+            assert!(observed.get_ref().len() as u64 <= maximum);
         }
     }
 }

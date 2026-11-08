@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod follow;
 mod profiles;
 
 /* === Re-Exports === */

@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod persistence;
 mod server;
 
 /* === Re-Exports === */

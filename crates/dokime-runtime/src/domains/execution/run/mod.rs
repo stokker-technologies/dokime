@@ -676,15 +676,7 @@ async fn execute_case(
         }
         (result, None) => result,
     };
-    // The step the failure ended keeps its cause; an operator stop is not a step failure.
-    if let Err(cause) = &result
-        && !cancellation_requested(context, cycle)
-        && !context.execution_stop_requested(&execution.test_execution_id)
-        && let Err(error) = close_active_attempt(context, execution, "step_failure", Some(cause)).await
-    {
-        tracing::warn!(execution_id = %execution.test_execution_id,
-            detail = %error.message, "host could not record the cause on the failed step attempt");
-    }
+    // Provider finalization settles the open step and execution together after cleanup.
     context.finalization.finish(context).await?;
     result
 }
@@ -1127,15 +1119,8 @@ fn failure(stage: impl Into<String>, message: impl Into<String>) -> ProviderExec
 }
 
 async fn close_stopped_attempt(context: &ExecutionFixtureContext, execution: &TestExecution) -> Result<(), ProviderExecutionFailure> {
-    close_active_attempt(context, execution, "stop_settlement", None).await
-}
-
-// Closes the step attempt still open on this execution: cancelled by a stop, or failed on the
-// host-known cause that ended the case.
-async fn close_active_attempt(
-    context: &ExecutionFixtureContext, execution: &TestExecution, stage: &'static str, cause: Option<&ProviderExecutionFailure>,
-) -> Result<(), ProviderExecutionFailure> {
     use dokime_domain::model::execution::termination::TerminationReason;
+    let stage = "stop_settlement";
     let execution_id = execution.test_execution_id.clone();
     let active = context
         .runtime
@@ -1151,17 +1136,13 @@ async fn close_active_attempt(
     let Some(start) = active else {
         return Ok(());
     };
-    let (termination, detail) = match cause {
-        Some(cause) => (TerminationReason::Failed, Some(crate::transactions::lifecycle::step_failure_detail(Some(&cause.message)))),
-        None => (TerminationReason::Cancelled, None),
-    };
     let attempt = dokime_domain::model::execution::result::TestStepAttempt {
         attempt_id: start.attempt_id,
         step_id: start.step_id,
         started_at: start.started_at,
         finished_at: Some(crate::model::time::now_utc()),
-        termination,
-        detail,
+        termination: TerminationReason::Cancelled,
+        detail: None,
     };
     context.record_step_attempt(execution.scope.clone(), attempt).await.map_err(|error| {
         let message = error.to_string();

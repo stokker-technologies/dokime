@@ -572,7 +572,7 @@ mod tests {
         use harmos_sdk::grpc::DecodeInput;
 
         let execution = "00000000-0000-7000-8000-000000000123";
-        let root = std::env::current_dir().unwrap();
+        let root = std::path::PathBuf::from(if cfg!(windows) { r"C:\fixture\operator" } else { "/fixture/operator" });
         let source = std::io::Error::other(format!("fixture-save-root: {}", root.join("report.html").display()));
         let error = Error::ReportSave {
             subject: ReportSubject::Execution(execution.into()),

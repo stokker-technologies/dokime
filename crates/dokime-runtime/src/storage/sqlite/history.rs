@@ -96,7 +96,7 @@ struct ExecutionProjection {
 }
 
 #[derive(Clone)]
-pub(crate) struct Read {
+pub struct Read {
     pub revision: i64,
     pub cut: Option<super::snapshots::Cut>,
     pub after: Option<Key>,
@@ -104,7 +104,7 @@ pub(crate) struct Read {
     pub bytes: u64,
 }
 
-pub(crate) struct Page<T> {
+pub struct Page<T> {
     pub rows: Vec<T>,
     pub next: Option<Key>,
 }
@@ -232,30 +232,7 @@ impl State {
     // The Journal Owns Archive Intent. Reconcile Before Serving After Recovery And
     // Before A Successful Archive Mutation Returns; One SQL Commit Publishes It.
     pub(crate) async fn history_archives(&self, cycles: Vec<String>, executions: Vec<String>) -> Result<(), Error> {
-        self.call(move |connection| Ok((|| {
-            let transaction = connection.transaction()?;
-            transaction.execute_batch("CREATE TEMP TABLE IF NOT EXISTS query_archive_input(kind TEXT,id TEXT,PRIMARY KEY(kind,id)) WITHOUT ROWID; DELETE FROM query_archive_input;")?;
-            for (kind, ids) in [("cycle", cycles), ("execution", executions)] {
-                for id in ids {
-                    transaction.execute("INSERT INTO query_archive_input VALUES(?1,?2)", params![kind,id])?;
-                }
-            }
-            let changed: bool = transaction.query_row("SELECT EXISTS(SELECT * FROM query_archive_input EXCEPT SELECT * FROM query_archives) OR EXISTS(SELECT * FROM query_archives EXCEPT SELECT * FROM query_archive_input)", [], |row|row.get(0))?;
-            if changed {
-                let revision = advance(&transaction)?;
-                transaction.execute_batch("DELETE FROM query_archives; INSERT INTO query_archives SELECT * FROM query_archive_input;")?;
-                transaction.execute(
-                    "INSERT INTO query_history SELECT h.kind,h.id,?1,h.position,h.cycle,h.template,h.status,
-                     EXISTS(SELECT 1 FROM query_archives a WHERE (a.kind=h.kind AND a.id=h.id) OR (a.kind='cycle' AND a.id=h.cycle)),
-                     h.missing,h.time,h.body FROM query_history h WHERE NOT EXISTS(
-                         SELECT 1 FROM query_history n WHERE n.kind=h.kind AND n.id=h.id AND n.revision>h.revision)
-                     AND h.archived!=EXISTS(SELECT 1 FROM query_archives a WHERE (a.kind=h.kind AND a.id=h.id) OR (a.kind='cycle' AND a.id=h.cycle))",
-                    [revision],
-                )?;
-            }
-            super::commit(transaction)?;
-            Ok(())
-        })())).await?
+        self.call(move |connection| Ok(archives(connection, cycles, executions))).await?
     }
 }
 
@@ -453,6 +430,31 @@ pub(crate) fn timestamp(time: &dokime_domain::model::time::Timestamp) -> Result<
 
 /* === Private Functions === */
 
+fn archives(connection: &mut Connection, cycles: Vec<String>, executions: Vec<String>) -> Result<(), Error> {
+    let transaction = connection.transaction()?;
+    transaction.execute_batch("CREATE TEMP TABLE IF NOT EXISTS query_archive_input(kind TEXT,id TEXT,PRIMARY KEY(kind,id)) WITHOUT ROWID; DELETE FROM query_archive_input;")?;
+    for (kind, ids) in [("cycle", cycles), ("execution", executions)] {
+        for id in ids {
+            transaction.execute("INSERT INTO query_archive_input VALUES(?1,?2)", params![kind, id])?;
+        }
+    }
+    let changed: bool = transaction.query_row("SELECT EXISTS(SELECT * FROM query_archive_input EXCEPT SELECT * FROM query_archives) OR EXISTS(SELECT * FROM query_archives EXCEPT SELECT * FROM query_archive_input)", [], |row|row.get(0))?;
+    if changed {
+        let revision = advance(&transaction)?;
+        transaction.execute_batch("DELETE FROM query_archives; INSERT INTO query_archives SELECT * FROM query_archive_input;")?;
+        transaction.execute(
+                    "INSERT INTO query_history SELECT h.kind,h.id,?1,h.position,h.cycle,h.template,h.status,
+                     EXISTS(SELECT 1 FROM query_archives a WHERE (a.kind=h.kind AND a.id=h.id) OR (a.kind='cycle' AND a.id=h.cycle)),
+                     h.missing,h.time,h.body FROM query_history h WHERE NOT EXISTS(
+                         SELECT 1 FROM query_history n WHERE n.kind=h.kind AND n.id=h.id AND n.revision>h.revision)
+                     AND h.archived!=EXISTS(SELECT 1 FROM query_archives a WHERE (a.kind=h.kind AND a.id=h.id) OR (a.kind='cycle' AND a.id=h.cycle))",
+                    [revision],
+                )?;
+    }
+    super::commit(transaction)?;
+    Ok(())
+}
+
 fn advance(connection: &Connection) -> Result<i64, Error> {
     Ok(connection.query_row(
         "UPDATE query_history_head SET revision=revision+1 WHERE revision<9223372036854775807 RETURNING revision",
@@ -461,7 +463,7 @@ fn advance(connection: &Connection) -> Result<i64, Error> {
     )?)
 }
 
-fn time_key(time: Option<Timestamp>) -> Vec<u8> {
+pub(super) fn time_key(time: Option<Timestamp>) -> Vec<u8> {
     time.map_or_else(
         || vec![0; 16],
         |time| ((i128::from(time.seconds) * 1_000_000_000 + i128::from(time.nanos)) ^ i128::MIN).to_be_bytes().to_vec(),
@@ -722,29 +724,32 @@ mod tests {
         connection.execute("UPDATE query_history_head SET revision=MAX(revision,?1)", [revision]).unwrap();
     }
 
-    #[tokio::test]
-    async fn archive_changes_are_atomic_versioned_and_recoverable() {
-        let root = tempfile::tempdir().unwrap();
-        let state = State::open(root.path()).await.unwrap();
-        state
-            .call(|connection| {
-                connection.execute_batch(SCHEMA)?;
-                insert(connection, "a", 1, Some(10), wire::ExecutionStatus::Failed);
-                Ok(())
-            })
-            .await
-            .unwrap();
-        state.history_archives(vec!["cycle".into()], vec![]).await.unwrap();
-        let old = state.history_executions(selection(), read(1)).await.unwrap();
+    #[test]
+    fn archive_changes_are_atomic_versioned_and_recoverable() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;").unwrap();
+        connection.execute_batch(SCHEMA).unwrap();
+        insert(&connection, "a", 1, Some(10), wire::ExecutionStatus::Failed);
+        archives(&mut connection, vec!["cycle".into()], vec![]).unwrap();
+        let old = executions(&connection, &selection(), &read(1)).unwrap();
         assert_eq!(old.rows.len(), 1);
-        let current = state.history_revision().await.unwrap();
-        assert!(state.history_executions(selection(), read(current)).await.unwrap().rows.is_empty());
+        let current = connection.query_row("SELECT revision FROM query_history_head", [], |row| row.get::<_, i64>(0)).unwrap();
+        assert!(executions(&connection, &selection(), &read(current)).unwrap().rows.is_empty());
         let mut archived = selection();
         archived.archive = Some(ArchiveScope::Archived);
-        assert!(state.history_executions(archived, read(current)).await.unwrap().rows[0].archived);
-        state.history_archives(vec![], vec![]).await.unwrap();
-        assert_eq!(state.history_executions(selection(), read(state.history_revision().await.unwrap())).await.unwrap().rows.len(), 1);
-        state.close().await.unwrap();
+        assert!(executions(&connection, &archived, &read(current)).unwrap().rows[0].archived);
+        archives(&mut connection, vec![], vec![]).unwrap();
+        assert_eq!(
+            executions(
+                &connection,
+                &selection(),
+                &read(connection.query_row("SELECT revision FROM query_history_head", [], |row| row.get::<_, i64>(0)).unwrap())
+            )
+            .unwrap()
+            .rows
+            .len(),
+            1
+        );
     }
 
     /* === Tests === */
@@ -798,182 +803,5 @@ mod tests {
         assert!(details.iter().any(|line| line.contains("SEARCH h USING INDEX query_history_template")), "{details:?}");
         selection.template_ids = vec!["example.measurement' OR 1=1 --".into()];
         assert!(executions(&connection, &selection, &read(1000)).unwrap().rows.is_empty());
-    }
-
-    #[test]
-    fn rollback_and_restart_expose_only_committed_revisions() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("history.sqlite");
-        {
-            let mut connection = Connection::open(&path).unwrap();
-            connection.execute_batch(SCHEMA).unwrap();
-            insert(&connection, "a", 1, Some(10), wire::ExecutionStatus::Running);
-            let transaction = connection.transaction().unwrap();
-            insert(&transaction, "a", 2, Some(10), wire::ExecutionStatus::Passed);
-            drop(transaction);
-        }
-        let connection = Connection::open(&path).unwrap();
-        check_format(&connection).unwrap();
-        let page = executions(&connection, &selection(), &read(2)).unwrap();
-        assert!(page.rows[0].status == wire::ExecutionStatus::Running);
-        connection.execute_batch("DROP TABLE query_history").unwrap();
-        assert!(matches!(check_format(&connection), Err(Error::Incompatible(_))));
-    }
-
-    #[test]
-    fn native_cycle_projection_and_membership_share_the_object_transaction() {
-        use dokime_domain::model::{
-            identity::{Identifier, Metadata, TestCycleId, TestExecutionId},
-            time::Timestamp as NativeTime,
-        };
-        use harmos::storage::{ObjectKey, ObjectValue, ObjectVersionToken, SchemaKey, StorageCursor, StoreHistory};
-        let root = tempfile::tempdir().unwrap();
-        let database = root.path().join("catalog.sqlite");
-        let id = TestCycleId::from_seed("query.cycle");
-        let member = TestExecutionId::from_seed("query.execution");
-        let mut cycle = result::TestCycle {
-            saved: None,
-            test_cycle_id: id.clone(),
-            session_id: None,
-            metadata: Metadata::new(Identifier::new("query.cycle").unwrap(), "Cycle", None),
-            phase: result::CyclePhase::Active,
-            lifecycle: result::CycleStatus::Ready,
-            created_at: NativeTime::new("2026-10-01T00:00:00Z"),
-            started_at: None,
-            updated_at: NativeTime::new("2026-10-01T00:00:00Z"),
-            execution_ids: vec![member.clone()],
-            records: Default::default(),
-            continue_automatically: false,
-            result: None,
-            seal_failure: None,
-        };
-        let native = crate::storage::objects::cycle::Cycle::try_from(&cycle).unwrap();
-        let position = StorageCursor {
-            history: StoreHistory {
-                store: Identifier::new("query.store").unwrap(),
-                epoch: Identifier::new("query.epoch").unwrap(),
-            },
-            sequence: 1,
-        };
-        let mut object = ObjectEntry {
-            version: ObjectVersionToken::new(position.clone()),
-            position,
-            value: ObjectValue {
-                schema: SchemaKey {
-                    id: Identifier::new("dokime.object.cycle").unwrap(),
-                    version: <crate::storage::objects::cycle::Cycle as harmos::Identified>::definition().1.try_into().unwrap(),
-                    payload_encoding: Default::default(),
-                },
-                item: ObjectKey::new(id.as_str(), 4096.try_into().unwrap()).unwrap(),
-                payload: native.encode(),
-            },
-        };
-        let mut connection = Connection::open(&database).unwrap();
-        connection.execute_batch(SCHEMA).unwrap();
-        {
-            let transaction = connection.transaction().unwrap();
-            index(&transaction, &object).unwrap();
-        }
-        assert_eq!(connection.query_row("SELECT count(*) FROM query_history", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
-        assert_eq!(connection.query_row("SELECT count(*) FROM query_members", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
-        {
-            let transaction = connection.transaction().unwrap();
-            index(&transaction, &object).unwrap();
-            transaction.commit().unwrap();
-        }
-        drop(connection);
-        let mut connection = Connection::open(&database).unwrap();
-        let selected = cycles(
-            &connection,
-            &CycleSelection {
-                cycle_ids: vec![],
-                phases: vec![],
-                statuses: vec![],
-                created_at: None,
-                archive: None,
-            },
-            &read(1),
-        )
-        .unwrap();
-        assert_eq!(selected.rows[0].execution_count, 1);
-        assert_eq!(selected.rows[0].status, wire::CycleStatus::Ready);
-        assert_eq!(selected.rows[0].running_count, 0);
-        assert_eq!(
-            connection.query_row("SELECT execution FROM query_members", [], |row| row.get::<_, String>(0)).unwrap(),
-            member.to_string()
-        );
-
-        insert(&connection, member.as_str(), 2, Some(10), wire::ExecutionStatus::Running);
-        connection.execute("UPDATE query_history SET cycle=?1 WHERE kind='execution'", [id.as_str()]).unwrap();
-        cycle.lifecycle = result::CycleStatus::Running;
-        object.position.sequence = 3;
-        object.version = ObjectVersionToken::new(object.position.clone());
-        object.value.payload = crate::storage::objects::cycle::Cycle::try_from(&cycle).unwrap().encode();
-        index(&connection, &object).unwrap();
-        let selection = CycleSelection {
-            cycle_ids: vec![id.to_string()],
-            phases: vec![result::CyclePhase::Active],
-            statuses: vec![wire::CycleStatus::Running, wire::CycleStatus::Paused],
-            created_at: None,
-            archive: None,
-        };
-        let captured = cycles(&connection, &selection, &read(3)).unwrap();
-        assert_eq!(captured.rows[0].status, wire::CycleStatus::Running);
-        assert_eq!(captured.rows[0].running_count, 1);
-        insert(&connection, member.as_str(), 4, Some(10), wire::ExecutionStatus::Passed);
-        connection.execute("UPDATE query_history SET cycle=?1 WHERE kind='execution'", [id.as_str()]).unwrap();
-        assert_eq!(cycles(&connection, &selection, &read(3)).unwrap().rows, captured.rows);
-        assert_eq!(cycles(&connection, &selection, &read(4)).unwrap().rows[0].running_count, 0);
-        let work = dokime_domain::state::records::work::Work {
-            executions: vec![dokime_domain::state::records::work::Execution {
-                id: member.clone(),
-                status: result::ExecutionStatus::Running,
-                started_at: Some(NativeTime::new("2026-10-01T00:00:01Z")),
-                finished_at: None,
-                result: None,
-            }],
-            cycles: vec![dokime_domain::state::records::work::Cycle {
-                id: id.clone(),
-                status: result::CycleStatus::Paused,
-            }],
-        };
-        let row = crate::storage::sqlite::history::work::Row { body: serde_json::to_vec(&work).unwrap() };
-        let record = harmos::storage::StoredRecord {
-            position: StorageCursor { sequence: 5, ..object.position.clone() },
-            schema: crate::storage::sqlite::history::work::schema(),
-            scope: None,
-            item: Identifier::new("work.fixture").unwrap(),
-            source: None,
-            source_time: None,
-            payload: row.encode(),
-        };
-        {
-            let transaction = connection.transaction().unwrap();
-            super::work::index(&transaction, &record).unwrap();
-        }
-        assert_eq!(cycles(&connection, &selection, &read(5)).unwrap().rows[0].running_count, 0);
-        {
-            let transaction = connection.transaction().unwrap();
-            super::work::index(&transaction, &record).unwrap();
-            transaction.commit().unwrap();
-        }
-        let paused = cycles(&connection, &selection, &read(6)).unwrap();
-        assert_eq!(paused.rows[0].status, wire::CycleStatus::Paused);
-        assert_eq!(paused.rows[0].running_count, 1);
-        assert_eq!(cycles(&connection, &selection, &read(3)).unwrap().rows, captured.rows);
-        // A Later Native Header Must Not Restore Its Older Running Status.
-        object.position.sequence = 6;
-        object.version = ObjectVersionToken::new(object.position.clone());
-        index(&connection, &object).unwrap();
-        assert_eq!(cycles(&connection, &selection, &read(7)).unwrap().rows[0].status, wire::CycleStatus::Paused);
-        let members: i64 = connection
-            .query_row("SELECT count(*) FROM query_members WHERE cycle=?1 AND position='0000000000000005'", [id.as_str()], |row| row.get(0))
-            .unwrap();
-        assert_eq!(members, 1);
-        let sealed = CycleSelection {
-            phases: vec![result::CyclePhase::Sealed],
-            ..selection
-        };
-        assert!(cycles(&connection, &sealed, &read(4)).unwrap().rows.is_empty());
     }
 }

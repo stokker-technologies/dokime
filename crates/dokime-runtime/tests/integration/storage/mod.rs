@@ -13,6 +13,7 @@
 
 pub(crate) mod engine_storage;
 mod format;
+mod group_commit;
 
 /* === Re-Exports === */
 
@@ -125,3 +126,20 @@ async fn storage_recovery_sqlite_production() {
 }
 
 /* === Tests === */
+
+mod ipc;
+
+#[cfg(feature = "testing")]
+mod sqlite_files;
+
+#[cfg(feature = "testing")]
+mod sqlite_history;
+
+#[cfg(feature = "testing")]
+mod sqlite_readers;
+
+#[cfg(feature = "testing")]
+mod sqlite_settings;
+
+#[cfg(feature = "testing")]
+mod sqlite_telemetry;

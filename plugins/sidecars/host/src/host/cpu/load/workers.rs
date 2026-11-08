@@ -139,39 +139,3 @@ impl Drop for Workers {
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::settings::CPU_LOAD_DEFAULTS as DEFAULT;
-    #[test]
-    fn sleeping_workers_wake_on_stop() {
-        let settings = CpuLoadSettings {
-            slice_ms: 1000,
-            period_ms: 1000,
-            ..DEFAULT
-        };
-        let mut workers = Workers::start(2, &settings).unwrap();
-        let start = Instant::now();
-        workers.stop().unwrap();
-        assert!(start.elapsed() < settings.settlement());
-        assert_eq!(workers.operations(), 0);
-    }
-    #[test]
-    fn active_workers_stop_and_count_whole_batches() {
-        let mut workers = Workers::start(1, &DEFAULT).unwrap();
-        workers.duty(1.0);
-        let deadline = Instant::now() + DEFAULT.settlement();
-        while workers.operations() == 0 && Instant::now() < deadline {
-            std::thread::yield_now();
-        }
-        assert!(workers.operations() > 0);
-        let start = Instant::now();
-        workers.stop().unwrap();
-        assert!(start.elapsed() < DEFAULT.settlement());
-        let operations = workers.operations();
-        let batch_operations = Kernel::new(DEFAULT.batch_iterations).batch();
-        assert_eq!(operations % batch_operations, 0);
-        assert_eq!(workers.operations(), operations);
-    }
-}

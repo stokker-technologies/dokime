@@ -209,6 +209,10 @@ impl MemberRows {
     pub(in crate::report) fn new() -> Result<Self> {
         // A Private Temporary Database Creates Its Backing File Only When It Spills.
         let connection = rusqlite::Connection::open("").map_err(rows_error)?;
+        Self::with_connection(connection)
+    }
+
+    fn with_connection(connection: rusqlite::Connection) -> Result<Self> {
         connection
             .execute_batch(
                 "PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF; PRAGMA temp_store=FILE;
@@ -829,18 +833,21 @@ mod tests {
 
     #[test]
     fn fixture_report_save_preserves_bytes_and_decodes_once_per_member() {
-        use crate::report::{CapturedExecutionReportInput, cycle::CycleMember};
-        use std::{
-            io::{BufWriter, Read},
-            sync::atomic::Ordering,
-        };
+        use crate::report::CapturedExecutionReportInput;
+        use std::{io::BufWriter, sync::atomic::Ordering};
         let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("../fixtures/execution-report-input.json")).unwrap();
         let input = harmos::storage::ReadBatch::new(captured);
-        let CycleMember::Captured(member) = CycleMember::capture(input.clone()).unwrap() else { unreachable!() };
+        let encoded = serde_json::to_vec(&*input).unwrap();
+        let decodes = std::sync::atomic::AtomicUsize::new(0);
+        let read_member = || -> crate::runtime::Result<harmos::storage::ReadBatch<CapturedExecutionReportInput>> {
+            let captured = serde_json::from_slice(&encoded).map_err(crate::storage::Error::from)?;
+            decodes.fetch_add(1, Ordering::Relaxed);
+            Ok(harmos::storage::ReadBatch::new(captured))
+        };
         let mut index = Index::new();
         index.push_capture(&input).unwrap();
         index.sort();
-        let read = |_| member.read().map(crate::report::html::Member::Captured);
+        let read = |_| read_member().map(crate::report::html::Member::Captured);
         let report = Report {
             header: (&input.input).into(),
             index: &index,
@@ -850,33 +857,27 @@ mod tests {
         };
         let mut baseline_file = None;
         for _ in 0..20 {
-            let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
-            drop(member.read().unwrap());
+            let mut writer = BufWriter::with_capacity(1024 * 1024, Vec::new());
+            drop(read_member().unwrap());
             report.write(&mut writer).unwrap();
             writer.flush().unwrap();
             baseline_file = Some(writer.into_inner().unwrap());
         }
-        let mut baseline_bytes = Vec::new();
-        let mut baseline_file = baseline_file.unwrap();
-        std::io::Seek::rewind(&mut baseline_file).unwrap();
-        baseline_file.read_to_end(&mut baseline_bytes).unwrap();
-        let baseline_decodes = member.decodes.load(Ordering::Relaxed);
+        let baseline_bytes = baseline_file.unwrap();
+        let baseline_decodes = decodes.load(Ordering::Relaxed);
         let mut candidate_file = None;
         for _ in 0..20 {
-            let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
-            let captured = member.read().unwrap();
-            let rows = MemberRows::new().unwrap();
+            let mut writer = BufWriter::with_capacity(1024 * 1024, Vec::new());
+            let captured = read_member().unwrap();
+            let rows = MemberRows::with_connection(rusqlite::Connection::open_in_memory().unwrap()).unwrap();
             rows.capture(0, &captured, report.header).unwrap();
             drop(captured);
             report.write_prepared(&mut writer, &rows).unwrap();
             writer.flush().unwrap();
             candidate_file = Some(writer.into_inner().unwrap());
         }
-        let mut candidate_bytes = Vec::new();
-        let mut candidate_file = candidate_file.unwrap();
-        std::io::Seek::rewind(&mut candidate_file).unwrap();
-        candidate_file.read_to_end(&mut candidate_bytes).unwrap();
-        assert_eq!(member.decodes.load(Ordering::Relaxed) - baseline_decodes, 20);
+        let candidate_bytes = candidate_file.unwrap();
+        assert_eq!(decodes.load(Ordering::Relaxed) - baseline_decodes, 20);
         assert!(baseline_decodes > 20);
         assert_eq!(candidate_bytes, baseline_bytes);
     }

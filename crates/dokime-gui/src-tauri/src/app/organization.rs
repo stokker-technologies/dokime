@@ -636,23 +636,74 @@ fn remove_folder(path: &Path) -> Result<(), String> {
     }
 }
 
+#[cfg(feature = "testing")]
+#[allow(dead_code)]
+pub(crate) mod testing {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+
+    use super::*;
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    /* === Public Functions === */
+
+    pub(crate) fn inspect_boot(root: &Path) -> serde_json::Value {
+        let booted = boot(root);
+        serde_json::to_value(BootScript {
+            pack: booted.pack.as_ref(),
+            error: booted.error.as_deref(),
+        })
+        .unwrap()
+    }
+
+    pub(crate) fn inspect_pack(path: &Path) -> Result<serde_json::Value, String> {
+        serde_json::to_value(load(path)?).map_err(|error| error.to_string())
+    }
+
+    pub(crate) fn stage_pack(root: &Path, archive: &Path) -> Result<serde_json::Value, String> {
+        serde_json::to_value(stage(root, archive)?).map_err(|error| error.to_string())
+    }
+
+    pub(crate) fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+        super::validate_archive(bytes)
+    }
+
+    pub(crate) fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
+        super::replace_pack(source, destination)
+    }
+
+    /* === Private Functions === */
+
+    /* === Tests === */
+}
+
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn boot(root: &Path) -> Boot {
-        super::boot(root)
-    }
-    fn load(path: &Path) -> Result<LoadedPack, String> {
-        super::load(path)
-    }
-    fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
-        super::stage(root, archive)
-    }
-    fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
-        super::validate_archive(bytes)
-    }
     use std::io::Write;
     use zip::write::SimpleFileOptions;
 
@@ -666,50 +717,6 @@ mod tests {
             writer.write_all(contents).unwrap();
         }
         writer.finish().unwrap().into_inner()
-    }
-
-    fn organization_folder() -> PathBuf {
-        PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("../../../organization")
-    }
-
-    fn zip_folder(root: &Path, prefix: &str) -> Vec<u8> {
-        fn walk(root: &Path, dir: &Path, prefix: &str, writer: &mut zip::ZipWriter<std::io::Cursor<Vec<u8>>>) {
-            for entry in std::fs::read_dir(dir).unwrap() {
-                let path = entry.unwrap().path();
-                let name = format!("{prefix}{}", path.strip_prefix(root).unwrap().to_str().unwrap().replace('\\', "/"));
-                if path.is_dir() {
-                    walk(root, &path, prefix, writer);
-                } else {
-                    writer.start_file(name, SimpleFileOptions::default()).unwrap();
-                    writer.write_all(&std::fs::read(&path).unwrap()).unwrap();
-                }
-            }
-        }
-        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-        walk(root, root, prefix, &mut writer);
-        writer.finish().unwrap().into_inner()
-    }
-
-    #[test]
-    fn the_repository_organization_folder_zipped_as_is_loads() {
-        for prefix in ["", "organization/"] {
-            let files = validate_archive(&zip_folder(&organization_folder(), prefix)).unwrap();
-            assert!(files.contains_key(Path::new("organization.toml")));
-            assert!(files.keys().all(|path| !path.starts_with("generated")));
-            assert!(!files.contains_key(Path::new("fonts/OFL.txt")));
-            let root = tempfile::tempdir().unwrap();
-            for (relative, contents) in &files {
-                let path = root.path().join(relative);
-                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-                std::fs::write(path, contents).unwrap();
-            }
-            let pack = load(root.path()).unwrap();
-            assert_eq!(pack.label, "Dokime");
-            assert_eq!(pack.logos.len(), 4);
-            assert!(pack.css.contains("data:font/woff2;base64,"));
-            assert!(pack.css.contains("--brand-radius-sm"));
-            assert!(!pack.css.contains("url(\"fonts/"));
-        }
     }
 
     #[test]
@@ -728,104 +735,5 @@ mod tests {
         assert!(
             validate_archive(&archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("run.sh", b"echo")])).unwrap_err().contains("unsupported")
         );
-    }
-
-    #[test]
-    fn partial_pack_inherits_assets() {
-        assert!(validate_archive(&archive(&[("logos/mark.svg", LOGO)])).unwrap_err().contains("organization.toml"));
-        let root = tempfile::tempdir().unwrap();
-        let pack = archive(&[(MANIFEST, b"[app]\nlabel = \"Stokker Technologies\"\n")]);
-        std::fs::write(root.path().join("pack.zip"), pack).unwrap();
-        assert_eq!(stage(&root.path().join("organization"), &root.path().join("pack.zip")).unwrap().label, "Stokker Technologies");
-        let escaping =
-            archive(&[(MANIFEST, b"[app]\nlabel = \"Stokker Technologies\"\n[app.logos.transparent]\non_light = \"../../secret.svg\"\n")]);
-        std::fs::write(root.path().join("escape.zip"), escaping).unwrap();
-        assert!(stage(&root.path().join("organization"), &root.path().join("escape.zip")).unwrap_err().contains("unsafe"));
-    }
-
-    #[test]
-    fn a_staged_pack_activates_on_the_next_boot_and_an_invalid_one_falls_back() {
-        let root = tempfile::tempdir().unwrap();
-        let organization = root.path().join("organization");
-        std::fs::write(root.path().join("pack.zip"), archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
-        let summary = stage(&organization, &root.path().join("pack.zip")).unwrap();
-        assert_eq!(summary.label, "Stokker Technologies");
-        let booted = boot(&organization);
-        assert_eq!(booted.pack.unwrap().label, "Stokker Technologies");
-        assert!(!organization.join(PENDING).exists() && organization.join(ACTIVE).is_dir());
-        std::fs::write(organization.join(ACTIVE).join(MANIFEST), "not toml [").unwrap();
-        let fallback = boot(&organization);
-        assert_eq!(fallback.pack.unwrap().label, "Dokime");
-        assert!(fallback.error.unwrap().contains("organization.toml"));
-        assert!(organization.join(ACTIVE).is_dir(), "an invalid pack stays on disk for diagnosis");
-    }
-
-    #[test]
-    fn invalid_pending_pack_preserves_the_last_valid_active_pack() {
-        let root = tempfile::tempdir().unwrap();
-        let organization = root.path().join("organization");
-        let archive_path = root.path().join("pack.zip");
-        std::fs::write(&archive_path, archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
-        stage(&organization, &archive_path).unwrap();
-        assert_eq!(boot(&organization).pack.unwrap().label, "Stokker Technologies");
-        stage(&organization, &archive_path).unwrap();
-        std::fs::write(organization.join(PENDING).join(MANIFEST), "invalid [").unwrap();
-
-        let retained = boot(&organization);
-
-        assert_eq!(retained.pack.unwrap().label, "Stokker Technologies");
-        assert!(retained.error.unwrap().contains("pending organization pack"));
-        assert_eq!(std::fs::read_to_string(organization.join(ACTIVE).join(MANIFEST)).unwrap(), MANIFEST_TEXT);
-        assert_eq!(std::fs::read_to_string(organization.join(PENDING).join(MANIFEST)).unwrap(), "invalid [");
-    }
-
-    #[test]
-    fn failed_promotion_restores_the_active_pack() {
-        let root = tempfile::tempdir().unwrap();
-        let active = root.path().join(ACTIVE);
-        std::fs::create_dir(&active).unwrap();
-        std::fs::write(active.join(MANIFEST), MANIFEST_TEXT).unwrap();
-
-        let pending = root.path().join(PENDING);
-        assert!(replace_pack(&pending, &active).is_err(), "a missing pending pack cannot replace the active pack");
-
-        assert_eq!(std::fs::read_to_string(active.join(MANIFEST)).unwrap(), MANIFEST_TEXT);
-        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1, "rollback removes only its empty backup directory");
-    }
-
-    #[test]
-    fn invalid_update_policy_preserves_the_previous_pending_pack() {
-        let root = tempfile::tempdir().unwrap();
-        let store = root.path().join("organization");
-        let archive_path = root.path().join("pack.zip");
-        let valid = format!("{MANIFEST_TEXT}\n[updates]\nmode = 'disabled'\n");
-        std::fs::write(&archive_path, archive(&[(MANIFEST, valid.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
-        stage(&store, &archive_path).unwrap();
-
-        let invalid = valid.replace("mode = 'disabled'", "mode = 'manual'\nsource = 'missing'");
-        std::fs::write(&archive_path, archive(&[(MANIFEST, invalid.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
-        assert!(stage(&store, &archive_path).unwrap_err().contains("does not exist"));
-        let booted = boot(&store);
-        let script = serde_json::to_value(BootScript {
-            pack: booted.pack.as_ref(),
-            error: booted.error.as_deref(),
-        })
-        .unwrap();
-        assert_eq!(script["pack"]["updates"]["mode"], "disabled");
-        let updates = booted.pack.unwrap().updates.unwrap();
-        assert_eq!(updates.mode, policy::Mode::Disabled);
-        assert_eq!(std::fs::read_to_string(store.join(ACTIVE).join(MANIFEST)).unwrap(), valid);
-    }
-
-    #[test]
-    fn malformed_policy_diagnostics_do_not_echo_manifest_values() {
-        let root = tempfile::tempdir().unwrap();
-        let manifest = format!("{MANIFEST_TEXT}\n[updates]\nmode = 'private-value-42'\n");
-        std::fs::write(root.path().join(MANIFEST), manifest).unwrap();
-
-        let error = load(root.path()).unwrap_err();
-
-        assert!(error.contains("organization update policy is invalid"));
-        assert!(!error.contains("private-value-42"));
     }
 }

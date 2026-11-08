@@ -17,6 +17,9 @@
 
 // Third Party Imports
 use base64::Engine;
+use sha2::{Digest, Sha256};
+use tracing::instrument::WithSubscriber;
+use tracing_subscriber::layer::SubscriberExt;
 
 // Local Imports
 use crate::service_support::prelude::*;
@@ -43,11 +46,21 @@ const STREAM: &str = "fixture.wide";
 // Publishes Wide Telemetry and Artifacts into Every Member
 struct WideTelemetryExecutor;
 
+struct SnapshotWarnings(Arc<std::sync::atomic::AtomicUsize>);
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for SnapshotWarnings {
+    fn on_event(&self, event: &tracing::Event<'_>, _context: tracing_subscriber::layer::Context<'_, S>) {
+        if *event.metadata().level() == tracing::Level::WARN && event.metadata().fields().field("segment_limit").is_some() {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+}
 
 impl ExecutionFixture for WideTelemetryExecutor {
     fn run_cycle<'a>(
@@ -369,17 +382,13 @@ async fn shut_down(mut owner: Runtime, handle: RuntimeHandle) -> u64 {
     drop(handle);
     owner.shutdown().await.unwrap();
 
-    let snapshot = std::fs::read(root.join("state.json")).expect("shutdown writes a state snapshot");
-    assert!(snapshot.len() <= limits.max_checkpoint_bytes.get());
-    let record: serde_json::Value = serde_json::from_slice(&snapshot).unwrap();
+    let (record, bytes) = read_snapshot(&root);
     let compacted = std::fs::read(root.join("state.jsonl")).unwrap();
     assert!(compacted.len() < journal.len(), "snapshot compacts the journal");
     let rows: Vec<serde_json::Value> =
         compacted.split(|byte| *byte == b'\n').filter(|row| !row.is_empty()).map(|row| serde_json::from_slice(row).unwrap()).collect();
-    assert_eq!(rows[0]["value"]["after"], record["value"]["through"]);
+    assert_eq!(rows[0]["value"]["after"], record["through"]);
     assert!(rows.iter().all(|row| row["value"].get("payload").is_none()), "restart has no old journal entries to replay");
-    let payload = record["value"]["payload"].as_str().unwrap();
-    let bytes = base64::engine::general_purpose::STANDARD_NO_PAD.decode(payload).unwrap();
     let checkpoint: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let position = checkpoint["position"].as_u64().unwrap();
     eprintln!("SNAPSHOT payload_bytes={} position={position} journal_bytes={}", bytes.len(), compacted.len());
@@ -408,4 +417,75 @@ fn assert_round_trip(handle: &RuntimeHandle) {
     assert!(&decoded == latest.state(), "state survives its snapshot encoding");
 }
 
+fn read_snapshot(root: &Path) -> (serde_json::Value, Vec<u8>) {
+    let snapshot = std::fs::read(root.join("state.json")).expect("shutdown writes a state snapshot");
+    let frames: Vec<serde_json::Value> = snapshot
+        .split(|byte| *byte == b'\n')
+        .filter(|row| !row.is_empty())
+        .map(|row| {
+            assert!(row.len() < dokime_runtime::config::storage_state_defaults().max_checkpoint_bytes.get());
+            serde_json::from_slice(row).unwrap()
+        })
+        .collect();
+    let manifest = frames.first().unwrap()["value"].clone();
+    assert_eq!(frames.last().unwrap()["value"], manifest);
+    assert_eq!(frames.len(), manifest["count"].as_u64().unwrap() as usize + 2);
+    let mut bytes = Vec::new();
+    for frame in &frames[1..frames.len() - 1] {
+        let payload = base64::engine::general_purpose::STANDARD_NO_PAD.decode(frame["value"]["payload"].as_str().unwrap()).unwrap();
+        let digest = Sha256::digest(&payload).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        assert_eq!(frame["value"]["digest"], digest);
+        bytes.extend(payload);
+    }
+    assert_eq!(bytes.len(), manifest["total_bytes"].as_u64().unwrap() as usize);
+    (manifest, bytes)
+}
+
 /* === Tests === */
+
+#[tokio::test]
+async fn segmented_snapshot_recovers_state_above_one_mib() {
+    let warnings = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let subscriber = tracing_subscriber::registry().with(SnapshotWarnings(warnings.clone()));
+    async {
+        // Build Persistent Control State Across Many Journal Positions
+        let root = tempdir().unwrap();
+        let (owner, handle) = reboot(root.path()).await;
+        for index in 0..730 {
+            let transaction = dokime_runtime::transactions::UpsertScopedParameter {
+                scope: RecordScope::default(),
+                key: format!("fixture.parameter_{index}"),
+                value: Value::from("0123456789abcdef".repeat(128)),
+                source: dokime_runtime::definition::ParameterSource::Runtime,
+                metadata: None,
+                group_id: None,
+                unit: None,
+            };
+            dokime_runtime::testing::commit(&handle, transaction).await.unwrap();
+        }
+        let before = handle.watch_state().latest();
+        let state_bytes = serde_json::to_vec(before.state()).unwrap().len();
+        assert!(state_bytes > 1024 * 1024);
+        let parameters = before.state().run_parameters.clone();
+        let storage_root = handle.storage_root();
+        eprintln!("LARGE SNAPSHOT state_bytes={state_bytes} parameters={} position={}", parameters.len(), before.revision());
+
+        // Publish and Verify the Durable Segmented Snapshot Before Restart
+        let position = shut_down(owner, handle).await;
+        let (manifest, bytes) = read_snapshot(&storage_root);
+        assert!(bytes.len() > 1024 * 1024);
+        assert!(manifest["count"].as_u64().unwrap() > 1);
+        assert_eq!(warnings.load(std::sync::atomic::Ordering::Relaxed), 0);
+
+        // Recover the Same Persistent State After the Journal Has Been Compacted
+        let (mut owner, handle) = reboot(root.path()).await;
+        let recovered = handle.watch_state().latest();
+        assert!(recovered.revision() > position);
+        assert!(recovered.state().run_parameters == parameters, "restart restores every persisted parameter");
+        drop(handle);
+        owner.shutdown().await.unwrap();
+        assert_eq!(warnings.load(std::sync::atomic::Ordering::Relaxed), 0);
+    }
+    .with_subscriber(subscriber)
+    .await;
+}

@@ -36,7 +36,7 @@ from .. import temporary
 from ..package import run as packages
 from ..package.changelog import notes
 from ..test import archive
-from . import layout, pins, policy, registry, screenshots, version
+from . import layout, notices, pins, policy, registry, sbom, screenshots, version
 
 # Type Checking Imports
 
@@ -158,6 +158,7 @@ def stage(
     """Copy Each Target's Release Downloads Into Its target/release-assets/<target>/ And Their SHA256SUMS Into any/."""
     profile = policy.profile() if profile is None else profile
     root = _root(directory)
+    notices.generate(directory)
     # Only the staged targets and the shared checksums are replaced; another target's staging stays untouched.
     for owned in [*targets, SHARED]:
         destination = policy.inside(root, owned)
@@ -179,9 +180,12 @@ def stage(
                 raise policy.ToolError(f"release download names collide across targets: {asset['name']}")
             destination = policy.inside(root / selected, asset["name"])
             shutil.copyfile(policy.inside(directory, asset["path"]), destination)
+            if destination.name.startswith(("dokime-cli-", "cargo-dokime-")) and destination.name.endswith((".zip", ".tar.gz")):
+                notices.archive(directory, destination)
             files.append(_describe(root, destination))
     (root / SHARED).mkdir(parents=True)
     for destination in layout.plugin_archives(directory, root, plugins):
+        notices.archive(directory, destination)
         if any(item["name"].casefold() == destination.name.casefold() for item in files):
             raise policy.ToolError(f"release download names collide across targets: {destination.name}")
         files.append(_describe(root, destination))
@@ -195,6 +199,25 @@ def stage(
         feed = root / SHARED / "plugins.json"
         policy.write_json(feed, layout.plugin_feed(settings, tag, plugins))
         files.append(_describe(root, feed))
+    for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+        destination = root / SHARED / name
+        shutil.copyfile(directory / name, destination)
+        files.append(_describe(root, destination))
+    shell_inventory = sbom.shell(directory, root / SHARED)
+    files.append(_describe(root, shell_inventory))
+    for selected in targets:
+        rust = sbom.workspace(directory, layout.triple(directory, settings, selected), root / selected)
+        originals = [item for item in files if Path(item["path"]).parts[0] == selected]
+        for source in rust:
+            files.append(_describe(root, source))
+        for item in originals:
+            source = root / item["path"]
+            if not source.name.endswith((".zip", ".tar.gz", ".whl", ".exe", ".deb", ".rpm")):
+                continue
+            desktop = source.name.startswith("dokime-distribution-") or source.name.endswith(("-setup.exe", ".deb", ".rpm"))
+            inventories = [*rust, shell_inventory] if desktop else rust
+            destination = sbom.artifact(directory, source, root / selected, inventories)
+            files.append(_describe(root, destination))
     (root / SHARED / SUMS).write_text("".join(f"{item['sha256']}  {item['name']}\n" for item in files), encoding="utf-8")
     files.append(_describe(root, root / SHARED / SUMS))
     executables = {
@@ -346,7 +369,9 @@ def dry(
     if native in present:
         # The staged bytes themselves run, from an isolated directory, exactly as a user's download would.
         packages.verify(directory, profile, native, root / native)
-    print(f"staged {len(files) - 2} download(s), {SUMS} and {DOWNLOADS} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}")
+    print(
+        f"staged {len(files) - 2} download(s), {SUMS} and {DOWNLOADS} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}"
+    )
 
 
 def publish(directory: Path, settings: dict) -> None:

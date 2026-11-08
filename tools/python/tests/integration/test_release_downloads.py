@@ -129,6 +129,19 @@ class StageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             feed = b'{"version":"0.1.3","platforms":{"windows-x86_64":{"url":"u","signature":"s"}}}'
+            for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+                (root / name).write_text("fixture")
+            shell_inventory = root / "target/release-assets/any/dokime-shell.cdx.json"
+
+            def artifact(_, source, output, inventories):
+                destination = output / (source.name + ".cdx.json")
+                destination.write_text('{"components": []}')
+                return destination
+
+            def shell(*_):
+                shell_inventory.write_text('{"components": []}')
+                return shell_inventory
+
             source = root / "input" / "latest.json"
             source.parent.mkdir()
             source.write_bytes(feed)
@@ -141,6 +154,11 @@ class StageTests(unittest.TestCase):
             settings = {**SETTINGS, "targets": ["windows-x86_64"]}
             config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime"}]}}
             with (
+                mock.patch.object(run.notices, "generate"),
+                mock.patch.object(run.sbom, "shell", side_effect=shell),
+                mock.patch.object(run.sbom, "workspace", return_value=[]),
+                mock.patch.object(run.sbom, "artifact", side_effect=artifact),
+                mock.patch.object(run.layout, "triple", return_value="x86_64-pc-windows-msvc"),
                 mock.patch.object(run, "assets", return_value=declared),
                 mock.patch.object(run, "_native", return_value="linux-x86_64"),
                 mock.patch.object(run.policy, "config", return_value=config),

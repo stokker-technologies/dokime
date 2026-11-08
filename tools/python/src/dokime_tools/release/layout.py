@@ -208,6 +208,11 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
     product = settings["product"]
     lowered = name.lower()
     format_ = next((suffix for suffix in ("tar.gz", "exe", "zip", "deb", "rpm", "whl", "md", "json") if lowered.endswith("." + suffix)), "")
+    if name.endswith(".cdx.json"):
+        os_name, arch = _platform(name.removesuffix(".cdx.json"))
+        return {"kind": "sbom", "os": os_name, "arch": arch, "format": "json"}
+    if name in {"NOTICE", "THIRD-PARTY-NOTICES"}:
+        return {"kind": "notices", "os": "any", "arch": "any", "format": "txt"}
     if name == "SHA256SUMS":
         return {"kind": "checksums", "os": "any", "arch": "any", "format": "txt"}
     if name == "CHANGELOG.md":
@@ -231,7 +236,9 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
     return {"kind": "other", "os": os_name, "arch": arch, "format": format_ or Path(name).suffix[1:].lower() or "txt"}
 
 
-def downloads(settings: dict, executables: dict[str, str], *, version: str, channel: str, tag: str, published: str, files: list[dict], sums: str) -> dict:
+def downloads(
+    settings: dict, executables: dict[str, str], *, version: str, channel: str, tag: str, published: str, files: list[dict], sums: str
+) -> dict:
     """The Download Manifest: Every Staged Upload Classified, Linked Under Its Tag, Hashed From SHA256SUMS."""
     digests = {}
     for line in sums.splitlines():
@@ -309,11 +316,22 @@ def _platform(name: str) -> tuple[str, str]:
         platform_tag = lowered.removesuffix(".whl").rsplit("-", 1)[-1]
         if platform_tag == "any":
             return "any", "any"
-        os_name = "windows" if platform_tag.startswith("win") else "linux" if "linux" in platform_tag else "macos" if platform_tag.startswith("macosx") else "any"
-        arch = "x86_64" if platform_tag.endswith(("x86_64", "amd64")) else "aarch64" if platform_tag.endswith(("aarch64", "arm64")) else "any"
+        os_name = (
+            "windows"
+            if platform_tag.startswith("win")
+            else "linux"
+            if "linux" in platform_tag
+            else "macos"
+            if platform_tag.startswith("macosx")
+            else "any"
+        )
+        arch = (
+            "x86_64" if platform_tag.endswith(("x86_64", "amd64")) else "aarch64" if platform_tag.endswith(("aarch64", "arm64")) else "any"
+        )
         return os_name, arch
     if lowered.endswith(".rpm"):
         return "linux", lowered.removesuffix(".rpm").rsplit(".", 1)[-1]
     return "any", "any"
+
 
 # === Entry Point === #

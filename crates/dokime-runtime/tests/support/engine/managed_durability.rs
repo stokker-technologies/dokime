@@ -26,7 +26,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::storage::state::{RecoveryEntry, RecoverySnapshot, StateBackend, file::FileBackend};
+use harmos::storage::state::{RecoveryEntry, RecoverySnapshot, SnapshotPayload, StateBackend, file::FileBackend};
 use harmos::storage::{ReadLimits, RecoveryPosition, StorageBackend, StorageBackends, StorageBatch, StorageManager, StorageSchema};
 
 // Local Imports
@@ -81,7 +81,12 @@ pub async fn managed_durability(days: usize, rows_per_day: usize) {
 
         // Refusal Before Publication Leaves The Previous Checkpoint And Complete Tail.
         let mut oversized = expected.clone();
-        oversized.payload = vec![0; settings.max_checkpoint_bytes.get()];
+        oversized.payload = SnapshotPayload::from_bytes(
+            &vec![0; settings.max_checkpoint_bytes.get()],
+            settings.max_checkpoint_bytes,
+            harmos::state::Position((count - 1) as u64),
+        )
+        .unwrap();
         assert!(state.write_snapshot(StorageBatch::new(vec![oversized])).await.is_err());
         assert_eq!(state.read_snapshot(settings.max_checkpoint_bytes).await.unwrap(), previous);
         let after = previous.as_ref().map_or_else(|| recovery(&state, 0), |snapshot| snapshot.through.clone());
@@ -225,7 +230,8 @@ fn recovery(state: &FileBackend, sequence: usize) -> RecoveryPosition {
 
 fn checkpoint(store: &Backend<()>, state: &FileBackend, records: usize) -> RecoverySnapshot {
     let required_data = position(store, records as u64 + 1);
-    let payload = serde_json::to_vec(&(records, &required_data)).unwrap();
+    let bytes = serde_json::to_vec(&(records, &required_data)).unwrap();
+    let payload = SnapshotPayload::from_bytes(&bytes, settings().max_checkpoint_bytes, harmos::state::Position(records as u64)).unwrap();
     RecoverySnapshot {
         required_data,
         through: recovery(state, records),

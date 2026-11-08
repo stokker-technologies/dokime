@@ -362,59 +362,52 @@ fn log_error(error: impl ToString) -> crate::runtime::Error {
 
 /* === Tests === */
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn execution_log_names_rollover_and_capture_limit() {
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../../report/fixtures/execution-report-input.json")).unwrap();
-        let mut cycle: dokime_domain::model::execution::result::CycleView =
-            serde_json::from_value(fixture["input"]["cycle"].clone()).unwrap();
-        cycle.test_executions[0].saved = None;
-        let execution = &cycle.test_executions[0];
-        let root = tempfile::tempdir().unwrap();
-        let mut owner = crate::Runtime::start(crate::RuntimeConfig::new(root.path(), cycle.metadata.clone())).await.unwrap();
-        let runtime = owner.handle();
-        let storage = &runtime.execution_storage;
-        storage.acquire(&cycle, execution).await.unwrap();
-        let id = &execution.test_execution_id;
-        let path = segment_path(0);
-        storage.reserve_output(id, &path).await.unwrap();
-        let mut log = StreamLog {
-            segment_bytes: SEGMENT_BYTES - 1,
-            total_bytes: SEGMENT_BYTES - 1,
-            ..Default::default()
-        };
-        let mut writer = StreamLogWriter {
-            storage,
-            execution: id,
+#[cfg(feature = "testing")]
+pub struct LogWriter {
+    runtime: crate::RuntimeHandle,
+    execution: crate::TestExecutionId,
+    path: String,
+    log: StreamLog,
+}
+#[cfg(feature = "testing")]
+impl LogWriter {
+    pub fn new(runtime: &crate::RuntimeHandle, execution: crate::TestExecutionId, path: String) -> Self {
+        Self {
+            runtime: runtime.clone(),
+            execution,
             path,
+            log: StreamLog::default(),
+        }
+    }
+    pub fn segment_limit() -> u64 {
+        SEGMENT_BYTES
+    }
+    pub fn execution_limit() -> u64 {
+        EXECUTION_BYTES
+    }
+    pub fn set_segment_bytes(&mut self, bytes: u64) {
+        self.log.segment_bytes = bytes;
+    }
+    pub fn set_total_bytes(&mut self, bytes: u64) {
+        self.log.total_bytes = bytes;
+    }
+    pub fn segment_bytes(&self) -> u64 {
+        self.log.segment_bytes
+    }
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+    pub async fn flush(&mut self, bytes: Vec<u8>) -> crate::runtime::Result<()> {
+        let mut writer = StreamLogWriter {
+            storage: &self.runtime.execution_storage,
+            execution: &self.execution,
+            path: self.path.clone(),
             capacity: 4,
-            buffer: Some(vec![1, 2, 3]),
-            log: &mut log,
+            buffer: Some(bytes),
+            log: &mut self.log,
         };
-        writer.flush().await.unwrap();
-        let entries = storage.native_entries(id).await.unwrap();
-        assert!(entries.iter().any(|entry| entry.relative_path == "artifacts/execution.log" && entry.size_bytes == 1));
-        assert_eq!(writer.path, "artifacts/execution.2.log");
-        assert_eq!(storage.log_prefix(id, &writer.path).await.unwrap(), 2);
-        assert_eq!(writer.log.segment_bytes, 2);
-        storage.native_target(id.clone(), "artifacts/execution.3.log".into(), true, false).await.unwrap();
-        writer.log.segment_bytes = SEGMENT_BYTES;
-        writer.buffer = Some(vec![4]);
-        writer.flush().await.unwrap();
-        assert_eq!(writer.path, "artifacts/execution.4.log");
-        assert_eq!(storage.log_prefix(id, &writer.path).await.unwrap(), 1);
-        writer.log.total_bytes = EXECUTION_BYTES - 1;
-        writer.buffer = Some(vec![5]);
-        writer.flush().await.unwrap();
-        writer.buffer = Some(vec![6]);
-        assert!(writer.flush().await.is_err());
-        assert_eq!(storage.log_prefix(id, &writer.path).await.unwrap(), 2);
-        drop(writer);
-        drop(runtime);
-        owner.shutdown().await.unwrap();
+        let result = writer.flush().await;
+        self.path = writer.path;
+        result
     }
 }

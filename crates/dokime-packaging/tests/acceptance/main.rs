@@ -14,6 +14,9 @@
 
 mod process;
 
+#[cfg(target_os = "windows")]
+mod credential_selection_and_unsigned_packaging;
+
 /* === Re-Exports === */
 
 /* === Imports === */
