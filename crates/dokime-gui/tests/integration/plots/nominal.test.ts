@@ -1101,15 +1101,13 @@ test("Point Marks", () => {
     assert.equal(solid.fill, color);
     assert.ok(solid.width > 0 && solid.width < solid.size / 2);
 
-    const hollow = seriesPointMarks("line_points", dense, color, background);
-    assert.equal(hollow.show, !dense);
-    assert.equal(hollow.stroke, color);
-    assert.equal(hollow.fill, background);
-    assert.equal(hollow.size, solid.size);
-    // Dense Line Points Keep Only Isolated Marks; Ordinary Hollow Marks Remain Rings.
-    if (hollow.show) {
-      assert.ok(hollow.width > 0 && hollow.width < hollow.size / 2);
-    }
+    const linePoints = seriesPointMarks("line_points", dense, color, background);
+    // Dense Line Points Keep Only Isolated Marks, Drawn Like Solid Points.
+    assert.equal(linePoints.show, !dense);
+    assert.equal(linePoints.stroke, background);
+    assert.equal(linePoints.fill, color);
+    assert.equal(linePoints.size, solid.size);
+    assert.equal(linePoints.width, solid.width);
 
     for (const style of ["line", "step"] as const) {
       assert.equal(seriesPointMarks(style, dense, color, background).show, false);
@@ -1118,7 +1116,6 @@ test("Point Marks", () => {
   const sparse = seriesPointMarks("points", false, color, background);
   const dense = seriesPointMarks("points", true, color, background);
   assert.ok(dense.size < sparse.size);
-  assert.ok(seriesPointMarks("line_points", false, color, background).width > sparse.width);
 });
 
 test("Sparse Aligned Point Paths", () => {
@@ -1225,12 +1222,12 @@ test("Cursor Point Marks", () => {
   const background = "rgb(10, 10, 10)";
   for (const style of ["points", "line_points"] as const) {
     const marks = colors.map((color) => seriesPointMarks(style, false, color, background));
-    const cursor = cursorPointOptions(marks, style);
-    assert.equal(cursor.width, 0);
+    const cursor = cursorPointOptions(marks);
+    assert.equal(cursor.width, marks[0].width);
     colors.forEach((color, index) => {
       const seriesIdx = index + 1;
       assert.equal(callPointOption(cursor.fill, seriesIdx), color);
-      assert.equal(callPointOption(cursor.stroke, seriesIdx), color);
+      assert.equal(callPointOption(cursor.stroke, seriesIdx), background);
       assert.ok(Number(callPointOption(cursor.size, seriesIdx)) > marks[index].size);
     });
   }

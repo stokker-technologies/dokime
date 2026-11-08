@@ -280,9 +280,11 @@ Point styles draw samples independently of hover. Line, stepped and line-point
 styles also mark lone samples between gaps, including nullable XY coordinates.
 Window reduction retains gap separators so retained samples never gain a line
 across missing evidence. Live and frozen plots share this drawing path.
-Solid points use the series color with a 1 px plot-background outline to separate
-overlapping samples. Point marks are normally 8 px, or 5 px for dense captures;
-line-point marks retain hollow rings. Hover marks grow in the series color.
+Each series takes one color, its declared color or the plot palette at its
+series index, for its line, point marks, hover mark and legend swatch. Point and
+line-point marks are opaque discs in that color with a 1 px plot-background
+outline to separate overlapping samples. Point marks are normally 8 px, or 5 px
+for dense captures; hover marks grow by 2 px.
 The desktop selects its plot palette from the resolved application theme;
 frozen reports use the palette applied for their displayed color mode.
 
