@@ -39,6 +39,9 @@ use dokime_runtime::{CurrentDocumentEvent, CurrentDocumentQuery};
 const COUNTS: [usize; 3] = [307_200, 1_536_000, 3_072_000];
 const DAYS: u64 = 3;
 const PLOTS: usize = 30;
+// Repeated Values Per Batch Timestamp For The Shared-Timestamp Summary Shape.
+const REPEATED_DISTINCT: usize = 1_024;
+const REPEATED_ROWS: usize = 250_003;
 
 /* === Macros === */
 
@@ -64,7 +67,8 @@ struct Fixture {
 /* === Implementations === */
 
 impl Fixture {
-    async fn new(rows: usize, plots: usize) -> Self {
+    // `repeated` shares each batch's timestamp across its rows and cycles through `REPEATED_DISTINCT` values.
+    async fn new(rows: usize, plots: usize, repeated: bool) -> Self {
         let root = tempfile::tempdir().unwrap();
         let executor = Arc::new(BlockingPublishingExecutor::new());
         let mut config = super::plots::config(root.path());
@@ -109,7 +113,8 @@ impl Fixture {
             for first in (0..per_plot).step_by(2_000) {
                 let samples = (first..(first + 2_000).min(per_plot))
                     .map(|index| {
-                        let nanos = (index as u128 * u128::from(DAYS) * 86_400_000_000_000 / (per_plot - 1) as u128) as u64;
+                        let instant = if repeated { first } else { index };
+                        let nanos = (instant as u128 * u128::from(DAYS) * 86_400_000_000_000 / (per_plot - 1) as u128) as u64;
                         let timestamp =
                             Timestamp::from_system_time(UNIX_EPOCH + Duration::from_secs(1_788_220_800) + Duration::from_nanos(nanos));
                         let mut sample = TelemetrySample::new(
@@ -120,7 +125,8 @@ impl Fixture {
                             "bench_plot",
                         );
                         sample.scope = Some(scope.clone());
-                        let value = waveform[(index + plot) % waveform.len()].value;
+                        let value =
+                            if repeated { (index % REPEATED_DISTINCT) as f64 } else { waveform[(index + plot) % waveform.len()].value };
                         sample.values.insert("value".into(), Value::Number(value));
                         sample.storage_payload = Some(
                             super::plots::PlotRow {
@@ -227,7 +233,7 @@ pub fn benchmark(criterion: &mut Criterion) {
         let mut fixture = None;
         for measurement in ["structure", "cards_and_plots"] {
             group.bench_function(BenchmarkId::new(measurement, rows), |bencher| {
-                let fixture = fixture.get_or_insert_with(|| executor.block_on(Fixture::new(rows, PLOTS)));
+                let fixture = fixture.get_or_insert_with(|| executor.block_on(Fixture::new(rows, PLOTS, false)));
                 bencher.iter_custom(|iterations| {
                     executor.block_on(async {
                         let probe = super::metrics::Probe::start(fixture.runtime.storage().clone());
@@ -250,22 +256,23 @@ pub fn benchmark(criterion: &mut Criterion) {
             executor.block_on(fixture.close());
         }
     }
-    let rows = 1_000_000;
-    let mut fixture = None;
-    group.bench_function(BenchmarkId::new("median", rows), |bencher| {
-        let fixture = fixture.get_or_insert_with(|| executor.block_on(Fixture::new(rows, 1)));
-        bencher.iter_custom(|iterations| {
-            executor.block_on(async {
-                let mut elapsed = Duration::ZERO;
-                for _ in 0..iterations {
-                    elapsed += fixture.cards().await;
-                }
-                elapsed
-            })
+    for (measurement, rows, repeated) in [("median", 1_000_000, false), ("median_repeated", REPEATED_ROWS, true)] {
+        let mut fixture = None;
+        group.bench_function(BenchmarkId::new(measurement, rows), |bencher| {
+            let fixture = fixture.get_or_insert_with(|| executor.block_on(Fixture::new(rows, 1, repeated)));
+            bencher.iter_custom(|iterations| {
+                executor.block_on(async {
+                    let mut elapsed = Duration::ZERO;
+                    for _ in 0..iterations {
+                        elapsed += fixture.cards().await;
+                    }
+                    elapsed
+                })
+            });
         });
-    });
-    if let Some(fixture) = fixture {
-        executor.block_on(fixture.close());
+        if let Some(fixture) = fixture {
+            executor.block_on(fixture.close());
+        }
     }
     group.finish();
 }

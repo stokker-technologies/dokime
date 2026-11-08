@@ -870,7 +870,7 @@ async fn document_report_payloads() {
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
-async fn document_query_scale() {
+async fn document_summary_queries() {
     construction::summary_queries().await;
 }
 
