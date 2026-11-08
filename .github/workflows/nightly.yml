@@ -3082,7 +3082,18 @@ jobs:
         needs.source.outputs.stable_release == 'true' || github.workflow == 'CI /
         Nightly') && !(needs.source.outputs.stable_release == 'true' &&
         contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly')) && (true)
-    - run: mise run package:rust --profile ${{ env.PROFILE }}
+    - name: Sign and Package Windows
+      uses: ./.github/actions/sign-windows
+      with:
+        profile: ${{ env.PROFILE }}
+        azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+        azure-endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+        azure-account: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+        azure-profile: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        pfx-base64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+        pfx-password: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
       if: >-
         matrix.platform == 'windows' && ((true || github.event_name == 'pull_request'
         || startsWith(github.ref, 'refs/tags/v') || false || (github.event_name == 'push'
