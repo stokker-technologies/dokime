@@ -472,6 +472,16 @@ Contributions use the repository's [Apache-2.0 license](LICENSE). Release
 publication is a separate authorized workflow; ordinary candidate validation
 does not publish packages or create tags.
 
+The [support policy](docs/support.md) describes stable, nightly and proposed
+end-of-life terms. Release notes should include a **Validation** paragraph naming
+the tag and exact commit, the validating CI run URL, and executed pass/fail/skipped
+counts by platform, language and test layer. Reuse Nightly report evidence only
+when it matches that commit; report missing or pending layers explicitly. Static
+test-marker counts are not execution evidence. This release-note enrichment is
+pending implementation by the release-tooling owner. The existing Nightly / Report
+line provides suite status and the run URL; per-layer counts must come from that
+run's executed test reports, not from its job-status list.
+
 Release reviews squash into dev. Before tagging or publishing, `release.yml`
 queries GitHub for the exact target SHA's latest dev push run, its successful
 `CI / Required` check, and any additional required contexts in main's ruleset.
@@ -492,3 +502,7 @@ Workflow changes do not configure repository settings.
 Use the [issue tracker](https://github.com/stokker-technologies/dokime/issues).
 Include the operating system, revision, reproduction steps and relevant logs,
 with secrets and private test data removed.
+
+Send vulnerabilities through the private channel in [SECURITY.md](SECURITY.md)
+(pending publication). See [Support](docs/support.md) for proposed acknowledgement
+targets and the commercial-contact placeholder; these are not resolution guarantees.

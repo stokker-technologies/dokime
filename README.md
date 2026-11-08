@@ -6,6 +6,9 @@
 [![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
+<!-- OpenSSF Scorecard badge: pending verified URL from the supply-chain owner. -->
+<!-- OpenSSF Best Practices badge: pending enrolled project ID and verified status from the supply-chain owner. -->
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="organization/logos/transparent-on-dark.svg">
@@ -308,6 +311,15 @@ Different labels with equal numeric values remain separate and sort alphabetical
 The live log, diagnostics bundle and remote sessions remain available; remote sessions refresh when opened or focused; remote sessions
 also provide Refresh. Cycle history shows absolute update times. Busy document
 reads continue retrying, while other document failures retry once.
+
+### Support and Security
+
+See the [support and end-of-life policy](docs/support.md),
+[vulnerability reporting policy](SECURITY.md), [privacy guidance](docs/privacy.md),
+[plugin security model](docs/plugin-security.md) and [compliance assessment](docs/compliance.md).
+The security policy link is pending its owner's publication.
+Support targets are proposed until confirmed by the owner; OpenSSF badges are
+pending verified supply-chain evidence and do not imply product certification.
 
 ## Contributing
 
