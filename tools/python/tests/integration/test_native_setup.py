@@ -15,6 +15,8 @@
 import contextlib
 import copy
 import ctypes
+import email.message
+import hashlib
 import io
 import json
 import os
@@ -23,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.error
 from itertools import product
 from pathlib import Path
 from types import SimpleNamespace
@@ -191,6 +194,57 @@ class NativeSetupTests(unittest.TestCase):
                 ):
                     SETUP["verify_temporary_exclusions"]([Path(directory)])
                 self.assertEqual(list(Path(directory).iterdir()), [])
+
+
+class SetupDownloadTests(unittest.TestCase):
+    URL = "https://example.com/archive.zip"
+    CHECKSUM = hashlib.sha256(b"archive").hexdigest()
+
+    def setUp(self):
+        self.calls = []
+        self.pauses = []
+
+    def fetch(self, codes, checksum=CHECKSUM):
+        def opener(url, timeout):
+            self.calls.append(url)
+            code = codes.pop(0)
+            if code != 200:
+                raise urllib.error.HTTPError(url, code, "failure", email.message.Message(), io.BytesIO(b""))
+            return io.BytesIO(b"archive")
+
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            destination = Path(directory) / "archive.zip"
+            try:
+                content = SETUP["download"](self.URL, checksum, destination, opener=opener, sleep=self.pauses.append)
+                self.assertEqual(destination.read_bytes(), content)
+                return content
+            finally:
+                self.assertEqual([path.name for path in Path(directory).iterdir() if path != destination], [])
+
+    def test_transient_status_retries_then_returns_bytes(self):
+        self.assertEqual(self.fetch([503, 200]), b"archive")
+        self.assertEqual(len(self.calls), 2)
+        self.assertEqual(len(self.pauses), 1)
+
+    def test_missing_archive_fails_without_retry(self):
+        with self.assertRaises(RuntimeError):
+            self.fetch([404])
+        self.assertEqual(self.calls, [self.URL])
+        self.assertEqual(self.pauses, [])
+
+    def test_checksum_mismatch_fails_without_retry(self):
+        with self.assertRaises(ValueError):
+            self.fetch([200, 200], checksum="0" * 64)
+        self.assertEqual(self.calls, [self.URL])
+
+    def test_exhausted_attempts_name_url_and_count(self):
+        attempts = SETUP["DOWNLOAD_ATTEMPTS"]
+        with self.assertRaises(RuntimeError) as raised:
+            self.fetch([504] * attempts)
+        self.assertEqual(len(self.calls), attempts)
+        self.assertEqual(len(self.pauses), attempts - 1)
+        self.assertIn(self.URL, str(raised.exception))
+        self.assertIn(str(attempts), str(raised.exception))
 
 
 # === Public Functions === #
