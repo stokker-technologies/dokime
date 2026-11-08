@@ -24,7 +24,10 @@ use tokio::{sync::Notify, time::Instant};
 
 // Local Imports
 use super::super::super::State;
-use crate::storage::{Error, Manager, Result, telemetry::TelemetryEntry};
+use crate::storage::{
+    Error, Manager, Result,
+    telemetry::{Admitted, TelemetryEntry},
+};
 
 /* === Constants === */
 
@@ -154,7 +157,9 @@ impl State {
         self.0.telemetry_tail.lock().unwrap().readable.subscribe()
     }
 
-    pub(crate) async fn stage_telemetry(&self, storage: Manager, through: StorageCursor, entries: Vec<TelemetryEntry>) -> Result<()> {
+    pub(crate) async fn stage_telemetry(
+        &self, storage: Manager, through: StorageCursor, entries: Vec<(TelemetryEntry, Option<Admitted>)>,
+    ) -> Result<()> {
         let state = self.clone();
         let end = through.sequence;
         let first = end.checked_sub(entries.len() as u64).ok_or(Error::Invalid("telemetry admission cursor underflows"))? + 1;
@@ -172,12 +177,16 @@ impl State {
             let saved = admitted.cursor_saved();
             saved.history.check(&through.history)?;
             let mut pending = Vec::with_capacity(entries.len());
+            let mut retained = Vec::new();
             {
                 let contracts = state.0.telemetry_contracts.read().unwrap();
-                for (index, mut entry) in entries.into_iter().enumerate() {
+                for (index, (mut entry, admitted)) in entries.into_iter().enumerate() {
                     let position = first + index as u64;
                     if position <= saved.sequence {
                         continue;
+                    }
+                    if let Some(admitted) = admitted {
+                        retained.push((position, admitted));
                     }
                     let key = serde_json::to_string(&super::reader::key(&entry)?)?;
                     let (_, field) = contracts.get(&key).ok_or(Error::Invalid("telemetry tail contract is not registered"))?;
@@ -187,6 +196,11 @@ impl State {
                     }
                     pending.push((position, entry));
                 }
+            }
+            {
+                let mut admissions = state.0.telemetry_retained.lock().unwrap();
+                *admissions = admissions.split_off(&(saved.sequence + 1));
+                admissions.extend(retained);
             }
             let waiting = std::time::Instant::now();
             let mut tail = state.0.telemetry_tail.lock().unwrap();
