@@ -138,6 +138,7 @@ class BackendFixture:
         self.overrides: Any = None
         self.identity_gate = asyncio.Event()
         self.identity_gate.set()
+        self.identity_error: grpc.StatusCode | None = None
         self.catalog_gate = asyncio.Event()
         self.catalog_gate.set()
         self.catalog_deadline: float | None = None
@@ -190,6 +191,8 @@ class BackendFixture:
 
     async def GetIdentity(self, request: Any, context: Any) -> Any:
         await self.identity_gate.wait()
+        if self.identity_error is not None:
+            await context.abort(self.identity_error, "fixture refused negotiation")
         return _message(
             "Backend",
             "GetIdentity",

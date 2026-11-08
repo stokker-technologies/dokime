@@ -94,7 +94,11 @@ impl PageCursor {
         if text.capacity() > TEXT {
             return Err(exhausted());
         }
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode_string(bytes, &mut text);
+        // Encode Into The Fixed Output Slice: encode_string Reserves Padded Space Even Without Padding.
+        let mut encoded = [0u8; TEXT];
+        let length = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode_slice(bytes, &mut encoded).map_err(|_| exhausted())?;
+        let encoded = std::str::from_utf8(&encoded[..length]).expect("base64 is ASCII");
+        text.push_str(encoded);
         if text.len() != TEXT || text.capacity() > TEXT {
             return Err(exhausted());
         }
@@ -158,3 +162,20 @@ fn exhausted() -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cursor_encodes_bounded_continuations() {
+        for (identity, after, position) in [([0; 32], 0, 1), ([255; 32], 7, 8), ([42; 32], u64::MAX - 1, u64::MAX)] {
+            let cursor = PageCursor { identity, after };
+            let encoded = cursor.encode(position).unwrap();
+            assert_eq!(decode(&encoded).unwrap(), (identity, position));
+            assert_eq!(PageCursor::requested(Some(&encoded)).unwrap(), position);
+            assert!(size_of::<String>() + encoded.capacity() <= PageCursor::memory());
+            assert!(cursor.encode(after).is_err());
+        }
+    }
+}
