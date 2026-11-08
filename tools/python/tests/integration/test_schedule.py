@@ -218,7 +218,8 @@ class ScheduleTests(unittest.TestCase):
                         peer, _ = listener.accept()
                         peers.append(peer)
                     for peer in peers:
-                        self.assertEqual(peer.recv(5), b"ready")
+                        with peer.makefile("rb") as incoming:
+                            self.assertEqual(incoming.read(5), b"ready")
                         peer.sendall(b"1")
                         peer.close()
 
