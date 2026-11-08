@@ -539,6 +539,16 @@ jobs:
         bootstrap: "[\"python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages\"]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
+        name: package-${{ env.PROFILE }}-python-windows
+        path: target/ci
+        github-token: ${{ github.token }}
+    - name: Extract package:python / package
+      uses: ./.github/actions/extract-build
+      with:
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/package-${{
+          env.PROFILE }}-python-windows.tar.zst","--profile","${{ env.PROFILE }}"]'
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
         name: package-${{ env.PROFILE }}-python-unix
         path: target/ci
         github-token: ${{ github.token }}
@@ -669,6 +679,16 @@ jobs:
         cache-mode: ""
         caches: "{\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"pnpm\":{\"key\":\"ci-v5-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('crates/dokime-gui/pnpm-lock.yaml', 'mise.lock') }}\",\"path\":\".cache/pnpm/\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[\"python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages\"]"
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ env.PROFILE }}-python-windows
+        path: target/ci
+        github-token: ${{ github.token }}
+    - name: Extract package:python / package
+      uses: ./.github/actions/extract-build
+      with:
+        command: '["mise","exec","--","uv","run","--locked","--project","tools/python","python","-m","dokime_tools.ci.artifacts","extract","--archive","target/ci/package-${{
+          env.PROFILE }}-python-windows.tar.zst","--profile","${{ env.PROFILE }}"]'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-python-unix
