@@ -374,14 +374,7 @@ pub(crate) async fn duration_x_axis() {
     authored.section(waveform);
     suite.test_case_templates[0].document = Some(authored);
 
-    let mut contract = TelemetryContract::declared("bench.samples", "Bench Samples");
-    contract.storage_schema = Some(
-        dokime::harmos::schema::graph::Schema::from_declaration(
-            <BenchRow as dokime::harmos::schema::Described>::DEFINITION,
-            &dokime::harmos::config::SchemaSettings::default(),
-        )
-        .unwrap(),
-    );
+    let mut contract = TelemetryContract::declared("bench.samples", "Bench Samples").typed::<BenchRow>(1);
     contract.columns = vec![
         TelemetryColumn::declared("elapsed_s", "Elapsed", ValueType::Number, TelemetryRole::Value).with_unit(MeasurementUnit::custom(
             Identifier::new("unit.s").unwrap(),

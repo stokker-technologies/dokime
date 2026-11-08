@@ -190,14 +190,16 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
     }
     input.records = records.into();
     let mut telemetry_contracts: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
-    for sample in &input.telemetry {
-        let mut contract = TelemetryContract::declared(sample.stream.as_str(), "Fixture Stream");
-        contract.schema_version = sample.schema_version;
-        contract.storage_schema = Some(
-            crate::service_support::contracts::fixture_schema(sample.stream.as_str()).expect("report fixture declares its row schema"),
-        );
+    let mut telemetry = Vec::new();
+    for mut sample in &input.telemetry {
+        let schema =
+            crate::service_support::contracts::fixture_schema(sample.stream.as_str()).expect("report fixture declares its row schema");
+        let contract = TelemetryContract::declared(sample.stream.as_str(), "Fixture Stream").with_storage_schema(schema, 1);
+        sample.schema_version = contract.schema_version;
         telemetry_contracts.entry(sample.stream.clone()).or_default().insert(sample.schema_version, contract);
+        telemetry.push(sample);
     }
+    input.telemetry = telemetry.into();
     let captured = CapturedExecutionReportInput {
         report_defaults: Default::default(),
         final_report: true,
