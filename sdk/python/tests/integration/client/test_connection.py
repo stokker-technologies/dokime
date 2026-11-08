@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 # Third Party Imports
+import grpc
 import pytest
 
 # Local Imports
@@ -50,17 +51,18 @@ READINESS = ("Unspecified", "Starting", "Ready", "Degraded", "Stopping")
 # === Public Functions === #
 
 
-def test_connect_deadline_expires() -> None:
+def test_connect_deadline_recovers() -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
-            client._transport.timeout = 0.05
-            server.identity_gate.clear()
+            server.identity_error = grpc.StatusCode.DEADLINE_EXCEEDED
             with pytest.raises(RpcError) as error:
                 await client.connect()
             assert error.value.code == "DEADLINE_EXCEEDED"
             assert client._transport.backend is None
+            assert client._transport._channel is None
+            assert client._transport._connecting is None
 
-            server.identity_gate.set()
+            server.identity_error = None
             assert (await client.connect()).id == server.backend_id
 
     asyncio.run(scenario())

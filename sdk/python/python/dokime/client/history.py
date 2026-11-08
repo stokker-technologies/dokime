@@ -416,17 +416,17 @@ def _same_checkpoint(point: Checkpoint, message: Message) -> None:
 
 
 def _page_cursor(point: Checkpoint, kind: str, source: str, token: str, previous: int) -> int:
-    if len(token) != 55:
+    if len(token) != 54:
         raise ProtocolError("saved page cursor length differs")
     try:
-        raw = base64.b64decode(token + "=", altchars=b"-_", validate=True)
+        raw = base64.b64decode(token + "==", altchars=b"-_", validate=True)
     except ValueError as error:
         raise ProtocolError("saved page cursor is invalid") from error
-    if len(raw) != 41 or raw[0] != 1 or base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii") != token:
-        raise ProtocolError("saved page cursor version or encoding differs")
+    if len(raw) != 40 or base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii") != token:
+        raise ProtocolError("saved page cursor encoding differs")
     digest = hashlib.sha256()
     for text in (
-        "dokime.native-evidence-page.v1",
+        "dokime.native-evidence-page",
         kind,
         source,
         point.execution_id,
@@ -440,8 +440,8 @@ def _page_cursor(point: Checkpoint, kind: str, source: str, token: str, previous
         digest.update(encoded)
     digest.update(point.position.sequence.to_bytes(8, "big"))
     digest.update(point.evidence_through.sequence.to_bytes(8, "big"))
-    position = int.from_bytes(raw[33:], "big")
-    if raw[1:33] != digest.digest() or not previous < position <= point.evidence_through.sequence:
+    position = int.from_bytes(raw[32:], "big")
+    if raw[:32] != digest.digest() or not previous < position <= point.evidence_through.sequence:
         raise ProtocolError("saved evidence continuation differs or does not advance")
     return position
 

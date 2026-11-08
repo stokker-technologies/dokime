@@ -245,13 +245,22 @@ def test_authoring_registration_refusal() -> None:
         dk.Plugin("invalid", "0.1.0", catalog=[Invalid])
 
 
-def test_authoring_ignored_worker_cancellation(tmp_path: Path) -> None:
+def test_authoring_ignored_worker_cancellation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     async def story() -> None:
         loop = asyncio.get_running_loop()
         entered = asyncio.Event()
         exited = asyncio.Event()
         finished = asyncio.Event()
+        warned = asyncio.Event()
         released = threading.Event()
+        captured: list[warnings.WarningMessage] = []
+
+        def capture_warning(
+            message: Warning | str, category: type[Warning], filename: str, lineno: int, file: Any = None, line: str | None = None
+        ) -> None:
+            captured.append(warnings.WarningMessage(message, category, filename, lineno, file, line))
+            if issubclass(category, RuntimeWarning) and "ignored cancellation" in str(message):
+                loop.call_soon_threadsafe(warned.set)
 
         @dk.operation(id="worker.wait", response=int, policy=dk.OperationPolicy(5.0, 5.0, 0.01))
         class Wait:
@@ -277,16 +286,16 @@ def test_authoring_ignored_worker_cancellation(tmp_path: Path) -> None:
 
         plugin = dk.Plugin("worker", "0.1.0", catalog=[Wait, cancel])
         try:
-            async with dk.Backend(port=0, application_root=tmp_path, plugins=[plugin]):
-                with warnings.catch_warnings(record=True) as captured:
-                    warnings.simplefilter("always", RuntimeWarning)
+            # Observe Warnings Across Callback Contexts Before The Backend Starts Them.
+            with warnings.catch_warnings():
+                warnings.simplefilter("always", RuntimeWarning)
+                monkeypatch.setattr(warnings, "showwarning", capture_warning)
+                async with dk.Backend(port=0, application_root=tmp_path, plugins=[plugin]):
                     await finished.wait()
-                    async with asyncio.timeout(5):
-                        while not any("ignored cancellation" in str(item.message) for item in captured):
-                            await asyncio.sleep(0)
-                    assert len([item for item in captured if "ignored cancellation" in str(item.message)]) == 1
-                released.set()
-                await exited.wait()
+                    await warned.wait()
+                    released.set()
+                    await exited.wait()
+                assert len([item for item in captured if "ignored cancellation" in str(item.message)]) == 1
         finally:
             released.set()
 

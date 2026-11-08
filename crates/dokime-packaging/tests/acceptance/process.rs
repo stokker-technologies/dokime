@@ -72,7 +72,7 @@ async fn wait_gone(pid: &str) {
 }
 
 fn deadline() -> Duration {
-    let policy: toml::Value = toml::from_str(include_str!("../../../../.stkr/project.toml")).unwrap();
+    let policy: toml::Value = toml::from_str(include_str!("../../../../tools/project.toml")).unwrap();
     let seconds = policy["conventions"]["testing"]["deadlines"]["acceptance"].as_integer().unwrap();
     Duration::from_secs(seconds.try_into().unwrap())
 }

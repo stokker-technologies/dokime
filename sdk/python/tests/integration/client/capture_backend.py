@@ -34,14 +34,14 @@ from .canonical import _message, _value
 
 # === Constants === #
 
-# Native V1 Golden Cursors Verified By The Rust Saved-Evidence Unit Tests.
+# Native Cursors For This Fixture's Checkpoint, Record Source And Voltage Stream.
 RECORD_CURSORS = (
-    "AS5it6Cxuin6UNn09dqykr_kwsHzfyQLo2_cd4OgzaFEAAAAAAAAAAE",
-    "AS5it6Cxuin6UNn09dqykr_kwsHzfyQLo2_cd4OgzaFEAAAAAAAAAAI",
+    "L585FVCqXtjDB0phQScwNv7PbO9iJ0yX950tgy4teoIAAAAAAAAAAQ",
+    "L585FVCqXtjDB0phQScwNv7PbO9iJ0yX950tgy4teoIAAAAAAAAAAg",
 )
 SAMPLE_CURSORS = (
-    "AS-NHy5qsY3VX7wdUoUc1hTUnmoBSgaqNQrN5IyZu8n1AAAAAAAAAAE",
-    "AS-NHy5qsY3VX7wdUoUc1hTUnmoBSgaqNQrN5IyZu8n1AAAAAAAAAAI",
+    "nkC8SvUk7mbfa3PIDoLVE7QNkHVbzve9UPlFWlWSJY4AAAAAAAAAAQ",
+    "nkC8SvUk7mbfa3PIDoLVE7QNkHVbzve9UPlFWlWSJY4AAAAAAAAAAg",
 )
 
 
