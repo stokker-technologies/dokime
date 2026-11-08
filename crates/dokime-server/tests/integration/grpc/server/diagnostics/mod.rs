@@ -90,7 +90,7 @@ fn secret_module() -> InstalledPlugin {
                     id: "workspace".to_owned(),
                     title: "Workspace".to_owned(),
                     description: None,
-                    default: "Lab".to_owned(),
+                    default: "fixture.person@example.test C:\\Users\\Fixture Person\\lab".to_owned(),
                     required: true,
                 }),
                 // Declared as free text, so nothing reduces it to a reference:
@@ -167,6 +167,12 @@ pub(super) async fn collected_archive_material(client: &WireClient) {
         let mut entry = zip.by_name("manifest.json").expect("manifest.json is present");
         serde_json::from_reader(&mut entry).unwrap()
     };
+    let mut inventory = String::new();
+    zip.by_name("MANIFEST.txt").unwrap().read_to_string(&mut inventory).unwrap();
+    for index in 0..zip.len() {
+        let entry = zip.by_index(index).unwrap();
+        assert!(inventory.contains(entry.name().unwrap().as_ref()));
+    }
     assert_eq!(manifest["filename"], header.filename);
     assert!(manifest["generated_at"].as_str().is_some_and(|stamp| !stamp.is_empty()));
     let listed = manifest["entries"].as_array().expect("the manifest lists entries");
@@ -191,7 +197,7 @@ pub(super) async fn collected_archive_material(client: &WireClient) {
 
     // The redaction proof. Entries are STORED, so the archive's own bytes are
     // the entry bytes: a hit here would be a hit in the file an operator opens.
-    for secret in [SECRET, DISCOVERED_SECRET] {
+    for secret in [SECRET, DISCOVERED_SECRET, "fixture.person@example.test", "Fixture Person"] {
         let needle = secret.as_bytes();
         assert!(!archive.windows(needle.len()).any(|window| window == needle), "the archive bytes name {secret}");
         for index in 0..zip.len() {
@@ -222,6 +228,14 @@ pub(super) async fn collected_tail_preserves_selected_bytes(environment: &suppor
         (b"prefix\xfftail", 5, Some(b"\xfftail")),
         (b"", 8, Some(b"")),
         (b"ignored", 0, None),
+        (b"email=fixture.person@example.test\n", 4096, Some(b"<redacted>\n")),
+        (b"path=C:\\Users\\Fixture Person\\lab\n", 4096, Some(b"<redacted>\n")),
+        (b"path=/home/fixture/lab\n", 4096, Some(b"<redacted>\n")),
+        (b"path=/Users/fixture/lab\n", 4096, Some(b"<redacted>\n")),
+        (b"git_user_name=Fixture Person\n", 4096, Some(b"<redacted>\n")),
+        (br#"{"gitUserName":"Fixture Person"}"#, 4096, Some(b"<redacted>")),
+        (br#"{"path":"\/home\/fixture\/lab"}"#, 4096, Some(b"<redacted>")),
+        (br#"{"path":"C:\\Users\\Fixture Person\\lab"}"#, 4096, Some(b"<redacted>")),
     ];
     for (input, maximum, expected) in cases {
         std::fs::write(&log, input).unwrap();

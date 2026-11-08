@@ -2419,8 +2419,10 @@ Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
 and diagnostics snapshot artifacts are no longer produced or bundled.
 
 Support bundles contain backend identity, health, settings and a bounded log
-tail; free-form content can contain personal information. Protected secret values
-are excluded. Collection downloads a ZIP without automatically sending it to
+tail, with a `MANIFEST.txt` inventory. Git identity fields, email-containing text
+and user-profile paths are redacted by default; free-form content can still
+contain personal information. Protected secret values are excluded. Collection
+downloads a ZIP without automatically sending it to
 support. Review it before sharing; see [Support Bundles](privacy.md#support-bundles).
 
 ### Measured Stream Performance

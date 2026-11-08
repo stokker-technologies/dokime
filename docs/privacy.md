@@ -91,8 +91,20 @@ identity, health, the settings frame, installed-plugin settings and a bounded
 tail of `dokime.jsonl`. It does not collect the evidence database, Arrow streams
 or media files. Free-form settings and messages can still repeat evidence or
 personal information. Secret declarations expose identifiers and availability,
-not protected credential values. Review every bundle before sharing, and use an
-approved support channel; a support ZIP is not an anonymous dataset.
+not protected credential values. `MANIFEST.txt` lists each member and its possible
+data categories; `manifest.json` records sizes and availability, including absent
+log tails. Settings copies redact Git identity fields, email-containing strings
+and user-profile paths. Log tails omit whole lines containing those patterns;
+ordinary diagnostic bytes remain unchanged. Windows, Linux and macOS profile
+path patterns and the backend account's home path are recognized.
+
+Redaction is enabled by default. An operator who needs personal diagnostic data
+can set `DOKIME_SUPPORT_INCLUDE_PERSONAL_DATA=1` in the backend process environment
+before starting it; unset it and restart to restore redaction. This does not
+include protected secret values. It is not a desktop preferences toggle.
+Redaction is conservative pattern matching, not anonymization: unlabeled names,
+nonstandard paths, hostnames and other free-form content may remain. Review every
+bundle before sharing, and use an approved support channel.
 
 ## Retention and Deletion
 
