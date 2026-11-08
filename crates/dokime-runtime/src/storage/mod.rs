@@ -38,6 +38,30 @@ pub(crate) use values::{datetime_memory, encode_datetime};
 
 /* === Macros === */
 
+// Object Catalog Validation Reuses Each Built-In Type's Immutable Shape Revision.
+macro_rules! object_identity {
+    ($name:ty, $id:literal) => {
+        impl harmos::Identified for $name {
+            const ID: &'static str = $id;
+
+            fn definition() -> (harmos::DefinitionId, u32) {
+                static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+                let version = *VERSION.get_or_init(|| {
+                    let schema = harmos::schema::graph::Schema::from_declaration(
+                        <Self as harmos::schema::Described>::DEFINITION,
+                        &harmos::config::SchemaSettings::default(),
+                    )
+                    .expect("valid object data shape");
+                    harmos::schema::identity::revision(&schema).expect("valid object data shape revision")
+                });
+                (harmos::DefinitionId::new(Self::ID), version)
+            }
+        }
+    };
+}
+
+pub(crate) use object_identity;
+
 /* === Type Aliases === */
 
 pub type Manager = harmos::storage::StorageManager<objects::Objects>;
@@ -206,3 +230,51 @@ pub async fn read_file_bytes(storage: &Manager, file: &harmos::storage::FileRefe
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use harmos::{Identified, schema::Described};
+
+    static SHAPE_READS: AtomicUsize = AtomicUsize::new(0);
+
+    struct Counted;
+
+    impl Described for Counted {
+        const NAME: &'static str = "Counted";
+        const FIELDS: &'static [harmos::schema::declaration::Field] = &[];
+        const MARKER: &'static [u8] = b"";
+        const DEFINITION: harmos::schema::declaration::Definition = harmos::schema::declaration::Definition {
+            fields: || {
+                SHAPE_READS.fetch_add(1, Ordering::Relaxed);
+                Self::FIELDS
+            },
+            ..harmos::schema::declaration::Definition::of::<Self>()
+        };
+    }
+
+    super::object_identity!(Counted, "test.object.counted");
+
+    #[test]
+    fn object_identity_reuses_the_derived_revision_across_threads() {
+        let schema =
+            harmos::schema::graph::Schema::from_declaration(Counted::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();
+        let derived = harmos::schema::identity::revision(&schema).unwrap();
+        let identity = Counted::definition();
+        assert_eq!(identity.1, derived);
+        let reads = SHAPE_READS.load(Ordering::Relaxed);
+        assert!(reads > 0);
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                let identity = &identity;
+                scope.spawn(move || {
+                    for _ in 0..16 {
+                        assert_eq!(&Counted::definition(), identity);
+                    }
+                });
+            }
+        });
+        assert_eq!(SHAPE_READS.load(Ordering::Relaxed), reads);
+    }
+}

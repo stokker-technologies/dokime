@@ -43,7 +43,6 @@ class Profile:
 class Document:
     default: str | None
     profiles: tuple[Profile, ...]
-    version: int
 
 
 # === Public Functions === #

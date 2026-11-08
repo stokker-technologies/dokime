@@ -194,7 +194,10 @@ async with DokimeClient.from_profile("lab") as client:
 `from_profile` reads configuration once and starts no server. Use `path` to
 select another profile file, or `DOKIME_PROFILES_FILE` to override the standard
 OS configuration location. The Rust CLI manages these profiles through
-`dokime backend add/list/show/use/remove`. Python keeps the selected endpoint,
+`dokime backend add/list/show/use/remove`. Python and Rust share the same
+unversioned JSON profile schema: `profiles` holds the entries and optional
+`default` selects one. A `version` field is rejected. `decode()` returns a
+`Document` snapshot with `default` and `profiles` fields. Python keeps the selected endpoint,
 CA and expected backend identity for that connection; later default edits have
 no effect. An unexpected identity fails negotiation before workflow mutations.
 Python does not read the native keyring. For an authenticated backend, create a

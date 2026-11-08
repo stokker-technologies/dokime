@@ -522,7 +522,8 @@ keeps the definitions captured for its execution, so changing or removing a
 plugin does not invalidate the root or rewrite old evidence.
 
 Root compatibility belongs to Dokime's built-in persistent state: journal replay,
-snapshots and catalogs. An unreadable built-in record names the state that cannot
+snapshots and catalogs. Built-in object shape revisions are derived once per
+type and reused during storage catalog validation. An unreadable built-in record names the state that cannot
 be decoded and advises a fresh root. Evidence codecs, document definitions and
 plugin schemas never participate in a whole-root digest. Obsolete digest markers
 are preserved and ignored. The custom interned snapshot encoding retains its
