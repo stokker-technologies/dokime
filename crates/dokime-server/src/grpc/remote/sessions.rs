@@ -128,7 +128,7 @@ impl SessionLog {
         }
     }
 
-    fn record_at(&self, peer: SocketAddr, principal: &str, outcome: Outcome<'_>, now: u64) {
+    pub(crate) fn record_at(&self, peer: SocketAddr, principal: &str, outcome: Outcome<'_>, now: u64) {
         let (kind, rejection) = match outcome {
             Outcome::Admitted => (RemoteSessionOutcome::Admitted, None),
             Outcome::Rejected(reason) => (RemoteSessionOutcome::Rejected, Some(reason.to_owned())),
@@ -166,7 +166,7 @@ impl SessionLog {
         state.sessions.drain(..excess);
     }
 
-    fn list_at(&self, cursor: Option<&str>, limit: u32, now: u64) -> Result<RemoteSessionPage, &'static str> {
+    pub(crate) fn list_at(&self, cursor: Option<&str>, limit: u32, now: u64) -> Result<RemoteSessionPage, &'static str> {
         let before = match cursor {
             Some(cursor) => cursor.parse::<u64>().map_err(|_| "invalid remote session cursor")?,
             None => u64::MAX,
@@ -278,29 +278,5 @@ mod tests {
         assert_eq!(seen.first(), Some(&peer(usize::try_from(SERVER_REMOTE_SESSIONS).unwrap() as u16 + 24).to_string()));
         assert_eq!(seen.last(), Some(&peer(25).to_string()));
         assert!(log.list_at(Some("not-a-cursor"), 20, 1_000).is_err());
-    }
-
-    #[test]
-    fn the_log_survives_a_restart_with_open_sessions_closed() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("remote").join("sessions.json");
-        let log = SessionLog::new();
-        log.attach(path.clone());
-        log.record_at(peer(7000), "anonymous", Outcome::Admitted, 5_000);
-        log.flush();
-        let restored = SessionLog::new();
-        restored.attach(path.clone());
-        let page = restored.list_at(None, 20, 6_000).unwrap();
-        assert_eq!(page.sessions.len(), 1);
-        assert_eq!(page.sessions[0].disconnected_at, Some(5_000));
-        restored.record_at(peer(7001), "anonymous", Outcome::Admitted, 6_000);
-        assert_eq!(restored.list_at(None, 20, 6_000).unwrap().sessions[0].id, "2");
-
-        std::fs::write(&path, b"not json").unwrap();
-        let unreadable = SessionLog::new();
-        unreadable.attach(path.clone());
-        unreadable.record_at(peer(7002), "anonymous", Outcome::Admitted, 7_000);
-        unreadable.flush();
-        assert_eq!(std::fs::read(&path).unwrap(), b"not json");
     }
 }

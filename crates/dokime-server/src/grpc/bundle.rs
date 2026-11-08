@@ -67,8 +67,8 @@ struct Manifest<'a> {
     entries: &'a [Entry],
 }
 
-struct CappedFile {
-    file: tempfile::NamedTempFile,
+struct CappedFile<W = tempfile::NamedTempFile> {
+    file: W,
     maximum: u64,
 }
 
@@ -128,9 +128,9 @@ impl Parts {
     }
 }
 
-impl Write for CappedFile {
+impl<W: Write + Seek> Write for CappedFile<W> {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        let position = self.file.as_file_mut().stream_position()?;
+        let position = self.file.stream_position()?;
         let end = position.checked_add(bytes.len() as u64);
         if end.is_none_or(|end| end > self.maximum) {
             return Err(std::io::Error::from(std::io::ErrorKind::FileTooLarge));
@@ -143,7 +143,7 @@ impl Write for CappedFile {
     }
 }
 
-impl Seek for CappedFile {
+impl<W: Seek> Seek for CappedFile<W> {
     fn seek(&mut self, position: std::io::SeekFrom) -> std::io::Result<u64> {
         self.file.seek(position)
     }
@@ -595,9 +595,8 @@ mod tests {
     #[test]
     fn zip_writes_preserve_total_ceiling() {
         for (maximum, payload) in [(128, 256), (96, 1)] {
-            let file = tempfile::NamedTempFile::new().unwrap();
-            let observed = file.as_file().try_clone().unwrap();
-            let output = CappedFile { file, maximum };
+            let mut observed = std::io::Cursor::new(Vec::new());
+            let output = CappedFile { file: &mut observed, maximum };
             let mut writer = zip::ZipWriter::new(output);
             let result = (|| {
                 writer.start_file("payload.bin", file_options()).map_err(zip_failure)?;
@@ -606,7 +605,7 @@ mod tests {
             })();
             let error = result.err().expect("the ZIP exceeds its ceiling");
             assert_eq!(error.kind(), std::io::ErrorKind::FileTooLarge);
-            assert!(observed.metadata().unwrap().len() <= maximum);
+            assert!(observed.get_ref().len() as u64 <= maximum);
         }
     }
 }

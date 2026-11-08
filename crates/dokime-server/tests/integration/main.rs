@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod grpc;
+mod host;
 
 mod finite_queries;
 mod query_roundtrip;
@@ -35,6 +36,7 @@ use tonic::{
 };
 // Local Imports
 use dokime::client::contracts;
+use dokime_server::Error;
 use dokime_server::grpc::{Config, Server, TlsIdentity};
 use support::wire::*;
 use {dokime::Identifier, dokime::Metadata, dokime::Runtime};

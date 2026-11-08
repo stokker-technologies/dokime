@@ -225,7 +225,7 @@ impl Tail {
         let frames = complete.split(|byte| *byte == b'\n').filter(|line| line.len() as u64 <= SERVER_LOG_LINE_BYTES).filter_map(frame_wire);
         for frame in frames {
             // A Frame Whose Size Cannot Be Measured Cannot Be Sent, So It Never Enters The Fan-Out.
-            let Ok(bytes) = super::content::output_frame_len(&frame) else {
+            let Ok(bytes) = dokime::harmos::grpc::output_item_len(&frame) else {
                 continue;
             };
             self.lock().publish(frame, bytes, self.message_limit);
@@ -457,106 +457,75 @@ fn memory_failure(source: dokime::harmos::operations::StreamError) -> Status {
     crate::grpc::error::detailed_error(status, &source)
 }
 
+#[cfg(test)]
+#[allow(dead_code)]
+pub(super) mod testing {
+    use super::*;
+
+    pub struct LogProbe(Arc<Tail>);
+    pub struct ReplayProbe(Subscription);
+
+    impl LogProbe {
+        pub fn new(path: PathBuf) -> Self {
+            Self(Tail::new(path, Duration::from_millis(10), 1 << 20))
+        }
+        pub async fn caught_up(&self) -> u64 {
+            let mut reader = self.0.reader.lock().await;
+            while self.0.advance(&mut reader, None).await > 0 {}
+            reader.bytes_read
+        }
+        pub async fn reader(&self) -> (u64, bool) {
+            let reader = self.0.reader.lock().await;
+            (reader.bytes_read, reader.carry.is_empty())
+        }
+        pub fn shared(&self) -> (u64, usize, usize) {
+            let shared = self.0.lock();
+            (shared.sequence, shared.live.bytes, shared.live.records.len())
+        }
+        pub async fn subscribe(&self, level: LogLevel) -> ReplayProbe {
+            ReplayProbe(self.0.subscribe(level, 500).await.unwrap())
+        }
+    }
+    impl ReplayProbe {
+        pub fn len(&self) -> usize {
+            self.0.replay.len()
+        }
+        pub fn same_record(&self, index: usize, other: &Self, other_index: usize) -> bool {
+            Arc::ptr_eq(&self.0.replay[index], &other.0.replay[other_index])
+        }
+        pub fn message(&self, index: usize) -> &str {
+            &self.0.replay[index].frame.message
+        }
+    }
+}
+
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write as _;
 
     fn line(level: &str, message: &str) -> String {
         format!(r#"{{"level":"{level}","target":"dokime::fixture","fields":{{"message":"{message}"}}}}"#)
     }
 
-    async fn caught_up(tail: &Arc<Tail>) -> u64 {
-        let mut reader = tail.reader.lock().await;
-        while tail.advance(&mut reader, None).await > 0 {}
-        reader.bytes_read
-    }
-
-    #[tokio::test]
-    async fn tail_reads_only_appended_bytes() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("dokime.jsonl");
-        let first = format!("{}\n{}\n", line("INFO", "started"), line("WARN", "slow"));
-        std::fs::write(&path, &first).unwrap();
-        let tail = Tail::new(path.clone(), Duration::from_millis(10), 1 << 20);
-        assert_eq!(caught_up(&tail).await, first.len() as u64);
-        let mut total = first.len() as u64;
-        for index in 0..32 {
-            let appended = format!("{}\n", line("ERROR", &format!("failed {index}")));
-            std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(appended.as_bytes()).unwrap();
-            total += appended.len() as u64;
-            // Each Poll Reads Exactly The Appended Record, Never The File Again.
-            assert_eq!(caught_up(&tail).await, total);
-        }
-        assert_eq!(tail.lock().sequence, 34);
-    }
-
-    #[tokio::test]
-    async fn subscribers_share_one_parsed_record() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("dokime.jsonl");
-        std::fs::write(&path, format!("{}\n{}\n", line("INFO", "started"), line("WARN", "slow"))).unwrap();
-        let tail = Tail::new(path.clone(), Duration::from_millis(10), 1 << 20);
-        let warn = tail.subscribe(LogLevel::Warn, 500).await.unwrap();
-        let all = tail.subscribe(LogLevel::Trace, 500).await.unwrap();
-        assert_eq!(warn.replay.len(), 1);
-        assert_eq!(all.replay.len(), 2);
-        assert!(Arc::ptr_eq(&warn.replay[0], &all.replay[1]), "one parse serves every subscriber");
-        // The Second Subscriber Found The Reader Caught Up, So The File Was Read Once.
-        let read = std::fs::metadata(&path).unwrap().len();
-        assert_eq!(tail.reader.lock().await.bytes_read, read);
-    }
-
-    #[tokio::test]
-    async fn partial_lines_resume_without_rereading_or_duplicate_records() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("dokime.jsonl");
-        let record = line("INFO", "completed");
-        let split = record.len() / 2;
-        tokio::fs::write(&path, &record[..split]).await.unwrap();
-        let tail = Tail::new(path.clone(), Duration::from_millis(10), 1 << 20);
-        assert_eq!(caught_up(&tail).await, split as u64);
-        assert_eq!(tail.lock().sequence, 0);
-
-        let mut file = tokio::fs::OpenOptions::new().append(true).open(&path).await.unwrap();
-        let appended = format!("{}\n", &record[split..]);
-        tokio::io::AsyncWriteExt::write_all(&mut file, appended.as_bytes()).await.unwrap();
-        file.sync_all().await.unwrap();
-        assert_eq!(caught_up(&tail).await, record.len() as u64 + 1);
-        assert_eq!(caught_up(&tail).await, record.len() as u64 + 1);
-        assert_eq!(tail.lock().sequence, 1);
-        assert!(tail.reader.lock().await.carry.is_empty());
-    }
-
-    #[tokio::test]
-    async fn subscriber_replays_only_records_from_the_truncated_file() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("dokime.jsonl");
-        tokio::fs::write(&path, format!("{}\n", line("INFO", "old record"))).await.unwrap();
-        let tail = Tail::new(path.clone(), Duration::from_millis(10), 1 << 20);
-        caught_up(&tail).await;
-        tokio::fs::write(&path, format!("{}\n", line("INFO", "new"))).await.unwrap();
-
-        let subscription = tail.subscribe(LogLevel::Trace, 500).await.unwrap();
-        assert_eq!(subscription.replay.len(), 1);
-        assert_eq!(subscription.replay[0].frame.message, "new");
-    }
-
-    #[tokio::test]
-    async fn slow_subscriber_reports_frames_evicted_by_the_live_byte_budget() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("dokime.jsonl");
-        let tail = Tail::new(path, Duration::from_millis(10), 1 << 20);
-        let mut subscription = tail.subscribe(LogLevel::Trace, 500).await.unwrap();
+    #[test]
+    fn slow_subscriber_reports_frames_evicted_by_the_live_byte_budget() {
+        use futures_util::FutureExt as _;
+        let tail = Tail::new(PathBuf::new(), Duration::from_millis(10), 1 << 20);
+        let mut subscription = Subscription {
+            live: tail.lock().sender.subscribe(),
+            tail: tail.clone(),
+            replay: VecDeque::new(),
+            dropped: 0,
+        };
         let frame = frame_wire(line("INFO", "live").as_bytes()).unwrap();
-        let bytes = super::super::content::output_frame_len(&frame).unwrap();
+        let bytes = dokime::harmos::grpc::output_item_len(&frame).unwrap();
         for _ in 0..3 {
             tail.lock().publish(frame.clone(), bytes, bytes * 2);
         }
 
-        let delivered = subscription.next(LogLevel::Trace, 1 << 20).await.unwrap().unwrap();
+        let delivered = subscription.next(LogLevel::Trace, 1 << 20).now_or_never().unwrap().unwrap().unwrap();
         assert_eq!(delivered.dropped, 1);
         assert_eq!(tail.lock().live.bytes, bytes * 2);
         assert_eq!(tail.lock().live.records.len(), 2);
