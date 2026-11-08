@@ -361,10 +361,9 @@ from Inspect. Frozen HTML retains its original media and download links under
 
 ## Canonical Bindings and Transport
 
-- `mise run check:typescript:generated --source` checks locally prepared bindings
-  and GUI types. Without `--source`, the generated check restores staged Product
-  bindings for artifact validation. `mise run check:typescript` owns formatting
-  and lint.
+- `mise run check:typescript:generated` regenerates the bindings and GUI types
+  from the current sources and type-checks them; it never restores staged build
+  output. `mise run check:typescript` owns formatting and lint.
 - Rust `dokime-operations` declarations own operation contracts and
   `dokime-domain` owns their messages; do not maintain parallel domain DTOs or a second codec.
 - `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
