@@ -118,10 +118,11 @@ struct ReportFileIdentity<'a> {
 
 /* === Enums === */
 
-// A Final Report Reuses Its Durable Completion Context; Only A Current Report Spools One.
+// A Final Report Reuses Its Durable Completion Context, So It Encodes One Only If Publication Asks.
 enum ReportContext {
     Spooled(ReportFile),
-    Frozen(Option<FileReference>),
+    Deferred { evidence: harmos::storage::ReadBatch<CapturedSource>, nonce: uuid::Uuid },
+    Frozen(FileReference),
 }
 
 /* === Traits === */
@@ -292,7 +293,7 @@ impl PreparedExecutionReport {
         {
             return Err(report_invalid("frozen report context belongs to another owner or evidence boundary"));
         }
-        self.context = ReportContext::Frozen(Some(context));
+        self.context = ReportContext::Frozen(context);
         Ok(())
     }
 
@@ -312,20 +313,23 @@ impl PreparedExecutionReport {
         validate_outputs(&captured.execution_id, saved, outputs.as_slice())
             .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
         let (context, report) = if captured.final_report {
-            let report = ReportFile::render(&html, captured.execution_id.as_str(), uuid::Uuid::now_v7(), ".report")?;
-            (ReportContext::Frozen(None), report)
+            let nonce = uuid::Uuid::now_v7();
+            let report = ReportFile::render(&html, captured.execution_id.as_str(), nonce, ".report")?;
+            let evidence = html.captured_source()?.clone();
+            (ReportContext::Deferred { evidence, nonce }, report)
         } else {
             let (context, report) = ReportFile::capture(&html)?;
             (ReportContext::Spooled(context), report)
         };
-        let spooled = match &context {
-            ReportContext::Spooled(context) => Some(&context.data.metadata.id),
-            ReportContext::Frozen(_) => None,
+        let context_id = match &context {
+            ReportContext::Spooled(context) => context.data.metadata.id.clone(),
+            ReportContext::Deferred { evidence, nonce } => context_identity(evidence, *nonce).id()?,
+            ReportContext::Frozen(context) => context.metadata.id.clone(),
         };
         if outputs
             .iter()
             .filter_map(|output| output.file.as_ref())
-            .any(|file| Some(&file.metadata.id) == spooled || file.metadata.id == report.data.metadata.id)
+            .any(|file| file.metadata.id == context_id || file.metadata.id == report.data.metadata.id)
         {
             return Err(Error::InvalidReportInputs("report production reuses an output file identity".into()));
         }
@@ -403,13 +407,18 @@ impl PreparedExecutionReport {
     }
 
     async fn finish_files(&mut self, manager: &Manager) -> Result<(FileReference, FileReference)> {
+        if let ReportContext::Deferred { evidence, nonce } = &self.context {
+            let (evidence, nonce) = (evidence.clone(), *nonce);
+            let context = tokio::task::spawn_blocking(move || ReportFile::context(&evidence, nonce)).await??;
+            self.context = ReportContext::Spooled(context);
+        }
         match &mut self.context {
             ReportContext::Spooled(context) => {
                 tokio::try_join!(context.write(manager), self.report.write(manager))?;
                 Ok((context.finish(manager).await?, self.report.finish(manager).await?))
             }
-            ReportContext::Frozen(Some(context)) => Ok((context.clone(), self.report.finish(manager).await?)),
-            ReportContext::Frozen(None) => Err(report_invalid("final report requires its durable completion context")),
+            ReportContext::Frozen(context) => Ok((context.clone(), self.report.finish(manager).await?)),
+            ReportContext::Deferred { .. } => Err(report_invalid("deferred report context was not encoded")),
         }
     }
 }
@@ -438,12 +447,7 @@ impl ReportFile {
     }
 
     fn context(captured: &CapturedSource, nonce: uuid::Uuid) -> Result<Self> {
-        let identity = ReportFileIdentity {
-            owner: captured.execution_id.as_str(),
-            nonce,
-            suffix: ".context",
-            media_type: MEDIA_TYPE,
-        };
+        let identity = context_identity(captured, nonce);
         let seed = harmos::storage::ReadBatch::new(());
         let build = |_| NativeSource::try_from(captured);
         let native = seed.try_map(build)?;
@@ -569,6 +573,15 @@ pub(crate) async fn save_context(manager: &Manager, captured: &CapturedSource) -
 
 /* === Private Functions === */
 
+fn context_identity(captured: &CapturedSource, nonce: uuid::Uuid) -> ReportFileIdentity<'_> {
+    ReportFileIdentity {
+        owner: captured.execution_id.as_str(),
+        nonce,
+        suffix: ".context",
+        media_type: MEDIA_TYPE,
+    }
+}
+
 // The Producer Retains an Admitted Chunk Across Failures, So a Retry Resends The
 // Same Offset And Bytes. A Refused Chunk Admitted Nothing: Await Durability Of
 // The Accepted Data Queue Only (No File Checkpoint, No Exclusive Lifecycle Lock),
@@ -658,10 +671,9 @@ mod tests {
         let html = fixture();
         assert!(html.captured_input().unwrap().final_report);
         let saved = html.captured_input().unwrap().evidence_through.clone();
-        let (_, expected) = ReportFile::capture(&fixture()).unwrap();
+        let (expected_context, expected) = ReportFile::capture(&fixture()).unwrap();
         let outputs = Arc::new(harmos::storage::ReadBatch::new(Vec::new()));
         let prepared = PreparedExecutionReport::prepare_html(html, outputs, &saved).unwrap();
-        assert!(matches!(prepared.context, ReportContext::Frozen(None)));
         let read = |file: &ReportFile| {
             let mut bytes = Vec::new();
             file.data.spool.lock().unwrap().read_to_end(&mut bytes).unwrap();
@@ -669,6 +681,11 @@ mod tests {
         };
         assert_eq!(prepared.report.data.metadata.expected_sha256, expected.data.metadata.expected_sha256);
         assert!(read(&prepared.report) == read(&expected));
+        // A Publication Without A Frozen Context Encodes The Same Context On Demand.
+        let ReportContext::Deferred { evidence, nonce } = &prepared.context else { panic!("a final report defers its context") };
+        let deferred = ReportFile::context(evidence, *nonce).unwrap();
+        assert_eq!(deferred.data.metadata.expected_sha256, expected_context.data.metadata.expected_sha256);
+        assert!(read(&deferred) == read(&expected_context));
     }
 
     #[test]
