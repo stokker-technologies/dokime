@@ -90,7 +90,6 @@ def publish_crates(directory: Path, *, sleep=time.sleep, clock=time.monotonic) -
 def rehearse_crates(directory: Path, *, skip_published: bool = True) -> None:
     """Dry-Run Crates In Publication Order Without Publishing Credentials."""
     nightly = os.environ.get("GITHUB_WORKFLOW_REF", "").split("/workflows/")[-1].startswith("nightly.yml@")
-    nightly = nightly or os.environ.get("CI_SIMULATE") == "1" and os.environ.get("CI_PIPELINE_KIND") == "nightly"
     if not pins.check(directory, warn=nightly):
         return
     with policy.credential_free(policy.policy(directory, "release")):

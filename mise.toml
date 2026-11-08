@@ -635,17 +635,6 @@ run = [
 
 # === CI === #
 
-[tasks."ci:simulate"]
-description = "Simulate the Declared CI Graph Locally"
-env = { MISE_CONFIG_DIR = "{{config_root}}/target/ci/mise-config", MISE_GLOBAL_CONFIG_FILE = "{{config_root}}/target/ci/mise-config/config.toml" }
-usage = '''
-flag "--pipeline <kind>" default=pr
-flag "--platform <platform>"
-flag "--executor <executor>"
-flag "--jobs <count>"
-'''
-run = "{{vars.tools}} dokime_tools.ci.simulate {% if usage.pipeline %}--pipeline {{usage.pipeline}}{% endif %} {% if usage.platform %}--platform {{usage.platform}}{% endif %} {% if usage.executor %}--executor {{usage.executor}}{% endif %} {% if usage.jobs %}--jobs {{usage.jobs}}{% endif %}"
-
 # === Release === #
 
 [tasks."release:prepare"]

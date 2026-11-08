@@ -17,17 +17,15 @@ import io
 import json
 import os
 import runpy
-import subprocess
 import tempfile
 import unittest
 import urllib.error
 import urllib.parse
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.ci import impact, simulate
 from dokime_tools.release import nightly, pins, policy, registry
 
 # Type Checking Imports
@@ -43,192 +41,34 @@ ROOT = Path(__file__).resolve().parents[4]
 # === Classes === #
 
 
-class SimulationTests(unittest.TestCase):
-    def test_native_job_excludes_machine_mise_configuration(self):
-        job = {
-            "key": "isolation",
-            "id": "check:repository",
-            "platform": "windows",
-            "executor": "native",
-            "pipeline": "pr",
-            "inputs": [],
-            "outputs": {},
-            "setup": "",
-            "bootstrap": [],
-            "commands": [],
-            "minutes": 1,
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            candidate = root / "candidate"
-            candidate.mkdir()
-            (candidate / "mise.toml").write_text('[env]\nSIMULATION_PROJECT = "loaded"\n', encoding="utf-8")
-            machine = root / "machine"
-            machine.mkdir()
-            (machine / "config.toml").write_text("invalid TOML [", encoding="utf-8")
-            (machine / "mise.lock").write_text("invalid lockfile [", encoding="utf-8")
-            scratch = root / "scratch"
-            scratch.mkdir()
-            owner = Mock(root=scratch)
-            inherited = {
-                "MISE_CONFIG_DIR": str(machine),
-                "MISE_GLOBAL_CONFIG_FILE": str(machine / "config.toml"),
-                "MISE_AQUA_GITHUB_ATTESTATIONS": "false",
-                "CARGO_BUILD_JOBS": "8",
-            }
-
-            def execute(command, workspace, values, *arguments):
-                self.assertNotIn("MISE_AQUA_GITHUB_ATTESTATIONS", values)
-                self.assertEqual(values["CARGO_BUILD_JOBS"], "8")
-                configs = subprocess.run(
-                    ["mise", "config", "ls", "--json"], cwd=workspace, env=values, capture_output=True, text=True, check=False, timeout=30
-                )
-                self.assertEqual(configs.returncode, 0, configs.stderr)
-                self.assertNotIn(str(machine).replace("\\", "/"), configs.stdout.replace("\\\\", "/"))
-                loaded = subprocess.run(
-                    ["mise", "env", "--json"], cwd=workspace, env=values, capture_output=True, text=True, check=False, timeout=30
-                )
-                self.assertEqual(loaded.returncode, 0, loaded.stderr)
-                self.assertEqual(json.loads(loaded.stdout)["SIMULATION_PROJECT"], "loaded")
-                return 1
-
-            with (
-                patch.dict(os.environ, inherited),
-                patch.object(simulate.workspaces, "job", return_value=contextlib.nullcontext(owner)),
-                patch.object(simulate, "stream", side_effect=execute),
-            ):
-                simulate._run_job(job, candidate, root, root / "cache", "repository", "run", "dev")
-
-    def test_docker_isolates_host_and_container_mise(self):
-        owner = Mock(record={"container": "test-container", "volume": "test-volume"})
-        values = {"PROFILE": "dev", "CARGO_BUILD_JOBS": "8", "PRIVATE_VALUE": "excluded"}
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            workspace = root / "workspace"
-            workspace.mkdir()
-            with (
-                patch.dict(os.environ, MISE_AQUA_GITHUB_ATTESTATIONS="false", MISE_GLOBAL_CONFIG_FILE="machine-config"),
-                patch.object(simulate.containers, "job", return_value=contextlib.nullcontext(owner)),
-                patch.object(simulate, "source_archive", side_effect=lambda workspace, archive, modes: archive.touch() or {}),
-                patch.object(simulate.subprocess, "run"),
-                patch.object(simulate, "stream", return_value=1) as stream,
-                patch.object(Path, "unlink"),
-                io.StringIO() as log,
-            ):
-                simulate.docker(
-                    {"key": "isolation", "image": "ubuntu:22.04", "minutes": 1}, workspace, root, "repo", "run", values, [], {}, log, {}
-                )
-            arguments = owner.create.call_args.args[0]
-            forwarded = dict(arguments[index + 1].split("=", 1) for index, value in enumerate(arguments) if value == "--env")
-            self.assertNotIn("PRIVATE_VALUE", forwarded)
-            self.assertEqual(forwarded["CARGO_BUILD_JOBS"], values["CARGO_BUILD_JOBS"])
-            self.assertEqual(forwarded["MISE_TRUSTED_CONFIG_PATHS"], "/workspace")
-            self.assertEqual(forwarded["MISE_GLOBAL_CONFIG_FILE"], forwarded["MISE_CONFIG_DIR"] + "/config.toml")
-            host = stream.call_args.args[2]
-            self.assertEqual(host["MISE_TRUSTED_CONFIG_PATHS"], str(workspace))
-            self.assertEqual(Path(host["MISE_GLOBAL_CONFIG_FILE"]).parent, Path(host["MISE_CONFIG_DIR"]))
-            self.assertNotEqual(host["MISE_GLOBAL_CONFIG_FILE"], "machine-config")
-            self.assertNotIn("MISE_AQUA_GITHUB_ATTESTATIONS", host)
-
-    def test_worktree_candidate(self):
-        with tempfile.TemporaryDirectory(prefix="dokime-candidate-test-") as temporary:
-            root = Path(temporary)
-            primary = root / "primary"
-            worktree = root / "worktree"
-            candidate = root / "candidate"
-
-            def git(directory, *arguments):
-                return subprocess.run(
-                    ["git", "-C", str(directory), *arguments], capture_output=True, text=True, check=True, timeout=30
-                ).stdout.strip()
-
-            primary.mkdir()
-            git(primary, "init", "--initial-branch=dev")
-            git(primary, "config", "user.name", "Candidate Fixture")
-            git(primary, "config", "user.email", "candidate@example.test")
-            git(primary, "config", "commit.gpgsign", "false")
-            (primary / "tracked").write_text("primary")
-            git(primary, "add", "tracked")
-            git(primary, "commit", "-m", "Initial Fixture")
-            git(primary, "worktree", "add", "-b", "fix/candidate", str(worktree))
-            (worktree / "tracked").write_text("committed")
-            git(worktree, "commit", "-am", "Candidate Fixture")
-            (worktree / "tracked").write_text("staged")
-            git(worktree, "add", "tracked")
-            (worktree / "tracked").write_text("working")
-            (worktree / "untracked").write_text("untracked")
-
-            simulate.stage(worktree, candidate)
-            self.assertEqual(git(candidate, "rev-parse", "HEAD"), git(worktree, "rev-parse", "HEAD"))
-            self.assertEqual(git(candidate, "symbolic-ref", "HEAD"), "refs/heads/fix/candidate")
-            self.assertEqual(git(candidate, "ls-files", "--stage"), git(worktree, "ls-files", "--stage"))
-            self.assertEqual((candidate / "tracked").read_text(), "working")
-            self.assertEqual((candidate / "untracked").read_text(), "untracked")
-            self.assertNotEqual(git(candidate, "rev-parse", "HEAD"), git(primary, "rev-parse", "HEAD"))
-
-    def test_serial_simulation(self):
-        jobs = [
-            {"key": "first", "needs": []},
-            {"key": "second", "needs": []},
-            {"key": "dependent", "needs": ["second"]},
-            {"key": "last", "needs": ["first"]},
-        ]
-        executed = []
-        events = []
-
-        def execute(job):
-            executed.append(job["key"])
-            return {"state": "failed" if job["key"] == "second" else "passed", "seconds": 0, "cache": None}
-
-        with patch.object(simulate, "emit", side_effect=lambda key, state: events.append((key, state))):
-            results = simulate.schedule(jobs, execute, workers=1)
-
-        self.assertEqual(executed, ["first", "second", "last"])
-        self.assertEqual([results[job["key"]]["state"] for job in jobs], ["passed", "failed", "blocked", "passed"])
-        self.assertEqual(
-            [(key, state.split(":", 1)[0]) for key, state in events],
-            [
-                ("first", "running"),
-                ("first", "passed"),
-                ("second", "running"),
-                ("second", "failed"),
-                ("dependent", "blocked"),
-                ("last", "running"),
-                ("last", "passed"),
-            ],
-        )
-
-
 class ImpactTests(unittest.TestCase):
-    def test_dev_and_review(self):
-        plan = simulate.PLAN["impact"]
-        full = impact.select(plan, {"Cargo.toml"})
-        development = impact.scope(plan, full, "build")
-        self.assertTrue({"build", "build:rust:tests", "check:rust"} <= development)
-        self.assertFalse(any(job.startswith(("package:", "test:", "release:", "bench:", "prepare:")) for job in development))
-        self.assertTrue(any(job.startswith("test:") for job in impact.scope(plan, full)))
-        for job in development:
-            self.assertTrue(set(plan["dependencies"][job]) <= development)
-        action = runpy.run_path(str(ROOT / ".github/actions/plan-impact/run.py"))
-        self.assertEqual(action["scope"](plan, action["select"](plan, {"Cargo.toml"}), "build"), development)
+    def setUp(self):
+        self.impact = runpy.run_path(str(ROOT / ".github/actions/plan-impact/run.py"))
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         authored = next(line.removeprefix("        plan: ") for line in workflow.splitlines() if line.startswith("        plan: "))
-        hosted_plan = json.loads(json.loads(authored))
-        self.assertEqual(impact.scope(hosted_plan, impact.select(hosted_plan, {"Cargo.toml"}), "build"), development)
+        self.plan = json.loads(json.loads(authored))
+
+    def test_dev_and_review(self):
+        full = self.impact["select"](self.plan, {"Cargo.toml"})
+        development = self.impact["scope"](self.plan, full, "build")
+        self.assertTrue({"build", "build:rust:tests", "check:rust"} <= development)
+        self.assertFalse(any(job.startswith(("package:", "test:", "release:", "bench:", "prepare:")) for job in development))
+        self.assertTrue(any(job.startswith("test:") for job in self.impact["scope"](self.plan, full)))
+        for job in development:
+            self.assertTrue(set(self.plan["dependencies"][job]) <= development)
         print("Dev Impact:", ", ".join(sorted(development)))
         print("PR Impact:", ", ".join(sorted(full)))
 
     def test_guidance_scope(self):
-        plan = simulate.PLAN["impact"]
-        selected = impact.select(plan, {"CONTRIBUTING.md"})
-        self.assertEqual(impact.scope(plan, selected, "build"), set())
+        selected = self.impact["select"](self.plan, {"CONTRIBUTING.md"})
+        self.assertEqual(self.impact["scope"](self.plan, selected, "build"), set())
 
     def test_conservative_scope(self):
         plan = {"dependencies": {"build": ["producer"], "package:rust": ["build"], "producer": []}, "rules": []}
-        self.assertEqual(impact.close(plan["dependencies"], {"unknown"}), set(plan["dependencies"]))
-        self.assertEqual(impact.scope(plan, {"build", "package:rust"}, "build"), {"build", "producer"})
+        self.assertEqual(self.impact["close"](plan["dependencies"], {"unknown"}), set(plan["dependencies"]))
+        self.assertEqual(self.impact["scope"](plan, {"build", "package:rust"}, "build"), {"build", "producer"})
         with self.assertRaises(ValueError):
-            impact.scope(plan, set(), "typo")
+            self.impact["scope"](plan, set(), "typo")
 
 
 class ReleaseChecksTests(unittest.TestCase):
