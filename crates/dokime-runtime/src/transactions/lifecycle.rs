@@ -647,10 +647,18 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
 
 /* === Public Functions === */
 
-// A step attempt that ended without a completion receipt keeps this redacted detail.
+// A step attempt that ended without a completion receipt and without a known cause.
 #[track_caller]
 pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Diagnostic {
-    dokime_domain::model::diagnostics::Diagnostic::of("step runner ended without a completion receipt").redacted()
+    step_failure_detail(None)
+}
+
+// The redacted detail a step attempt the host ended keeps: the cause the host knows, such as a
+// refused question, lease or page, and the generic receipt text only when none is known.
+#[track_caller]
+pub(crate) fn step_failure_detail(cause: Option<&str>) -> dokime_domain::model::diagnostics::Diagnostic {
+    let cause = cause.map(str::trim).filter(|cause| !cause.is_empty());
+    dokime_domain::model::diagnostics::Diagnostic::of(cause.unwrap_or("step runner ended without a completion receipt")).redacted()
 }
 
 // Whether cycle work can still reach a plugin. Completion means provider cleanup and stream
@@ -788,6 +796,16 @@ mod tests {
         };
         recover.check(state).unwrap();
         recover.apply(state);
+    }
+
+    #[test]
+    fn step_failure_detail_prefers_the_known_cause() {
+        let cause = "Operator question fixture.question is not declared by this template.";
+        assert_eq!(step_failure_detail(Some(cause)).message, cause);
+        let generic = interrupted_step_detail().message;
+        assert_ne!(generic, cause);
+        assert_eq!(step_failure_detail(None).message, generic);
+        assert_eq!(step_failure_detail(Some("  ")).message, generic, "a blank cause is no cause");
     }
 
     #[test]

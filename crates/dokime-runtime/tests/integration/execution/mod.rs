@@ -30,6 +30,7 @@ pub(crate) mod report_cancellation;
 pub(crate) mod report_publication;
 pub(crate) mod report_restart;
 pub(crate) mod run;
+mod step_failures;
 pub(crate) mod storage;
 mod stream_revisions;
 pub(crate) mod streams;
