@@ -219,10 +219,10 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
         await command("Input.dispatchMouseEvent", { type: "mouseMoved", buttons: 1, ...to });
         await command("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...to });
         await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
-        assert.deepEqual(
-          await evaluate(`Array.from(document.querySelectorAll('tbody tr')).slice(2).map(row => row.cells[3].textContent)`),
-          ["0", "1", "1", "1"],
-        );
+        assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('tbody tr')).map(row => row.cells[3].textContent)`), [
+          "10",
+          "10",
+        ]);
       }
     for (const zoom of [false, true]) {
       for (const width of [200, 800]) {
