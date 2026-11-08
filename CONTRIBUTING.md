@@ -146,17 +146,23 @@ restores generated contracts and extracts the Rust archive once before concurren
 readers start. Standalone Rust lanes also reuse one extraction for listing and
 execution; standalone system runs unpack their binaries and shared runtime inputs
 without the other test layers, keeping extraction within hosted disk capacity.
-The entry runs all ten
-lanes even if one fails and returns failure if any lane fails. Full lane logs,
+The aggregate owns a native mise task lock across preparation, consumers and
+collection. Its referenced tasks share that permit and run concurrently; the
+ordinary one-task default remains in place for standalone language tasks.
+Canonical mise task references schedule all eleven product lanes concurrently,
+plus the tooling integration tests. Each prepared leaf records its actual exit
+code; the final collection returns failure for any failed or missing result. Full lane logs,
 exit codes, wall times and an aggregate `time-summary.md`/`.json` live under
 `target/test-reports/run-<profile>-<native>/`; every lane also keeps its own time
 summary under `target/test-reports/<category>-<language>/`. Individual lane tasks
 remain independently usable; avoid running the same lane twice in one checkout.
+Run tooling alone with `mise run test:python:integration --project tools/python`;
+add `--select schedule` to select its scheduling tests.
 Only one native desktop lane may use an interactive desktop session at a time,
 including runs from other worktrees. Reserve an idle test host for wall-clock
 comparisons; simultaneous external test runs can trip existing liveness guards.
 
-The scheduler reserves CPU headroom for the desktop and divides the remaining
+Shared preparation reserves CPU headroom for the desktop and divides the remaining
 logical CPU slots across the four Rust nextest lanes, Python integration and both
 Vitest lanes. All seven pools use that worker count. Standalone
 Rust lanes keep nextest's CPU-sized pool; standalone Python integration uses
