@@ -23,6 +23,7 @@ use crate::RuntimeHandle;
 use crate::runtime::Error;
 use crate::runtime::Result;
 use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::reports::wire::ReportSubject;
@@ -156,6 +157,11 @@ impl RuntimeHandle {
                 tracing::debug!(%error, cycle_id = %cycle.test_cycle_id, "batched report finalization intent was refused");
             }
         }
+        // Terminal Members Without A Frozen Lifecycle Save Their Revisions Behind One
+        // Barrier; Each Lifecycle Capture Then Adopts Its Saved Revision Without A Flush.
+        if let Err(error) = self.freeze_unfrozen_members(cycle, &pending).await {
+            tracing::debug!(%error, cycle_id = %cycle.test_cycle_id, "batched member revision freeze was refused");
+        }
         match self.finish_saved_executions(cycle, &pending).await?.into_iter().next() {
             Some((_, error @ (Error::Admission(_) | Error::ShuttingDown | Error::Interrupted))) => Err(error),
             Some((id, error)) => Err(Error::ReportSave {
@@ -165,6 +171,31 @@ impl RuntimeHandle {
             }),
             None => Ok(()),
         }
+    }
+
+    // A Refused Batch Leaves Each Member To Freeze Its Own Revision With Attribution.
+    async fn freeze_unfrozen_members(&self, cycle: &CycleView, pending: &[&TestExecution]) -> Result<()> {
+        let unfrozen = {
+            let state = self.state_read();
+            pending
+                .iter()
+                .copied()
+                .filter(|execution| {
+                    state.report_finalizations.get(&execution.test_execution_id).is_some_and(|intent| intent.lifecycle.is_none())
+                        && execution.finished_at.is_some()
+                        && execution.active_step_attempt.is_none()
+                        && !matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+                })
+                .collect::<Vec<_>>()
+        };
+        let jobs = self.execution_storage.report_jobs.lock().await.keys().cloned().collect::<std::collections::BTreeSet<_>>();
+        let unfrozen = unfrozen.into_iter().filter(|execution| !jobs.contains(&execution.test_execution_id)).collect::<Vec<_>>();
+        for execution in &unfrozen {
+            if self.execution_storage.acquisition(&execution.test_execution_id).await.is_none() {
+                self.execution_storage.acquire(cycle, execution).await?;
+            }
+        }
+        self.execution_storage.freeze_revisions(&unfrozen).await
     }
 
     pub(crate) async fn finish_saved_executions(

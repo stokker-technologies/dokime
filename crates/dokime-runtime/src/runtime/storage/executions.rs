@@ -534,6 +534,82 @@ impl ExecutionStorage {
         .map_err(|source| Error::Join { source })?
     }
 
+    // Saves The Terminal Revisions Of Several Members Behind One Durability Barrier: Each
+    // Owner Admits Its Revision Under Its Own Gate, One Flush Covers Them All, Then Each
+    // Owner Adopts Its Saved Revision. An Admission That Is Not Adopted Stays Pending,
+    // So A Later Freeze Settles It Exactly As A Single Save Would.
+    pub(crate) async fn freeze_revisions(&self, executions: &[&TestExecution]) -> Result<()> {
+        let mut admitted = Vec::new();
+        let mut last: Option<StorageCursor> = None;
+        for execution in executions {
+            let owner =
+                self.acquisition(&execution.test_execution_id).await.ok_or_else(|| invalid("report lifecycle has no acquisition owner"))?;
+            if matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
+                || execution.finished_at.is_none()
+                || execution.saved.is_some()
+            {
+                return Err(invalid("report lifecycle must be terminal and unsealed"));
+            }
+            let (execution, execution_owner) = retained_execution(execution)?;
+            let admission = owner.clone();
+            // Admission Survives Caller Cancellation Like A Single Freeze.
+            let position = tokio::spawn(async move {
+                let gate = admission.lock().await.gate.clone();
+                let _boundary = gate.lock().await;
+                let mut acquisition = admission.lock().await;
+                validate_identity(&acquisition, &execution)?;
+                if acquisition.finalizing.as_ref().is_some_and(|frozen| **frozen != *execution) {
+                    return Err(invalid("report lifecycle differs from its frozen input"));
+                }
+                // An Earlier Unsettled Admission Saves First, As A Single Freeze Does.
+                if acquisition.pending.is_some() || acquisition.execution.saved.is_some() {
+                    acquisition.execution_owner = execution_owner;
+                    bind_publication_revision(&mut acquisition, &execution).await?;
+                    return Ok(None);
+                }
+                if *acquisition.execution == *execution && acquisition.working.is_some() {
+                    return Ok(None);
+                }
+                acquisition.execution = execution;
+                acquisition.execution_owner = execution_owner;
+                admit_working_revision(&mut acquisition).await.map(Some)
+            })
+            .await
+            .map_err(|source| Error::Join { source })??;
+            if let Some(position) = position {
+                if last.as_ref().is_none_or(|last| last.sequence < position.sequence) {
+                    last = Some(position);
+                }
+                admitted.push(owner);
+            }
+        }
+        let Some(last) = last else {
+            return Ok(());
+        };
+        let saved = self.storage.flush_until(&last).await?;
+        for owner in admitted {
+            let saved = saved.clone();
+            tokio::spawn(async move {
+                let gate = owner.lock().await.gate.clone();
+                let _boundary = gate.lock().await;
+                let mut acquisition = owner.lock().await;
+                // Another Path May Have Settled Or Superseded This Admission Meanwhile.
+                if acquisition.pending.is_some() {
+                    let position = admit_working_revision(&mut acquisition).await?;
+                    if saved.covers(&position)? {
+                        adopt_working_revision(&mut acquisition, &saved)?;
+                    } else {
+                        save_working_revision(&mut acquisition).await?;
+                    }
+                }
+                Ok::<_, Error>(())
+            })
+            .await
+            .map_err(|source| Error::Join { source })??;
+        }
+        Ok(())
+    }
+
     pub(crate) async fn frozen_execution(
         &self, session: &crate::storage::Manager, revision: &ExecutionRevision,
     ) -> Result<FrozenExecution> {
@@ -1045,6 +1121,13 @@ async fn bind_publication_revision(acquisition: &mut Acquisition, execution: &Te
 }
 
 async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
+    let position = admit_working_revision(acquisition).await?;
+    let saved = acquisition.storage.flush_until(&position).await?;
+    adopt_working_revision(acquisition, &saved)
+}
+
+// Admits The Pending Revision Once And Returns The Position Its Durability Requires.
+async fn admit_working_revision(acquisition: &mut Acquisition) -> Result<StorageCursor> {
     if acquisition.pending.is_none() {
         acquisition.pending = Some(PendingRevision {
             execution: acquisition.execution.clone(),
@@ -1072,7 +1155,12 @@ async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
 
     let receipt = pending.receipt.as_ref().expect("original execution receipt retained");
     receipt.version.check_position(&receipt.position)?;
-    let saved = acquisition.storage.flush_until(&receipt.position).await?;
+    Ok(receipt.position.clone())
+}
+
+fn adopt_working_revision(acquisition: &mut Acquisition, saved: &StorageCursor) -> Result<()> {
+    let pending = acquisition.pending.as_ref().ok_or_else(|| invalid("execution save has no pending admission"))?;
+    let receipt = pending.receipt.as_ref().ok_or_else(|| invalid("execution save has no admitted receipt"))?;
     if !saved.covers(&receipt.position)? {
         return Err(invalid("execution save does not cover its original admission"));
     }

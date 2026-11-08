@@ -173,4 +173,58 @@ pub(crate) async fn persisted_cycle_restart() {
     owner.shutdown().await.unwrap();
 }
 
+// A Seal That Stops After Its Members' Revisions Were Saved Behind One Barrier, But Before
+// Every Member Seal Was Recorded, Resumes After A Restart From Those Exact Revisions.
+pub(crate) async fn batched_member_freeze_restart() {
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+    let suite = fixture_suite(&["passed", "passed", "passed"]);
+    register_custom_suite(&runtime, suite.clone()).await;
+    let cycle_id = start_cycle(&runtime, suite).await;
+    runtime.update_cycle_policy(cycle_id.clone(), false, CommandContext::default()).await.unwrap();
+    let members =
+        cycle_snapshot(&runtime, &cycle_id).await.test_executions.into_iter().map(|member| member.test_execution_id).collect::<Vec<_>>();
+    let refused = members.last().unwrap().clone();
+    let gate = dokime_runtime::testing::hold_report(&refused, true);
+    {
+        let seal = runtime.seal_cycle(cycle_id.clone(), CommandContext::default());
+        tokio::pin!(seal);
+        tokio::select! {
+            result = &mut seal => panic!("the seal finished before its refused member rendered: {result:?}"),
+            _ = gate.entered() => {}
+        }
+        gate.release();
+        assert!(seal.await.is_err(), "the refused member fails the seal");
+    }
+    assert!(cycle_snapshot(&runtime, &cycle_id).await.saved.is_none());
+    let frozen = {
+        let state = runtime.watch_state().latest();
+        let lifecycle = state.state().report_finalizations[&refused].lifecycle.clone().expect("the refused member froze its lifecycle");
+        lifecycle.execution
+    };
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+    drop(owner);
+
+    let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+    runtime.seal_cycle(cycle_id.clone(), CommandContext::default()).await.unwrap();
+    let sealed = dokime_runtime::storage::objects::cycle::read(runtime.storage(), &cycle_id, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(sealed.value.saved.is_some(), "the retry seals the cycle");
+    drop(sealed);
+    for id in &members {
+        let checkpoint = crate::service_support::native::checkpoint(&runtime, id).await;
+        let view = crate::service_support::native::open(&runtime, &checkpoint).await;
+        let seal = view.execution().saved.clone().expect("every member is sealed");
+        if *id == refused {
+            assert_eq!(seal.source.execution, frozen, "the resumed member seals the revision saved before the restart");
+        }
+        drop((view, checkpoint));
+    }
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
 /* === Tests === */
