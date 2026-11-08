@@ -44,3 +44,7 @@ mod recovery;
 /* === Private Functions === */
 
 /* === Tests === */
+
+mod direct_secret_startup;
+
+mod saved_settings_restart;

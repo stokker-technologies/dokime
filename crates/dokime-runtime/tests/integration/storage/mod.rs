@@ -126,3 +126,5 @@ async fn storage_recovery_sqlite_production() {
 }
 
 /* === Tests === */
+
+mod ipc;

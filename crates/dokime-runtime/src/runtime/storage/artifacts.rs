@@ -388,7 +388,7 @@ impl RuntimeHandle {
 }
 
 impl ExecutionStorage {
-    async fn begin_artifact(
+    pub(crate) async fn begin_artifact(
         self: Arc<Self>, execution: TestExecutionId, input: ArtifactUploadInput, created_at: Timestamp, operation: Operation,
     ) -> Result<ArtifactUpload> {
         let acquisition_owner = self.acquisition(&execution).await.ok_or_else(|| error("execution has no open artifact acquisition"))?;
@@ -758,45 +758,6 @@ fn error(problem: impl ToString) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[tokio::test]
-    async fn execution_log_keeps_plain_name_before_and_after_step_uploads() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../report/fixtures/execution-report-input.json")).unwrap();
-        let mut cycle: dokime_domain::model::execution::result::CycleView =
-            serde_json::from_value(fixture["input"]["cycle"].clone()).unwrap();
-        cycle.test_executions[0].saved = None;
-        let execution = &cycle.test_executions[0];
-        let root = tempfile::tempdir().unwrap();
-        let mut owner = crate::Runtime::start(crate::RuntimeConfig::new(root.path(), cycle.metadata.clone())).await.unwrap();
-        let runtime = owner.handle();
-        let storage = &runtime.execution_storage;
-        storage.acquire(&cycle, execution).await.unwrap();
-        let id = &execution.test_execution_id;
-        for expected in ["artifacts/execution.2.log", "artifacts/execution.3.log"] {
-            let upload = storage
-                .clone()
-                .begin_artifact(
-                    id.clone(),
-                    ArtifactUploadInput {
-                        scope: execution.scope.clone(),
-                        filename: "execution.log".into(),
-                        content_type: Some("text/plain".into()),
-                        size_bytes: 1,
-                        sha256: None,
-                    },
-                    crate::model::time::now_utc(),
-                    runtime.operation_progress().begin("Artifact Collision"),
-                )
-                .await
-                .unwrap();
-            let entries = storage.native_entries(id).await.unwrap();
-            assert!(entries.iter().any(|entry| entry.artifact_id == upload.artifact_id().as_str() && entry.relative_path == expected));
-            storage.reserve_output(id, "artifacts/execution.log").await.unwrap();
-            drop(upload);
-        }
-        drop(runtime);
-        owner.shutdown().await.unwrap();
-    }
 
     #[test]
     fn capture_failure_degrades_only_source_content_errors() {

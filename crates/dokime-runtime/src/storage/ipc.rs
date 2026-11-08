@@ -11,6 +11,9 @@
 
 /* === Modules === */
 
+#[cfg(feature = "testing")]
+pub mod testing;
+
 mod projection;
 mod schema;
 mod values;
@@ -68,7 +71,7 @@ pub(crate) struct Writer {
     context: IpcWriteContext,
     finished: bool,
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     fail_sync: bool,
 }
 
@@ -158,7 +161,7 @@ impl Writer {
             dictionaries: DictionaryTracker::new(true),
             context: IpcWriteContext::default(),
             finished: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "testing"))]
             fail_sync: false,
         };
         writer.rollback(checkpoint)?;
@@ -192,12 +195,12 @@ impl Writer {
             dictionaries,
             context: IpcWriteContext::default(),
             finished: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "testing"))]
             fail_sync: false,
         })
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub(crate) fn fail_next_sync(&mut self) {
         self.fail_sync = true;
     }
@@ -233,7 +236,7 @@ impl Writer {
             rows: batch.num_rows() as u64,
             sha256: self.file.batch_hash.take().expect("batch hash is active").finalize().into(),
         };
-        #[cfg(test)]
+        #[cfg(any(test, feature = "testing"))]
         if std::mem::take(&mut self.fail_sync) {
             return Err(Error::Io(std::io::Error::other("injected batch sync failure")));
         }
@@ -453,103 +456,3 @@ fn sync_parent(path: &Path) -> Result<()> {
 }
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use arrow_array::{Int64Array, StringArray};
-    use arrow_schema::{DataType, Field, Schema};
-    use std::sync::Arc;
-
-    fn batch() -> RecordBatch {
-        let fields = vec![Field::new("integer", DataType::Int64, true), Field::new("text", DataType::Utf8, true)];
-        let schema = Arc::new(Schema::new(fields));
-        RecordBatch::try_new(
-            schema,
-            vec![
-                Arc::new(Int64Array::from(vec![Some(-5), None, Some(i64::MAX)])),
-                Arc::new(StringArray::from(vec![Some("hi"), Some("世界"), None])),
-            ],
-        )
-        .unwrap()
-    }
-
-    #[test]
-    fn zstd_file_round_trip_and_metadata_only_recovery() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("samples.arrow");
-        let batch = batch();
-        let mut writer = Writer::create(&path, batch.schema()).unwrap();
-        let first = writer.append(&batch).unwrap();
-        let second = writer.append(&batch).unwrap();
-        let checkpoint = writer.checkpoint();
-        assert_eq!(read_batch(&path, batch.schema(), &second).unwrap(), batch);
-        // Simulate A Crash During The Next Write, Before A Footer Exists.
-        drop(writer);
-        let mut file = OpenOptions::new().append(true).open(&path).unwrap();
-        file.write_all(b"uncommitted partial batch").unwrap();
-        drop(file);
-        let before = std::fs::read(&path).unwrap()[..checkpoint.end as usize].to_vec();
-        let (length, digest) = recover(&path, batch.schema(), &[first, second], &checkpoint).unwrap();
-        let bytes = std::fs::read(&path).unwrap();
-        assert_eq!(bytes.len() as u64, length);
-        assert_eq!(Sha256::digest(&bytes).as_slice(), digest);
-        assert_eq!(&bytes[..before.len()], before);
-        let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
-        let batches = reader.collect::<std::result::Result<Vec<_>, _>>().unwrap();
-        assert_eq!(batches, vec![batch.clone(), batch]);
-    }
-
-    #[test]
-    fn finalize_appends_only_metadata_and_is_idempotent() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("samples.arrow");
-        let batch = batch();
-        let mut writer = Writer::create(&path, batch.schema()).unwrap();
-        writer.append(&batch).unwrap();
-        let before = std::fs::read(&path).unwrap();
-        let result = writer.finish().unwrap();
-        assert_eq!(writer.finish().unwrap(), result);
-        let after = std::fs::read(&path).unwrap();
-        assert_eq!(&after[..before.len()], before);
-        assert_eq!(Sha256::digest(&after).as_slice(), result.1);
-        assert!(writer.append(&batch).is_err());
-    }
-
-    #[test]
-    fn rollback_restores_hash_and_block_list() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("samples.arrow");
-        let batch = batch();
-        let mut writer = Writer::create(&path, batch.schema()).unwrap();
-        let checkpoint = writer.checkpoint();
-        writer.append(&batch).unwrap();
-        writer.rollback(&checkpoint).unwrap();
-        writer.append(&batch).unwrap();
-        let (length, hash) = writer.finish().unwrap();
-        let bytes = std::fs::read(&path).unwrap();
-        assert_eq!(length, bytes.len() as u64);
-        assert_eq!(hash, <[u8; 32]>::from(Sha256::digest(&bytes)));
-        let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
-        assert_eq!(reader.num_batches(), 1);
-    }
-
-    #[test]
-    fn uncataloged_first_flush_can_resume_from_its_verified_header() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("samples.arrow");
-        let batch = batch();
-        let mut writer = Writer::create(&path, batch.schema()).unwrap();
-        let header = writer.checkpoint();
-        writer.append(&batch).unwrap();
-        drop(writer);
-        let mut writer = Writer::recover_empty(&path, batch.schema()).unwrap();
-        assert_eq!(writer.checkpoint().end, header.end);
-        writer.append(&batch).unwrap();
-        writer.finish().unwrap();
-        drop(writer);
-        let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
-        assert_eq!(reader.num_batches(), 1);
-        assert_eq!(reader.collect::<std::result::Result<Vec<_>, _>>().unwrap(), [batch]);
-    }
-}
