@@ -243,8 +243,25 @@ mod tests {
     }
 
     fn contracts() -> (Vec<RecordContract>, Vec<TelemetryContract>) {
+        #[harmos::message]
+        #[derive(serde::Serialize)]
+        struct Object {
+            value: String,
+        }
+
+        #[harmos::message]
+        #[derive(serde::Serialize)]
+        struct Measurement {
+            #[serde(rename = "cpu.load")]
+            cpu_load: Option<i64>,
+
+            status: String,
+            object: Object,
+            enabled: bool,
+        }
+
         let mut record = RecordContract::declared("example.measurement", "Measurement");
-        let mut sample = TelemetryContract::declared("example.measurement", "Measurement");
+        let mut sample = TelemetryContract::declared("example.measurement", "Measurement").typed::<Measurement>(1);
         for (id, kind) in
             [("cpu.load", ValueType::Integer), ("status", ValueType::Text), ("object", ValueType::Object), ("enabled", ValueType::Boolean)]
         {
