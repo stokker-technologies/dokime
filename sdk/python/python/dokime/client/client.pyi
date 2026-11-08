@@ -11,6 +11,7 @@
 # Standard Library Imports
 from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
@@ -40,6 +41,18 @@ PAGE_ITEMS: int
 # === Types === #
 
 # === Classes === #
+
+@dataclass(frozen=True, slots=True)
+class RerunNotice:
+    case_id: str
+    suite_id: str
+    reason: str
+
+@dataclass(frozen=True, slots=True)
+class CycleRerun:
+    cycle: Cycle
+    skipped: tuple[RerunNotice, ...]
+    dropped_parameters: tuple[RerunNotice, ...]
 
 class DokimeClient:
     _transport: Transport
@@ -140,6 +153,7 @@ class DokimeClient:
         identifier: str | None = None,
         continue_automatically: bool = False,
     ) -> Cycle: ...
+    async def rerun_cycle(self, source_cycle_id: str, *, label: str | None = None) -> CycleRerun: ...
     @asynccontextmanager
     def new_cycle(
         self,

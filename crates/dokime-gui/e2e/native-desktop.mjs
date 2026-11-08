@@ -2762,7 +2762,7 @@ async function cycleJourney(session, cycleId) {
   await until("the cycle page", () => session.exists("button", "Cycle Actions"), WAIT_MS);
   const menu = await openMenu(session, "Cycle Actions");
   const items = await session.textOf(menu);
-  for (const item of ["Copy Cycle", "Add Cases", "Follow Active", "Open Report", "Settings", "Archive"]) {
+  for (const item of ["Rerun Cycle", "Copy Cycle", "Add Cases", "Follow Active", "Open Report", "Settings", "Archive"]) {
     assert.ok(hasText(items, item), `The overflow menu must offer ${item}`);
   }
   for (const item of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {

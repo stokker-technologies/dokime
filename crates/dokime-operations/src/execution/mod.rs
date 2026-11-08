@@ -28,6 +28,7 @@ mod pause_cycle;
 mod pause_execution;
 mod rename_cycle;
 mod rename_execution;
+mod rerun_cycle;
 mod resume_cycle;
 mod resume_execution;
 mod run_provider_cycle;
@@ -61,6 +62,7 @@ pub use pause_cycle::PauseCycle;
 pub use pause_execution::PauseExecution;
 pub use rename_cycle::RenameCycle;
 pub use rename_execution::RenameExecution;
+pub use rerun_cycle::RerunCycle;
 pub use resume_cycle::ResumeCycle;
 pub use resume_execution::ResumeExecution;
 pub use run_provider_cycle::RunProviderCycle;
@@ -112,6 +114,7 @@ crate::hosted!(
     PauseExecution,
     RenameCycle,
     RenameExecution,
+    RerunCycle,
     ResumeCycle,
     ResumeExecution,
     RunProviderCycle,
@@ -141,6 +144,7 @@ pub enum Operations {
     ListExecutionSteps(ListExecutionSteps),
     CopyCycle(CopyCycle),
     CreateCycle(CreateCycle),
+    RerunCycle(RerunCycle),
     GetCycle(GetCycle),
     GetCase(GetCase),
     GetExecution(GetExecution),

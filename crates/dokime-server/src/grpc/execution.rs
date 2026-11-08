@@ -407,6 +407,10 @@ fn cycle_summary(
         running_count: tally.running,
         queued_count: tally.queued,
         seal_failure: cycle.seal_failure.clone(),
+        rerun_of: match cycle.metadata.attributes.get(dokime::RERUN_OF_ATTRIBUTE) {
+            Some(dokime::domain::model::values::Value::Text(source)) => Some(source.clone()),
+            _ => None,
+        },
     })
 }
 

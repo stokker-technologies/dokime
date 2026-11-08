@@ -18,7 +18,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 import { progressCount } from "@/features/cycle/ControlCard";
-import { executionControlState, inputNeededLabel } from "@/features/cycle/control-model";
+import { executionControlState, inputNeededLabel, rerunNoticeLines } from "@/features/cycle/control-model";
 import { stepLabel } from "@/features/cycle/ExecutionControl";
 // Local Imports
 import {
@@ -223,7 +223,7 @@ test("Node Menus", () => {
   // Cycle Menu Opens Its Report and Archives, with No Bundle, Folder or Clearing
   const items: string[] = nodeMenuGroups("cycle", false).flat();
   assert.deepEqual(nodeMenuGroups("cycle", false), [
-    ["Copy Cycle", "Add Cases", "Follow Active"],
+    ["Rerun Cycle", "Copy Cycle", "Add Cases", "Follow Active"],
     ["Open Report", "Settings"],
     ["Archive"],
   ]);
@@ -237,6 +237,27 @@ test("Node Menus", () => {
   // An Archived Node Offers Unarchive in Place of Archive
   assert.deepEqual(nodeMenuGroups("cycle", true).at(-1), ["Unarchive"]);
   assert.deepEqual(nodeMenuGroups("execution", true).at(-1), ["Unarchive"]);
+
+  // Rerun Cycle Stays Offered Once a Cycle Is Sealed or Archived
+  assert.ok(nodeMenuGroups("cycle", true).flat().includes("Rerun Cycle"));
+
+  // A Rerun's Control Card States the Cases It Skipped, by Reason, and the Parameters It Dropped
+  assert.deepEqual(
+    rerunNoticeLines({
+      droppedParameters: [{ caseId: "obc.steady", reason: "no longer declares ramp", suiteId: "provider:obc:checks" }],
+      skipped: [
+        { caseId: "obc.pulse", reason: "its suite no longer declares this case", suiteId: "provider:obc:checks" },
+        { caseId: "obc.sweep", reason: "its suite no longer declares this case", suiteId: "provider:obc:checks" },
+        { caseId: "obc.idle", reason: "its suite is no longer installed", suiteId: "provider:obc:idle" },
+      ],
+    }),
+    [
+      "2 cases skipped: obc.pulse, obc.sweep, its suite no longer declares this case",
+      "1 case skipped: obc.idle, its suite is no longer installed",
+      "Parameters dropped from obc.steady: no longer declares ramp",
+    ],
+  );
+  assert.deepEqual(rerunNoticeLines({ droppedParameters: [], skipped: [] }), []);
 
   // Archiving Waits for a Sealed Cycle or an Ended Run and Says So
   assert.equal(archiveRefusal(true, "cycle"), undefined);

@@ -15,6 +15,7 @@ import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
@@ -51,6 +52,24 @@ PAGE_ITEMS = 100
 # === Types === #
 
 # === Classes === #
+
+
+@dataclass(frozen=True, slots=True)
+class RerunNotice:
+    """A source case the installed plugin no longer declares, or no longer declares fully."""
+
+    case_id: str
+    suite_id: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class CycleRerun:
+    """The new planned cycle; skipped cases were not created, dropped parameters belong to created cases."""
+
+    cycle: Cycle
+    skipped: tuple[RerunNotice, ...]
+    dropped_parameters: tuple[RerunNotice, ...]
 
 
 class DokimeClient:
@@ -397,6 +416,37 @@ class DokimeClient:
         except ValueError as error:
             raise ProtocolError("created cycle identity is invalid") from error
         return Cycle(created.cycle_id, self._transport, backend, (), client=self)
+
+    async def rerun_cycle(self, source_cycle_id: str, *, label: str | None = None) -> CycleRerun:
+        """Create A New Planned Cycle From A Cycle's Cases Against The Installed Plugin.
+
+        The source may be active, sealed or archived and stays untouched. An
+        omitted label keeps the source label. Like ``create_cycle`` this RPC has
+        no idempotency key: an ambiguous failure must not be blindly retried.
+        """
+        _identity(source_cycle_id)
+        if label is not None and not label.strip():
+            raise ValueError("rerun label must not be blank")
+        backend = await self.connect()
+        await self._transport.verify(backend, live=True)
+        fields: dict[str, Any] = {"source_cycle_id": source_cycle_id}
+        if label is not None:
+            fields["label"] = label
+        reply = await self._transport.unary("Execution", "RerunCycle", _wire.request("Execution", "RerunCycle", **fields))
+        _cursor(backend, reply)
+        try:
+            _identity(reply.cycle_id)
+        except ValueError as error:
+            raise ProtocolError("rerun cycle identity is invalid") from error
+
+        def notices(items: Any) -> tuple[RerunNotice, ...]:
+            return tuple(RerunNotice(item.case_id, item.suite_id, item.reason) for item in items)
+
+        return CycleRerun(
+            Cycle(reply.cycle_id, self._transport, backend, (), client=self),
+            notices(reply.skipped),
+            notices(reply.dropped_parameters),
+        )
 
     @asynccontextmanager
     async def new_cycle(

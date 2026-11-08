@@ -98,6 +98,17 @@ impl Client {
         let id = TestCycleId::from_uuid(&reply.cycle_id).map_err(|_| invalid("created cycle has an invalid identity"))?;
         Ok(self.cycle(id))
     }
+
+    // The New Planned Cycle, With The Cases And Parameters The Installed Plugin No Longer Declares.
+    pub async fn rerun_cycle(
+        &self, request: contract::RerunCycle,
+    ) -> Result<(TestCycleHandle, dokime_domain::model::execution::wire::RerunCycleReply)> {
+        self.verify(true).await?;
+        let reply = self.unary::<contract::RerunCycle>(request).await?;
+        validate_observed_epoch(&self.backend().epoch, reply.observed_cursor.as_ref().map(|cursor| cursor.epoch.as_str()))?;
+        let id = TestCycleId::from_uuid(&reply.cycle_id).map_err(|_| invalid("rerun cycle has an invalid identity"))?;
+        Ok((self.cycle(id), super::transport::value(reply)?))
+    }
 }
 
 impl TestCycleHandle {

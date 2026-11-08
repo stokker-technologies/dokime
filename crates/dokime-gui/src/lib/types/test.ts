@@ -235,6 +235,8 @@ export type TestCycle = {
   sealed?: boolean;
   /** Why the last seal failed, while the phase is `seal_failed`. */
   seal_failure?: string | null;
+  /** The cycle this one reruns, when Rerun Cycle created it. */
+  rerun_of?: string | null;
 };
 
 /** The cycle container's phase: Active admits work; the others have closed admission. */

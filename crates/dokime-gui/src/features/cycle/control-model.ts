@@ -31,6 +31,7 @@
 
 // Local Imports
 import type { TestCycle, TestExecution } from "@/lib/types";
+import type { RerunNotices } from "@/stores/rerun-notice-store";
 import { executionStatusLabel, isTerminalExecutionStatus, isUnstartedExecution } from "./cycle-workspace-model";
 
 /* === Re-Exports === */
@@ -153,6 +154,21 @@ export function cycleControlState({ phase, running }: CycleControlInput): CycleC
     actions: ["Seal Cycle"],
     line: running.step ? `Execution ${running.ordinal} · ${running.step}` : `Execution ${running.ordinal} running`,
   };
+}
+
+/**
+ * What Rerun Cycle left out of the cycle it created, one line per reason:
+ * "2 cases skipped: a, b, its suite no longer declares this case", then the
+ * parameters it dropped from cases it did create.
+ */
+export function rerunNoticeLines({ skipped, droppedParameters }: RerunNotices): string[] {
+  const reasons = new Map<string, string[]>();
+  for (const notice of skipped) reasons.set(notice.reason, [...(reasons.get(notice.reason) ?? []), notice.caseId]);
+  const lines = [...reasons].map(
+    ([reason, ids]) => `${ids.length} ${ids.length === 1 ? "case" : "cases"} skipped: ${ids.join(", ")}, ${reason}`,
+  );
+  for (const notice of droppedParameters) lines.push(`Parameters dropped from ${notice.caseId}: ${notice.reason}`);
+  return lines;
 }
 
 /** Where the cycle waits on an operator: "Input needed on #1, #3", or `null`. */

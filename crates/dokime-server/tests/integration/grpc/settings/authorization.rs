@@ -201,6 +201,7 @@ matrix! {
     };
     "/dokime.v1.Execution/RenameCycle", unary, contracts::execution::RenameCycle;
     "/dokime.v1.Execution/RenameExecution", unary, contracts::execution::RenameExecution;
+    "/dokime.v1.Execution/RerunCycle", unary, contracts::execution::RerunCycle;
     "/dokime.v1.Execution/SetCycleArchived", unary, contracts::execution::SetCycleArchived;
     "/dokime.v1.Execution/SetExecutionArchived", unary, contracts::execution::SetExecutionArchived;
     "/dokime.v1.Execution/SealCycle", unary, contracts::execution::SealCycle = contracts::execution::SealCycle { cycle_id: String::new(), context: None };

@@ -193,6 +193,9 @@ pub(crate) use runtime::RuntimeState;
 pub(crate) use runtime::command::{internal_rejection, rejected_receipt, unavailable_rejection};
 
 #[cfg(feature = "native")]
+pub use domains::execution::planning::rerun::{RERUN_OF_ATTRIBUTE, RerunCaseNotice, RerunCycleOutcome};
+
+#[cfg(feature = "native")]
 pub use runtime::{OpenedReport, ReportOrigin, Runtime, RuntimeHandle};
 
 /* === Imports === */
