@@ -760,8 +760,32 @@ mod tests {
                 assert!(!script.contains(forbidden), "script contains {forbidden}");
                 assert!(!hooks.contains(forbidden), "hooks contain {forbidden}");
             }
-            assert!(hooks.contains("GetEnvironmentVariable('Path', 'User')"));
+            assert!(hooks.contains("GetEnvironmentVariable('Path', $$scope)"));
+            assert!(hooks.contains("StrCpy $0 \"User\""));
         }
+    }
+
+    #[test]
+    fn machine_scope_preserves_the_manifest_and_default() {
+        let text =
+            "[installer]\nversion='1.2.3'\nidentifier='com.example.test'\nformats=['nsis']\n[dokime]\ntarget='x86_64-pc-windows-msvc'";
+        let manifest: Manifest = toml::from_str(text).unwrap();
+        let mode = serde_json::to_value(NsisSettings::default().install_mode).unwrap();
+        let data = serde_json::json!({ "install_mode": mode, "version": manifest.installer.version });
+        let script = handlebars::Handlebars::new().render_template(include_str!("installer.nsi"), &data).unwrap();
+        let selection = script.split("Function .onInit").nth(1).unwrap().split("FunctionEnd").next().unwrap();
+        assert!(selection.contains("StrCpy $DokimeMachineMode 0"));
+        assert!(selection.contains("${GetOptions} $CMDLINE \"/ALLUSERS\""));
+        assert!(selection.contains("${GetOptions} $CMDLINE \"/CURRENTUSER\""));
+        assert!(selection.find("!insertmacro DokimeRequireAdmin").unwrap() < selection.find("SetShellVarContext all").unwrap());
+        assert!(selection.contains("$PROGRAMFILES64\\${BUNDLEID}"));
+        assert!(script.contains("WriteRegDWORD SHCTX \"${UNINSTKEY}\" \"MachineInstall\" $DokimeMachineMode"));
+        let uninstall = script.split("Function un.onInit").nth(1).unwrap().split("FunctionEnd").next().unwrap();
+        assert!(uninstall.contains("ReadRegStr $0 HKLM \"${UNINSTKEY}\" \"InstallLocation\""));
+        assert!(uninstall.contains("!insertmacro DokimeRequireAdmin"));
+        assert!(uninstall.contains("SetShellVarContext all"));
+        assert!(script.contains("DeleteRegKey SHCTX \"${UNINSTKEY}\""));
+        assert!(include_str!("hooks.nsh").contains("StrCpy $0 \"Machine\""));
     }
 
     #[test]

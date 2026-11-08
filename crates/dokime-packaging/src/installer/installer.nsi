@@ -81,6 +81,19 @@ Var UpdateMode
 Var NoShortcutMode
 Var WixMode
 Var OldMainBinaryName
+Var DokimeMachineMode
+
+!macro DokimeRequireAdmin
+  UserInfo::GetAccountType
+  Pop $0
+  ${If} $0 != "Admin"
+    ${IfNot} ${Silent}
+      MessageBox MB_ICONSTOP|MB_OK "Machine-wide installation or removal requires an elevated deployment process."
+    ${EndIf}
+    SetErrorLevel 740
+    Quit
+  ${EndIf}
+!macroend
 
 Name "${PRODUCTNAME}"
 BrandingText "${COPYRIGHT}"
@@ -530,6 +543,28 @@ Function .onInit
 
   !insertmacro SetContext
 
+  ; Keep the Manifest Default; Deployment Recipes Select Machine Scope Explicitly.
+  StrCpy $DokimeMachineMode 0
+  ${GetOptions} $CMDLINE "/ALLUSERS" $0
+  ${IfNot} ${Errors}
+    StrCpy $DokimeMachineMode 1
+    ${GetOptions} $CMDLINE "/CURRENTUSER" $0
+    ${IfNot} ${Errors}
+      SetErrorLevel 87
+      Quit
+    ${EndIf}
+    !insertmacro DokimeRequireAdmin
+    SetShellVarContext all
+    ${If} $INSTDIR == "${PLACEHOLDER_INSTALL_DIR}"
+      ${If} ${RunningX64}
+        StrCpy $INSTDIR "$PROGRAMFILES64\${BUNDLEID}"
+      ${Else}
+        StrCpy $INSTDIR "$PROGRAMFILES\${BUNDLEID}"
+      ${EndIf}
+      Call RestorePreviousInstallLocation
+    ${EndIf}
+  ${EndIf}
+
   ${If} $INSTDIR == "${PLACEHOLDER_INSTALL_DIR}"
     ; Set default install location
     !if "${INSTALLMODE}" == "perMachine"
@@ -750,6 +785,8 @@ Section Install
   WriteRegStr SHCTX "${UNINSTKEY}" "Publisher" "${MANUFACTURER}"
   WriteRegStr SHCTX "${UNINSTKEY}" "InstallLocation" "$\"$INSTDIR$\""
   WriteRegStr SHCTX "${UNINSTKEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
+  WriteRegStr SHCTX "${UNINSTKEY}" "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
+  WriteRegDWORD SHCTX "${UNINSTKEY}" "MachineInstall" $DokimeMachineMode
   WriteRegDWORD SHCTX "${UNINSTKEY}" "NoModify" "1"
   WriteRegDWORD SHCTX "${UNINSTKEY}" "NoRepair" "1"
 
@@ -801,6 +838,15 @@ FunctionEnd
 
 Function un.onInit
   !insertmacro SetContext
+
+  ; Scope Follows the Installed Location, Including Uninstall Invoked Without Switches.
+  StrCpy $DokimeMachineMode 0
+  ReadRegStr $0 HKLM "${UNINSTKEY}" "InstallLocation"
+  ${If} $0 == "$\"$INSTDIR$\""
+    StrCpy $DokimeMachineMode 1
+    !insertmacro DokimeRequireAdmin
+    SetShellVarContext all
+  ${EndIf}
 
   !if "${INSTALLMODE}" == "both"
     !insertmacro MULTIUSER_UNINIT
@@ -895,13 +941,7 @@ Section Uninstall
   ${EndIf}
 
   ; Remove registry information for add/remove programs
-  !if "${INSTALLMODE}" == "both"
-    DeleteRegKey SHCTX "${UNINSTKEY}"
-  !else if "${INSTALLMODE}" == "perMachine"
-    DeleteRegKey HKLM "${UNINSTKEY}"
-  !else
-    DeleteRegKey HKCU "${UNINSTKEY}"
-  !endif
+  DeleteRegKey SHCTX "${UNINSTKEY}"
 
   ; Removes the distribution's Autostart entry from the HKCU Run key if it exists.
   ; This ensures the program does not launch automatically after uninstallation if it exists.
