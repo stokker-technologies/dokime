@@ -9,7 +9,11 @@
 
 /* === Modules === */
 
+#[cfg(windows)]
+mod firewall;
+mod media;
 mod organization;
+mod updates;
 
 /* === Re-Exports === */
 
