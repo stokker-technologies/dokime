@@ -256,7 +256,7 @@ pub fn assemble(
         installer_hooks: Some(hooks),
         installer_icon: Some(ico_path),
         sidebar_image: windows.then_some(sidebar),
-        install_mode: Default::default(), // CurrentUser; Keep Setup And Uninstall Unelevated.
+        install_mode: Default::default(), // CurrentUser Default; /ALLUSERS Selects Machine Scope at Runtime.
         ..NsisSettings::default()
     });
     if !windows {

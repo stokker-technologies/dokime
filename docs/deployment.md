@@ -227,6 +227,12 @@ organization artwork are bundled locally. Dokime has no vendor telemetry
 upload service; plugins and user-authored operations can make their own network
 connections and need separate review.
 
+Windows setup also checks for WebView2. If it is absent, the default installer
+downloads Microsoft's bootstrapper through `go.microsoft.com` and its download
+redirects. Preinstall an approved WebView2 runtime on offline or proxy-restricted
+images; the application package alone is not a complete offline prerequisite
+bundle. Treat Microsoft runtime servicing as part of the managed-image policy.
+
 Keep loopback connections outside corporate proxies. Remote gRPC requires
 end-to-end HTTP/2 and trust in the paired server certificate; TLS interception
 must not silently replace that trust. Authenticated proxies, PAC discovery and
