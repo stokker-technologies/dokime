@@ -452,22 +452,23 @@ async fn segmented_snapshot_recovers_state_above_one_mib() {
         let root = tempdir().unwrap();
         let (owner, handle) = reboot(root.path()).await;
         for index in 0..730 {
-            let mut metadata = metadata(&format!("cycle_{index}"), &format!("Cycle {index}"));
-            metadata.description = Some("0123456789abcdef".repeat(128));
-            handle
-                .create_cycle(
-                    dokime_runtime::transactions::CycleDefinition { metadata, continue_automatically: false },
-                    CommandContext::default(),
-                )
-                .await
-                .unwrap();
+            let transaction = dokime_runtime::transactions::UpsertScopedParameter {
+                scope: RecordScope::default(),
+                key: format!("fixture.parameter_{index}"),
+                value: Value::from("0123456789abcdef".repeat(128)),
+                source: dokime_runtime::definition::ParameterSource::Runtime,
+                metadata: None,
+                group_id: None,
+                unit: None,
+            };
+            dokime_runtime::testing::commit(&handle, transaction).await.unwrap();
         }
         let before = handle.watch_state().latest();
         let state_bytes = serde_json::to_vec(before.state()).unwrap().len();
         assert!(state_bytes > 1024 * 1024);
-        let cycles = before.state().cycles.clone();
+        let parameters = before.state().run_parameters.clone();
         let storage_root = handle.storage_root();
-        eprintln!("LARGE SNAPSHOT state_bytes={state_bytes} cycles={} position={}", cycles.len(), before.revision());
+        eprintln!("LARGE SNAPSHOT state_bytes={state_bytes} parameters={} position={}", parameters.len(), before.revision());
 
         // Publish and Verify the Durable Segmented Snapshot Before Restart
         let position = shut_down(owner, handle).await;
@@ -480,7 +481,7 @@ async fn segmented_snapshot_recovers_state_above_one_mib() {
         let (mut owner, handle) = reboot(root.path()).await;
         let recovered = handle.watch_state().latest();
         assert!(recovered.revision() > position);
-        assert_eq!(recovered.state().cycles, cycles);
+        assert!(recovered.state().run_parameters == parameters, "restart restores every persisted parameter");
         drop(handle);
         owner.shutdown().await.unwrap();
         assert_eq!(warnings.load(std::sync::atomic::Ordering::Relaxed), 0);
