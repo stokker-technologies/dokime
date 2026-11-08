@@ -2,8 +2,8 @@ name: Nightly
 run-name: Nightly / Validation
 "on":
   schedule:
+  # UTC: fires at 00:00, 04:00, 08:00, 12:00, 16:00 and 20:00.
   - cron: 0 */4 * * *
-    timezone: Europe/Zurich
   workflow_dispatch: {}
 permissions:
   contents: read

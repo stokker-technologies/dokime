@@ -38,6 +38,43 @@ ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are no
 downloads. The `nightly` prerelease uses the same asset names and workspace version,
 omits unsigned `latest.json`, and identifies its source commit in release notes.
 
+`downloads.json` describes every other asset of the same release for download
+pages and scripts; `latest.json` stays the updater's own feed and lists only
+updatable installers. The release tooling generates it from the staged upload
+inventory and SHA256SUMS, and every release and the `nightly` prerelease publish
+it beside `latest.json`, at `/releases/latest/download/downloads.json` for the
+latest release. `channel` is `stable` or `nightly` and `tag` is the release tag
+(`v0.1.2` or `nightly`) under which each `url` downloads. Each artifact has a
+`kind` (`installer`, `payload`, `cli`, `cargo-dokime`, `sdk-python`, `plugin`,
+`checksums`, `changelog` or `other`), `os` (`windows`, `linux` or `any`), `arch`
+(`x86_64` or `any`) and `format` (`exe`, `zip`, `deb`, `rpm`, `tar.gz`, `whl`,
+`txt`, `md` or the extension of an `other` asset). `sha256` repeats the
+SHA256SUMS digest; SHA256SUMS remains the integrity source and does not list
+`downloads.json` itself. Select assets by these fields, never by name patterns:
+
+```json
+{
+  "version": "0.1.2",
+  "channel": "stable",
+  "tag": "v0.1.2",
+  "pub_date": "2026-11-08T12:00:00Z",
+  "artifacts": [
+    {
+      "kind": "installer",
+      "os": "linux",
+      "arch": "x86_64",
+      "format": "deb",
+      "name": "dokime_0.1.2_amd64.deb",
+      "url": "https://github.com/stokker-technologies/dokime/releases/download/v0.1.2/dokime_0.1.2_amd64.deb",
+      "size": 48213504,
+      "sha256": "<digest>"
+    }
+  ]
+}
+```
+
+Releases up to v0.1.2 predate `downloads.json` and used older asset names.
+
 Every build also carries its source commit and, for published builds, its
 channel. `dokime --version` and `cargo dokime --version` print, for example,
 `dokime 0.1.2 (766330b7 nightly)`; `version --json` adds `revision` and `channel`.

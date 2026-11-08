@@ -230,7 +230,9 @@ public APIs and development storage formats may change. See the
 
 CLI and authoring-tool releases use target-specific ZIP (Windows) or tar.gz
 (Unix) archives. See [Install Tools With Mise](docs/product-guide.md#install-tools-with-mise)
-for archive selection and the release download inventory. Distributors use
+for archive selection and the release download inventory; each release and the
+nightly prerelease publish `downloads.json`, which classifies every download by
+kind, OS, architecture and format. Distributors use
 `dokime-distribution-<version>-<target>.zip`; shipping plugins share native
 `dokime-sidecars` archives described by `plugins.json` format 2.
 Custom installers select plugins through top-level `[[plugin]]` entries: set
