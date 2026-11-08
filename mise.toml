@@ -47,6 +47,7 @@ protoc = "36.2"
 git-cliff = "2.14.2"
 "github:CycloneDX/cyclonedx-rust-cargo" = "cargo-cyclonedx-0.5.9"
 "github:EmbarkStudios/cargo-about" = "0.9.3"
+"github:rust-secure-code/cargo-auditable" = "0.7.7"
 minisign = "0.12"
 
 # Project Statistics
@@ -194,15 +195,6 @@ run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
 # === Check === #
 
-[tasks.sbom]
-description = "Generate CycloneDX Inventories for a Rust Target and Release Artifacts"
-usage = 'arg "target" help="Rust Target Triple"; flag "--artifacts <path>"; flag "--output <path>" default="target/sbom"'
-run = "{{vars.tools}} dokime_tools.release.sbom --target {{usage.target}} --output {{usage.output}}{% if usage.artifacts %} --artifacts {{usage.artifacts}}{% endif %}"
-
-[tasks.notices]
-description = "Generate Third-Party Notices"
-run = "{{vars.tools}} dokime_tools.release.notices"
-
 [tasks.check]
 description = "Check Every Language and Conventions"
 run = [{ task = "check:repository" }, { task = "check:rust" }, { task = "check:python" }, { task = "check:typescript" }]
@@ -228,14 +220,9 @@ run = [{ task = "format:toml --check" }, "{{vars.tools}} dokime_tools.ci.mise", 
 description = "Check Rust"
 run = [{ task = "format:rust --check" }, { task = "lint:rust" }, "cargo-machete --skip-target-dir"]
 
-[tasks."check:supply"]
+[tasks."check:rust:supply"]
 description = "Check Dependency Advisories, Licenses and Sources"
-run = [
-  "cargo deny --locked check advisories bans licenses sources",
-  "cargo audit",
-  "pnpm --dir crates/dokime-gui audit --prod",
-  "uv audit --locked",
-]
+run = "{{vars.tools}} dokime_tools.release.sbom --check-supply"
 
 [tasks."check:typescript"]
 description = "Check TypeScript Formatting and Lint Without Type Checking"
@@ -269,7 +256,7 @@ env = { CARGO_INCREMENTAL = "0" }
 description = "Build The Native Python Wheel"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.python --profile {{usage.profile}}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.release.sbom --auditable {{usage.profile}} -- python -m dokime_tools.build.python --profile {{usage.profile}}"
 
 [tasks."build:python:fixtures"]
 description = "Build Native Python Client Fixtures"
@@ -281,7 +268,7 @@ run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build
 description = "Build Shipping Native Executables and Plugin Bundle"
 depends = ["prepare"]
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust --profile {{usage.profile}}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.release.sbom --auditable {{usage.profile}} -- python -m dokime_tools.build.rust --profile {{usage.profile}}"
 
 [tasks."build:rust:bench"]
 description = "Build Benchmarks and Their Matching Native Fixtures"
@@ -306,7 +293,7 @@ env.CARGO_INCREMENTAL = "0"
 [tasks."build:rust:desktop"]
 description = "Build the Desktop with Its Compiled Frontend"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.build.rust.desktop --profile {{usage.profile}}"
+run = "{{vars.tools}} dokime_tools.build.machine -- python -m dokime_tools.release.sbom --auditable {{usage.profile}} -- python -m dokime_tools.build.rust.desktop --profile {{usage.profile}}"
 
 [tasks."build:rust:focused"]
 description = "Compile an Explicit Local Rust Selection"
@@ -637,7 +624,10 @@ usage = '''
 flag "--profile <profile>" default="dev"
 flag "--target <target>" default="native"
 '''
-run = "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target {{usage.target}}"
+run = [
+  "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target {{usage.target}}",
+  "{{vars.tools}} dokime_tools.release.notices --profile {{usage.profile}} --target {{usage.target}} --python",
+]
 
 [tasks."package:rust"]
 description = "Package the Desktop Installer, Tools and Plugin Archives"
@@ -648,6 +638,7 @@ flag "--profile <profile>" default="dev"
 flag "--target <target>" default="native"
 '''
 run = [
+  "{{vars.tools}} dokime_tools.release.notices --profile {{usage.profile}} --target {{usage.target}}",
   "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}} --target {{usage.target}}",
   "{{vars.tools}} dokime_tools.package.installer bundle --profile {{usage.profile}} --target {{usage.target}}",
 ]
@@ -655,6 +646,10 @@ run = [
 # === CI === #
 
 # === Release === #
+
+[tasks."release:notices"]
+description = "Generate Third-Party Notices"
+run = "{{vars.tools}} dokime_tools.release.notices"
 
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
@@ -692,6 +687,11 @@ run = "{{vars.tools}} dokime_tools.release.run crates"
 [tasks."release:rehearse"]
 description = "Rehearse Staged Release Packages Without Credentials"
 run = "{{vars.tools}} dokime_tools.release.run rehearse"
+
+[tasks."release:sbom"]
+description = "Generate CycloneDX Inventories for a Rust Target and Release Artifacts"
+usage = 'arg "target" help="Rust Target Triple"; flag "--artifacts <path>"; flag "--output <path>" default="target/sbom"'
+run = "{{vars.tools}} dokime_tools.release.sbom --target {{usage.target}} --output {{usage.output}}{% if usage.artifacts %} --artifacts {{usage.artifacts}}{% endif %}"
 
 [tasks."release:tag"]
 description = "Tag a Merged Release Review and Fast-Forward Main"
