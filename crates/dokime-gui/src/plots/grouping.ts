@@ -20,29 +20,25 @@ import type {
   ValueFormat,
 } from "@/lib/types";
 import { elapsedColumnUnit } from "@/plots/axis";
-import { plotColor } from "@/plots/colors";
+import { plotColor, referenceColor } from "@/plots/colors";
 import { histogramAxes } from "@/plots/histogram-axes";
 import type { PlotCardSpec } from "@/plots/types";
 
 /* === Public Functions === */
 
-/** The card spec of the plot at `position` within the card titled `title`. */
+/** The card spec of one document plot; its series take the plot palette in order. */
 export function documentPlotSpec({
   parameters,
   payload,
   plot,
   plotPalette,
-  position,
   telemetry,
-  title,
 }: {
   parameters?: Record<string, unknown> | null;
   payload: PlotPayload | null | undefined;
   plot: DocumentViewPlot;
   plotPalette?: readonly string[] | null;
-  position: number;
   telemetry?: Record<string, TelemetryStream> | null;
-  title: string;
 }): PlotCardSpec {
   const series = labelSeries({
     plot,
@@ -96,8 +92,8 @@ export function documentPlotSpec({
         telemetry?.[plot.stream]?.spec?.columns.some((column) => column.name === field && column.value_type === "boolean"),
       ),
     unit: plot.unit ?? commonUnit(series),
-    colors: series.map((_, index) => plotColor(title, position + index, plotPalette)),
-    referenceLines: resolveReferenceLines(plot.reference_lines ?? [], plot, telemetry, parameters),
+    colors: series.map((_, index) => plotColor(index, plotPalette)),
+    referenceLines: resolveReferenceLines(plot.reference_lines ?? [], plot.reference_bands?.length ?? 0, plot, telemetry, parameters),
     referenceBands: resolveReferenceBands(plot.reference_bands ?? [], plot, telemetry, parameters),
     stateLabel: state.label,
     stateDetail: state.detail,
@@ -192,15 +188,17 @@ function commonUnit(series: PlotPayload["series"]): string | null {
   return units.size === 1 ? (series[0]?.unit ?? null) : null;
 }
 
+/** Lines continue the reference palette after the plot's bands. */
 function resolveReferenceLines(
   lines: ReferenceLine[],
+  bandCount: number,
   plot: DocumentViewPlot,
   telemetry: Record<string, TelemetryStream> | null | undefined,
   parameters: Record<string, unknown> | null | undefined,
 ): DocumentReferenceLine[] {
-  return lines.map((line) => ({
+  return lines.map((line, index) => ({
     ...line,
-    color: line.color ?? "#60706a",
+    color: referenceColor(line.color, bandCount + index),
     value: referenceValue(line.value, plot, telemetry, parameters),
   }));
 }
@@ -211,7 +209,7 @@ function resolveReferenceBands(
   telemetry: Record<string, TelemetryStream> | null | undefined,
   parameters: Record<string, unknown> | null | undefined,
 ): DocumentReferenceBand[] {
-  return bands.map((band) => {
+  return bands.map((band, index) => {
     let min = referenceValue(band.min, plot, telemetry, parameters);
     let max = referenceValue(band.max, plot, telemetry, parameters);
     if (band.center != null || band.tolerance != null) {
@@ -224,7 +222,7 @@ function resolveReferenceBands(
       min = null;
       max = null;
     }
-    return { label: band.label, color: band.color ?? "#60706a", min, max };
+    return { label: band.label, color: referenceColor(band.color, index), min, max };
   });
 }
 

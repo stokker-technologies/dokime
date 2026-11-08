@@ -203,6 +203,21 @@ plot.reference_line("Limit", Parameters::limit_c());
 
 Each case resolves its captured parameter values through the same presentation
 path in live plots and frozen HTML. Missing or invalid dynamic bounds are undrawn.
+In Cartesian plots, every band whose bounds resolve is drawn as a translucent fill with solid edges,
+and the Y range widens to include each band and line value plus 15% padding of
+the spanned values, so a band that contains every sample still shows both
+edges inside the plot.
+
+A reference keeps an explicit author color. One left at the definition default
+takes the reference palette in order: a plot's bands first, then its lines. The
+reference palette is a muted sequence (`--plot-reference-1` to `-4` in
+`crates/dokime-gui/src/styles.css`), lower in chroma than any series color, so
+a plot's first band never reads as its first trace:
+
+| Mode  | 1         | 2         | 3         | 4         |
+| ----- | --------- | --------- | --------- | --------- |
+| Light | `#415166` | `#9c8378` | `#435f52` | `#8f889f` |
+| Dark  | `#8ba2b2` | `#e5d5c3` | `#987f7f` | `#dacbde` |
 Document validation refuses reversed literal bounds and negative literal tolerance,
 naming the plot. The development document/storage format stays at v1; existing
 incompatible documents require an explicit fresh storage root, preserving old data.
@@ -268,7 +283,7 @@ desktop and report renderer. XY traces keep their ordinary legend.
 Plot legend tables list traces only. Clicking a trace row hides or restores that
 trace within its plot card. Event and prompt markers always remain drawn on the
 canvas, with no legend rows or visibility controls. Marker colors come from the
-theme's plot palette, and hovering a marker shows its recorded label through the
+reference palette by marker kind, never from the series palette, and hovering a marker shows its recorded label through the
 same tooltip for events and prompts; markers
 never draw permanent canvas labels. The tooltip stays inside the plot card,
 and prompt labels take precedence over event labels at the same position. It
@@ -281,12 +296,28 @@ styles also mark lone samples between gaps, including nullable XY coordinates.
 Window reduction retains gap separators so retained samples never gain a line
 across missing evidence. Live and frozen plots share this drawing path.
 Each series takes one color, its declared color or the plot palette at its
-series index, for its line, point marks, hover mark and legend swatch. Point and
+series index, for its line, point marks, hover mark and legend swatch. Every plot
+starts at the first palette entry: the plot's title and position never offset it. Point and
 line-point marks are opaque discs in that color with a 1 px plot-background
 outline to separate overlapping samples. Point marks are normally 8 px, or 5 px
 for dense captures; hover marks grow by 2 px.
 The desktop selects its plot palette from the resolved application theme;
 frozen reports use the palette applied for their displayed color mode.
+
+The default organization theme (`organization/theme/`, `--chart-1` to `-8`)
+ships a spectral pastel series palette that opens on the brand red and runs
+through orange, yellow, green, teal, blue, violet and pink. Light entries
+alternate lightness so neighbours stay apart on warm paper; dark entries are
+pastel. Both pass the color validator's adjacent color-vision and normal-vision
+separation checks; light entries below 3:1 contrast rely on the legend table
+and hover readout, and dark entries sit above the validator's lightness band by
+design. An organization pack or plugin theme that declares its own chart colors
+replaces this palette.
+
+| Mode  | Red       | Orange    | Yellow    | Green     | Teal      | Blue      | Violet    | Pink      |
+| ----- | --------- | --------- | --------- | --------- | --------- | --------- | --------- | --------- |
+| Light | `#b54a46` | `#de9046` | `#847514` | `#67b36a` | `#008574` | `#619dda` | `#6f4fa1` | `#d887ae` |
+| Dark  | `#d67069` | `#eeaf6e` | `#a2933b` | `#88cf8a` | `#37a69a` | `#85bcf5` | `#987aca` | `#eca0c4` |
 
 Time series of declared Boolean fields, including host `host.network.internet`,
 use a stepped state axis labeled **False** and **True**, without numeric statistics.

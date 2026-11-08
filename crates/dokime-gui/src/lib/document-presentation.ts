@@ -182,13 +182,13 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
     filters: input.filters ?? [],
     reference_lines: (input.reference_lines ?? []).map((line) => ({
       ...line,
-      color: nonEmptyString(line.color) ?? "#60706a",
+      color: nonEmptyString(line.color) ?? undefined,
     })),
     reference_bands: (input.reference_bands ?? []).map((band) => ({
       ...band,
       center: band.center ?? null,
       tolerance: band.tolerance ?? null,
-      color: nonEmptyString(band.color) ?? "#60706a",
+      color: nonEmptyString(band.color) ?? undefined,
     })),
     x_format: input.x_format ?? null,
     y_format: input.y_format ?? null,

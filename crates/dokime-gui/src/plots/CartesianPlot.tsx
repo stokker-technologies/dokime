@@ -32,7 +32,7 @@ import type {
 } from "@/lib/types";
 import { isNumber } from "@/lib/utils";
 import { formatBooleanState, formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
-import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
+import { markerColor, resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
 import { drawMarkerKinds, type MarkerTooltip, markerKinds, markerTooltip } from "@/plots/markers";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
@@ -71,6 +71,12 @@ const DENSE_POINT_MARK_SIZE = 5;
 const DEFAULT_POINT_MARK_SIZE = 8;
 const POINT_BACKGROUND_OUTLINE_WIDTH = 1;
 const SERIES_LINE_WIDTH = 2;
+// Y padding as a share of the spanned values: a range widened by references or
+// interval bounds gets more room, so a band containing every sample keeps both
+// edges clear of the plot frame.
+const DATA_RANGE_PADDING = 0.08;
+const REFERENCE_RANGE_PADDING = 0.15;
+const REFERENCE_BAND_FILL_ALPHA = 0.2;
 /* The hover mark grows by this many CSS pixels over the drawn mark. */
 const CURSOR_POINT_GROWTH = 2;
 const EMPTY_TRACES: ReadonlySet<string> = new Set();
@@ -340,7 +346,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     }
     const root = rootRef.current;
     const themeColors = resolvePlotThemeColors(root);
-    const resolvedMarkerColors = kindsRef.current.map((_, index) => themeColors.palette[index % themeColors.palette.length]);
+    const resolvedMarkerColors = kindsRef.current.map((_, index) => markerColor(themeColors.references, index));
     markerColorsRef.current = resolvedMarkerColors;
     const plotFont = resolvePlotFont(root);
     const resolvedSeriesColors = renderedSeries.map((item) => seriesPaletteColor(colors, themeColors.palette, series.indexOf(item), root));
@@ -748,7 +754,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     const root = rootRef.current;
     if (root) {
       const theme = resolvePlotThemeColors(root);
-      const colors = kinds.map((_, index) => theme.palette[index % theme.palette.length]);
+      const colors = kinds.map((_, index) => markerColor(theme.references, index));
       markerColorsRef.current = colors;
     }
     referenceLinesRef.current = referenceLines;
@@ -1452,7 +1458,7 @@ function drawReferenceLines(plot: uPlot, lines: DocumentReferenceLine[], element
   ctx.restore();
 }
 
-function drawReferenceBands(plot: uPlot, bands: DocumentReferenceBand[], element: Element, fallbackColor: string) {
+export function drawReferenceBands(plot: uPlot, bands: DocumentReferenceBand[], element: Element, fallbackColor: string) {
   const { ctx, bbox } = plot;
   const bottomEdge = bbox.top + bbox.height;
   ctx.save();
@@ -1460,25 +1466,37 @@ function drawReferenceBands(plot: uPlot, bands: DocumentReferenceBand[], element
     if (!isNumber(band.min) || !isNumber(band.max)) {
       return;
     }
-    ctx.fillStyle = resolvePlotCssColor(band.color, element, fallbackColor);
-    const alpha = ctx.globalAlpha;
-    ctx.globalAlpha = alpha * 0.15;
+    const color = resolvePlotCssColor(band.color, element, fallbackColor);
     const top = plot.valToPos(band.max, "y", true);
     const bottom = plot.valToPos(band.min, "y", true);
     const clampedTop = clamp(top, bbox.top, bottomEdge);
     const clampedBottom = clamp(bottom, bbox.top, bottomEdge);
+    const alpha = ctx.globalAlpha;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha * REFERENCE_BAND_FILL_ALPHA;
     ctx.fillRect(bbox.left, clampedTop, bbox.width, clampedBottom - clampedTop);
     ctx.globalAlpha = alpha;
+    // Solid edges keep a band legible when it spans most of the plot.
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const edge of [top, bottom]) {
+      if (edge < bbox.top || edge > bottomEdge) continue;
+      const y = Math.round(edge) + 0.5;
+      ctx.moveTo(bbox.left, y);
+      ctx.lineTo(bbox.left + bbox.width, y);
+    }
+    ctx.stroke();
   });
   ctx.restore();
 }
 
-function referenceYValues(lines: DocumentReferenceLine[], bands: DocumentReferenceBand[], yScale: DocumentAxisScale): number[] {
+export function referenceYValues(lines: DocumentReferenceLine[], bands: DocumentReferenceBand[], yScale: DocumentAxisScale): number[] {
   const values = [...lines.map((line) => line.value), ...bands.flatMap((band) => [band.min, band.max])].filter(isNumber);
   return yScale === "log" ? values.filter((value) => value > 0) : values;
 }
 
-function paddedYRange(
+export function paddedYRange(
   dataMin: number,
   dataMax: number,
   referenceValues: number[],
@@ -1506,7 +1524,7 @@ function paddedYRange(
   if (yScale === "log") {
     return finiteRange(min, max);
   }
-  const pad = (max - min) * 0.08;
+  const pad = (max - min) * (referenceValues.length ? REFERENCE_RANGE_PADDING : DATA_RANGE_PADDING);
   min -= pad;
   max += pad;
   return finiteRange(min, max);
