@@ -57,6 +57,7 @@ pub fn managed_storage_defaults() -> ManagedStorageSettings {
                 version: 1.try_into().unwrap(),
             },
             every: NonZeroU64::new(1024).unwrap(),
+            // Bound Each Segment and Individual Undo, Receipt or Tail Entry, Not the Complete Snapshot.
             max_bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
         }),
         journal_tail: 64,
