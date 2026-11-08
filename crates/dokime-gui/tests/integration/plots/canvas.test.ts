@@ -260,7 +260,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     }
     assert.equal(await evaluate(`document.querySelectorAll('script[src],link[rel="stylesheet"][href]').length`), 0);
     await command("Browser.close", {});
-    await closed;
+    if (browser.exitCode === null) await once(browser, "exit", { signal: AbortSignal.timeout(30_000) });
   } finally {
     socket?.close();
     if (child && child.exitCode === null && child.signalCode === null) {
