@@ -661,6 +661,21 @@ pub(crate) fn step_failure_detail(cause: Option<&str>) -> dokime_domain::model::
     dokime_domain::model::diagnostics::Diagnostic::of(cause.unwrap_or("step runner ended without a completion receipt")).redacted()
 }
 
+pub(crate) fn fail_open_step(execution: &mut TestExecution, cause: &str, at: &Timestamp) {
+    let Some(start) = execution.active_step_attempt.take() else {
+        return;
+    };
+    execution.step_attempts.push(dokime_domain::model::execution::result::TestStepAttempt {
+        attempt_id: start.attempt_id,
+        step_id: start.step_id,
+        started_at: start.started_at,
+        finished_at: Some(at.clone()),
+        termination: dokime_domain::model::execution::termination::TerminationReason::Failed,
+        detail: Some(step_failure_detail(Some(cause))),
+    });
+    execution.refresh_step_records();
+}
+
 // Whether cycle work can still reach a plugin. Completion means provider cleanup and stream
 // drain have settled and report context and plugin analysis results are frozen durably.
 // Durable report publication and sealing do not keep plugins live.

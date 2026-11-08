@@ -359,7 +359,7 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
         // operator's stop stays the truthful outcome of a member that was still running.
         let ran = matches!(existing.status, ExecutionStatus::Pending | ExecutionStatus::Running);
         if stopped && ran && execution.status != ExecutionStatus::Skipped {
-            finish_execution(&mut execution, ExecutionStatus::Cancelled, ResultStatus::Cancelled, finish.finished_at.clone());
+            finish_execution(&mut execution, ExecutionStatus::Cancelled, ResultStatus::Cancelled, finish.finished_at.clone(), None);
         }
         if let Some(projection) = projection
             && let Err(error) = append_provider_evidence(state, &execution, projection, finish, &mut plan.evidence, &mut plan.telemetry)
@@ -384,7 +384,7 @@ fn prepare_provider_outcome(state: &RuntimeState, finish: &FinishProvider, outco
             if matches!(execution.status, ExecutionStatus::Pending | ExecutionStatus::Running)
                 || execution.steps.iter().any(|step| matches!(step.status, StepStatus::Pending | StepStatus::Running))
             {
-                finish_execution(execution, ExecutionStatus::Cancelled, ResultStatus::Cancelled, finish.finished_at.clone());
+                finish_execution(execution, ExecutionStatus::Cancelled, ResultStatus::Cancelled, finish.finished_at.clone(), None);
             }
         }
         cycle.lifecycle = CycleStatus::Stopped;
@@ -482,6 +482,7 @@ fn prepare_provider_error(state: &RuntimeState, finish: &FinishProvider, error: 
                     if stopped { ExecutionStatus::Cancelled } else { ExecutionStatus::Failed },
                     if stopped { ResultStatus::Cancelled } else { ResultStatus::Failed },
                     finish.finished_at.clone(),
+                    (!stopped).then_some(error.message.as_str()),
                 );
             }
             if active && let Some(record) = terminal_execution_record(execution, "Test execution") {
@@ -573,7 +574,7 @@ fn execution_from_outcome(existing: &TestExecution, case: &TestCase, outcome: &P
 
 fn missing_execution(existing: &TestExecution, at: &Timestamp) -> TestExecution {
     let mut execution = existing.clone();
-    finish_execution(&mut execution, ExecutionStatus::Blocked, ResultStatus::Blocked, at.clone());
+    finish_execution(&mut execution, ExecutionStatus::Blocked, ResultStatus::Blocked, at.clone(), None);
     execution
 }
 
@@ -882,9 +883,12 @@ fn provider_failure_record(
     record
 }
 
-fn finish_execution(execution: &mut TestExecution, status: ExecutionStatus, result: ResultStatus, at: Timestamp) {
+fn finish_execution(execution: &mut TestExecution, status: ExecutionStatus, result: ResultStatus, at: Timestamp, cause: Option<&str>) {
     let interrupted = execution.active_step_attempt.is_some();
-    execution.interrupt_step_attempt(super::lifecycle::interrupted_step_detail());
+    match cause {
+        Some(cause) => super::lifecycle::fail_open_step(execution, cause, &at),
+        None => execution.interrupt_step_attempt(super::lifecycle::interrupted_step_detail()),
+    }
     execution.status = if interrupted { ExecutionStatus::Interrupted } else { status };
     execution.finished_at = Some(at.clone());
     execution.result = if interrupted { None } else { Some(summary(result.clone())) };
