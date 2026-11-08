@@ -48,7 +48,7 @@ pub(crate) struct Store {
     pub settings: super::super::super::Settings,
     open: BTreeMap<String, Stream>,
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     fail_sync: bool,
 }
 
@@ -78,13 +78,13 @@ impl Store {
             root,
             settings,
             open: BTreeMap::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "testing"))]
             fail_sync: false,
         }
     }
 
-    #[cfg(test)]
-    pub(super) fn fail_next_sync(&mut self) {
+    #[cfg(any(test, feature = "testing"))]
+    pub(in crate::storage::sqlite) fn fail_next_sync(&mut self) {
         self.fail_sync = true;
     }
 
@@ -205,7 +205,7 @@ impl Store {
                         })
                         .collect::<Result<Vec<_>>>()?;
                     let batch = ipc::record_batch_at(stream.schema.clone(), chunk, &times)?;
-                    #[cfg(test)]
+                    #[cfg(any(test, feature = "testing"))]
                     if std::mem::take(&mut self.fail_sync) {
                         stream.writer.fail_next_sync();
                     }

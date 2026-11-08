@@ -83,10 +83,10 @@ pub(crate) struct Moments {
     integers: bool,
 }
 
-pub(crate) struct NumericSummary {
-    pub(crate) stream: String,
-    pub(crate) field: String,
-    pub(crate) statistics: Vec<(String, f64)>,
+pub struct NumericSummary {
+    pub stream: String,
+    pub field: String,
+    pub statistics: Vec<(String, f64)>,
 }
 
 /* === Enums === */
@@ -333,69 +333,7 @@ impl crate::storage::sqlite::State {
         let _cancel = work.cancellation();
         let work = std::sync::Arc::new(work);
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
-        self.read(move |connection| {
-            let checking = work.clone();
-            connection.create_scalar_function("document_alive", 0, rusqlite::functions::FunctionFlags::SQLITE_UTF8, move |_| {
-                checking.check().map(|()| true).map_err(|error| rusqlite::Error::UserFunctionError(error))
-            })?;
-            let result = (|| {
-                work.check().map_err(|error| Error::Sqlite(rusqlite::Error::UserFunctionError(error)))?;
-                let head = super::super::saved(connection)?;
-                if head.history != at.history || head.sequence < at.sequence {
-                    return Ok(None);
-                }
-                let checkpoint: Option<(String, Vec<u8>)> = connection
-                    .query_row(
-                        "SELECT through,moments FROM storage_numeric_checkpoints WHERE execution=?1 AND stream=?2 AND field=?3 AND through<=?4 ORDER BY through DESC LIMIT 1",
-                        params![execution, stream, field, super::super::position(at.sequence)],
-                        |row| Ok((row.get(0)?, row.get(1)?)),
-                    )
-                    .optional()?;
-                let (through, mut moments) = match checkpoint {
-                    Some((through, bytes)) => (through, Moments::decode(&bytes)?),
-                    None => (super::super::position(0), Moments::default()),
-                };
-                let path = serde_json::to_string(&[&field])?;
-                let indexed: bool = connection.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM storage_distinct_values WHERE execution=?1 AND kind='telemetry' AND source=?2 AND path=?3)",
-                    params![execution, stream, path], |row| row.get(0),
-                )?;
-                if !indexed {
-                    if aggregate == harmos::Aggregate::Median {
-                        return replay_median(connection, &root, &(execution, stream, field), &at, &work).map(Some);
-                    }
-                    let partial: bool = connection.query_row(
-                        "SELECT EXISTS(SELECT 1 FROM streams s JOIN stream_batches b ON b.file_id=s.file_id
-                        WHERE s.stream=?2 AND b.last_position>?3 AND b.first_position<=?4
-                        AND (b.file_id,b.batch) IN (SELECT file_id,batch FROM stream_captures WHERE execution=?1))",
-                        params![execution, stream, through, super::super::position(at.sequence)], |row| row.get(0),
-                    )?;
-                    if partial {
-                        return Ok(None);
-                    }
-                }
-                let mut tail = connection.prepare("SELECT v.value,p.value_type FROM storage_value_postings p JOIN storage_distinct_values v
-                    USING(execution,kind,source,path,value_key) WHERE p.execution=?1 AND p.kind='telemetry' AND p.source=?2
-                    AND p.path=?3 AND p.position>?4 AND p.position<=?5 ORDER BY p.position")?;
-                let mut rows = tail.query(params![execution, stream, path, through, super::super::position(at.sequence)])?;
-                while let Some(row) = rows.next()? {
-                    work.check().map_err(|error| Error::Sqlite(rusqlite::Error::UserFunctionError(error)))?;
-                    let value = super::super::distinct::posted_value(super::super::blob(row, 0)?, row.get(1)?)?;
-                    moments.push_value(&value)?;
-                }
-                if aggregate != harmos::Aggregate::Count && moments.present != moments.count {
-                    return Ok(None);
-                }
-                if aggregate == harmos::Aggregate::Median && moments.count != 0 {
-                    return document_median(connection, &(execution, stream, field), &at, moments).map(Some);
-                }
-                if matches!(aggregate, harmos::Aggregate::Percentile(_)) { return Ok(None); }
-                document_value(moments, aggregate).map(Some)
-            })();
-            connection.remove_function("document_alive", 0)?;
-            Ok(result)
-        })
-        .await?
+        self.read(move |connection| document_statistic_at(connection, &root, (execution, stream, field), at, aggregate, work)).await?
     }
 
     pub(crate) async fn numeric_summaries(&self, execution: String) -> Result<Vec<NumericSummary>, Error> {
@@ -544,6 +482,80 @@ pub(super) fn exact_percentiles(
 }
 
 /* === Private Functions === */
+
+#[cfg(feature = "native")]
+fn document_statistic_at(
+    connection: &Connection, root: &std::path::Path, field: (String, String, String), at: harmos::storage::StorageCursor,
+    aggregate: harmos::Aggregate, work: std::sync::Arc<crate::storage::sqlite::QueryWork>,
+) -> rusqlite::Result<Result<Option<Option<Value>>, Error>> {
+    let (execution, stream, field) = field;
+    let checking = work.clone();
+    connection.create_scalar_function("document_alive", 0, rusqlite::functions::FunctionFlags::SQLITE_UTF8, move |_| {
+        checking.check().map(|()| true).map_err(|error| rusqlite::Error::UserFunctionError(error))
+    })?;
+    let result = (|| {
+        work.check().map_err(|error| Error::Sqlite(rusqlite::Error::UserFunctionError(error)))?;
+        let head = super::super::saved(connection)?;
+        if head.history != at.history || head.sequence < at.sequence {
+            return Ok(None);
+        }
+        let checkpoint: Option<(String, Vec<u8>)> = connection
+                    .query_row(
+                        "SELECT through,moments FROM storage_numeric_checkpoints WHERE execution=?1 AND stream=?2 AND field=?3 AND through<=?4 ORDER BY through DESC LIMIT 1",
+                        params![execution, stream, field, super::super::position(at.sequence)],
+                        |row| Ok((row.get(0)?, row.get(1)?)),
+                    )
+                    .optional()?;
+        let (through, mut moments) = match checkpoint {
+            Some((through, bytes)) => (through, Moments::decode(&bytes)?),
+            None => (super::super::position(0), Moments::default()),
+        };
+        let path = serde_json::to_string(&[&field])?;
+        let indexed: bool = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM storage_distinct_values WHERE execution=?1 AND kind='telemetry' AND source=?2 AND path=?3)",
+            params![execution, stream, path],
+            |row| row.get(0),
+        )?;
+        if !indexed {
+            if aggregate == harmos::Aggregate::Median {
+                return replay_median(connection, root, &(execution, stream, field), &at, &work).map(Some);
+            }
+            let partial: bool = connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM streams s JOIN stream_batches b ON b.file_id=s.file_id
+                        WHERE s.stream=?2 AND b.last_position>?3 AND b.first_position<=?4
+                        AND (b.file_id,b.batch) IN (SELECT file_id,batch FROM stream_captures WHERE execution=?1))",
+                params![execution, stream, through, super::super::position(at.sequence)],
+                |row| row.get(0),
+            )?;
+            if partial {
+                return Ok(None);
+            }
+        }
+        let mut tail = connection.prepare(
+            "SELECT v.value,p.value_type FROM storage_value_postings p JOIN storage_distinct_values v
+                    USING(execution,kind,source,path,value_key) WHERE p.execution=?1 AND p.kind='telemetry' AND p.source=?2
+                    AND p.path=?3 AND p.position>?4 AND p.position<=?5 ORDER BY p.position",
+        )?;
+        let mut rows = tail.query(params![execution, stream, path, through, super::super::position(at.sequence)])?;
+        while let Some(row) = rows.next()? {
+            work.check().map_err(|error| Error::Sqlite(rusqlite::Error::UserFunctionError(error)))?;
+            let value = super::super::distinct::posted_value(super::super::blob(row, 0)?, row.get(1)?)?;
+            moments.push_value(&value)?;
+        }
+        if aggregate != harmos::Aggregate::Count && moments.present != moments.count {
+            return Ok(None);
+        }
+        if aggregate == harmos::Aggregate::Median && moments.count != 0 {
+            return document_median(connection, &(execution, stream, field), &at, moments).map(Some);
+        }
+        if matches!(aggregate, harmos::Aggregate::Percentile(_)) {
+            return Ok(None);
+        }
+        document_value(moments, aggregate).map(Some)
+    })();
+    connection.remove_function("document_alive", 0)?;
+    Ok(result)
+}
 
 #[cfg(feature = "native")]
 fn replay_median(
@@ -926,13 +938,14 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn document_checkpoints_match_nullable_rows_at_every_cut() {
+    #[test]
+    fn document_checkpoints_match_nullable_rows_at_every_cut() {
         use dokime_domain::model::{execution::RecordScope, identity::TestExecutionId};
         use harmos::Aggregate;
-        let root = tempfile::tempdir().unwrap();
-        let state = crate::storage::sqlite::State::open(root.path()).await.unwrap();
-        let saved = state.data_open(None).await.unwrap();
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;").unwrap();
+        connection.execute_batch(crate::storage::sqlite::catalog::SCHEMA).unwrap();
+        let saved = super::super::super::open(&mut connection, None).unwrap();
         let execution = TestExecutionId::from_seed("typed-prefix-owner");
         let scope = RecordScope::default().with_test_execution(execution.clone());
         let raw = vec![
@@ -947,49 +960,44 @@ mod tests {
         ];
         let admitted = raw.clone();
         let owner = execution.to_string();
-        state
-            .call(move |connection| {
-                Ok((|| -> Result<(), Error> {
-                    let transaction = connection.transaction()?;
-                    transaction.execute("INSERT INTO files VALUES ('fixture','telemetry','fixture.arrow',0,zeroblob(32),'fixture')", [])?;
-                    let mut moments = Moments::default();
-                    for (index, value) in admitted.into_iter().enumerate() {
-                        let position = index as u64 + 1;
-                        if let Some(value) = value {
-                            moments.push_value(&value)?;
-                            super::super::super::distinct::insert(
-                                &transaction,
-                                super::super::super::distinct::Row {
-                                    kind: "telemetry",
-                                    source: "fixture",
-                                    position,
-                                    file: Some("fixture"),
-                                    record: false,
-                                    scope: &scope,
-                                },
-                                [("value", &value)],
-                            )?;
-                        }
-                        if position == 4 || position == 8 {
-                            transaction.execute(
-                                "INSERT INTO storage_numeric_checkpoints VALUES (?1,'fixture','value',?2,?3,?4)",
-                                params![
-                                    owner,
-                                    super::super::super::position(position - 3),
-                                    super::super::super::position(position),
-                                    moments.encode()
-                                ],
-                            )?;
-                        }
-                    }
-                    transaction.execute("UPDATE storage_data_head SET saved=?1", [super::super::super::position(8)])?;
-                    transaction.commit()?;
-                    Ok(())
-                })())
-            })
-            .await
-            .unwrap()
-            .unwrap();
+        (|| -> Result<(), Error> {
+            let transaction = connection.transaction()?;
+            transaction.execute("INSERT INTO files VALUES ('fixture','telemetry','fixture.arrow',0,zeroblob(32),'fixture')", [])?;
+            let mut moments = Moments::default();
+            for (index, value) in admitted.into_iter().enumerate() {
+                let position = index as u64 + 1;
+                if let Some(value) = value {
+                    moments.push_value(&value)?;
+                    super::super::super::distinct::insert(
+                        &transaction,
+                        super::super::super::distinct::Row {
+                            kind: "telemetry",
+                            source: "fixture",
+                            position,
+                            file: Some("fixture"),
+                            record: false,
+                            scope: &scope,
+                        },
+                        [("value", &value)],
+                    )?;
+                }
+                if position == 4 || position == 8 {
+                    transaction.execute(
+                        "INSERT INTO storage_numeric_checkpoints VALUES (?1,'fixture','value',?2,?3,?4)",
+                        params![
+                            owner,
+                            super::super::super::position(position - 3),
+                            super::super::super::position(position),
+                            moments.encode()
+                        ],
+                    )?;
+                }
+            }
+            transaction.execute("UPDATE storage_data_head SET saved=?1", [super::super::super::position(8)])?;
+            transaction.commit()?;
+            Ok(())
+        })()
+        .unwrap();
         let config =
             crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
         for through in 0..=raw.len() {
@@ -1006,18 +1014,17 @@ mod tests {
                     history: saved.history.clone(),
                     sequence: through as u64,
                 };
-                let actual = state
-                    .document_statistic(
-                        execution.to_string(),
-                        "fixture".into(),
-                        "value".into(),
-                        cut,
-                        aggregate,
-                        crate::storage::sqlite::QueryWork::document(config.clone(), "fixture"),
-                    )
-                    .await
-                    .unwrap()
-                    .expect("the maintained prefix covers the cut");
+                let actual = document_statistic_at(
+                    &connection,
+                    std::path::Path::new(""),
+                    (execution.to_string(), "fixture".into(), "value".into()),
+                    cut,
+                    aggregate,
+                    std::sync::Arc::new(crate::storage::sqlite::QueryWork::document(config.clone(), "fixture")),
+                )
+                .unwrap()
+                .unwrap()
+                .expect("the maintained prefix covers the cut");
                 if aggregate == Aggregate::Rms
                     && let (Some(Value::Number(actual)), Some(Value::Number(expected))) = (&actual, &expected)
                 {
@@ -1027,7 +1034,6 @@ mod tests {
                 }
             }
         }
-        state.close().await.unwrap();
     }
 
     #[test]

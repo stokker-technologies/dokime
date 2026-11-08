@@ -93,7 +93,7 @@ impl Tail {
             .collect()
     }
 
-    pub(super) fn insert(&mut self, position: u64, entry: TelemetryEntry) {
+    pub(in crate::storage::sqlite) fn insert(&mut self, position: u64, entry: TelemetryEntry) {
         if self.entries.contains_key(&position) {
             return;
         }

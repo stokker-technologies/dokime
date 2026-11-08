@@ -41,7 +41,7 @@ use dokime_domain::{
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
-pub(crate) struct Row {
+pub struct Row {
     pub body: Vec<u8>,
 }
 

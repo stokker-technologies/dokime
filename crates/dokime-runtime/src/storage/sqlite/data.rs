@@ -12,7 +12,7 @@
 mod backend;
 pub(crate) mod distinct;
 mod entry;
-mod files;
+pub(super) mod files;
 mod mutations;
 mod production;
 mod records;
@@ -107,7 +107,7 @@ CREATE INDEX IF NOT EXISTS storage_data_stream_scope_time ON storage_data_entrie
 /* === Structs === */
 
 #[derive(Clone)]
-pub(crate) struct SavedData {
+pub struct SavedData {
     pub history: StoreHistory,
     pub sequence: u64,
     pub retention_generation: u64,

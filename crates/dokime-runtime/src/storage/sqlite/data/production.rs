@@ -68,7 +68,7 @@ impl Drop for RecoveryCancellation {
 }
 
 impl State {
-    pub(super) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
+    pub(in crate::storage::sqlite) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
         self.grouped(1, entry::check_size(&metadata, usize::MAX)?, move |connection| {
             let result = files::create_file(connection, &root, metadata, true);
             Ok(result)
@@ -305,7 +305,7 @@ fn save_checkpoint(
 }
 
 impl State {
-    pub(super) async fn production_delete(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
+    pub(in crate::storage::sqlite) async fn production_delete(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
         self.call(move |connection| {
             let result = (|| {
             saved(connection)?.history.check(&file.history)?;

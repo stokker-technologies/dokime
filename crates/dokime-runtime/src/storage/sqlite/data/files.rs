@@ -544,6 +544,10 @@ fn verify_opened(file: &mut File, reference: &FileReference, prefix: &mut Verifi
         return Err(Error::Data("file finish length differs"));
     }
     file.seek(SeekFrom::Start(0))?;
+    verify_bytes(file, reference, prefix)
+}
+
+fn verify_bytes(file: &mut impl std::io::Read, reference: &FileReference, prefix: &mut VerifiedPrefix) -> Result<(), Error> {
     let mut buffer = vec![0; CHUNK_BYTES];
     let mut count = file.read(&mut buffer)?;
     let mut digest = if count == CHUNK_BYTES { prefix.begin(&buffer) } else { Sha256::new_with_prefix(&buffer[..count]) };
@@ -559,7 +563,7 @@ fn verify_opened(file: &mut File, reference: &FileReference, prefix: &mut Verifi
 
 // A Finished Row Commits Only After Its Content Name Was Published Durably.
 // An Unfinished Intent Alone Does Not Establish That Proof.
-fn published_content(connection: &Connection, reference: &FileReference) -> Result<bool, Error> {
+pub(in crate::storage::sqlite) fn published_content(connection: &Connection, reference: &FileReference) -> Result<bool, Error> {
     let hash = serde_json::to_string(&reference.sha256)?;
     let id: Option<String> = connection
         .query_row(
@@ -590,56 +594,9 @@ fn hex(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn shared_content_requires_a_finished_live_owner() {
-        let root = tempfile::tempdir().unwrap();
-        let state = State::open_with(root.path(), crate::config::local_storage_defaults()).await.unwrap();
-        let head = state.data_open(None).await.unwrap();
-        let metadata = |id: &str| FileMetadata {
-            id: harmos::Identifier::new(id).unwrap(),
-            scope: None,
-            media_type: "application/octet-stream".into(),
-            expected_length: None,
-            expected_sha256: None,
-        };
-        let source = state.production_create(root.path().to_owned(), metadata("original")).await.unwrap();
-        state.production_create(root.path().to_owned(), metadata("reused")).await.unwrap();
-        let reference = FileReference {
-            metadata: metadata("reused"),
-            position: StorageCursor {
-                history: head.history.clone(),
-                sequence: 2,
-            },
-            length: 0,
-            sha256: Sha256::digest([]).into(),
-        };
-        let proven = async |reference: FileReference| {
-            state.call(move |connection| Ok(published_content(connection, &reference))).await.unwrap().unwrap()
-        };
-        assert!(!proven(reference.clone()).await);
-        state
-            .call(|connection| {
-                connection.execute_batch(
-                    "CREATE TEMP TRIGGER refuse_finish BEFORE UPDATE OF finished ON storage_file_stages
-                     BEGIN SELECT RAISE(ABORT,'injected publication failure'); END",
-                )
-            })
-            .await
-            .unwrap();
-        let at = StorageCursor { history: head.history, sequence: 1 };
-        assert!(state.data_finish_file(root.path().to_owned(), source.clone(), at.clone(), 0, reference.sha256).await.is_err());
-        assert!(!proven(reference.clone()).await);
-        state.call(|connection| connection.execute_batch("DROP TRIGGER refuse_finish")).await.unwrap();
-        state.data_finish_file(root.path().to_owned(), source.clone(), at, 0, reference.sha256).await.unwrap();
-        assert!(proven(reference.clone()).await);
-        state.production_delete(root.path().to_owned(), source).await.unwrap();
-        assert!(!proven(reference).await);
-        state.close().await.unwrap();
-    }
-
     #[test]
     fn cached_verification_rejects_changed_prefix_and_suffix() {
-        let mut file = tempfile::tempfile().unwrap();
+        let mut file = std::io::Cursor::new(Vec::new());
         let bytes = vec![0x5a; CHUNK_BYTES + 32];
         file.write_all(&bytes).unwrap();
 
@@ -663,21 +620,45 @@ mod tests {
         };
 
         let mut prefix = VerifiedPrefix::default();
-        verify_opened(&mut file, &reference, &mut prefix).unwrap();
-        verify_opened(&mut file, &reference, &mut prefix).unwrap();
+        {
+            file.set_position(0);
+            verify_bytes(&mut file, &reference, &mut prefix)
+        }
+        .unwrap();
+        {
+            file.set_position(0);
+            verify_bytes(&mut file, &reference, &mut prefix)
+        }
+        .unwrap();
 
         file.seek(SeekFrom::Start(0)).unwrap();
         file.write_all(&[0]).unwrap();
-        assert!(verify_opened(&mut file, &reference, &mut prefix).is_err());
+        assert!(
+            {
+                file.set_position(0);
+                verify_bytes(&mut file, &reference, &mut prefix)
+            }
+            .is_err()
+        );
 
         file.seek(SeekFrom::Start(0)).unwrap();
         file.write_all(&[0x5a]).unwrap();
         file.seek(SeekFrom::End(-1)).unwrap();
         file.write_all(&[0]).unwrap();
-        assert!(verify_opened(&mut file, &reference, &mut prefix).is_err());
+        assert!(
+            {
+                file.set_position(0);
+                verify_bytes(&mut file, &reference, &mut prefix)
+            }
+            .is_err()
+        );
 
         file.seek(SeekFrom::End(-1)).unwrap();
         file.write_all(&[0x5a]).unwrap();
-        verify_opened(&mut file, &reference, &mut prefix).unwrap();
+        {
+            file.set_position(0);
+            verify_bytes(&mut file, &reference, &mut prefix)
+        }
+        .unwrap();
     }
 }
