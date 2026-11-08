@@ -13,6 +13,7 @@
 
 pub(crate) mod engine_storage;
 mod format;
+mod group_commit;
 
 /* === Re-Exports === */
 
