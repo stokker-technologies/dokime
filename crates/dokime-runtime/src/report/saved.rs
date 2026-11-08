@@ -726,13 +726,9 @@ mod tests {
         for capacity in [0, 128] {
             let bytes = Vec::with_capacity(capacity);
             let metadata = identity.metadata(bytes.len() as u64, Sha256::digest(&bytes).into()).unwrap();
-            let data = ReportFileData {
-                metadata,
-                spool: std::sync::Mutex::new(tempfile::tempfile().unwrap()),
-            };
-            assert_eq!(data.metadata.expected_length, Some(0));
-            assert_eq!(data.metadata.scope.as_ref().unwrap().as_str(), identity.owner);
-            assert_eq!(data.metadata.id.as_str(), "fixture.execution.00000000-0000-0000-0000-000000000000.context");
+            assert_eq!(metadata.expected_length, Some(0));
+            assert_eq!(metadata.scope.as_ref().unwrap().as_str(), identity.owner);
+            assert_eq!(metadata.id.as_str(), "fixture.execution.00000000-0000-0000-0000-000000000000.context");
         }
     }
 }
