@@ -337,12 +337,8 @@ async fn stream_revisions_restart_retains_execution_reports() {
             handle = owner.handle();
         }
         let suite = Provider(variant).suite();
-        let cycle = start_cases(
-            &handle,
-            metadata(&format!("revision.restart.{index}"), "Revisions"),
-            materialize_cases("revision.checks", &suite.suite),
-        )
-        .await;
+        let cases = materialize_cases("revision.checks", &suite.suite);
+        let cycle = start_cases(&handle, metadata(&format!("revision.restart.{index}"), "Revisions"), cases).await;
         handle.update_cycle_policy(cycle.clone(), false, CommandContext::default()).await.unwrap();
         let execution = handle.watch_state().latest().state().cycles[&cycle].execution_ids[0].clone();
         let receipt = handle.start_execution(execution.clone(), Default::default(), CommandContext::default()).await;
@@ -368,7 +364,7 @@ async fn stream_revisions_restart_retains_execution_reports() {
             drop(rows);
             let records = handle
                 .selected_records(dokime_runtime::domains::evidence::RecordSelection {
-                    record_types: vec![identifier("revision.event").into()],
+                    record_types: vec![identifier("revision.event")],
                     scope: ScopeSelection {
                         test_execution_id: Some(previous.clone()),
                         ..Default::default()
@@ -381,21 +377,16 @@ async fn stream_revisions_restart_retains_execution_reports() {
             assert_eq!(records[0].details["value"], Value::Number([7.0, 7.0, 13.0][previous_index]));
             assert_eq!(records[0].details.get("added"), (previous_index == 2).then_some(&Value::Unsigned(29)));
             drop(records);
-            let rendered = handle
-                .operations()
-                .operation::<dokime_runtime::operations::reports::MaterializeReport>(
-                    dokime_runtime::operations::reports::MaterializeReport {
-                        subject: dokime_domain::model::reports::wire::ReportSubject::Execution(previous.to_string()),
-                        at: handle.storage().cursor_saved(),
-                    },
-                )
-                .await
-                .unwrap();
-            let bytes = reports::bytes(handle.storage(), &rendered.report).await;
+            let rebuilt = handle.rebuild_sealed_report(previous).await.unwrap();
+            let bytes = reports::bytes(handle.storage(), &rebuilt).await;
             let report = reports::parse(std::str::from_utf8(&bytes).unwrap());
             let samples = report["snapshot"]["telemetry"]["revision.reading"]["samples"].as_array().unwrap();
             assert_eq!(samples.len(), 1);
             assert_eq!(samples[0]["value"], serde_json::json!([7.0, 7.0, 13.0][previous_index]));
+            let record =
+                report["snapshot"]["records"].as_array().unwrap().iter().find(|record| record["record_type"] == "revision.event").unwrap();
+            assert_eq!(record["details"]["value"], serde_json::json!([7.0, 7.0, 13.0][previous_index]));
+            assert_eq!(record["details"].get("added"), (previous_index == 2).then_some(&serde_json::json!(29)));
         }
     }
     owner.shutdown().await.unwrap();
@@ -405,17 +396,12 @@ async fn stream_revisions_restart_retains_execution_reports() {
     // Reopen Without The Plugin And Materialize Its Original Evidence.
     let mut owner = dokime_runtime::Runtime::start(settings.clone()).await.unwrap();
     let handle = owner.handle();
-    let rendered = handle
-        .operations()
-        .operation::<dokime_runtime::operations::reports::MaterializeReport>(dokime_runtime::operations::reports::MaterializeReport {
-            subject: dokime_domain::model::reports::wire::ReportSubject::Execution(executions[0].to_string()),
-            at: handle.storage().cursor_saved(),
-        })
-        .await
-        .unwrap();
-    let bytes = reports::bytes(handle.storage(), &rendered.report).await;
+    let rebuilt = handle.rebuild_sealed_report(&executions[0]).await.unwrap();
+    let bytes = reports::bytes(handle.storage(), &rebuilt).await;
     let report = reports::parse(std::str::from_utf8(&bytes).unwrap());
     assert_eq!(report["snapshot"]["telemetry"]["revision.reading"]["samples"][0]["value"], serde_json::json!(7.0));
+    let record = report["snapshot"]["records"].as_array().unwrap().iter().find(|record| record["record_type"] == "revision.event").unwrap();
+    assert_eq!(record["details"]["value"], serde_json::json!(7.0));
     owner.shutdown().await.unwrap();
     drop(handle);
     drop(owner);

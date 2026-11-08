@@ -39,6 +39,8 @@ catalog's absent inverse handlers.
 - Captured native bundle framing validates unsupported input before structural and identity checks; its version is retained.
 - Export framing stamps the manifest, SQLite artifact and download metadata; clients reject unsupported framing, so it is retained.
 - Pairing files validate the supported untrusted input format before importing credentials; its version is retained.
+- Secret archive framing rejects unsupported encrypted import documents before admitting their entries.
+- Remembered browser parameter storage retains Zustand's envelope version because its middleware refuses unsupported hydration; native values still use structural validation.
 - SQLite's layout sentinel protects the product database layout; it remains independent of plugin and evidence schemas.
 - Record and telemetry definition/catalog/evidence wire fields carry derived historical identities, not authored ordinals.
 
