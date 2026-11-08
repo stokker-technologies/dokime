@@ -166,13 +166,6 @@ export async function renameNativeTestExecution(session: SessionIdentity, execut
   return (await rpc.executionRenameExecution(session, { executionId, label })).label;
 }
 
-export async function reopenNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<StartTestCycleResponse> {
-  const created = await rpc.executionCopyCycle(session, { sourceCycleId: cycleId });
-  const plan = await fetchNativeTestCyclePlan(session, created.cycleId);
-  if (!plan) throw new Error("Native CopyCycle did not produce a cycle.");
-  return { plan };
-}
-
 /** The cycle's label as the backend holds it, for a lineage link to it. */
 export async function fetchNativeCycleLabel(session: SessionIdentity, cycleId: string): Promise<string> {
   const summary = await rpc.executionGetCycle(session, { cycleId });

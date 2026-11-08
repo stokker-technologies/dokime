@@ -22,7 +22,7 @@
 //   a. startup      the connection screen, then Cycles with empty groups
 //   b. library      suite expansion, the template dialog, two templates added
 //   c. cycle        the workspace: sidebar, run, prompts, focus, console, overflow
-//   c'. execution-stop  a copy: Stop Execution stops one, its siblings finish
+//   c'. execution-stop  a rerun: Stop Execution stops one, its siblings finish
 //   c''. containers  independent Active cycles, explicit sealing and export availability
 //   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
@@ -2762,7 +2762,7 @@ async function cycleJourney(session, cycleId) {
   await until("the cycle page", () => session.exists("button", "Cycle Actions"), WAIT_MS);
   const menu = await openMenu(session, "Cycle Actions");
   const items = await session.textOf(menu);
-  for (const item of ["Rerun Cycle", "Copy Cycle", "Add Cases", "Follow Active", "Open Report", "Settings", "Archive"]) {
+  for (const item of ["Rerun Cycle", "Add Cases", "Follow Active", "Open Report", "Settings", "Archive"]) {
     assert.ok(hasText(items, item), `The overflow menu must offer ${item}`);
   }
   for (const item of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
@@ -2782,17 +2782,17 @@ async function cycleJourney(session, cycleId) {
  *
  * Stop Execution in the page bar is scoped to the selected execution: the
  * cycle remains Active and sibling attempts remain unstarted. Seal Cycle
- * is the only container finalization action. The copy keeps the measured cycle the later journeys read
+ * is the only container finalization action. The rerun keeps the measured cycle the later journeys read
  * untouched.
  */
 async function executionStopJourney(session, cycleId) {
-  // === Copy The Cycle And Run It === //
+  // === Rerun The Cycle And Run It === //
 
   await session.goto(`/cycles/${cycleId}?view=cycle`);
   await openMenu(session, "Cycle Actions");
-  await session.clickNamed("menuitem", "Copy Cycle");
-  const copyId = await until(
-    "the copied cycle route and startup action",
+  await session.clickNamed("menuitem", "Rerun Cycle");
+  const rerunCycleId = await until(
+    "the rerun cycle route and startup action",
     async () => {
       const match = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname);
       if (!match || match[1] === cycleId) return null;
@@ -2815,7 +2815,7 @@ async function executionStopJourney(session, cycleId) {
   let running = null;
   await runUntil(
     session,
-    "the copy's startup execution running",
+    "the rerun's startup execution running",
     async () => {
       running = await session.execute(
         `
@@ -2845,7 +2845,7 @@ async function executionStopJourney(session, cycleId) {
     row.querySelector('button').click();
     return row.dataset.executionId ?? null;
   `);
-  assert.ok(unstarted, "The copied cycle must offer an unstarted sibling for explicit selection");
+  assert.ok(unstarted, "The rerun cycle must offer an unstarted sibling for explicit selection");
   await session.waitForDom(
     "the selected unstarted execution",
     `return new URL(location.href).searchParams.get("executionId") === args[0] &&
@@ -2929,7 +2929,7 @@ async function executionStopJourney(session, cycleId) {
     !hasText(await session.text(), "Active · Stopped"),
     "Stopping or cancelling one execution must leave the cycle Active, not Stopped",
   );
-  return { id: copyId, executionIds, unrun: [cancelled], reports: [running] };
+  return { id: rerunCycleId, executionIds, unrun: [cancelled], reports: [running] };
 }
 
 /** Completed executions seal independently; the operator closes their container. */
@@ -3051,7 +3051,7 @@ async function cyclesHomeJourney(session, cycleTitle) {
     "a cycle row",
     async () => {
       const text = await session.text();
-      /* The stopped copy is the loaded cycle; it lands in whichever group its
+      /* The stopped rerun is the loaded cycle; it lands in whichever group its
          status selects (a stopped execution leaves it needing attention). */
       return hasText(text, cycleTitle) && /Active · (Idle|Running|Waiting)|Sealing|Sealed/.test(text) ? text : null;
     },

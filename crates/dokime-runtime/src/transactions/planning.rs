@@ -10,12 +10,10 @@
 /* === Modules === */
 
 mod append;
-mod copy;
 
 /* === Re-Exports === */
 
 pub use append::AppendExecutions;
-pub use copy::CopyCycle;
 
 /* === Imports === */
 

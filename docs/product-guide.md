@@ -174,8 +174,7 @@ definition revision, so a changed plugin runs its current version. A case whose
 suite or case is no longer declared is skipped, and parameters the current case
 no longer declares are dropped; the reply reports both with their reasons. When
 no case survives, the rerun is refused with `rerun_no_cases`, naming the plugin
-and the missing cases, and nothing is created. Copy Cycle, by contrast, clones
-the source's frozen executions.
+and the missing cases, and nothing is created.
 
 Seal Failed is settled: later startups do not seal it again. Retry Seal resumes
 from the saved evidence, without requiring the plugin, and returns to
