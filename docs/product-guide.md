@@ -1952,6 +1952,11 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 - [Plugins](plugins.md) — the host telemetry plugin, plugin lifecycle, bundles and installation.
 - [Desktop GUI](gui.md) — frontend layout, generated outputs and the desktop transport rules.
 - [Repository Tooling](tooling.md) — mise tasks, Python tooling and desktop development processes.
+- [Deployment](deployment.md) — Windows code signing, per-machine and silent installation, Linux package verification, network and privilege expectations.
+- [Privacy and Data Flows](privacy.md) — data inventory, storage locations, retention and deletion, support bundle contents.
+- [Plugin Security](plugin-security.md) — the plugin trust boundary and native process authority.
+- [Support](support.md) — support and end-of-life policy.
+- [Compliance](compliance.md) — the compliance assessment and vulnerability reporting.
 - [Screenshots](../screenshots/README.md) — the published product images and how to regenerate them.
 - [Plugin Starter](../crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Entry Library And Plugin SDK](../crates/dokime/src/lib.rs) — public entry point for authoring APIs.

@@ -7,7 +7,7 @@
 ## Validation
 
 - [x] 2.1 Run packaging focused tests and focused Cargo check through mise.
-- [ ] 2.2 Run format, project check, one final lint:rust and commit scan; report every failure and unavailable certificate/native-platform proof.
+- [x] 2.2 Run format, project check, one final lint:rust and commit scan; report every failure and unavailable certificate/native-platform proof. Batch gate 2026-11-08: workspace check, lint:rust, packaging tests, format, project check and scan clean; certificate-backed signing and native Linux/Windows managed installation remain unqualified until a certificate exists.
 
 ## Workflow Follow-Up
 

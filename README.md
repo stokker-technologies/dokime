@@ -316,7 +316,8 @@ reads continue retrying, while other document failures retry once.
 
 See the [support and end-of-life policy](docs/support.md),
 [vulnerability reporting policy](SECURITY.md), [privacy guidance](docs/privacy.md),
-[plugin security model](docs/plugin-security.md) and [compliance assessment](docs/compliance.md).
+[plugin security model](docs/plugin-security.md), [compliance assessment](docs/compliance.md)
+and [signed and managed deployment](docs/deployment.md).
 The security policy link is pending its owner's publication.
 Support targets are proposed until confirmed by the owner; OpenSSF badges are
 pending verified supply-chain evidence and do not imply product certification.
