@@ -19,6 +19,7 @@
 use thiserror::Error as ThisError;
 
 // Local Imports
+use crate::document::DocumentFailure;
 use dokime_domain::model::diagnostics::ValidationIssue;
 use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 
@@ -181,6 +182,9 @@ impl Error {
     /// Returns the recovery action supplied by the evidence or finalization owner.
     pub fn report_evidence_message(&self) -> Option<String> {
         match self {
+            Self::Dokime(crate::Error::Document(error @ (DocumentFailure::Limit | DocumentFailure::Budget { .. }))) => {
+                Some(error.to_string())
+            }
             Self::Storage(
                 error @ (crate::storage::Error::TelemetryIntegrity { .. } | crate::storage::Error::TelemetryProjection { .. }),
             ) => Some(error.to_string()),
@@ -260,7 +264,7 @@ pub(crate) fn chain_message(error: &(dyn std::error::Error + 'static)) -> String
 
 fn report_save_message(subject: &dokime_domain::model::reports::wire::ReportSubject, stage: &str, source: &Error) -> String {
     if let Some(message) = source.report_evidence_message() {
-        return message;
+        return format!("Report for {} could not be saved during {stage}: {message}", report_subject(subject));
     }
     format!("The report could not be saved during {stage} for {}. Retry sealing the cycle to save it again.", report_subject(subject))
 }

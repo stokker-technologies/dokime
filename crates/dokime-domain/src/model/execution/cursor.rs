@@ -28,7 +28,7 @@ use super::ExecutionCheckpoint;
 /* === Constants === */
 
 const BYTES: usize = 32 + size_of::<u64>();
-const TEXT: usize = BYTES.div_ceil(3) * 4 - 1;
+const TEXT: usize = (BYTES * 4).div_ceil(3);
 
 /* === Macros === */
 
