@@ -427,7 +427,7 @@ impl State {
 /* === Public Functions === */
 
 pub fn counters() -> StorageCounters {
-    StorageCounters {
+    let counters = StorageCounters {
         sqlite_syncs: probe::counters(),
         committed_transactions: COMMITTED_TRANSACTIONS.load(Ordering::Relaxed),
         commit_ns: COMMIT_NS.load(Ordering::Relaxed),
@@ -444,7 +444,13 @@ pub fn counters() -> StorageCounters {
         telemetry_anchor_rows: TELEMETRY_ANCHOR_ROWS.load(Ordering::Relaxed),
         data_scan_rows: DATA_SCAN_ROWS.load(Ordering::Relaxed),
         object_retention_steps: OBJECT_RETENTION_STEPS.load(Ordering::Relaxed),
+    };
+    if std::env::var_os("DOKIME_STORAGE_PROBE").is_some() {
+        static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        let elapsed = STARTED.get_or_init(std::time::Instant::now).elapsed();
+        eprintln!("dokime_storage_snapshot {}", serde_json::json!({"elapsed_ns": elapsed.as_nanos(), "counters": counters}));
     }
+    counters
 }
 
 /* === Private Functions === */
