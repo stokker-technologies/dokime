@@ -867,7 +867,7 @@ test("Boolean State Plots", () => {
       updated_at: payload.generated_at,
     },
   };
-  const plot = documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 });
+  const plot = documentPlotSpec({ plot: descriptor, payload, telemetry });
   assert.equal(plot.booleanAxis, true);
   assert.deepEqual(payload.cartesian?.series[0].y.map(formatBooleanState), ["False", "True", "--", "False"]);
   assert.equal(formatBooleanState(0.5), "--");
@@ -877,7 +877,7 @@ test("Boolean State Plots", () => {
     assert.doesNotMatch(html, /<table\b/);
   }
   columns[0].value_type = "number";
-  assert.equal(documentPlotSpec({ plot: descriptor, payload, telemetry, title: descriptor.title, position: 0 }).booleanAxis, false);
+  assert.equal(documentPlotSpec({ plot: descriptor, payload, telemetry }).booleanAxis, false);
 });
 
 test("All Marker Kinds Draw and Remain Hoverable", () => {
@@ -1250,7 +1250,7 @@ test("XY Styles Reach the Native Request", () => {
     const native = toNativePlotRequest(request);
     assert.equal(native.plotType?.HarmosVariant.case, "Xy");
     assert.equal(native.style?.HarmosVariant.case, { line: "Line", points: "Points", line_points: "LinePoints", step: "Step" }[style]);
-    const spec = documentPlotSpec({ plot, payload: hostFrame([1, 2], [[3, 4]]), title: plot.title, position: 0 });
+    const spec = documentPlotSpec({ plot, payload: hostFrame([1, 2], [[3, 4]]) });
     assert.equal(spec.style, style);
     const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom: false }, createElement(XyPlot, { plot: spec })));
     assert.match(html, /plot-follow/);
@@ -1268,7 +1268,7 @@ test("Plot Statistics", () => {
     x: "timestamp",
     y: ["distance"],
   } as DocumentViewPlot;
-  const plot = documentPlotSpec({ plot: descriptor, payload, title: descriptor.title, position: 0 });
+  const plot = documentPlotSpec({ plot: descriptor, payload });
   const interval = {
     ...plot,
     analysis: {
@@ -1731,10 +1731,10 @@ test("Declared Occupancy Context", () => {
       updated_at: "2026-10-29T00:00:00Z",
     },
   };
-  const spec = documentPlotSpec({ plot, telemetry, payload: null, title: "Occupancy", position: 0 });
+  const spec = documentPlotSpec({ plot, telemetry, payload: null });
   assert.deepEqual(spec.context, { active_wifi_channel: 36, active_wifi_band: "5 GHz", active_wifi_ssid: "scan" });
   delete (telemetry as Partial<typeof telemetry>)["fixture.scan"];
-  const absent = documentPlotSpec({ plot, telemetry, payload: null, title: "Occupancy", position: 0 });
+  const absent = documentPlotSpec({ plot, telemetry, payload: null });
   assert.deepEqual(absent.context, {});
 });
 
@@ -1793,7 +1793,7 @@ test("Report Metadata Subtitles", () => {
     plot_type: "time_series",
     y: ["rssi"],
   } as DocumentViewPlot;
-  const spec = documentPlotSpec({ plot, payload, plotPalette: [], position: 0, title: plot.title });
+  const spec = documentPlotSpec({ plot, payload, plotPalette: [] });
   assert.ok(spec.contextSummary?.includes("fixture-network"));
   assert.ok(spec.contextSummary?.includes("radio-2"));
   const html = renderToStaticMarkup(
@@ -1841,13 +1841,11 @@ test("Reference Values Resolve Constants Parameters and Tolerances Per Case in L
       band_c: 1,
       negative: -1,
     };
-    const live = documentPlotSpec({ plot: descriptor, payload: null, parameters, title: descriptor.title, position: 0 });
+    const live = documentPlotSpec({ plot: descriptor, payload: null, parameters });
     const frozen = documentPlotSpec({
       plot: JSON.parse(JSON.stringify(descriptor)),
       payload: null,
       parameters: JSON.parse(JSON.stringify(parameters)),
-      title: descriptor.title,
-      position: 0,
     });
     assert.deepEqual(
       live.referenceLines.map(({ value }) => value),
@@ -1913,8 +1911,6 @@ test("Display Scale Converts Returned Points Statistics and References Without M
       plot: descriptor,
       payload: frame,
       parameters: { target_m: 0.005, tolerance_m: 0.001 },
-      title: descriptor.title,
-      position: 0,
     });
   const plot = present(payload);
   assert.deepEqual(
@@ -1944,7 +1940,7 @@ test("Display Scale Converts Returned Points Statistics and References Without M
   // Repeated frames and frozen JSON take the same conversion path once.
   assert.deepEqual(present(JSON.parse(JSON.stringify(payload))), plot);
   assert.deepEqual({ payload, descriptor }, original);
-  const unscaled = documentPlotSpec({ plot: { ...descriptor, scale: undefined }, payload, title: descriptor.title, position: 0 });
+  const unscaled = documentPlotSpec({ plot: { ...descriptor, scale: undefined }, payload });
   assert.equal(unscaled.cartesian, payload.cartesian);
   assert.equal(unscaled.summaries, payload.summaries);
 });
@@ -1964,7 +1960,7 @@ test("Generated Plot Series Labels Respect Word Positions", () => {
     keys.map(() => [1]),
     { keys },
   );
-  const plot = documentPlotSpec({ plot: descriptor, payload, title: descriptor.title, position: 0 });
+  const plot = documentPlotSpec({ plot: descriptor, payload });
   assert.deepEqual(
     plot.series.map((series) => series.label),
     ["Number of Rows", "Wait Until Chamber Is Ready", "Log In", "Turn Off the Heater"],
