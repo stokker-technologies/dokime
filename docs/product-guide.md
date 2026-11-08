@@ -2,6 +2,13 @@
 
 Detailed concepts, supported interfaces and existing authoring examples. For installation, start with the [Quick Start](../README.md#quick-start).
 
+The [Privacy and Data Flows](privacy.md) guide inventories evidence, host
+measurements, settings, logs, exports and backups, and provides a customer
+processing-record worksheet. Dokime does not encrypt evidence at rest; evidence
+relies on operating-system disk encryption, which the customer must enable.
+Archiving hides evidence rather than deleting it; scheduled retention and
+per-execution deletion are not available.
+
 ## Install Tools with Mise
 
 Select the CLI and authoring tool from one release in your mise configuration,
@@ -2410,6 +2417,11 @@ Document bindings retain their 64 MiB bound; large raw evidence remains paged.
 
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
 and diagnostics snapshot artifacts are no longer produced or bundled.
+
+Support bundles contain backend identity, health, settings and a bounded log
+tail; free-form content can contain personal information. Protected secret values
+are excluded. Collection downloads a ZIP without automatically sending it to
+support. Review it before sharing; see [Support Bundles](privacy.md#support-bundles).
 
 ### Measured Stream Performance
 
