@@ -118,9 +118,12 @@ pub fn assemble(
         #[cfg(windows)]
         if windows && name == "dokime-gui" {
             super::windows::replace(&destination, &application_icon)?;
+        }
+        if windows {
             if sign {
                 sign_installer(manifest, &destination)?;
             }
+            super::signing::authenticode(&destination)?;
         }
         let installed = format!("{installed_resource_prefix}{file}");
         if !windows {
@@ -186,10 +189,12 @@ pub fn assemble(
     files.insert(format!("{installed_resource_prefix}distribution.json"), distribution::digest(&identity_bytes));
 
     // Describe Distribution
-    let (installer_signed, updater_signed) = match &manifest.signing {
+    let (mut installer_signed, updater_signed) = match &manifest.signing {
         Some(settings) => (sign && settings.installer.is_some(), sign && settings.updater.is_some()),
         None => (false, false),
     };
+    let provider = std::env::var("DOKIME_AUTHENTICODE_PROVIDER").ok();
+    installer_signed |= windows && super::signing::authenticode_enabled(provider.as_deref())?;
     let metadata = DistributionMetadata {
         schema: 1,
         version: manifest.installer.version.clone(),
@@ -345,6 +350,11 @@ pub fn assemble(
 }
 
 pub fn validate_signing(manifest: &Manifest, requested: bool) -> Result<(), Error> {
+    let provider = std::env::var("DOKIME_AUTHENTICODE_PROVIDER").ok();
+    let hook = super::signing::authenticode_enabled(provider.as_deref())?;
+    if hook && requested && manifest.signing.as_ref().is_some_and(|settings| settings.installer.is_some()) {
+        return Err(Error::Invalid("select either manifest installer signing or the Authenticode hook".into()));
+    }
     let rpm_variables = ["TAURI_SIGNING_RPM_KEY", "TAURI_SIGNING_RPM_KEY_PASSPHRASE"];
     let inherited_rpm_key = manifest.installer.formats.contains(&Format::Rpm)
         && rpm_variables.iter().any(|name| {
@@ -563,6 +573,9 @@ fn finish_package(
     };
     if sign {
         sign_installer(manifest, source)?;
+    }
+    if kind == PackageType::Nsis {
+        super::signing::authenticode(source)?;
     }
     let destination = output.join(name);
     std::fs::copy(source, &destination)?;
