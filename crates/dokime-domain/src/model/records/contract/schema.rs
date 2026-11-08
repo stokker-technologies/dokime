@@ -14,6 +14,11 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
+use std::hash::Hash;
+use std::hash::Hasher;
+use std::sync::LazyLock;
+use std::sync::RwLock;
 
 // Third Party Imports
 use serde::Deserialize;
@@ -36,6 +41,9 @@ use crate::model::values::ValueType;
 /* === Macros === */
 
 /* === Type Aliases === */
+
+// A Field's Contribution to the Storage Schema: Identifier, Value Type, Nullable, Required.
+type FieldShape = (Identifier, ValueType, bool, bool);
 
 /* === Structs === */
 
@@ -225,8 +233,57 @@ impl RecordContract {
         Schema { root: 0, definitions, representations }
     }
 
+    // Derives The Revision Of This Contract's Storage Schema Once Per Distinct Field Shape.
     pub fn schema_version(&self) -> u32 {
+        static REVISIONS: LazyLock<RwLock<HashMap<u64, Vec<(Vec<FieldShape>, u32)>>>> = LazyLock::new(Default::default);
+
+        let key = self.shape_hash();
+        let cached = REVISIONS
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&key)
+            .and_then(|shapes| shapes.iter().find(|(shape, _)| self.has_shape(shape)).map(|(_, revision)| *revision));
+        if let Some(revision) = cached {
+            return revision;
+        }
+        let revision = self.derived_schema_version();
+        let shape = self
+            .fields
+            .iter()
+            .map(|field| (field.metadata.identifier.clone(), field.value_type.clone(), field.nullable, field.required))
+            .collect();
+        let mut revisions = REVISIONS.write().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let shapes = revisions.entry(key).or_default();
+        if !shapes.iter().any(|(shape, _)| self.has_shape(shape)) {
+            shapes.push((shape, revision));
+        }
+        revision
+    }
+
+    fn derived_schema_version(&self) -> u32 {
         harmos::schema::identity::revision(&self.storage_schema()).expect("finite record schema")
+    }
+
+    fn shape_hash(&self) -> u64 {
+        let mut hasher = std::hash::DefaultHasher::new();
+        self.fields.len().hash(&mut hasher);
+        for field in &self.fields {
+            field.metadata.identifier.hash(&mut hasher);
+            std::mem::discriminant(&field.value_type).hash(&mut hasher);
+            field.nullable.hash(&mut hasher);
+            field.required.hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
+    fn has_shape(&self, shape: &[FieldShape]) -> bool {
+        shape.len() == self.fields.len()
+            && shape.iter().zip(&self.fields).all(|((identifier, value_type, nullable, required), field)| {
+                *identifier == field.metadata.identifier
+                    && *value_type == field.value_type
+                    && *nullable == field.nullable
+                    && *required == field.required
+            })
     }
 
     pub fn declared(record_type: impl Into<String>, label: impl Into<String>) -> Self {
@@ -368,5 +425,34 @@ mod tests {
         reordered.fields.reverse();
         assert_eq!(changed.schema_version(), reordered.schema_version());
         assert_eq!(crate::model::records::BuiltinRecordType::ToolConnectionAcquired.schema_version(), 3948733078);
+    }
+
+    #[test]
+    fn cached_schema_version_equals_the_derived_revision_and_follows_shape_changes() {
+        let base = RecordContract::declared("fixture.cached", "Cached")
+            .field(RecordField::new(Metadata::new(Identifier::new("value").unwrap(), "Value", None), ValueType::Number));
+        let mut retyped = base.clone();
+        retyped.fields[0].value_type = ValueType::Integer;
+        let mut nullable = base.clone();
+        nullable.fields[0].nullable = !nullable.fields[0].nullable;
+        let mut optional = base.clone();
+        optional.fields[0].required = !optional.fields[0].required;
+        let extended =
+            base.clone().field(RecordField::new(Metadata::new(Identifier::new("label").unwrap(), "Label", None), ValueType::Text));
+        let contracts = [
+            base.clone(),
+            retyped,
+            nullable,
+            optional,
+            extended,
+            crate::model::records::BuiltinRecordType::ToolConnectionAcquired.contract(),
+        ];
+        for contract in &contracts {
+            assert_eq!(contract.schema_version(), contract.derived_schema_version());
+            assert_eq!(contract.schema_version(), contract.derived_schema_version());
+        }
+        for (index, contract) in contracts[1..5].iter().enumerate() {
+            assert_ne!(contract.schema_version(), base.schema_version(), "shape change {index} keeps the base revision");
+        }
     }
 }
