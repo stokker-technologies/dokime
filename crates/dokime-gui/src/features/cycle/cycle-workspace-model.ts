@@ -522,16 +522,7 @@ export function caseStatusVariant(status: CaseState): "default" | "secondary" | 
   }
 }
 
-/**
- * The step an operator reads in the header.
- *
- * Step identifiers are frequently opaque (a UUID or a hash), and an opaque
- * token says less than the phase the runtime is in, so fall back to the phase.
- */
-export function progressStepLabel(stepId: string, phase: string): string {
-  const trimmed = stepId.trim();
-  if (!trimmed || /^[0-9a-f]{8,}$/i.test(trimmed) || /^[0-9a-f-]{32,}$/i.test(trimmed)) {
-    return phase;
-  }
-  return trimmed.replaceAll(/[._-]+/g, " ");
+/** A running step's label when no step record names it yet: its id, humanized. */
+export function progressStepLabel(stepId: string): string {
+  return stepId.trim().replaceAll(/[._-]+/g, " ");
 }

@@ -42,10 +42,10 @@ export type ControlCardProps = {
   label: string;
   /** The state line, `Finalizing · saving evidence` or the running step's label. */
   state: string;
-  /** Secondary text after the state, muted: the running step's id. */
+  /** Secondary text after the state, muted: a failed report's cause or why the plugin is unavailable. */
   detail?: string | null;
-  /** The live step progress, as a bar with its count to the right. */
-  progress?: { completed: number; total: number } | null;
+  /** The live step progress, as a bar with its phase and count to the right. */
+  progress?: { completed: number; phase: string; total: number } | null;
   /** The lifecycle actions, in card order; `null` leaves the slot empty. */
   actions?: ReactNode;
   /** Detail across the whole card, under the state row. */
@@ -56,7 +56,7 @@ export type ControlCardProps = {
 
 /**
  * One row on one vertical centre line: the state, the bar with rounded ends,
- * its count to its right, and the actions. The bar takes the free width; the
+ * its phase and count to its right, "Samples 38/100", and the actions. The bar takes the free width; the
  * row keeps its tracks with or without progress, so nothing moves when a run
  * starts or ends.
  */
@@ -75,9 +75,7 @@ export function ControlCard({ actions, children, detail, label, progress, state 
               className="h-1.5 min-w-16 rounded-full [&>[data-slot=progress-indicator]]:rounded-full"
               value={progress.total > 0 ? (progress.completed / progress.total) * 100 : 0}
             />
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {progress.completed}/{progress.total}
-            </span>
+            <span className="text-xs text-muted-foreground tabular-nums">{progressCount(progress)}</span>
           </>
         ) : (
           <>
@@ -97,5 +95,11 @@ export function ControlCard({ actions, children, detail, label, progress, state 
 /* === Hooks === */
 
 /* === Public Functions === */
+
+/** The text beside the bar: the runtime's phase and the count, "Samples 38/100", or the count alone. */
+export function progressCount({ completed, phase, total }: { completed: number; phase: string; total: number }): string {
+  const count = `${completed}/${total}`;
+  return phase.trim() ? `${phase.trim()} ${count}` : count;
+}
 
 /* === Private Functions === */

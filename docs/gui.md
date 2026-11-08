@@ -70,6 +70,12 @@ available only while its registering backend runs. Start that backend again,
 or install the original native plugin revision, before running its cases again.
 The catalog's pending or failed read never asserts that a plugin is absent.
 
+While a step runs, Control states the step's label as its plugin names it, or
+its humanized id before a step record exists; the id itself stays in the
+journal and logs. Beside the bar it shows the runtime's progress phase and
+count, `Samples 38/100`, or the count alone when the phase is empty. The cycle's
+Control reads `Execution 2 · Sample Loop` with the same bar.
+
 The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
 current live cycles and durable sealed cycle headers as one list, with the same
 filter, ordering and continuation rules. A live cycle supersedes its saved

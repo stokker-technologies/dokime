@@ -152,8 +152,7 @@ export function useExecutionActions({
     progress: progress
       ? {
           completed: progress.completed,
-          id: progress.stepId,
-          label: stepLabel(execution, progress.stepId, progress.phase),
+          label: stepLabel(execution, progress.stepId),
           total: progress.total,
         }
       : null,
@@ -201,10 +200,11 @@ export function useExecutionActions({
 
 /* === Public Functions === */
 
-/** The running step's human label, as the Steps card names it; the phase for an opaque id. */
-export function stepLabel(execution: Pick<TestExecution, "steps">, stepId: string, phase: string): string {
+/** The running step's label, as its plugin names it; the humanized id only before a record names it. */
+export function stepLabel(execution: Pick<TestExecution, "steps">, stepId: string): string {
   const record = execution.steps.find((item) => item.record_type === "step" && item.step_id === stepId);
-  return record ? stepRecordLabel(record, false) : progressStepLabel(stepId, phase);
+  const label = record ? stepRecordLabel(record, false) : stepId;
+  return label === stepId ? progressStepLabel(stepId) : label;
 }
 
 /* === Private Functions === */
