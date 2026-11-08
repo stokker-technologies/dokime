@@ -846,7 +846,7 @@ async fn out_of_order_windows_include_only_matching_saved_and_pending_rows() {
     .await
     .unwrap();
     for (suffix, expected) in [("count", 5.0), ("mean", 3.0), ("sum", 15.0)] {
-        let output = outputs.iter().find(|output| output.key().ends_with(&format!(".{suffix}"))).unwrap();
+        let output = outputs.iter().find(|output| output_key(output).ends_with(&format!(".{suffix}"))).unwrap();
         assert_eq!(output.value, Cell::Number(expected));
     }
     // Outputs Flush The Admitted Tail And Read The Summaries Committed With Its Arrow Batches.

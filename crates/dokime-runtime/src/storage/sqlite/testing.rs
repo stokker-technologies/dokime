@@ -376,6 +376,10 @@ pub async fn project_saved(
     crate::domains::telemetry::output::project_saved(session, &local.0, scope, contracts).await
 }
 
+pub fn output_key(output: &crate::streams::AggregateOutput) -> String {
+    output.key()
+}
+
 /* === Private Functions === */
 
 /* === Tests === */
