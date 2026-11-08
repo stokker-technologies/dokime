@@ -69,9 +69,8 @@ impl Drop for RecoveryCancellation {
 
 impl State {
     pub(super) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
-        let owner = self.0.clone();
         self.grouped(1, entry::check_size(&metadata, usize::MAX)?, move |connection| {
-            let result = files::create_file(connection, &root, metadata, true, &mut owner.publication.lock().unwrap());
+            let result = files::create_file(connection, &root, metadata, true);
             Ok(result)
         })
         .await?
@@ -98,6 +97,7 @@ impl State {
     }
 
     pub(super) async fn production_save(&self, root: PathBuf, requested: StorageBatch<FileCheckpoint>) -> Result<(), Error> {
+        let owner = self.0.clone();
         let bytes = requested
             .as_slice()
             .iter()
@@ -106,7 +106,7 @@ impl State {
             Ok((|| {
                 let transaction = connection.savepoint()?;
                 for requested in requested.as_slice() {
-                    save_checkpoint(&transaction, &root, requested)?;
+                    save_checkpoint(&transaction, &root, requested, &mut owner.publication.lock().unwrap())?;
                 }
                 super::super::release(transaction)?;
                 Ok(())
@@ -245,7 +245,9 @@ impl State {
     }
 }
 
-fn save_checkpoint(connection: &Connection, root: &Path, requested: &FileCheckpoint) -> Result<(), Error> {
+fn save_checkpoint(
+    connection: &Connection, root: &Path, requested: &FileCheckpoint, publication: &mut super::super::publication::Publication,
+) -> Result<(), Error> {
     requested.sha256()?;
     let file = StagedFile {
         history: requested.session.history.clone(),
@@ -282,15 +284,18 @@ fn save_checkpoint(connection: &Connection, root: &Path, requested: &FileCheckpo
     let path = files::staging_path(connection, root, &file.id)?;
     files::regular(&path)?;
     let mut physical = OpenOptions::new().read(true).write(true).open(&path)?;
-    verify_prefix(&mut physical, requested, Some(&prior))?;
+    verify_prefix_cancellable(&mut physical, requested, Some(&prior), None)?;
     // The Identical Prefix Is Already Durable. Preserve Corruption Checks Without
     // Reflushing Every Other Active File On Each Checkpoint Batch.
     if requested == &prior {
         return Ok(());
     }
     let encoded = entry::encode(requested)?;
-    // Creation And Recovery Already Confirmed This Name. Flush The Appended
-    // Prefix Before Its Catalog Commit Without Republishing The Whole File.
+    // A First Nonempty Checkpoint Must Preserve The Name As Well As Its Bytes.
+    // The Group Confirms Each Touched Directory Once Before Catalog Commit.
+    if prior.length == 0 {
+        publication.touched(&path);
+    }
     let started = std::time::Instant::now();
     physical.sync_all()?;
     super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -425,10 +430,6 @@ fn progress(connection: &Connection, root: &Path, file: &StagedFile) -> Result<F
     files::regular(&path)?;
     let length = std::fs::metadata(path)?.len();
     Ok(FileProgress { length, phase })
-}
-
-fn verify_prefix(file: &mut std::fs::File, checkpoint: &FileCheckpoint, previous: Option<&FileCheckpoint>) -> Result<(), Error> {
-    verify_prefix_cancellable(file, checkpoint, previous, None)
 }
 
 fn verify_prefix_cancellable(

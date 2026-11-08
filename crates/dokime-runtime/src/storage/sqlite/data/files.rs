@@ -71,7 +71,7 @@ impl State {
         let owner = self.0.clone();
         self.grouped(1, entry::check_size(&metadata, usize::MAX)?, move |connection| {
             let result = (|| {
-                let staging = create_file(connection, &root, metadata, false, &mut owner.publication.lock().unwrap())?;
+                let staging = create_file(connection, &root, metadata, false)?;
                 if metadata_for(connection, &staging.id)?.is_some_and(|(_, finished)| finished.is_none()) {
                     let path = staging_path(connection, &root, &staging.id)?;
                     let file = OpenOptions::new().read(true).write(true).open(path)?;
@@ -303,10 +303,7 @@ impl State {
 
 /* === Public Functions === */
 
-pub(super) fn create_file(
-    connection: &mut Connection, root: &Path, metadata: FileMetadata, production: bool,
-    publication: &mut super::super::publication::Publication,
-) -> Result<StagedFile, Error> {
+pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: FileMetadata, production: bool) -> Result<StagedFile, Error> {
     entry::key(metadata.id.as_str())?;
     if let Some(scope) = &metadata.scope {
         entry::key(scope.as_str())?;
@@ -373,9 +370,8 @@ pub(super) fn create_file(
         }
         regular(&path)?;
         OpenOptions::new().create(true).truncate(false).write(true).open(&path)?;
-        if production && active.is_none() {
-            publication.created(&path)?;
-        }
+        // The Durable Zero-Length Checkpoint Reconstructs A Missing Empty File.
+        // Nonempty Checkpoints And Publication Flush Their Actual File Contents.
     }
     super::super::release(transaction)?;
     Ok(staging)

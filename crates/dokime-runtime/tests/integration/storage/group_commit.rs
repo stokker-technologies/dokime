@@ -129,7 +129,18 @@ async fn failed_file_creation_does_not_publish_a_production() {
     assert_eq!(count, 0);
     std::fs::remove_file(staging).unwrap();
     backend.create_production(&metadata("retry")).await.unwrap();
+    let name: String = backend
+        .local_state()
+        .call(|connection| {
+            connection.query_row("SELECT uuid FROM storage_staging WHERE id='retry' AND phase='write'", [], |row| row.get(0))
+        })
+        .await
+        .unwrap();
     backend.local_state().close().await.unwrap();
+    // Simulate Losing The Empty Inode Before It Was Flushed; Durable Metadata
+    // Must Reconstruct The Acknowledged Zero-Length Production.
+    let path = root.path().join("staging").join(name);
+    std::fs::remove_file(&path).unwrap();
     let reopened = Backend::<()>::primary(root.path().to_owned()).await.unwrap();
     reopened.open().await.unwrap();
     let recovered = reopened
@@ -141,6 +152,8 @@ async fn failed_file_creation_does_not_publish_a_production() {
         .unwrap();
     assert_eq!(recovered.len(), 1);
     assert_eq!(recovered[0].metadata.id.as_str(), "retry");
+    assert_eq!(recovered[0].length, 0);
+    assert!(std::fs::read(path).unwrap().is_empty());
     reopened.local_state().close().await.unwrap();
 }
 

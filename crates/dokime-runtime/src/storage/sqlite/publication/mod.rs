@@ -64,17 +64,12 @@ impl Publication {
         Ok(())
     }
 
-    pub(super) fn created(&mut self, path: &Path) -> Result<(), super::Error> {
-        let started = Instant::now();
-        std::fs::OpenOptions::new().read(true).write(true).open(path)?.sync_all()?;
-        super::FILE_SYNC_NS.fetch_add(started.elapsed().as_nanos() as u64, Ordering::Relaxed);
-        super::DURABLE_FILES.fetch_add(1, Ordering::Relaxed);
-        self.directories.insert(path.parent().expect("file parent").to_owned());
-        Ok(())
-    }
-
     pub(super) fn retire(&mut self, source: PathBuf) {
         self.sources.insert(source);
+    }
+
+    pub(super) fn touched(&mut self, path: &Path) {
+        self.directories.insert(path.parent().expect("file parent").to_owned());
     }
 
     pub(super) fn sync(&mut self) -> Result<(), super::Error> {
