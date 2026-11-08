@@ -75,12 +75,34 @@ pub fn run(criterion: &mut Criterion, executor: &tokio::runtime::Runtime) {
 
                             // Include Bounded Generation And Admission; Durable Also Includes The Final Barrier.
                             let probe = super::metrics::Probe::start(fixture.storage.clone());
+                            let counters_before = dokime_runtime::storage::sqlite::counters();
                             let started = Instant::now();
                             let accepted = ingest(&fixture.storage, kind, &schema, count).await;
                             if durable {
                                 fixture.storage.flush_until(&accepted).await.unwrap();
                             }
-                            elapsed += started.elapsed();
+                            let duration = started.elapsed();
+                            elapsed += duration;
+                            if std::env::var_os("DOKIME_STORAGE_PROBE").is_some() {
+                                let counters_after = dokime_runtime::storage::sqlite::counters();
+                                println!(
+                                    "{}",
+                                    serde_json::json!({
+                                        "kind": "storage_ingestion_probe", "rows": count, "durable": durable,
+                                        "elapsed_ns": duration.as_nanos(),
+                                        "wal_syncs": counters_after.sqlite_syncs.wal - counters_before.sqlite_syncs.wal,
+                                    "database_syncs": counters_after.sqlite_syncs.database - counters_before.sqlite_syncs.database,
+                                    "journal_syncs": counters_after.sqlite_syncs.journal - counters_before.sqlite_syncs.journal,
+                                    "wal_sync_ns": counters_after.sqlite_syncs.wal_ns - counters_before.sqlite_syncs.wal_ns,
+                                    "commits": counters_after.committed_transactions - counters_before.committed_transactions,
+                                        "commit_ns": counters_after.commit_ns - counters_before.commit_ns,
+                                        "checkpoints": counters_after.checkpoints - counters_before.checkpoints,
+                                        "checkpoint_ns": counters_after.checkpoint_ns - counters_before.checkpoint_ns,
+                                        "file_syncs": counters_after.durable_files - counters_before.durable_files,
+                                        "directory_syncs": counters_after.directory_syncs - counters_before.directory_syncs,
+                                    })
+                                );
+                            }
                             fixture.storage.flush_until(&accepted).await.unwrap();
                             resources.merge(probe.finish());
 
