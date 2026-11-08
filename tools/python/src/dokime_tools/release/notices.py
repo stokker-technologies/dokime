@@ -12,19 +12,26 @@
 
 # Standard Library Imports
 import argparse
+import base64
+import csv
 import email.parser
 import hashlib
 import io
 import json
 import shutil
+import tarfile
+import tempfile
 import tomllib
 import urllib.request
 import zipfile
 from pathlib import Path
 
+from ..build import paths
+from ..package.staging import stage_file
+
 # Third Party Imports
 # Local Imports
-from . import policy
+from . import policy, sbom
 
 # Type Checking Imports
 
@@ -129,28 +136,112 @@ def shell_notices(document: dict) -> tuple[str, int]:
 
 
 def stage(directory: Path, destination: Path) -> None:
-    """Place Notices in an Existing Installer Distribution and Update Its Inventory."""
+    """Ship Notices in the Installer's Installed LICENSE and Portable Layout."""
     manifest = destination / "distribution.json"
     document = json.loads(manifest.read_text(encoding="utf-8"))
     for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
-        source = directory / name
-        shutil.copyfile(source, destination / name)
-        document["files"][name] = hashlib.sha256(source.read_bytes()).hexdigest()
+        stage_file(directory / name, destination / name)
+        document["files"][name] = hashlib.sha256((destination / name).read_bytes()).hexdigest()
+    text = (directory / "LICENSE").read_text(encoding="utf-8")
+    for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+        text += "\n\n" + (directory / name).read_text(encoding="utf-8")
+    (destination / "LICENSE").write_text(text, encoding="utf-8", newline="\n")
+    document["files"]["LICENSE"] = hashlib.sha256((destination / "LICENSE").read_bytes()).hexdigest()
     manifest.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", type=Path)
-    options = parser.parse_args()
-    directory = policy.root()
+def archive(directory: Path, source: Path) -> None:
+    """Add Notices Before Release Hashing, Preserving Executable Modes and Wheel RECORD."""
+    notices = {name: (directory / name).read_bytes() for name in ("NOTICE", "THIRD-PARTY-NOTICES")}
+    with tempfile.TemporaryDirectory(prefix="dokime-notices-") as temporary:
+        result = Path(temporary) / source.name
+        if source.name.endswith((".zip", ".whl")):
+            with zipfile.ZipFile(source) as original, zipfile.ZipFile(result, "w", compression=zipfile.ZIP_DEFLATED) as output:
+                wheel = source.suffix == ".whl"
+                record = next((name for name in original.namelist() if name.endswith(".dist-info/RECORD")), None) if wheel else None
+                if wheel and record is None:
+                    raise policy.ToolError("wheel has no RECORD")
+                prefix = record.rsplit("/", 1)[0] + "/licenses/" if record else ""
+                added = {prefix + name: data for name, data in notices.items()}
+                for entry in original.infolist():
+                    if entry.filename not in {*added, record}:
+                        output.writestr(entry, original.read(entry))
+                for name, data in added.items():
+                    output.writestr(name, data)
+                if record:
+                    rows = [row for row in csv.reader(io.StringIO(original.read(record).decode("utf-8"))) if row[0] not in {*added, record}]
+                    for name, data in added.items():
+                        digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).decode().rstrip("=")
+                        rows.append([name, "sha256=" + digest, str(len(data))])
+                    rows.append([record, "", ""])
+                    contents = io.StringIO(newline="")
+                    csv.writer(contents).writerows(rows)
+                    output.writestr(record, contents.getvalue())
+        elif source.name.endswith(".tar.gz"):
+            with tarfile.open(source) as original, tarfile.open(result, "w:gz") as output:
+                for entry in original.getmembers():
+                    if entry.name not in notices:
+                        output.addfile(entry, original.extractfile(entry) if entry.isfile() else None)
+                for name, data in notices.items():
+                    entry = tarfile.TarInfo(name)
+                    entry.size = len(data)
+                    entry.mode = 0o644
+                    output.addfile(entry, io.BytesIO(data))
+        else:
+            raise policy.ToolError(f"unsupported notice archive: {source}")
+        shutil.copyfile(result, source)
+
+
+def generate(directory: Path) -> dict:
+    """Resolve Approved Licenses, Then Collect Actual Copyright and License Text."""
     output = directory / "target/notices"
     output.mkdir(parents=True, exist_ok=True)
+    document = sbom.exceptions(directory)
+    metadata = json.loads(policy.execute(directory, ["cargo", "metadata", "--locked", "--format-version", "1"], capture=True))
+    packages = {(item["name"], item["version"]) for item in metadata["packages"]}
+    licenses = {}
+    for entry in document.get("license", []):
+        if (entry["package"], entry["version"]) in packages:
+            licenses.setdefault(entry["package"], set()).update(entry.get("accepted", [entry["license"]]))
+    for name in licenses:
+        allowed = {item["version"] for item in document["license"] if item["package"] == name}
+        if any(package == name and version not in allowed for package, version in packages):
+            raise policy.ToolError(f"license exception does not cover every resolved {name} version")
+    config = (directory / "about.toml").read_text(encoding="utf-8")
+    for name, accepted in sorted(licenses.items()):
+        config += f"\n[{json.dumps(name)}]\naccepted = {json.dumps(sorted(accepted))}\n"
+    configured = output / "about.toml"
+    configured.write_text(config, encoding="utf-8")
     policy.execute(
-        directory, ["cargo", "about", "generate", "--locked", "--workspace", "--format", "json", "--output-file", str(output / "rust.json")]
+        directory,
+        [
+            "cargo",
+            "about",
+            "generate",
+            "--locked",
+            "--workspace",
+            "--config",
+            str(configured),
+            "--format",
+            "json",
+            "--output-file",
+            str(output / "rust.json"),
+        ],
     )
     policy.execute(
-        directory, ["cargo", "about", "generate", "--locked", "--workspace", "about.hbs", "--output-file", str(output / "rust.txt")]
+        directory,
+        [
+            "cargo",
+            "about",
+            "generate",
+            "--locked",
+            "--workspace",
+            "--config",
+            str(configured),
+            "about.hbs",
+            "--output-file",
+            str(output / "rust.txt"),
+        ],
     )
     rust = json.loads((output / "rust.json").read_text(encoding="utf-8"))
     crates = {(item["crate"]["name"], item["crate"]["version"]) for license_ in rust["licenses"] for item in license_["used_by"]}
@@ -163,9 +254,35 @@ def main() -> int:
     (directory / "THIRD-PARTY-NOTICES").write_text(text, encoding="utf-8")
     counts = {"rust": len(crates), "shell": shell_count, "python": python_count}
     (output / "counts.json").write_text(json.dumps(counts, indent=2) + "\n", encoding="utf-8")
-    if options.stage:
-        stage(directory, options.stage)
     print(json.dumps(counts))
+    return counts
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--stage", type=Path)
+    parser.add_argument("--archives", type=Path)
+    parser.add_argument("--python", action="store_true")
+    parser.add_argument("--profile", choices=("dev", "release"))
+    parser.add_argument("--target", default="native")
+    options = parser.parse_args()
+    directory = policy.root()
+    generate(directory)
+    destination = options.stage
+    if options.profile:
+        target = paths.target() if options.target == "native" else options.target
+        if options.python:
+            options.archives = paths.output(directory, "package", options.profile, target) / "python"
+        else:
+            destination = paths.output(directory, "build", options.profile, target) / "product/installer-distribution"
+    if destination:
+        stage(directory, destination)
+    if options.archives:
+        wheels = sorted(options.archives.glob("*.whl"))
+        if not wheels:
+            raise policy.ToolError(f"no packaged wheels in {options.archives}")
+        for source in wheels:
+            archive(directory, source)
     return 0
 
 

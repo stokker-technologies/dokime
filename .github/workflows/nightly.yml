@@ -115,7 +115,7 @@ jobs:
         summary-module: dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     outputs:
       stable_release: ${{ steps.release_kind.outputs.stable_release }}
     concurrency:
@@ -180,7 +180,7 @@ jobs:
         summary-module: dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     concurrency:
       group: ci-${{ github.workflow }}-check_python-shared-${{ github.run_id }}
       cancel-in-progress: false
@@ -243,7 +243,7 @@ jobs:
         summary-module: dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,protoc
+        go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,protoc,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     concurrency:
       group: ci-${{ github.workflow }}-check_typescript-shared-${{ github.run_id }}
       cancel-in-progress: false
@@ -346,7 +346,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,protoc,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,protoc,python,rust,sccache,uv,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
@@ -573,7 +573,7 @@ jobs:
       with:
         summary-module: ''
     env:
-      MISE_ENABLE_TOOLS: aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      MISE_ENABLE_TOOLS: aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
@@ -692,7 +692,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     concurrency:
       group: ci-${{ github.workflow }}-bench_rust_system-shared-${{ github.run_id }}
       cancel-in-progress: false
@@ -784,7 +784,7 @@ jobs:
       'refs/tags/v') || false || (github.event_name == 'push' && github.ref ==
       'refs/heads/dev'))
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     concurrency:
       group: ci-${{ github.workflow }}-package_python-${{ matrix.platform }}-${{ github.run_id }}
       cancel-in-progress: false
@@ -871,7 +871,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_python
     strategy:
@@ -958,7 +958,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_product
     concurrency:
@@ -1039,7 +1039,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_python
     strategy:
@@ -1152,7 +1152,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     concurrency:
       group: ci-${{ github.workflow }}-bench_rust_unit-shared-${{ github.run_id }}
       cancel-in-progress: false
@@ -1230,7 +1230,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_product
     concurrency:
@@ -1313,7 +1313,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_python
     strategy:
@@ -1436,7 +1436,7 @@ jobs:
     - build_python
     - build_tests
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     concurrency:
       group: ci-${{ github.workflow }}-validate_coverage_python-shared-${{ github.run_id }}
       cancel-in-progress: false
@@ -1514,7 +1514,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_product
     concurrency:
@@ -1620,7 +1620,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_product
     - build_python
@@ -1727,7 +1727,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_product
     - build_python
@@ -1875,7 +1875,7 @@ jobs:
     - build_python
     - build_tests
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:bnjbvr/cargo-machete,sccache,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,taplo,protoc,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     concurrency:
       group: ci-${{ github.workflow }}-validate_coverage_rust-shared-${{ github.run_id }}
       cancel-in-progress: false
@@ -1953,7 +1953,7 @@ jobs:
         summary-module: dokime_tools.ci.summary
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       COMPILER_CACHE_BACKEND: disk
       COMPILER_CACHE_KIND: bench
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
@@ -2055,7 +2055,7 @@ jobs:
       with:
         summary-module: dokime_tools.ci.summary
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     concurrency:
       group: ci-${{ github.workflow }}-bench_rust_integration-shared-${{ github.run_id }}
       cancel-in-progress: false
@@ -2351,7 +2351,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      MISE_ENABLE_TOOLS: aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
@@ -2540,7 +2540,7 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+        aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       COMPILER_CACHE_BACKEND: disk
       COMPILER_CACHE_KIND: tests
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
@@ -2692,7 +2692,7 @@ jobs:
         summary-module: ""
     env:
       MISE_ENABLE_TOOLS: >-
-        aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,sccache,taplo,uv,protoc
+        aqua:koalaman/shellcheck,github:bnjbvr/cargo-machete,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,sccache,taplo,uv,protoc,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
@@ -3193,7 +3193,7 @@ jobs:
       !(needs.source.outputs.stable_release == 'true' &&
       contains(fromJSON('["windows"]'), 'windows') && github.workflow != 'Nightly'))
     env:
-      MISE_ENABLE_TOOLS: aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
+      MISE_ENABLE_TOOLS: aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     strategy:
       fail-fast: false
       matrix:
@@ -3469,7 +3469,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_product
     - build_python
@@ -3658,7 +3658,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_tests
     strategy:
@@ -3833,7 +3833,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_product
     strategy:
@@ -4071,7 +4071,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_product
     - build_python
@@ -4249,7 +4249,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_tests
     strategy:
@@ -4505,7 +4505,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff
+      MISE_ENABLE_TOOLS: go,node,powershell,protoc,python,rust,pnpm,uv,aqua:nextest-rs/nextest/cargo-nextest,aqua:koalaman/shellcheck,go:github.com/rhysd/actionlint/cmd/actionlint,git-cliff,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     needs:
     - build_product
     - build_tests
@@ -4612,7 +4612,7 @@ jobs:
       with:
         subject-checksums: target/release-assets/any/SHA256SUMS
     env:
-      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,python,rust,sccache,uv,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
