@@ -39,6 +39,10 @@ macro_rules! fixture {
         mod $module {
             #[dokime_runtime::stream(id = "revision.reading", window = 32, label = "Reading")]
             pub(super) struct Row { $(pub(super) $field: $kind),* }
+            #[dokime_runtime::record(id = "revision.event", label = "Reading Event")]
+            pub(super) struct Event { $(pub(super) $field: $kind),* }
+            #[dokime_runtime::catalog]
+            enum Records { Event(Event) }
             pub(super) struct Checks;
             #[dokime_runtime::catalog]
             enum Templates { Measure(Measure) }
@@ -47,12 +51,14 @@ macro_rules! fixture {
             #[dokime_runtime::suite(id = "revision.checks", label = "Checks", templates = Templates)]
             impl Checks {}
             pub(super) struct Measure;
-            #[dokime_runtime::template(id = "revision.checks.measure", label = "Measure", streams = Streams)]
+            #[dokime_runtime::template(id = "revision.checks.measure", label = "Measure", streams = Streams, records = Records)]
             impl Measure {
                 async fn initialize(_: &mut dokime_runtime::execution::InitializationContext<'_>) -> dokime_runtime::Result<Self> { Ok(Self) }
                 #[dokime_runtime::step(label = "Measure")]
                 async fn measure(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
-                    ctx.publish($row).await;
+                    let row = $row;
+                    ctx.publish(Event { $($field: row.$field.clone()),* }).await;
+                    ctx.publish(row).await;
                     Ok(())
                 }
             }
@@ -317,15 +323,17 @@ async fn stream_revisions_reload_and_restart_reports() {
 #[tokio::test]
 async fn stream_revisions_restart_retains_execution_reports() {
     let root = tempdir().unwrap();
-    let mut owner = dokime_runtime::Runtime::start(config(root.path()).register(Arc::new(Provider(Variant::Initial)))).await.unwrap();
+    let mut settings = config(root.path());
+    settings.managed_storage.snapshots = None;
+    let mut owner = dokime_runtime::Runtime::start(settings.clone().register(Arc::new(Provider(Variant::Initial)))).await.unwrap();
     let mut handle = owner.handle();
     let mut executions = Vec::new();
-    for (index, variant) in [Variant::Initial, Variant::Expanded].into_iter().enumerate() {
+    for (index, variant) in [Variant::Initial, Variant::Initial, Variant::Expanded].into_iter().enumerate() {
         if index != 0 {
             owner.shutdown().await.unwrap();
             drop(handle);
             drop(owner);
-            owner = dokime_runtime::Runtime::start(config(root.path()).register(Arc::new(Provider(variant)))).await.unwrap();
+            owner = dokime_runtime::Runtime::start(settings.clone().register(Arc::new(Provider(variant)))).await.unwrap();
             handle = owner.handle();
         }
         let suite = Provider(variant).suite();
@@ -355,18 +363,102 @@ async fn stream_revisions_restart_retains_execution_reports() {
                 .await
                 .unwrap();
             assert_eq!(rows.len(), 1);
-            assert_eq!(rows[0].values["value"], Value::Number([7.0, 13.0][previous_index]));
-            assert_eq!(rows[0].values.get("added"), (previous_index == 1).then_some(&Value::Unsigned(29)));
+            assert_eq!(rows[0].values["value"], Value::Number([7.0, 7.0, 13.0][previous_index]));
+            assert_eq!(rows[0].values.get("added"), (previous_index == 2).then_some(&Value::Unsigned(29)));
             drop(rows);
-            let mut report = handle.open_execution_report(previous).await.unwrap();
-            let bytes = reports::opened_bytes(&mut report).await;
+            let records = handle
+                .selected_records(dokime_runtime::domains::evidence::RecordSelection {
+                    record_types: vec![identifier("revision.event").into()],
+                    scope: ScopeSelection {
+                        test_execution_id: Some(previous.clone()),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            assert_eq!(records.len(), 1);
+            assert_eq!(records[0].details["value"], Value::Number([7.0, 7.0, 13.0][previous_index]));
+            assert_eq!(records[0].details.get("added"), (previous_index == 2).then_some(&Value::Unsigned(29)));
+            drop(records);
+            let rendered = handle
+                .operations()
+                .operation::<dokime_runtime::operations::reports::MaterializeReport>(
+                    dokime_runtime::operations::reports::MaterializeReport {
+                        subject: dokime_domain::model::reports::wire::ReportSubject::Execution(previous.to_string()),
+                        at: handle.storage().cursor_saved(),
+                    },
+                )
+                .await
+                .unwrap();
+            let bytes = reports::bytes(handle.storage(), &rendered.report).await;
             let report = reports::parse(std::str::from_utf8(&bytes).unwrap());
             let samples = report["snapshot"]["telemetry"]["revision.reading"]["samples"].as_array().unwrap();
             assert_eq!(samples.len(), 1);
-            assert_eq!(samples[0]["value"], serde_json::json!([7.0, 13.0][previous_index]));
+            assert_eq!(samples[0]["value"], serde_json::json!([7.0, 7.0, 13.0][previous_index]));
         }
     }
     owner.shutdown().await.unwrap();
+    drop(handle);
+    drop(owner);
+
+    // Reopen Without The Plugin And Materialize Its Original Evidence.
+    let mut owner = dokime_runtime::Runtime::start(settings.clone()).await.unwrap();
+    let handle = owner.handle();
+    let rendered = handle
+        .operations()
+        .operation::<dokime_runtime::operations::reports::MaterializeReport>(dokime_runtime::operations::reports::MaterializeReport {
+            subject: dokime_domain::model::reports::wire::ReportSubject::Execution(executions[0].to_string()),
+            at: handle.storage().cursor_saved(),
+        })
+        .await
+        .unwrap();
+    let bytes = reports::bytes(handle.storage(), &rendered.report).await;
+    let report = reports::parse(std::str::from_utf8(&bytes).unwrap());
+    assert_eq!(report["snapshot"]["telemetry"]["revision.reading"]["samples"][0]["value"], serde_json::json!(7.0));
+    owner.shutdown().await.unwrap();
+    drop(handle);
+    drop(owner);
+
+    // Give One Built-In Journal Record An Unreadable Shape Identity.
+    use base64::Engine;
+    use sha2::Digest;
+    let path = root.path().join("state.jsonl");
+    let journal = std::fs::read_to_string(&path).unwrap();
+    let mut changed = false;
+    let mut replacement = String::new();
+    for line in journal.lines() {
+        let mut frame: serde_json::Value = serde_json::from_str(line).unwrap();
+        if !changed && let Some(payload) = frame["value"]["payload"].as_str() {
+            let decoded = base64::engine::general_purpose::STANDARD_NO_PAD.decode(payload).unwrap();
+            let mut group: serde_json::Value = serde_json::from_slice(&decoded).unwrap();
+            for entry in group["entries"].as_array_mut().unwrap() {
+                if entry["id"] == "dokime.captured_record" {
+                    entry["version"] = serde_json::json!(entry["version"].as_u64().unwrap() ^ 1);
+                    changed = true;
+                    break;
+                }
+            }
+            if changed {
+                let encoded = base64::engine::general_purpose::STANDARD_NO_PAD.encode(serde_json::to_vec(&group).unwrap());
+                frame["value"]["payload"] = serde_json::json!(encoded);
+            }
+        }
+        let value = serde_json::to_string(&frame["value"]).unwrap();
+        let digest = sha2::Sha256::digest(value.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        replacement.push_str(&format!("{{\"value\":{value},\"sha256\":\"{digest}\"}}\n"));
+    }
+    assert!(changed);
+    std::fs::write(&path, replacement.as_bytes()).unwrap();
+    let error = dokime_runtime::Runtime::start(settings).await.err().unwrap();
+    let mut reasons = Vec::new();
+    let mut cause = Some(&error as &(dyn std::error::Error + 'static));
+    while let Some(error) = cause {
+        reasons.push(error.to_string());
+        cause = error.source();
+    }
+    assert!(reasons.iter().any(|reason| reason.contains("dokime.captured_record") && reason.contains("fresh storage root")), "{reasons:?}");
+    assert_eq!(std::fs::read_to_string(path).unwrap(), replacement);
 }
 
 #[dokime_tracing::trace_test]

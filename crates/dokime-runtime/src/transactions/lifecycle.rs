@@ -44,7 +44,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.runtime.started")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct MarkRuntimeStarted {
     pub session_id: SessionId,
     pub record_namespace: SessionId,
@@ -54,17 +54,17 @@ pub struct MarkRuntimeStarted {
 }
 
 #[harmos::transaction(id = "dokime.runtime.identity.establish")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct EstablishNodeIdentity {
     pub candidate: DokimeNodeIdentity,
 }
 
 #[harmos::transaction(id = "dokime.runtime.shutdown.start")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct StartShutdown;
 
 #[harmos::transaction(id = "dokime.runtime.interrupted.recover")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecoverInterruptedCycles {
     pub at: Timestamp,
 
@@ -81,18 +81,20 @@ pub struct ReportFinalization {
     pub lifecycle: Option<ReportLifecycle>,
 }
 
-#[harmos::transaction(id = "dokime.report.finalization.request")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RequestReportFinalization {
     pub executions: Vec<TestExecutionId>,
     pub intent: ReportFinalization,
 }
 
-#[harmos::transaction(id = "dokime.report.lifecycle.capture")]
+retained_transaction!(RequestReportFinalization, "dokime.report.finalization.request");
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CaptureReportLifecycle {
     pub lifecycle: ReportLifecycle,
 }
+
+retained_transaction!(CaptureReportLifecycle, "dokime.report.lifecycle.capture");
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReportLifecycle {
@@ -101,32 +103,32 @@ pub struct ReportLifecycle {
     pub context: Option<harmos::storage::FileReference>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CycleReportFinalization {
     pub source: dokime_domain::model::execution::result::TestCycle,
     pub evidence_at: harmos::storage::StorageCursor,
 }
 
 #[harmos::transaction(id = "dokime.cycle.report.finalization.request")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RequestCycleReportFinalization {
     pub intent: CycleReportFinalization,
 }
 
 #[harmos::transaction(id = "dokime.cycle.seal")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SealCycle {
     pub sealed_cycle: dokime_domain::model::execution::result::TestCycle,
 }
 
 #[harmos::transaction(id = "dokime.execution.seal")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SealExecution {
     pub seal: dokime_domain::model::execution::saved::ExecutionSeal,
 }
 
 #[harmos::transaction(id = "dokime.cycle.sealing.begin")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct BeginCycleSeal {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub at: Timestamp,
@@ -134,7 +136,7 @@ pub struct BeginCycleSeal {
 
 // Settles A Seal That Could Not Complete: The Cycle Leaves Sealing With Its Cause Recorded.
 #[harmos::transaction(id = "dokime.cycle.sealing.fail")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct FailCycleSeal {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub cause: String,
@@ -142,14 +144,14 @@ pub struct FailCycleSeal {
 }
 
 #[harmos::transaction(id = "dokime.execution.request.queued.stop")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct StageQueuedStop {
     pub request_id: dokime_domain::model::identity::CommandId,
     pub at: Timestamp,
 }
 
 #[harmos::transaction(id = "dokime.report.failed")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct FailReport {
     pub execution: TestExecutionId,
     pub cause: String,

@@ -81,7 +81,7 @@ impl dokime::StreamSpec for WifiLatency {
 
 impl TelemetryStream for WifiLatency {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::WifiLatency).typed::<crate::WifiLatency>()
+        crate::host_telemetry_contract(HostTelemetryStream::WifiLatency)
     }
 }
 

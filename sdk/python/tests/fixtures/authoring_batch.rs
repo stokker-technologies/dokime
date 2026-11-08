@@ -82,7 +82,7 @@ impl EmbeddedProvider for Provider {
             version: "0.1.0".into(),
             enabled: true,
             telemetry_contracts: vec![
-                dokime::telemetry::TelemetryContract::declared("batch.samples", "Samples").with_storage_schema(schema).columns(columns),
+                dokime::telemetry::TelemetryContract::declared("batch.samples", "Samples").with_storage_schema(schema, 1).columns(columns),
             ],
             ..Default::default()
         }

@@ -108,7 +108,7 @@ impl EmbeddedProvider for Probe {
             suites: dokime_runtime::definition::SuiteSet::new([suite]),
             telemetry_contracts: vec![
                 dokime_runtime::telemetry::TelemetryContract::declared("fixture.embedded.staged", "Staged Reading")
-                    .typed::<StagedReading>()
+                    .typed::<StagedReading>(1)
                     .column(dokime_runtime::telemetry::TelemetryColumn::declared(
                         "value",
                         "Value",

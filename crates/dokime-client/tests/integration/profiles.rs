@@ -161,7 +161,7 @@ fn profiles() {
     assert!(
         store
             .update(|document| {
-                document.version = 2;
+                document.default = Some("absent".into());
                 Ok(())
             })
             .is_err()
@@ -175,7 +175,6 @@ fn profiles() {
         .unwrap();
     let reopened = Store::new(&path);
     let mut document = reopened.load().unwrap();
-    assert_eq!(document.version, 1);
     document.profiles[0].secret = Secret::Keyring;
     let selected = profiles::select(&document, Some("local"), None, Some("unknown")).unwrap();
     assert_eq!(selected.expected_backend_id.as_deref(), Some("machine-1"));

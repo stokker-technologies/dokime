@@ -59,7 +59,7 @@ pub(crate) const EXECUTION_NOT_PLANNED: &str = "case has no unstarted execution;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.provider.run")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RunProvider {
     pub mode: dokime_domain::model::execution::ExecutionMode,
     pub test_cycle_id: TestCycleId,

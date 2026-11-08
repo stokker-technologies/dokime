@@ -167,7 +167,11 @@ pub(crate) fn key() -> SchemaKey {
 
 // A Single-Definition Row Graph for Fixture Schemas
 pub(crate) fn graph(fields: Vec<Field>) -> Schema {
-    Schema { root: 0, definitions: vec![fields] }
+    Schema {
+        root: 0,
+        definitions: vec![fields],
+        representations: Default::default(),
+    }
 }
 
 // The Prepared Row Graph of a Described Message

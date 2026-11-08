@@ -1,30 +1,62 @@
 ## Agreed Design
 
-Data shape revisions derive from Harmos schema identity and are opaque equality keys. Plugin-owned shapes never invalidate a root; product-owned persistent state refuses only when it cannot be decoded. Existing evidence keeps its stored definitions. API, algorithm and package versions are outside scope.
+Data shape revisions derive from Harmos schemas and are opaque equality keys.
+The published Harmos pin is `62a554c74010e3b771d060a366fdead44de07a0e`,
+which resolves the previous Serde tagging, renaming and omission blocker.
 
-## Dependency Contract Requiring Resolution
+Record contracts derive from their declared field graph through Harmos's shared
+schema-only revision function. Telemetry constructors take the declared stream window and derive once from the
+row graph and that window. Host declarations reuse their public row types.
+Telemetry contracts carry the stream revision,
+which becomes `SchemaKey.version`; evidence and query fields carry that identity
+so historical definitions can be selected. Persisted product records, transactions
+and stored objects use `Described` and `Identified::ID`.
 
-The pinned Harmos revision makes `Identified` require `Described`. Dokime's built-in journal types (`model::records::evidence::Record`, `state::records::CapturedRecord`, and `state::records::work::Work`) previously supplied no schema description. Adding the native derive and following their field dependencies exposes unsupported Serde representations:
+The whole-root schema/source digest and its build inputs are removed. The local
+database validates its own layout; Harmos validates built-in journal replay and
+snapshot decoding. Existing obsolete digest files remain untouched. Known obsolete
+Dokime state files refuse by name because they cannot be replayed. Plugin settings,
+secret values, installation metadata and document evidence are data under product
+containers, never members of a root compatibility hash. Operational admission and
+pending physical-effect restoration retain their existing safety rules.
 
-- `model/execution/scope.rs`: `EvidenceOrigin` uses `#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]`. Harmos's `Described` derive rejects `tag`.
-- `model/records/contract/severity.rs`: `RecordSeverity` uses `#[serde(rename_all = "snake_case")]`. The derive rejects `rename_all`.
-- `model/records/evidence/record.rs`: the optional error uses `skip_serializing_if`, also rejected by the derive.
+## Retained Identities and Framing
 
-The errors come from Harmos's `harmos-macros/src/message.rs` stored-Serde `shape` implementation. Its supported container attributes are currently `transparent`, `deny_unknown_fields`, and `default`; supported field attributes are `skip`, `rename`, and `default`.
+- The interned runtime snapshot has custom `Serialize`/`Deserialize` implementations; the native derive cannot describe that representation, so its existing key remains, as the owner authorized for individually unsupported types.
+- `AppendExecutions`: nested maps and tuple collections are outside the derive's field grammar; keep its current journal identity.
+- `RegisterCases`: maps keyed by `CaseId` are unsupported; keep its current journal identity.
+- `FinishProvider`: its `Result` payload is unsupported; keep its current journal identity.
+- `InstallPlugin`, `InstallHostPlugin`, `ReconcileProviders`, `ReloadProviderCatalog`, and `SetSuiteSet`: catalog payloads reach custom Serde conversions, flattened document cards, and boxed expression containers; keep their current journal identities.
+- `AddExecutionDocumentParts`: captured document declarations reach flattened cards and boxed expression containers; keep its current journal identity.
+- `RequestReportFinalization` and `CaptureReportLifecycle`: `uuid::Uuid` has no Harmos description; keep their current journal identities.
+- `FinalizeExecutionOutputs`: aggregate output contains `time::OffsetDateTime`, which has no Harmos description; keep its current journal identity.
 
-A clean adoption needs a single schema owner that accurately describes these existing representations. Recommended resolution: extend the Harmos derive to support the Serde representations reached by Dokime's persistent state, validate those schema identities upstream, then pin that checkpoint here. Hand-written parallel schemas would duplicate the declarations; changing serialization to fit the derive would expand this task beyond deriving existing shapes. No such workaround is implemented.
+The journal catalog dispatches derived and retained members together through
+Harmos's supported catalog/codec traits. It supplies no fabricated schema for a
+retained member. All current transactions are forward-only, matching the previous
+catalog's absent inverse handlers.
 
-## Inventory Findings
+- Captured native bundle framing validates unsupported input before structural and identity checks; its version is retained.
+- Export framing stamps the manifest, SQLite artifact and download metadata; clients reject unsupported framing, so it is retained.
+- Pairing files validate the supported untrusted input format before importing credentials; its version is retained.
+- SQLite's layout sentinel protects the product database layout; it remains independent of plugin and evidence schemas.
+- Record and telemetry definition/catalog/evidence wire fields carry derived historical identities, not authored ordinals.
 
-The proposed removal inventory contains live reads, so these are not all dead constants:
+Prompt identity comparisons now use prompt type and title; the removed ordinal
+was always a fixed value. The fixed report ordinal was unread. Profile files use
+structural and resource-bound validation. Page cursors retain fixed-length,
+checkpoint, source and boundary validation after removing their ordinal byte.
+API, plugin release, package and analysis algorithm versions remain unchanged.
 
-- Native captured-source schema version rejects mismatched framing before structural and identity validation.
-- Evidence export schema version stamps manifests, download metadata and SQLite exports; the client checks metadata.
-- Prompt schema version participates in Rust and Python pending-prompt identity comparisons.
-- Remote pairing, backend profile and cursor versions participate in decoding/validation.
-- Record/telemetry definition, catalog and evidence wire revisions select captured historical schemas. These should remain derived identity carriers unless their selection behavior is replaced.
-- The broad root digest includes evidence codecs and source text. Its replacement remains unimplemented; existing-root behavior is unchanged.
+## Built-In History Boundary
+
+Changing a built-in typed journal definition may require a fresh root. Keeping
+those entries readable would require storing each entry's historical definition
+and decoding through it before product replay; that journal evolution mechanism
+is outside this change. No migration, deletion or automatic reset is introduced.
 
 ## Validation Boundary
 
-Targeted `mise run build:rust:focused -- check --locked -p dokime-domain` fails with the representation errors above (task exit 1). The early ready PR's hosted Windows and Unix Rust builds also fail on the new `Described` requirement. Implementation is incomplete: no requested deterministic tests or final all-targets, TypeScript or Clippy gates have run. Nothing has been merged. Incomplete exploratory source edits were removed; only the dependency pin and tracked specification remain.
+Use deterministic targeted tests, then the owner's all-targets feature build,
+TypeScript build and `lint:rust`. No full lanes, starters or CI simulations.
+The final candidate must pass the specified scanner with `CLEAN` before merge.

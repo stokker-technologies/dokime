@@ -668,7 +668,7 @@ projection or use typed rows; values are never stringified to make conversion fi
 Pandas `frame.attrs["dokime"]` contains `schema`, `units`, `versions`, `projection`,
 `snapshot` and `complete`. For Polars, keep the originating reader: its
 `metadata.schema.fields` carries ordered field types, nullability and units,
-Stream row changes derive revisions automatically; rebuild and reload the plugin without a schema version argument or backend restart.
+Stream and record revisions derive from their declared shapes. Rebuild against the matching SDK and reload the plugin; record declarations accept no `schema` argument. Revisions are opaque equality keys. Stored execution evidence retains its captured definitions when plugin shapes change.
 
 `metadata.schema.versions` carries captured versions, and `snapshot`/`complete`
 remain accessible after closing. This metadata comes from the captured contract,

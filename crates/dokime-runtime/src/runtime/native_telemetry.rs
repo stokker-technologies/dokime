@@ -265,8 +265,8 @@ fn saved_codec(
     let state = handle.state_read();
     let contract = state.telemetry_definitions.get(stream).ok_or("native stream has no registered telemetry contract")?;
     let mut contract = contract.clone();
-    let schema = definition.schema().ok_or("native stream has no row definition")?;
-    contract = contract.with_storage_schema(schema.clone());
+    let schema = definition.schema();
+    contract = contract.with_storage_schema(schema.clone(), definition.window());
     handle.execution_storage.registered_codec(&contract).map_err(|error| error.to_string())
 }
 
@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn native_rows_are_projected_in_one_pass() {
-        let contract = TelemetryContract::declared("fixture.native", "Native").typed::<Reading>();
+        let contract = TelemetryContract::declared("fixture.native", "Native").typed::<Reading>(1);
         let codec = codec(&contract, &harmos::config::SchemaSettings::default()).unwrap();
         let payload = Reading { value: "7".into() }.encode();
         let row = harmos::streams::PublicationRow {
@@ -347,7 +347,7 @@ mod tests {
         use dokime_domain::model::{execution::RecordScope, identity::SessionId};
         use std::{collections::BTreeMap, sync::Arc};
 
-        let contract = TelemetryContract::declared("fixture.native", "Native").typed::<Reading>();
+        let contract = TelemetryContract::declared("fixture.native", "Native").typed::<Reading>(1);
         let codec = Arc::new(codec(&contract, &harmos::config::SchemaSettings::default()).unwrap());
         let payload = Reading { value: "7".repeat(8192) }.encode();
         let row = harmos::streams::PublicationRow {

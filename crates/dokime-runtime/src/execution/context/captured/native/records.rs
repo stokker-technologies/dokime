@@ -115,7 +115,7 @@ impl TryFrom<Contracts> for Declarations {
             let mut versions = BTreeMap::new();
             for contract in kind.versions {
                 let contract: RecordContract = contract.try_into()?;
-                versions.insert(contract.schema_version, contract);
+                versions.insert(contract.schema_version(), contract);
             }
             types.insert(key, versions);
         }
@@ -132,7 +132,7 @@ impl TryFrom<&RecordContract> for Contract {
         }
         Ok(Self {
             record_type: text(value.record_type.as_str())?,
-            schema_version: value.schema_version,
+            schema_version: value.schema_version(),
             metadata: Some((&value.metadata).try_into()?),
             template_id: value.template_id.as_ref().map(|id| text(id.as_str())).transpose()?,
             owner: value.owner.as_ref().map(|id| text(id.as_str())).transpose()?,
@@ -155,7 +155,6 @@ impl TryFrom<Contract> for RecordContract {
         }
         Ok(Self {
             record_type: Identifier::new(value.record_type).map_err(crate::storage::Error::from)?,
-            schema_version: value.schema_version,
             metadata: value.metadata.ok_or_else(|| invalid("record declaration metadata is missing"))?.try_into()?,
             template_id: value.template_id.map(TemplateId::from_uuid).transpose().map_err(crate::storage::Error::from)?,
             owner: value.owner.map(SuiteId::from_uuid).transpose().map_err(crate::storage::Error::from)?,

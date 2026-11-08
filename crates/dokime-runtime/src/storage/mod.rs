@@ -148,6 +148,16 @@ pub enum Error {
 
 /* === Public Functions === */
 
+pub(crate) fn schema<T: harmos::schema::Described>(id: &str) -> harmos::storage::SchemaKey {
+    let graph = harmos::schema::graph::Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default())
+        .expect("finite stored data schema");
+    harmos::storage::SchemaKey {
+        payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
+        id: harmos::Identifier::new(id).expect("stored schema identifier"),
+        version: harmos::schema::identity::revision(&graph).expect("stored schema revision").try_into().unwrap(),
+    }
+}
+
 pub async fn read_file_bytes(storage: &Manager, file: &harmos::storage::FileReference) -> Result<harmos::storage::ReadBatch<Vec<u8>>> {
     let mut reader = storage
         .read_file(harmos::storage::FileRead {

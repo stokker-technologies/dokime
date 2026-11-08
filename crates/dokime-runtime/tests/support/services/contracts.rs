@@ -129,7 +129,6 @@ pub fn typed_fixture_sample(mut sample: dokime_runtime::telemetry::TelemetrySamp
 pub fn fixture_record_contract() -> RecordContract {
     RecordContract {
         record_type: identifier("fixture.event"),
-        schema_version: 1,
         metadata: metadata("fixture.event", "Fixture Event"),
         display: Default::default(),
         template_id: None,
@@ -162,7 +161,6 @@ pub fn fixture_telemetry_contract() -> TelemetryContract {
 pub fn tracking_warning_contract() -> RecordContract {
     RecordContract {
         record_type: Identifier::new("tracking.fixture_warning").unwrap(),
-        schema_version: 1,
         metadata: metadata("tracking.fixture_warning", "Tracking Fixture Warning"),
         display: Default::default(),
         template_id: None,
@@ -177,7 +175,6 @@ pub fn tracking_warning_contract() -> RecordContract {
 pub fn custom_record_contract() -> RecordContract {
     RecordContract {
         record_type: identifier("custom.measurement"),
-        schema_version: 1,
         metadata: metadata("custom.measurement", "Custom Measurement"),
         display: Default::default(),
         template_id: None,

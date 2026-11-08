@@ -101,7 +101,7 @@ class CaptureBackend(BackendFixture):
             prompts=[
                 {
                     "prompt_id": prompt["prompt_id"],
-                    "definition": {key: prompt["definition"][key] for key in ("prompt_type", "schema_version", "title")},
+                    "definition": {key: prompt["definition"][key] for key in ("prompt_type", "title")},
                     "scope": prompt["scope"],
                     "created_at": prompt["created_at"],
                 }

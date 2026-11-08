@@ -360,7 +360,6 @@ mod tests {
         let config = config();
         let (mut records, _) = contracts();
         let mut second = records[0].clone();
-        second.schema_version = 2;
         second.fields.push(RecordField::new(Metadata::new(Identifier::new("extra").unwrap(), "Extra", None), ValueType::Text));
         records.push(second);
         let prepared = Selection::records(&records, "example.measurement", request(&[]), &config).unwrap();
@@ -368,9 +367,19 @@ mod tests {
         records[1].fields[0].value_type = ValueType::Number;
         let failure = Selection::records(&records, "example.measurement", request(&[]), &config).err().unwrap();
         assert_eq!(failure.reason, Reason::IncompatibleSchema);
-        assert_eq!(failure.available_versions, vec![1, 2]);
-        let narrowed =
-            Selection::records(&records, "example.measurement", SelectionRequest { versions: &[1], ..request(&[]) }, &config).unwrap();
+        let mut versions: Vec<_> = records.iter().map(RecordContract::schema_version).collect();
+        versions.sort_unstable();
+        assert_eq!(failure.available_versions, versions);
+        let narrowed = Selection::records(
+            &records,
+            "example.measurement",
+            SelectionRequest {
+                versions: &[records[0].schema_version()],
+                ..request(&[])
+            },
+            &config,
+        )
+        .unwrap();
         assert_eq!(
             narrowed.schema().fields.iter().find(|field| field.id == "cpu.load").unwrap().value_type,
             dokime_domain::model::query::schema::FieldType::Integer

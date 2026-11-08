@@ -409,7 +409,7 @@ mod tests {
 
     fn contract() -> TelemetryContract {
         let column = TelemetryColumn::declared("value", "Value", ValueType::Number, TelemetryRole::Value);
-        TelemetryContract::declared("fixture.timestamp", "Timestamp").typed::<Reading>().column(column).normalized()
+        TelemetryContract::declared("fixture.timestamp", "Timestamp").typed::<Reading>(1).column(column).normalized()
     }
 
     #[test]

@@ -689,10 +689,10 @@ impl PluginHost {
                 })
                 .filter(|contract| {
                     state
-                        .historical_record_contract(&contract.record_type, contract.schema_version)
+                        .historical_record_contract(&contract.record_type, contract.schema_version())
                         .is_some_and(|old| old.record_schema() != contract.record_schema())
                 })
-                .map(|contract| (contract.record_type.to_string(), contract.schema_version))
+                .map(|contract| (contract.record_type.to_string(), contract.schema_version()))
                 .collect()
         };
         // Resolve the complete dependency graph before interrupting any resource.

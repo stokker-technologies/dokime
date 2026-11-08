@@ -33,12 +33,6 @@ macro_rules! host_contracts {
             $( $field:ident : $value_type:ident, $role:ident, $column_label:literal, $ty:ty $(, unit: $unit:literal)?; )*
         } } )*
     ) => {
-        $(
-            #[dokime::message]
-            #[derive(Clone, PartialEq)]
-            struct $stream { $( $field: $ty, )* }
-        )*
-
         pub fn host_telemetry_contract(
             stream: HostTelemetryStream,
         ) -> TelemetryContract {
@@ -46,7 +40,7 @@ macro_rules! host_contracts {
                 $(
                     HostTelemetryStream::$stream => TelemetryContract {
                         stream: identifier($id),
-                        schema_version: 1,
+                        schema_version: 0,
                         storage_schema: None,
                         metadata: Metadata::new(identifier($id), $label, None),
                         template_id: None,
@@ -68,7 +62,7 @@ macro_rules! host_contracts {
                         scalar: false,
                         validation_mode: None,
                         foreign: false,
-                    }.normalized().typed::<$stream>(),
+                    }.normalized().typed::<super::$stream>(<super::$stream as dokime::StreamSpec>::WINDOW),
                 )*
             }
         }

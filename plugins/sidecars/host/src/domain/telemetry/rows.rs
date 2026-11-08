@@ -103,7 +103,7 @@ macro_rules! host_rows {
 
                 fn contract() -> TelemetryContract {
                     // Static Authoring Has No Runtime Instance; Boot Applies Effective Cadence.
-                    host_telemetry_contract(HostTelemetryStream::$stream).typed::<Self>()
+                    host_telemetry_contract(HostTelemetryStream::$stream)
                 }
             }
 

@@ -213,7 +213,7 @@ impl CapturedExecutionReportInput {
                 return Err(Error::InvalidReportInputs("captured record type has no declaration".into()));
             }
             for (version, contract) in versions {
-                if kind != &contract.record_type || *version == 0 || *version != contract.schema_version {
+                if kind != &contract.record_type || *version == 0 || *version != contract.schema_version() {
                     return Err(Error::InvalidReportInputs("captured record declaration identity differs".into()));
                 }
             }

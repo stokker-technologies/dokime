@@ -114,10 +114,7 @@ pub(crate) async fn old_incompatible_startup() {
     let mut current = Some(&error as &(dyn std::error::Error + 'static));
     let mut refused = false;
     while let Some(error) = current {
-        if matches!(
-            error.downcast_ref::<dokime_runtime::storage::Error>(),
-            Some(dokime_runtime::storage::Error::Incompatible(_))
-        ) {
+        if matches!(error.downcast_ref::<dokime_runtime::storage::Error>(), Some(dokime_runtime::storage::Error::Incompatible(_))) {
             refused = true;
             break;
         }

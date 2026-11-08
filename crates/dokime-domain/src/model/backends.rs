@@ -47,7 +47,6 @@ pub struct Profile {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Document {
-    pub version: u8,
     pub default: Option<String>,
     pub profiles: Vec<Profile>,
 }
@@ -67,11 +66,7 @@ pub enum Secret {
 
 impl Default for Document {
     fn default() -> Self {
-        Self {
-            version: 1,
-            default: None,
-            profiles: Vec::new(),
-        }
+        Self { default: None, profiles: Vec::new() }
     }
 }
 

@@ -61,7 +61,6 @@ def test_prompt_level() -> None:
                     "kind": {"Form": {}},
                     "definition": {
                         "prompt_type": "obc.charger.steady.check",
-                        "schema_version": 1,
                         "archetype": {"Form": {}},
                         "title": "Inspect Charging State",
                         "message": "Check that the charger status indicator is steady.",
@@ -98,7 +97,6 @@ def test_execution_prompt_scope() -> None:
                 "kind": {"Confirmation": {}},
                 "definition": {
                     "prompt_type": "obc.checks.pulse.confirm",
-                    "schema_version": 1,
                     "archetype": {"Confirmation": {}},
                     "title": "Start Simulated Pulse",
                     "level": {"Info": {}},

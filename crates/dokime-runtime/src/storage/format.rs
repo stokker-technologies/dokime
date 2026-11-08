@@ -20,7 +20,6 @@ use std::path::Path;
 
 // Third Party Imports
 
-
 // Local Imports
 use super::{Error, Result};
 

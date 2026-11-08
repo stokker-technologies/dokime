@@ -392,7 +392,7 @@ mod tests {
     fn leased(
         scopes: usize,
     ) -> (TelemetryContract, TelemetrySample, BTreeMap<dokime_domain::model::identity::Identifier, Vec<RecordScope>>) {
-        let contract = TelemetryContract::declared("fixture.shared", "Shared").typed::<Reading>();
+        let contract = TelemetryContract::declared("fixture.shared", "Shared").typed::<Reading>(1);
         let timestamp = dokime_domain::model::time::Timestamp::new("2026-01-01T00:00:00Z");
         let sample = TelemetrySample::new(crate::model::identity::new_id(), contract.stream.clone(), 1, timestamp, "fixture.shared")
             .typed(&Reading { value: "7".into() });

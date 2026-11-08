@@ -611,8 +611,7 @@ async fn inventory_matches_dispatch() {
             rows.push(row);
         }
     }
-    let decoder =
-        harmos::schema::Validator::from_schema(system.definition().schema().unwrap(), &harmos::config::SchemaSettings::default()).unwrap();
+    let decoder = harmos::schema::Validator::from_schema(system.definition().schema(), &harmos::config::SchemaSettings::default()).unwrap();
     for row in rows {
         let mut used = None;
         decoder
@@ -697,7 +696,7 @@ async fn samples_keep_context() {
 
     let stream = bench.runtime.streams.current_publication("obc.pulse").unwrap();
     assert_eq!(
-        stream.definition().schema().unwrap(),
+        stream.definition().schema(),
         &harmos::schema::graph::Schema::from_declaration(
             <plugin_obc::suites::checks::pulse::Row as harmos::schema::Described>::DEFINITION,
             &harmos::config::SchemaSettings::default(),

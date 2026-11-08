@@ -77,7 +77,6 @@ export function documentView(
   layout: DocumentViewLayout,
 ): DocumentViewPayload {
   return {
-    schema_version: 1,
     document_id: documentId,
     metadata,
     title: metadata.label,

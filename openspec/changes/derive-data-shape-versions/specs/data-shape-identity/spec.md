@@ -1,10 +1,10 @@
 ## ADDED Requirements
 
 ### Requirement: Derived Data Shape Identities
-Data shape identities SHALL be derived with Harmos and SHALL be compared only for equality. API, release and algorithm behavior versions SHALL remain unchanged.
+Describable data shape identities SHALL be derived with Harmos and SHALL be compared only for equality. Individually unsupported custom encodings MAY retain their current identity and SHALL be documented. API, release and algorithm behavior versions SHALL remain unchanged.
 
 #### Scenario: Shape Changes
-- **WHEN** a stream row, record or snapshot schema changes
+- **WHEN** a describable stream row, record or snapshot schema changes
 - **THEN** its identity derives from that shape without an authored version
 
 ### Requirement: Root Compatibility Belongs to the Product

@@ -127,7 +127,7 @@ pub(super) fn start<T: SidecarTemplate>(
         // The declared record set, as its schema versions: an observer's stage
         // reaches this backend directly, so the admission a plugin publisher
         // performs against its `Declarations` is performed here instead.
-        schemas: records.iter().map(|contract| (contract.record_type.to_string(), contract.schema_version)).collect(),
+        schemas: records.iter().map(|contract| (contract.record_type.to_string(), contract.schema_version())).collect(),
         closed: Mutex::new(false),
     });
     let (stop, listener) = watch::channel(false);

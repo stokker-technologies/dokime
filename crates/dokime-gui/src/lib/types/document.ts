@@ -198,7 +198,6 @@ export type DocumentViewSection = {
 };
 
 export type DocumentViewPayload = {
-  schema_version: number;
   document_id: string;
   metadata: Metadata;
   title: string;

@@ -36,7 +36,7 @@ use dokime_domain::model::identity::TestExecutionId;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.archive")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SetArchived {
     pub subject: ArchiveSubject,
     pub archived: bool,
@@ -44,7 +44,7 @@ pub struct SetArchived {
 
 /* === Enums === */
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "id")]
 pub enum ArchiveSubject {
     Cycle(TestCycleId),

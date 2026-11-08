@@ -30,7 +30,7 @@ use crate::model::identity::CorrelationId;
 
 /* === Structs === */
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommandContext {
     pub correlation_id: Option<CorrelationId>,
     pub idempotency_key: Option<String>,

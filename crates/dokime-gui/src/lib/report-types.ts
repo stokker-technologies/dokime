@@ -30,7 +30,6 @@ export type ReportHubInfo = {
 };
 
 export type ReportPayload = {
-  schema_version: number;
   generated_at?: string | null;
   hub?: ReportHubInfo | null;
   /** Notes and health arrive once per subject, artifacts with their download target. */
