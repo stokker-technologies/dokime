@@ -11,14 +11,26 @@
 
 /* === Modules === */
 
-mod bundle;
-mod installer;
+pub mod build;
+
+#[path = "../../src/bundle/mod.rs"]
+pub mod bundle;
+
+#[path = "bundle.rs"]
+mod bundle_stories;
+pub mod installer;
 mod release;
+
+#[path = "../../src/process/mod.rs"]
+pub mod process;
 
 #[cfg(windows)]
 mod resources;
 
 /* === Re-Exports === */
+
+pub use dokime_packaging as error;
+pub use dokime_packaging::Error;
 
 /* === Imports === */
 
