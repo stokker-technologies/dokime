@@ -38,11 +38,18 @@ use std::path::Path;
 
 /* === Public Functions === */
 
-pub(super) fn install(source: &Path, destination: &Path) -> Result<(), super::super::Error> {
+pub(super) fn install(source: &Path, destination: &Path, file: Option<&std::fs::File>) -> Result<(), super::super::Error> {
     // Keep The Acknowledged Source Until The Catalog Commit. Flush The Linked
     // File's Data And NTFS Name Metadata Together Through Its Writable Handle.
+    let opening = super::super::probe::Timing::start("publication.open");
+    let opened = if file.is_none() { Some(std::fs::OpenOptions::new().read(true).write(true).open(source)?) } else { None };
+    let file = file.or(opened.as_ref()).expect("publication handle");
+    drop(opening);
+    let linking = super::super::probe::Timing::start("publication.link");
     std::fs::hard_link(source, destination)?;
-    std::fs::OpenOptions::new().read(true).write(true).open(destination)?.sync_all()?;
+    drop(linking);
+    let _sync = super::super::probe::Timing::start("publication.sync");
+    file.sync_all()?;
     Ok(())
 }
 

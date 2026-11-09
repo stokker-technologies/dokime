@@ -207,11 +207,13 @@ def generate(directory: Path) -> dict:
         allowed = {item["version"] for item in document["license"] if item["package"] == name}
         if any(package == name and version not in allowed for package, version in packages):
             raise policy.ToolError(f"license exception does not cover every resolved {name} version")
-    config = (directory / "about.toml").read_text(encoding="utf-8")
+    license_policy = tomllib.loads((directory / "deny.toml").read_text(encoding="utf-8"))
+    config = f"accepted = {json.dumps(license_policy['licenses']['allow'])}\n"
+    config += (directory / "about.toml").read_text(encoding="utf-8")
     for name, accepted in sorted(licenses.items()):
         config += f"\n[{json.dumps(name)}]\naccepted = {json.dumps(sorted(accepted))}\n"
     configured = output / "about.toml"
-    configured.write_text(config, encoding="utf-8")
+    configured.write_text(config, encoding="utf-8", newline="\n")
     policy.execute(
         directory,
         [

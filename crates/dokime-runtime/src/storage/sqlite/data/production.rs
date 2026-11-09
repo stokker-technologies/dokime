@@ -69,8 +69,17 @@ impl Drop for RecoveryCancellation {
 
 impl State {
     pub(in crate::storage::sqlite) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
+        let owner = self.0.clone();
         self.grouped(1, entry::check_size(&metadata, usize::MAX)?, move |connection| {
-            let result = files::create_file(connection, &root, metadata, true);
+            let result = (|| {
+                let staging = files::create_file(connection, &root, metadata, true)?;
+                if files::stored_metadata(connection, &staging.id)?.is_some_and(|(_, finished)| finished.is_none()) {
+                    let path = files::staging_path(connection, &root, &staging.id)?;
+                    let file = OpenOptions::new().read(true).write(true).open(path)?;
+                    owner.files.lock().unwrap().insert(staging.id.clone(), file);
+                }
+                Ok(staging)
+            })();
             Ok(result)
         })
         .await?
@@ -105,8 +114,10 @@ impl State {
         self.grouped(requested.len(), bytes, move |connection| {
             Ok((|| {
                 let transaction = connection.savepoint()?;
+                let mut files = owner.files.lock().unwrap();
+                let mut publication = owner.publication.lock().unwrap();
                 for requested in requested.as_slice() {
-                    save_checkpoint(&transaction, &root, requested, &mut owner.publication.lock().unwrap())?;
+                    save_checkpoint(&transaction, &root, requested, files.get_mut(&requested.session.id), &mut publication)?;
                 }
                 super::super::release(transaction)?;
                 Ok(())
@@ -228,6 +239,7 @@ impl State {
     }
 
     pub(super) async fn production_abandon(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
+        let owner = self.0.clone();
         self.call(move |connection| {
             let result = (|| {
                 let current = progress(connection, &root, &file)?;
@@ -237,6 +249,7 @@ impl State {
                 let path = files::staging_path(connection, &root, &file.id)?;
                 files::confirm_durability(&path)?;
                 connection.execute("UPDATE storage_productions SET phase=2 WHERE id=?1", [file.id.as_str()])?;
+                owner.files.lock().unwrap().remove(&file.id);
                 Ok(())
             })();
             Ok(result)
@@ -246,7 +259,8 @@ impl State {
 }
 
 fn save_checkpoint(
-    connection: &Connection, root: &Path, requested: &FileCheckpoint, publication: &mut super::super::publication::Publication,
+    connection: &Connection, root: &Path, requested: &FileCheckpoint, retained: Option<&mut std::fs::File>,
+    publication: &mut super::super::publication::Publication,
 ) -> Result<(), Error> {
     requested.sha256()?;
     let file = StagedFile {
@@ -283,8 +297,14 @@ fn save_checkpoint(
     }
     let path = files::staging_path(connection, root, &file.id)?;
     files::regular(&path)?;
-    let mut physical = OpenOptions::new().read(true).write(true).open(&path)?;
-    verify_prefix_cancellable(&mut physical, requested, Some(&prior), None)?;
+    let mut opened;
+    let physical = if let Some(retained) = retained {
+        retained
+    } else {
+        opened = OpenOptions::new().read(true).write(true).open(&path)?;
+        &mut opened
+    };
+    verify_prefix_cancellable(physical, requested, Some(&prior), None)?;
     // The Identical Prefix Is Already Durable. Preserve Corruption Checks Without
     // Reflushing Every Other Active File On Each Checkpoint Batch.
     if requested == &prior {
@@ -306,11 +326,13 @@ fn save_checkpoint(
 
 impl State {
     pub(in crate::storage::sqlite) async fn production_delete(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
+        let owner = self.0.clone();
         self.call(move |connection| {
             let result = (|| {
             saved(connection)?.history.check(&file.history)?;
             let active: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_productions p JOIN storage_file_stages s ON p.id=s.id WHERE p.id=?1 AND p.phase=0 AND s.finished IS NULL)",[file.id.as_str()],|row|row.get(0))?;
             if active { return Err(Error::Conflict("active production cannot be deleted")); }
+            owner.files.lock().unwrap().remove(&file.id);
             let mut statement = connection.prepare("SELECT coalesce(finished,finish_intent) FROM storage_file_stages WHERE id=?1")?;
             let mut rows = statement.query([file.id.as_str()])?;
             let reference = if let Some(row) = rows.next()? {

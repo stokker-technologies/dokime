@@ -63,6 +63,12 @@ struct Original {
     table: usize,
 }
 
+pub(super) struct Timing {
+    label: &'static str,
+    started: Option<Instant>,
+    cpu: Option<u64>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -125,6 +131,30 @@ impl Drop for Probe {
     }
 }
 
+impl Timing {
+    pub(super) fn start(label: &'static str) -> Self {
+        let enabled = std::env::var_os("DOKIME_STORAGE_PROFILE").is_some();
+        Self {
+            label,
+            started: enabled.then(Instant::now),
+            cpu: if enabled { thread_cpu_ns() } else { None },
+        }
+    }
+}
+
+impl Drop for Timing {
+    fn drop(&mut self) {
+        if let Some(started) = self.started {
+            let cpu_ns = self.cpu.zip(thread_cpu_ns()).map(|(before, after)| after.saturating_sub(before));
+            eprintln!(
+                "{}",
+                serde_json::json!({"kind": "storage_worker_profile", "stage": self.label,
+                "wall_ns": started.elapsed().as_nanos(), "cpu_ns": cpu_ns})
+            );
+        }
+    }
+}
+
 /* === Public Functions === */
 
 pub(super) fn counters() -> SyncCounters {
@@ -139,6 +169,26 @@ pub(super) fn counters() -> SyncCounters {
 }
 
 /* === Private Functions === */
+
+#[cfg(windows)]
+fn thread_cpu_ns() -> Option<u64> {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetCurrentThread() -> *mut std::ffi::c_void;
+        fn GetThreadTimes(thread: *mut std::ffi::c_void, creation: *mut u64, exit: *mut u64, kernel: *mut u64, user: *mut u64) -> i32;
+    }
+    let (mut creation, mut exit, mut kernel, mut user) = (0, 0, 0, 0);
+    // SAFETY: The Pseudo Handle Names This Thread And All Four Output Slots Are Valid FILETIME Storage.
+    if unsafe { GetThreadTimes(GetCurrentThread(), &mut creation, &mut exit, &mut kernel, &mut user) } == 0 {
+        return None;
+    }
+    Some((kernel + user) * 100)
+}
+
+#[cfg(not(windows))]
+fn thread_cpu_ns() -> Option<u64> {
+    None
+}
 
 fn originals() -> &'static Mutex<BTreeMap<usize, Original>> {
     static ORIGINALS: OnceLock<Mutex<BTreeMap<usize, Original>>> = OnceLock::new();

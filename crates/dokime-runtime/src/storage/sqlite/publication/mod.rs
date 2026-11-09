@@ -55,9 +55,9 @@ pub(super) struct Publication {
 /* === Implementations === */
 
 impl Publication {
-    pub(super) fn install(&mut self, source: &Path, destination: &Path) -> Result<(), super::Error> {
+    pub(super) fn install(&mut self, source: &Path, destination: &Path, file: Option<&std::fs::File>) -> Result<(), super::Error> {
         let started = Instant::now();
-        platform::install(source, destination)?;
+        platform::install(source, destination, file)?;
         super::FILE_SYNC_NS.fetch_add(started.elapsed().as_nanos() as u64, Ordering::Relaxed);
         super::DURABLE_FILES.fetch_add(1, Ordering::Relaxed);
         self.directories.insert(destination.parent().expect("file parent").to_owned());
