@@ -400,7 +400,8 @@ async fn own_public_call_cancels() {
                 let cancelled = invocation.await;
                 assert!(matches!(
                     cancelled,
-                    Err(dokime_runtime::harmos::Error::OperationRefused(dokime_runtime::harmos::Refusal::Cancelled))
+                    Err(dokime_runtime::harmos::Error::OperationRefused(dokime_runtime::harmos::Refusal::Cancelled { ref operation, attempt: 1 }))
+                        if operation == <Run<Probe> as OperationDeclaration>::ID
                 ));
             } else {
                 super::native::call_wire::<Signal<Probe>>(
