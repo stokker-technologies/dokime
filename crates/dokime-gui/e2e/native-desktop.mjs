@@ -3451,12 +3451,13 @@ async function remoteAccessJourney(recoveredReports) {
      select.dispatchEvent(new Event('change', {bubbles: true}));`,
     [pageSize],
   );
+  // Reconnected Clients Can Reuse Peer Ports; Session IDs Own Pagination Identity.
   const sessionRows = () =>
     session.execute(`
     const table = document.querySelector('table[aria-label="Recent Remote Sessions"]');
     if (!table) return [];
     table.scrollIntoView({block: 'center'});
-    return [...table.querySelectorAll('tbody tr')].filter(row => row.cells.length > 1).map(row => row.cells[0].innerText);
+    return [...table.querySelectorAll('tbody tr[data-row-id]')].map(row => row.dataset.rowId);
   `);
   const firstPage = await until("twenty remote sessions", async () => {
     const rows = await sessionRows();
