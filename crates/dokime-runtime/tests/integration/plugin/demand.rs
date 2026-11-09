@@ -483,7 +483,11 @@ async fn listener_publishes_asked() {
     assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());
     invocation.request_cancel();
     let cancelled = invocation.await;
-    assert!(matches!(cancelled, Err(harmos::Error::OperationRefused(harmos::Refusal::Cancelled))), "{cancelled:?}");
+    assert!(
+        matches!(cancelled, Err(harmos::Error::OperationRefused(harmos::Refusal::Cancelled { ref operation, attempt: 1 }))
+            if operation == <Noted as dokime_runtime::harmos::operations::OperationDeclaration>::ID),
+        "{cancelled:?}"
+    );
     super::native::call_wire::<Noted>(&runtime.operations, "owned_stream", connected("SN-7")).await.unwrap();
     super::native::call_wire::<Echoed>(&runtime.operations, "owned_stream", connected("SN-7")).await.unwrap();
     if let Some(refusal) = probe.refused.lock().unwrap().clone() {

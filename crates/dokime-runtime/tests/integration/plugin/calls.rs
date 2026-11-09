@@ -472,7 +472,12 @@ async fn catalog_operations_policy() {
 
     let before = WIRE_CANCELLATIONS.load(Ordering::SeqCst);
     let late = super::native::call_wire::<GetLateReading>(operations, "call_fixture", GetLateReading {}).await;
-    assert!(matches!(late, Err(harmos::Error::OperationRefused(harmos::Refusal::TimedOut))), "{late:?}");
+    assert!(
+        matches!(late, Err(harmos::Error::OperationRefused(harmos::Refusal::TimedOut {
+            ref operation, attempt: 1, timeout, configured_by: "operation policy.timeout",
+        })) if operation == "call_fixture.get_late_reading" && timeout == LATE.timeout),
+        "{late:?}"
+    );
     // The deadline cancels the operation it timed out.
     until(|| WIRE_CANCELLATIONS.load(Ordering::SeqCst) != before).await;
 
