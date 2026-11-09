@@ -150,6 +150,8 @@ impl dokime::harmos::Lifecycle for ObcPlugin {
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+        // Warm Native Counters Before Serving Deadline-Bound Collection.
+        self.system.refresh().await?;
         let runtime = dokime::plugin::refusal(app::launch(Testbench::default()).await)?;
         let _ = self.resources.app.set(obc_runtime::Client::new(runtime.handle()));
         self.runtime = Some(runtime);

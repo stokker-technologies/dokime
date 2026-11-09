@@ -74,7 +74,7 @@ impl harmos::Operation for Read {
 /* === Tests === */
 
 #[tokio::test]
-async fn retry_attempts_are_persisted_under_the_retained_execution_owner() {
+async fn retained_attempts_complete_while_persistence_is_blocked() {
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("../../../src/report/fixtures/execution-report-input.json")).unwrap();
     let mut cycle: dokime_domain::model::execution::result::CycleView = serde_json::from_value(fixture["input"]["cycle"].clone()).unwrap();
@@ -96,7 +96,13 @@ async fn retry_attempts_are_persisted_under_the_retained_execution_owner() {
         },
     };
     let operations = runtime.operations().with_context(context.clone());
-    assert_eq!(*operations.operation::<Read>(Read {}).retry(configured).await.unwrap(), 42);
+
+    // Hold Persistence Beyond the Operation Deadline.
+    let release = runtime.hold_retained_attempt_persistence(&token).await;
+    tokio::time::pause();
+    let answer = tokio::time::timeout(Duration::from_secs(1), operations.operation::<Read>(Read {}).retry(configured)).await;
+    assert_eq!(*answer.unwrap().unwrap(), 42);
+    tokio::time::advance(Duration::from_secs(6)).await;
     assert!(operations.operation::<Read>(Read {}).await.is_err());
     let before = ATTEMPTS.load(Ordering::SeqCst);
     let tampered = context.with_value(ExecutionScope::execution("another-execution")).unwrap();
@@ -105,6 +111,11 @@ async fn retry_attempts_are_persisted_under_the_retained_execution_owner() {
     let mut unowned = harmos::operations::CallContext::default();
     unowned.insert_portable(ExecutionScope::execution(token.clone()).staged("step/forged")).unwrap();
     assert!(runtime.operations().with_context(unowned).operation::<Read>(Read {}).await.is_err());
+
+    // Resume Persistence Before Reading the Retained Attempts.
+    tokio::time::resume();
+    release.send(()).unwrap();
+    runtime.flush_retained_attempts(&token).await;
     let content = dokime_runtime::testing::ExecutionOutputs::new(&runtime)
         .native_read(&execution.test_execution_id, "artifacts/execution.log", 0, 8192)
         .await
@@ -118,6 +129,16 @@ async fn retry_attempts_are_persisted_under_the_retained_execution_owner() {
     assert!(entries.iter().all(|entry| entry["stage"] == "step/read" && entry["operation"] == Read::ID));
     assert_eq!(entries[0]["instance"], entries[1]["instance"]);
     assert_ne!(entries[1]["instance"], entries[2]["instance"]);
+
+    // Repeated Flushes Must Not Duplicate Attempts.
+    runtime.flush_retained_attempts(&token).await;
+    let repeated = dokime_runtime::testing::ExecutionOutputs::new(&runtime)
+        .native_read(&execution.test_execution_id, "artifacts/execution.log", 0, 8192)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(content.bytes, repeated.bytes);
+    drop(repeated);
     drop(content);
     runtime.remove_retained_attempt(&token);
     drop(runtime);

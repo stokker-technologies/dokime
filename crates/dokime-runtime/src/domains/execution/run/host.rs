@@ -94,7 +94,7 @@ impl harmos::operations::middleware::Middleware for AttemptEvidence {
             if call.context().get::<AttemptOwner>().is_none_or(|owner| owner.0 != scope.execution) {
                 return Ok(());
             }
-            session.record_operation_attempt(&scope.stage, call, observation).await;
+            session.record_operation_attempt(&scope.stage, call, observation);
             Ok(())
         })
     }
@@ -268,5 +268,9 @@ impl crate::RuntimeHandle {
     }
     pub fn remove_retained_attempt(&self, token: &str) {
         self.execution_sessions.remove(token);
+    }
+
+    pub async fn flush_retained_attempts(&self, token: &str) {
+        self.execution_sessions.get(token).expect("fixture session is retained").flush_attempts().await;
     }
 }

@@ -57,6 +57,7 @@ pub(crate) struct Session {
     pub(super) prompts: tokio::sync::Mutex<PromptBridge>,
     pub(super) step_leases: StepLeaseBridge,
     pages: tokio::sync::Mutex<Pages>,
+    attempts: std::sync::Mutex<Vec<crate::execution::log::Entry>>,
     cadence: std::sync::Mutex<ObserverCadence>,
     replayed: tokio::sync::Mutex<bool>,
     record_delivery: tokio::sync::Mutex<()>,
@@ -124,6 +125,7 @@ impl Session {
             prompts: tokio::sync::Mutex::new(opened.prompts),
             step_leases: StepLeaseBridge::default(),
             cadence: std::sync::Mutex::new(ObserverCadence::default()),
+            attempts: std::sync::Mutex::new(Vec::new()),
             pages: tokio::sync::Mutex::new(Pages {
                 latencies: crate::execution::log::Latencies::default(),
                 cursor: 0,
@@ -293,7 +295,7 @@ impl Session {
         self.refusal.lock().await.take()
     }
 
-    pub(crate) async fn record_operation_attempt(
+    pub(crate) fn record_operation_attempt(
         &self, stage: &str, call: &harmos::operations::middleware::Invocation,
         observation: harmos::operations::middleware::AttemptObservation,
     ) {
@@ -318,9 +320,21 @@ impl Session {
                 attempt_timeout: call.operation().policy.attempt_timeout,
             },
         );
+        // Persistence Must Not Consume the Completed Operation's Deadline.
+        self.attempts.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(entry);
+    }
+
+    pub(crate) async fn flush_attempts(&self) {
         let mut pages = self.pages.lock().await;
-        pages.latencies.observe(&entry);
-        pages.stream_log.append(&self.context, &self.execution, &self.source, &[entry]).await;
+        self.persist_attempts(&mut pages).await;
+    }
+
+    async fn persist_attempts(&self, pages: &mut Pages) {
+        let entries = std::mem::take(&mut *self.attempts.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
+        for entry in &entries {
+            pages.latencies.observe(entry);
+        }
+        pages.stream_log.append(&self.context, &self.execution, &self.source, &entries).await;
     }
 
     pub(crate) fn observe_cadence(&self, source: &str, report: &harmos::__private::sidecar::CadenceReport) -> bool {
@@ -329,6 +343,7 @@ impl Session {
     }
 
     pub(crate) async fn flush_cadence(&self) {
+        self.flush_attempts().await;
         let mut pages = self.pages.lock().await;
         let entries = self.cadence_entries(false);
         pages.stream_log.append(&self.context, &self.execution, &self.source, &entries).await;
@@ -341,6 +356,7 @@ impl Session {
 
     pub(super) async fn narrate_refusal(&self, refusal: &ProviderExecutionFailure) {
         let mut pages = self.pages.lock().await;
+        self.persist_attempts(&mut pages).await;
         let mut entries = pages.latencies.finish();
         entries.extend(self.cadence_entries(true));
         pages.stream_log.append(&self.context, &self.execution, &self.source, &entries).await;
@@ -366,6 +382,7 @@ impl Session {
         let reconciled = commands::reconcile(&self.context, &self.target, &self.execution, &mut pending, true, cancelled).await;
         {
             let mut pages = self.pages.lock().await;
+            self.persist_attempts(&mut pages).await;
             let mut entries = pages.latencies.finish();
             entries.extend(self.cadence_entries(true));
             pages.stream_log.append(&self.context, &self.execution, &self.source, &entries).await;
@@ -414,6 +431,7 @@ impl Session {
     }
 
     async fn admit(&self, pages: &mut Pages, mut batch: EvidenceBatch) -> Result<EvidenceReceipt, ProviderExecutionFailure> {
+        self.persist_attempts(pages).await;
         let context = &self.context;
         let execution = &self.execution;
         let cancelling = self.cancelling.is_cancelled();
@@ -621,6 +639,22 @@ impl Session {
             tokio::task::yield_now().await;
         }
         Ok(())
+    }
+}
+
+#[cfg(feature = "testing")]
+impl crate::RuntimeHandle {
+    pub async fn hold_retained_attempt_persistence(&self, token: &str) -> tokio::sync::oneshot::Sender<()> {
+        let session = self.execution_sessions.get(token).expect("fixture session is retained");
+        let (entered, waiting) = tokio::sync::oneshot::channel();
+        let (release, released) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            let _pages = session.pages.lock().await;
+            let _ = entered.send(());
+            let _ = released.await;
+        });
+        waiting.await.expect("persistence gate entered");
+        release
     }
 }
 
