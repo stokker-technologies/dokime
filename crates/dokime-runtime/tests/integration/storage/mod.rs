@@ -74,6 +74,7 @@ async fn storage_recovery_engine() {
     engine_storage::portable_records_identity().await;
     engine_storage::cancellation::cancellation().await;
     engine_storage::nominal::nominal().await;
+    engine_storage::nominal::partial_release_keeps_unreleased_revisions().await;
     engine_storage::objects::materialized_cases_reader().await;
     engine_storage::objects::suite_definitions_producer().await;
     engine_storage::objects::cycles_reopen_producers().await;
