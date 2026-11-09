@@ -6,7 +6,7 @@
 #
 # ***
 
-# Approved on 2026-11-08; All Exceptions Expire at the Start of 2026-11-22 UTC.
+# Upstream-Blocked Exceptions Approved on 2026-11-09 Expire on 2026-11-23 UTC; RSA and GLib Retain 2026-11-22.
 
 [[advisory]]
 ecosystem = "cargo"
@@ -14,19 +14,9 @@ id = "RUSTSEC-2026-0387"
 package = "crypto-bigint"
 version = "0.5.5"
 fixed = ">=0.7.6"
-reason = "pending dependency update"
+reason = "no released fix in the dependent; dokime-packaging -> tauri-bundler 2.10.4 -> rpm 0.30.2 -> pgp 0.20.0 -> cx448 0.1.1 -> crypto-bigint 0.5.5; latest stable bundler and RPM retain this incompatible crypto line."
 owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "cargo"
-id = "RUSTSEC-2026-0385"
-package = "ctutils"
-version = "0.4.3"
-fixed = ">=0.4.4"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
+expires = 2026-11-23
 
 [[advisory]]
 ecosystem = "cargo"
@@ -34,9 +24,9 @@ id = "RUSTSEC-2025-0144"
 package = "ml-dsa"
 version = "0.0.4"
 fixed = ">=0.1.0-rc.3"
-reason = "pending dependency update"
+reason = "no released fix in the dependent; dokime-packaging -> tauri-bundler 2.10.4 -> rpm 0.30.2 -> pgp 0.20.0 -> ml-dsa 0.0.4; RPM requires pgp 0.20 with draft-pqc, so the fixed ML-DSA line cannot resolve."
 owner = "orchestrator"
-expires = 2026-11-22
+expires = 2026-11-23
 
 [[advisory]]
 ecosystem = "cargo"
@@ -44,67 +34,7 @@ id = "RUSTSEC-2023-0071"
 package = "rsa"
 version = "0.9.10"
 fixed = "none available"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "cargo"
-id = "RUSTSEC-2026-0382"
-package = "rustls-webpki"
-version = "0.103.15"
-fixed = ">=0.103.16, <0.104.0-alpha.1 OR >=0.104.0-alpha.8"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "cargo"
-id = "RUSTSEC-2026-0383"
-package = "webpki-root-certs"
-version = "1.0.9"
-fixed = ">=1.0.10"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "cargo"
-id = "RUSTSEC-2026-0367"
-package = "zip"
-version = "4.6.1"
-fixed = ">=9.0.0"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "cargo"
-id = "RUSTSEC-2026-0368"
-package = "zip"
-version = "4.6.1"
-fixed = ">=9.0.0"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "cargo"
-id = "RUSTSEC-2026-0369"
-package = "zip"
-version = "4.6.1"
-fixed = ">=9.0.0"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "cargo"
-id = "RUSTSEC-2026-0429"
-package = "zip"
-version = "4.6.1"
-fixed = ">=9.0.0"
-reason = "pending dependency update"
+reason = "No compatible fix: dokime-packaging -> tauri-bundler 2.10.4 -> rpm 0.30.2 -> pgp 0.20.0 -> rsa 0.9.10; also tauri-bundler -> tauri-macos-sign 2.4.3 -> rsa. Removing these paths would remove supported installer/signing behavior."
 owner = "orchestrator"
 expires = 2026-11-22
 
@@ -115,9 +45,9 @@ package = "paste"
 version = "1.0.15"
 fixed = "replace unmaintained dependency"
 category = "unmaintained"
-reason = "pending dependency update"
+reason = "no released fix in the dependent; dokime-packaging -> tauri-bundler 2.10.4 -> image 0.25.10 -> exr 1.74.2 -> pulp 0.22.3 -> paste 1.0.15; dokime-packaging -> tauri-bundler 2.10.4 -> image 0.25.10 -> ravif 0.13.0 -> rav1e 0.8.1 -> paste 1.0.15 also remains. Latest published image, pulp and rav1e retain paste."
 owner = "orchestrator"
-expires = 2026-11-22
+expires = 2026-11-23
 
 [[advisory]]
 ecosystem = "cargo"
@@ -126,9 +56,9 @@ package = "proc-macro-error"
 version = "1.0.4"
 fixed = "replace unmaintained dependency"
 category = "unmaintained"
-reason = "pending dependency update"
+reason = "no released fix in the dependent; dokime-gui -> tauri 2.12.5 -> gtk 0.18.2 -> glib 0.18.5 -> glib-macros 0.18.5 -> proc-macro-error; the stable Linux GTK3 desktop stack has no compatible maintained replacement."
 owner = "orchestrator"
-expires = 2026-11-22
+expires = 2026-11-23
 
 [[advisory]]
 ecosystem = "cargo"
@@ -137,9 +67,9 @@ package = "zbus_names"
 version = "4.3.4"
 fixed = "replace unmaintained dependency"
 category = "unmaintained"
-reason = "pending dependency update"
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zbus_names 4.3.4; dokime-runtime -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zbus_names 4.3.4 also remains. Latest stable owners still require zbus 5."
 owner = "orchestrator"
-expires = 2026-11-22
+expires = 2026-11-23
 
 [[advisory]]
 ecosystem = "cargo"
@@ -148,9 +78,9 @@ package = "zvariant"
 version = "5.15.0"
 fixed = "replace unmaintained dependency"
 category = "unmaintained"
-reason = "pending dependency update"
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zvariant 5.15.0; dokime-runtime -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zvariant 5.15.0 also remains. Latest stable owners still require zbus 5."
 owner = "orchestrator"
-expires = 2026-11-22
+expires = 2026-11-23
 
 [[advisory]]
 ecosystem = "cargo"
@@ -159,9 +89,9 @@ package = "zvariant_derive"
 version = "5.15.0"
 fixed = "replace unmaintained dependency"
 category = "unmaintained"
-reason = "pending dependency update"
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zvariant 5.15.0 -> zvariant_derive 5.15.0; dokime-runtime -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zvariant 5.15.0 -> zvariant_derive 5.15.0 also remains. Latest stable owners still require zbus 5."
 owner = "orchestrator"
-expires = 2026-11-22
+expires = 2026-11-23
 
 [[advisory]]
 ecosystem = "cargo"
@@ -170,229 +100,6 @@ package = "glib"
 version = "0.18.5"
 fixed = "none reported by Cargo Audit"
 category = "unsound"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "npm"
-id = "GHSA-68fv-2mgg-jv7q"
-package = "source-map-js"
-version = "1.2.1"
-fixed = ">=1.2.2"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "npm"
-id = "GHSA-f86p-h4j2-7qgj"
-package = "seroval"
-version = "1.6.7"
-fixed = ">=1.6.11"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "npm"
-id = "GHSA-9wx9-5pv9-3349"
-package = "seroval"
-version = "1.6.7"
-fixed = ">=1.6.10"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "npm"
-id = "GHSA-97r2-qh9m-474h"
-package = "seroval"
-version = "1.6.7"
-fixed = ">=1.6.8"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "npm"
-id = "GHSA-wp97-x4hv-qvhp"
-package = "seroval"
-version = "1.6.7"
-fixed = ">=1.6.8"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[advisory]]
-ecosystem = "npm"
-id = "GHSA-7rv5-mrxv-xcr9"
-package = "seroval"
-version = "1.6.7"
-fixed = ">=1.6.8"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[license]]
-package = "libbz2-rs-sys"
-version = "0.2.5"
-license = "bzip2-1.0.6"
-alternative = "none; this expression is permissive"
-fixed = "policy review"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[license]]
-package = "libfuzzer-sys"
-version = "0.4.13"
-license = "(MIT OR Apache-2.0) AND NCSA"
-accepted = ["NCSA"]
-alternative = "none; this expression is permissive"
-fixed = "policy review"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[license]]
-package = "notify"
-version = "8.2.1"
-license = "CC0-1.0"
-alternative = "none; this expression is permissive"
-fixed = "policy review"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[license]]
-package = "target-lexicon"
-version = "0.12.16"
-license = "Apache-2.0 WITH LLVM-exception"
-alternative = "none; this expression is permissive"
-fixed = "policy review"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[license]]
-package = "target-lexicon"
-version = "0.13.5"
-license = "Apache-2.0 WITH LLVM-exception"
-alternative = "none; this expression is permissive"
-fixed = "policy review"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[license]]
-package = "tiny-keccak"
-version = "2.0.2"
-license = "CC0-1.0"
-alternative = "none; this expression is permissive"
-fixed = "policy review"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[license]]
-package = "webpki-root-certs"
-version = "1.0.9"
-license = "CDLA-Permissive-2.0"
-alternative = "none; this expression is permissive"
-fixed = "policy review"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[license]]
-package = "webpki-roots"
-version = "1.0.11"
-license = "CDLA-Permissive-2.0"
-alternative = "none; this expression is permissive"
-fixed = "policy review"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[license]]
-package = "winx"
-version = "0.36.4"
-license = "Apache-2.0 WITH LLVM-exception"
-alternative = "none; this expression is permissive"
-fixed = "policy review"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[ban]]
-package = "dokime"
-manifest = "crates/dokime/Cargo.toml"
-manifest_sha256 = "deacc48c5cd9ffed0a629b874644b7c9210788e991327f8f422a55c6ecc74a44"
-version = "0.1.2"
-id = "wildcard"
-spans = ["{ workspace = true, optional = true }"]
-fixed = "add registry version constraints"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[ban]]
-package = "dokime-client"
-manifest = "crates/dokime-client/Cargo.toml"
-manifest_sha256 = "b1e9033b17e596ab3f4d7fda58e69e645db8cea34d0ff0547020c8aa4e980141"
-version = "0.1.2"
-id = "wildcard"
-spans = ["{ workspace = true, features = [\"grpc\"] }", "{ workspace = true, features = [\"grpc\"] }"]
-fixed = "add registry version constraints"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[ban]]
-package = "dokime-domain"
-manifest = "crates/dokime-domain/Cargo.toml"
-manifest_sha256 = "d30e62cb8819b83e5db74ac2c0e5d6ba787d4a8d2b94c693c48e48f2fb513ec7"
-version = "0.1.2"
-id = "wildcard"
-spans = ["{ workspace = true }"]
-fixed = "add registry version constraints"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[ban]]
-package = "dokime-operations"
-manifest = "crates/dokime-operations/Cargo.toml"
-manifest_sha256 = "dcfacdc6f981d14c439f3b816de25b1d946fe26fa8320c66c5a43ebc3e9ff718"
-version = "0.1.2"
-id = "wildcard"
-spans = ["{ workspace = true }"]
-fixed = "add registry version constraints"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[ban]]
-package = "dokime-packaging"
-manifest = "crates/dokime-packaging/Cargo.toml"
-manifest_sha256 = "aacc793b6036510910e8340a23eaf727082c8297132a0ea6669284c2113497ae"
-version = "0.1.2"
-id = "wildcard"
-spans = ["{ workspace = true }"]
-fixed = "add registry version constraints"
-reason = "pending dependency update"
-owner = "orchestrator"
-expires = 2026-11-22
-
-[[ban]]
-package = "dokime-runtime"
-manifest = "crates/dokime-runtime/Cargo.toml"
-manifest_sha256 = "a6211a2ca77dbdfcd2e2f24c49835576725d0bb5a0a9cd97a7d234501dddfc7c"
-version = "0.1.2"
-id = "wildcard"
-spans = ["{ workspace = true }", "{ workspace = true, features = [\"plugin\", \"signal\"] }"]
-fixed = "add registry version constraints"
-reason = "pending dependency update"
+reason = "dokime-gui -> tauri 2.12.5 -> gtk 0.18.2 -> glib 0.18.5, also through webkit2gtk; the stable Linux GTK3 desktop stack requires glib 0.18 and cannot use glib 0.20 without a desktop platform migration."
 owner = "orchestrator"
 expires = 2026-11-22

@@ -120,6 +120,7 @@ pub(crate) async fn sqlite_rolls_reopen() {
         })
         .await;
     assert!(matches!(result, Err(Error::Sqlite(_))));
+    state.close().await.unwrap();
     drop(state);
 
     let reopened = State::open(root.path()).await.unwrap();
