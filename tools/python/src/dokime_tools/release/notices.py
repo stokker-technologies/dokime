@@ -19,6 +19,7 @@ import hashlib
 import io
 import json
 import shutil
+import sys
 import tarfile
 import tempfile
 import tomllib
@@ -110,6 +111,8 @@ def shell_notices(document: dict) -> tuple[str, int]:
             inventory.update((package["name"], version) for version in versions)
             texts = set()
             for path in package["paths"]:
+                if not Path(path).is_dir():
+                    raise policy.ToolError(f"missing shell dependency: {path}; run pnpm install in crates/dokime-gui")
                 for source in sorted(Path(path).iterdir()):
                     if source.is_file() and source.name.lower().startswith(("license", "licence", "copying", "notice")):
                         texts.add(source.read_text(encoding="utf-8"))
@@ -192,7 +195,7 @@ def archive(directory: Path, source: Path) -> None:
         shutil.copyfile(result, source)
 
 
-def generate(directory: Path) -> dict:
+def generate(directory: Path, *, python: bool = False) -> dict:
     """Resolve Approved Licenses, Then Collect Actual Copyright and License Text."""
     output = directory / "target/notices"
     output.mkdir(parents=True, exist_ok=True)
@@ -247,13 +250,21 @@ def generate(directory: Path) -> dict:
     )
     rust = json.loads((output / "rust.json").read_text(encoding="utf-8"))
     crates = {(item["crate"]["name"], item["crate"]["version"]) for license_ in rust["licenses"] for item in license_["used_by"]}
-    shell = json.loads(
-        policy.execute(directory, ["pnpm", "--dir", "crates/dokime-gui", "licenses", "list", "--prod", "--json"], capture=True)
-    )
-    shell_text, shell_count = shell_notices(shell)
+    shell_text, shell_count = "", 0
+    if not python:
+        if not (directory / "crates/dokime-gui/node_modules").is_dir():
+            raise policy.ToolError("missing shell dependencies; run pnpm install in crates/dokime-gui")
+        shell = json.loads(
+            policy.execute(directory, ["pnpm", "--dir", "crates/dokime-gui", "licenses", "list", "--prod", "--json"], capture=True)
+        )
+        shell_text, shell_count = shell_notices(shell)
     python_text, python_count = python_notices(tomllib.loads((directory / "uv.lock").read_text(encoding="utf-8")))
     text = (output / "rust.txt").read_text(encoding="utf-8") + "\n\n" + shell_text + "\n\n" + python_text + "\n"
-    (directory / "THIRD-PARTY-NOTICES").write_text(text, encoding="utf-8")
+    destination = output / "python" if python else directory
+    destination.mkdir(parents=True, exist_ok=True)
+    if python:
+        shutil.copyfile(directory / "NOTICE", destination / "NOTICE")
+    (destination / "THIRD-PARTY-NOTICES").write_text(text, encoding="utf-8", newline="\n")
     counts = {"rust": len(crates), "shell": shell_count, "python": python_count}
     (output / "counts.json").write_text(json.dumps(counts, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(counts))
@@ -269,7 +280,7 @@ def main() -> int:
     parser.add_argument("--target", default="native")
     options = parser.parse_args()
     directory = policy.root()
-    generate(directory)
+    generate(directory, python=options.python)
     destination = options.stage
     if options.profile:
         target = paths.target() if options.target == "native" else options.target
@@ -284,7 +295,7 @@ def main() -> int:
         if not wheels:
             raise policy.ToolError(f"no packaged wheels in {options.archives}")
         for source in wheels:
-            archive(directory, source)
+            archive(directory / "target/notices/python" if options.python else directory, source)
     return 0
 
 
@@ -293,4 +304,8 @@ def main() -> int:
 # === Entry Point === #
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except policy.ToolError as error:
+        print(f"notices: {error}", file=sys.stderr)
+        raise SystemExit(1) from None

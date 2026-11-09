@@ -25,7 +25,7 @@ use std::time::Instant;
 
 // Third Party Imports
 use rusqlite::Connection;
-use tokio::sync::{Notify, oneshot};
+use tokio::sync::oneshot;
 
 // Local Imports
 use super::{Error, Owner, State};
@@ -44,9 +44,8 @@ type Operation = Box<dyn FnOnce(&mut Connection) -> Completion + Send>;
 #[derive(Default)]
 pub(super) struct Queue {
     pending: Mutex<Pending>,
-    idle: Notify,
     checkpoint_running: AtomicBool,
-    checkpoint: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    tasks: Mutex<Vec<Task>>,
     groups: AtomicU64,
     written_pages: AtomicU64,
 }
@@ -62,6 +61,11 @@ struct Job {
     bytes: usize,
     grouped: bool,
     operation: Operation,
+}
+
+struct Task {
+    join: tokio::task::JoinHandle<()>,
+    finished: std::sync::mpsc::Receiver<()>,
 }
 
 /* === Enums === */
@@ -108,8 +112,8 @@ impl State {
             pending.jobs.push_back(Job { rows, bytes, grouped, operation });
             if !pending.running {
                 pending.running = true;
-                let owner = self.0.clone();
-                tokio::task::spawn_blocking(move || {
+                let owner = self.0.owner.clone();
+                self.0.queue.spawn(move || {
                     if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(owner.clone()))).is_err() {
                         owner.failed.store(true, Ordering::Release);
                         owner.closing.store(true, Ordering::Release);
@@ -124,18 +128,54 @@ impl State {
 }
 
 impl Queue {
-    pub(super) async fn settle(&self) {
+    fn spawn(&self, operation: impl FnOnce() + Send + 'static) {
+        let (finished, receiver) = std::sync::mpsc::channel();
+        let mut tasks = self.tasks.lock().unwrap();
+        tasks.retain(|task| !task.join.is_finished());
+        let join = tokio::task::spawn_blocking(move || {
+            // Disconnect Only After The Operation And Its Owner Captures Are Dropped.
+            let _finished = finished;
+            operation();
+        });
+        tasks.push(Task { join, finished: receiver });
+    }
+
+    pub(super) fn wait(&self) {
         loop {
-            let notified = self.idle.notified();
-            if !self.pending.lock().unwrap().running {
-                break;
+            let tasks = {
+                let mut tasks = self.tasks.lock().unwrap();
+                // A Callback May Drop Its Last Public Handle On The Worker Itself.
+                // That Worker Already Owns The Remaining Drain And Resource Release.
+                if tasks.iter().any(|task| tokio::task::try_id() == Some(task.join.id())) {
+                    return;
+                }
+                std::mem::take(&mut *tasks)
+            };
+            if tasks.is_empty() {
+                return;
             }
-            notified.await;
+            for task in tasks {
+                let _ = task.finished.recv();
+            }
         }
-        let checkpoint = self.checkpoint.lock().unwrap().take();
-        if let Some(checkpoint) = checkpoint {
-            let _ = checkpoint.await;
-        }
+    }
+
+    pub(super) async fn settle(&self) {
+        // An Enqueue Admitted Before Closing Must Register Its Worker Before We Join.
+        drop(self.pending.lock().unwrap());
+        std::future::poll_fn(|context| {
+            let mut tasks = self.tasks.lock().unwrap();
+            let mut index = 0;
+            while index < tasks.len() {
+                if std::future::Future::poll(std::pin::Pin::new(&mut tasks[index].join), context).is_ready() {
+                    tasks.swap_remove(index);
+                } else {
+                    index += 1;
+                }
+            }
+            if tasks.is_empty() { std::task::Poll::Ready(()) } else { std::task::Poll::Pending }
+        })
+        .await;
     }
 }
 
@@ -150,7 +190,6 @@ fn run(owner: Arc<Owner>) {
             let mut pending = owner.queue.pending.lock().unwrap();
             let Some(first) = pending.jobs.pop_front() else {
                 pending.running = false;
-                owner.queue.idle.notify_one();
                 return;
             };
             let mut rows = first.rows;
@@ -240,7 +279,6 @@ fn run(owner: Arc<Owner>) {
 
 fn finish_failed(owner: &Owner) {
     owner.queue.pending.lock().unwrap().running = false;
-    owner.queue.idle.notify_one();
 }
 
 fn checkpoint(owner: &Arc<Owner>) {
@@ -249,7 +287,7 @@ fn checkpoint(owner: &Arc<Owner>) {
     }
     owner.queue.written_pages.store(0, Ordering::Relaxed);
     let checkpoint_owner = owner.clone();
-    let task = tokio::task::spawn_blocking(move || {
+    owner.queue.spawn(move || {
         let _checkpoint = super::probe::Timing::start("checkpoint");
         let started = Instant::now();
         let result = (|| -> rusqlite::Result<()> {
@@ -268,7 +306,6 @@ fn checkpoint(owner: &Arc<Owner>) {
         }
         checkpoint_owner.queue.checkpoint_running.store(false, Ordering::Release);
     });
-    *owner.queue.checkpoint.lock().unwrap() = Some(task);
 }
 
 /* === Tests === */

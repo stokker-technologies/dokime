@@ -68,7 +68,7 @@ impl VerifiedPrefix {
 
 impl State {
     pub(crate) async fn data_create_file(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.grouped(1, entry::check_size(&metadata, usize::MAX)?, move |connection| {
             let result = (|| {
                 let staging = create_file(connection, &root, metadata, false)?;
@@ -88,7 +88,7 @@ impl State {
         if bytes.is_empty() {
             return Err(Error::Data("file batch must not be empty"));
         }
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.grouped(1, bytes.len(), move |connection| {
             Ok((|| {
                 let bytes = bytes.as_slice();
@@ -148,7 +148,7 @@ impl State {
     pub(crate) async fn data_finish_file(
         &self, root: PathBuf, staging: StagedFile, position: StorageCursor, length: u64, sha256: [u8; 32],
     ) -> Result<FileReference, Error> {
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.grouped(
             1,
             entry::check_size(&staging, usize::MAX)?.saturating_add(entry::check_size(&position, usize::MAX)?).saturating_add(40),
@@ -219,7 +219,7 @@ impl State {
     }
 
     pub(crate) async fn data_abort_file(&self, root: PathBuf, staging: StagedFile) -> Result<(), Error> {
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.call(move |connection| {
             owner.files.lock().unwrap().remove(&staging.id);
             let result = (|| {

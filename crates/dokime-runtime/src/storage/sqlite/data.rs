@@ -240,7 +240,7 @@ impl State {
     }
 
     pub(crate) async fn data_open(&self, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.call(move |connection| {
             Ok((|| {
                 let head = open(connection, expected)?;
@@ -267,7 +267,7 @@ impl State {
         let bytes = batch.as_slice().iter().try_fold(0usize, |total, value| {
             entry::check_size(&Borrowed::from(value), usize::MAX).map(|bytes| total.saturating_add(bytes))
         })?;
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.grouped(batch.len(), bytes, move |connection| {
             let mut files = owner.files.lock().unwrap();
             let mut prefix = owner.verification_prefix.lock().unwrap();

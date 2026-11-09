@@ -69,7 +69,7 @@ impl Drop for RecoveryCancellation {
 
 impl State {
     pub(in crate::storage::sqlite) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.grouped(1, entry::check_size(&metadata, usize::MAX)?, move |connection| {
             let result = (|| {
                 let staging = files::create_file(connection, &root, metadata, true)?;
@@ -106,7 +106,7 @@ impl State {
     }
 
     pub(super) async fn production_save(&self, root: PathBuf, requested: StorageBatch<FileCheckpoint>) -> Result<(), Error> {
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         let bytes = requested
             .as_slice()
             .iter()
@@ -239,7 +239,7 @@ impl State {
     }
 
     pub(super) async fn production_abandon(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.call(move |connection| {
             let result = (|| {
                 let current = progress(connection, &root, &file)?;
@@ -326,7 +326,7 @@ fn save_checkpoint(
 
 impl State {
     pub(in crate::storage::sqlite) async fn production_delete(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.call(move |connection| {
             let result = (|| {
             saved(connection)?.history.check(&file.history)?;

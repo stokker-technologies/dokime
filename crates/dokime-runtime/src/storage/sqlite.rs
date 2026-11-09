@@ -80,7 +80,12 @@ pub(super) static OBJECT_RETENTION_STEPS: AtomicU64 = AtomicU64::new(0);
 /* === Structs === */
 
 #[derive(Clone)]
-pub struct State(Arc<Owner>);
+pub struct State(Arc<Handle>);
+
+// Public Handles Own Shutdown; Worker Captures Own Only Their Admitted Work.
+struct Handle {
+    owner: Arc<Owner>,
+}
 
 // Local SQLite Connection Settings; `config::local_storage_defaults` Owns Their Defaults.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -137,8 +142,6 @@ struct Owner {
     publication: std::sync::Mutex<publication::Publication>,
     failed: AtomicBool,
     read_metrics: Arc<ReadMetrics>,
-    // The Only Writer Connection; Reads Never Hold It, So Concurrent Queries Cannot Delay A Save.
-    live: Arc<Mutex<Option<Live>>>,
     // WAL Readers, One Per Admitted Active Query; Each Read Sees One Committed Snapshot.
     readers: Arc<Readers>,
     closing: AtomicBool,
@@ -151,6 +154,8 @@ struct Owner {
     telemetry_tasks: tokio::sync::Mutex<Vec<tokio::task::JoinHandle<Result<(), Error>>>>,
     settings: Settings,
     close: tokio::sync::Mutex<()>,
+    // Drop The Writer And Lease After Every Retained Reader And File Handle.
+    live: Arc<Mutex<Option<Live>>>,
 }
 
 struct Live {
@@ -200,6 +205,21 @@ pub struct PreviewSettings {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl std::ops::Deref for Handle {
+    type Target = Owner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.owner
+    }
+}
+
+impl Drop for Handle {
+    fn drop(&mut self) {
+        self.owner.closing.store(true, Ordering::Release);
+        self.owner.queue.wait();
+    }
+}
 
 impl Drop for Interruption {
     fn drop(&mut self) {
@@ -288,7 +308,7 @@ impl State {
             idle.try_reserve_exact(readers.get()).map_err(std::io::Error::other)?;
             let verification_prefix = data::VerifiedPrefix::default();
             let verification_prefix = std::sync::Mutex::new(verification_prefix);
-            Ok(Self(Arc::new(Owner {
+            let owner = Arc::new(Owner {
                 queue: worker::Queue::default(),
                 publication: Default::default(),
                 failed: AtomicBool::new(false),
@@ -310,7 +330,8 @@ impl State {
                 telemetry_tasks: Default::default(),
                 settings,
                 close: Default::default(),
-            })))
+            });
+            Ok(Self(Arc::new(Handle { owner })))
         })
         .await?
     }
@@ -367,7 +388,7 @@ impl State {
         let waiting = std::time::Instant::now();
         let mut live = self.0.live.clone().lock_owned().await;
         tracing::debug!(name: "ingest.lock.sqlite", elapsed_ns = waiting.elapsed().as_nanos() as u64);
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         tokio::task::spawn_blocking(move || {
             if !owner.failed.load(Ordering::Acquire)
                 && let Some(live) = live.as_mut()
@@ -375,14 +396,24 @@ impl State {
                 owner.telemetry.lock().unwrap().finish(&mut live.connection, None)?;
             }
             owner.files.lock().unwrap().clear();
+            let root = owner.readers.database.parent().expect("SQLite root").to_owned();
+            *owner.telemetry.lock().unwrap() = data::telemetry::Store::new(root, owner.settings);
+            *owner.publication.lock().unwrap() = publication::Publication::default();
             *owner.verification_prefix.lock().unwrap() = data::VerifiedPrefix::default();
             let Some(Live { connection, probe, _lease }) = live.take() else {
                 return Ok(());
             };
-            connection.close().map_err(|(connection, error)| {
-                *live = Some(Live { connection, probe, _lease });
-                Error::Sqlite(error)
-            })
+            match connection.close() {
+                Ok(()) => {
+                    drop(probe);
+                    drop(_lease);
+                    Ok(())
+                }
+                Err((connection, error)) => {
+                    *live = Some(Live { connection, probe, _lease });
+                    Err(Error::Sqlite(error))
+                }
+            }
         })
         .await?
     }
@@ -470,8 +501,7 @@ fn commit(transaction: rusqlite::Transaction<'_>) -> rusqlite::Result<()> {
     Ok(())
 }
 
-// Takes the root's exclusive lease, waiting a bounded time for a departing
-// owner to let go. A lease still held after that belongs to a live runtime.
+// Takes The Root's Exclusive File Lock; Close Drops It Before A New Owner Opens.
 fn acquire_lease(lease: &File) -> Result<(), Error> {
     match lease.try_lock() {
         Ok(()) => Ok(()),

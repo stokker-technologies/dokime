@@ -65,6 +65,52 @@ class SupplyTests(unittest.TestCase):
             self.assertEqual(config["accepted"], license_policy["licenses"]["allow"])
             self.assertEqual(config["dependency"]["accepted"], ["NCSA"])
 
+    def test_notice_scope_without_installed_shell(self):
+        for python, installed in ((True, False), (False, False), (False, True)):
+            with self.subTest(python=python, installed=installed), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                output = root / "target/notices"
+                output.mkdir(parents=True)
+                (root / "deny.toml").write_text('[licenses]\nallow = ["MIT"]\n')
+                (root / "about.toml").write_text("")
+                (root / "uv.lock").write_text("package = []\n")
+                (root / "NOTICE").write_text("notice")
+                (root / "THIRD-PARTY-NOTICES").write_text("product")
+                (output / "rust.json").write_text('{"licenses": []}')
+                (output / "rust.txt").write_text("rust")
+                if installed:
+                    (root / "crates/dokime-gui/node_modules").mkdir(parents=True)
+                with (
+                    mock.patch.object(sbom, "exceptions", return_value={}),
+                    mock.patch.object(policy, "execute", return_value='{"packages": []}') as execute,
+                    mock.patch.object(notices, "shell_notices", return_value=("shell", 3)) as shell,
+                    mock.patch.object(notices, "python_notices", return_value=("python", 2)),
+                ):
+                    if python:
+                        counts = notices.generate(root, python=True)
+                        self.assertEqual(counts, {"rust": 0, "shell": 0, "python": 2})
+                        self.assertEqual((output / "python/THIRD-PARTY-NOTICES").read_text(), "rust\n\n\n\npython\n")
+                    elif installed:
+                        counts = notices.generate(root)
+                        self.assertEqual(counts, {"rust": 0, "shell": 3, "python": 2})
+                        self.assertEqual((root / "THIRD-PARTY-NOTICES").read_text(), "rust\n\nshell\n\npython\n")
+                        shell.assert_called_once()
+                        self.assertEqual(execute.call_args.args[1][0], "pnpm")
+                    else:
+                        with self.assertRaises(policy.ToolError):
+                            notices.generate(root)
+                    if not installed:
+                        shell.assert_not_called()
+                        self.assertTrue(all(call.args[1][0] == "cargo" for call in execute.call_args_list))
+                if python or not installed:
+                    self.assertEqual((root / "THIRD-PARTY-NOTICES").read_text(), "product")
+
+    def test_shell_notice_missing_package_is_tool_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            document = {"MIT": [{"name": "missing", "version": "1", "paths": [str(Path(temporary) / "missing")]}]}
+            with self.assertRaises(policy.ToolError):
+                notices.shell_notices(document)
+
     def test_notice_exception_requires_every_resolved_version(self):
         with tempfile.TemporaryDirectory() as temporary:
             document = {"license": [{"package": "dependency", "version": "1", "license": "NCSA"}]}
