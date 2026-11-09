@@ -286,6 +286,17 @@ stream's declared window. A flush moves those rows into saved batches without a
 gap or duplicate. Tail rows shown live can be lost in a crash. Finite queries,
 All refreshes and frozen reports retain saved evidence cuts.
 
+A document watch evaluates its dirty plots together at one captured cut, reusing
+query deduplication and bounded storage readers. One watch message carries the
+complete dirty set in request order, including each plot's snapshot or error.
+Opening snapshots use the same grouped delivery. The plots share the revision's
+transport budget; oversized payloads reduce from the retained query result,
+without rereading evidence. Finite All requests keep their independent budgets.
+Already delivered revisions are suppressed; keepalives remain payload-free
+pending notices. The frontend decodes each revision in full and applies its
+updates through one shared animation-frame commit, so the document's charts
+receive the complete revision together.
+
 Numeric time series and histograms show numeric statistics. XY, XY interval, trajectory and heatmap plots omit the statistics block in both the
 desktop and report renderer. XY traces keep their ordinary legend.
 

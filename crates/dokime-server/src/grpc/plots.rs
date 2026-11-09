@@ -20,7 +20,11 @@ pub(super) use wire::{data_expression_wire, document_plot_definition, plot_filte
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeSet, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 
 // Third Party Imports
 use dokime::harmos::domain::Portable;
@@ -89,7 +93,7 @@ impl Resources {
     fn frame(
         &self, requests: &mut Vec<PlotPayloadRequest>, current: &PlotPayloadRequest, value: ReadBatch<PlotPayloadEnvelope>,
         frame: &FrameContext<'_>,
-    ) -> Result<Response<dokime::domain::model::plots::wire::PlotStreamFrame>, Status> {
+    ) -> Result<Response<dokime::domain::model::plots::wire::PlotStreamUpdate>, Status> {
         let served = stream_frame(frame.kind.clone(), ReadBatch::new((*value).clone()), frame.epoch, frame.selection, self.maximum)
             .and_then(|frame| {
                 ensure_message_budget(&*frame, self.maximum, "plot response")?;
@@ -138,37 +142,105 @@ impl Resources {
         result
     }
 
-    async fn deliver_snapshot(
-        &self, output: &StreamOutput<dokime::domain::model::plots::wire::PlotStreamFrame>, requests: &mut Vec<PlotPayloadRequest>,
-        current: &PlotPayloadRequest, result: Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>,
-        frame: &FrameContext<'_>,
-    ) -> Result<bool, Status> {
+    async fn query_snapshots(
+        &self, requests: &[PlotPayloadRequest], at: &StorageCursor,
+    ) -> Vec<Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>> {
+        let runtime = match dokime::app::live_runtime(&self.runtime).await {
+            Ok(runtime) => runtime,
+            Err(error) => return requests.iter().map(|_| Err(dokime::runtime::Error::Operation(error.to_string()))).collect(),
+        };
+        let mut saved = at.clone();
+        saved.sequence = saved.sequence.min(runtime.storage().cursor_saved().sequence);
+        let groups = [true, false].map(|live| {
+            let selected = requests
+                .iter()
+                .enumerate()
+                .filter(|(_, request)| request.window_s.is_some() == live)
+                .map(|(index, request)| (index, request.clone()))
+                .collect::<Vec<_>>();
+            let cut = if live { at } else { &saved };
+            let runtime = &runtime;
+            async move {
+                if selected.is_empty() {
+                    return Vec::new();
+                }
+                match runtime.query_plot_payloads_at(selected.iter().map(|(_, request)| request.clone()).collect(), cut).await {
+                    Ok(values) => selected
+                        .into_iter()
+                        .map(|(index, _)| index)
+                        .zip(values.into_iter().map(|value| Ok(vec![value])))
+                        .collect::<Vec<_>>(),
+                    // Isolate A Refused Plot Without Losing Healthy Peers.
+                    Err(_) => {
+                        stream::iter(selected)
+                            .map(|(index, current)| async move {
+                                let result = self.query_snapshot(&current, cut).await;
+                                (index, result)
+                            })
+                            .buffered(usize::try_from(SERVER_PLOT_INITIAL_CONCURRENCY).expect("validated plot concurrency"))
+                            .collect()
+                            .await
+                    }
+                }
+            }
+        });
+        let mut results = futures_util::future::join_all(groups).await.into_iter().flatten().collect::<BTreeMap<_, _>>();
+        (0..requests.len()).map(|index| results.remove(&index).expect("each plot has a query result")).collect()
+    }
+
+    fn snapshot_frames(
+        &self, requests: &mut Vec<PlotPayloadRequest>, current: &PlotPayloadRequest,
+        result: Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>, frame: &FrameContext<'_>,
+        delivered: &mut BTreeMap<String, u64>,
+    ) -> Result<(bool, Vec<Response<dokime::domain::model::plots::wire::PlotStreamUpdate>>), Status> {
         let native = match result {
             Ok(native) => native,
             Err(error) => {
                 let response = self.produce(|| Ok(plot_error_frame(current, error.to_string(), frame.epoch, frame.selection)))?;
-                output.send_owned(response).await.map_err(crate::grpc::chunked::output_failure)?;
-                return Ok(false);
+                return Ok((false, vec![response]));
             }
         };
+        let mut frames = Vec::with_capacity(native.len());
         for value in native {
+            let key = value.plot_id.clone();
+            let revision = value.revision;
+            if delivered.get(&key).is_some_and(|previous| *previous >= revision) {
+                continue;
+            }
             let response = self.frame(requests, current, value, frame)?;
-            output.send_owned(response).await.map_err(crate::grpc::chunked::output_failure)?;
+            frames.push(response);
+            delivered.insert(key, revision);
         }
-        Ok(true)
+        Ok((true, frames))
+    }
+
+    async fn send_revision(
+        &self, output: &StreamOutput<dokime::domain::model::plots::wire::PlotStreamFrame>,
+        updates: Vec<Response<dokime::domain::model::plots::wire::PlotStreamUpdate>>,
+    ) -> Result<(), Status> {
+        if updates.is_empty() {
+            return Ok(());
+        }
+        let frame = dokime::domain::model::plots::wire::PlotStreamFrame {
+            updates: updates.into_iter().map(Response::into_owned).collect(),
+        };
+        if crate::grpc::content::output_frame_len(&frame)? > self.maximum {
+            return Err(Status::resource_exhausted("plot revision exceeds transport limit"));
+        }
+        output.send_owned(frame.into()).await.map_err(crate::grpc::chunked::output_failure)
     }
 
     async fn send_pending(
         &self, output: &StreamOutput<dokime::domain::model::plots::wire::PlotStreamFrame>, waiting: &[PlotPayloadRequest],
         selections: &[String], original: &[PlotPayloadRequest], epoch: &str,
     ) -> Result<(), Status> {
+        let mut updates = Vec::with_capacity(waiting.len());
         for current in waiting {
             let selection = selection_for_plot(original, selections, &plot_key(current))
                 .ok_or_else(|| Status::internal("plot selection is missing"))?;
-            let response = self.produce(|| Ok(plot_pending_frame(current, epoch, selection)))?;
-            output.send_owned(response).await.map_err(crate::grpc::chunked::output_failure)?;
+            updates.push(plot_pending_frame(current, epoch, selection).into());
         }
-        Ok(())
+        self.send_revision(output, updates).await
     }
 }
 
@@ -258,7 +330,7 @@ impl Serve<contract::Watch> for Resources {
                 // Live Plots Hold Their Streams; Streams Nobody Views Or Runs Stay Stopped.
                 let _viewing = runtime.view_plot_streams(&requests, "plots.watch").await;
                 let original = requests.clone();
-                let mut waiting = requests.clone();
+                let waiting = requests.clone();
                 self.send_pending(output, &waiting, &selections, &original, &epoch).await?;
 
                 // Subscribe Before Capturing The Read Cut So Publications Racing The Opening Read Are Followed.
@@ -270,35 +342,31 @@ impl Serve<contract::Watch> for Resources {
                 let initial = observed.clone();
                 let mut dirty = BTreeSet::new();
                 let mut opened = BTreeSet::new();
-                let resources = self;
-                let at = &initial;
-                let snapshots = stream::iter(waiting.clone())
-                    .map(|current| async move {
-                        let result = resources.query_snapshot(&current, at).await;
-                        (current, result)
-                    })
-                    .buffer_unordered(usize::try_from(SERVER_PLOT_INITIAL_CONCURRENCY).expect("validated plot concurrency"));
+                let mut delivered = BTreeMap::new();
+                // Each Plot Shares The Revision Budget; The Outer Frame Keeps Its Own Overhead.
+                let empty = dokime::domain::model::plots::wire::PlotStreamFrame { updates: Vec::new() };
+                let overhead = crate::grpc::content::output_frame_len(&empty)?;
+                let maximum = self.maximum.saturating_sub(overhead) / requests.len().max(1);
+                let resources = Resources { runtime: self.runtime.clone(), maximum };
+                let snapshots = Box::pin(stream::once(resources.query_snapshots(&waiting, &initial)));
                 let mut heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                 let mut reading = std::pin::pin!(with_keepalive(snapshots, Duration::from_millis(SERVER_PLOT_KEEPALIVE_MS)));
                 while let Some(event) = reading.next().await {
                     heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                     match event {
                         Opening::Keepalive => self.send_pending(output, &waiting, &selections, &original, &epoch).await?,
-                        Opening::Ready((current, result)) => {
-                            let key = plot_key(&current);
-                            waiting.retain(|request| plot_key(request) != key);
-                            let selection = selection_for_plot(&original, &selections, &key)
-                                .ok_or_else(|| Status::internal("plot selection is missing"))?;
-                            let frame = FrameContext {
-                                epoch: &epoch,
-                                selection,
-                                kind: PlotPayloadStreamKind::Snapshot,
-                            };
-                            if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
-                                opened.insert(key);
-                            } else {
-                                dirty.insert(key);
+                        Opening::Ready(results) => {
+                            let mut frames = Vec::new();
+                            for (current, result) in waiting.iter().zip(results) {
+                                let key = plot_key(current);
+                                let selection = selection_for_plot(&original, &selections, &key)
+                                    .ok_or_else(|| Status::internal("plot selection is missing"))?;
+                                let frame = FrameContext { epoch: &epoch, selection, kind: PlotPayloadStreamKind::Snapshot };
+                                let (ready, prepared) = resources.snapshot_frames(&mut requests, current, result, &frame, &mut delivered)?;
+                                frames.extend(prepared);
+                                if ready { opened.insert(key); } else { dirty.insert(key); }
                             }
+                            self.send_revision(output, frames).await?;
                         }
                     }
                 }
@@ -336,7 +404,10 @@ impl Serve<contract::Watch> for Resources {
                                 heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                             }
                             let mut refused = false;
-                            for current in served {
+                            // Evaluate The Whole Dirty Set Before Sending One Ordered Revision.
+                            let results = resources.query_snapshots(&served, &at).await;
+                            let mut frames = Vec::new();
+                            for (current, result) in served.into_iter().zip(results) {
                                 let key = plot_key(&current);
                                 dirty.remove(&key);
                                 let selection = selection_for_plot(&original, &selections, &key)
@@ -347,14 +418,16 @@ impl Serve<contract::Watch> for Resources {
                                     PlotPayloadStreamKind::Snapshot
                                 };
                                 let frame = FrameContext { epoch: &epoch, selection, kind };
-                                let result = resources.query_snapshot(&current, &at).await;
-                                if resources.deliver_snapshot(output, &mut requests, &current, result, &frame).await? {
+                                let (ready, prepared) = resources.snapshot_frames(&mut requests, &current, result, &frame, &mut delivered)?;
+                                frames.extend(prepared);
+                                if ready {
                                     opened.insert(key);
                                 } else {
                                     dirty.insert(key);
                                     refused = true;
                                 }
                             }
+                            self.send_revision(output, frames).await?;
                             if refused {
                                 next_flush = Some(Instant::now() + retry_delay);
                                 retry_delay = (retry_delay * 2).min(Duration::from_millis(SERVER_PLOT_RETRY_MAX_MS));
@@ -503,8 +576,8 @@ fn with_keepalive<S: Stream + Unpin>(ready: S, every: Duration) -> impl Stream<I
 // A plot that is subscribed and still reading, or a quiet watch's heartbeat: an unspecified frame naming the plot, with nothing else.
 fn plot_pending_frame(
     request: &dokime::runtime::query::PlotPayloadRequest, epoch: &str, selection: &str,
-) -> dokime::domain::model::plots::wire::PlotStreamFrame {
-    dokime::domain::model::plots::wire::PlotStreamFrame {
+) -> dokime::domain::model::plots::wire::PlotStreamUpdate {
+    dokime::domain::model::plots::wire::PlotStreamUpdate {
         kind: dokime::domain::model::plots::wire::PlotStreamKind::Unspecified,
         envelope: Some(dokime::domain::model::plots::wire::PlotEnvelope {
             plot_id: request.plot_id.clone().unwrap_or_else(|| request.stream.clone()),
@@ -520,8 +593,8 @@ fn plot_pending_frame(
 
 fn plot_error_frame(
     request: &dokime::runtime::query::PlotPayloadRequest, message: String, epoch: &str, selection: &str,
-) -> dokime::domain::model::plots::wire::PlotStreamFrame {
-    dokime::domain::model::plots::wire::PlotStreamFrame {
+) -> dokime::domain::model::plots::wire::PlotStreamUpdate {
+    dokime::domain::model::plots::wire::PlotStreamUpdate {
         kind: dokime::domain::model::plots::wire::PlotStreamKind::Error,
         envelope: Some(dokime::domain::model::plots::wire::PlotEnvelope {
             plot_id: request.plot_id.clone().unwrap_or_else(|| request.stream.clone()),

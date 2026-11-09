@@ -196,29 +196,30 @@ pub(crate) async fn sealed_window_all() {
         client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: requests() }).await.unwrap().into_inner();
     // The watch acknowledges every plot before any read, so none sits silent while the snapshots run.
     let mut acknowledged = Vec::new();
-    for _ in 0..2 {
-        let frame = watch.message().await.unwrap().unwrap();
+    let pending = watch.message().await.unwrap().unwrap();
+    assert_eq!(pending.updates.len(), 2);
+    for frame in pending.updates {
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Unspecified, "the acknowledgement precedes every snapshot");
         let envelope = frame.envelope.unwrap();
         assert!(envelope.payload.is_none(), "an acknowledgement carries no data");
         acknowledged.push(envelope.plot_id);
     }
     assert_eq!(acknowledged, ["fixture.progress.first", "fixture.progress.second"]);
-    for _ in 0..2 {
-        let frame = data_frame(&mut watch).await;
+    for frame in plots::data_frames(&mut watch).await {
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot, "{:?}", frame.envelope.map(|envelope| envelope.warnings));
         assert_eq!(served_points(&frame), STORED as usize, "a running execution opens with its saved rows");
     }
     publish_scoped(&handle, &id, &scope, STORED, 1).await;
     let saved = handle.storage().cursor_saved();
     let mut replacement_cut = None;
-    for _ in 0..2 {
-        let frame = loop {
-            let frame = data_frame(&mut watch).await;
-            if frame.envelope.as_ref().is_some_and(|envelope| envelope.revision >= saved.sequence) {
-                break frame;
-            }
-        };
+    let frames = loop {
+        let frames = plots::data_frames(&mut watch).await;
+        if frames.iter().all(|frame| frame.envelope.as_ref().is_some_and(|envelope| envelope.revision >= saved.sequence)) {
+            break frames;
+        }
+    };
+    assert_eq!(frames.len(), 2);
+    for frame in frames {
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Replace);
         assert_eq!(served_points(&frame), STORED as usize + 1);
         let envelope = frame.envelope.unwrap();
@@ -247,8 +248,7 @@ pub(crate) async fn sealed_window_all() {
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut watch =
         client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: requests() }).await.unwrap().into_inner();
-    for _ in 0..2 {
-        let frame = data_frame(&mut watch).await;
+    for frame in plots::data_frames(&mut watch).await {
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot, "{:?}", frame.envelope.map(|envelope| envelope.warnings));
         assert_eq!(served_points(&frame), STORED as usize + 1, "a sealed execution opens with its stored rows");
     }
@@ -285,8 +285,9 @@ pub(crate) async fn saved_frontier_refreshes_affected_plots() {
     let mut watch = client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests }).await.unwrap().into_inner();
     let mut initial = std::collections::BTreeMap::new();
     let mut initial_cut = None;
-    for _ in 0..4 {
-        let frame = data_frame(&mut watch).await;
+    let frames = plots::data_frames(&mut watch).await;
+    assert_eq!(frames.len(), 4);
+    for frame in frames {
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Snapshot);
         let envelope = frame.envelope.unwrap();
         if let Some(cut) = initial_cut {
@@ -305,8 +306,9 @@ pub(crate) async fn saved_frontier_refreshes_affected_plots() {
     assert_eq!(changed, std::collections::BTreeSet::from(["fixture.progress".to_owned()]));
     let mut refreshed = std::collections::BTreeSet::new();
     let mut replacement_cut = None;
-    while refreshed.len() < progress.len() {
-        let frame = data_frame(&mut watch).await;
+    let frames = plots::data_frames(&mut watch).await;
+    assert_eq!(frames.len(), progress.len());
+    for frame in frames {
         let envelope = frame.envelope.unwrap();
         if envelope.revision < saved.sequence {
             continue;
@@ -350,15 +352,6 @@ async fn live_plot_cadence() {
     support::register_fixture_progress_execution(&handle, support::fixture_suite(&["passed"])).await;
     let id = Identifier::new("fixture.progress").unwrap();
     publish(&handle, &id, 0, 2).await;
-    let server = prepared.ready().await.unwrap().listen().await.unwrap();
-    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let timed = model::plots::wire::PlotRequest { window_s: Some(60.0), ..request(10_000) };
-    let mut watch =
-        client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: vec![timed.clone()] }).await.unwrap().into_inner();
-    let mut saved_only = plots::open_watch(&client, 10_000).await;
-    assert_eq!(served_points(&data_frame(&mut watch).await), 2);
-    assert_eq!(served_points(&data_frame(&mut saved_only).await), 2);
-
     // Keep External I/O From Auto-Advancing The Paused Clock.
     let clock = tokio::spawn(async {
         loop {
@@ -367,13 +360,46 @@ async fn live_plot_cadence() {
     });
     tokio::time::pause();
     let cadence = Duration::from_millis(200);
+    tokio::time::advance(cadence).await;
+    handle.storage().flush().await.unwrap();
+    let server = prepared.ready().await.unwrap().listen().await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let timed = model::plots::wire::PlotRequest { window_s: Some(60.0), ..request(10_000) };
+    let mut watch = client
+        .download::<contracts::plots::Watch>(contracts::plots::Watch {
+            requests: (0..8)
+                .map(|index| model::plots::wire::PlotRequest {
+                    plot_id: Some(format!("cadence.{index}")),
+                    ..timed.clone()
+                })
+                .collect(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let mut saved_only = plots::open_watch(&client, 10_000).await;
+    let frames = plots::data_frames(&mut watch).await;
+    assert_eq!(frames.len(), 8);
+    for frame in frames {
+        assert_eq!(served_points(&frame), 2);
+    }
+    assert_eq!(served_points(&data_frame(&mut saved_only).await), 2);
+
     let saved = handle.storage().cursor_saved();
     let published = tokio::time::Instant::now();
     plots::publish_pending(&handle, &id, 2, 1).await;
-    let frame = data_frame(&mut watch).await;
-    eprintln!("live publication-to-frame virtual latency: {:?}", published.elapsed());
+    // Cross Timer Rounding Without Reaching The Next Save Deadline.
+    tokio::time::advance(Duration::from_millis(1)).await;
+    let frames = plots::data_frames(&mut watch).await;
+    assert_eq!(frames.len(), 8);
     assert!(published.elapsed() <= cadence);
-    assert_eq!(served_points(&frame), 3);
+    let revision = frames[0].envelope.as_ref().unwrap().revision;
+    for (index, frame) in frames.into_iter().enumerate() {
+        let envelope = frame.envelope.as_ref().unwrap();
+        assert_eq!(envelope.plot_id, format!("cadence.{index}"));
+        assert_eq!(envelope.revision, revision);
+        assert_eq!(served_points(&frame), 3);
+    }
     assert_eq!(handle.storage().cursor_saved(), saved);
 
     // Finite Timed And All Queries Exclude The Unsaved Row.
@@ -393,7 +419,7 @@ async fn live_plot_cadence() {
     tokio::time::advance(cadence).await;
     assert_eq!(served_points(&data_frame(&mut saved_only).await), 3);
     eprintln!("saved-only publication-to-frame virtual latency: {:?}", published.elapsed());
-    assert_eq!(served_points(&data_frame(&mut watch).await), 3);
+    // Saving The Already Delivered Revision Must Not Queue Another Data Frame.
 
     // Multiple High-Rate Publications Coalesce, Beyond A Small Stream Window.
     let published = tokio::time::Instant::now();
@@ -413,14 +439,21 @@ async fn live_plot_cadence() {
 
     // One Throttled Frame Covers The Burst, Even If A Normal Save Races It.
     let frame = {
-        let mut waiting = std::pin::pin!(data_frame(&mut watch));
+        let mut waiting = std::pin::pin!(plots::data_frames(&mut watch));
         assert!(futures_util::poll!(&mut waiting).is_pending());
         tokio::time::advance(cadence).await;
         waiting.await
     };
     eprintln!("coalesced publication-to-frame virtual latency: {:?}", published.elapsed());
     assert!(published.elapsed() <= cadence);
-    assert_eq!(served_points(&frame), 1283);
+    assert_eq!(frame.len(), 8);
+    let revision = frame[0].envelope.as_ref().unwrap().revision;
+    for (index, frame) in frame.into_iter().enumerate() {
+        let envelope = frame.envelope.as_ref().unwrap();
+        assert_eq!(envelope.plot_id, format!("cadence.{index}"));
+        assert_eq!(envelope.revision, revision);
+        assert_eq!(served_points(&frame), 1283);
+    }
 
     // The Same Rows Survive The Tail-To-Saved Handoff Once, Without A Gap.
     handle.storage().flush().await.unwrap();
@@ -433,6 +466,12 @@ async fn live_plot_cadence() {
     let points = &envelope.payload.as_ref().unwrap().series[0].points;
     assert_eq!(points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(), (0..1283).map(f64::from).collect::<Vec<_>>());
     assert!(handle.storage().cursor_saved().covers(&accepted).unwrap());
+    // The Saved Handoff Produces Only A Keepalive, Never A Replayed Revision.
+    tokio::time::advance(dokime_server::grpc::WATCH_HEARTBEAT + Duration::from_millis(1)).await;
+    let keepalive = watch.message().await.unwrap().unwrap();
+    assert_eq!(keepalive.updates.len(), 8);
+    assert!(keepalive.updates.iter().all(|update| update.kind == model::plots::wire::PlotStreamKind::Unspecified));
+    assert!(keepalive.updates.iter().all(|update| update.envelope.as_ref().unwrap().payload.is_none()));
     tokio::time::resume();
     clock.abort();
     let _ = clock.await;
