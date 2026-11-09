@@ -28,8 +28,13 @@ use dokime_domain::model::settings::application::ClientPreferences;
 
 const CA_BYTES: usize = 1_048_576;
 const CONNECTION_WINDOW_BYTES: u64 = 16_777_216;
-const KEEPALIVE_INTERVAL_MS: u64 = 10_000;
-const KEEPALIVE_TIMEOUT_MS: u64 = 5_000;
+// The Strictest Shipped Peer Is The grpcio Fixture: Five Minutes Between Pings
+// Without Data. Leave One Acknowledgment Timeout Of Margin Above That Minimum.
+// Tonic Has No max_pings_without_data Counter; Rate-Limit Active Calls And Never
+// Ping An Idle Connection. Harmos Retains Tonic's Twenty-Second Timeout.
+const SERVER_MINIMUM_PING_INTERVAL_MS: u64 = 300_000;
+const KEEPALIVE_TIMEOUT_MS: u64 = 20_000;
+const KEEPALIVE_INTERVAL_MS: u64 = SERVER_MINIMUM_PING_INTERVAL_MS + KEEPALIVE_TIMEOUT_MS;
 const STREAM_WINDOW_BYTES: u64 = 4_194_304;
 
 /* === Macros === */
@@ -162,7 +167,7 @@ impl Target {
             .connect_timeout(Duration::from_millis(self.settings.connect_timeout_ms))
             .http2_keep_alive_interval(Duration::from_millis(KEEPALIVE_INTERVAL_MS))
             .keep_alive_timeout(Duration::from_millis(KEEPALIVE_TIMEOUT_MS))
-            .keep_alive_while_idle(true)
+            .keep_alive_while_idle(false)
             .initial_stream_window_size(STREAM_WINDOW_BYTES as u32)
             .initial_connection_window_size(CONNECTION_WINDOW_BYTES as u32);
         if self.endpoint.starts_with("https:") {

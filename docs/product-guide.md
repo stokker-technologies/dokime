@@ -2881,6 +2881,11 @@ pages, preserving stream/journal cursors and checking the backend epoch. Raw
 streams expose failures to their caller because arbitrary streams have no generic
 resume contract. Non-transient failures and exhausted retries remain visible.
 
+Rust and Python clients send HTTP/2 keepalive pings only with active calls, every
+320 seconds (the grpcio fixture's 300-second minimum plus a 20-second acknowledgment
+margin), with a 20-second acknowledgment timeout; Harmos retains its disabled
+server-initiated keepalive and 20-second timeout.
+
 ## Transfer Deadlines
 
 Artifact uploads, report and evidence downloads use their operation policy as an
