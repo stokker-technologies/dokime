@@ -467,6 +467,7 @@ async fn live_plot_cadence() {
     assert_eq!(points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(), (0..1283).map(f64::from).collect::<Vec<_>>());
     assert!(handle.storage().cursor_saved().covers(&accepted).unwrap());
     // The Saved Handoff Produces Only A Keepalive, Never A Replayed Revision.
+    // Processing That Save After This Advance Must Not Postpone The Heartbeat Without Sending Data.
     tokio::time::advance(dokime_server::grpc::WATCH_HEARTBEAT + Duration::from_millis(1)).await;
     let keepalive = watch.message().await.unwrap().unwrap();
     assert_eq!(keepalive.updates.len(), 8);
