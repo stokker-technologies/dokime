@@ -71,7 +71,6 @@ base64 = { workspace = true }
 image = { workspace = true, features = ["bmp", "gif", "jpeg", "png", "webp"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-toml = { workspace = true }
 
 # Configuration
 dotenv = { workspace = true }
