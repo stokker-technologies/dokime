@@ -83,6 +83,36 @@ async fn storage_recovery_engine() {
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
+async fn close_releases_sqlite_lease_before_reopen() {
+    use dokime_runtime::storage::sqlite::{Error, State};
+
+    // Open And Write With Maintenance Eligible After Each Write.
+    let root = tempfile::tempdir().unwrap();
+    let mut settings = dokime_runtime::config::local_storage_defaults();
+    settings.checkpoint_pages = std::num::NonZeroU32::new(1).unwrap();
+    let state = State::open_with(root.path(), settings).await.unwrap();
+    let retained = state.clone();
+    state.register_source("evidence", "fixture").await.unwrap();
+
+    // Close While Public Clones Remain Alive, Then Reopen Immediately.
+    state.close().await.unwrap();
+    let reopened = State::open_with(root.path(), settings).await.unwrap();
+    let sources = reopened.sources().await.unwrap();
+    assert!(sources.iter().any(|source| source.identifier == "evidence" && source.adapter == "fixture"));
+    assert!(matches!(retained.call(|_| Ok(())).await, Err(Error::Closed)));
+
+    // Drop The Last Handle Immediately After Acknowledgement And Reopen Again.
+    reopened.register_source("second", "fixture").await.unwrap();
+    drop(reopened);
+    let reopened = State::open(root.path()).await.unwrap();
+    let sources = reopened.sources().await.unwrap();
+    assert!(sources.iter().any(|source| source.identifier == "evidence" && source.adapter == "fixture"));
+    assert!(sources.iter().any(|source| source.identifier == "second" && source.adapter == "fixture"));
+    reopened.close().await.unwrap();
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
 async fn storage_recovery_sqlite_catalog() {
     engine_storage::sqlite::preserves_unrelated_tables().await;
     engine_storage::sqlite::refuses_attachment_receipts().await;
