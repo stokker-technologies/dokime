@@ -456,11 +456,16 @@ pub(crate) async fn cancellation_retains_verdict() {
         let log = without_timestamps(std::str::from_utf8(&content.bytes).unwrap());
         let mut diagnostics = Vec::new();
         let mut attempts = Vec::new();
+        let mut latencies = Vec::new();
         for line in log.lines() {
-            let prefix = if mode == Settlement::Refused { "[WARN] " } else { "[TRACE] " };
-            let event = line.strip_prefix(prefix).and_then(|message| serde_json::from_str::<serde_json::Value>(message).ok());
-            if let Some(attempt) = event.filter(|event| event["kind"] == "operation_attempt") {
-                attempts.push(attempt);
+            let event = line.split_once("] ").and_then(|(_, message)| serde_json::from_str::<serde_json::Value>(message).ok());
+            if let Some(event) = event.filter(|event| event["kind"] == "dokime.operations.latency" || event["kind"] == "operation_attempt")
+            {
+                if event["kind"] == "operation_attempt" {
+                    attempts.push(event);
+                } else {
+                    latencies.push(event);
+                }
             } else {
                 diagnostics.push(line);
             }
@@ -472,6 +477,12 @@ pub(crate) async fn cancellation_retains_verdict() {
         assert_eq!(attempt["outcome"], if mode == Settlement::Refused { "failed" } else { "succeeded" });
         assert!(attempt["instance"].as_u64().is_some());
         assert!(attempt["generation"].as_u64().is_some());
+        assert!(!attempt["started_at"].is_null());
+        assert!(attempt["elapsed_ms"].is_number());
+        let latency = latencies.iter().find(|record| record["stage"] == "execution").unwrap();
+        assert_eq!(latency["attempts"], 1);
+        assert_eq!(latency["slowest_instance"], attempt["instance"]);
+        assert_eq!(latency["max_elapsed_ms"], attempt["elapsed_ms"]);
         if mode == Settlement::Refused {
             assert!(diagnostics[0].starts_with("[ERROR] "), "{log}");
             assert!(diagnostics[0].contains("run refused during cancellation"), "{log}");

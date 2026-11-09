@@ -110,6 +110,9 @@ pub(crate) struct LocalRun {
 }
 
 struct LocalAttempt {
+    started_at: harmos::state::Timestamp,
+    instant: tokio::time::Instant,
+    attempt_timeout: Duration,
     journal: Option<Arc<dyn crate::transport::Journal>>,
     operation: &'static str,
     instance: u64,
@@ -210,6 +213,9 @@ impl LocalRun {
                 }
                 progress.store(attempt, Ordering::Relaxed);
                 let mut evidence = LocalAttempt {
+                    started_at: harmos::state::Timestamp::now(),
+                    instant: tokio::time::Instant::now(),
+                    attempt_timeout: policy.attempt_timeout,
                     journal: journal.clone(),
                     operation: O::ID,
                     instance: id.value(),
@@ -329,7 +335,19 @@ impl Drop for LocalAttempt {
         }
         *self.observed.lock().unwrap_or_else(PoisonError::into_inner) = Some(self.outcome);
         if let Some(journal) = &self.journal {
-            let entry = super::log::operation_attempt(self.operation, self.instance, None, &self.stage, self.attempt, self.outcome);
+            let entry = super::log::operation_attempt(
+                self.operation,
+                self.instance,
+                None,
+                &self.stage,
+                self.attempt,
+                self.outcome,
+                super::log::AttemptTiming {
+                    started_at: self.started_at,
+                    elapsed: self.instant.elapsed(),
+                    attempt_timeout: self.attempt_timeout,
+                },
+            );
             let level = super::log::Level::try_from(entry.level).expect("operation attempt has a known log level");
             journal.log(level, entry.message);
         }
@@ -621,6 +639,8 @@ mod tests {
         let attempts =
             entries.iter().map(|entry| (entry["attempt"].as_u64().unwrap(), entry["outcome"].as_str().unwrap())).collect::<Vec<_>>();
         assert_eq!(attempts, [(0, "timed_out"), (0, "timed_out"), (1, "succeeded"), (0, "timed_out")]);
+        assert_eq!(entries.iter().map(|entry| entry["elapsed_ms"].as_f64().unwrap()).collect::<Vec<_>>(), [10.0, 10.0, 0.0, 10.0]);
+        assert!(entries.iter().all(|entry| !entry["started_at"].is_null()));
         use super::super::log::Level;
         assert_eq!(*evidence.levels.lock().unwrap(), [Level::Warn, Level::Warn, Level::Info, Level::Warn]);
         assert_eq!(entries[1]["instance"], entries[2]["instance"]);

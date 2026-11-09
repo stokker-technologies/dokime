@@ -399,10 +399,6 @@ impl Serve<contract::Watch> for Resources {
                             }
                             observed = at.clone();
                             let served = requests.iter().filter(|request| dirty.contains(&plot_key(request))).cloned().collect::<Vec<_>>();
-                            // Delivered Frames Keep The Watch Alive Until The Next Heartbeat.
-                            if !served.is_empty() {
-                                heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
-                            }
                             let mut refused = false;
                             // Evaluate The Whole Dirty Set Before Sending One Ordered Revision.
                             let results = resources.query_snapshots(&served, &at).await;
@@ -426,6 +422,10 @@ impl Serve<contract::Watch> for Resources {
                                     dirty.insert(key);
                                     refused = true;
                                 }
+                            }
+                            // Only Delivered Updates Renew The Heartbeat; A Saved Cut May Already Be Covered.
+                            if !frames.is_empty() {
+                                heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                             }
                             self.send_revision(output, frames).await?;
                             if refused {

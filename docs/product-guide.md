@@ -1092,6 +1092,34 @@ Trace for first-attempt success, Info for success after a retry, Debug for
 cancellation, and Warn for failure, timeout or unavailability. Templates have
 no `.lane()` option.
 
+Attempt records include `started_at` (the observation's wall-clock timestamp),
+`elapsed_ms` (handler duration, excluding retry delay and middleware), and
+`attempt_timeout_ms` (the operation policy's attempt timeout). Local operations
+capture the same timing around their handler and cancellation settlement.
+
+At each step end, `dokime.operations.latency` summarizes each operation used in
+that stage. Execution end also retains unfinished stage summaries and a whole-run
+summary (`stage: "execution"`). Fields are `operation`, `stage`, `attempts`,
+`successes`, `failures`, `p50_elapsed_ms`, `p95_elapsed_ms`, `max_elapsed_ms` and
+`slowest_instance`. Percentiles use nearest rank; all non-success outcomes count
+as failures. Ties for slowest use the largest instance ID. The level is Info when
+p95 strictly exceeds half an observed policy's attempt timeout, otherwise Debug.
+
+`dokime.observers.cadence` summarizes backend observer activations seen while an
+execution is open, separately by `plugin`, `observer` and `activation`. These are
+backend diagnostics, including shared observers; presence does not claim that the
+execution leased that observer. Cumulative summaries are emitted every 60 reported
+ticks and at execution end, with `reason`, `configured_interval_ms`,
+`mean_actual_interval_ms`, `maximum_gap_ms`, `ticks`, `skipped_ticks`,
+`refused_ticks` and `longest_callback_ms`. Skipped ticks have no actual start and
+are excluded from interval averaging; the mean is null until two starts exist.
+A gap strictly above twice the configured interval emits a Warn
+`dokime.observers.gap` naming the observer and activation; summaries containing
+such gaps are Warn, otherwise Debug. Harmos's cadence frame carries no operation
+or call identity, so these reports do not guess which operation caused a gap.
+No timer or observer scheduling policy is added.
+
+
 A step also reaches four built-in operations through `ctx.operation(request)`,
 with nothing to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
 sends its output to the execution log or into an artifact, and records its exit.
