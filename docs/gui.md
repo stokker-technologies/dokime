@@ -108,6 +108,15 @@ complete settles as Seal Failed: the Cycles home lists it under Needs Attention,
 and the cycle's control card shows the cause with Retry Seal and Archive, each
 behind a confirmation. Startup does not retry a Seal Failed cycle.
 
+## Organization Pack Loading
+
+The desktop reads resolved organization manifests, logos, CSS and fonts directly
+from memory, including inlined CSS URLs. Loading the bundled pack does not use
+`TMP` or `TEMP`. User-selected ZIP files are read from their chosen path; staging,
+active and pending packs, and replacement backups live under `organization/` in
+the application data root. Disk packs are resolved before using the same in-memory
+loader.
+
 ## Keyboard Focus and Theme Colors
 
 Keyboard focus uses the optional `--focus-ring` token, independently of `--primary`,
