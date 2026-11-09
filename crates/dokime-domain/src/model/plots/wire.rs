@@ -175,6 +175,12 @@ pub struct PlotEnvelope {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotStreamFrame {
+    pub updates: Vec<PlotStreamUpdate>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotStreamUpdate {
     pub kind: PlotStreamKind,
     pub envelope: Option<PlotEnvelope>,
 }

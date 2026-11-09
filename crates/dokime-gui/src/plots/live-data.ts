@@ -21,7 +21,7 @@ import { NativeApiLimitError } from "@/lib/api/native-values";
 import { toast } from "@/lib/notifications";
 import { summaryInFlight } from "@/lib/statistics";
 import type { DocumentViewPlot, PlotPayloadStreamMessage, RecordScope } from "@/lib/types";
-import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
 import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
 
@@ -209,45 +209,46 @@ export function useLivePlotPayloads({
       ),
     );
 
+    let queued: LivePlotStateMap = {};
     const flush = () => {
       flushFrameRef.current = null;
       flushTimerRef.current = null;
-      if (active) setState(modelRef.current);
+      if (!active || Object.keys(queued).length === 0) return;
+      const updates = queued;
+      queued = {};
+      // Only Complete Revisions Reach The Visible Model, In One Shared Commit.
+      commit((current) => ({ ...current, ...updates }));
     };
 
-    const enqueue = (message: PlotPayloadStreamMessage) => {
-      if (!active) {
-        return;
-      }
-      // A frame of any kind proves the watch is healthy again.
+    const enqueue = (messages: readonly PlotPayloadStreamMessage[]) => {
+      if (!active || messages.length === 0) return;
       reopenDelayMs = RECONNECT_INITIAL_MS;
-      modelRef.current = applyMessageById(modelRef.current, message);
-      const plotState = modelRef.current[message.plot_id];
-      if (plotState?.status === "error") {
-        const error = plotState.failure ?? failureOf(plotState.error, "Plot Refresh Failed");
-        if (automatic) reportRefreshFailure(error);
-        else {
-          toast.error(failureOf(error, "Plot Refresh Failed"), { context: "background" });
-          failed = true;
+      const next = applyDocumentPlotMessages({ ...modelRef.current, ...queued }, messages);
+      for (const message of messages) {
+        const plotState = next[message.plot_id];
+        if (!plotState) continue;
+        // Retain Only The Latest State Per Plot While Rendering Is Inactive.
+        queued[message.plot_id] = plotState;
+        if (plotState.status === "error") {
+          const error = plotState.failure ?? failureOf(plotState.error, "Plot Refresh Failed");
+          if (automatic) reportRefreshFailure(error);
+          else {
+            toast.error(failureOf(error, "Plot Refresh Failed"), { context: "background" });
+            failed = true;
+          }
+        } else {
+          received.add(message.plot_id);
+          if (activePlots.every((plot) => received.has(plot.plot_id))) {
+            awaitingRefresh = false;
+            onRefreshChange?.({ refreshing: false, updatedAt: Date.now() });
+            received.clear();
+            failed = false;
+          }
         }
-      } else {
-        received.add(message.plot_id);
-        if (activePlots.every((plot) => received.has(plot.plot_id))) {
-          awaitingRefresh = false;
-          onRefreshChange?.({ refreshing: false, updatedAt: Date.now() });
-          received.clear();
-          failed = false;
-        }
       }
-      if (flushFrameRef.current !== null || flushTimerRef.current !== null) {
-        return;
-      }
-      if (message.kind === "error") {
-        flushTimerRef.current = window.setTimeout(flush, 0);
-        return;
-      }
+      if (flushFrameRef.current !== null || flushTimerRef.current !== null) return;
       if (renderActiveRef.current) {
-        flushFrameRef.current = window.requestAnimationFrame(() => flush());
+        flushFrameRef.current = window.requestAnimationFrame(flush);
         return;
       }
       flushTimerRef.current = window.setTimeout(flush, HIDDEN_PLOT_STREAM_FLUSH_MS);
@@ -257,6 +258,8 @@ export function useLivePlotPayloads({
       if (!active || !nativeSession.identity.isCurrent()) {
         return;
       }
+      clearScheduledFlush(flushFrameRef, flushTimerRef);
+      flush();
       if (awaitingRefresh) reportRefreshFailure(new Error("The plot stream ended before the view finished refreshing."));
       onRefreshChange?.({ refreshing: false });
       commit((current) =>
@@ -284,6 +287,8 @@ export function useLivePlotPayloads({
       if (!active || !nativeSession.identity.isCurrent()) {
         return;
       }
+      clearScheduledFlush(flushFrameRef, flushTimerRef);
+      flush();
       const terminal = error instanceof NativeApiLimitError;
       reportRefreshFailure(error);
       commit((current) =>
@@ -336,14 +341,18 @@ export function useLivePlotPayloads({
           if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) {
             break;
           }
-          // The watch is subscribed and still reading: a quiet wait, never an error.
-          if (message.kind === "pending") {
-            reopenDelayMs = RECONNECT_INITIAL_MS;
-            const now = Date.now();
-            commit((current) => applyPendingNotice(current, message.plot_id, now));
-            continue;
+          // Decode The Whole Revision Before Scheduling Its One Shared Commit.
+          const updates: PlotPayloadStreamMessage[] = [];
+          for (const update of message.updates) {
+            if (update.kind === "pending") {
+              reopenDelayMs = RECONNECT_INITIAL_MS;
+              const now = Date.now();
+              commit((current) => applyPendingNotice(current, update.plot_id, now));
+            } else {
+              updates.push(update);
+            }
           }
-          enqueue(message);
+          enqueue(updates);
         }
         markStreamEnded();
       } catch (exc: unknown) {
@@ -369,7 +378,7 @@ export function useLivePlotPayloads({
             if (envelopes.length !== 1 || envelopes[0].plot_id !== plotId) {
               throw new Error("The plot refresh returned an incomplete plot.");
             }
-            enqueue({ ...envelopes[0], kind: "snapshot" });
+            enqueue([{ ...envelopes[0], kind: "snapshot" }]);
           } catch (error) {
             if (!active || isAbortError(error) || !nativeSession.identity.isCurrent()) return;
             toast.error(failureOf(error, "Plot Refresh Failed"), { context: "background" });
@@ -463,23 +472,6 @@ export function displayPointBudget(displayPoints: number | null | undefined): nu
 }
 
 /* === Private Functions === */
-
-function applyMessageById(current: LivePlotStateMap, message: PlotPayloadStreamMessage): LivePlotStateMap {
-  const previous = current[message.plot_id] ?? emptyLivePlotState();
-  try {
-    return { ...current, [message.plot_id]: applyPlotMessages(previous, [message]) };
-  } catch (failure) {
-    return {
-      ...current,
-      [message.plot_id]: {
-        ...previous,
-        status: "error",
-        error: failureOf(failure, "Plot Stream Failed").message,
-        failure: failureOf(failure, "Plot Stream Failed"),
-      },
-    };
-  }
-}
 
 function documentPlotRequestKey(plot: DocumentViewPlot): string {
   return JSON.stringify({ ...plotRequestForDocumentPlot(plot, { scope: null }), maxPoints: displayPointBudget(plot.display_points) });

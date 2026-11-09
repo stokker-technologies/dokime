@@ -89,7 +89,8 @@ const PlotIntervalOptionsSchema = plotWire.Row13Schema;
 const PlotRequestSchema = plotWire.Row3Schema;
 const PlotWindowSchema = plotWire.Row16Schema;
 type PlotStreamFrame = Wire<WatchFrame>;
-type PlotStreamKind = PlotStreamFrame["kind"];
+type PlotStreamUpdate = PlotStreamFrame["updates"][number];
+type PlotStreamKind = PlotStreamUpdate["kind"];
 
 /* === Constants === */
 
@@ -148,8 +149,11 @@ export type NativePlotPendingMessage = {
   plot_id: string;
 };
 
-/** Renderer snapshot or a plot's pending notice. */
-export type NativePlotStreamMessage = PlotPayloadStreamMessage | NativePlotPendingMessage;
+/** One Plot Within An Ordered Watch Revision. */
+export type NativePlotStreamUpdate = PlotPayloadStreamMessage | NativePlotPendingMessage;
+
+/** One Complete Dirty Set, Or Payload-Free Keepalive Notices. */
+export type NativePlotStreamMessage = { updates: NativePlotStreamUpdate[] };
 
 export interface NativePlotStream extends AsyncIterable<NativePlotStreamMessage> {
   cancel(): Promise<void>;
@@ -361,6 +365,11 @@ export function mapNativePlotEnvelope(envelope: PlotEnvelope): NativePlotPayload
  * with its warnings rather than ending the whole stream on a mapping throw.
  */
 export function mapNativePlotStreamFrame(frame: PlotStreamFrame): NativePlotStreamMessage {
+  if (frame.updates.length === 0) throw new Error("Native plot revision has no updates.");
+  return { updates: frame.updates.map(mapNativePlotStreamUpdate) };
+}
+
+function mapNativePlotStreamUpdate(frame: PlotStreamUpdate): NativePlotStreamUpdate {
   if (!frame.envelope) throw new Error("Native plot stream frame has no envelope.");
   // An unspecified frame that names a plot and carries nothing is the watch's pending notice.
   if (frame.kind?.HarmosVariant.case === "Unspecified" && !frame.envelope.payload) {

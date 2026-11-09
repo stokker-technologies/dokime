@@ -25,7 +25,12 @@ import type { ConnectedSession } from "@/app/native-session/session";
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
-import { toNativePlotRequest, type NativePlotPayloadEnvelope, type NativePlotStreamMessage } from "@/lib/api/native-plots";
+import {
+  toNativePlotRequest,
+  type NativePlotPayloadEnvelope,
+  type NativePlotStreamMessage,
+  type NativePlotStreamUpdate,
+} from "@/lib/api/native-plots";
 import * as appearance from "@/lib/appearance";
 import { ApplicationThemeProvider } from "@/lib/application-theme";
 import { formatUnitLabel } from "@/lib/format";
@@ -185,8 +190,8 @@ function plotStream() {
   let wake: (() => void) | undefined;
   let ended = false;
   return {
-    push(message: NativePlotStreamMessage) {
-      messages.push(message);
+    push(...updates: NativePlotStreamUpdate[]) {
+      messages.push({ updates });
       wake?.();
     },
     cancel: vi.fn(async () => {
@@ -207,7 +212,7 @@ function plotStream() {
   };
 }
 
-async function mountPlotView() {
+async function mountPlotView(ids = ["pulse", "current"]) {
   vi.useFakeTimers({ now: Date.parse("2026-11-01T12:00:00Z") });
   const animationFrame = vi
     .spyOn(globalThis.window, "requestAnimationFrame")
@@ -225,7 +230,7 @@ async function mountPlotView() {
     streams.push(stream);
     return stream;
   });
-  const plots = ["pulse", "current"].map(
+  const plots = ids.map(
     (id): DocumentViewPlot => ({
       plot_id: id,
       title: id,
@@ -247,6 +252,7 @@ async function mountPlotView() {
   const root = createRoot(host);
   let window: ReturnType<typeof usePlotWindow>;
   let states: ReturnType<typeof useLivePlotPayloads>;
+  const commits: number[][] = [];
   let nextPlots = plots;
   let nextScope = scope;
   function View() {
@@ -258,6 +264,7 @@ async function mountPlotView() {
       windowS: window.option.value,
       refresh: window.refresh,
     });
+    commits.push(Object.values(states).map((plot) => plot.revision));
     return createElement(PlotWindowControl, { live: true, elapsedUnit: null, window });
   }
   const render = async () => {
@@ -283,6 +290,7 @@ async function mountPlotView() {
     host,
     window: () => window,
     states: () => states,
+    commits,
     button: () => host.querySelector("button") as HTMLButtonElement,
     choose: async (index: number) => {
       await act(async () => {
@@ -354,6 +362,28 @@ test("Window Selection", () => {
   assert.equal(selections.at(-1)?.index, 6);
   assert.equal(selections.at(-1)?.value, null);
   assert.equal(renderToStaticMarkup(createElement(View, { live: false, selected: 2 })), "");
+});
+
+test("A Complete Watch Revision Commits Every Chart in One Animation Frame", async () => {
+  const ids = Array.from({ length: 8 }, (_, index) => `plot.${index}`);
+  const view = await mountPlotView(ids);
+  const initial = snapshotEnvelopes(view.plots);
+  await act(async () => {
+    view.streams[0].push(...initial.map((frame) => ({ ...frame, kind: "snapshot" as const })));
+  });
+  assert.ok(Object.values(view.states()).every((plot) => plot.revision === 0));
+  await view.advance();
+  assert.ok(Object.values(view.states()).every((plot) => plot.revision === 1));
+  view.commits.length = 0;
+  await act(async () => {
+    view.streams[0].push(...initial.map((frame) => ({ ...frame, revision: 2, kind: "replace" as const })));
+    view.streams[0].push(...ids.map((plot_id) => ({ kind: "pending" as const, plot_id })));
+  });
+  assert.ok(Object.values(view.states()).every((plot) => plot.revision === 1));
+  await view.advance();
+  assert.ok(Object.values(view.states()).every((plot) => plot.revision === 2));
+  assert.ok(view.commits.length > 0);
+  assert.ok(view.commits.every((revisions) => new Set(revisions).size === 1));
 });
 
 test("Manual All Refresh", async () => {
@@ -448,10 +478,13 @@ test("Timed Refresh", async () => {
   const firstTime = view.window().refresh.updatedAt;
   await view.advance(1_000);
   await act(async () => {
-    for (const frame of initial) view.streams[0].push({ ...frame, revision: 2, kind: "replace", payload: hostFrame([2, 3], [[4, 5]]) });
+    view.streams[0].push(
+      ...initial.map((frame) => ({ ...frame, revision: 2, kind: "replace" as const, payload: hostFrame([2, 3], [[4, 5]]) })),
+    );
   });
   await view.advance();
   assert.equal(view.states().pulse.payload?.cartesian?.series[0].x[0], 2);
+  assert.ok(Object.values(view.states()).every((plot) => plot.revision === 2));
   assert.ok((view.window().refresh.updatedAt ?? 0) > (firstTime ?? 0));
   await view.click();
   assert.equal(view.button().disabled, true);

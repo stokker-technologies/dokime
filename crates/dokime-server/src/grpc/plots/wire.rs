@@ -115,10 +115,10 @@ pub(super) fn envelope(
 
 pub(super) fn stream_frame(
     kind: PlotPayloadStreamKind, value: dokime::harmos::storage::ReadBatch<PlotPayloadEnvelope>, epoch: &str, selection: &str, limit: usize,
-) -> Result<dokime::harmos::storage::ReadBatch<dokime::domain::model::plots::wire::PlotStreamFrame>, FrameError> {
+) -> Result<dokime::harmos::storage::ReadBatch<dokime::domain::model::plots::wire::PlotStreamUpdate>, FrameError> {
     value.try_map(|value| {
         let envelope = plot_envelope(value, epoch, selection)?;
-        let mut frame = dokime::domain::model::plots::wire::PlotStreamFrame {
+        let mut frame = dokime::domain::model::plots::wire::PlotStreamUpdate {
             kind: plot_stream_kind(kind),
             envelope: Some(envelope),
         };
@@ -670,7 +670,7 @@ fn plot_marker(value: dokime::runtime::query::PlotMarker) -> Result<dokime::doma
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dokime::domain::model::plots::wire::{PlotEnvelope, PlotStreamFrame, PlotStreamKind};
+    use dokime::domain::model::plots::wire::{PlotEnvelope, PlotStreamKind, PlotStreamUpdate};
 
     #[test]
     fn xy_request_style_roundtrip() {
@@ -706,7 +706,7 @@ mod tests {
 
     #[test]
     fn complete_stream_frame_limits() {
-        let mut frame = PlotStreamFrame {
+        let mut frame = PlotStreamUpdate {
             kind: PlotStreamKind::Error,
             envelope: Some(PlotEnvelope {
                 plot_id: "temperature".to_owned(),
@@ -718,7 +718,7 @@ mod tests {
                 warnings: vec!["unavailable".to_owned()],
             }),
         };
-        let select: fn(&mut PlotStreamFrame) -> &mut PlotEnvelope = |frame| frame.envelope.as_mut().expect("fixture envelope");
+        let select: fn(&mut PlotStreamUpdate) -> &mut PlotEnvelope = |frame| frame.envelope.as_mut().expect("fixture envelope");
         let encoded = crate::grpc::content::output_frame_len(&frame).unwrap();
         assert!(fit_message(&mut frame, select, encoded, true).is_ok());
         assert!(matches!(fit_message(&mut frame, select, encoded - 1, true), Err(FrameError::Status(_))));

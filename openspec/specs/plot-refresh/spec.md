@@ -50,3 +50,26 @@ Plot markers SHALL obey the display point budget in every projection and transpo
 #### Scenario: Excess Markers
 - **WHEN** selected markers exceed the point budget
 - **THEN** the response contains at most that budget of deterministic markers
+
+### Requirement: Atomic Timed Watch Revisions
+A document watch SHALL evaluate its dirty plots together at one captured evidence cut, reusing query deduplication and bounded storage reads. It SHALL send each completed dirty set in one message, with per-plot outcomes in request order. The GUI SHALL commit the decoded revision through one shared animation-frame update.
+
+#### Scenario: Shared Stream Publication
+- **WHEN** one publication changes several plots in a document watch
+- **THEN** one message carries every affected plot's outcome at the captured cut
+- **AND** the frontend cannot paint a partial revision as individual plot messages arrive
+
+#### Scenario: Opening and Keepalive
+- **WHEN** a watch opens
+- **THEN** it acknowledges its plots and delivers their opening outcomes together
+- **AND** keepalives contain only pending notices, without replaying delivered data
+
+#### Scenario: Saved Handoff
+- **WHEN** an admitted telemetry revision moves into saved storage after delivery
+- **THEN** the watch sends no duplicate snapshot for that plot and revision
+
+#### Scenario: Revision Budget and Plot Failure
+- **WHEN** a dirty set exceeds one transport message's budget
+- **THEN** its plots share the available budget and reduce retained payloads without rereading evidence
+- **AND** a refused plot reports its own error while healthy plots remain in the same completed dirty set
+- **AND** finite All requests retain independent per-plot delivery and budgets

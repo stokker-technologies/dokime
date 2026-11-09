@@ -663,7 +663,7 @@ async fn download_cycle_report(client: &Client, cycle_id: &str) -> Vec<u8> {
     report_bytes(client.reports_download_cycle_report(request).await.unwrap()).await
 }
 
-async fn first_frame(client: &Client, cycle_id: &str, execution_id: &str) -> model::plots::wire::PlotStreamFrame {
+async fn first_frame(client: &Client, cycle_id: &str, execution_id: &str) -> model::plots::wire::PlotStreamUpdate {
     use model::{
         document::DownsampleTechnique,
         plots::wire::{AxisScale, PlotRequest, PlotType},
@@ -704,7 +704,9 @@ async fn first_frame(client: &Client, cycle_id: &str, execution_id: &str) -> mod
     let stream = client.stream(contracts::plots::Watch { requests: vec![request] }).await.unwrap();
     tokio::time::timeout(SETTLE, async {
         loop {
-            let frame = stream.message().await.unwrap().expect("the plot watch opens with a frame");
+            let mut revision = stream.message().await.unwrap().expect("the plot watch opens with a frame");
+            assert_eq!(revision.updates.len(), 1);
+            let frame = revision.updates.pop().unwrap();
             assert_ne!(frame.kind, model::plots::wire::PlotStreamKind::Error, "the plot watch serves its snapshot");
             let payload = frame.envelope.as_ref().and_then(|envelope| envelope.payload.as_ref());
             if payload.is_some_and(|payload| payload.series.iter().any(|series| !series.points.is_empty())) {
