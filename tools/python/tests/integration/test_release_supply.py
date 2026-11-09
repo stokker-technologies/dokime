@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import tempfile
+import tomllib
 import unittest
 import zipfile
 from datetime import date
@@ -41,6 +42,40 @@ from dokime_tools.release import layout, notices, policy, sbom
 
 
 class SupplyTests(unittest.TestCase):
+    def test_notice_config_uses_policy_and_dated_exceptions(self):
+        repository = Path(__file__).resolve().parents[4]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ("deny.toml", "about.toml"):
+                (root / name).write_bytes((repository / name).read_bytes())
+            (root / "supply-chain-exceptions.toml").write_text(
+                '[[license]]\npackage="dependency"\nversion="1"\nlicense="NCSA"\n'
+                'reason="reviewed"\nowner="maintainer"\nfixed="2"\nexpires=2030-01-02\n'
+            )
+            document = sbom.exceptions(root, today=date(2030, 1, 1))
+            metadata = {"packages": [{"name": "dependency", "version": "1"}]}
+            with (
+                mock.patch.object(sbom, "exceptions", return_value=document),
+                mock.patch.object(policy, "execute", side_effect=[json.dumps(metadata), RuntimeError("stop before collection")]),
+                self.assertRaisesRegex(RuntimeError, "stop before collection"),
+            ):
+                notices.generate(root)
+            config = tomllib.loads((root / "target/notices/about.toml").read_text(encoding="utf-8"))
+            license_policy = tomllib.loads((root / "deny.toml").read_text(encoding="utf-8"))
+            self.assertEqual(config["accepted"], license_policy["licenses"]["allow"])
+            self.assertEqual(config["dependency"]["accepted"], ["NCSA"])
+
+    def test_notice_exception_requires_every_resolved_version(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            document = {"license": [{"package": "dependency", "version": "1", "license": "NCSA"}]}
+            metadata = {"packages": [{"name": "dependency", "version": version} for version in ("1", "2")]}
+            with (
+                mock.patch.object(sbom, "exceptions", return_value=document),
+                mock.patch.object(policy, "execute", return_value=json.dumps(metadata)),
+                self.assertRaisesRegex(policy.ToolError, "does not cover every resolved dependency version"),
+            ):
+                notices.generate(Path(temporary))
+
     def test_archive_traversal_is_rejected_before_extraction(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
