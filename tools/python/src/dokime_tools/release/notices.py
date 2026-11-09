@@ -72,20 +72,31 @@ SHELL_LICENSE_SOURCES = {
 # === Public Functions === #
 
 
-def download(url: str) -> bytes:
+def download(
+    url: str | urllib.request.Request,
+    *,
+    operation: str = "download",
+    timeout_s: float = 60,
+    opener=None,
+    before_retry=None,
+) -> bytes:
     """Fetch Complete Bytes with Bounded Retries for Transient Network Failures."""
+    address = url.full_url if isinstance(url, urllib.request.Request) else url
+    open_request = opener or urllib.request.urlopen
     for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
         try:
-            with urllib.request.urlopen(url, timeout=60) as response:
+            with open_request(url, timeout=timeout_s) as response:
                 return response.read()
         except (OSError, urllib.error.URLError, http.client.HTTPException) as error:
             retry = not isinstance(error, urllib.error.HTTPError) or 500 <= error.code < 600
             if isinstance(error, urllib.error.HTTPError):
                 error.close()
             if not retry or attempt == DOWNLOAD_ATTEMPTS:
-                raise policy.ToolError(f"download failed: {url} after {attempt} attempts: {error}") from error
+                raise policy.ToolError(f"{operation} failed: {address} after {attempt} attempts: {error}") from error
             delay_s = min(DOWNLOAD_MAX_DELAY_S, DOWNLOAD_BASE_DELAY_S * 2 ** (attempt - 1))
             time.sleep(random.uniform(delay_s / 2, delay_s))
+            if before_retry is not None:
+                before_retry()
     raise AssertionError("unreachable download attempt")
 
 

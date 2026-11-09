@@ -202,3 +202,15 @@ byte-identical notices across targets and fails with the artifact path if a copy
 is missing or differs. Both Nightly and stable publication reuse these bytes for
 the shared notice downloads and CLI and sidecar archives; publication does not
 regenerate notices or require GUI `node_modules` for them.
+
+Release tooling shares the notice download helper for all HTTP requests, including
+provider pages, the crates index and release identity tokens. It makes at most six
+attempts on connection errors, timeouts, incomplete reads, SSL EOF and HTTP 5xx;
+HTTP 4xx responses are never retried. Exponential delays start at two seconds,
+cap at thirty seconds and use jitter between half and all of the delay. Small
+requests use sixty-second timeouts; uploads add one second per decimal MB, capped
+at thirty minutes. Before retrying a GitHub asset upload, the tooling lists assets
+and deletes matching names, including partial uploads. Successful uploads must
+match the local size and, when the API supplies it, SHA-256 digest; staged asset
+hashes come from the same inventory as SHA256SUMS. Exhausted requests report the
+operation, URL, attempt count and last cause.

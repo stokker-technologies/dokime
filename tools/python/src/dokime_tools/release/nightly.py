@@ -287,24 +287,15 @@ def _upload(directory: Path, settings: dict, endpoint: str, item: dict) -> None:
     """Upload One Download, Replacing A Partial Asset Of The Same Name Left By A Failed Attempt."""
     path = policy.inside(directory, item["path"])
     name = urllib.parse.quote(item["name"], safe="")
-    for attempt in range(1, registry.RETRY_ATTEMPTS + 1):
-        try:
-            registry.request(
-                settings,
-                f"{endpoint}/assets?name={name}",
-                "POST",
-                path.read_bytes(),
-                binary=True,
-                upload=True,
-                channel=True,
-            )
-            return
-        except policy.ToolError:
-            if attempt == registry.RETRY_ATTEMPTS:
-                raise
-            for asset in registry.pages(settings, f"{endpoint}/assets", channel=True):
-                if asset["name"] == item["name"]:
-                    registry.request(settings, f"releases/assets/{asset['id']}", "DELETE", channel=True)
+    registry.request(
+        settings,
+        f"{endpoint}/assets?name={name}",
+        "POST",
+        path.read_bytes(),
+        binary=True,
+        upload=True,
+        channel=True,
+    )
 
 
 def _verify_assets(settings: dict, endpoint: str, files: list[dict], failure: str) -> None:

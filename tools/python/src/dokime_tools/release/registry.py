@@ -32,7 +32,7 @@ from ..process import spawn_flags
 # isort: split
 from ..build import paths, storage
 from ..package import changelog
-from . import pins, policy
+from . import notices, pins, policy
 
 # Type Checking Imports
 
@@ -47,12 +47,9 @@ RATE_BUDGET = 5400
 REHEARSAL_CHECK = "Release / Rehearsal"
 RELEASE_BRANCH = "release/"
 GITLAB_REHEARSAL_JOB = "Release / Rehearsal"
-# Transient Provider Failures Retry With Doubling Pauses; Only Idempotent Methods Retry Server Errors.
-RETRY_ATTEMPTS = 4
-RETRY_PAUSE_SECONDS = 2
-THROTTLED = frozenset({429})
-TRANSIENT = frozenset({500, 502, 503, 504})
-IDEMPOTENT = frozenset({"GET", "PUT", "PATCH", "DELETE"})
+# Large Assets Get One Second per MB Beyond JSON's Minute, Bounded at Thirty Minutes.
+UPLOAD_MAX_TIMEOUT_S = 1800
+
 
 # === Types === #
 
@@ -115,16 +112,14 @@ def crate_published(name: str, version: str | None = None) -> bool:
     lower = name.lower()
     prefix = {1: "1", 2: "2", 3: "3/" + lower[0]}.get(len(lower), f"{lower[0:2]}/{lower[2:4]}")
     try:
-        with urllib.request.urlopen(f"{CRATES_INDEX}/{prefix}/{lower}", timeout=60) as response:
-            lines = response.read().decode("utf-8").splitlines()
-    except urllib.error.HTTPError as error:
-        if error.code == 404:
+        lines = notices.download(f"{CRATES_INDEX}/{prefix}/{lower}", operation="crates.io index read").decode("utf-8").splitlines()
+    except policy.ToolError as error:
+        cause = error.__cause__
+        if isinstance(cause, urllib.error.HTTPError) and cause.code == 404:
             return False
-        raise policy.ToolError(f"crates.io index read failed: HTTP {error.code}") from error
-    except urllib.error.URLError as error:
-        if isinstance(error.reason, FileNotFoundError):
+        if isinstance(cause, urllib.error.URLError) and isinstance(cause.reason, FileNotFoundError):
             return False
-        raise policy.ToolError(f"crates.io index read failed: {error.reason}") from error
+        raise
     entries = [json.loads(line) for line in lines if line.strip()]
     return bool(entries) if version is None else any(entry.get("vers") == version for entry in entries)
 
@@ -247,25 +242,35 @@ def request(
         raise policy.ToolError("release.provider must be github or gitlab")
     if data is not None:
         headers["Content-Type"] = "application/octet-stream" if binary else "application/json"
-    for attempt in range(1, RETRY_ATTEMPTS + 1):
-        native = urllib.request.Request(url, data=data, headers=headers, method=method)
-        try:
-            with urllib.request.build_opener(ProviderRedirect()).open(native, timeout=60) as response:
-                return response.read()
-        except urllib.error.HTTPError as error:
-            # A Retried Delete Whose Earlier Attempt Landed Finds Nothing Left To Remove.
-            if error.code == 404 and (method == "GET" or method == "DELETE" and attempt > 1):
-                return None
-            message = error.read().decode("utf-8", errors="replace")
-            for secret in (token, os.environ.get("CI_JOB_TOKEN")):
-                if secret:
-                    message = message.replace(secret, "***")
-            retry = error.code in THROTTLED or error.code in TRANSIENT and method in IDEMPOTENT
-            if not retry or attempt == RETRY_ATTEMPTS:
-                raise policy.ToolError(f"release provider {method} failed: HTTP {error.code}: {message}") from error
-            print(f"release provider {method} {endpoint}: HTTP {error.code}; retrying ({attempt}/{RETRY_ATTEMPTS})", flush=True)
-            _pause(RETRY_PAUSE_SECONDS * 2 ** (attempt - 1))
-    raise AssertionError("unreachable")
+    native = urllib.request.Request(url, data=data, headers=headers, method=method)
+    timeout_s = min(UPLOAD_MAX_TIMEOUT_S, 60 + len(data or b"") / 1_000_000) if binary and data is not None else 60
+
+    def replace_partial() -> None:
+        assets_endpoint = endpoint.split("?", 1)[0]
+        name = urllib.parse.parse_qs(urllib.parse.urlsplit(endpoint).query)["name"][0]
+        for asset in pages(settings, assets_endpoint, channel=channel):
+            if asset["name"] == name:
+                request(settings, f"releases/assets/{asset['id']}", "DELETE", channel=channel)
+
+    try:
+        result = notices.download(
+            native,
+            operation=f"release provider {method}",
+            timeout_s=timeout_s,
+            opener=urllib.request.build_opener(ProviderRedirect()).open,
+            before_retry=replace_partial if upload else None,
+        )
+    except policy.ToolError as error:
+        cause = error.__cause__
+        if isinstance(cause, urllib.error.HTTPError) and cause.code == 404 and method in {"GET", "DELETE"}:
+            return None
+        raise
+    if upload:
+        asset = json.loads(result)
+        digest = "sha256:" + hashlib.sha256(data or b"").hexdigest()
+        if asset.get("size") != len(data or b"") or asset.get("digest") not in (None, digest):
+            raise policy.ToolError(f"release provider {method} verification failed: {url}: asset size or sha256 differs")
+    return result
 
 
 def document(settings: dict, endpoint: str, method: str = "GET", body: dict | None = None, *, channel: bool = False) -> Any:
@@ -555,8 +560,7 @@ def oidc_claims(url: str, token: str) -> dict:
     """The Claims Of A GitHub OIDC Token Requested For Diagnosis Only; The Token Itself Is Never Printed."""
     separator = "&" if "?" in url else "?"
     native = urllib.request.Request(f"{url}{separator}audience=release-identity", headers={"Authorization": "Bearer " + token})
-    with urllib.request.urlopen(native, timeout=60) as response:
-        value = json.loads(response.read())["value"]
+    value = json.loads(notices.download(native, operation="release identity token fetch"))["value"]
     payload = value.split(".")[1]
     return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
 
@@ -606,10 +610,6 @@ def remote_tag(settings: dict, tag: str) -> str | None:
 
 
 # === Private Functions === #
-
-
-def _pause(seconds: float) -> None:
-    time.sleep(seconds)
 
 
 def _publish_crates(directory: Path, packages: dict, deadline: float, *, sleep, clock) -> None:
