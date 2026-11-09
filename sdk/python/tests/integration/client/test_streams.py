@@ -37,7 +37,14 @@ from .canonical import register
 # === Public Functions === #
 
 
-def test_close_cancels_pending_stream_opening() -> None:
+@pytest.fixture(scope="session")
+def stream_loop():
+    # Late gRPC Completions Must Retain A Live Loop Until Worker Teardown.
+    with asyncio.Runner() as runner:
+        yield runner
+
+
+def test_close_cancels_pending_stream_opening(stream_loop: asyncio.Runner) -> None:
     async def scenario():
         operation = _contracts.operation("Evidence", "WatchRecords")
         server = grpc.aio.server()
@@ -91,19 +98,31 @@ def test_close_cancels_pending_stream_opening() -> None:
             await client.close()
             await server.stop(0)
 
-    asyncio.run(scenario())
+    stream_loop.run(scenario())
 
 
-@pytest.mark.parametrize("failure", ["missing_response", "trailing_item", "status_after_response"])
-def test_incomplete_stream_refused(failure: str) -> None:
+@pytest.mark.parametrize(
+    ("failure", "ordering"),
+    [
+        ("missing_response", "immediate"),
+        ("trailing_item", "immediate"),
+        ("status_after_response", "immediate"),
+        ("status_after_response", "buffered"),
+        ("status_after_response", "consumed"),
+    ],
+)
+def test_incomplete_stream_refused(failure: str, ordering: str, monkeypatch: pytest.MonkeyPatch, stream_loop: asyncio.Runner) -> None:
     async def scenario():
         operation = _contracts.operation("Evidence", "WatchRecords")
         assert operation.output is not None
         server = grpc.aio.server()
         register(server, BackendFixture())
+        consumed = asyncio.Event()
+        terminated = asyncio.Event()
 
         async def stream(request, context):
             assert operation.output is not None
+            context.add_done_callback(lambda _: terminated.set())
             await context.send_initial_metadata((("fixture-phase", "opened"),))
             yield operation.rpc_response(item=operation.output())
             if failure == "missing_response":
@@ -112,6 +131,8 @@ def test_incomplete_stream_refused(failure: str) -> None:
             if failure == "trailing_item":
                 yield operation.rpc_response(item=operation.output())
             else:
+                if ordering == "consumed":
+                    await consumed.wait()
                 context.set_trailing_metadata((("fixture-phase", "failed"),))
                 await context.abort(grpc.StatusCode.DATA_LOSS, "failure after final response")
 
@@ -129,7 +150,19 @@ def test_incomplete_stream_refused(failure: str) -> None:
         await server.start()
         client = DokimeClient(f"http://127.0.0.1:{port}")
         reader = client.download(operation, operation.request())
+        decode = client._transport._response
+
+        def response(payload, expected):
+            envelope = decode(payload, expected)
+            if expected is operation.rpc_response and envelope.HasField("response"):
+                consumed.set()
+            return envelope
+
+        monkeypatch.setattr(client._transport, "_response", response)
         try:
+            if ordering == "buffered":
+                await reader._open()
+                await terminated.wait()
             expected = RpcError if failure == "status_after_response" else ProtocolError
             with pytest.raises(expected) as caught:
                 await reader.response()
@@ -144,10 +177,10 @@ def test_incomplete_stream_refused(failure: str) -> None:
             await client.close()
             await server.stop(0)
 
-    asyncio.run(scenario())
+    stream_loop.run(scenario())
 
 
-def test_unavailable_unary_reads_retry_without_mutation_replay():
+def test_unavailable_unary_reads_retry_without_mutation_replay(stream_loop: asyncio.Runner):
     class TransientBackend(BackendFixture):
         def __init__(self):
             super().__init__()
@@ -176,11 +209,11 @@ def test_unavailable_unary_reads_retry_without_mutation_replay():
             assert caught.value.code == "UNAVAILABLE"
             assert fixture.starts_seen == 1
 
-    asyncio.run(scenario())
+    stream_loop.run(scenario())
 
 
 @pytest.mark.parametrize("kind", ["records", "samples"])
-def test_unavailable_listeners_resume_delivered_cursors(kind):
+def test_unavailable_listeners_resume_delivered_cursors(kind, stream_loop: asyncio.Runner):
     class TransientBackend(BackendFixture):
         def __init__(self):
             super().__init__()
@@ -229,7 +262,7 @@ def test_unavailable_listeners_resume_delivered_cursors(kind):
             assert fixture.opens == [0, 1]
             assert seen == (["event-1", "event-2"] if kind == "records" else ["sample-1", "sample-2"])
 
-    asyncio.run(scenario())
+    stream_loop.run(scenario())
 
 
 # === Private Functions === #
