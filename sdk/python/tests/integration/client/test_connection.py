@@ -51,7 +51,7 @@ READINESS = ("Unspecified", "Starting", "Ready", "Degraded", "Stopping")
 # === Public Functions === #
 
 
-def test_connect_deadline_recovers() -> None:
+def test_connect_deadline_recovers(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.identity_error = grpc.StatusCode.DEADLINE_EXCEEDED
@@ -65,10 +65,10 @@ def test_connect_deadline_recovers() -> None:
             server.identity_error = None
             assert (await client.connect()).id == server.backend_id
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_call_deadline_propagates() -> None:
+def test_call_deadline_propagates(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             await client.connect()
@@ -79,10 +79,10 @@ def test_call_deadline_propagates() -> None:
             assert server.catalog_deadline is not None
             assert 0 < server.catalog_deadline <= 2 * client._transport.timeout
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_close_cancels_calls() -> None:
+def test_close_cancels_calls(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             await client.connect()
@@ -95,11 +95,11 @@ def test_close_cancels_calls() -> None:
             await server.catalog_finished.wait()
             assert server.stop_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize("case", NEGOTIATION, ids=lambda case: case["name"])
-def test_backend_negotiation(case: dict[str, Any]) -> None:
+def test_backend_negotiation(integration_loop: asyncio.Runner, case: dict[str, Any]) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             # Apply the Declared Backend Shape
@@ -132,10 +132,10 @@ def test_backend_negotiation(case: dict[str, Any]) -> None:
                     await client.connect()
             assert server.created == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_expected_backend() -> None:
+def test_expected_backend(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, _):
             async with DokimeClient(server.endpoint, expected_backend_id=server.backend_id) as selected:
@@ -151,7 +151,7 @@ def test_expected_backend() -> None:
             finally:
                 await mismatched.close()
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize(
@@ -182,7 +182,7 @@ def test_transport_secrets(endpoint: str, monkeypatch: pytest.MonkeyPatch, tmp_p
             DokimeClient(endpoint, ca_certificate_pem="certificate")
 
 
-def test_pairing_checks_identity_before_calls_and_after_reconnect(tmp_path: Path) -> None:
+def test_pairing_checks_identity_before_calls_and_after_reconnect(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (server, _):
             path = tmp_path / "lab.dokime-remote"
@@ -218,10 +218,10 @@ def test_pairing_checks_identity_before_calls_and_after_reconnect(tmp_path: Path
             finally:
                 await mismatched.close()
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_remote_candidates_choose_verified_identity_and_remember(tmp_path: Path) -> None:
+def test_remote_candidates_choose_verified_identity_and_remember(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (stalled, _), serve() as (wrong, _), serve() as (good, _):
             stalled.identity_gate.clear()
@@ -263,7 +263,7 @@ def test_remote_candidates_choose_verified_identity_and_remember(tmp_path: Path)
             finally:
                 await refused.close()
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 def test_query_tabular_core_imports() -> None:

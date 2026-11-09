@@ -73,7 +73,7 @@ MALFORMED_CHECKPOINTS = {
 # === Public Functions === #
 
 
-def test_wait_awaits_seal() -> None:
+def test_wait_awaits_seal(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.seal_automatically = False
@@ -96,10 +96,10 @@ def test_wait_awaits_seal() -> None:
             assert outcome.result.passed == 1
             assert _wire.equal(outcome.checkpoint._wire(), server.point)
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_terminal_iterators_drain() -> None:
+def test_terminal_iterators_drain(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
@@ -115,11 +115,11 @@ def test_terminal_iterators_drain() -> None:
             assert await handle == handle.outcome
             assert server.stop_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize("pattern", ["", "fixture.[ab]", "fixture.{start,stop}", "^fixture.*$", "fixture/.*", "fixture.é"])
-def test_listener_filter_refusal(pattern: str) -> None:
+def test_listener_filter_refusal(integration_loop: asyncio.Runner, pattern: str) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             handle = await client.execution(EXECUTION_ID)
@@ -130,11 +130,11 @@ def test_listener_filter_refusal(pattern: str) -> None:
             assert server.run_calls == 0
             assert server.created == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize("patterns", [("x" * 4097,), ("valid",) * 65])
-def test_filter_vector_limits(patterns: Any) -> None:
+def test_filter_vector_limits(integration_loop: asyncio.Runner, patterns: Any) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             execution = await client.execution(EXECUTION_ID)
@@ -144,11 +144,11 @@ def test_filter_vector_limits(patterns: Any) -> None:
                 await collect(execution.samples(*patterns))
             assert server.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize("deadline", [0.0, -1.0, float("nan"), float("inf")])
-def test_invalid_deadlines(deadline: float) -> None:
+def test_invalid_deadlines(integration_loop: asyncio.Runner, deadline: float) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             execution = await client.execution(EXECUTION_ID)
@@ -158,22 +158,22 @@ def test_invalid_deadlines(deadline: float) -> None:
                 await execution.wait(poll_interval=deadline)
             assert server.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize("method", ["pause", "resume", "stop"])
-def test_execution_controls(method: str) -> None:
+def test_execution_controls(integration_loop: asyncio.Runner, method: str) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             handle = await client.execution(EXECUTION_ID)
             await getattr(handle, method)()
             assert server.execution_control_calls == [f"{method.title()}Execution"]
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize("method", ["pause", "resume", "stop"])
-def test_control_restart_refused(method: str) -> None:
+def test_control_restart_refused(integration_loop: asyncio.Runner, method: str) -> None:
     async def scenario() -> None:
         rpc = f"{method.title()}Execution"
         async with serve() as (server, client):
@@ -185,10 +185,10 @@ def test_control_restart_refused(method: str) -> None:
             assert server.run_calls == 0
             assert server.created == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_finished_controls() -> None:
+def test_finished_controls(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
@@ -207,10 +207,10 @@ def test_finished_controls() -> None:
                 await control.resume()
             assert resume.value.code == "FAILED_PRECONDITION"
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_stop_evidence() -> None:
+def test_stop_evidence(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.finish_gate.clear()
@@ -225,10 +225,10 @@ def test_stop_evidence() -> None:
             assert status.status == "cancelled"
             assert (await records_task)[-1].type == "fixture.stopped"
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_close_keeps_run() -> None:
+def test_close_keeps_run(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.finish_gate.clear()
@@ -246,10 +246,10 @@ def test_close_keeps_run() -> None:
             with pytest.raises(ClientClosed):
                 await run.checkpoint()
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_command_receipt_replay() -> None:
+def test_command_receipt_replay(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             handle = await client.execution(EXECUTION_ID)
@@ -279,10 +279,10 @@ def test_command_receipt_replay() -> None:
             assert server.run_calls == 0
             assert server.created == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_execution_mode_recovery() -> None:
+def test_execution_mode_recovery(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             handle = await client.execution(EXECUTION_ID)
@@ -311,10 +311,10 @@ def test_execution_mode_recovery() -> None:
             assert (await handle.wait()).status == "passed"
             assert len(server.samples) == 2
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_execution_observation() -> None:
+def test_execution_observation(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             handle = await client.execution(EXECUTION_ID)
@@ -328,11 +328,11 @@ def test_execution_observation() -> None:
             assert server.run_calls == 1
             assert server.created == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize("mutation", list(MALFORMED_CHECKPOINTS))
-def test_malformed_checkpoint(mutation: str) -> None:
+def test_malformed_checkpoint(integration_loop: asyncio.Runner, mutation: str) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.sealed.set()
@@ -357,7 +357,7 @@ def test_malformed_checkpoint(mutation: str) -> None:
             restored = await handle.checkpoint()
             assert restored is not None and _wire.equal(restored._wire(), valid)
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 # === Private Functions === #

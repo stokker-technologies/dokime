@@ -42,7 +42,9 @@ EXECUTION = "00000000-0000-0000-0000-000000000002"
 # === Public Functions === #
 
 
-def test_existing_execution_reader_drains_before_return(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_existing_execution_reader_drains_before_return(
+    integration_loop: asyncio.Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     namespace = runpy.run_path(str(EXAMPLES / "remote_control.py"))
     run = namespace["run"]
     monkeypatch.chdir(tmp_path)
@@ -79,7 +81,7 @@ def test_existing_execution_reader_drains_before_return(tmp_path: Path, monkeypa
     connection.__aexit__ = AsyncMock(return_value=False)
     monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
 
-    assert asyncio.run(run(EXECUTION)) == 0
+    assert integration_loop.run(run(EXECUTION)) == 0
     client.execution.assert_awaited_once_with(EXECUTION)
     execution.start.assert_awaited_once()
     assert set(drained) == {"record", "sample"}

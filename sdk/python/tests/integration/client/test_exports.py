@@ -93,16 +93,16 @@ class ExportTransport(Transport):
 # === Public Functions === #
 
 
-def test_verified_export(tmp_path: Path) -> None:
+def test_verified_export(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     destination = tmp_path / "execution.zip"
     destination.write_bytes(b"previous")
     transport = ExportTransport(Reader(_frames()))
     execution = Execution._bind(IDENTITY, transport, BACKEND)
     with pytest.raises(FileExistsError):
-        asyncio.run(execution.export(destination))
+        integration_loop.run(execution.export(destination))
     assert (transport.verifications, transport.requests) == (0, 0)
     assert destination.read_bytes() == b"previous"
-    result = asyncio.run(execution.export(destination, overwrite=True))
+    result = integration_loop.run(execution.export(destination, overwrite=True))
     assert result.path == destination
     assert result.size_bytes == len(DATA)
     assert result.sha256 == hashlib.sha256(DATA).hexdigest()
@@ -112,11 +112,11 @@ def test_verified_export(tmp_path: Path) -> None:
     assert not destination.with_suffix(".zip.part").exists()
 
 
-def test_cycle_export(tmp_path: Path) -> None:
+def test_cycle_export(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     transport = ExportTransport(Reader(_frames(kind="Cycle")), kind="Cycle")
     cycle = Cycle(IDENTITY, transport, BACKEND, ())
     destination = tmp_path / "cycle.zip"
-    saved = asyncio.run(cycle.export(destination))
+    saved = integration_loop.run(cycle.export(destination))
     assert saved.path.read_bytes() == DATA
     assert saved.sha256 == hashlib.sha256(DATA).hexdigest()
     assert transport.requests == 1
@@ -124,7 +124,7 @@ def test_cycle_export(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("fault", ["hash", "identity", "size", "trailing", "completion", "status"])
-def test_export_refusal(tmp_path: Path, fault: str) -> None:
+def test_export_refusal(integration_loop: asyncio.Runner, tmp_path: Path, fault: str) -> None:
     destination = tmp_path / "execution.zip"
     destination.write_bytes(b"previous")
     frames = _frames()
@@ -145,7 +145,7 @@ def test_export_refusal(tmp_path: Path, fault: str) -> None:
         failure = RpcError("UNAVAILABLE", "final transport status failed")
     transport = ExportTransport(Reader(frames, failure))
     with pytest.raises((ProtocolError, RpcError)):
-        asyncio.run(export_evidence(transport, BACKEND, "Execution", IDENTITY, destination, overwrite=True))
+        integration_loop.run(export_evidence(transport, BACKEND, "Execution", IDENTITY, destination, overwrite=True))
     assert destination.read_bytes() == b"previous"
     assert transport.reader.closed
     assert transport.requests == 1
@@ -154,12 +154,12 @@ def test_export_refusal(tmp_path: Path, fault: str) -> None:
     # Retry Transfers the Same Saved Subject Without Admitting Any Execution
     transport.reader = Reader(_frames())
     execution = Execution._bind(IDENTITY, transport, BACKEND)
-    saved = asyncio.run(execution.export(destination, overwrite=True))
+    saved = integration_loop.run(execution.export(destination, overwrite=True))
     assert saved.path.read_bytes() == DATA
     assert transport.requests == 2
 
 
-def test_export_cancellation(tmp_path: Path) -> None:
+def test_export_cancellation(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     destination = tmp_path / "execution.zip"
     reader = Reader(_frames()[:-1], stall=True)
     transport = ExportTransport(reader)
@@ -171,14 +171,16 @@ def test_export_cancellation(tmp_path: Path) -> None:
         with pytest.raises(asyncio.CancelledError):
             await task
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
     assert reader.closed
     assert not destination.exists()
     assert not destination.with_suffix(".zip.part").exists()
 
 
 @pytest.mark.parametrize("report", [None, "cycle.summary"])
-def test_lifecycle_save_manifest(tmp_path: Path, report: str | None, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_lifecycle_save_manifest(
+    integration_loop: asyncio.Runner, tmp_path: Path, report: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Reuse The Existing Chunked Export Fake And Its Real Digest Verification.
     transport = ExportTransport(Reader(_frames()), kind="Execution")
     execution = Execution._bind(IDENTITY, transport, BACKEND)
@@ -197,7 +199,7 @@ def test_lifecycle_save_manifest(tmp_path: Path, report: str | None, monkeypatch
     monkeypatch.setattr(cycle, "export", cycle_export)
     monkeypatch.setattr(cycle, "download_report", report_download)
     destination = tmp_path / "reports" / IDENTITY
-    manifest = asyncio.run(cycle.save(destination, report=report))
+    manifest = integration_loop.run(cycle.save(destination, report=report))
     assert json.loads((destination / "manifest.json").read_text()) == manifest
     names = {f"execution-{IDENTITY}.zip", "cycle.zip"}
     if report is not None:
@@ -209,16 +211,16 @@ def test_lifecycle_save_manifest(tmp_path: Path, report: str | None, monkeypatch
         assert entry["sha256"] == hashlib.sha256(content).hexdigest()
     assert (destination / "cycle.zip").read_bytes() == DATA
     with pytest.raises(FileExistsError):
-        asyncio.run(cycle.save(destination, report=report))
+        integration_loop.run(cycle.save(destination, report=report))
 
 
-def test_lifecycle_failed_save_has_no_manifest(tmp_path: Path) -> None:
+def test_lifecycle_failed_save_has_no_manifest(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     frames = _frames(kind="Cycle")
     frames[-1].payload.Complete.field_0.sha256 = "0" * 64
     transport = ExportTransport(Reader(frames), kind="Cycle")
     cycle = Cycle(IDENTITY, transport, BACKEND, ())
     with pytest.raises(ProtocolError):
-        asyncio.run(cycle.save(tmp_path))
+        integration_loop.run(cycle.save(tmp_path))
     assert not (tmp_path / "manifest.json").exists()
     assert not (tmp_path / "cycle.zip").exists()
 

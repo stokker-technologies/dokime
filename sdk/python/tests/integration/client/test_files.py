@@ -124,7 +124,7 @@ class Transport:
 
 
 @pytest.mark.parametrize("prefix_length", [0, 17, 65_537, len(DATA)])
-def test_finished_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prefix_length: int) -> None:
+def test_finished_resume(integration_loop: asyncio.Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prefix_length: int) -> None:
     _requests(monkeypatch)
     destination = tmp_path / "output.bin"
     identity = IDENTITY if prefix_length else None
@@ -148,7 +148,7 @@ def test_finished_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prefix
             updates.append(update)
         return updates
 
-    updates = asyncio.run(scenario())
+    updates = integration_loop.run(scenario())
 
     assert destination.read_bytes() == DATA
     assert transport.request == {
@@ -167,7 +167,7 @@ def test_finished_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prefix
 
 
 @pytest.mark.parametrize("resume", [False, True])
-def test_abandoned_prefix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resume: bool) -> None:
+def test_abandoned_prefix(integration_loop: asyncio.Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resume: bool) -> None:
     _requests(monkeypatch)
     destination = tmp_path / "output.bin"
     prefix_length = 5 if resume else 0
@@ -195,7 +195,7 @@ def test_abandoned_prefix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resum
             )
         ]
 
-    updates = asyncio.run(scenario())
+    updates = integration_loop.run(scenario())
 
     assert destination.read_bytes() == partial
     assert updates[-1] == files.FileUpdate(IDENTITY, len(partial), "abandoned")
@@ -246,7 +246,7 @@ def test_abandoned_prefix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resum
         "final_status",
     ],
 )
-def test_invalid_follow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, issue: str) -> None:
+def test_invalid_follow(integration_loop: asyncio.Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, issue: str) -> None:
     _requests(monkeypatch)
     destination = tmp_path / "output.bin"
     prefix_length = 17
@@ -346,7 +346,7 @@ def test_invalid_follow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, issue: 
 
     expected_error = RpcError if issue == "final_status" else ProtocolError
     with pytest.raises(expected_error):
-        asyncio.run(scenario())
+        integration_loop.run(scenario())
 
     assert reader.closed
     assert not any(update.phase in {"finished", "abandoned"} for update in updates)
@@ -357,7 +357,7 @@ def test_invalid_follow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, issue: 
     assert destination.read_bytes() == expected
 
 
-def test_cancel_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cancel_resume(integration_loop: asyncio.Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _requests(monkeypatch)
     destination = tmp_path / "output.bin"
     partial = DATA[:23]
@@ -415,11 +415,11 @@ def test_cancel_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         assert resumed[-1] == files.FileUpdate(IDENTITY, len(DATA), "finished", hashlib.sha256(DATA).hexdigest())
         assert resumed_reader.closed
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
     assert destination.read_bytes() == DATA
 
 
-def test_growing_follow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_growing_follow(integration_loop: asyncio.Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _requests(monkeypatch)
     destination = tmp_path / "output.bin"
     # Phase: The Producer Had Written 314 Bytes When The Follow Opened
@@ -442,7 +442,7 @@ def test_growing_follow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
             )
         ]
 
-    updates = asyncio.run(scenario())
+    updates = integration_loop.run(scenario())
 
     # Phase: Every Accepted Chunk Commits A Longer Prefix Until The Seal
     offsets = [update.committed_offset for update in updates[:-1]]

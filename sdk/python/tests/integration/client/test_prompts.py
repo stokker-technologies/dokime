@@ -37,7 +37,7 @@ PROMPT_ID = "0199d6a4-6f1e-7c3a-9a51-2b7c4e8f1d20"
 # === Public Functions === #
 
 
-def test_prompt_selection() -> None:
+def test_prompt_selection(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             cycle = await client.cycle(CYCLE_ID)
@@ -48,10 +48,10 @@ def test_prompt_selection() -> None:
             assert [item async for item in cycle.pending_prompts()] == []
             assert backend.created == backend.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_prompt_level() -> None:
+def test_prompt_level(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             # Declare a Warning Prompt
@@ -85,10 +85,10 @@ def test_prompt_level() -> None:
                 assert prompt.title == "Inspect Charging State"
                 assert prompt.level == expected
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_execution_prompt_scope() -> None:
+def test_execution_prompt_scope(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             # Read Only The Selected Execution's Question.
@@ -129,7 +129,7 @@ def test_execution_prompt_scope() -> None:
             assert backend.prompt_responses[PROMPT_ID]["action"] == "yes"
             assert backend.created == backend.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 # === Private Functions === #

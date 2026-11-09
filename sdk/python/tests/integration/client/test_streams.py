@@ -37,14 +37,7 @@ from .canonical import register
 # === Public Functions === #
 
 
-@pytest.fixture(scope="session")
-def stream_loop():
-    # Late gRPC Completions Must Retain A Live Loop Until Worker Teardown.
-    with asyncio.Runner() as runner:
-        yield runner
-
-
-def test_close_cancels_pending_stream_opening(stream_loop: asyncio.Runner) -> None:
+def test_close_cancels_pending_stream_opening(integration_loop: asyncio.Runner) -> None:
     async def scenario():
         operation = _contracts.operation("Evidence", "WatchRecords")
         server = grpc.aio.server()
@@ -98,7 +91,7 @@ def test_close_cancels_pending_stream_opening(stream_loop: asyncio.Runner) -> No
             await client.close()
             await server.stop(0)
 
-    stream_loop.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize(
@@ -111,7 +104,7 @@ def test_close_cancels_pending_stream_opening(stream_loop: asyncio.Runner) -> No
         ("status_after_response", "consumed"),
     ],
 )
-def test_incomplete_stream_refused(failure: str, ordering: str, monkeypatch: pytest.MonkeyPatch, stream_loop: asyncio.Runner) -> None:
+def test_incomplete_stream_refused(failure: str, ordering: str, monkeypatch: pytest.MonkeyPatch, integration_loop: asyncio.Runner) -> None:
     async def scenario():
         operation = _contracts.operation("Evidence", "WatchRecords")
         assert operation.output is not None
@@ -177,10 +170,10 @@ def test_incomplete_stream_refused(failure: str, ordering: str, monkeypatch: pyt
             await client.close()
             await server.stop(0)
 
-    stream_loop.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_unavailable_unary_reads_retry_without_mutation_replay(stream_loop: asyncio.Runner):
+def test_unavailable_unary_reads_retry_without_mutation_replay(integration_loop: asyncio.Runner):
     class TransientBackend(BackendFixture):
         def __init__(self):
             super().__init__()
@@ -209,11 +202,11 @@ def test_unavailable_unary_reads_retry_without_mutation_replay(stream_loop: asyn
             assert caught.value.code == "UNAVAILABLE"
             assert fixture.starts_seen == 1
 
-    stream_loop.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize("kind", ["records", "samples"])
-def test_unavailable_listeners_resume_delivered_cursors(kind, stream_loop: asyncio.Runner):
+def test_unavailable_listeners_resume_delivered_cursors(kind, integration_loop: asyncio.Runner):
     class TransientBackend(BackendFixture):
         def __init__(self):
             super().__init__()
@@ -262,7 +255,7 @@ def test_unavailable_listeners_resume_delivered_cursors(kind, stream_loop: async
             assert fixture.opens == [0, 1]
             assert seen == (["event-1", "event-2"] if kind == "records" else ["sample-1", "sample-2"])
 
-    stream_loop.run(scenario())
+    integration_loop.run(scenario())
 
 
 # === Private Functions === #

@@ -36,7 +36,7 @@ from dokime import _callbacks
 # === Public Functions === #
 
 
-def test_callback_shutdown() -> None:
+def test_callback_shutdown(integration_loop: asyncio.Runner) -> None:
     async def story() -> None:
         loop = asyncio.get_running_loop()
         entered = asyncio.Event()
@@ -78,7 +78,7 @@ def test_callback_shutdown() -> None:
         assert "ArithmeticError" in str(caught.value)
         assert "fail" in str(caught.value)
 
-    asyncio.run(story())
+    integration_loop.run(story())
 
 
 # === Private Functions === #

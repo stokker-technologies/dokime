@@ -43,7 +43,7 @@ EXAMPLE = Path(__file__).resolve().parents[3] / "examples/remote/python/control-
 # === Public Functions === #
 
 
-def test_live_values() -> None:
+def test_live_values(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.finish_gate.clear()
@@ -82,10 +82,10 @@ def test_live_values() -> None:
             assert server.stop_calls == 0
             assert any(p.get("voltage") == 2 for p in server.sent_cursors)
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_sample_watch_drains_seal_during_page_delivery() -> None:
+def test_sample_watch_drains_seal_during_page_delivery(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         server = BackendFixture()
         server.publish("started")
@@ -102,10 +102,10 @@ def test_sample_watch_drains_seal_during_page_delivery() -> None:
         finally:
             await reader.aclose()
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_sample_watch_reconnect() -> None:
+def test_sample_watch_reconnect(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
@@ -118,10 +118,10 @@ def test_sample_watch_reconnect() -> None:
             assert any(cursor.get("voltage") == 1 for cursor in server.sent_cursors)
             assert server.stop_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_replay_pages() -> None:
+def test_replay_pages(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (_, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
@@ -133,10 +133,12 @@ def test_replay_pages() -> None:
             assert await collect(run.records(record_ids=["missing"])) == []
             assert len(await collect(run_cycle.samples(page_size=1))) == 2
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_example_listeners_drain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_example_listeners_drain(
+    integration_loop: asyncio.Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     run = runpy.run_path(str(EXAMPLE))["run"]
     monkeypatch.chdir(tmp_path)
 
@@ -185,7 +187,7 @@ def test_example_listeners_drain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
             assert any(position.get("voltage") == 1 for position in server.sent_cursors)
             assert server.stop_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 # === Private Functions === #

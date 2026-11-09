@@ -36,7 +36,7 @@ import pytest
 # === Public Functions === #
 
 
-def test_context_ownership(tmp_path: Path) -> None:
+def test_context_ownership(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     async def story() -> None:
         completed = asyncio.Event()
         retained: dict[str, Any] = {}
@@ -89,7 +89,7 @@ def test_context_ownership(tmp_path: Path) -> None:
                 await ctx.operation(operation)
         assert resource.values == [2**53 + 1, -7]
 
-    asyncio.run(story())
+    integration_loop.run(story())
 
 
 # === Private Functions === #
