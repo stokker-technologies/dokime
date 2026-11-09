@@ -749,24 +749,24 @@ async fn configured_row_flush_preserves_saved_order_and_combines_tail() {
 
 #[tokio::test]
 async fn configured_time_flush_occurs_at_its_deadline() {
-    // Advance Only The Flush Clock; Filesystem Work Keeps Its Real Backend Clock.
-    let io = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = io.spawn(Fixture::new(1024)).await.unwrap();
+    let fixture = Fixture::new(1024).await;
+    // Drive The Policy Explicitly Instead Of Spawning Its Timer Task.
+    fixture.local.tail().set_running(true);
     let before = fixture.storage.cursor_saved();
     let through = fixture.admit(&[(1, 10)]).await;
-    tokio::time::pause();
     let started = fixture.local.tail().started().unwrap();
     let deadline = started + Duration::from_secs(60);
-    let remaining = deadline.duration_since(tokio::time::Instant::now());
-    tokio::time::advance(remaining - Duration::from_nanos(1)).await;
+    assert!(!fixture.local.flush_telemetry_at(&fixture.storage, deadline - Duration::from_nanos(1)).await.unwrap());
     assert_eq!(fixture.storage.cursor_saved(), before);
-    tokio::time::advance(Duration::from_nanos(1)).await;
-    // Real Filesystem Work Runs Under Its Normal Backend Deadline.
-    tokio::time::resume();
-    fixture.saved(&through).await;
-    assert_eq!(fixture.read(&through, fixture.selection()).await.len(), 1);
+    assert!(fixture.local.flush_telemetry_at(&fixture.storage, deadline).await.unwrap());
+    assert_eq!(fixture.storage.cursor_saved(), through);
+    let durable: i64 =
+        fixture.local.read(|connection| connection.query_row("SELECT sum(rows) FROM stream_batches", [], |row| row.get(0))).await.unwrap();
+    assert_eq!(durable, 1);
+    assert_eq!(fixture.read(&through, fixture.selection()).await.iter().map(|(_, entry)| entry.ordinal).collect::<Vec<_>>(), [1]);
+    // A Saved Cut Cannot Produce A Second Flush.
+    assert!(!fixture.local.flush_telemetry_at(&fixture.storage, deadline).await.unwrap());
     fixture.finish().await;
-    io.shutdown_background();
 }
 
 #[tokio::test]

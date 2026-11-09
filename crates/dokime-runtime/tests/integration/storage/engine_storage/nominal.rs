@@ -550,6 +550,51 @@ pub(crate) async fn nominal() {
     backend.close().await.unwrap();
 }
 
+pub(crate) async fn partial_release_keeps_unreleased_revisions() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::<Objects>::open(root.path()).await;
+    let backend = &store.backend;
+    let value = Objects::encode(&Subject { id: "execution".into(), stopped: false }, rows(MAX_BYTES)).unwrap();
+    backend.write_schemas(store.batch(vec![StorageSchema::new(store.at(1), value.schema.clone(), declared::<Subject>())])).await.unwrap();
+    let entries = (2..=5)
+        .map(|sequence| ObjectEntry {
+            position: store.at(sequence),
+            version: serde_json::from_value(serde_json::json!({"history": store.history, "revision": sequence})).unwrap(),
+            value: value.clone(),
+        })
+        .collect::<Vec<_>>();
+    backend.write_objects(store.batch(entries[..3].to_vec())).await.unwrap();
+    while !backend.prune_objects(&store.at(4), rows(1), retention).await.unwrap() {}
+    let selection = ObjectSelection {
+        schema: None,
+        key: None,
+        versions: ObjectVersions::Revisions,
+    };
+    let pinned = backend.open_snapshot(&store.at(4)).await.unwrap();
+    assert_eq!(backend.read_objects(&pinned, &selection, page(0, rows(8))).await.unwrap(), entries[..3]);
+
+    // Release A Prefix, Then Append Without Advancing That Release.
+    backend.release_object_history(&value.schema, &value.item, &store.at(3)).await.unwrap();
+    while !backend.prune_objects(&store.at(4), rows(1), retention).await.unwrap() {}
+    backend.write_objects(store.batch(entries[3..].to_vec())).await.unwrap();
+    while !backend.prune_objects(&store.at(5), rows(1), retention).await.unwrap() {}
+    let current = backend.open_snapshot(&store.at(5)).await.unwrap();
+    assert_eq!(backend.read_objects(&current, &selection, page(0, rows(8))).await.unwrap(), entries[2..]);
+    assert_eq!(backend.read_objects(&pinned, &selection, page(0, rows(8))).await.unwrap(), entries[..3]);
+    backend.release_snapshot(&current).await.unwrap();
+    backend.release_snapshot(&pinned).await.unwrap();
+    backend.close().await.unwrap();
+
+    // A Later Release Still Reclaims Its Prefix After Reopening.
+    let backend = Backend::<Objects>::primary(root.path().to_owned()).await.unwrap();
+    backend.release_object_history(&value.schema, &value.item, &store.at(4)).await.unwrap();
+    while !backend.prune_objects(&store.at(5), rows(1), retention).await.unwrap() {}
+    let current = backend.open_snapshot(&store.at(5)).await.unwrap();
+    assert_eq!(backend.read_objects(&current, &selection, page(0, rows(8))).await.unwrap(), entries[3..]);
+    backend.release_snapshot(&current).await.unwrap();
+    backend.close().await.unwrap();
+}
+
 /* === Private Functions === */
 
 fn retention(schema: &SchemaKey) -> harmos::domain::Result<ObjectRetention> {

@@ -43,6 +43,7 @@ def test_close_cancels_pending_stream_opening() -> None:
         server = grpc.aio.server()
         register(server, BackendFixture())
         started = asyncio.Event()
+        reading = asyncio.Event()
         finished = asyncio.Event()
         gate = asyncio.Event()
 
@@ -68,9 +69,17 @@ def test_close_cancels_pending_stream_opening() -> None:
         await server.start()
         client = DokimeClient(f"http://127.0.0.1:{port}")
         reader = client.download(operation, operation.request())
-        pending = asyncio.ensure_future(anext(aiter(reader)))
+
+        async def read():
+            # Finish The Python Handoff Before Testing The Pending Native Opening.
+            await reader._open()
+            reading.set()
+            return await anext(aiter(reader))
+
+        pending = asyncio.create_task(read())
         try:
             await started.wait()
+            await reading.wait()
             await reader.close()
             with pytest.raises(asyncio.CancelledError):
                 await pending

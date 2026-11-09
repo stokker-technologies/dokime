@@ -31,7 +31,7 @@ use tonic::Status;
 use super::{CaptureEvent, FileCapture};
 use crate::app::Lanes;
 use crate::operations::hosting::{Host, Serve, Served};
-use crate::runtime::operations::reports::status;
+use crate::runtime::operations::reports::operation_status;
 use crate::{RuntimeHandle, runtime::Error};
 use dokime_domain::model::files::wire::CaptureGap;
 use dokime_domain::model::files::wire::CaptureStarted;
@@ -153,14 +153,15 @@ impl Resources {
     }
 
     async fn stop(&self, request: &StopCapture, ctx: &Context<'_, StopCapture>) -> Result<CapturedFiles, Status> {
-        let execution = execution_of(ctx.call()).ok_or_else(|| status(super::invalid("a file capture requires an execution")))?;
+        let execution =
+            execution_of(ctx.call()).ok_or_else(|| failure::<StopCapture>(super::invalid("a file capture requires an execution")))?;
         let mut outcome = {
             let captures = self.captures.lock().expect("capture registry lock is healthy");
             let Some(capture) = captures.get(&request.capture_id) else {
-                return Err(status(Error::not_found("file_capture_unknown", "no such file capture")));
+                return Err(failure::<StopCapture>(Error::not_found("file_capture_unknown", "no such file capture")));
             };
             if capture.execution != execution {
-                return Err(status(super::invalid("the file capture belongs to another execution")));
+                return Err(failure::<StopCapture>(super::invalid("the file capture belongs to another execution")));
             }
             capture.stop.send_replace(true);
             capture.outcome.clone()
@@ -170,9 +171,9 @@ impl Resources {
         tokio::select! {
             answer = outcome.wait_for(Option::is_some) => match answer {
                 Ok(answer) => answer.clone().expect("the wait ends on an outcome"),
-                Err(_) => Err(status(Error::unavailable(super::UNREACHABLE, "the file capture ended without an outcome"))),
+                Err(_) => Err(failure::<StopCapture>(Error::unavailable(super::UNREACHABLE, "the file capture ended without an outcome"))),
             },
-            () = ctx.cancelled() => Err(failure(cancelled())),
+            () = ctx.cancelled() => Err(failure::<StopCapture>(cancelled())),
         }
     }
 
@@ -205,13 +206,13 @@ impl Resources {
 
 impl Serve<CopyFiles> for Files {
     fn serve<'a>(&'a self, request: CopyFiles, ctx: Context<'a, CopyFiles>) -> Served<'a, CapturedFiles> {
-        Box::pin(async move { self.0.copy(request, &ctx).await.map(Into::into).map_err(failure) })
+        Box::pin(async move { self.0.copy(request, &ctx).await.map(Into::into).map_err(failure::<CopyFiles>) })
     }
 }
 
 impl Serve<StartCapture> for Files {
     fn serve<'a>(&'a self, request: StartCapture, ctx: Context<'a, StartCapture>) -> Served<'a, CaptureStarted> {
-        Box::pin(async move { self.0.start(request, &ctx).await.map(Into::into).map_err(failure) })
+        Box::pin(async move { self.0.start(request, &ctx).await.map(Into::into).map_err(failure::<StartCapture>) })
     }
 }
 
@@ -273,7 +274,7 @@ async fn drive(
     }
     if let Some(source) = failure.or(sealed.err()) {
         capture.record_failure(&source).await;
-        return Err(status(source));
+        return Err(operation_status(source));
     }
     Ok(outcome_of(&capture, gaps))
 }
@@ -298,14 +299,19 @@ fn cancelled() -> Error {
     Error::cancelled("file_capture_cancelled", "the file operation was cancelled")
 }
 
-fn failure(error: Error) -> Status {
+fn failure<O: harmos::OperationDeclaration>(error: Error) -> Status {
+    if let Error::Admission(ref refusal) = error {
+        tracing::warn!(operation = O::ID, code = refusal.code(), %error, "operation admission refused");
+    } else {
+        tracing::error!(operation = O::ID, ?error, "operation failed");
+    }
     if error.code() == Some("file_capture_cancelled") {
         let failure = harmos::Failure::new(harmos::operations::FailureKind::Cancelled, error.to_string());
         let mut status = Status::cancelled(failure.to_string());
         status.set_source(Arc::new(failure));
         return status;
     }
-    status(error)
+    operation_status(error)
 }
 
 fn collect_gaps(events: &mut Vec<CaptureEvent>, gaps: &mut Vec<CaptureGap>) {
@@ -317,3 +323,42 @@ fn collect_gaps(events: &mut Vec<CaptureEvent>, gaps: &mut Vec<CaptureGap>) {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Output(Arc<Mutex<Vec<u8>>>);
+
+    impl std::io::Write for Output {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn operation_status_admission_log_identifies_operation_and_code() {
+        let output = Arc::new(Mutex::new(Vec::new()));
+        let writer = output.clone();
+        let subscriber = tracing_subscriber::fmt().without_time().with_ansi(false).with_writer(move || Output(writer.clone())).finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+        let status = failure::<StartCapture>(Error::overload("file_capture_cap", "capacity reached"));
+        assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+        let status = failure::<CopyFiles>(Error::not_found("file_capture_missing", "source missing"));
+        assert_eq!(status.code(), tonic::Code::NotFound);
+        let output = String::from_utf8(output.lock().unwrap().clone()).unwrap();
+        assert!(output.contains("WARN"));
+        assert!(output.contains("operation admission refused"));
+        assert!(output.contains("dokime.files.start_capture"));
+        assert!(output.contains("file_capture_cap"));
+        assert!(output.contains("dokime.files.copy_files"));
+        assert!(output.contains("file_capture_missing"));
+        assert!(!output.contains("ERROR"));
+        assert!(!output.contains("report materialization"));
+    }
+}

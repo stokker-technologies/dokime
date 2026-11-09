@@ -293,6 +293,9 @@ impl State {
     pub fn fail_next_sync(&self) {
         self.0.0.telemetry.lock().unwrap().fail_next_sync();
     }
+    pub async fn flush_telemetry_at(&self, storage: &crate::storage::Manager, now: tokio::time::Instant) -> crate::storage::Result<bool> {
+        self.0.flush_telemetry_at(storage, now).await
+    }
     pub async fn settle_telemetry(&self) -> Result<(), Error> {
         for task in std::mem::take(&mut *self.0.0.telemetry_tasks.lock().await) {
             task.await??;
