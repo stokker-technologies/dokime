@@ -37,7 +37,7 @@ from .capture_backend import serve
 # === Public Functions === #
 
 
-def test_saved_execution_evidence(tmp_path: Path) -> None:
+def test_saved_execution_evidence(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             cycle = await prepare(client, parameters={"array": [1, 2], "voltage": 230})
@@ -88,10 +88,10 @@ def test_saved_execution_evidence(tmp_path: Path) -> None:
             assert backend.created == backend.run_calls == 1
             assert not list(tmp_path.rglob("*.part"))
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_download_partial(tmp_path: Path) -> None:
+def test_download_partial(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (_, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
@@ -106,10 +106,10 @@ def test_download_partial(tmp_path: Path) -> None:
             assert path.read_text() == "previous report"
             assert partial.read_text() == "owned partial"
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_cancelled_download(tmp_path: Path) -> None:
+def test_cancelled_download(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
@@ -128,14 +128,14 @@ def test_cancelled_download(tmp_path: Path) -> None:
             assert path.read_text() == "previous successful report"
             assert not path.with_name(path.name + ".part").exists()
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize(
     "failure",
     ["identity", "identifier", "offset", "hash", "truncated", "trailing", "status"],
 )
-def test_download_transfer(tmp_path: Path, failure: str) -> None:
+def test_download_transfer(integration_loop: asyncio.Runner, tmp_path: Path, failure: str) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
@@ -149,11 +149,11 @@ def test_download_transfer(tmp_path: Path, failure: str) -> None:
             assert path.read_text() == "previous successful report"
             assert not path.with_name(path.name + ".part").exists()
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize("payload", [[], {1: "bad"}, {"bad": float("nan")}, {"bad": float("inf")}, {"nested": [float("-inf")]}])
-def test_params_mutation(tmp_path: Path, payload: Any) -> None:
+def test_params_mutation(integration_loop: asyncio.Runner, tmp_path: Path, payload: Any) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             template = await client.template(TEMPLATE)
@@ -162,10 +162,10 @@ def test_params_mutation(tmp_path: Path, payload: Any) -> None:
             assert backend.created == backend.run_calls == 0
             assert backend.materialize_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_history_refused() -> None:
+def test_history_refused(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
@@ -182,7 +182,7 @@ def test_history_refused() -> None:
             with pytest.raises(ProtocolError, match="incomplete"):
                 _ = [record async for record in evidence.records()]
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 # === Private Functions === #

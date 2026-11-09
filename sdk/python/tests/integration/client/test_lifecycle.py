@@ -46,7 +46,7 @@ class LifecycleBackend(BackendFixture):
 
 
 @pytest.mark.parametrize("exit_kind", ["normal", "exception", "cancellation"])
-def test_lifecycle_owned_exit(exit_kind: str, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_lifecycle_owned_exit(integration_loop: asyncio.Runner, exit_kind: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("dokime.client.execution.handle.uuid4", lambda: UUID(EXECUTION_ID))
 
     async def scenario() -> None:
@@ -83,7 +83,7 @@ def test_lifecycle_owned_exit(exit_kind: str, monkeypatch: pytest.MonkeyPatch) -
             assert [record.type async for record in run.records("fixture.stopped")] == ["fixture.stopped"]
             assert await run == run.outcome
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 # === Private Functions === #

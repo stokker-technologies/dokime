@@ -35,7 +35,7 @@ from .capture_backend import serve
 # === Public Functions === #
 
 
-def test_execution_recovery() -> None:
+def test_execution_recovery(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             cycle = await prepare(client)
@@ -53,10 +53,10 @@ def test_execution_recovery() -> None:
             assert len(backend.samples) == 2
             assert backend.stop_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_cancel_keeps_execution() -> None:
+def test_cancel_keeps_execution(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             backend.finish_gate.clear()
@@ -82,10 +82,10 @@ def test_cancel_keeps_execution() -> None:
             records = await collect(recovered.records())
             assert records[-1].type == "fixture.stopped"
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_independent_observers() -> None:
+def test_independent_observers(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             backend.finish_gate.clear()
@@ -105,10 +105,10 @@ def test_independent_observers() -> None:
             assert (await execution.wait()).status == "passed"
             assert backend.run_calls == 1
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_captured_record_count() -> None:
+def test_captured_record_count(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (backend, client):
             backend.finish_gate.clear()
@@ -144,7 +144,7 @@ def test_captured_record_count() -> None:
             assert sum(item.record.type == "example.target.lost" for item in saved) == 3
             assert len(await collect(evidence.samples())) == 3
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 # === Private Functions === #

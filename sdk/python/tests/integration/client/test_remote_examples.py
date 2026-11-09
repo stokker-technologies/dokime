@@ -45,7 +45,7 @@ EXECUTION = "00000000-0000-0000-0000-000000000002"
 
 
 @pytest.mark.parametrize("existing", [False, True])
-def test_response_files(existing: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_response_files(integration_loop: asyncio.Runner, existing: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     script_path = EXAMPLES / "control-device.py"
     namespace = runpy.run_path(str(script_path))
     run = namespace["run"]
@@ -62,7 +62,7 @@ def test_response_files(existing: bool, tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
     monkeypatch.setitem(run.__globals__, "MessageToDict", lambda message, **_options: message)
 
-    assert asyncio.run(run()) == 0
+    assert integration_loop.run(run()) == 0
     for name, expected in [("before", off), ("power-on", on), ("running", on), ("power-off", off), ("after", off)]:
         response = (tmp_path / f"{name}.json").read_text(encoding="utf-8")
         assert json.loads(response) == expected
@@ -79,7 +79,12 @@ def test_response_files(existing: bool, tmp_path: Path, monkeypatch: pytest.Monk
 @pytest.mark.parametrize("script", ["control-test", "control-prompt"])
 @pytest.mark.parametrize("disconnected", [False, True])
 def test_interrupted_submission(
-    script: str, disconnected: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    integration_loop: asyncio.Runner,
+    script: str,
+    disconnected: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     script_path = EXAMPLES / f"{script}.py"
     namespace = runpy.run_path(str(script_path))
@@ -122,7 +127,7 @@ def test_interrupted_submission(
     expected = pytest.raises(RpcError, match="connection lost during cancellation") if disconnected else nullcontext()
     result = None
     with expected:
-        result = asyncio.run(run())
+        result = integration_loop.run(run())
 
     if disconnected:
         execution.wait.assert_not_awaited()
@@ -151,7 +156,7 @@ def test_interrupted_submission(
     assert "Request Key" not in output.out
 
 
-def test_append_cancellation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_append_cancellation(integration_loop: asyncio.Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     script_path = EXAMPLES / "control-prompt.py"
     namespace = runpy.run_path(str(script_path))
     run = namespace["run"]
@@ -175,7 +180,7 @@ def test_append_cancellation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setitem(run.__globals__, "Execution", MagicMock(return_value=execution))
     monkeypatch.setitem(run.__globals__, "OUTPUT_DIRECTORY", tmp_path)
 
-    assert asyncio.run(run()) == 130
+    assert integration_loop.run(run()) == 130
     execution.checkpoint.assert_not_awaited()
     execution.stop.assert_not_awaited()
     execution.export.assert_not_awaited()
@@ -183,7 +188,7 @@ def test_append_cancellation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     cycle.export.assert_awaited_once_with(tmp_path / "cycle.zip", overwrite=False)
 
 
-def test_existing_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_existing_execution(integration_loop: asyncio.Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     script_path = EXAMPLES.parents[1] / "remote_control.py"
     namespace = runpy.run_path(str(script_path))
     run = namespace["run"]
@@ -210,7 +215,7 @@ def test_existing_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     connection.__aexit__ = AsyncMock(return_value=False)
     monkeypatch.setitem(run.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
 
-    assert asyncio.run(run(EXECUTION)) == 1
+    assert integration_loop.run(run(EXECUTION)) == 1
     client.execution.assert_awaited_once_with(EXECUTION)
     execution.start.assert_awaited_once_with()
     response = (tmp_path / "execution.json").read_text(encoding="utf-8")
@@ -221,7 +226,7 @@ def test_existing_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     connection.__aexit__.assert_awaited_once()
 
 
-def test_polling_example(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_polling_example(integration_loop: asyncio.Runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     script_path = EXAMPLES.parents[1] / "client/poll_run.py"
     namespace = runpy.run_path(str(script_path))
     main = namespace["main"]
@@ -252,7 +257,7 @@ def test_polling_example(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     connection.__aexit__ = AsyncMock(return_value=False)
     monkeypatch.setitem(main.__globals__, "DokimeClient", SimpleNamespace(from_pairing=lambda _path: connection))
 
-    asyncio.run(main())
+    integration_loop.run(main())
     cycle.start.assert_awaited_once_with("obc.checks.pulse", sample_count=8)
     execution.start.assert_not_awaited()
     owned.__aexit__.assert_awaited_once()

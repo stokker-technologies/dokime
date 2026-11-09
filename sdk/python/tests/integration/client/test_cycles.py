@@ -50,7 +50,7 @@ from .backend import (
 # === Public Functions === #
 
 
-def test_materialized_attempts() -> None:
+def test_materialized_attempts(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             template = await client.template(TEMPLATE)
@@ -85,10 +85,10 @@ def test_materialized_attempts() -> None:
                 await cycle.append([executions[0], executions[0]])
             assert server.append_calls == 2
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_explicit_cycle() -> None:
+def test_explicit_cycle(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             # Create Without Planning
@@ -113,10 +113,10 @@ def test_explicit_cycle() -> None:
                 await client.create_cycle(label=" ")
             assert server.created == 1 and server.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_append_recovery() -> None:
+def test_append_recovery(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             template = await client.template(TEMPLATE)
@@ -144,10 +144,10 @@ def test_append_recovery() -> None:
             assert server.append_calls == 2
             assert server.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_cycle_seal_waits() -> None:
+def test_cycle_seal_waits(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             cycle = await client.cycle(CYCLE_ID)
@@ -163,11 +163,11 @@ def test_cycle_seal_waits() -> None:
             assert _wire.enum_name((await cycle._snapshot()).phase) == "sealed"
             assert server.run_calls == server.stop_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize("method", ["CreateCycle", "AppendExecutions", "GetCycle"])
-def test_cycle_replay(method: str) -> None:
+def test_cycle_replay(integration_loop: asyncio.Runner, method: str) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             if method == "GetCycle":
@@ -183,10 +183,10 @@ def test_cycle_replay(method: str) -> None:
             assert server.append_calls == (1 if method == "AppendExecutions" else 0)
             assert server.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_admission_recovery() -> None:
+def test_admission_recovery(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.fail_admission = True
@@ -200,10 +200,10 @@ def test_admission_recovery() -> None:
             assert server.created == 1 and server.run_calls == 2
             assert (await recovered.wait()).status == "passed"
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_start_rejected() -> None:
+def test_start_rejected(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.deny_run = True
@@ -211,10 +211,10 @@ def test_start_rejected() -> None:
                 cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
                 await cycle.executions[0].start()
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_unavailable_method() -> None:
+def test_unavailable_method(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.methods["Execution"].remove("StartExecution")
@@ -223,10 +223,10 @@ def test_unavailable_method() -> None:
                 await cycle.executions[0].start()
             assert server.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_start_validation() -> None:
+def test_start_validation(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
@@ -239,10 +239,10 @@ def test_start_validation() -> None:
             assert server.append_calls == 1
             assert server.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_rerun_registration() -> None:
+def test_rerun_registration(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             run_cycle = await prepare(client, suite=SUITE_ID, template=TEMPLATE)
@@ -254,10 +254,10 @@ def test_rerun_registration() -> None:
             assert run_cycle.executions[-1] is rerun
             assert server.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
-def test_restart_boundaries() -> None:
+def test_restart_boundaries(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             server.finish_gate.clear()
@@ -281,7 +281,7 @@ def test_restart_boundaries() -> None:
             with pytest.raises(BackendChanged):
                 await run.checkpoint()
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 # === Private Functions === #

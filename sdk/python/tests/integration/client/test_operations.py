@@ -49,7 +49,7 @@ def test_invalid_external_contract_is_refused() -> None:
 
 
 @pytest.mark.parametrize("mode", ["unary", "client_stream", "server_stream", "bidi"])
-def test_external_operation(mode: str) -> None:
+def test_external_operation(integration_loop: asyncio.Runner, mode: str) -> None:
     async def scenario():
         contract = _contract(mode)
         operation = from_contract(contract)
@@ -194,7 +194,7 @@ def test_external_operation(mode: str) -> None:
             await client.close()
             await server.stop(0)
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 # === Private Functions === #

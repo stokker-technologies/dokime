@@ -35,7 +35,7 @@ from .canonical import _message
 # === Public Functions === #
 
 
-def test_readable_catalog() -> None:
+def test_readable_catalog(integration_loop: asyncio.Runner) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             # Suites and Templates List and Resolve by Their Readable IDs
@@ -50,7 +50,7 @@ def test_readable_catalog() -> None:
             assert server.append_calls == 0
             assert server.created == server.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 @pytest.mark.parametrize(
@@ -62,7 +62,7 @@ def test_readable_catalog() -> None:
         ("invalid", None),
     ],
 )
-def test_suite_page_refused(page: str, continuation: str | None) -> None:
+def test_suite_page_refused(integration_loop: asyncio.Runner, page: str, continuation: str | None) -> None:
     async def scenario() -> None:
         async with serve() as (server, client):
             valid = _suite(SUITE_ID)
@@ -97,7 +97,7 @@ def test_suite_page_refused(page: str, continuation: str | None) -> None:
             await reader.aclose()
             assert server.created == server.run_calls == 0
 
-    asyncio.run(scenario())
+    integration_loop.run(scenario())
 
 
 # === Private Functions === #
