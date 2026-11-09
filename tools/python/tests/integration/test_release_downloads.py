@@ -15,6 +15,7 @@ import hashlib
 import json
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -125,12 +126,49 @@ class DownloadManifestTests(unittest.TestCase):
 
 
 class StageTests(unittest.TestCase):
+    def test_stage_requires_packaged_notices(self):
+        for missing_archive in (True, False):
+            with self.subTest(missing_archive=missing_archive), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                package = root / "target/package/release/windows-x86_64/rust/dokime-distribution-0.1.3-x86_64-pc-windows-msvc.zip"
+                if not missing_archive:
+                    package.parent.mkdir(parents=True)
+                    with zipfile.ZipFile(package, "w") as bundle:
+                        bundle.writestr("NOTICE", b"fixture")
+                with (
+                    mock.patch.object(run.layout, "triple", return_value="x86_64-pc-windows-msvc"),
+                    self.assertRaises(policy.ToolError) as failure,
+                ):
+                    run.stage(root, SETTINGS, "v0.1.3", ["windows-x86_64"], profile="release", release_notes="notes")
+                self.assertIn(str(package), str(failure.exception))
+                if not missing_archive:
+                    self.assertIn("THIRD-PARTY-NOTICES", str(failure.exception))
+
+    def test_packaged_notices_must_match_between_platforms(self):
+        for matching in (True, False):
+            with self.subTest(matching=matching), tempfile.TemporaryDirectory() as directory:
+                sources = [Path(directory) / name for name in ("windows.zip", "linux.zip")]
+                for index, source in enumerate(sources):
+                    with zipfile.ZipFile(source, "w") as bundle:
+                        bundle.writestr("NOTICE", b"fixture")
+                        bundle.writestr("THIRD-PARTY-NOTICES", b"licenses" if matching or index == 0 else b"different")
+                if matching:
+                    self.assertEqual(run.notices.packaged(sources), {"NOTICE": b"fixture", "THIRD-PARTY-NOTICES": b"licenses"})
+                else:
+                    with self.assertRaises(policy.ToolError) as failure:
+                        run.notices.packaged(sources)
+                    for source in sources:
+                        self.assertIn(str(source), str(failure.exception))
+
     def test_stage_publishes_downloads_beside_an_unchanged_latest_json(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             feed = b'{"version":"0.1.3","platforms":{"windows-x86_64":{"url":"u","signature":"s"}}}'
-            for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
-                (root / name).write_text("fixture")
+            package = root / "target/package/release/windows-x86_64/rust/dokime-distribution-0.1.3-x86_64-pc-windows-msvc.zip"
+            package.parent.mkdir(parents=True)
+            with zipfile.ZipFile(package, "w") as bundle:
+                for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+                    bundle.writestr(name, b"fixture\n")
             shell_inventory = root / "target/release-assets/any/dokime-shell.cdx.json"
 
             def artifact(_, source, output, inventories):
@@ -154,7 +192,7 @@ class StageTests(unittest.TestCase):
             settings = {**SETTINGS, "targets": ["windows-x86_64"]}
             config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime"}]}}
             with (
-                mock.patch.object(run.notices, "generate"),
+                mock.patch.object(run.notices, "generate", side_effect=AssertionError("staging must not generate notices")),
                 mock.patch.object(run.sbom, "shell", side_effect=shell),
                 mock.patch.object(run.sbom, "workspace", return_value=[]),
                 mock.patch.object(run.sbom, "artifact", side_effect=artifact),
@@ -167,6 +205,9 @@ class StageTests(unittest.TestCase):
                     root, settings, "v0.1.3", ["windows-x86_64"], profile="release", release_notes="notes\n", channel="nightly"
                 )
             staged = root / run.ASSETS
+            for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+                self.assertEqual((staged / run.SHARED / name).read_bytes(), b"fixture\n")
+                self.assertFalse((root / name).exists())
             self.assertEqual((staged / "windows-x86_64" / "latest.json").read_bytes(), feed)
             sums = (staged / run.SHARED / run.SUMS).read_text(encoding="utf-8")
             self.assertNotIn(run.DOWNLOADS, sums)

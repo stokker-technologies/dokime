@@ -189,6 +189,25 @@ def shell_notices(document: dict) -> tuple[str, int]:
     return "\n\n".join(sections), len(inventory)
 
 
+def packaged(sources: list[Path]) -> dict[str, bytes]:
+    """Read Matching Product Notices From Every Packaged Distribution."""
+    result = {}
+    for source in sources:
+        if not source.is_file():
+            raise policy.ToolError(f"missing packaged notices artifact: {source}; restore the matching Rust Package artifact")
+        with zipfile.ZipFile(source) as bundle:
+            for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+                if bundle.namelist().count(name) != 1:
+                    raise policy.ToolError(f"missing or duplicate {name} in package artifact {source}; rerun its Package job")
+                content = bundle.read(name)
+                if name in result and result[name] != content:
+                    raise policy.ToolError(f"packaged {name} differs between {sources[0]} and {source}; rebuild matching Package artifacts")
+                result[name] = content
+    if not result:
+        raise policy.ToolError("packaged notices require at least one target distribution")
+    return result
+
+
 def stage(directory: Path, destination: Path) -> None:
     """Ship Notices in the Installer's Installed LICENSE and Portable Layout."""
     manifest = destination / "distribution.json"

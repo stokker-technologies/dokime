@@ -158,7 +158,13 @@ def stage(
     """Copy Each Target's Release Downloads Into Its target/release-assets/<target>/ And Their SHA256SUMS Into any/."""
     profile = policy.profile() if profile is None else profile
     root = _root(directory)
-    notices.generate(directory)
+    distributions = [
+        paths.output(directory, "package", profile, selected)
+        / "rust"
+        / f"{settings['product']}-distribution-{tag[1:]}-{layout.triple(directory, settings, selected)}.zip"
+        for selected in targets
+    ]
+    packaged_notices = notices.packaged(distributions)
     # Only the staged targets and the shared checksums are replaced; another target's staging stays untouched.
     for owned in [*targets, SHARED]:
         destination = policy.inside(root, owned)
@@ -166,6 +172,10 @@ def stage(
             raise policy.ToolError("unsafe release staging target")
         if destination.exists():
             shutil.rmtree(destination)
+    shared = root / SHARED
+    shared.mkdir(parents=True)
+    for name, content in packaged_notices.items():
+        (shared / name).write_bytes(content)
     files = []
     plugins = layout.plugins(directory, settings, tag, targets, profile)
     for selected in targets:
@@ -181,11 +191,10 @@ def stage(
             destination = policy.inside(root / selected, asset["name"])
             shutil.copyfile(policy.inside(directory, asset["path"]), destination)
             if destination.name.startswith(("dokime-cli-", "cargo-dokime-")) and destination.name.endswith((".zip", ".tar.gz")):
-                notices.archive(directory, destination)
+                notices.archive(shared, destination)
             files.append(_describe(root, destination))
-    (root / SHARED).mkdir(parents=True)
     for destination in layout.plugin_archives(directory, root, plugins):
-        notices.archive(directory, destination)
+        notices.archive(shared, destination)
         if any(item["name"].casefold() == destination.name.casefold() for item in files):
             raise policy.ToolError(f"release download names collide across targets: {destination.name}")
         files.append(_describe(root, destination))
@@ -201,7 +210,6 @@ def stage(
         files.append(_describe(root, feed))
     for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
         destination = root / SHARED / name
-        shutil.copyfile(directory / name, destination)
         files.append(_describe(root, destination))
     shell_inventory = sbom.shell(directory, root / SHARED)
     files.append(_describe(root, shell_inventory))

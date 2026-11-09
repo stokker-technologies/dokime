@@ -194,3 +194,11 @@ Run targeted tasks locally for changed behavior. Hosted CI and Nightly provide
 full validation across the declared platforms.
 
 Nightly runs every four hours or on manual dispatch, serializes runs without cancelling an active run, and skips scheduled heads already published or heads with another in-progress or queued Nightly run.
+
+Release staging reads `NOTICE` and `THIRD-PARTY-NOTICES` from each target's
+`target/package/<profile>/<target>/rust/dokime-distribution-<version>-<triple>.zip`.
+Package jobs already include these ZIPs in their Rust artifacts. Staging requires
+byte-identical notices across targets and fails with the artifact path if a copy
+is missing or differs. Both Nightly and stable publication reuse these bytes for
+the shared notice downloads and CLI and sidecar archives; publication does not
+regenerate notices or require GUI `node_modules` for them.
