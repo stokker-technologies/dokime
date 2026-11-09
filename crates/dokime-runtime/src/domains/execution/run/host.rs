@@ -46,6 +46,12 @@ pub(crate) struct Embedded {
     execution: String,
 }
 
+#[derive(Clone)]
+pub(crate) struct ObserverEvidence {
+    sessions: Arc<Sessions>,
+    source: String,
+}
+
 struct Serving(Arc<Sessions>);
 
 struct AttemptEvidence(Arc<Sessions>);
@@ -91,6 +97,27 @@ impl harmos::operations::middleware::Middleware for AttemptEvidence {
             session.record_operation_attempt(&scope.stage, call, observation).await;
             Ok(())
         })
+    }
+}
+
+impl ObserverEvidence {
+    pub(crate) fn new(sessions: Arc<Sessions>, source: String) -> Self {
+        Self { sessions, source }
+    }
+}
+
+impl harmos::sidecar::ObserverHost for ObserverEvidence {
+    fn bind(resources: Arc<harmos::ExecutionContext>, _: harmos::sidecar::Supervisor) -> Self {
+        resources.resource::<Self>().expect("observer evidence is registered before binding").as_ref().clone()
+    }
+
+    fn report_cadence(&self, report: &harmos::__private::sidecar::CadenceReport) {
+        let sessions = self.sessions.lock().values().cloned().collect::<Vec<_>>();
+        for session in sessions {
+            if session.observe_cadence(&self.source, report) {
+                tokio::spawn(async move { session.flush_cadence().await });
+            }
+        }
     }
 }
 
