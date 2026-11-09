@@ -71,6 +71,20 @@ only. Dev pushes save the dev Product and Tests caches; Nightly on dev runs in
 `COMPILER_CACHE_KIND`; `.github/actions/save-caches` enforces the Tests and Bench
 save policy. The workflows own producer selection.
 
+## Benchmark Baselines
+
+Nightly Rust System and Integration benchmarks restore baselines by branch,
+OS, architecture and leaf: `ci-v6-bench-baselines-<os>-<arch>-<branch>-bench-rust-<leaf>`.
+Restore prefixes try that identity first, then the former v5 identity containing
+`hash(mise.lock)`. Successful Nightlies on dev save refreshed measurements with
+run ID and attempt suffixes, so immutable caches retain the latest baseline.
+The restore identity no longer changes with the source revision or lock file.
+
+`mise run bench:rust:<leaf> --refresh-baseline` seeds missing native baselines
+and emits a `::notice::` naming each benchmark. Without refresh, a missing
+baseline fails and names the refresh command. Existing baselines retain their
+regression comparison and threshold; failed benchmark executions still fail.
+
 ## Native Python SDK Builds
 
 `sdk/python` contains native Rust client, backend and callback wrappers, Python authoring declarations, contexts and readers. The `dokime-python` distribution and `dokime` import names are provisional; registry publication is refused until naming is settled.
