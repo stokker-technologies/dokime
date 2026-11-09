@@ -4621,6 +4621,7 @@ jobs:
       uses: ./.github/actions/extract-build
       with:
         command: "[\"mise\",\"exec\",\"--\",\"uv\",\"run\",\"--locked\",\"--project\",\"tools/python\",\"python\",\"-m\",\"dokime_tools.ci.artifacts\",\"extract\",\"--archive\",\"target/ci/package-${{ env.PROFILE }}-rust-unix.tar.zst\",\"--profile\",\"${{ env.PROFILE }}\"]"
+    # Staging reads matching notices from both extracted Rust distribution ZIPs.
     - name: Stage And Publish Nightly
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
