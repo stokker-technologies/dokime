@@ -115,6 +115,25 @@ fn pairing(key: char) -> dokime_domain::model::remote::PairingFile {
 
 /* === Tests === */
 
+#[test]
+fn rejected_profile_read_preserves_file_and_schema_cause() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("backends.json");
+    let store = Store::new(&path);
+    assert!(store.load().unwrap().profiles.is_empty());
+    assert!(!path.exists());
+    let bytes = br#"{"unexpected": true, "profiles": []}"#;
+    std::fs::write(&path, bytes).unwrap();
+    let error = store.load().unwrap_err();
+    let Error::FileSchema { path: actual, source } = &error else { panic!("{error:?}") };
+    assert_eq!(actual, &path);
+    assert!(error.to_string().contains(path.to_str().unwrap()));
+    assert!(source.to_string().contains("unexpected"));
+    assert_eq!(std::error::Error::source(&error).unwrap().to_string(), source.to_string());
+    assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+}
+
 #[dokime_tracing::trace_test]
 #[test]
 fn profiles() {

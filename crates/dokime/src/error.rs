@@ -91,6 +91,9 @@ impl From<dokime_client::profiles::Error> for Error {
     fn from(error: dokime_client::profiles::Error) -> Self {
         match error {
             dokime_client::profiles::Error::Invalid(message) => Self::Input(message),
+            dokime_client::profiles::Error::Schema { ref source } | dokime_client::profiles::Error::FileSchema { ref source, .. } => {
+                Self::Input(format!("{error}: {source}"))
+            }
             dokime_client::profiles::Error::Io(error) => error.into(),
             dokime_client::profiles::Error::Filesystem(error) => std::io::Error::from(error).into(),
             dokime_client::profiles::Error::Secrets(error) => error.into(),
