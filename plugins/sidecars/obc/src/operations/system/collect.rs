@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 // Third Party Imports
@@ -70,7 +70,20 @@ impl Operation for CollectSystem {
     type Error = Refusal;
     async fn run(self, ctx: Context<'_, Self>) -> Result<Response<SystemReading>, Refusal> {
         let collector = ctx.resource::<Collector>();
-        let mut state = dokime::plugin::refusal(collector.machine.lock().map_err(|_| crate::Error::DeviceResourcePoisoned))?;
+        let row = collector.refresh().await?;
+        Ok(Response::new(row))
+    }
+}
+
+impl Collector {
+    pub(crate) async fn refresh(self: &Arc<Self>) -> Result<SystemReading, Refusal> {
+        let collector = Arc::clone(self);
+        let task = tokio::task::spawn_blocking(move || collector.collect());
+        dokime::plugin::refusal(task.await)?
+    }
+
+    fn collect(&self) -> Result<SystemReading, Refusal> {
+        let mut state = dokime::plugin::refusal(self.machine.lock().map_err(|_| crate::Error::DeviceResourcePoisoned))?;
         if state.is_none() {
             *state = Some(dokime::plugin::refusal(System::new())?);
         }
@@ -83,7 +96,7 @@ impl Operation for CollectSystem {
             system_cpu_percent: f64::from(machine.global_cpu_usage()),
             system_memory_used_bytes: integer(machine.used_memory()),
         };
-        Ok(Response::new(row))
+        Ok(row)
     }
 }
 
