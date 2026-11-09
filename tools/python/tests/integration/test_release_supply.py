@@ -17,10 +17,12 @@ import hashlib
 import io
 import json
 import os
+import ssl
 import subprocess
 import tempfile
 import tomllib
 import unittest
+import urllib.error
 import zipfile
 from datetime import date
 from pathlib import Path
@@ -164,8 +166,10 @@ class SupplyTests(unittest.TestCase):
             ]
         }
         with (
+            mock.patch.object(notices.os, "walk", return_value=[]),
+            mock.patch.object(policy, "execute", return_value="unused-cache"),
             mock.patch("urllib.request.urlopen", return_value=io.BytesIO(b"changed")),
-            self.assertRaisesRegex(policy.ToolError, "hash mismatch"),
+            self.assertRaisesRegex(policy.ToolError, "hash mismatch.*https://example.invalid/wheel"),
         ):
             notices.python_notices(lock)
 
@@ -185,10 +189,49 @@ class SupplyTests(unittest.TestCase):
                 }
             ]
         }
-        with mock.patch("urllib.request.urlopen", return_value=io.BytesIO(data)):
-            text, count = notices.python_notices(lock)
+        for cached in (False, True):
+            with self.subTest(cached=cached), tempfile.TemporaryDirectory() as temporary:
+                if cached:
+                    (Path(temporary) / hashlib.sha256(data).hexdigest()).write_bytes(data)
+                with (
+                    mock.patch.dict(os.environ, {"UV_CACHE_DIR": temporary}),
+                    mock.patch("urllib.request.urlopen", side_effect=[ssl.SSLEOFError("dropped"), io.BytesIO(data)]) as opener,
+                    mock.patch.object(notices.time, "sleep") as sleep,
+                ):
+                    text, count = notices.python_notices(lock)
+                self.assertEqual(count, 1)
+                self.assertIn("fixture license text", text)
+                self.assertEqual(opener.call_count, 0 if cached else 2)
+                self.assertEqual(sleep.call_count, 0 if cached else 1)
+
+    def test_notice_download_http_status_and_retry_exhaustion(self):
+        url = "https://example.invalid/license"
+        for status, attempts in ((404, 1), (503, 3)):
+            with (
+                self.subTest(status=status),
+                mock.patch.object(notices, "DOWNLOAD_ATTEMPTS", 3),
+                mock.patch("urllib.request.urlopen", side_effect=urllib.error.HTTPError(url, status, "failure", {}, None)) as opener,
+                mock.patch.object(notices.time, "sleep") as sleep,
+                self.assertRaisesRegex(policy.ToolError, f"{url} after {attempts} attempts:.*{status}"),
+            ):
+                notices.download(url)
+            self.assertEqual(opener.call_count, attempts)
+            self.assertEqual(sleep.call_count, attempts - 1)
+
+    def test_shell_notice_download_retries_read_failure(self):
+        url = "https://example.invalid/license"
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.side_effect = TimeoutError("dropped body")
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            mock.patch.dict(notices.SHELL_LICENSE_SOURCES, {("dependency", "1"): url}),
+            mock.patch("urllib.request.urlopen", side_effect=[response, io.BytesIO(b"license bytes")]) as opener,
+            mock.patch.object(notices.time, "sleep"),
+        ):
+            text, count = notices.shell_notices({"MIT": [{"name": "dependency", "version": "1", "paths": [temporary]}]})
         self.assertEqual(count, 1)
-        self.assertIn("fixture license text", text)
+        self.assertIn("license bytes", text)
+        self.assertEqual(opener.call_count, 2)
 
     def test_shell_missing_license_text_fails(self):
         with tempfile.TemporaryDirectory() as temporary, self.assertRaises(policy.ToolError):

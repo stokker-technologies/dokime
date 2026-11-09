@@ -16,13 +16,19 @@ import base64
 import csv
 import email.parser
 import hashlib
+import http.client
 import io
 import json
+import os
+import random
 import shutil
 import sys
 import tarfile
 import tempfile
+import time
 import tomllib
+import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -39,6 +45,12 @@ from . import policy, sbom
 # === Public Exports === #
 
 # === Constants === #
+
+# Six Attempts Absorb Brief Registry Outages Without Blocking Packaging Indefinitely.
+DOWNLOAD_ATTEMPTS = 6
+# Start at Two Seconds to Let Dropped Connections Recover Before Retrying.
+DOWNLOAD_BASE_DELAY_S = 2
+DOWNLOAD_MAX_DELAY_S = 30
 
 # These Published npm Versions Omit Standalone License Files.
 SHELL_LICENSE_SOURCES = {
@@ -60,10 +72,37 @@ SHELL_LICENSE_SOURCES = {
 # === Public Functions === #
 
 
+def download(url: str) -> bytes:
+    """Fetch Complete Bytes with Bounded Retries for Transient Network Failures."""
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as response:
+                return response.read()
+        except (OSError, urllib.error.URLError, http.client.HTTPException) as error:
+            retry = not isinstance(error, urllib.error.HTTPError) or 500 <= error.code < 600
+            if isinstance(error, urllib.error.HTTPError):
+                error.close()
+            if not retry or attempt == DOWNLOAD_ATTEMPTS:
+                raise policy.ToolError(f"download failed: {url} after {attempt} attempts: {error}") from error
+            delay_s = min(DOWNLOAD_MAX_DELAY_S, DOWNLOAD_BASE_DELAY_S * 2 ** (attempt - 1))
+            time.sleep(random.uniform(delay_s / 2, delay_s))
+    raise AssertionError("unreachable download attempt")
+
+
 def python_notices(lock: dict) -> tuple[str, int]:
     """Read License Metadata and Text from Hash-Verified Wheels Named by uv.lock."""
     sections = ["Python Locked Dependency Notices (Including Build and Development Tools)"]
     count = 0
+    cache_hits = 0
+    downloads = 0
+    cache = Path(os.environ.get("UV_CACHE_DIR") or policy.execute(Path.cwd(), ["uv", "cache", "dir"], capture=True).strip())
+    hashes = {wheel["hash"].removeprefix("sha256:") for package in lock["package"] for wheel in package.get("wheels", [])}
+    cached = {}
+    # uv Usually Stores Unpacked Wheels; Only Original Archives Can Be Hash-Verified.
+    for directory, _, files in os.walk(cache):
+        for name in files:
+            if name.endswith(".whl") or name in hashes:
+                cached.setdefault(name, []).append(Path(directory) / name)
     for package in lock["package"]:
         if "registry" not in package.get("source", {}):
             continue
@@ -71,11 +110,23 @@ def python_notices(lock: dict) -> tuple[str, int]:
         if not wheels:
             raise policy.ToolError(f"no locked wheel available for license inventory: {package['name']}")
         wheel = min(wheels, key=lambda item: item.get("size", 0))
-        with urllib.request.urlopen(wheel["url"], timeout=60) as response:
-            data = response.read()
+        digest = wheel["hash"].removeprefix("sha256:")
+        filename = Path(urllib.parse.unquote(urllib.parse.urlsplit(wheel["url"]).path)).name
+        candidates = cached.get(digest, []) + cached.get(filename, [])
+        data = None
+        for candidate in candidates:
+            contents = candidate.read_bytes()
+            if hashlib.sha256(contents).hexdigest() == digest:
+                data = contents
+                break
+        if data is None:
+            data = download(wheel["url"])
+            downloads += 1
+        else:
+            cache_hits += 1
         actual = "sha256:" + hashlib.sha256(data).hexdigest()
         if actual != wheel["hash"]:
-            raise policy.ToolError(f"locked wheel hash mismatch: {package['name']}")
+            raise policy.ToolError(f"locked wheel hash mismatch: {package['name']} ({wheel['url']})")
         sections.append(f"\n{package['name']} {package['version']}")
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             metadata_name = next(name for name in archive.namelist() if name.endswith(".dist-info/METADATA"))
@@ -97,6 +148,7 @@ def python_notices(lock: dict) -> tuple[str, int]:
             for name in sorted(files):
                 sections.append(archive.read(name).decode("utf-8"))
         count += 1
+    print(f"Python wheels: {cache_hits} cache hits, {downloads} downloads", file=sys.stderr)
     return "\n\n".join(sections), count
 
 
@@ -121,8 +173,7 @@ def shell_notices(document: dict) -> tuple[str, int]:
                     url = SHELL_LICENSE_SOURCES.get((package["name"], version))
                     if url is None:
                         raise policy.ToolError(f"missing shell license text: {package['name']}")
-                    with urllib.request.urlopen(url, timeout=60) as response:
-                        texts.add(f"License Source: {url}\n\n" + response.read().decode("utf-8"))
+                    texts.add(f"License Source: {url}\n\n" + download(url).decode("utf-8"))
             if package["name"] == "@bufbuild/protobuf":
                 for path in package["paths"]:
                     for relative in ("dist/esm/index.js", "dist/esm/wire/varint.js"):

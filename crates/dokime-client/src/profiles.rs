@@ -63,6 +63,20 @@ pub enum Error {
     #[error("Invalid backend profiles: {0}")]
     Invalid(String),
 
+    #[error("Backend profiles do not match the current schema")]
+    Schema {
+        #[source]
+        source: serde_json::Error,
+    },
+
+    #[error("Backend profiles at {path} do not match the current schema; move the file aside and add the backend again, or fix the field named below", path = path.display())]
+    FileSchema {
+        path: PathBuf,
+
+        #[source]
+        source: serde_json::Error,
+    },
+
     #[error("Backend profile configuration is busy; retry the edit.")]
     Busy,
 
@@ -196,7 +210,10 @@ impl Store {
         self.parent()?;
 
         match harmos::filesystem::input::read(&self.path, PROFILE_BYTES as usize) {
-            Ok(bytes) => decode(&bytes),
+            Ok(bytes) => decode(&bytes).map_err(|error| match error {
+                Error::Schema { source } => Error::FileSchema { path: self.path.clone(), source },
+                error => error,
+            }),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Document::default()),
             Err(error) => Err(error.into()),
         }
@@ -250,7 +267,7 @@ pub fn decode(bytes: &[u8]) -> Result<Document, Error> {
     if bytes.len() as u64 > PROFILE_BYTES {
         return Err(invalid("file exceeds the configured profile byte limit"));
     }
-    let document: Document = serde_json::from_slice(bytes).map_err(|_| invalid("file does not match the profile schema"))?;
+    let document: Document = serde_json::from_slice(bytes).map_err(|source| Error::Schema { source })?;
     validate(&document)?;
     Ok(document)
 }
