@@ -30,7 +30,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 
 // Local Imports
-use dokime::config::organization::policy;
+use dokime::config::organization::{ResolvedPack, policy};
 
 /* === Constants === */
 
@@ -345,7 +345,11 @@ fn base_boot(error: Option<String>) -> Boot {
     match dokime::config::organization::resolve(None).and_then(loaded) {
         Ok(pack) => Boot { pack: Some(pack), error, active: false },
         Err(base) => {
-            let base = format!("the bundled organization could not be loaded: {base}");
+            let location = dokime::config::organization::installation_directory();
+            let location = location.as_deref().map_or_else(|| "embedded resources".to_owned(), |path| path.display().to_string());
+            let base = format!(
+                "the bundled organization could not be loaded from {location}; repair the organization files or reinstall the application: {base}"
+            );
             let error = error.map_or_else(|| base.clone(), |error| format!("{error}; {base}"));
             Boot {
                 pack: None,
@@ -358,23 +362,31 @@ fn base_boot(error: Option<String>) -> Boot {
 
 fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
     if !destination.exists() {
-        return std::fs::rename(source, destination).map_err(|error| error.to_string());
+        return std::fs::rename(source, destination).map_err(|error| {
+            format!("could not move {} to {}; check both folders and write permissions: {error}", source.display(), destination.display())
+        });
     }
 
     // Keep The Previous Pack On Disk Until Publication Succeeds.
-    let root = destination.parent().ok_or("the pack destination has no parent directory")?;
+    let root = destination
+        .parent()
+        .ok_or_else(|| format!("could not replace {}; choose a pack destination with a parent directory", destination.display()))?;
     let mut builder = tempfile::Builder::new();
     builder.prefix(".previous-");
-    let backup = builder.tempdir_in(root).map_err(|error| error.to_string())?;
+    let backup = builder.tempdir_in(root).map_err(|error| {
+        format!("could not create a pack backup in {}; check the folder and write permissions: {error}", root.display())
+    })?;
     let previous = backup.path().join(ACTIVE);
-    std::fs::rename(destination, &previous).map_err(|error| error.to_string())?;
+    std::fs::rename(destination, &previous).map_err(|error| {
+        format!("could not back up {} to {}; check write permissions: {error}", destination.display(), previous.display())
+    })?;
     let backup = backup.keep();
 
     let error = match std::fs::rename(source, destination) {
         Ok(()) => {
             let cleanup = std::fs::remove_dir_all(&backup);
             if let Err(error) = cleanup {
-                tracing::warn!(%error, path = %backup.display(), "the replaced organization pack remains on disk");
+                tracing::warn!(%error, path = %backup.display(), "could not remove the replaced organization pack; check write permissions and remove this backup manually");
             }
             return Ok(());
         }
@@ -382,28 +394,41 @@ fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
     };
     if let Err(restore) = std::fs::rename(&previous, destination) {
         let retained = previous.display();
-        return Err(format!("{error}; restoring the previous pack failed: {restore}; it remains at {retained}"));
+        return Err(format!(
+            "could not move {} to {}: {error}; restoring the previous pack failed: {restore}; restore {retained} manually after checking write permissions",
+            source.display(),
+            destination.display()
+        ));
     }
-    let _ = std::fs::remove_dir(&backup);
-    Err(error.to_string())
+    if let Err(cleanup) = remove_folder(&backup) {
+        tracing::warn!(%cleanup, "organization backup cleanup failed after restoring the previous pack");
+    }
+    Err(format!("could not move {} to {}; check both folders and write permissions: {error}", source.display(), destination.display()))
 }
 
 // Validates an archive, extracts it beside the packs and replaces the pending pack only when it loads.
 fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
-    let metadata = std::fs::metadata(archive).map_err(|error| error.to_string())?;
+    let metadata = std::fs::metadata(archive)
+        .map_err(|error| format!("could not inspect {}; check the path and permissions: {error}", archive.display()))?;
     if metadata.len() > DESKTOP_ORGANIZATION_ARCHIVE_BYTES {
         return Err(format!("the organization pack exceeds {} MiB", DESKTOP_ORGANIZATION_ARCHIVE_BYTES / 1024 / 1024));
     }
-    let bytes = std::fs::read(archive).map_err(|error| error.to_string())?;
+    let bytes =
+        std::fs::read(archive).map_err(|error| format!("could not read {}; check the path and permissions: {error}", archive.display()))?;
     let files = validate_archive(&bytes)?;
-    std::fs::create_dir_all(root).map_err(|error| error.to_string())?;
-    let staging = tempfile::Builder::new().prefix(".staging-").tempdir_in(root).map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(root)
+        .map_err(|error| format!("could not create {}; check the path and permissions: {error}", root.display()))?;
+    let staging = tempfile::Builder::new().prefix(".staging-").tempdir_in(root).map_err(|error| {
+        format!("could not stage an organization pack in {}; check the folder and write permissions: {error}", root.display())
+    })?;
     for (relative, contents) in &files {
         let path = staging.path().join(relative);
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            std::fs::create_dir_all(parent)
+                .map_err(|error| format!("could not create {}; check the path and permissions: {error}", parent.display()))?;
         }
-        std::fs::write(&path, contents).map_err(|error| error.to_string())?;
+        std::fs::write(&path, contents)
+            .map_err(|error| format!("could not write {}; check the path and permissions: {error}", path.display()))?;
     }
     let summary = load(staging.path())?.summary();
     let pending = root.join(PENDING);
@@ -495,14 +520,13 @@ fn manifest_location<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Re
 
 // Reads an extracted pack the way the frontend applies it; any missing or unsafe reference fails it whole.
 fn load(dir: &Path) -> Result<LoadedPack, String> {
-    let pack = dokime::config::organization::resolve(Some(dir))?;
+    let pack = dokime::config::organization::resolve(Some(dir))
+        .map_err(|error| format!("could not load organization pack at {}; check its files and read permissions: {error}", dir.display()))?;
     loaded(pack)
 }
 
-fn loaded(pack: dokime::config::organization::ResolvedPack) -> Result<LoadedPack, String> {
-    let staging = tempfile::tempdir().map_err(|error| error.to_string())?;
-    pack.write_to(staging.path())?;
-    let mut loaded = load_resolved(staging.path())?;
+fn loaded(pack: ResolvedPack) -> Result<LoadedPack, String> {
+    let mut loaded = load_resolved(&pack)?;
     loaded.application_icon = pack.asset("application").map(|(_, bytes)| bytes.to_vec());
     loaded.tray_icon = pack.asset("tray").map(|(_, bytes)| bytes.to_vec());
     for bytes in [&loaded.application_icon, &loaded.tray_icon].into_iter().flatten() {
@@ -511,12 +535,9 @@ fn loaded(pack: dokime::config::organization::ResolvedPack) -> Result<LoadedPack
     Ok(loaded)
 }
 
-fn load_resolved(dir: &Path) -> Result<LoadedPack, String> {
-    let text = std::fs::read_to_string(dir.join(MANIFEST)).map_err(|error| format!("organization.toml could not be read: {error}"))?;
-    let manifest: Manifest = toml::from_str(&text).map_err(|error: toml::de::Error| {
-        let position = error.span().map_or(0, |span| span.start);
-        format!("organization.toml does not parse near byte {position}")
-    })?;
+fn load_resolved(pack: &ResolvedPack) -> Result<LoadedPack, String> {
+    let manifest: Manifest =
+        pack.manifest.clone().try_into().map_err(|_| "organization.toml could not be decoded; correct the pack manifest")?;
     if let Some(updates) = &manifest.updates {
         updates.validate()?;
     }
@@ -527,7 +548,7 @@ fn load_resolved(dir: &Path) -> Result<LoadedPack, String> {
     let mut logos = BTreeMap::new();
     for (treatment, surface, variant) in LOGO_VARIANTS {
         let Some(file) = app.logos.get(treatment).and_then(|surfaces| surfaces.get(surface)) else { continue };
-        let bytes = read_inside(dir, file)?;
+        let bytes = read_inside(pack, file)?;
         let mime = match Path::new(file).extension().and_then(|extension| extension.to_str()) {
             Some("svg") => "image/svg+xml",
             Some("png") => "image/png",
@@ -540,11 +561,11 @@ fn load_resolved(dir: &Path) -> Result<LoadedPack, String> {
     }
     let mut css = String::new();
     for file in THEME_FILES {
-        if !dir.join(file).is_file() {
+        if !pack.files.contains_key(file) {
             continue;
         }
-        let source = String::from_utf8(read_inside(dir, file)?).map_err(|_| format!("{file} is not UTF-8"))?;
-        css.push_str(&format!("/* {file} */\n{}\n", inline_urls(dir, file, &source)?));
+        let source = std::str::from_utf8(read_inside(pack, file)?).map_err(|_| format!("{file} is not UTF-8"))?;
+        css.push_str(&format!("/* {file} */\n{}\n", inline_urls(pack, file, source)?));
         if file == "theme/base.css" {
             css.push_str(&corner_radii(manifest.theme.as_ref()));
         }
@@ -576,7 +597,7 @@ fn corner_radii(theme: Option<&ThemeSection>) -> String {
 }
 
 // Inlines local font and image references; the theme never reaches the network or leaves the pack.
-fn inline_urls(dir: &Path, file: &str, css: &str) -> Result<String, String> {
+fn inline_urls(pack: &ResolvedPack, file: &str, css: &str) -> Result<String, String> {
     let stripped = strip_comments(css)?;
     let css = stripped.as_str();
     if css.to_ascii_lowercase().contains("@import") {
@@ -598,7 +619,7 @@ fn inline_urls(dir: &Path, file: &str, css: &str) -> Result<String, String> {
                 Some("png") => "image/png",
                 _ => return Err(format!("{file} references an unsupported file: {raw}")),
             };
-            let bytes = read_inside(dir, raw)?;
+            let bytes = read_inside(pack, raw)?;
             output.push_str(&format!("url(\"data:{mime};base64,{}\")", BASE64.encode(bytes)));
         }
         rest = &after[end + 1..];
@@ -621,17 +642,23 @@ fn strip_comments(css: &str) -> Result<String, String> {
 }
 
 // Reads a pack-relative path that cannot escape the pack folder.
-fn read_inside(dir: &Path, relative: &str) -> Result<Vec<u8>, String> {
+fn read_inside<'a>(pack: &'a ResolvedPack, relative: &str) -> Result<&'a [u8], String> {
     let path = Path::new(relative);
     if relative.contains(':') || path.components().any(|component| !matches!(component, Component::Normal(_))) {
         return Err(format!("unsafe path in the organization pack: {relative}"));
     }
-    std::fs::read(dir.join(path)).map_err(|error| format!("{relative} could not be read: {error}"))
+    let relative = relative.replace('\\', "/");
+    pack.files
+        .get(&relative)
+        .map(Vec::as_slice)
+        .ok_or_else(|| format!("{relative} is missing from the organization pack; add the referenced file"))
 }
 
 fn remove_folder(path: &Path) -> Result<(), String> {
     match std::fs::remove_dir_all(path) {
-        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(format!("{} could not be removed: {error}", path.display())),
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+            Err(format!("could not remove {}; check write permissions and retry: {error}", path.display()))
+        }
         _ => Ok(()),
     }
 }
@@ -676,6 +703,14 @@ pub(crate) mod testing {
             error: booted.error.as_deref(),
         })
         .unwrap()
+    }
+
+    pub(crate) fn inspect_resolved(pack: ResolvedPack) -> Result<serde_json::Value, String> {
+        serde_json::to_value(loaded(pack)?).map_err(|error| error.to_string())
+    }
+
+    pub(crate) fn inspect_css(pack: &ResolvedPack, css: &str) -> Result<String, String> {
+        inline_urls(pack, "theme/base.css", css)
     }
 
     pub(crate) fn inspect_pack(path: &Path) -> Result<serde_json::Value, String> {
