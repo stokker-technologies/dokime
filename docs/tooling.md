@@ -192,3 +192,5 @@ the override with `Remove-Item Env:RUSTC_WRAPPER`.
 
 Run targeted tasks locally for changed behavior. Hosted CI and Nightly provide
 full validation across the declared platforms.
+
+Nightly runs every four hours or on manual dispatch, serializes runs without cancelling an active run, and skips scheduled heads already published or heads with another in-progress or queued Nightly run.

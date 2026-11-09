@@ -17,7 +17,7 @@ env:
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 concurrency:
   group: nightly
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   freshness:
     name: Plan / Freshness
@@ -25,11 +25,12 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
     outputs:
       build: ${{ steps.freshness.outputs.build }}
     steps:
     - id: freshness
-      name: Skip An Unchanged Scheduled Nightly
+      name: Skip an Unchanged or Duplicate Nightly
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -42,6 +43,15 @@ jobs:
             echo "::notice::dev $GITHUB_SHA is already the published nightly; skipping the scheduled run"
           fi
         fi
+        for status in in_progress queued; do
+          duplicate="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/nightly.yml/runs?head_sha=$GITHUB_SHA&status=$status" \
+            --jq ".workflow_runs[] | select(.id != $GITHUB_RUN_ID) | .html_url")"
+          if [ -n "$duplicate" ]; then
+            build=false
+            echo "::notice::dev $GITHUB_SHA has a $status Nightly; deferring to $duplicate"
+            break
+          fi
+        done
         echo "build=$build" >> "$GITHUB_OUTPUT"
   source:
     name: Check / Repository
