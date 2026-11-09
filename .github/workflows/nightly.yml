@@ -647,7 +647,7 @@ jobs:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
         cache-backend: ""
         cache-mode: ""
-        caches: "{\"bench_baselines\":{\"key\":\"ci-v5-bench-baselines-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-bench-rust-system-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}\",\"path\":\"target/benchmarks/\",\"restore-keys\":\"ci-v5-bench-baselines-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-bench-rust-system-\"},\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
+        caches: "{\"bench_baselines\":{\"key\":\"ci-v6-bench-baselines-${{ runner.os }}-${{ runner.arch }}-${{ github.ref_name }}-bench-rust-system\",\"path\":\"target/benchmarks/\",\"restore-keys\":\"ci-v6-bench-baselines-${{ runner.os }}-${{ runner.arch }}-${{ github.ref_name }}-bench-rust-system-\\nci-v5-bench-baselines-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-bench-rust-system-\"},\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -668,10 +668,9 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        success() && (github.ref == 'refs/heads/dev' && (true || false)) &&
-        steps.setup.outputs.bench_baselines-cache-hit != 'true'
+        success() && github.ref == 'refs/heads/dev'
       with:
-        key: ${{ steps.setup.outputs.bench_baselines-cache-primary-key }}
+        key: ${{ steps.setup.outputs.bench_baselines-cache-primary-key }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: ${{ steps.setup.outputs.bench_baselines-path }}
     - uses: ./.github/actions/save-caches
       if: >-
@@ -2010,7 +2009,7 @@ jobs:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
         cache-backend: ""
         cache-mode: ""
-        caches: "{\"bench_baselines\":{\"key\":\"ci-v5-bench-baselines-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-bench-rust-integration-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}\",\"path\":\"target/benchmarks/\",\"restore-keys\":\"ci-v5-bench-baselines-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-bench-rust-integration-\"},\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
+        caches: "{\"bench_baselines\":{\"key\":\"ci-v6-bench-baselines-${{ runner.os }}-${{ runner.arch }}-${{ github.ref_name }}-bench-rust-integration\",\"path\":\"target/benchmarks/\",\"restore-keys\":\"ci-v6-bench-baselines-${{ runner.os }}-${{ runner.arch }}-${{ github.ref_name }}-bench-rust-integration-\\nci-v5-bench-baselines-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-bench-rust-integration-\"},\"cargo_downloads\":{\"key\":\"ci-v5-cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}\",\"path\":\".cache/cargo/registry/\\n.cache/cargo/git/\"},\"mise\":{\"key\":\"ci-v5-mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-<RUNNER_IMAGE_ID>-${{ env.JOB_IMAGE_ID }}-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>-${{ hashFiles('mise.lock') }}\",\"path\":\"<MISE_DATA_DIR>\"},\"uv\":{\"key\":\"ci-v5-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.lock') }}-${{ hashFiles('uv.lock', 'mise.lock') }}\",\"path\":\".cache/uv/\"}}"
         bootstrap: "[]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -2031,10 +2030,9 @@ jobs:
         include-hidden-files: true
     - uses: ./.github/actions/save-caches
       if: >-
-        success() && (github.ref == 'refs/heads/dev' && (true || false)) &&
-        steps.setup.outputs.bench_baselines-cache-hit != 'true'
+        success() && github.ref == 'refs/heads/dev'
       with:
-        key: ${{ steps.setup.outputs.bench_baselines-cache-primary-key }}
+        key: ${{ steps.setup.outputs.bench_baselines-cache-primary-key }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: ${{ steps.setup.outputs.bench_baselines-path }}
     - uses: ./.github/actions/save-caches
       if: >-

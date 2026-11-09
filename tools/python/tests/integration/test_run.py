@@ -11,12 +11,14 @@
 # === Imports === #
 
 # Standard Library Imports
+import io
 import json
 import runpy
 import socket
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
@@ -49,6 +51,67 @@ class RunTests(unittest.TestCase):
             module = ModuleType(namespace["__name__"])
             module.__dict__.update(namespace)
             cls.runners.append(module)
+
+    def test_benchmark_baseline_refresh_and_comparison(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            (directory / "tools").mkdir()
+            (directory / "tools/project.toml").write_text("", encoding="utf-8")
+            build = directory / "build"
+            (build / "bench").mkdir(parents=True)
+            artifact = {
+                "reason": "compiler-artifact",
+                "target": {"name": "system", "kind": ["bench"]},
+                "manifest_path": "crates/example/Cargo.toml",
+                "executable": "build/system",
+            }
+            (build / "bench/compiler.json").write_text(json.dumps(artifact), encoding="utf-8")
+            median = 100.0
+
+            def measure(command, cwd, environment):
+                home = Path(environment["CRITERION_HOME"])
+                output = home / "scalar/new"
+                output.mkdir(parents=True, exist_ok=True)
+                (output / "benchmark.json").write_text(json.dumps({"full_id": "sidecar_ingest/scalar/0"}), encoding="utf-8")
+                estimates = json.dumps({"median": {"point_estimate": median}})
+                (output / "estimates.json").write_text(estimates, encoding="utf-8")
+                return 0, None
+
+            with (
+                patch.object(run, "_preflight"),
+                patch.object(run.archive, "_toolchain", return_value="fixture"),
+                patch.object(run.archive, "fixtures"),
+                patch.object(run.paths, "output", return_value=build),
+                patch.object(run, "_measured", side_effect=measure),
+                patch.object(run.time, "time", return_value=0),
+            ):
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    status = run.bench(directory, "system", "rust", ".", False, [])
+                self.assertEqual(status, 1)
+                self.assertIn("sidecar_ingest/scalar/0", output.getvalue())
+                self.assertIn("mise run bench:rust:system --refresh-baseline", output.getvalue())
+                self.assertEqual(list(directory.rglob("dev/estimates.json")), [])
+
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    status = run.bench(directory, "system", "rust", ".", True, [])
+                self.assertEqual(status, 0)
+                self.assertIn("::notice::", output.getvalue())
+                self.assertIn("sidecar_ingest/scalar/0", output.getvalue())
+                (stored,) = directory.rglob("dev/estimates.json")
+                self.assertEqual(json.loads(stored.read_text())["median"]["point_estimate"], 100.0)
+
+                median = 1000.0
+                for refresh in (False, True):
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        status = run.bench(directory, "system", "rust", ".", refresh, [])
+                    self.assertEqual(status, 0)
+                    self.assertIn("benchmark regression: sidecar_ingest/scalar/0: 900.0%", output.getvalue())
+                    self.assertNotIn("::notice::", output.getvalue())
+                    expected = 1000.0 if refresh else 100.0
+                    self.assertEqual(json.loads(stored.read_text())["median"]["point_estimate"], expected)
 
     def test_completed_story_measurements_preserve_results(self):
         for runner in self.runners:
