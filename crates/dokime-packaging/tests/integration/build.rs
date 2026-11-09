@@ -104,3 +104,47 @@ fn oversized_symbols_are_skipped() {
     };
     assert!(Bundle::build(identity, &sources, Limits::default()).is_ok());
 }
+
+#[test]
+fn debug_files_extract_beside_the_executable() {
+    let root = tempfile::tempdir().unwrap();
+    let terminal = dokime::terminal::Terminal::default();
+    for (target, executable_name, symbol_names) in [
+        ("x86_64-pc-windows-msvc", "fixture.exe", vec!["fixture.pdb"]),
+        ("x86_64-unknown-linux-gnu", "fixture", vec!["fixture.dwp", "unit.dwo", "fixture.debug"]),
+    ] {
+        let executable = inert_executable();
+        let executable_path = format!("bin/{target}/{executable_name}");
+        let mut debug_files = Vec::new();
+        for name in symbol_names {
+            let path = root.path().join(name);
+            std::fs::write(&path, name.as_bytes()).unwrap();
+            debug_files.push(symbols(&path, target, 4096, &terminal).unwrap().unwrap());
+        }
+        let mut sources = vec![Source {
+            path: &executable_path,
+            bytes: executable.as_bytes(),
+            executable: Some(Executable {
+                facility: Facility::Sidecar,
+                target: target.into(),
+                registrations: vec![],
+            }),
+        }];
+        sources.extend(debug_files.iter().map(|(path, bytes)| Source { path, bytes, executable: None }));
+        let identity = Identity {
+            name: "fixture".into(),
+            version: "1.0.0".parse().unwrap(),
+            description: "A fixture.".into(),
+            package: PackageMetadata::default(),
+        };
+        let bundle = Bundle::build(identity, &sources, Limits::default()).unwrap();
+        let extracted = bundle.extract(root.path()).unwrap();
+        let executable = extracted.path().join(&executable_path);
+        assert!(executable.is_file());
+        for (path, bytes) in debug_files {
+            let symbol = extracted.path().join(path);
+            assert_eq!(symbol.parent(), executable.parent());
+            assert_eq!(std::fs::read(symbol).unwrap(), bytes);
+        }
+    }
+}

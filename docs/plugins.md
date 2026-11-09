@@ -340,15 +340,22 @@ Sidecar stderr groups continuation lines into bounded records and preserves
 severity, including `error:` diagnostics. Operator cancellation logs at INFO;
 step and cleanup failures remain ERROR. Routine file producer completion is DEBUG.
 
-The unresolved-symbol backtrace hint means the matching debug information is
-absent. Release builds can retain symbols separately: matching PDBs on Windows
-and split debug information on Linux can be optional diagnostic downloads, keeping
-normal installers small. In-process Windows symbol resolution needs the matching
+The unresolved-symbol backtrace hint means symbol resolution could not find
+matching debug information. `cargo dokime sidecar build` includes Cargo-emitted
+PDBs on Windows and split `.dwp`, `.dwo` and `.debug` files on Linux beside the
+executable, preserving their filenames. Embedded Linux debug information stays
+in the executable. Selection uses the actual artifact's debug setting: dev builds
+and release builds with `debug` enabled retain emitted symbols; release builds
+without debug information add none, even if a linker produces a minimal PDB.
+
+`[package.metadata.dokime] debuginfo = false` opts out of bundled symbols, as the
+OBC example does. Symbols increase both download and extracted bundle size by
+their stored bytes; a symbol file exceeding the existing bundle budget is omitted
+with a build warning. In-process Windows symbol resolution needs the matching
 PDB beside the executable; offline symbolization needs the exact binary and its
-symbols. Current bundles do not promise these symbol artifacts. See the
+symbols. See the
 [Cargo profile reference](https://doc.rust-lang.org/cargo/reference/profiles.html#debug)
-for debug information and splitting controls; adding symbol publication is a
-separate packaging change.
+for debug information and splitting controls.
 
 
 Cargo supplies package identity, version and description. Suite declarations
