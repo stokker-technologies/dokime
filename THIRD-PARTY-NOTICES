@@ -623,7 +623,7 @@ Apache License 2.0
 Apache License 2.0
   bitness 0.4.0
   cmov 0.5.4
-  ctutils 0.4.3
+  ctutils 0.4.8
   embed_plist 1.2.2
   encode_unicode 1.0.0
   serdect 0.2.0
@@ -9559,7 +9559,6 @@ Apache License 2.0
   crossbeam-utils 0.8.23
   curve25519-dalek-derive 0.1.1
   der-parser 10.0.0
-  derive_arbitrary 1.5.0
   displaydoc 0.2.7
   either 1.19.0
   enum-display-derive 0.1.1
@@ -14657,7 +14656,7 @@ Apache License 2.0
   tauri-plugin-dialog 2.8.2
   tauri-plugin-fs 2.7.0
   tauri-plugin-opener 2.7.1
-  tauri-plugin-updater 2.13.3
+  tauri-plugin-updater 2.14.1
   tauri-plugin 2.7.1
   tauri-runtime-wry 2.12.3
   tauri-runtime 2.12.2
@@ -15927,7 +15926,7 @@ express Statement of Purpose.
 
 
 Community Data License Agreement Permissive 2.0
-  webpki-root-certs 1.0.9
+  webpki-root-certs 1.0.11
   webpki-roots 1.0.11
 
 # Community Data License Agreement - Permissive - Version 2.0
@@ -16702,7 +16701,7 @@ THIS SOFTWARE.
 
 
 ISC License
-  rustls-webpki 0.103.15
+  rustls-webpki 0.103.16
 
 Except as otherwise noted, this project is licensed under the following
 (ISC-style) terms:
@@ -19667,34 +19666,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-
-MIT License
-  zip 4.6.1
-
-The MIT License (MIT)
-
-Copyright (c) 2014 Mathijs van de Nes
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-Some files in the "tests/data" subdirectory of this repository are under other
-licences; see files named LICENSE.*.txt for details.
 
 MIT License
   handlebars 6.4.4
@@ -23132,7 +23103,7 @@ Creator: Person: Daniel Thompson-Yvetot
 
 
 
-source-map-js 1.2.1, 1.2.2
+source-map-js 1.2.2
 BSD-3-Clause
 
 
@@ -26293,7 +26264,7 @@ SOFTWARE.
 
 
 
-seroval 1.6.7
+seroval 1.7.10
 MIT
 
 MIT License Copyright (c) 2025 Alexis Munsayac <alexis.munsayac@gmail.com>
