@@ -186,10 +186,13 @@ fn run(owner: Arc<Owner>) {
             tracing::warn!(%error, "SQLite sync probe could not attach");
         }
         let mut completions = Vec::with_capacity(jobs.len());
+        let operations = super::probe::Timing::start("operations");
         for job in jobs {
             completions.push((job.operation)(connection));
         }
+        drop(operations);
         let result = if grouped {
+            let _commit = super::probe::Timing::start("commit");
             let started = Instant::now();
             let result = owner.publication.lock().unwrap().sync().and_then(|()| connection.execute_batch("COMMIT").map_err(Error::Sqlite));
             super::COMMIT_NS.fetch_add(started.elapsed().as_nanos() as u64, Ordering::Relaxed);
@@ -247,6 +250,7 @@ fn checkpoint(owner: &Arc<Owner>) {
     owner.queue.written_pages.store(0, Ordering::Relaxed);
     let checkpoint_owner = owner.clone();
     let task = tokio::task::spawn_blocking(move || {
+        let _checkpoint = super::probe::Timing::start("checkpoint");
         let started = Instant::now();
         let result = (|| -> rusqlite::Result<()> {
             let mut probe = super::probe::Probe::default();

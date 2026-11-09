@@ -109,6 +109,10 @@ impl State {
                 };
                 regular(&path)?;
                 let mut files = owner.files.lock().unwrap();
+                if sealed.is_none() && !files.contains_key(&staging.id) {
+                    let file = OpenOptions::new().read(true).write(true).open(&path)?;
+                    files.insert(staging.id.clone(), file);
+                }
                 let mut opened;
                 let file = if let Some(file) = files.get_mut(&staging.id) {
                     file
@@ -194,7 +198,7 @@ impl State {
                         harmos::filesystem::publication::create_dir_all(directory)?;
                     }
                     if !present {
-                        owner.publication.lock().unwrap().install(&source, &destination)?;
+                        owner.publication.lock().unwrap().install(&source, &destination, retained.get(&staging.id))?;
                     } else if !published_content(connection, &reference)? {
                         // An Interrupted Install May Have Published Its Name Before Its Flush.
                         confirm_durability(&destination)?;

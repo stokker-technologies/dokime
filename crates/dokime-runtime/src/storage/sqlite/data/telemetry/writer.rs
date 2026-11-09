@@ -505,19 +505,24 @@ impl Store {
             .filter(|(_, stream)| execution.is_none_or(|id| stream.schema.metadata().get("execution_id").is_some_and(|value| value == id)))
             .map(|(id, _)| id.clone())
             .collect::<Vec<_>>();
-        for id in ids {
-            let stream = self.open.get_mut(&id).expect("telemetry writer exists");
+        let transaction = connection.savepoint()?;
+        for id in &ids {
+            let stream = self.open.get_mut(id).expect("telemetry writer exists");
             let (size, digest) = stream.writer.finish()?;
-            let transaction = connection.savepoint()?;
-            transaction
-                .execute("UPDATE files SET size_bytes=?2,sha256=?3 WHERE id=?1", params![id, catalog::integer(size)?, digest.as_slice()])?;
-            transaction.execute("UPDATE streams SET finalized=1 WHERE file_id=?1", [&id])?;
-            super::super::super::release(transaction)?;
-            // Close Before Removing Ownership; Windows Never Renames Or Deletes An Open File.
-            self.open.remove(&id);
+            transaction.prepare_cached("UPDATE files SET size_bytes=?2,sha256=?3 WHERE id=?1")?.execute(params![
+                id,
+                catalog::integer(size)?,
+                digest.as_slice()
+            ])?;
+            transaction.prepare_cached("UPDATE streams SET finalized=1 WHERE file_id=?1")?.execute([id])?;
         }
         if let Some(execution) = execution {
-            connection.execute("UPDATE streams SET sealed=1 WHERE execution=?1", [execution])?;
+            transaction.prepare_cached("UPDATE streams SET sealed=1 WHERE execution=?1")?.execute([execution])?;
+        }
+        super::super::super::release(transaction)?;
+        for id in ids {
+            // Close Before Removing Ownership; Windows Never Renames Or Deletes An Open File.
+            self.open.remove(&id);
         }
         Ok(())
     }

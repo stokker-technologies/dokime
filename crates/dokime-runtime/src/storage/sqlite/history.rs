@@ -345,14 +345,16 @@ pub(super) fn index(connection: &Connection, object: &ObjectEntry) -> Result<(),
         _ => return Ok(()),
     };
     let revision = advance(connection)?;
+    let mut insert_member = connection.prepare_cached("INSERT INTO query_members VALUES(?1,?2,?3)")?;
     for member in members {
-        connection.execute("INSERT INTO query_members VALUES(?1,?2,?3)", params![id, position, member])?;
+        insert_member.execute(params![id, position, member])?;
     }
-    connection.execute(
-        "INSERT INTO query_history VALUES(?1,?2,?3,?4,?5,?6,?7,
+    connection
+        .prepare_cached(
+            "INSERT INTO query_history VALUES(?1,?2,?3,?4,?5,?6,?7,
         EXISTS(SELECT 1 FROM query_archives WHERE (kind=?1 AND id=?2) OR (kind='cycle' AND id=?5)),?8,?9,?10)",
-        params![kind, id, revision, position, cycle, template, status, time.is_none(), time_key(time), body],
-    )?;
+        )?
+        .execute(params![kind, id, revision, position, cycle, template, status, time.is_none(), time_key(time), body])?;
     Ok(())
 }
 
@@ -456,11 +458,9 @@ fn archives(connection: &mut Connection, cycles: Vec<String>, executions: Vec<St
 }
 
 fn advance(connection: &Connection) -> Result<i64, Error> {
-    Ok(connection.query_row(
-        "UPDATE query_history_head SET revision=revision+1 WHERE revision<9223372036854775807 RETURNING revision",
-        [],
-        |row| row.get(0),
-    )?)
+    Ok(connection
+        .prepare_cached("UPDATE query_history_head SET revision=revision+1 WHERE revision<9223372036854775807 RETURNING revision")?
+        .query_row([], |row| row.get(0))?)
 }
 
 pub(super) fn time_key(time: Option<Timestamp>) -> Vec<u8> {

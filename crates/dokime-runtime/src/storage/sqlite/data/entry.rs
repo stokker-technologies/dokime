@@ -17,6 +17,7 @@ mod object;
 
 // Standard Library Imports
 use std::result::Result;
+use std::sync::Arc;
 use std::{io::Write, time::UNIX_EPOCH};
 
 // Third Party Imports
@@ -38,15 +39,15 @@ use super::super::Error;
 pub(super) struct Encoded<'a> {
     pub position: u64,
     pub kind: &'static str,
-    pub identity: String,
+    pub identity: Identity,
     pub schema_id: Option<&'a str>,
-    pub schema_key: Option<String>,
+    pub schema_key: Option<Arc<str>>,
     pub item: &'a str,
     pub scope: Option<&'a str>,
     pub stream: Option<&'a str>,
     pub source_time: Option<[u8; 16]>,
     pub object_version: Option<String>,
-    pub body: Vec<u8>,
+    pub body: std::ops::Range<usize>,
     pub digest: [u8; 32],
 }
 
@@ -58,6 +59,35 @@ struct Counter {
 struct Buffer {
     bytes: Vec<u8>,
     length: usize,
+}
+
+#[derive(Default)]
+pub(super) struct Encoder<'a> {
+    schema: Option<(&'a SchemaKey, Arc<str>)>,
+    pub bytes: Vec<u8>,
+}
+
+pub(super) struct Identity {
+    positioned: [u8; 23],
+    file: Option<String>,
+}
+
+#[derive(Serialize)]
+struct StreamHeader<'a> {
+    record: RecordHeader<'a>,
+    stream: &'a harmos::Identifier,
+    sequence: u64,
+}
+
+#[derive(Serialize)]
+struct RecordHeader<'a> {
+    position: &'a StorageCursor,
+    schema: &'a SchemaKey,
+    scope: Option<&'a harmos::Identifier>,
+    item: &'a harmos::Identifier,
+    source: Option<&'a harmos::Identifier>,
+    source_time: Option<harmos::domain::model::storage::time::Wire>,
+    payload: &'static [u8],
 }
 
 /* === Enums === */
@@ -83,6 +113,16 @@ pub(super) enum Borrowed<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Identity {
+    pub(super) fn as_str(&self) -> &str {
+        self.file.as_deref().unwrap_or_else(|| std::str::from_utf8(&self.positioned).expect("ASCII identity"))
+    }
+
+    pub(super) fn position(&self) -> &[u8] {
+        &self.positioned[7..]
+    }
+}
 
 impl<'a> From<&'a StorageSchema> for Borrowed<'a> {
     fn from(value: &'a StorageSchema) -> Self {
@@ -187,8 +227,8 @@ impl Write for Buffer {
     }
 }
 
-impl<'a> Encoded<'a> {
-    pub(super) fn new(value: Borrowed<'a>) -> Result<Self, Error> {
+impl<'a> Encoder<'a> {
+    pub(super) fn encode(&mut self, value: Borrowed<'a>) -> Result<Encoded<'a>, Error> {
         let record = match value {
             Borrowed::Record(value) => Some(value),
             Borrowed::Stream(value) => Some(&value.record),
@@ -205,7 +245,12 @@ impl<'a> Encoded<'a> {
         let position = value.position().sequence;
         let schema_id = schema.map(|schema| schema.id.as_str());
         let schema_key = match schema {
-            Some(schema) => Some(encode_string(schema)?),
+            Some(schema) => {
+                if !self.schema.as_ref().is_some_and(|(previous, _)| *previous == schema) {
+                    self.schema = Some((schema, Arc::from(encode_string(schema)?)));
+                }
+                Some(self.schema.as_ref().expect("encoded schema").1.clone())
+            }
             None => None,
         };
 
@@ -224,18 +269,25 @@ impl<'a> Encoded<'a> {
         let object_version = if let Borrowed::Object(object) = value { Some(encode_string(&object.version)?) } else { None };
 
         let identity = identity(value, position, item)?;
-        let body = match value {
-            Borrowed::Object(value) => object::encode(value, object::length(value, usize::MAX)?)?,
-            Borrowed::Stream(value) => encode_stream(value, stream_length(value, usize::MAX)?)?,
-            _ => encode(&borrowed)?,
+        let start = self.bytes.len();
+        let mut buffer = Buffer {
+            bytes: std::mem::take(&mut self.bytes),
+            length: usize::MAX,
         };
-        let digest = Sha256::digest(&body).into();
+        match value {
+            Borrowed::Object(value) => buffer.write_all(&object::encode(value, object::length(value, usize::MAX)?)?)?,
+            Borrowed::Stream(value) => encode_stream(&mut buffer, value)?,
+            _ => serde_json::to_writer(&mut buffer, &borrowed)?,
+        }
+        let body = start..buffer.bytes.len();
+        let digest = Sha256::digest(&buffer.bytes[body.clone()]).into();
+        self.bytes = buffer.bytes;
         let source_time = match record {
             Some(record) => record.source_time.map(timestamp_key),
             None => None,
         };
 
-        Ok(Self {
+        Ok(Encoded {
             position,
             kind,
             identity,
@@ -287,18 +339,18 @@ pub(super) fn key(value: &str) -> Result<String, Error> {
 /* === Private Functions === */
 
 // Store Native Stream Payloads As Bytes, Not A JSON Integer For Every Byte.
-fn stream_header(value: &StoredRow) -> StoredRow<&[u8]> {
-    StoredRow {
-        record: StoredRecord {
-            position: value.record.position.clone(),
-            schema: value.record.schema.clone(),
-            scope: value.record.scope.clone(),
-            item: value.record.item.clone(),
-            source: value.record.source.clone(),
-            source_time: value.record.source_time,
+fn stream_header(value: &StoredRow) -> StreamHeader<'_> {
+    StreamHeader {
+        record: RecordHeader {
+            position: &value.record.position,
+            schema: &value.record.schema,
+            scope: value.record.scope.as_ref(),
+            item: &value.record.item,
+            source: value.record.source.as_ref(),
+            source_time: value.record.source_time.map(Into::into),
             payload: &[],
         },
-        stream: value.stream.clone(),
+        stream: &value.stream,
         sequence: value.sequence,
     }
 }
@@ -313,18 +365,15 @@ pub(super) fn stream_length(value: &StoredRow, maximum: usize) -> Result<usize, 
         .ok_or(Error::Data("SQLite stream frame exceeds its bound"))
 }
 
-fn encode_stream(value: &StoredRow, length: usize) -> Result<Vec<u8>, Error> {
-    let header = encode(&stream_header(value))?;
-    let prefix = u32::try_from(header.len()).map_err(|_| Error::Data("SQLite stream header length overflows"))?;
-    let mut bytes = Vec::new();
-    bytes.try_reserve_exact(length).map_err(std::io::Error::other)?;
-    bytes.extend_from_slice(&prefix.to_le_bytes());
-    bytes.extend_from_slice(&header);
-    bytes.extend_from_slice(&value.record.payload);
-    if bytes.len() != length {
-        return Err(Error::Data("SQLite stream frame length differs"));
-    }
-    Ok(bytes)
+fn encode_stream(buffer: &mut Buffer, value: &StoredRow) -> Result<(), Error> {
+    let start = buffer.bytes.len();
+    buffer.write_all(&[0; 4])?;
+    serde_json::to_writer(&mut *buffer, &stream_header(value))?;
+    let prefix = u32::try_from(buffer.bytes.len() - start - 4).map_err(|_| Error::Data("SQLite stream header length overflows"))?;
+    buffer.bytes[start..start + 4].copy_from_slice(&prefix.to_le_bytes());
+    buffer.bytes.try_reserve(value.record.payload.len()).map_err(std::io::Error::other)?;
+    buffer.bytes.extend_from_slice(&value.record.payload);
+    Ok(())
 }
 
 fn decode_stream(bytes: &[u8]) -> Result<StoredRow, Error> {
@@ -361,7 +410,7 @@ fn encode_string<T: Serialize>(value: &T) -> Result<String, Error> {
     Ok(text)
 }
 
-fn identity(value: Borrowed<'_>, position: u64, item: &str) -> Result<String, Error> {
+fn identity(value: Borrowed<'_>, position: u64, item: &str) -> Result<Identity, Error> {
     let (prefix, item) = match value {
         Borrowed::Schema(_) => ("schema:", None),
         Borrowed::Object(_) => ("object:", None),
@@ -369,17 +418,66 @@ fn identity(value: Borrowed<'_>, position: u64, item: &str) -> Result<String, Er
         Borrowed::Stream(_) => ("stream:", None),
         Borrowed::File(_) => ("file:", Some(item)),
     };
-    let length = prefix.len().checked_add(item.map_or(16, str::len)).ok_or_else(read_exhausted)?;
-    let mut identity = String::new();
-    identity.try_reserve_exact(length).map_err(std::io::Error::other)?;
-    identity.push_str(prefix);
-    if let Some(item) = item {
-        identity.push_str(item);
-    } else {
-        use std::fmt::Write as _;
-        write!(identity, "{position:016x}").expect("writing to a string");
+    let mut positioned = [b'0'; 23];
+    for (digits, byte) in positioned[7..].as_chunks_mut::<2>().0.iter_mut().zip(position.to_be_bytes()) {
+        digits[0] = b"0123456789abcdef"[(byte >> 4) as usize];
+        digits[1] = b"0123456789abcdef"[(byte & 15) as usize];
     }
-    Ok(identity)
+    let file = if let Some(item) = item {
+        let length = prefix.len().checked_add(item.len()).ok_or_else(read_exhausted)?;
+        let mut identity = String::new();
+        identity.try_reserve_exact(length).map_err(std::io::Error::other)?;
+        identity.push_str(prefix);
+        identity.push_str(item);
+        Some(identity)
+    } else {
+        positioned[..7].copy_from_slice(prefix.as_bytes());
+        None
+    };
+    Ok(Identity { positioned, file })
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn borrowed_stream_headers_preserve_stored_frames() {
+        for source_time in [None, Some(UNIX_EPOCH), Some(UNIX_EPOCH - std::time::Duration::from_nanos(1))] {
+            let row = StoredRow {
+                record: StoredRecord {
+                    position: StorageCursor {
+                        history: StoreHistory {
+                            store: harmos::Identifier::new("store").unwrap(),
+                            epoch: harmos::Identifier::new("epoch").unwrap(),
+                        },
+                        sequence: 1,
+                    },
+                    schema: SchemaKey {
+                        id: harmos::Identifier::new("samples").unwrap(),
+                        version: std::num::NonZeroU32::new(1).unwrap(),
+                        payload_encoding: PayloadEncoding::PostcardV1,
+                    },
+                    scope: Some(harmos::Identifier::new("owner").unwrap()),
+                    item: harmos::Identifier::new("item").unwrap(),
+                    source: Some(harmos::Identifier::new("source").unwrap()),
+                    source_time,
+                    payload: vec![0, 127, 255],
+                },
+                stream: harmos::Identifier::new("stream").unwrap(),
+                sequence: 9,
+            };
+            let mut header = row.clone();
+            header.record.payload.clear();
+            let header = serde_json::to_vec(&header).unwrap();
+            let mut encoder = Encoder::default();
+            let entry = encoder.encode(Borrowed::Stream(&row)).unwrap();
+            let encoded = &encoder.bytes[entry.body];
+            assert_eq!(&encoded[4..4 + header.len()], header);
+            assert_eq!(encoded.len(), stream_length(&row, usize::MAX).unwrap());
+            assert_eq!(decode_stream(encoded).unwrap(), row);
+        }
+    }
+}
