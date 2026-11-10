@@ -46,3 +46,12 @@ A plot watch SHALL send a snapshot when it opens and changed buckets afterwards,
 
 - **WHEN** a client reconnects to a watch
 - **THEN** it receives a fresh snapshot and continues with changed buckets
+
+### Requirement: Dokime-Owned Signal Kernels
+
+The kernels stay hand-maintained and move into Dokime; `tsdownsample` was tried and dropped because it needs nightly Rust. Dokime SHALL own only the FFT, statistics and downsampling kernels it calls as private modules, with no vendored dependency or Harmos signal namespace.
+
+#### Scenario: Stable Compiler
+
+- **WHEN** a focused plot or signal test builds with the stable compiler
+- **THEN** it uses Dokime-owned kernels without `tsdownsample` or `argminmax`

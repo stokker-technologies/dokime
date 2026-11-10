@@ -277,7 +277,10 @@ pub fn declared_plot_request(
         window_s,
         scope,
         technique: descriptor.input.downsample,
+        defer_statistics: false,
         summary_window: None,
+        viewport: None,
+        panel_width: None,
     }
 }
 
@@ -500,6 +503,10 @@ fn payload_from_series(
         series_by: request.series_by.clone(),
         context,
         series,
+        bucket_width_s: None,
+        bucket_window: None,
+        replaced_buckets: Vec::new(),
+        bucket_counts: BTreeMap::new(),
         cartesian: None,
         analysis: None,
         markers: plot_markers(

@@ -11,6 +11,7 @@
 
 pub(crate) mod analysis;
 mod cursor;
+mod deltas;
 mod wire;
 
 /* === Re-Exports === */
@@ -191,7 +192,7 @@ impl Resources {
     fn snapshot_frames(
         &self, requests: &mut Vec<PlotPayloadRequest>, current: &PlotPayloadRequest,
         result: Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>, frame: &FrameContext<'_>,
-        delivered: &mut BTreeMap<String, u64>,
+        delivered: &mut BTreeMap<String, PlotPayloadEnvelope>,
     ) -> Result<(bool, Vec<Response<dokime::domain::model::plots::wire::PlotStreamUpdate>>), Status> {
         let native = match result {
             Ok(native) => native,
@@ -204,14 +205,46 @@ impl Resources {
         for value in native {
             let key = value.plot_id.clone();
             let revision = value.revision;
-            if delivered.get(&key).is_some_and(|previous| *previous >= revision) {
+            if delivered.get(&key).is_some_and(|previous| previous.revision >= revision) {
                 continue;
             }
-            let response = self.frame(requests, current, value, frame)?;
+            let retained = (*value).clone();
+            let delta = if let Some(previous) = delivered.get(&key).filter(|_| frame.kind != PlotPayloadStreamKind::Snapshot) {
+                deltas::between(&previous.payload, ReadBatch::new((*value).clone()), current)
+                    .map_err(|error| Status::internal(error.to_string()))?
+            } else {
+                None
+            };
+            let kind = if delta.is_some() {
+                PlotPayloadStreamKind::Delta
+            } else if value.payload.bucket_width_s.is_some() {
+                PlotPayloadStreamKind::Snapshot
+            } else {
+                frame.kind.clone()
+            };
+            let frame = FrameContext {
+                epoch: frame.epoch,
+                selection: frame.selection,
+                kind,
+            };
+            let response = self.frame(requests, current, delta.unwrap_or(value), &frame)?;
             frames.push(response);
-            delivered.insert(key, revision);
+            delivered.insert(key, retained);
         }
         Ok((true, frames))
+    }
+
+    async fn statistics_at(
+        &self, mut requests: Vec<PlotPayloadRequest>, at: StorageCursor,
+    ) -> (Vec<PlotPayloadRequest>, Vec<Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>>) {
+        requests.retain(|request| request.defer_statistics);
+        for request in &mut requests {
+            request.defer_statistics = false;
+            request.max_points = Some(0);
+            request.panel_width = None;
+        }
+        let results = self.query_snapshots(&requests, &at).await;
+        (requests, results)
     }
 
     async fn send_revision(
@@ -325,6 +358,9 @@ impl Serve<contract::Watch> for Resources {
                 let runtime = &dokime::app::live_runtime(&self.runtime).await?;
                 let epoch = runtime.process_epoch().as_str().to_owned();
                 let (mut requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
+                for request in &mut requests {
+                    request.defer_statistics = matches!(request.plot_type, None | Some(dokime::document::PlotType::TimeSeries));
+                }
                 // Live Plots Hold Their Streams; Streams Nobody Views Or Runs Stay Stopped.
                 let _viewing = runtime.view_plot_streams(&requests, "plots.watch").await;
                 let original = requests.clone();
@@ -374,11 +410,51 @@ impl Serve<contract::Watch> for Resources {
                 let mut retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS);
                 let mut last_flush = Instant::now() - throttle;
                 let mut next_flush = (!dirty.is_empty()).then(|| Instant::now() + retry_delay);
+                let mut statistics = futures_util::stream::FuturesUnordered::new();
+                let mut statistics_at = Some(initial.clone());
                 loop {
+                    if statistics.is_empty() && let Some(at) = statistics_at.take() {
+                        statistics.push(resources.statistics_at(requests.clone(), at));
+                    }
                     if requests.is_empty() {
                         return Ok(().into());
                     }
                     tokio::select! {
+                        Some((served, results)) = statistics.next(), if !statistics.is_empty() => {
+                            let mut frames = Vec::new();
+                            for (current, result) in served.iter().zip(results) {
+                                let key = plot_key(current);
+                                let selection = selection_for_plot(&original, &selections, &key).ok_or_else(|| Status::internal("plot selection is missing"))?;
+                                match result {
+                                    Ok(values) => for value in values {
+                                        if !delivered.contains_key(&key) { continue; }
+                                        let value = value.try_map(|mut value| {
+                                            value.payload.series.clear();
+                                            value.payload.cartesian = None;
+                                            value.payload.analysis = None;
+                                            value.payload.markers.clear();
+                                            Ok::<_, dokime::runtime::Error>(value)
+                                        }).map_err(|error| Status::internal(error.to_string()))?;
+                                        let frame = FrameContext { epoch: &epoch, selection, kind: PlotPayloadStreamKind::Statistics };
+                                        frames.push(resources.frame(&mut requests, current, value, &frame)?);
+                                    },
+                                    Err(error) => {
+                                        if let Some(previous) = delivered.get(&key) {
+                                            let mut failed = previous.clone();
+                                            failed.payload.series.clear();
+                                            failed.payload.cartesian = None;
+                                            failed.payload.analysis = None;
+                                            failed.payload.markers.clear();
+                                            failed.payload.summaries.clear();
+                                            failed.warnings.push(format!("Exact statistics failed: {error}"));
+                                            let frame = FrameContext { epoch: &epoch, selection, kind: PlotPayloadStreamKind::Statistics };
+                                            frames.push(resources.frame(&mut requests, current, ReadBatch::new(failed), &frame)?);
+                                        }
+                                    },
+                                }
+                            }
+                            self.send_revision(output, frames).await?;
+                        }
                         changed = states.next() => {
                             if changed.is_none() { return Ok(().into()); }
                             dirty.extend(keys.iter().filter(|(_, keys, _)| keys.follows_state()).map(|(key, _, _)| key.clone()));
@@ -421,8 +497,9 @@ impl Serve<contract::Watch> for Resources {
                                     refused = true;
                                 }
                             }
-                            // Only Delivered Updates Renew The Heartbeat; A Saved Cut May Already Be Covered.
+                            // A Saved Cut Already Delivered Needs Neither Another Statistics Read Nor A Renewed Heartbeat.
                             if !frames.is_empty() {
+                                statistics_at = Some(at.clone());
                                 heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                             }
                             self.send_revision(output, frames).await?;

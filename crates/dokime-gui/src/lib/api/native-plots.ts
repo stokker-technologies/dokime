@@ -39,7 +39,6 @@ import type {
   PlotPayloadDiagnostics,
   PlotPayloadEnvelope,
   PlotPayloadStreamMessage,
-  PlotPoint,
   PlotSeries,
   RecordScope,
 } from "@/lib/types";
@@ -67,17 +66,16 @@ type NativePlotPayload = NonNullable<PlotEnvelope["payload"]>;
 type NativeAnalysisComputation = NonNullable<NativePlotPayload["computed"]>;
 type NativeAnalysisDefinition = NonNullable<NativeAnalysisComputation["definition"]>;
 type NativePlotAnalysis = NonNullable<NativePlotPayload["analysis"]>;
-type NativePlotCartesianFrame = NonNullable<NativePlotPayload["cartesian"]>;
+type NativePlotFrame = NonNullable<NativePlotPayload["frame"]>;
 type NativePlotMarker = NativePlotPayload["markers"][number];
 type NativePlotPayloadDiagnostics = NonNullable<PlotEnvelope["diagnostics"]>;
 type NativePlotSeries = NativePlotPayload["series"][number];
-type NativePlotPoint = NativePlotSeries["points"][number];
 
 type PlotType = NonNullable<PlotRequest["plotType"]>;
 type AxisScale = NonNullable<PlotRequest["xScale"]>;
 type DownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 type FilterOperator = NonNullable<PlotRequest["filters"][number]["operator"]>;
-type PlotCartesianMode = NonNullable<NativePlotCartesianFrame["mode"]>;
+type PlotCartesianMode = NonNullable<NativePlotFrame["mode"]>;
 const AnalysisSelectionSchema = plotWire.Row15Schema;
 const DataExpressionSchema = plotWire.Row9Schema;
 const DataTransformSchema = plotWire.Row48Schema;
@@ -132,6 +130,8 @@ export type PlotPayloadRequestInput = {
   windowS?: number | null;
   /** The x range a zoomed time series or scatter plot summarizes. */
   summaryWindow?: { from: number; to: number } | null;
+  viewport?: { from: number; to: number } | null;
+  panelWidth?: number;
   scope?: RecordScope | null;
 };
 
@@ -245,6 +245,8 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     ...(input.maxPoints == null ? {} : { maxPoints: boundedPlotPoints(input.maxPoints) }),
     ...(input.windowS == null ? {} : { windowS: boundedWindow(input.windowS) }),
     ...(input.summaryWindow == null ? {} : { summaryWindow: create(PlotWindowSchema, summaryWindow(input.summaryWindow)) }),
+    ...(input.viewport == null ? {} : { viewport: create(PlotWindowSchema, summaryWindow(input.viewport)) }),
+    ...(input.panelWidth == null ? {} : { panelWidth: boundedPanelWidth(input.panelWidth) }),
     ...(nativeScope ? { scope: nativeScope } : {}),
     technique: downsampleTechnique(input.technique),
   });
@@ -605,10 +607,22 @@ function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
     x_key: payload.xKey,
     series_by: payload.seriesBy ?? null,
     context: nativeValueObjectToJson(payload.context),
-    series: payload.series.map(mapNativePlotSeries),
+    series: payload.series.map((series, index) => {
+      const metadata = mapNativePlotSeries(series);
+      if (payload.frame?.mode) return metadata;
+      const column = payload.frame?.series[index];
+      return {
+        ...metadata,
+        points: (column?.x ?? []).map((x, row) => ({
+          x: nativeValueToJson(x) ?? null,
+          y: column?.y[row]?.value ?? null,
+          z: column?.z[row]?.value ?? null,
+        })),
+      };
+    }),
     analysis: mapNativePlotAnalysis(payload.analysis),
     computed: mapNativeComputation(payload.computed),
-    cartesian: mapNativeCartesianFrame(payload.cartesian),
+    cartesian: mapNativeCartesianFrame(payload.frame),
     markers: payload.markers.map(mapNativePlotMarker),
     max_points: safeNumber(payload.maxPoints, "Plots payload max_points"),
     window_s: payload.windowS ?? null,
@@ -616,6 +630,9 @@ function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
     x_format: mapNativeValueFormat(payload.xFormat),
     run_started_at: payload.runStartedAt ?? null,
     cycle_started_at: payload.cycleStartedAt ?? null,
+    bucket_width_s: payload.bucketWidthS ?? null,
+    bucket_window: payload.bucketWindow ? { from: payload.bucketWindow.from, to: payload.bucketWindow.to } : null,
+    replaced_buckets: payload.replacedBuckets,
     summaries: payload.summaries.map((summary) => ({
       series_id: summary.seriesId,
       count: safeNumber(summary.count, "plot summary count"),
@@ -737,18 +754,10 @@ function mapNativePlotSeries(series: NativePlotSeries): PlotSeries {
     key: series.key,
     label: series.label,
     unit: series.unit ?? null,
-    points: series.points.map(mapNativePlotPoint),
+    points: [],
     raw_points: safeNumber(series.rawPoints, "Plots series raw_points"),
     downsampled: series.downsampled,
     format: mapNativeValueFormat(series.format),
-  };
-}
-
-function mapNativePlotPoint(point: NativePlotPoint): PlotPoint {
-  return {
-    x: nativeValueToJson(point.x) ?? null,
-    y: point.y ?? null,
-    z: point.z ?? null,
   };
 }
 
@@ -761,16 +770,19 @@ function mapNativePlotMarker(marker: NativePlotMarker): PlotMarker {
   };
 }
 
-function mapNativeCartesianFrame(frame?: NativePlotCartesianFrame): PlotCartesianFrame | null {
-  if (!frame || frame.series.some((series) => series.x.some((value) => !Number.isFinite(value)))) {
+function mapNativeCartesianFrame(frame?: NativePlotFrame): PlotCartesianFrame | null {
+  if (!frame?.mode) {
     return null;
   }
+  const mode = cartesianMode(frame.mode);
+  const series = frame.series.map((column) => ({
+    x: mode === "aligned" ? frame.time : column.x.map((value) => Number(nativeValueToJson(value))),
+    y: column.y.map((value) => value.value ?? null),
+  }));
+  if (series.some((column) => column.x.length !== column.y.length || column.x.some((value) => !Number.isFinite(value)))) return null;
   return {
-    mode: cartesianMode(frame.mode),
-    series: frame.series.map((series) => ({
-      x: [...series.x],
-      y: series.y.map((value) => value.value ?? null),
-    })),
+    mode,
+    series,
     x_domain: nativeDomain(frame.xDomain),
     y_domain: nativeDomain(frame.yDomain),
     point_count: safeNumber(frame.pointCount, "Plots Cartesian point_count"),
@@ -802,6 +814,10 @@ function plotStreamKind(value: PlotStreamKind): PlotPayloadStreamMessage["kind"]
       return "snapshot";
     case "Replace":
       return "replace";
+    case "Delta":
+      return "delta";
+    case "Statistics":
+      return "statistics";
     case "Error":
       return "error";
     default:
@@ -833,6 +849,13 @@ function boundedUint64(value: number, label: string): bigint {
     throw new NativeApiLimitError(label, String(value));
   }
   return BigInt(value);
+}
+
+function boundedPanelWidth(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 0xffff_ffff) {
+    throw new Error("Native plot panel_width must be a positive 32-bit integer.");
+  }
+  return value;
 }
 
 function boundedPlotPoints(value: number): bigint {

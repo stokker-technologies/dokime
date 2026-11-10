@@ -780,7 +780,7 @@ impl Serialize for Samples<'_, '_> {
 
 pub(crate) fn selection(length: usize, maximum: usize) -> impl Iterator<Item = usize> + Clone {
     let count = if length <= maximum { length } else { maximum.saturating_sub(1) };
-    let indices = harmos::signal::decimate_indices(length, count);
+    let indices = crate::signal::decimate_indices(length, count);
     let endpoint = length.checked_sub(1).filter(|last| indices.clone().next_back() != Some(*last));
     indices.chain(endpoint)
 }

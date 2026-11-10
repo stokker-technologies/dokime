@@ -393,7 +393,7 @@ pub(super) fn exact_percentiles(
     connection: &Connection, root: &std::path::Path, execution: &str, through: &harmos::storage::StorageCursor,
     summaries: &mut [NumericSummary], requested: &std::collections::BTreeSet<(String, String, u8)>,
 ) -> Result<(), Error> {
-    let fields = super::previews::report_previews(connection, execution.into(), through.clone())?;
+    let fields = super::previews::report_previews(connection, execution.into(), through.clone(), None)?;
     let mut streams = BTreeMap::<String, Vec<usize>>::new();
     for (index, summary) in summaries.iter().enumerate() {
         streams.entry(summary.stream.clone()).or_default().push(index);
@@ -1080,7 +1080,7 @@ mod tests {
     #[test]
     fn moments_match_harmos() {
         let mut indexed = Moments::default();
-        let mut reference = harmos::signal::Summary::new();
+        let mut reference = crate::signal::Summary::new();
         for value in [-7.0, 3.0, 11.0, -0.0, 0.0, 3.0, 99.0] {
             indexed.push(value).unwrap();
             indexed = Moments::decode(&indexed.encode()).unwrap();

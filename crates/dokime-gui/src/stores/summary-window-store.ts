@@ -19,10 +19,12 @@ export type SummaryWindow = { from: number; to: number };
 type SummaryWindowStore = {
   /**
    * The x range each live plot shows after a zoom, by plot id. Its series
-   * summaries are requested over this range; a plot following its window has
+   * detail and summaries are requested over this range; a following plot has
    * no entry. Session state only: never persisted, never in a report.
    */
   windows: Readonly<Record<string, SummaryWindow>>;
+  widths: Readonly<Record<string, number>>;
+  setPanelWidth: (plotId: string, width: number | null) => void;
   setSummaryWindow: (plotId: string, window: SummaryWindow | null) => void;
 };
 
@@ -30,6 +32,15 @@ type SummaryWindowStore = {
 
 export const useSummaryWindowStore = create<SummaryWindowStore>()((set) => ({
   windows: {},
+  widths: {},
+  setPanelWidth: (plotId, width) =>
+    set((state) => {
+      if (state.widths[plotId] === width || (width === null && state.widths[plotId] === undefined)) return state;
+      const widths = { ...state.widths };
+      if (width === null) delete widths[plotId];
+      else widths[plotId] = width;
+      return { widths };
+    }),
   setSummaryWindow: (plotId, window) =>
     set((state) => {
       const current = state.windows[plotId];

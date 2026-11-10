@@ -116,6 +116,8 @@ pub(in crate::grpc) fn historical_plot(
         scope: Some(canonical::scope(scope)?),
         technique: enums::downsample_technique(&value.downsample),
         summary_window: None,
+        viewport: None,
+        panel_width: None,
     };
     let (x_axis, x_axis_unit) = enums::plot_axis(value.x_axis.as_ref());
     let presentation = dokime::domain::model::documents::wire::PlotPresentation {

@@ -261,7 +261,7 @@ export type PlotPayloadEnvelope_Serialize = {
   warnings: string[];
 };
 
-export type PlotPayloadStreamKind = "snapshot" | "replace" | "error";
+export type PlotPayloadStreamKind = "snapshot" | "replace" | "delta" | "statistics" | "error";
 
 export type PlotPayload_Serialize = {
   stream: string;

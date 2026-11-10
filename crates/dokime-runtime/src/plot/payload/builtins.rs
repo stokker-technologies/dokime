@@ -177,7 +177,7 @@ impl Analysis for Lttb {
         max_output_values: MAX_SAMPLES,
     };
     fn evaluate(samples: &Samples, parameters: &Reduction) -> Result<Curve, Error> {
-        let indexes = harmos::signal::lttb(&samples.axis, &samples.values, parameters.points as usize);
+        let indexes = crate::signal::lttb(&samples.axis, &samples.values, parameters.points as usize);
         Ok(selected(samples, indexes))
     }
 }
@@ -196,7 +196,7 @@ impl Analysis for Extrema {
         let indexes = if samples.values.len() <= parameters.points as usize {
             (0..samples.values.len()).collect()
         } else {
-            harmos::signal::extrema(&samples.values, parameters.points as usize / 2)
+            crate::signal::extrema(&samples.values, parameters.points as usize / 2)
         };
         Ok(selected(samples, indexes))
     }

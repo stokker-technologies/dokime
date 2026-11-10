@@ -19,7 +19,7 @@ pub(super) mod wifi;
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos::signal::{Series, Summary};
+use crate::signal::{Series, Summary};
 use serde::Serialize;
 
 // Local Imports
@@ -274,7 +274,7 @@ pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Resul
     }
     // The synchronous analysis interface has no cancellation context. This preserves
     // its existing uninterrupted execution; the kernel itself allocates no workspace.
-    harmos::signal::fft_in_place(&mut real, &mut imaginary, || true).map_err(|_| "FFT exceeds finite range".to_owned())?;
+    crate::signal::fft_in_place(&mut real, &mut imaginary, || true).map_err(|_| "FFT exceeds finite range".to_owned())?;
     let bins = size / 2 + 1;
     let selected_frequency = |index| fft_frequency(index, size, rate, request);
     let count = (0..bins).filter_map(selected_frequency).count();

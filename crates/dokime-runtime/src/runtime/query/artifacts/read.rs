@@ -102,7 +102,7 @@ pub(crate) fn execution_file_frame(
     let indices = match resolution {
         RuntimeResolution::Summary => total.checked_sub(1).into_iter().collect(),
         _ if total <= count => (0..total).collect(),
-        _ => harmos::signal::decimate(total, count),
+        _ => crate::signal::decimate(total, count),
     };
     let returned = indices.len();
     let mut records = Vec::with_capacity(returned);

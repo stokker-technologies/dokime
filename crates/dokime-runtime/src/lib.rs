@@ -45,6 +45,7 @@ pub mod process;
 pub mod prompts;
 pub mod publication;
 pub mod records;
+mod signal;
 
 #[cfg(feature = "storage")]
 pub mod storage;

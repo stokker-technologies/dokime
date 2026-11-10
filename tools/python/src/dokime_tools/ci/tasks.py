@@ -74,6 +74,8 @@ def main(arguments: list[str] | None = None) -> int:
         parser.error("the selected operation has no implementation for this language")
     if args.operation == "build" and args.check and not args.package:
         parser.error("build --check requires --package")
+    if args.features and not args.package:
+        parser.error("--features requires --package")
     if args.package:
         if args.operation not in ("build", "test"):
             parser.error("--package requires build or test")

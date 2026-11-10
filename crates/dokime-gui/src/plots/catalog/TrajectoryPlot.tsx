@@ -31,6 +31,7 @@ export function TrajectoryPlot({
 }) {
   return (
     <CartesianPlot
+      plotId={plot.key}
       badge="Trajectory"
       cartesian={plot.cartesian}
       colors={plot.colors}

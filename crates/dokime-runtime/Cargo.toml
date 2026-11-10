@@ -74,7 +74,7 @@ ftp = ["native", "dep:rustls-platform-verifier", "dep:suppaftp"]
 # Canonical Tests Enable This Fixture Surface; Product Never Does.
 testing = ["native", "ftp"]
 fault-injection = ["native"]
-fft = ["native", "harmos/signal-fft"]
+fft = ["native"]
 media-native = ["native", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:nokhwa", "dep:url", "dep:xcap"]
 simulation = ["native", "harmos/simulation"]
 
@@ -99,7 +99,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # Utilities
-harmos = { workspace = true, features = ["plugin", "signal"] }
+harmos = { workspace = true, features = ["plugin"] }
 harmos-packaging = { workspace = true }
 hmac = { workspace = true, optional = true }
 keyring = { workspace = true, optional = true }

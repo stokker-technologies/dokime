@@ -76,7 +76,12 @@ pub async fn admission(size: Admission) {
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     let before = handle.storage_read_counters().data_scan_rows;
-    let served = first_frame(&client, size.window).await;
+    let mut window = open_watch(&client, size.window).await;
+    let served = data_frame(&mut window).await;
+    let statistics = statistics_frames(&mut window).await;
+    assert_eq!(statistics.len(), 1);
+    assert_eq!(statistics[0].envelope.as_ref().unwrap().revision, served.envelope.as_ref().unwrap().revision);
+    drop(window);
     let window_scan = handle.storage_read_counters().data_scan_rows - before;
     assert_eq!(
         served.kind,
@@ -88,9 +93,20 @@ pub async fn admission(size: Admission) {
     let points = served_points(&served);
     assert!((1..=size.window as usize).contains(&points), "the window keeps its budget: {points}");
 
+    // Capture The Unary Budget At This Evidence Frontier Before Any Watch Reduction.
+    let unary = client
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(size.oversized)] })
+        .await
+        .unwrap()
+        .into_inner();
+    let unary_maximum = unary.envelopes[0].payload.as_ref().unwrap().max_points;
+
     let before = handle.storage_read_counters().data_scan_rows;
     let mut watch = open_watch(&client, size.oversized).await;
     let reduced = data_frame(&mut watch).await;
+    let statistics = statistics_frames(&mut watch).await;
+    assert_eq!(statistics.len(), 1);
+    assert_eq!(statistics[0].envelope.as_ref().unwrap().revision, reduced.envelope.as_ref().unwrap().revision);
     let reduced_scan = handle.storage_read_counters().data_scan_rows - before;
     assert_eq!(
         reduced.kind,
@@ -103,9 +119,19 @@ pub async fn admission(size: Admission) {
     let maximum = envelope.payload.as_ref().unwrap().max_points as usize;
     assert!((size.window as usize..size.oversized as usize).contains(&maximum), "{maximum}");
     assert!((1..=maximum).contains(&served_points(&reduced)), "the reduced snapshot keeps its budget");
-    // Reducing An Oversized Response Reads The Saved Rows Once, Exactly Like The Window That Fits.
+    // The Draw And Exact Statistics Each Read Once; Transport Reduction Adds No Read.
     assert_eq!(reduced_scan, window_scan, "the reduction reuses the one storage read");
-    assert!(window_scan >= size.rows, "the read covers every saved row: {window_scan}");
+    assert!(window_scan >= size.rows * 2, "the draw and statistics each cover every saved row");
+    // The Unary Query Retains Its Independent Message Budget.
+    let unary = client
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(size.oversized)] })
+        .await
+        .unwrap()
+        .into_inner();
+    let envelope = &unary.envelopes[0];
+    assert!(!envelope.warnings.is_empty());
+    assert_eq!(envelope.payload.as_ref().unwrap().max_points, unary_maximum);
+
     // The plot stays in the watch under its reduced budget: a later row reaches it.
     publish(&handle, &id, size.rows, 1).await;
     let followed = data_frame(&mut watch).await;
@@ -115,17 +141,8 @@ pub async fn admission(size: Admission) {
         "{:?}",
         followed.envelope.as_ref().map(|envelope| &envelope.warnings)
     );
+    statistics_frames(&mut watch).await;
     drop(watch);
-    // The Unary Query Retains Its Independent Message Budget.
-    let unary = client
-        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(size.oversized)] })
-        .await
-        .unwrap()
-        .into_inner();
-    let envelope = &unary.envelopes[0];
-    assert!(!envelope.warnings.is_empty());
-    assert!(envelope.payload.as_ref().unwrap().max_points as usize >= maximum);
-
     // One Revision Shares Its Wire Budget And Deduplicates Identical Plot Reads.
     let requests = (0..8)
         .map(|index| model::plots::wire::PlotRequest {
@@ -146,7 +163,10 @@ pub async fn admission(size: Admission) {
         assert!(served_points(update) > 0);
         assert!(served_points(update) <= maximum);
     }
-    assert_eq!(handle.storage_read_counters().data_scan_rows - before, window_scan + 1);
+    let statistics = statistics_frames(&mut grouped).await;
+    assert_eq!(statistics.len(), 8);
+    assert!(statistics.iter().all(|update| update.envelope.as_ref().unwrap().revision == revision));
+    assert_eq!(handle.storage_read_counters().data_scan_rows - before, window_scan + 2);
     drop(grouped);
 
     // A Refused Query Stays Beside Its Healthy Peer In The Same Ordered Revision.
@@ -217,12 +237,9 @@ pub fn request(max_points: u64) -> model::plots::wire::PlotRequest {
         histogram: None,
         analysis: None,
         summary_window: None,
+        viewport: None,
+        panel_width: None,
     }
-}
-
-pub async fn first_frame(client: &WireClient, max_points: u64) -> model::plots::wire::PlotStreamUpdate {
-    let mut stream = open_watch(client, max_points).await;
-    data_frame(&mut stream).await
 }
 
 // The next frame that carries a plot's data or error, past the watch's acknowledgements and keepalives.
@@ -234,12 +251,27 @@ pub async fn data_frame(watch: &mut WireStream<model::plots::wire::PlotStreamFra
 
 pub async fn data_frames(watch: &mut WireStream<model::plots::wire::PlotStreamFrame>) -> Vec<model::plots::wire::PlotStreamUpdate> {
     loop {
-        let frame = watch.message().await.unwrap().unwrap();
+        let mut frame = watch.message().await.unwrap().unwrap();
         assert!(!frame.updates.is_empty());
+        frame.updates.retain(|update| update.kind != model::plots::wire::PlotStreamKind::Statistics);
+        if frame.updates.is_empty() {
+            continue;
+        }
         if frame.updates.iter().all(|update| update.kind == model::plots::wire::PlotStreamKind::Unspecified) {
             continue;
         }
         return frame.updates;
+    }
+}
+
+// Complete Statistics Delivery Fences Its Independent Storage Read.
+pub async fn statistics_frames(watch: &mut WireStream<model::plots::wire::PlotStreamFrame>) -> Vec<model::plots::wire::PlotStreamUpdate> {
+    loop {
+        let mut frame = watch.message().await.unwrap().unwrap();
+        frame.updates.retain(|update| update.kind == model::plots::wire::PlotStreamKind::Statistics);
+        if !frame.updates.is_empty() {
+            return frame.updates;
+        }
     }
 }
 
@@ -251,7 +283,7 @@ pub fn served_points(frame: &model::plots::wire::PlotStreamUpdate) -> usize {
     let Some(payload) = frame.envelope.as_ref().and_then(|envelope| envelope.payload.as_ref()) else {
         return 0;
     };
-    payload.series.iter().map(|series| series.points.len()).sum()
+    payload.frame.as_ref().map_or(0, |frame| frame.series.iter().map(|series| series.y.len()).sum())
 }
 
 pub async fn publish(handle: &dokime::RuntimeHandle, id: &Identifier, start: u64, count: u64) {

@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos::signal::Series;
+use crate::signal::Series;
 
 // Local Imports
 use super::evidence_rows::EvidenceRows;

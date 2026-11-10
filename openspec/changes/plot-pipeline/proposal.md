@@ -1,8 +1,8 @@
 # Plot Pipeline
 
-Status: direction agreed with the owner on 2026-11-10; implementation has not
-started and waits for the owner's go. Independent of `grpc-plugins`. Nothing
-here is measured yet; the first task records a baseline.
+Status: direction agreed with the owner on 2026-11-10; implementation is in
+progress on the feature branch from `feat/grpc-plugins`. The baseline and final
+validation remain pending.
 
 ## Why
 
@@ -31,10 +31,10 @@ replacement, and the same data travels in two representations.
    bucket it falls in.
 4. **One columnar frame on the wire,** with a shared time column, in place of
    point series plus arrays.
-5. **Downsampling kernels come from `tsdownsample`** in place of
-   hand-maintained minimum/maximum, M4 and largest-triangle code.
-6. **FFT moves into Dokime** from Harmos, which no longer offers signal
-   processing.
+5. **Dokime owns the private signal kernels.** The kernels stay hand-maintained
+   and move into Dokime; `tsdownsample` was tried and dropped because it needs
+   nightly Rust. Copy only the FFT, statistics and downsampling kernels Dokime
+   calls from the former Harmos implementation, with their relevant tests.
 
 ## Memory
 

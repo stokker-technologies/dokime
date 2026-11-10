@@ -68,12 +68,12 @@ pub(super) fn cartesian_frame(
 
 /* === Private Functions === */
 
-fn cartesian_point(point: &super::PlotPoint, index: usize, x_scale: &AxisScale, y_scale: &AxisScale) -> Option<(f64, f64)> {
+fn cartesian_point(point: &super::PlotPoint, index: usize, x_scale: &AxisScale, y_scale: &AxisScale) -> Option<(f64, Option<f64>)> {
     let x = plot_point_x_value(&point.x, index)?;
     if matches!(x_scale, AxisScale::Log) && x <= 0.0 {
         return None;
     }
-    Some((x, plot_y_value(point.y, y_scale)?))
+    Some((x, plot_y_value(point.y, y_scale)))
 }
 
 fn reserved<T>(count: usize) -> Result<Vec<T>, String> {
@@ -100,7 +100,7 @@ fn aligned_cartesian_frame(series: &[PlotSeries], x_scale: &AxisScale, y_scale: 
                 continue;
             };
             x_values.push(x);
-            points.insert(OrderedFloat(x), Some(y));
+            points.insert(OrderedFloat(x), y);
         }
         series_maps.push(points);
     }
@@ -129,7 +129,7 @@ fn faceted_cartesian_frame(series: &[PlotSeries], x_scale: &AxisScale, y_scale: 
                 continue;
             };
             x.push(value);
-            y.push(Some(ordinate));
+            y.push(ordinate);
         }
         frames.push(PlotCartesianSeriesFrame { x, y });
     }
@@ -206,3 +206,29 @@ fn cartesian_signature(series: &[PlotCartesianSeriesFrame]) -> Result<String, St
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn aligned_columns_preserve_explicit_gap_rows() {
+        let series = PlotSeries {
+            key: "value".into(),
+            label: "Value".into(),
+            unit: None,
+            raw_points: 3,
+            downsampled: false,
+            format: None,
+            points: [Some(1.0), None, Some(3.0)]
+                .into_iter()
+                .enumerate()
+                .map(|(x, y)| super::super::PlotPoint { x: serde_json::json!(x), y, z: None })
+                .collect(),
+        };
+        let frame = cartesian_frame(&[series], Some(&PlotType::TimeSeries), &AxisScale::Linear, &AxisScale::Linear).unwrap().unwrap();
+        assert_eq!(frame.series[0].x, vec![0.0, 1.0, 2.0]);
+        assert_eq!(frame.series[0].y, vec![Some(1.0), None, Some(3.0)]);
+        assert_eq!(frame.point_count, 2);
+    }
+}

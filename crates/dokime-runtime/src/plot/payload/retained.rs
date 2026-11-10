@@ -62,7 +62,7 @@ pub(crate) fn finish(payload: ReadBatch<PlotPayload>, request: &PlotPayloadReque
         if !spectrum && !interval && !wifi {
             payload.analysis = analyses::analyze(&mut payload.series, request);
         }
-        payload.summaries = analyses::summarize(&payload.series, request);
+        payload.summaries = if request.defer_statistics { Vec::new() } else { analyses::summarize(&payload.series, request) };
         Ok::<_, crate::runtime::Error>(payload)
     })?;
     let payload = payload.try_map(|mut payload| {
@@ -96,8 +96,49 @@ pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest
         });
     }
     let spectrum = matches!(request.plot_type, Some(PlotType::FrequencySeries));
+    let timed = request.panel_width.filter(|_| {
+        payload.max_points > 0
+            && matches!(request.plot_type, None | Some(PlotType::TimeSeries))
+            && request.x_key.as_deref().is_none_or(|key| key == "timestamp")
+            && request.x_expression.is_none()
+    });
+    let columns = timed.map(|width| (width as usize).min((payload.max_points / 6).max(1)));
+    let extent = request.viewport.or_else(|| {
+        let mut xs = payload.series.iter().flat_map(|series| series.points.iter().filter_map(analyses::point_x));
+        let first = xs.next()?;
+        let window = xs.fold(super::PlotWindow { from: first, to: first }, |window, x| super::PlotWindow {
+            from: window.from.min(x),
+            to: window.to.max(x),
+        });
+        Some(super::PlotWindow {
+            from: request.window_s.map_or(window.from, |seconds| window.to - seconds),
+            to: window.to,
+        })
+    });
+    if let (Some(columns), Some(window)) = (columns, extent) {
+        payload.bucket_window = Some(window);
+        let width = ((window.to - window.from) / columns.max(1) as f64).max(f64::EPSILON);
+        payload.bucket_width_s = Some(width);
+        payload.bucket_counts.clear();
+        for point in payload.series.iter().flat_map(|series| &series.points) {
+            if let Some(x) = analyses::point_x(point).filter(|x| window.from <= *x && *x <= window.to) {
+                *payload.bucket_counts.entry((x / width).floor() as i128).or_insert(0) += 1;
+            }
+        }
+    }
+    let maximum = request.panel_width.map_or(payload.max_points, |width| {
+        if payload.max_points == 0 { 0 } else { payload.max_points.min((width as usize).saturating_mul(4)) }
+    });
     for series in &mut payload.series {
-        if let Some(selected) = indexes(&series.points, payload.max_points, request.technique, spectrum)? {
+        if let Some(window) = request.viewport {
+            series.points.retain(|point| analyses::point_x(point).is_some_and(|x| window.from <= x && x <= window.to));
+        }
+        let selected = if let Some(columns) = columns {
+            Some(time_indices(&series.points, extent, columns))
+        } else {
+            indexes(&series.points, maximum, request.technique, spectrum)?
+        };
+        if let Some(selected) = selected {
             let mut selected = selected.into_iter().peekable();
             let mut ordinal = 0usize;
             series.points.retain(|_| {
@@ -119,6 +160,44 @@ pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest
     Ok(payload)
 }
 
+// First, Last And Extrema Are Selected Within Equal Time Intervals.
+pub(crate) fn time_indices(points: &[PlotPoint], viewport: Option<super::PlotWindow>, columns: usize) -> Vec<usize> {
+    let extent = viewport.or_else(|| {
+        let mut values = points.iter().filter_map(analyses::point_x);
+        let first = values.next()?;
+        Some(values.fold(super::PlotWindow { from: first, to: first }, |window, x| super::PlotWindow {
+            from: window.from.min(x),
+            to: window.to.max(x),
+        }))
+    });
+    let Some(extent) = extent else { return Vec::new() };
+    let width = ((extent.to - extent.from) / columns.max(1) as f64).max(f64::EPSILON);
+    let mut buckets = std::collections::BTreeMap::<i64, Vec<usize>>::new();
+    for (index, point) in points.iter().enumerate() {
+        let Some(x) = analyses::point_x(point).filter(|x| *x >= extent.from && *x <= extent.to) else { continue };
+        let key = (x / width).floor() as i64;
+        buckets.entry(key).or_default().push(index);
+    }
+    let mut selected = Vec::new();
+    for bucket in buckets.values() {
+        selected.push(bucket[0]);
+        selected.push(*bucket.last().expect("nonempty time bucket"));
+        let finite = bucket.iter().copied().filter(|index| points[*index].y.is_some_and(f64::is_finite)).collect::<Vec<_>>();
+        let values = finite.iter().map(|index| points[*index].y.expect("finite value")).collect::<Vec<_>>();
+        selected.extend(crate::signal::m4(&values).into_iter().map(|index| finite[index]));
+        let gaps = bucket.iter().copied().filter(|index| points[*index].y.is_none());
+        if let Some(index) = gaps.clone().next() {
+            selected.push(index);
+        }
+        if let Some(index) = gaps.last() {
+            selected.push(index);
+        }
+    }
+    selected.sort_unstable();
+    selected.dedup();
+    selected
+}
+
 /* === Private Functions === */
 
 fn indexes(points: &[PlotPoint], maximum: usize, technique: DownsampleTechnique, spectrum: bool) -> Result<Option<Vec<usize>>> {
@@ -129,7 +208,7 @@ fn indexes(points: &[PlotPoint], maximum: usize, technique: DownsampleTechnique,
         let mut values = Vec::new();
         values.try_reserve_exact(points.len()).map_err(|_| memory())?;
         values.extend(points.iter().map(|point| point.y.filter(|value| value.is_finite()).unwrap_or(f64::NEG_INFINITY)));
-        let mut selected = harmos::signal::extrema(&values, (maximum / 2).max(1));
+        let mut selected = crate::signal::extrema(&values, (maximum / 2).max(1));
         selected.sort_unstable();
         selected.dedup();
         selected.retain(|index| *index < points.len());
@@ -143,14 +222,14 @@ fn indexes(points: &[PlotPoint], maximum: usize, technique: DownsampleTechnique,
         technique => technique,
     };
     if maximum == 1 || matches!(technique, DownsampleTechnique::Raw) || (matches!(technique, DownsampleTechnique::Lttb) && maximum < 3) {
-        return Ok(Some(harmos::signal::decimate(points.len(), maximum)));
+        return Ok(Some(crate::signal::decimate(points.len(), maximum)));
     }
     let mut values = Vec::new();
     values.try_reserve_exact(points.len()).map_err(|_| memory())?;
     for point in points {
         let Some(value) = point.y.filter(|value| value.is_finite()) else {
             drop(values);
-            return Ok(Some(harmos::signal::decimate(points.len(), maximum)));
+            return Ok(Some(crate::signal::decimate(points.len(), maximum)));
         };
         values.push(value);
     }
@@ -161,13 +240,13 @@ fn indexes(points: &[PlotPoint], maximum: usize, technique: DownsampleTechnique,
             let Some(value) = analyses::point_x(point) else {
                 drop(x);
                 drop(values);
-                return Ok(Some(harmos::signal::decimate(points.len(), maximum)));
+                return Ok(Some(crate::signal::decimate(points.len(), maximum)));
             };
             x.push(value);
         }
-        harmos::signal::lttb(&x, &values, maximum)
+        crate::signal::lttb(&x, &values, maximum)
     } else {
-        harmos::signal::extrema(&values, (maximum / 2).max(1))
+        crate::signal::extrema(&values, (maximum / 2).max(1))
     };
     selected.sort_unstable();
     selected.dedup();
@@ -184,6 +263,27 @@ fn memory() -> crate::runtime::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn time_buckets_preserve_irregular_spikes_and_gaps() {
+        let points = [
+            (0.0, Some(1.0)),
+            (0.01, Some(-50.0)),
+            (0.02, Some(100.0)),
+            (0.03, None),
+            (0.04, Some(2.0)),
+            (9.0, Some(4.0)),
+            (9.5, Some(5.0)),
+        ]
+        .into_iter()
+        .map(|(x, y)| PlotPoint { x: serde_json::json!(x), y, z: None })
+        .collect::<Vec<_>>();
+        let indices = time_indices(&points, Some(super::super::PlotWindow { from: 0.0, to: 10.0 }), 2);
+        assert_eq!(indices, vec![0, 1, 2, 3, 4, 5, 6]);
+        let indices = time_indices(&points, Some(super::super::PlotWindow { from: 9.0, to: 9.5 }), 2);
+        assert_eq!(indices, vec![5, 6]);
+        assert!(time_indices(&points, Some(super::super::PlotWindow { from: 20.0, to: 30.0 }), 2).is_empty());
+    }
 
     #[test]
     fn marker_reduction() {

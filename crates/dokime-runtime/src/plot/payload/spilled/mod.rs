@@ -31,7 +31,7 @@ pub(crate) use input::Input;
 use harmos::storage::ReadBatch;
 
 // Local Imports
-use super::{PlotAnalysis, PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotWindow, analyses, cartesian};
+use super::{PlotAnalysis, PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotWindow, analyses};
 use crate::{document::PlotType, runtime::Result};
 use input::Read;
 use series::Series;
@@ -107,10 +107,7 @@ pub(crate) fn project(
             payload.x_key = "frequency_hz".into();
             payload.x_format = None;
         }
-        if request.analysis.is_none() {
-            payload.cartesian = cartesian::cartesian_frame(&payload.series, request.plot_type.as_ref(), &request.x_scale, &request.y_scale)
-                .map_err(crate::runtime::Error::Operation)?;
-        }
+        let payload = if request.analysis.is_none() { super::finish_plot_frame(payload, request)? } else { payload };
         Ok(ReadBatch::new(payload))
     })
 }
@@ -121,7 +118,7 @@ fn append(
     read: &Read<'_>, payload: &mut PlotPayload, mut series: Series, request: &PlotPayloadRequest, context: &PlotPayloadContext,
 ) -> Result<()> {
     series.metadata.format = context.series_format.cloned();
-    if analyses::summarizes(request) {
+    if !request.defer_statistics && analyses::summarizes(request) {
         payload.summaries.push(series.summary(request.summary_window)?);
     }
     let invalid_z = request.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty());
@@ -131,21 +128,13 @@ fn append(
         });
     }
     if request.analysis.is_some() {
-        payload.series.push(series.reduce(0, request.technique)?);
+        payload.series.push(series.collect()?);
         return Ok(());
     }
     if !invalid_z && !matches!(payload.analysis, Some(PlotAnalysis::Error { .. })) {
         analyze(read, payload, &mut series, request)?;
     }
-    let technique =
-        if request.plot_type == Some(PlotType::FrequencySeries) { super::DownsampleTechnique::MinMax } else { request.technique };
-    let maximum = if request.plot_type == Some(PlotType::FrequencySeries) && payload.max_points == 1 {
-        series.metadata.downsampled = series.table.len() > 1;
-        2
-    } else {
-        payload.max_points
-    };
-    payload.series.push(series.reduce(maximum, technique)?);
+    payload.series.push(series.collect()?);
     Ok(())
 }
 

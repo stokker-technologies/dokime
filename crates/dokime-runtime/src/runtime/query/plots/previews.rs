@@ -44,7 +44,7 @@ pub(super) async fn query(
     context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, request: &PlotPayloadRequest, at: &harmos::storage::StorageCursor,
     current: bool,
 ) -> Result<Option<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
-    if request.window_s.is_some() || request.max_points == Some(0) {
+    if request.window_s.is_some() || request.viewport.is_some() || request.max_points == Some(0) {
         return Ok(None);
     }
     if !current && !runtime.storage().cursor_saved().covers(at)? {

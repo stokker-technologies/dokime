@@ -63,14 +63,9 @@ export function useLivePlotPayloads({
   // The latest query snapshot waits here until React paints it.
   const modelRef = useRef<LivePlotStateMap>({});
   const plotRequestKey = useMemo(() => plots.map(documentPlotRequestKey).join(";"), [plots]);
-  // A zoom changes which rows a plot's statistics cover, not the rows it
-  // draws: the stream reopens for it while the drawn frame stays on screen.
+  // Zoom And Width Changes Request Detail While The Previous Frame Stays Visible.
   const summaryWindows = useSummaryWindowStore((store) => store.windows);
-  const summaryKey = useMemo(
-    () => JSON.stringify(Object.fromEntries(plots.map((plot) => [plot.plot_id, summaryWindows[plot.plot_id]]))),
-    [plots, summaryWindows],
-  );
-  const requestedSummaryWindows = useMemo(() => JSON.parse(summaryKey) as Record<string, SummaryWindow | undefined>, [summaryKey]);
+  const panelWidths = useSummaryWindowStore((store) => store.widths);
   const scopeFields = useMemo(
     () => ({
       test_case_id: scope?.test_case_id ?? null,
@@ -98,15 +93,27 @@ export function useLivePlotPayloads({
   const scopeWindowKey = useMemo(() => [scopeKey, windowS ?? "all"].join("|"), [scopeKey, windowS]);
   const dataKey = useMemo(() => [plotRequestKey, scopeWindowKey].join("|"), [plotRequestKey, scopeWindowKey]);
 
-  // All captures inputs only on entry or an explicit refresh. Neither a zoom,
-  // a new runtime document nor visibility changes may trigger a history scan.
+  // All Captures Query Settings On Entry Or Explicit Refresh.
   const automatic = windowS != null;
-  const requestKey = automatic ? `${dataKey}|${summaryKey}` : scopeWindowKey;
-  const requestVisible = !automatic || pageVisible;
   const refreshKey = refresh?.key ?? 0;
+  const currentPlots = useRef(plots);
+  currentPlots.current = plots;
+  const selectionKey = automatic ? dataKey : `${scopeWindowKey}|${refreshKey}`;
+  const requestSelection = useMemo(() => ({ key: selectionKey, plots: currentPlots.current }), [selectionKey]);
+  const requestPlots = requestSelection.plots;
+  const summaryKey = useMemo(
+    () => JSON.stringify(Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, summaryWindows[plot.plot_id]]))),
+    [requestPlots, summaryWindows],
+  );
+  const widthKey = JSON.stringify(Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, panelWidths[plot.plot_id]])));
+  const requestedWidths = useMemo(() => JSON.parse(widthKey) as Record<string, number | undefined>, [widthKey]);
+  const requestedSummaryWindows = useMemo(() => JSON.parse(summaryKey) as Record<string, SummaryWindow | undefined>, [summaryKey]);
+  const requestDataKey = automatic ? dataKey : `${requestPlots.map(documentPlotRequestKey).join(";")}|${scopeWindowKey}`;
+  const requestKey = automatic ? `${dataKey}|${summaryKey}|${widthKey}` : `${scopeWindowKey}|${summaryKey}|${widthKey}`;
+  const requestVisible = !automatic || pageVisible;
   const onRefreshChange = refresh?.onChange;
-  const inputsRef = useRef({ plots, requestedSummaryWindows, dataKey, scopeWindowKey });
-  inputsRef.current = { plots, requestedSummaryWindows, dataKey, scopeWindowKey };
+  const inputsRef = useRef({ plots: requestPlots, requestedSummaryWindows, requestedWidths, dataKey: requestDataKey, scopeWindowKey });
+  inputsRef.current = { plots: requestPlots, requestedSummaryWindows, requestedWidths, dataKey: requestDataKey, scopeWindowKey };
   const requestInputs = useMemo(() => ({ ...inputsRef.current, key: `${requestKey}|${refreshKey}` }), [requestKey, refreshKey]);
 
   const dataKeyRef = useRef<string | null>(null);
@@ -125,7 +132,7 @@ export function useLivePlotPayloads({
       setState(modelRef.current);
     };
     clearScheduledFlush(flushFrameRef, flushTimerRef);
-    const { plots: activePlots, requestedSummaryWindows, dataKey, scopeWindowKey } = requestInputs;
+    const { plots: activePlots, requestedSummaryWindows, requestedWidths, dataKey, scopeWindowKey } = requestInputs;
     const dataChanged = dataKeyRef.current !== dataKey;
     dataKeyRef.current = dataKey;
     const viewChanged = viewKeyRef.current !== scopeWindowKey;
@@ -170,6 +177,7 @@ export function useLivePlotPayloads({
         scope: requestScope,
         windowS,
         summaryWindow: requestedSummaryWindows[plot.plot_id] ?? null,
+        panelWidth: requestedWidths[plot.plot_id],
       }),
     );
     let active = true;
@@ -427,6 +435,7 @@ export function plotRequestForDocumentPlot(
     scope: RecordScope | null;
     windowS?: number | null;
     summaryWindow?: SummaryWindow | null;
+    panelWidth?: number;
   },
 ): PlotPayloadRequestInput {
   const maximum = displayPointBudget(plot.display_points);
@@ -459,6 +468,8 @@ export function plotRequestForDocumentPlot(
     technique: plot.downsample ?? "auto",
     windowS: options.windowS ?? null,
     summaryWindow: options.summaryWindow ?? null,
+    viewport: options.summaryWindow ?? null,
+    panelWidth: options.panelWidth,
     scope: options.scope,
   };
 }

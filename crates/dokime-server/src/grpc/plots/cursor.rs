@@ -132,6 +132,20 @@ fn plot_request(request: dokime::domain::model::plots::wire::PlotRequest) -> Res
         })
         .transpose()?;
 
+    let viewport = request
+        .viewport
+        .map(|window| {
+            if window.from.is_finite() && window.to.is_finite() && window.from <= window.to {
+                Ok(PlotWindow { from: window.from, to: window.to })
+            } else {
+                Err(Status::invalid_argument("plot viewport must be a finite ordered range"))
+            }
+        })
+        .transpose()?;
+    if request.panel_width == Some(0) || request.panel_width.is_some_and(|width| u64::from(width) > SERVER_PLOT_POINTS / 4) {
+        return Err(Status::invalid_argument("plot panel_width exceeds the display budget or is zero"));
+    }
+
     Ok(PlotPayloadRequest {
         analysis: request.analysis.map(super::analysis::selection).transpose()?,
         plot_id: request.plot_id,
@@ -164,7 +178,10 @@ fn plot_request(request: dokime::domain::model::plots::wire::PlotRequest) -> Res
         window_s: request.window_s,
         scope: request.scope.map(record_scope).transpose()?,
         technique,
+        defer_statistics: false,
         summary_window,
+        viewport,
+        panel_width: request.panel_width,
     })
 }
 
