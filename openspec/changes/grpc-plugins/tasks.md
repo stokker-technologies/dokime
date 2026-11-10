@@ -25,11 +25,12 @@
 
 ## 4. SDKs
 
-- [ ] 4.1 Rust: authoring over the Harmos SDK with generated step and criterion operations and derived `materialize`; `dokime-client` as the client half.
-- [ ] 4.2 Python: pure package with the plugin half and the generated client half; rewrite the starter and `dokime new --lang python`.
-- [ ] 4.3 C#: `sdk/csharp` with both halves, a starter and `dokime new --lang csharp`.
-- [ ] 4.4 C++: `sdk/cpp` with both halves, a starter and `dokime new --lang cpp`.
-- [ ] 4.5 Migrate the host telemetry and OBC plugins and the samples.
+- [ ] 4.1 Rust: extract authoring into `sdk/rust` as `dokime-sdk` with no dependency on `dokime-runtime`, over the Harmos SDK, with generated step and criterion operations and derived `materialize`; `dokime-client` as the client half.
+- [ ] 4.2 Move the plugin, installer and proto commands into `dokime`, add `dokime new --lang`, and delete `crates/cargo-dokime`.
+- [ ] 4.3 Python: pure package with the plugin half and the generated client half; rewrite the starter and `dokime new --lang python`.
+- [ ] 4.4 C#: `sdk/csharp` with both halves, a starter and `dokime new --lang csharp`.
+- [ ] 4.5 C++: `sdk/cpp` with both halves, a starter and `dokime new --lang cpp`.
+- [ ] 4.6 Migrate the host telemetry and OBC plugins and the samples.
 
 ## 5. Removal
 

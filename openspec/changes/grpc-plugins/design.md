@@ -209,7 +209,11 @@ the host records which data each criterion read.
 | The `TestCase` (belongs to an execution) | Before `initialize` | After `cleanup` |
 
 - The plugin sends one sample per message; the host stamps arrival and
-  ingests it. Samples lost during a disconnect are accepted.
+  ingests it. Samples lost during a disconnect are accepted. The fastest
+  stream in use today publishes every 200 ms, so this is enough; an SDK may
+  later group samples under the same authoring API.
+- An observer's interval is a declared default or comes from the plugin's
+  settings, as today.
 - An observer is a function and an interval; the SDK runs the timer and sends
   each value on the stream. A stream without an observer is a generator that
   yields samples when the device produces them.
@@ -362,6 +366,34 @@ async with dokime.serve(ThermalCycle, address="127.0.0.1:7001") as plugin:
 Each has both halves and builds on the Harmos SDK for the same language.
 Go is outside the pilot; `dokime-sdk-go` stays recorded for later.
 
+## One Command-Line Tool and Starters
+
+Folded from the former `dokime-sdk` and `dokime-sdk-cpp` changes.
+
+```sh
+dokime new my-plugin --lang rust|python|csharp|cpp
+dokime plugin build | package | dev | inspect     # managed bundles
+dokime installer package
+dokime proto export
+```
+
+- `cargo dokime` is removed and `crates/cargo-dokime` is deleted. Every
+  language uses the one `dokime` tool, and none but Rust needs Cargo.
+- `dokime-sdk` at `sdk/rust` holds Rust authoring and has no dependency on
+  `dokime-runtime`, so a plugin never compiles the host.
+- A starter is an ordinary project in its language, with a mise task that
+  wraps its build. `dokime new` fails for a language without an SDK and lists
+  the supported ones.
+- Concepts have the same names in every SDK: suite, template, step,
+  observer, criterion, prompt, record, stream.
+
+| Language | Install |
+| --- | --- |
+| Rust | `cargo add dokime-sdk` |
+| Python | `uv add dokime` or `pip install dokime` |
+| C# | `dotnet add package Dokime` |
+| C++ | CMake `FetchContent` of the versioned source archive, pinned by URL and hash; gRPC and protobuf through a vcpkg manifest in the starter |
+
 ## What It Removes
 
 Sizes are of existing paths, not deletion totals; several files are mixed.
@@ -386,16 +418,17 @@ entries.
 
 Not yet decided with the owner; each is settled before its task starts.
 
-1. Whether one sample per `Publish` message is enough for every existing
-   plugin's rate, or a fast device needs several samples per message from the
-   start.
-2. Whether managed bundles for C# and C++ plugins are in the pilot or follow
-   it.
+1. The exact wire format: the complete `dokime.v1` `.proto` files with field
+   numbers, reserved ranges, the failure model and the rule for compatible
+   changes. It is agreed before any implementation so later changes do not
+   break plugins or clients.
+2. Whether C# and C++ plugins can be managed bundles in the pilot or are
+   remote only at first. Proposed: remote only; Rust is the only managed
+   language in the pilot.
 3. Spec deltas that retire `python-backend`, `python-sdk`,
    `python-plugin-authoring` and the reload and start-order requirements this
    change removes.
 
-Settled and recorded above: the percentile set, guests, settings reads, the
-proto export sources, state per language, and folding
-`template-authoring-simplification` into this change. Branding is the
-separate change `organization-pack-coverage`.
+Client access and its security are the separate change
+`remote-access-simplification`. Branding is the separate change
+`organization-pack-coverage`.

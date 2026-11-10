@@ -7,8 +7,8 @@ waits for the owner's go. Independent of `grpc-plugins`.
 
 With an organization pack applied, the built-in product name still appears in
 places an operator sees: the first window title, report titles, table labels,
-suggested file names and error messages. A distribution packaged with a pack
-can also have that pack replaced from Settings.
+suggested file names and error messages. A pack can also arrive two ways,
+through the installer or through Settings, which is one path too many.
 
 ## The Rule
 
@@ -33,9 +33,9 @@ identifier, not from the pack. That stays.
 - The product name inside report data comes from the captured appearance.
 - New remote access certificates are issued under the resolved label;
   existing certificates keep their subject.
-- A pack supplied when the installer is packaged replaces the bundled default
-  and is fixed: that installation offers no way to import, change or remove a
-  pack, and ignores a pack placed in its application folder.
+- Packaging the installer is the only way to apply a pack. A pack supplied
+  there replaces the bundled default. Pack import in Settings, the pending
+  and active packs in the application folder and their overlay are removed.
 
 ## Locked Decisions
 
@@ -43,7 +43,8 @@ identifier, not from the pack. That stays.
   packaging, desktop discovery and installer hooks together and is not worth
   it now.
 - The toolchain and contracts in the second column keep the Dokime name.
-- An installation packaged without a pack keeps today's pack import.
+- There is one path for a pack: the installer. An installation packaged
+  without one shows the built-in appearance.
 
 ## Impact
 

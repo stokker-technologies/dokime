@@ -68,7 +68,10 @@ and lets Dokime delete the plumbing in between.
 - Absorbs `template-authoring-simplification` (deleted with this change):
   Rust steps take one context type with no template parameters, and the
   plugin's own operation registry is its requirement inventory.
-- `dokime-sdk`, `dokime-sdk-cpp` and `dokime-sdk-go` are aligned to this
-  change. `runtime-stream-cadence` and `telemetry-at-record` touch the
-  stream path and are reconciled in task 1.2.
+- Absorbs `dokime-sdk` and `dokime-sdk-cpp` (deleted with this change): the
+  runtime-free Rust SDK, the single `dokime` tool and the starters.
+  `dokime-sdk-go` is removed; Go follows the pilot.
+- `runtime-stream-cadence` is landed and stays; its remaining dependency pin
+  closes when this change adopts the Harmos revision. `telemetry-at-record`
+  is unaffected.
 - Private plugins migrate in their own repositories.

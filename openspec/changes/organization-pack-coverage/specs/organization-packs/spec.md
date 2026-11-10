@@ -24,21 +24,21 @@ Every surface an operator of an installation sees SHALL show the resolved organi
 - **WHEN** an author runs the command-line tool, generates a project or reads a protocol or file format identifier
 - **THEN** those keep the Dokime name whatever pack is applied
 
-### Requirement: Packaged Pack Is Fixed
+### Requirement: One Pack Path
 
-An installation packaged with an organization pack SHALL use that pack in place of the bundled default and SHALL NOT allow it to be changed.
+An organization pack SHALL be applied only by packaging it into the installer, where it replaces the bundled default.
 
 #### Scenario: Packaged With a Pack
 
 - **WHEN** an installer is packaged with a pack and installed
-- **THEN** the installation shows that pack and Settings offers no pack import, change or removal
+- **THEN** the installation shows that pack
 
-#### Scenario: Pack Placed in the Application Folder
+#### Scenario: No Import
 
-- **WHEN** a pack is placed in the application folder of an installation packaged with a pack
-- **THEN** it is ignored
+- **WHEN** an operator opens Settings in any installation
+- **THEN** there is no way to import, change or remove a pack, and a pack placed in the application folder is ignored
 
 #### Scenario: Packaged Without a Pack
 
 - **WHEN** an installer is packaged without a pack
-- **THEN** the installation keeps the pack import it has today
+- **THEN** the installation shows the built-in appearance

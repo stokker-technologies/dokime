@@ -12,14 +12,14 @@
 - [ ] 2.4 Pass the resolved label into operator-facing error and status messages, with the distribution default before the pack loads.
 - [ ] 2.5 Set the product name in report data from the captured appearance and issue new remote access certificates under the label.
 
-## 3. Fixed Packaged Pack
+## 3. One Pack Path
 
-- [ ] 3.1 Make a pack supplied at packaging replace the bundled default and mark the installation as fixed.
-- [ ] 3.2 Hide pack import, change and removal in a fixed installation and ignore a pack in its application folder.
+- [ ] 3.1 Make a pack supplied at packaging replace the bundled default.
+- [ ] 3.2 Delete pack import, the pending and active packs in the application folder, their overlay resolution and the Settings surface for them.
 
 ## 4. Final Validation
 
-- [ ] 4.1 Run focused desktop, report and packaging tests for a fixed pack, an imported pack and no pack; update the product guide's organization section.
+- [ ] 4.1 Run focused desktop, report and packaging tests for a packaged pack and no pack; update the product guide's organization section.
 
 ## Workflow Follow-Up
 

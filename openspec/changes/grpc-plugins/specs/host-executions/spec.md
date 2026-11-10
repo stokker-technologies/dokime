@@ -113,3 +113,26 @@ Each language SDK SHALL let an author serve a plugin and drive Dokime through `d
 
 - **WHEN** a Public operation with a binding is added to `dokime.v1`
 - **THEN** every language's client exposes it after regeneration, and a check fails while the stubs are stale
+
+### Requirement: Runtime-Free Authoring
+
+A plugin SHALL build against the SDK for its language without compiling the Dokime host.
+
+#### Scenario: Plugin Dependency Tree
+
+- **WHEN** a generated Rust starter plugin is resolved
+- **THEN** its dependency tree does not include `dokime-runtime`
+
+### Requirement: One Command-Line Tool
+
+Project creation, plugin packaging, installer packaging and proto export SHALL live in the `dokime` tool, and `cargo-dokime` SHALL no longer exist.
+
+#### Scenario: New Project
+
+- **WHEN** a developer runs `dokime new my-plugin --lang python`
+- **THEN** it creates an ordinary Python project that runs without a Rust toolchain
+
+#### Scenario: Unsupported Language
+
+- **WHEN** `--lang` names a language with no SDK
+- **THEN** the command fails, lists the supported languages and creates nothing
