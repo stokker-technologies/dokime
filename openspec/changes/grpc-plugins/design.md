@@ -340,7 +340,7 @@ import dokime
 from suite import ThermalCycle
 
 async with dokime.serve(ThermalCycle, address="127.0.0.1:7001") as plugin:
-    async with dokime.connect("bench.dokime-remote") as client:
+    async with dokime.connect("bench.pair") as client:
         await client.plugins.add(plugin.url)
         cases = await client.templates.materialize("thermal.cycle", parameters={"limit": [70, 85]})
         cycle = await client.cycles.start(cases)
@@ -364,11 +364,20 @@ async with dokime.serve(ThermalCycle, address="127.0.0.1:7001") as plugin:
 | --- | --- | --- | --- |
 | Rust | `sdk/rust` | Managed and remote | Crate; `dokime-client` is its client half |
 | Python | `sdk/python` | Remote | One pure wheel |
-| C# | `sdk/csharp` | Remote first | NuGet package |
-| C++ | `sdk/cpp` | Remote first | Source archive with CMake, as `dokime-sdk-cpp` records |
+| C# | `sdk/csharp` | Managed and remote | NuGet package |
+| C++ | `sdk/cpp` | Managed and remote | Source archive with CMake |
 
-Each has both halves and builds on the Harmos SDK for the same language.
-Go is outside the pilot; `dokime-sdk-go` stays recorded for later.
+Each has both halves and builds on the Harmos SDK for the same language. Go
+is outside the pilot.
+
+A managed plugin is any executable that serves `harmos.v1` on the endpoint
+the host passes at start. `dokime plugin bundle` packages the output of any
+language's build the same way, so Rust, C# and C++ plugins can all be
+managed. Python has no executable to bundle and stays remote.
+
+```sh
+dokime plugin bundle --executable build/thermal.exe --out thermal.dokime
+```
 
 ## One Command-Line Tool and Starters
 
@@ -376,7 +385,7 @@ Folded from the former `dokime-sdk` and `dokime-sdk-cpp` changes.
 
 ```sh
 dokime new my-plugin --lang rust|python|csharp|cpp
-dokime plugin build | package | dev | inspect     # managed bundles
+dokime plugin bundle | dev | inspect            # managed bundles
 dokime installer package
 dokime proto export
 ```
@@ -397,6 +406,17 @@ dokime proto export
 | Python | `uv add dokime` or `pip install dokime` |
 | C# | `dotnet add package Dokime` |
 | C++ | CMake `FetchContent` of the versioned source archive, pinned by URL and hash; gRPC and protobuf through a vcpkg manifest in the starter |
+
+## Validation
+
+- Each SDK's sample plugin builds from the `.proto` files alone, so the
+  languages build in parallel and none waits for the host build.
+- One story runs against every language: the same suite, written once per
+  SDK, executed by the same host, with the same expected evidence. A
+  difference between languages is a failure.
+- Tests at integration level and above follow a real user journey and read
+  as its storyline. Setup, fixtures and assertions live in shared modules
+  with one convention; a test does not rebuild what a shared module provides.
 
 ## What It Removes
 
@@ -422,14 +442,9 @@ entries.
 
 Not yet decided with the owner; each is settled before its task starts.
 
-1. The exact wire format: the complete `dokime.v1` `.proto` files with field
-   numbers, reserved ranges, the failure model and the rule for compatible
-   changes. It is agreed before any implementation so later changes do not
-   break plugins or clients.
-2. Whether C# and C++ plugins can be managed bundles in the pilot or are
-   remote only at first. Proposed: remote only; Rust is the only managed
-   language in the pilot.
-3. Spec deltas that retire `python-backend`, `python-sdk`,
+1. The exact wire format. A draft is in `proto/` with its compatibility
+   rules and review questions; it is agreed before any implementation.
+2. Spec deltas that retire `python-backend`, `python-sdk`,
    `python-plugin-authoring` and the reload and start-order requirements this
    change removes.
 

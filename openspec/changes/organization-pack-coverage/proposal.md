@@ -14,7 +14,7 @@ through the installer or through Settings, which is one path too many.
 
 | Follows the Pack | Keeps the Dokime Name |
 | --- | --- |
-| What an operator of that installation sees: the desktop app and its windows, dialogs and notifications, reports, error messages, suggested file names, the installer and its shortcuts | What an author or integrator uses across installations: the `dokime` command and its help, `cargo dokime`, scaffolds, `dokime.v1`, `.dokime-remote` and `.dokime` files, `DOKIME_*` variables, SDK packages, schema and operation identifiers, credential store names, the client profiles folder, upstream attribution |
+| What an operator of that installation sees: the desktop app and its windows, dialogs and notifications, reports, error messages, suggested file names, the installer and its shortcuts | What an author or integrator uses across installations: the `dokime` command and its help, `cargo dokime`, scaffolds, `dokime.v1`, `.pair` and `.dokime` files, `DOKIME_*` variables, SDK packages, schema and operation identifiers, credential store names, the client profiles folder, upstream attribution |
 
 Install, package and data folder names come from the installer's distribution
 identifier, not from the pack. That stays.

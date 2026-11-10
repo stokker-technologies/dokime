@@ -31,6 +31,7 @@
 - [ ] 4.4 C#: `sdk/csharp` with both halves, a starter and `dokime new --lang csharp`.
 - [ ] 4.5 C++: `sdk/cpp` with both halves, a starter and `dokime new --lang cpp`.
 - [ ] 4.6 Migrate the host telemetry and OBC plugins and the samples.
+- [ ] 4.7 Add `dokime plugin bundle` for any executable and build each SDK's sample plugin in parallel in CI, running one shared story against all of them.
 
 ## 5. Removal
 

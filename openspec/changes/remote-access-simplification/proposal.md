@@ -1,7 +1,7 @@
 # Remote Access Simplification
 
-Status: direction agreed with the owner on 2026-11-10; the scope below is
-proposed and not locked. Independent of `grpc-plugins`.
+Status: locked by the owner on 2026-11-10; implementation has not started
+and waits for the owner's go. Independent of `grpc-plugins`.
 
 ## Why
 
@@ -20,21 +20,21 @@ not in permissions.
 - A client is configured through the environment. No client parses a `.env`
   file itself; mise or any other tool supplies the environment.
 
-## Proposed Scope
+## Scope
 
 The pairing file is the only connection input. It carries the endpoints, one
-access key and the server certificate.
+access key and the server certificate, and its extension is `.pair`.
 
 ```sh
-DOKIME_REMOTE=./bench.dokime-remote
+DOKIME_REMOTE=./bench.pair
 ```
 
 ```python
 client = dokime.connect()                       # reads DOKIME_REMOTE
-client = dokime.connect("bench.dokime-remote")  # or names the file
+client = dokime.connect("bench.pair")  # or names the file
 ```
 
-| Mechanism Today | Proposed |
+| Mechanism Today | Decision |
 | --- | --- |
 | Pairing file | Stays; the single source for a connection |
 | Access key and encrypted transport | Stay: one key per backend and one self-signed server certificate, both in the pairing file |
@@ -54,13 +54,21 @@ What is given up: revoking one machine without affecting the others,
 protected storage of the key, a record of who connected, and keeping a
 pairing valid across a certificate change.
 
+## Connection Drops
+
+A transient connection drop is not an error for a client. The client object
+stays valid and reconnects by itself. A read is repeated; a watch resumes
+where it stopped without gaps or duplicates; a request that changes state
+is repeated under the same request identity so the backend applies it
+once. The client reports a failure only when the backend stays unreachable
+beyond the configured reconnect time.
+
 ## Open Points
 
-1. Confirm the proposed scope, row by row.
-2. Whether the check that a client reached the backend it expected stays. It
+1. Whether the check that a client reached the backend it expected stays. It
    catches a pairing file used against the wrong machine after an address
    changes hands.
-3. Whether the server keeps its own `.env` loader or reads only the
+2. Whether the server keeps its own `.env` loader or reads only the
    environment like the clients.
 
 ## Impact
