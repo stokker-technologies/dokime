@@ -514,7 +514,7 @@ def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
     """The Release Review Head Passed Its Rehearsal And Its Tree Is Exactly The Merged Tree."""
     head = review["head"]
     if settings["provider"] == "github":
-        evidence = runpy.run_path(str(directory / ".github/actions/review-release/run.py"))
+        evidence = runpy.run_path(str(directory / "tools/python/src/dokime_tools/ci/review.py"))
         pull = document(settings, f"pulls/{review['number']}")
         runs = pages(settings, f"actions/workflows/ci.yml/runs?event=pull_request&head_sha={head}", "workflow_runs")
         try:
@@ -536,20 +536,6 @@ def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
     if not isinstance(pipeline, dict) or pipeline.get("sha") != head or not isinstance(pipeline.get("id"), int):
         raise policy.ToolError(f"release MR !{review['number']} has no pipeline for its head {head}")
     pipeline_jobs = pages(settings, f"pipelines/{pipeline['id']}/jobs?include_retried=false")
-    if any(job.get("name") == "Plan / Impact" for job in pipeline_jobs):
-        bridges = [bridge for bridge in pages(settings, f"pipelines/{pipeline['id']}/bridges") if bridge.get("name") == "CI / Required"]
-        if len(bridges) != 1 or bridges[0].get("status") != "success":
-            raise policy.ToolError("release review child gate is not green")
-        child = bridges[0].get("downstream_pipeline")
-        if (
-            not isinstance(child, dict)
-            or child.get("sha") != head
-            or child.get("status") != "success"
-            or not isinstance(child.get("id"), int)
-        ):
-            raise policy.ToolError("release review child pipeline is not green for its head")
-        pipeline = child
-        pipeline_jobs = pages(settings, f"pipelines/{pipeline['id']}/jobs?include_retried=false")
     jobs = [job for job in pipeline_jobs if job.get("name") == GITLAB_REHEARSAL_JOB]
     if not jobs or any(job.get("status") != "success" for job in jobs):
         raise policy.ToolError(f"release MR !{review['number']} pipeline {pipeline['id']} has no successful {GITLAB_REHEARSAL_JOB} job")

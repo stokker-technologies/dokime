@@ -176,7 +176,7 @@ its temporary data roots, WebDriver/backend ports, browser profiles and native p
 Process-local test fixture mutexes protect callbacks or runtime state inside one
 story; they do not lock other nextest processes. No cross-test nextest group is
 needed. Hosted CI and nightly test jobs already depend on their artifact producers
-and impact selection independently, without test-to-test dependencies or a shared
+independently, without test-to-test dependencies or a shared
 concurrency group; each keeps its own public bootstrap and required platform legs.
 
 Use `mise run test -- --language rust --layer acceptance --select 'test(=facade::typescript_facade_bridge)'` for one native acceptance story from the Tests archive.
@@ -476,8 +476,12 @@ pending implementation by the release-tooling owner. The existing Nightly / Repo
 line provides suite status and the run URL; per-layer counts must come from that
 run's executed test reports, not from its job-status list.
 
-Release reviews squash into dev. Before tagging or publishing, `release.yml`
-queries GitHub for the exact target SHA's latest dev push run, its successful
+CI runs every pull request through the check, build, test and package matrices.
+Each work job calls one project task; the setup action runs `prepare` first.
+See [Repository Tooling](docs/tooling.md#validation) for artifact reuse and hidden CI tasks.
+
+Release reviews squash into dev. Before tagging or publishing, the release tasks
+query GitHub for the exact target SHA's latest dev push run, its successful
 `CI / Required` check, and any additional required contexts in main's ruleset.
 Missing or pending proof waits up to 30 minutes; failed proof refuses release.
 Rerun Release after repairing CI if the gate times out. The release flow tags

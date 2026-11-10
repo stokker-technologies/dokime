@@ -25,7 +25,6 @@ from pathlib import Path
 
 # === Constants === #
 
-# Hosted Task And Artifact Dependencies Checked By Check / Repository.
 # === Types === #
 
 # === Classes === #

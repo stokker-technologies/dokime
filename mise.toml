@@ -616,6 +616,51 @@ run = [
 
 # === CI === #
 
+[tasks."ci:nightly-freshness"]
+hide = true
+description = "Nightly Freshness"
+run = "{{vars.tools}} dokime_tools.ci.workflow nightly-freshness"
+
+[tasks."ci:nightly-publish"]
+hide = true
+description = "Nightly Publish"
+run = "{{vars.tools}} dokime_tools.ci.workflow nightly-publish"
+
+[tasks."ci:nightly-report"]
+hide = true
+description = "Nightly Report"
+run = "{{vars.tools}} dokime_tools.ci.workflow nightly-report"
+
+[tasks."ci:review"]
+hide = true
+description = "Review"
+run = "{{vars.tools}} dokime_tools.ci.workflow review"
+
+[tasks."ci:required"]
+hide = true
+description = "Required"
+run = "{{vars.tools}} dokime_tools.ci.workflow required"
+
+[tasks."ci:mirror"]
+hide = true
+description = "Mirror"
+run = "{{vars.tools}} dokime_tools.ci.workflow mirror"
+
+[tasks."ci:sign-windows"]
+hide = true
+description = "Sign Windows"
+run = "{{vars.tools}} dokime_tools.ci.workflow sign-windows"
+
+[tasks."ci:bindings"]
+hide = true
+description = "Bindings"
+run = "{{vars.tools}} dokime_tools.ci.workflow bindings"
+
+[tasks."ci:sign-product"]
+hide = true
+description = "Prepare Product Signing"
+run = "{{vars.tools}} dokime_tools.ci.workflow sign-product"
+
 [tasks."ci:test"]
 hide = true
 lock = true
@@ -636,7 +681,7 @@ run = [
 
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
-run = "{{vars.tools}} dokime_tools.release.run prepare"
+run = "{{vars.tools}} dokime_tools.ci.workflow release-prepare"
 
 [tasks."release:publish"]
 description = "Publish a Tagged Release"
@@ -669,15 +714,15 @@ run = "{{vars.tools}} dokime_tools.release.run python"
 
 [tasks."release:rehearse"]
 description = "Rehearse Staged Release Packages Without Credentials"
-run = "{{vars.tools}} dokime_tools.release.run rehearse"
+run = "{{vars.tools}} dokime_tools.ci.workflow rehearse"
 
 [tasks."release:tag"]
 description = "Tag a Merged Release Review and Fast-Forward Main"
-run = "{{vars.tools}} dokime_tools.release.run tag"
+run = "{{vars.tools}} dokime_tools.ci.workflow release-tag"
 
 [tasks."release:verify"]
 description = "Verify Published Release Assets and Installers"
-run = "{{vars.tools}} dokime_tools.release.run verify"
+run = "{{vars.tools}} dokime_tools.ci.workflow release-verify"
 
 # === Clean === #
 

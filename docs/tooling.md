@@ -61,35 +61,23 @@ the bundles its integration lane requires.
 
 Compiler caches are separated by OS, architecture, build profile and producer.
 All use `SCCACHE_CACHE_SIZE=8G`; archive-only test consumers need no compiler cache.
-The existing Product identities remain unchanged:
+`tools/python/src/dokime_tools/ci/native.py` derives the keys during setup:
 
 ```text
-Product: ci-v5-sccache-<os>-<arch>-<profile>-<hash(mise.lock)>-<hash(Cargo.lock)>
-Tests:   ci-v5-sccache-<os>-<arch>-<profile>-tests-<hash(mise.lock)>-<hash(Cargo.lock)>
-Bench:   ci-v5-sccache-<os>-<arch>-bench-bench-<hash(mise.lock)>-<hash(Cargo.lock)>
+ci-v6-sccache-<os>-<arch>-<dev|release|test|bench>-<Rust version>-<Cargo lock digest>
 ```
 
-Each identity first restores its exact key, then its prefix ending before
-`hash(Cargo.lock)`. Tests and Bench then fall back to the matching Product exact
-key and prefix; Bench uses the release Product cache. This seeds new identities
-while preserving test-only and benchmark-only compilation units in later runs.
-
-Only the corresponding Build / Product, Build / Tests or Build / Bench job saves
-its cache, after a successful build and only on an exact-key miss. PRs restore
-only. Dev pushes save the dev Product and Tests caches; Nightly on dev runs in
-`READ_WRITE` mode and saves release Product, release Tests and bench Bench caches.
-`.github/actions/setup/run.py` resolves `CACHE_PLAN` using the build job's
-`COMPILER_CACHE_KIND`; `.github/actions/save-caches` enforces the Tests and Bench
-save policy. The workflows own producer selection.
+Each cache restores its exact key, then the prefix before the Cargo lock digest.
+Changing an unrelated tool preserves compiler-cache compatibility. GitHub provider
+steps save successful dev and Nightly runs on an exact-key miss; PRs restore only.
+Tasks own compiler processes and timing summaries.
 
 ## Benchmark Baselines
 
-Nightly Rust System and Integration benchmarks restore baselines by branch,
-OS, architecture and leaf: `ci-v6-bench-baselines-<os>-<arch>-<branch>-bench-rust-<leaf>`.
-Restore prefixes try that identity first, then the former v5 identity containing
-`hash(mise.lock)`. Successful Nightlies on dev save refreshed measurements with
-run ID and attempt suffixes, so immutable caches retain the latest baseline.
-The restore identity no longer changes with the source revision or lock file.
+Nightly Rust benchmarks restore `target/benchmarks/` by OS, architecture and layer:
+`ci-v6-baselines-<os>-<arch>-<layer>-`. Successful Nightlies on dev save refreshed
+measurements with run ID and attempt suffixes. The restore identity stays stable
+across source and tool-lock changes.
 
 `mise run bench -- --language rust --layer <leaf> --refresh-baseline` seeds missing native baselines
 and emits a `::notice::` naming each benchmark. Without refresh, a missing
@@ -214,6 +202,36 @@ the override with `Remove-Item Env:RUSTC_WRAPPER`.
 
 Run targeted tasks locally for changed behavior. Hosted CI and Nightly provide
 full validation across the declared platforms.
+
+Every pull request runs the complete check, build, test and package matrices,
+including reviews into `dev`. There is no path-impact planner. A job checks out,
+uses the single setup action to install tools and run `prepare`, restores caches,
+downloads its declared inputs, runs one work task and uploads results. Platform
+values select the existing Linux and Windows runner images in each matrix.
+
+`build --artifact product|tests|bench`, language builds and `package` own archive
+transport through `dokime_tools/ci/artifacts.py`. `CI_TRANSPORT=true` extracts only
+downloaded archives under `target/ci`; `CI_OUTPUTS` declares producer paths and
+transport names. Tasks expand `{profile}`, `{target}` and `{platform}`. These
+variables are provider transport metadata, not workstation preparation options.
+Compiler caches are scoped by OS, architecture, compiler profile and the selected
+Rust toolchain, followed by the restorable Cargo lock digest.
+
+Hidden `ci:nightly-freshness`, `ci:nightly-publish`, `ci:nightly-report`, `ci:review`,
+`ci:required`, `ci:mirror`, `ci:bindings`, `ci:sign-product` and `ci:sign-windows`
+own provider operations. They accept `--help` and stay out of `mise tasks`.
+`prepare` only prepares dependencies. Release preparation includes its review;
+tagging and publication require exact-commit green CI. Windows signing prepares
+product bytes in a task, retains Azure's provider action, then packages verified
+signed bytes before installer, updater and archive checksums.
+
+Packaging waits for its builds. Tests and generated checks consume their build
+artifacts; benchmarks wait only for their benchmark build. Release rehearsal and
+dry publication consume packages. Nightly publication depends only on packages;
+its final report joins the suite results and records them in the published notes.
+Dev pushes keep the existing check/build-only scope. The final required gate
+rejects failed, cancelled or unexpectedly skipped jobs; only event-excluded work
+may be skipped.
 
 Nightly runs every four hours or on manual dispatch, serializes runs without cancelling an active run, and skips the whole run after Plan / Freshness (every downstream job) for scheduled heads already published or heads with another in-progress or queued Nightly run.
 

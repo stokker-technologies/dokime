@@ -11,6 +11,7 @@
 
 # Standard Library Imports
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +20,7 @@ from pathlib import Path
 # Local Imports
 from ..build import cargo
 from ..process import spawn_flags
+from . import transport
 
 # Type Checking Imports
 
@@ -59,6 +61,7 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--binary")
     parser.add_argument("--refresh-baseline", action="store_true")
     args = parser.parse_args(arguments)
+    transport.receive()
     supported = {
         "lint": {"rust", "python", "typescript"},
         "build": {"rust", "python", "typescript"},
@@ -186,7 +189,18 @@ def main(arguments: list[str] | None = None) -> int:
             tasks = [(f"release:publish:{stage}", []) for stage in ([args.stage] if args.stage else ["assets", "python", "finalize"])]
     if not tasks:
         parser.error("the selected operation has no implementation for this language")
+    if args.operation == "publish" and not args.dry:
+        from .workflow import publication_guard
+
+        publication_guard()
     for task, options in tasks:
+        if os.environ.get("COMPILER_CACHE_BACKEND"):
+            from .build import run_command
+
+            status = run_command(["mise", "run", task, "--", *options], task)
+            if status:
+                return status
+            continue
         result = subprocess.run(
             ["mise", "run", task, "--", *options],
             stdin=sys.stdin,
@@ -197,6 +211,7 @@ def main(arguments: list[str] | None = None) -> int:
         )
         if result.returncode:
             return result.returncode
+    transport.send("bench" if args.operation == "build" and args.artifact == "bench" else args.profile)
     return 0
 
 

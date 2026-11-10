@@ -42,39 +42,9 @@ ROOT = Path(__file__).resolve().parents[4]
 # === Classes === #
 
 
-class ImpactTests(unittest.TestCase):
-    def setUp(self):
-        self.impact = runpy.run_path(str(ROOT / ".github/actions/plan-impact/run.py"))
-        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        authored = next(line.removeprefix("        plan: ") for line in workflow.splitlines() if line.startswith("        plan: "))
-        self.plan = json.loads(json.loads(authored))
-
-    def test_dev_and_review(self):
-        full = self.impact["select"](self.plan, {"Cargo.toml"})
-        development = self.impact["scope"](self.plan, full, "build")
-        self.assertTrue({"build", "build:rust:tests", "check:rust"} <= development)
-        self.assertFalse(any(job.startswith(("package:", "test:", "release:", "bench:", "prepare:")) for job in development))
-        self.assertTrue(any(job.startswith("test:") for job in self.impact["scope"](self.plan, full)))
-        for job in development:
-            self.assertTrue(set(self.plan["dependencies"][job]) <= development)
-        print("Dev Impact:", ", ".join(sorted(development)))
-        print("PR Impact:", ", ".join(sorted(full)))
-
-    def test_guidance_scope(self):
-        selected = self.impact["select"](self.plan, {"CONTRIBUTING.md"})
-        self.assertEqual(self.impact["scope"](self.plan, selected, "build"), set())
-
-    def test_conservative_scope(self):
-        plan = {"dependencies": {"build": ["producer"], "package:rust": ["build"], "producer": []}, "rules": []}
-        self.assertEqual(self.impact["close"](plan["dependencies"], {"unknown"}), set(plan["dependencies"]))
-        self.assertEqual(self.impact["scope"](plan, {"build", "package:rust"}, "build"), {"build", "producer"})
-        with self.assertRaises(ValueError):
-            self.impact["scope"](plan, set(), "typo")
-
-
 class ReleaseChecksTests(unittest.TestCase):
     def setUp(self):
-        self.guard = runpy.run_path(str(ROOT / ".github/actions/review-release/checks.py"))
+        self.guard = runpy.run_path(str(ROOT / "tools/python/src/dokime_tools/ci/green.py"))
         self.sha = "a" * 40
         self.ci_run = {
             "id": 7,

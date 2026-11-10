@@ -10,7 +10,6 @@
 # === Imports === #
 
 # Standard Library Imports
-import argparse
 import json
 import os
 import subprocess
@@ -31,8 +30,6 @@ from . import compiler, summary
 
 # === Constants === #
 
-OUTPUTS = {"product": "Product Build", "tests": "Tests Build", "bench": "Bench Build"}
-
 # === Types === #
 
 # === Classes === #
@@ -40,40 +37,7 @@ OUTPUTS = {"product": "Product Build", "tests": "Tests Build", "bench": "Bench B
 # === Public Functions === #
 
 
-def run(task: str, output: str, profile: str) -> int:
-    if output not in OUTPUTS or profile not in ({"bench"} if output == "bench" else {"dev", "release"}):
-        raise ValueError("build: output and profile do not match")
-    if not task or task.startswith("-") or any(character.isspace() for character in task):
-        raise ValueError("build: require one authored mise task name")
-    command = ["mise", "run", task]
-    if profile != "bench":
-        command += ["--profile", profile]
-    return _run(command, OUTPUTS[output])
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Produce A Repository-Owned Build Output")
-    parser.add_argument("--profile", choices=("dev", "release", "bench"))
-    parser.add_argument("--output", choices=OUTPUTS)
-    parser.add_argument("--task")
-    options = parser.parse_args()
-    try:
-        if options.task is not None:
-            if options.profile is None or options.output is None:
-                parser.error("--task requires --output and --profile")
-            return run(options.task, options.output, options.profile)
-        return _run(os.environ["BUILD_SCRIPT"], "Task Build")
-    except (OSError, ValueError, KeyError, RuntimeError):
-        parser.exit(
-            1,
-            "build: execution failed; check task arguments or preceding safe native diagnostics\n",
-        )
-
-
-# === Private Functions === #
-
-
-def _run(command: Sequence[str] | str, label: str) -> int:
+def run_command(command: Sequence[str] | str, label: str) -> int:
     started = time.monotonic()
     statistics = {}
     backend = os.environ.get("COMPILER_CACHE_BACKEND")
@@ -152,7 +116,6 @@ def _run(command: Sequence[str] | str, label: str) -> int:
         summary.render(label, elapsed, statistics, phases=measured)
 
 
-# === Entry Point === #
+# === Private Functions === #
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+# === Entry Point === #
