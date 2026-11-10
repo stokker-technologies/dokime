@@ -145,14 +145,14 @@ class ThermalCycle:
 
 ```rust
 #[dokime::criterion("Temperature Within Limit")]
-async fn within_limit(&self, ctx: &Context) -> Result<bool> {
+async fn within_limit(ctx: &Context) -> Result<bool> {
     let stats = ctx.statistics("chamber.temperature").step("hold").await?;
-    Ok(stats.max <= self.limit)
+    Ok(stats.max <= ctx.get::<Bench>()?.limit)
 }
 ```
 
-- Steps and criteria have one fixed signature in every language: the
-  instance and `ctx`.
+- Steps and criteria have one fixed signature per language: `ctx` in Rust,
+  the instance and `ctx` in Python.
 - The SDK derives `materialize` from the decorated steps, criteria and
   streams. An author overrides it only when they depend on parameters:
 
@@ -245,27 +245,44 @@ is not connected is refused naming it.
 
 ## Execution State
 
+Each language has exactly one way to keep state for an execution.
+
+| Language | State Lives In | Why |
+| --- | --- | --- |
+| Rust | The resource store. The suite type has no fields and steps take only `ctx` | Observers run beside steps and criteria run without the instance, so neither can borrow fields |
+| Python | The suite instance (`self.chamber = ...`), which the SDK hands to steps, observers and criteria. There is no `ctx.set` or `ctx.get` | Attributes are the natural form and can be added at any time |
+
 ```rust
-#[dokime::step("Connect")]
-async fn connect(ctx: &Context) -> Result<()> {
-    ctx.set(Charger::open(ctx.parameter("port")?).await?);
+struct Bench { charger: Charger, limit: f64 }
+
+async fn initialize(ctx: &Context) -> Result<()> {
+    let charger = Charger::open(ctx.parameter("port")?).await?;
+    ctx.set(Bench { charger, limit: ctx.parameter("limit")? });
     Ok(())
 }
 
+#[dokime::step("Ramp")]
+async fn ramp(ctx: &Context) -> Result<()> {
+    let bench = ctx.get::<Bench>()?;
+    bench.charger.set(bench.limit).await
+}
+
 async fn cleanup(ctx: &Context) -> Result<()> {
-    if let Ok(charger) = ctx.get::<Charger>() {     // may never have been set
-        ctx.operation(ReleaseCharger { device_id: charger.device_id }).await?;
+    if let Ok(bench) = ctx.get::<Bench>() {         // may never have been set
+        ctx.operation(ReleaseCharger { device_id: bench.charger.device_id }).await?;
     }
     Ok(())
 }
 ```
 
-- Each execution has one typed resource store with two verbs. `ctx.set(value)`
+- The Rust store has two verbs. `ctx.set(value)`
   stores a value by its type and replaces an existing one, so a retried step
   is safe. `ctx.get::<T>()` returns it or a named missing-resource error.
 - The store is visible to initialize, steps, observers, criteria and cleanup,
-  and is cleared when the execution ends.
-- It replaces `Own`, the shared resources returned from `initialize`.
+  and is cleared when the execution ends. The Python instance has the same
+  lifetime.
+- It replaces template fields and `Own`, the shared resources returned from
+  `initialize`.
 - Operations return their value directly (`Result<T>`); steps, criteria,
   initialize and cleanup already do.
 
@@ -358,8 +375,8 @@ Not yet decided with the owner; each is settled before its task starts.
 1. The fixed percentile set in `Statistics` (proposed: 5, 95, 99 and the
    median).
 2. Whether a Wasm guest can be a managed Dokime plugin in the first version.
-3. Whether a suite type keeps fields of its own next to the resource store,
-   and whether Rust steps still take `self`.
+3. Which places follow an organization pack and which keep the Dokime name
+   as a shared facility. Under research.
 4. The sample rates of existing plugins, to confirm one sample per message is
    enough for each.
 5. Reconciling the overlapping changes named in the proposal, including which

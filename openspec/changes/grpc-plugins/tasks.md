@@ -13,7 +13,7 @@
 
 - [ ] 2.3 Replace the JSON catalog sections with `dokime.v1` messages and add `dokime proto export`.
 - [ ] 2.4 Serve settings as a host operation and delete settings injection at start and the applied-versus-saved comparison.
-- [ ] 2.5 Add the per-execution resource store (`ctx.set`, `ctx.get`) and remove `Own`.
+- [ ] 2.5 Add the per-execution resource store (`ctx.set`, `ctx.get`) for Rust and remove template fields and `Own`.
 
 ## 3. Host
 
