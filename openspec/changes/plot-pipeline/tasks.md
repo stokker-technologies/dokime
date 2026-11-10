@@ -3,7 +3,7 @@
 ## 1. Contract
 
 - [ ] 1.1 Record a baseline on Windows and Linux for a windowed live plot and a zoom over the three-day, thirty-plot workload: query time, bytes sent and redraw time.
-- [ ] 1.2 Lock the source inventory: plot query, previews, watch, wire messages, interface data path, tests and documents.
+- [x] 1.2 Lock the source inventory: `crates/dokime-runtime/src/{plot,runtime/query/plots,storage/sqlite/data/telemetry}`, plot contracts in `crates/dokime-domain/src/model/plots`, `crates/dokime-server/src/grpc/plots`, `crates/dokime-gui/src/{plots,lib/api/native-plots.ts,lib/types/plot.ts}`, generated plot bindings, their focused tests and benches, Cargo dependencies, and affected plot documentation in `README.md` and `docs/`. Implement stored buckets, viewport queries, watch deltas, kernels, columnar wire and interface in that order. Preserve other workers' branding and remote access ownership. Final validation remains separate.
 
 ## 2. Backend
 
