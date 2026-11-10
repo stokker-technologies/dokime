@@ -129,7 +129,9 @@ jobs:
         ci-${{ github.workflow }}-source-shared-${{ github.event_name == 'pull_request'
         && github.event.number || github.event_name == 'push' && github.ref ||
         github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   check_python:
     name: Check / Python
     runs-on: ubuntu-latest
@@ -198,7 +200,9 @@ jobs:
         ci-${{ github.workflow }}-check_python-shared-${{ github.event_name ==
         'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
         github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   check_typescript:
     name: Check / TypeScript
     runs-on: ubuntu-latest
@@ -267,7 +271,9 @@ jobs:
         ci-${{ github.workflow }}-check_typescript-shared-${{ github.event_name ==
         'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
         github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   impact:
     name: Plan / Impact
     runs-on: ubuntu-latest
@@ -297,7 +303,9 @@ jobs:
         ci-${{ github.workflow }}-impact-shared-${{ github.event_name == 'pull_request'
         && github.event.number || github.event_name == 'push' && github.ref ||
         github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   build_python:
     name: Build / Python (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -534,7 +542,9 @@ jobs:
     concurrency:
       group: ci-${{ github.workflow }}-build_python-${{ matrix.platform }}-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
         == 'push' && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   release_dry:
     name: Release / Dry
     runs-on: ubuntu-latest
@@ -678,7 +688,9 @@ jobs:
         ci-${{ github.workflow }}-release_dry-shared-${{ github.event_name ==
         'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
         github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   release_rehearsal:
     name: Release / Rehearsal
     runs-on: ubuntu-latest
@@ -787,7 +799,9 @@ jobs:
         ci-${{ github.workflow }}-release_rehearsal-shared-${{ github.event_name ==
         'pull_request' && github.event.number || github.event_name == 'push' && github.ref
         || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
     needs:
     - build_product
     - build_python
@@ -907,7 +921,9 @@ jobs:
         ci-${{ github.workflow }}-check_generated_python-${{ matrix.platform }}-${{ github.event_name
         == 'pull_request' && github.event.number || github.event_name == 'push' &&
         github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   check_generated_typescript:
     name: Check / TypeScript / Generated
     runs-on: ubuntu-latest
@@ -987,7 +1003,9 @@ jobs:
         ci-${{ github.workflow }}-check_generated_typescript-shared-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
         github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   validate_test_python_unit:
     name: Test / Python / Unit (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -1091,7 +1109,9 @@ jobs:
         ci-${{ github.workflow }}-validate_test_python_unit-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
         github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   validate_test_python_acceptance:
     name: Test / Python / Acceptance (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -1221,7 +1241,9 @@ jobs:
         ci-${{ github.workflow }}-validate_test_python_acceptance-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
         && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   validate_test_typescript_unit:
     name: Test / TypeScript / Unit
     runs-on: ubuntu-latest
@@ -1309,7 +1331,9 @@ jobs:
         ci-${{ github.workflow }}-validate_test_typescript_unit-shared-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
         github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   validate_test_python_integration:
     name: Test / Python / Integration (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -1413,7 +1437,9 @@ jobs:
         ci-${{ github.workflow }}-validate_test_python_integration-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push'
         && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   package_python:
     name: Package / Python (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -1509,7 +1535,9 @@ jobs:
     concurrency:
       group: ci-${{ github.workflow }}-package_python-${{ matrix.platform }}-${{ github.event_name == 'pull_request' && github.event.number || github.event_name
         == 'push' && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -1612,7 +1640,9 @@ jobs:
         ci-${{ github.workflow }}-validate_test_typescript_integration-shared-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name ==
         'push' && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   build_product:
     name: Build / Product (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -2009,7 +2039,9 @@ jobs:
         ci-${{ github.workflow }}-build_product-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
         github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   build_tests:
     name: Build / Tests (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -2237,7 +2269,9 @@ jobs:
         ci-${{ github.workflow }}-build_tests-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
         github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   check_rust:
     name: Check / Rust (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -2415,7 +2449,9 @@ jobs:
         ci-${{ github.workflow }}-check_rust-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
         github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   package_rust:
     name: Package / Rust (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -2957,7 +2993,9 @@ jobs:
         ci-${{ github.workflow }}-package_rust-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name == 'push' &&
         github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   validate_test_rust_acceptance:
     name: Test / Rust / Acceptance (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -3313,7 +3351,9 @@ jobs:
         ci-${{ github.workflow }}-validate_test_rust_acceptance-${{ matrix.platform
         }}-${{ github.event_name == 'pull_request' && github.event.number ||
         github.event_name == 'push' && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   validate_test_rust_integration:
     name: Test / Rust / Integration (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -3544,7 +3584,9 @@ jobs:
         ci-${{ github.workflow }}-validate_test_rust_integration-${{ matrix.platform
         }}-${{ github.event_name == 'pull_request' && github.event.number ||
         github.event_name == 'push' && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   validate_test_rust_system:
     name: Test / Rust / System (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -3842,7 +3884,9 @@ jobs:
         ci-${{ github.workflow }}-validate_test_rust_system-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name
         == 'push' && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   validate_test_rust_unit:
     name: Test / Rust / Unit (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -4056,7 +4100,9 @@ jobs:
         ci-${{ github.workflow }}-validate_test_rust_unit-${{ matrix.platform }}-${{
         github.event_name == 'pull_request' && github.event.number || github.event_name ==
         'push' && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   validate_test_typescript_system:
     name: Test / TypeScript / System (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -4387,7 +4433,9 @@ jobs:
         ci-${{ github.workflow }}-validate_test_typescript_system-${{ matrix.platform
         }}-${{ github.event_name == 'pull_request' && github.event.number ||
         github.event_name == 'push' && github.ref || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   required:
     name: CI / Required
     runs-on: ubuntu-latest
@@ -4435,10 +4483,14 @@ jobs:
         ci-${{ github.workflow }}-required-shared-${{ github.event_name ==
         'pull_request' && github.event.number || github.event_name == 'push' && github.ref ||
         github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      cancel-in-progress: >-
+        ${{ github.event_name == 'pull_request' &&
+        !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}
   cancel_closed:
     name: Cancel / Closed Review
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    if: >-
+      github.event_name == 'pull_request' && github.event.action == 'closed' &&
+      !(github.event.pull_request.merged && startsWith(github.head_ref, 'release/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:

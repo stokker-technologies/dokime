@@ -73,9 +73,6 @@ dokime-tracing = { version = "0.1.2", path = "crates/dokime-tracing" }
 plugin-host = { path = "plugins/sidecars/host", default-features = false }
 
 # Git
-harmos = { version = "=0.1.13", git = "https://github.com/stokker-technologies/harmos", rev = "22a49b3b36c48d10ae53fb497c7219a94f6524f8" }
-harmos-packaging = { version = "=0.1.13", git = "https://github.com/stokker-technologies/harmos", rev = "22a49b3b36c48d10ae53fb497c7219a94f6524f8" }
-harmos-sdk = { version = "=0.1.13", git = "https://github.com/stokker-technologies/harmos", rev = "22a49b3b36c48d10ae53fb497c7219a94f6524f8" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }
@@ -89,6 +86,9 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
+harmos = { version = "=0.1.14" }
+harmos-packaging = { version = "=0.1.14" }
+harmos-sdk = { version = "=0.1.14" }
 hmac = { version = "0.13.0" }
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }
