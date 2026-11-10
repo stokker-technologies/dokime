@@ -24,7 +24,7 @@
 - [x] 4.2 Repair the installer sidebar fixture to create its optional installer table explicitly.
 - [x] 4.3 Update the remote log-stream fixture and desktop distribution story to use distribution-derived log names.
 - [x] 4.4 Replace the removed runtime pack-import journey with installed-pack loading, ignored application-folder packs and retained update-policy coverage; remove Organization navigation from the settings journey.
-- [ ] 4.5 Run the merge-and-repair focused Rust tests, package checks, settings unit tests and Rust check; leave packaged desktop stories to hosted CI when no documented focused task exists.
+- [x] 4.5 Run the Windows merge-and-repair focused Rust tests, package checks, settings unit tests and Rust check. Linux and packaged desktop system stories remain hosted proof; `docs/tooling.md` has no focused packaged-story procedure.
 
 ## Workflow Follow-Up
 
