@@ -278,6 +278,8 @@ pub fn declared_plot_request(
         scope,
         technique: descriptor.input.downsample,
         summary_window: None,
+        viewport: None,
+        panel_width: None,
     }
 }
 

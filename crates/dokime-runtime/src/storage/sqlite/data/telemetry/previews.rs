@@ -390,6 +390,57 @@ impl Batch {
 
 /* === Public Functions === */
 
+pub(crate) fn latest_time(
+    connection: &Connection, execution: &str, stream: &str, fields: &[String], at: u64,
+) -> Result<Option<i128>, Error> {
+    let mut query =
+        connection.prepare("SELECT envelope,through FROM storage_report_previews WHERE execution=?1 AND stream=?2 AND field=?3")?;
+    let mut latest = None;
+    for field in fields {
+        let row: Option<(Vec<u8>, String)> =
+            query.query_row(params![execution, stream, field], |row| Ok((row.get(0)?, row.get(1)?))).optional()?;
+        let Some((bytes, through)) = row else { continue };
+        if through > super::super::position(at) {
+            return Ok(None);
+        }
+        let projection = Projection::decode(&bytes)?;
+        for bucket in projection.envelope.buckets.values() {
+            latest = Some(latest.map_or(bucket.last.time, |time: i128| time.max(bucket.last.time)));
+        }
+    }
+    Ok(latest)
+}
+
+// Indexed Empty Intervals Need No Raw Read; Only Partial Or Newer Buckets Do.
+pub(crate) fn window_raw_ranges(
+    connection: &Connection, execution: &str, stream: &str, field: &str, from: i128, to: i128, at: u64, target: i128,
+) -> Result<Vec<(i128, i128)>, Error> {
+    let mut widths = connection.prepare("SELECT DISTINCT width FROM storage_plot_buckets WHERE execution=?1 AND stream=?2 AND field=?3")?;
+    let widths = widths.query_map(params![execution, stream, field], |row| row.get::<_, i64>(0))?.collect::<Result<Vec<_>, _>>()?;
+    let mut query = connection.prepare("SELECT bucket,through FROM storage_plot_buckets WHERE execution=?1 AND stream=?2 AND field=?3 AND width=?4 AND bucket>=?5 AND bucket<=?6 ORDER BY bucket")?;
+    let mut ranges = Vec::new();
+    for width in widths {
+        let span = i128::from(width);
+        let first = i64::try_from(from.div_euclid(span)).map_err(|_| Error::Data("preview range overflow"))?;
+        let last = i64::try_from(to.div_euclid(span)).map_err(|_| Error::Data("preview range overflow"))?;
+        let mut rows = query.query(params![execution, stream, field, width, first, last])?;
+        while let Some(row) = rows.next()? {
+            let start = i128::from(row.get::<_, i64>(0)?) * span;
+            let end = start + span;
+            let through: String = row.get(1)?;
+            if start < from
+                || end > to
+                || span > target
+                || start.div_euclid(target) != (end - 1).div_euclid(target)
+                || through > super::super::position(at)
+            {
+                ranges.push((start.max(from), end.min(to + 1)));
+            }
+        }
+    }
+    Ok(ranges)
+}
+
 // Only Complete Buckets Inside The Window Are Reused; Callers Read Its Edges.
 pub(crate) fn window_buckets(
     connection: &Connection, execution: &str, stream: &str, field: &str, from: i128, to: i128, at: u64,

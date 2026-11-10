@@ -700,6 +700,8 @@ async fn first_frame(client: &Client, cycle_id: &str, execution_id: &str) -> mod
         histogram: None,
         analysis: None,
         summary_window: None,
+        viewport: None,
+        panel_width: None,
     };
     let stream = client.stream(contracts::plots::Watch { requests: vec![request] }).await.unwrap();
     tokio::time::timeout(SETTLE, async {

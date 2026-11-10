@@ -89,6 +89,7 @@ enum NativeProjection {
 pub(crate) fn supports(request: &PlotPayloadRequest) -> bool {
     let Some(request) = fields(request) else { return false };
     request.analysis.is_none()
+        && request.panel_width.is_none()
         && request.max_points != Some(0)
         && request.series_by.is_none()
         && request.series_by_expression.is_none()

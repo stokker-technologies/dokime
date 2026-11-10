@@ -118,6 +118,12 @@ pub struct PlotPayloadRequest {
 
     #[serde(default)]
     pub summary_window: Option<PlotWindow>,
+
+    #[serde(default)]
+    pub viewport: Option<PlotWindow>,
+
+    #[serde(default)]
+    pub panel_width: Option<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]

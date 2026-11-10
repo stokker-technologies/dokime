@@ -286,8 +286,8 @@ for packaging, inspection and installation.
 Timed live plots combine saved telemetry batches with the bounded, unflushed admission tail,
 independently of the save interval. Finite queries, All refreshes and frozen reports use saved data.
 The time-range slider filters storage queries:
-selecting a wider range retrieves older saved samples, and selecting a narrower
-range changes only what is displayed. It does not change storage retention.
+selecting a wider range retrieves older saved samples, and zooming retrieves
+finer detail for the visible range at the panel width. It does not change storage retention.
 
 Client sample following watches saved storage progress and resumes from delivered
 stream cursors after reconnecting. Execution-scoped follows drain the closed evidence frontier

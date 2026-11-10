@@ -16,6 +16,7 @@ pub(crate) mod declared;
 pub(crate) mod plots;
 pub(crate) mod sampling;
 pub(crate) mod shared;
+mod windowed;
 
 /* === Re-Exports === */
 

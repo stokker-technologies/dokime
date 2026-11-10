@@ -76,6 +76,8 @@ pub struct PlotRequest {
         description = "The x range a time series or scatter plot shows after a zoom; its series summaries cover only the rows inside it."
     )]
     pub summary_window: Option<PlotWindow>,
+    pub viewport: Option<PlotWindow>,
+    pub panel_width: Option<u32>,
 }
 
 #[harmos::message]

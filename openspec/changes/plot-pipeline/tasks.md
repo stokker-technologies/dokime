@@ -8,7 +8,7 @@
 ## 2. Backend
 
 - [x] 2.1 Extend the stored previews to time buckets that answer a window, with first, last, minimum, maximum and running moments.
-- [ ] 2.2 Accept the visible range and panel width in a plot request and bucket by time to that width.
+- [x] 2.2 Accept the visible range and panel width in a plot request and bucket by time to that width.
 - [ ] 2.3 Send changed buckets from the plot watch after its snapshot, with late samples replacing their bucket, and deliver exact statistics separately.
 - [ ] 2.4 Replace the downsampling kernels with `tsdownsample` and move FFT into Dokime.
 

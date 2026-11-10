@@ -111,6 +111,7 @@ pub(crate) fn project(
             payload.cartesian = cartesian::cartesian_frame(&payload.series, request.plot_type.as_ref(), &request.x_scale, &request.y_scale)
                 .map_err(crate::runtime::Error::Operation)?;
         }
+        let payload = if request.panel_width.is_some() { super::finish_plot_frame(payload, request)? } else { payload };
         Ok(ReadBatch::new(payload))
     })
 }
@@ -145,7 +146,11 @@ fn append(
     } else {
         payload.max_points
     };
-    payload.series.push(series.reduce(maximum, technique)?);
+    let timed = request.panel_width.is_some()
+        && matches!(request.plot_type, None | Some(PlotType::TimeSeries))
+        && request.x_key.as_deref().is_none_or(|key| key == "timestamp")
+        && request.x_expression.is_none();
+    payload.series.push(series.reduce(if timed { 0 } else { maximum }, technique)?);
     Ok(())
 }
 

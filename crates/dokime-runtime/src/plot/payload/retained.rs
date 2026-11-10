@@ -97,7 +97,22 @@ pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest
     }
     let spectrum = matches!(request.plot_type, Some(PlotType::FrequencySeries));
     for series in &mut payload.series {
-        if let Some(selected) = indexes(&series.points, payload.max_points, request.technique, spectrum)? {
+        let timed = request
+            .panel_width
+            .filter(|_| !spectrum && request.x_key.as_deref().is_none_or(|key| key == "timestamp") && request.x_expression.is_none());
+        let selected = if let Some(width) = timed {
+            Some(time_indices(
+                &series.points,
+                request.viewport.or_else(|| {
+                    let to = series.points.iter().filter_map(analyses::point_x).max_by(f64::total_cmp)?;
+                    Some(super::PlotWindow { from: to - request.window_s?, to })
+                }),
+                (width as usize).min((payload.max_points / 6).max(1)),
+            ))
+        } else {
+            indexes(&series.points, payload.max_points, request.technique, spectrum)?
+        };
+        if let Some(selected) = selected {
             let mut selected = selected.into_iter().peekable();
             let mut ordinal = 0usize;
             series.points.retain(|_| {
@@ -117,6 +132,48 @@ pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest
     payload.cartesian = cartesian::cartesian_frame(&payload.series, request.plot_type.as_ref(), &request.x_scale, &request.y_scale)
         .map_err(crate::runtime::Error::Operation)?;
     Ok(payload)
+}
+
+// First, Last And Extrema Are Selected Within Equal Time Intervals.
+pub(crate) fn time_indices(points: &[PlotPoint], viewport: Option<super::PlotWindow>, columns: usize) -> Vec<usize> {
+    let extent = viewport.or_else(|| {
+        let mut values = points.iter().filter_map(analyses::point_x);
+        let first = values.next()?;
+        Some(values.fold(super::PlotWindow { from: first, to: first }, |window, x| super::PlotWindow {
+            from: window.from.min(x),
+            to: window.to.max(x),
+        }))
+    });
+    let Some(extent) = extent else { return Vec::new() };
+    let width = ((extent.to - extent.from) / columns.max(1) as f64).max(f64::EPSILON);
+    let mut buckets = std::collections::BTreeMap::<i64, Vec<usize>>::new();
+    for (index, point) in points.iter().enumerate() {
+        let Some(x) = analyses::point_x(point).filter(|x| *x >= extent.from && *x <= extent.to) else { continue };
+        let key = (x / width).floor() as i64;
+        buckets.entry(key).or_default().push(index);
+    }
+    let mut selected = Vec::new();
+    for bucket in buckets.values() {
+        selected.push(bucket[0]);
+        selected.push(*bucket.last().expect("nonempty time bucket"));
+        let finite = bucket.iter().copied().filter(|index| points[*index].y.is_some_and(f64::is_finite));
+        if let Some(index) = finite.clone().min_by(|a, b| points[*a].y.unwrap().total_cmp(&points[*b].y.unwrap())) {
+            selected.push(index);
+        }
+        if let Some(index) = finite.max_by(|a, b| points[*a].y.unwrap().total_cmp(&points[*b].y.unwrap())) {
+            selected.push(index);
+        }
+        let gaps = bucket.iter().copied().filter(|index| points[*index].y.is_none());
+        if let Some(index) = gaps.clone().next() {
+            selected.push(index);
+        }
+        if let Some(index) = gaps.last() {
+            selected.push(index);
+        }
+    }
+    selected.sort_unstable();
+    selected.dedup();
+    selected
 }
 
 /* === Private Functions === */
@@ -184,6 +241,27 @@ fn memory() -> crate::runtime::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn time_buckets_preserve_irregular_spikes_and_gaps() {
+        let points = [
+            (0.0, Some(1.0)),
+            (0.01, Some(-50.0)),
+            (0.02, Some(100.0)),
+            (0.03, None),
+            (0.04, Some(2.0)),
+            (9.0, Some(4.0)),
+            (9.5, Some(5.0)),
+        ]
+        .into_iter()
+        .map(|(x, y)| PlotPoint { x: serde_json::json!(x), y, z: None })
+        .collect::<Vec<_>>();
+        let indices = time_indices(&points, Some(super::super::PlotWindow { from: 0.0, to: 10.0 }), 2);
+        assert_eq!(indices, vec![0, 1, 2, 3, 4, 5, 6]);
+        let indices = time_indices(&points, Some(super::super::PlotWindow { from: 9.0, to: 9.5 }), 2);
+        assert_eq!(indices, vec![5, 6]);
+        assert!(time_indices(&points, Some(super::super::PlotWindow { from: 20.0, to: 30.0 }), 2).is_empty());
+    }
 
     #[test]
     fn marker_reduction() {

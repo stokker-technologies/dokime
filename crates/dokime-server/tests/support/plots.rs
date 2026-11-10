@@ -217,6 +217,8 @@ pub fn request(max_points: u64) -> model::plots::wire::PlotRequest {
         histogram: None,
         analysis: None,
         summary_window: None,
+        viewport: None,
+        panel_width: None,
     }
 }
 

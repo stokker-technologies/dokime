@@ -269,7 +269,11 @@ concurrent writes do not cause a raw-history fallback. Explicit historical cuts
 retain their requested frontier. Exact
 analyses refuse captures beyond the exact preview capacity. Markers share the
 display point budget. Exact zoom statistics are unavailable after a preview has
-reduced its raw samples. Timed windows retain their existing raw-query behavior.
+reduced its raw samples. Plain numeric time windows reuse indexed stored buckets with first, last,
+minimum, maximum and running moments. Only uncovered intervals and the admission
+tail read raw evidence. Requests carry an optional viewport and panel width;
+time buckets follow elapsed time rather than sample counts. Zoom requests can
+retrieve finer raw detail than the stored bucket interval.
 Numeric fields and plain same-stream field expressions use
 `crates/dokime-runtime/src/plot/stored.rs`; other raw projections use
 `crates/dokime-runtime/src/plot/payload/spilled/`. Field expressions with values

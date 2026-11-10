@@ -14,6 +14,7 @@ mod context;
 mod previews;
 mod request;
 mod stream;
+mod window;
 
 /* === Re-Exports === */
 
@@ -203,6 +204,13 @@ async fn query_plot_payloads_with_context(
     let mut remaining = Vec::<usize>::new();
     let mut projections = Vec::with_capacity(requests.len());
     for request in requests {
+        if request.panel_width == Some(0)
+            || request.viewport.is_some_and(|window| !window.from.is_finite() || !window.to.is_finite() || window.from > window.to)
+        {
+            return Err(crate::runtime::Error::Operation(
+                "plot viewport must be a finite ordered range and panel width must be positive".into(),
+            ));
+        }
         let streams = request_telemetry_streams(&request);
         let request = canonical_plot_request(request, &streams);
         let mut key = serde_json::to_value(&request).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
@@ -271,12 +279,15 @@ async fn query_plot_payload(
     context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, request: PlotPayloadRequest, at: &harmos::storage::StorageCursor,
     session: &crate::storage::Manager, codecs: &[crate::storage::telemetry::TypedCodec],
 ) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayloadEnvelope>> {
+    if let Some(payload) = window::query(context, runtime, &request, at, codecs).await? {
+        return Ok(payload);
+    }
     let payload = if crate::plot::stored::supports(&request) && request_record_types(&request).is_empty() {
         let mut matching =
             codecs.iter().filter(|codec| codec.schema().id.as_str().strip_prefix("dokime.telemetry.") == Some(request.stream.as_str()));
         let codec = matching.next();
         if let Some(codec) = codec.filter(|codec| matching.next().is_none() && crate::plot::stored::supports_codec(&request, codec)) {
-            let selection = TelemetrySelection {
+            let mut selection = TelemetrySelection {
                 streams: vec![
                     dokime_domain::model::identity::IdentifierPattern::new(request.stream.clone())
                         .map_err(|error| crate::runtime::Error::Operation(error.to_string()))?,
@@ -284,11 +295,12 @@ async fn query_plot_payload(
                 scope: scope_selection(&request),
                 ..Default::default()
             };
+            window::select_viewport(&mut selection, &request)?;
             let query = crate::runtime::storage::telemetry::plot_query(
                 at,
                 &selection,
                 codec,
-                request.window_s.map(|seconds| (request.stream.as_str(), seconds)),
+                request.window_s.filter(|_| request.viewport.is_none()).map(|seconds| (request.stream.as_str(), seconds)),
                 &runtime.local_storage,
             )
             .await?;
@@ -407,15 +419,16 @@ async fn query_spilled_plot(
     }
     let streams = request_telemetry_streams(&request);
     if !streams.is_empty() {
-        let selection = TelemetrySelection {
+        let mut selection = TelemetrySelection {
             streams: streams.into_iter().map(Into::into).collect(),
             scope,
             ..Default::default()
         };
+        window::select_viewport(&mut selection, &request)?;
         let options = crate::runtime::storage::telemetry::ReadOptions {
             codecs: Some(codecs),
             scan_limit: analysis.as_ref().map(|_| dokime_domain::model::analysis::MAX_SAMPLES as usize),
-            window: request.window_s.map(|seconds| (request.stream.as_str(), seconds)),
+            window: request.window_s.filter(|_| request.viewport.is_none()).map(|seconds| (request.stream.as_str(), seconds)),
             sequence: crate::runtime::storage::telemetry::Sequence::StoragePosition,
             ..Default::default()
         };

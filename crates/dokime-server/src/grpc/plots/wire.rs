@@ -282,6 +282,8 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime::domain::mod
         window_s: request.window_s.map(|value| finite_nonnegative(value, "plot window_s")).transpose()?,
         scope: request.scope.as_ref().map(canonical::scope).transpose()?,
         technique: enums::downsample_technique(&request.technique),
+        viewport: request.viewport.map(|window| dokime::domain::model::plots::wire::PlotWindow { from: window.from, to: window.to }),
+        panel_width: request.panel_width,
         summary_window: request
             .summary_window
             .map(|window| dokime::domain::model::plots::wire::PlotWindow { from: window.from, to: window.to }),
