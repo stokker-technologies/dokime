@@ -40,6 +40,7 @@
 - [ ] 5.3 Delete embedded plugins, the PyO3 SDK, the Python backend, stubs and wheel tasks.
 - [ ] 5.4 Delete leases, sample and record delivery, replay and restart recovery during an execution.
 - [ ] 5.5 Remove or rework the tests tied to the old loop; update the README, guides and authoring guidance.
+- [ ] 5.6 Delete the template, step, criterion, suite, catalog and plugin macros and their tests; keep derives for messages, rows, records, parameters and settings.
 
 ## 6. Final Validation
 

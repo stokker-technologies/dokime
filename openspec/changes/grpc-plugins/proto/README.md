@@ -44,12 +44,13 @@ Each is open to review.
 | `Records.records` is bounded by `limit` | A long execution can hold thousands of records |
 | A record and a stream row are bytes of a message named in the plugin's catalog | The host stores them without knowing the plugin's types at build time |
 
+## Settled in Review
+
+- A step returns no values; `StepResponse` stays empty.
+- A criterion returns pass or fail and nothing else.
+- Statistics are per column, so the request names a field.
+
 ## Questions for Review
 
-1. Whether a step returns values to the host (`StepResponse` is empty). A
-   step result today is its attempt outcome plus whatever records it
-   published.
-2. Whether `CriterionResponse` needs more than pass or fail and a note, for
-   example a measured value and limit to show in the report.
-3. Whether `ctx.statistics` should also accept a record field, for numeric
+1. Whether `ctx.statistics` should also accept a record field, for numeric
    values published as records.

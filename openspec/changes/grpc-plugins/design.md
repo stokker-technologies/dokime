@@ -145,16 +145,50 @@ class ThermalCycle:
 ```
 
 ```rust
-#[dokime::criterion("Temperature Within Limit")]
+use dokime::{Context, Criterion, Observer, Plugin, Result, Step, Stream, Suite, Template};
+
+#[derive(dokime::Message)]
+struct Temperature { celsius: f64 }
+
+async fn ramp(ctx: &Context) -> Result<()> {
+    let bench = ctx.get::<Bench>()?;
+    ctx.operation(SetTemperature { target: bench.limit }).await
+}
+
 async fn within_limit(ctx: &Context) -> Result<bool> {
-    let stats = ctx.statistics("chamber.temperature").step("hold").await?;
+    let stats = ctx.statistics("chamber.temperature", "celsius").step("hold").await?;
     Ok(stats.max <= ctx.get::<Bench>()?.limit)
+}
+
+fn main() -> Result<()> {
+    let temperature = Stream::<Temperature>::new("chamber.temperature", "Chamber Temperature [°C]");
+    let observer = Observer::new(&temperature, read_temperature).every_ms(1000);
+
+    let template = Template::new("thermal.cycle", "Thermal Cycle")
+        .initialize(initialize)
+        .step(Step::new("Ramp to Target", ramp).retries(2))
+        .step(Step::new("Hold", hold))
+        .criterion(Criterion::new("Temperature Within Limit", within_limit))
+        .cleanup(cleanup)
+        .stream(temperature)
+        .observer(observer);
+
+    let suite = Suite::new("thermal", "Thermal").template(template);
+    let plugin = Plugin::new("thermal", env!("CARGO_PKG_VERSION")).suite(suite);
+
+    plugin.serve()
 }
 ```
 
+- Rust authoring is derives for data and ordinary values for everything
+  else. A template, a suite and a plugin are built and passed by value;
+  there are no attribute macros for them. C# and C++ use the same shape, and
+  Python keeps decorators, which do the same registration.
+- A mistake such as a duplicate identifier is reported when the plugin
+  starts, not at compile time.
 - Steps and criteria have one fixed signature per language: `ctx` in Rust,
   the instance and `ctx` in Python.
-- The SDK derives `materialize` from the decorated steps, criteria and
+- The SDK derives `materialize` from the registered steps, criteria and
   streams. An author overrides it only when they depend on parameters:
 
 ```python
@@ -177,7 +211,7 @@ declares as a requirement. The SDK methods are thin conveniences over
 | `settings()` | Read the plugin's saved settings when needed. Nothing is injected at start, so the applied-versus-saved comparison and its "unapplied" state are removed |
 | `record(kind, ...)` | Publish a record; returns once the host stored it |
 | `records(kind)` | Read the execution's records of a kind (`count`, `last`) |
-| `statistics(stream, step=None)` | Statistics of a stream so far, optionally for one step |
+| `statistics(stream, field=None, step=None)` | Statistics of one column of a stream so far, optionally for one step; the field may be omitted when the stream has one value column |
 | `artifact(...)`, file capture, effects | As today's host operations |
 | `progress(...)`, `log(...)`, traceability, document parts | New small operations replacing evidence-page fields |
 
@@ -266,7 +300,6 @@ async fn initialize(ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-#[dokime::step("Ramp")]
 async fn ramp(ctx: &Context) -> Result<()> {
     let bench = ctx.get::<Bench>()?;
     bench.charger.set(bench.limit).await
@@ -414,9 +447,17 @@ dokime proto export
 - One story runs against every language: the same suite, written once per
   SDK, executed by the same host, with the same expected evidence. A
   difference between languages is a failure.
-- Tests at integration level and above follow a real user journey and read
-  as its storyline. Setup, fixtures and assertions live in shared modules
-  with one convention; a test does not rebuild what a shared module provides.
+- Tests at integration level and above follow a real user journey, one story
+  per file. A story reads like a test template: top to bottom, with few or no
+  indentation levels, a short comment naming each stage, and every line
+  either an action the user takes or a check of what they then see.
+- Setup, fixtures and mechanics live in shared modules with one convention.
+  A shared module never chooses a scenario or hides an assertion, and a test
+  never rebuilds what a shared module provides.
+- No test depends on real time. A test waits for a condition or runs on a
+  paused clock. A plugin under test can be served in the test's own process
+  over an in-memory channel, so a paused clock accelerates the host and the
+  plugin together.
 
 ## What It Removes
 
@@ -426,6 +467,7 @@ Sizes are of existing paths, not deletion totals; several files are mixed.
 | --- | --- | --- |
 | Run and signal serving, plugin walker, evidence pump | `crates/dokime-runtime/src/execution/{serving,run,template,unwind}.rs`, `execution/workflow/`, `transport/`, `domains/execution/run/` | about 10,000 |
 | Execution hand-off | `ExecutionFixture`, `ProviderExecutorRegistry`, `ExecutionProviderTarget`, provider outcome projections | part of `domains/execution/provider*` |
+| Authoring macros for templates, steps, criteria, suites, catalogs and plugins | `crates/dokime-macros/src/{template,suite,catalog,plugin}.rs` | about 1,900 plus their tests |
 | Embedded plugins | `crates/dokime-runtime/src/runtime/embedded.rs` and its registration | about 1,200 with tests |
 | PyO3 SDK, Python backend, stubs, wheel tasks | `sdk/python/src/`, `sdk/python/python/`, `sdk/python/tests/`, `tools/python/src/dokime_tools/{build,test}/` | about 24,500 |
 | Leases, sample and record delivery, replay | `domains/telemetry/leases.rs`, `domains/execution/run/replay.rs` | mixed |

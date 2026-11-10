@@ -81,8 +81,6 @@ message CriterionRequest {
 
 message CriterionResponse {
   bool passed = 1;
-  // Optional sentence shown beside the verdict.
-  string note = 2;
 }
 
 message CleanupRequest {
