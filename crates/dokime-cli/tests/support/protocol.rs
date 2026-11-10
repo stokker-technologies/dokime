@@ -19,7 +19,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::{Command, ExitStatus},
+    process::ExitStatus,
 };
 
 // Third Party Imports
@@ -98,7 +98,7 @@ pub fn files(directory: &Path) -> std::io::Result<Vec<String>> {
 pub fn parse(directory: &Path, files: &[&str], descriptor: &Path) -> Result<ExitStatus, Box<dyn std::error::Error>> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let (compiler, includes) = compiler(&root)?;
-    let status = Command::new(compiler)
+    let status = dokime::domain::process::command(compiler)
         .arg(format!("--proto_path={}", directory.display()))
         .arg(format!("--proto_path={}", includes.display()))
         .arg(format!("--descriptor_set_out={}", descriptor.display()))
