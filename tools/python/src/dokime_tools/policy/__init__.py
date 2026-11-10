@@ -6,17 +6,19 @@
 #
 # ***
 
-"""Runtime Policy And Native Execution For Managed Repository Tools"""
+"""Policy And Native Execution For Managed Repository Tools"""
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tomllib
 from collections.abc import Callable, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +33,8 @@ from ..process import spawn_flags
 # === Constants === #
 
 _WARNED: set[tuple[Path, str]] = set()
+
+LIBRARY_TARGETS = frozenset({"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"})
 
 # === Types === #
 
@@ -61,6 +65,39 @@ def policy(directory: Path, name: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ToolError(f"[{name}] must be a table")
     return value
+
+
+def publishable(directory: Path, metadata: dict) -> dict:
+    """Select Library Workspace Members And Refuse Publishable Artifact-Only Packages."""
+    settings = config(directory)
+    plugin_project = settings.get("project", {}).get("profile") in {"plugin", "sidecar", "guest"}
+    plugins = {plugin["package"] for plugin in settings.get("release", {}).get("plugins", [])}
+    members = set(metadata["workspace_members"])
+    packages = {}
+    for package in metadata["packages"]:
+        if package["id"] not in members or package.get("publish") == []:
+            continue
+        name = package["name"]
+        manifest = Path(package["manifest_path"]).resolve()
+        relative = manifest.relative_to(directory.resolve()) if manifest.is_relative_to(directory.resolve()) else manifest
+        plugin = plugin_project or name in plugins or (not relative.is_absolute() and "plugins" in relative.parts[:-1])
+        library = any(LIBRARY_TARGETS.intersection(target["kind"]) for target in package["targets"])
+        if plugin or not library:
+            role = "plugin" if plugin else "non-library"
+            raise ToolError(
+                f"{relative.as_posix()}: {name} is a {role} package; packages without library targets and plugin packages never publish to "
+                "registries; declare publish = false"
+            )
+        packages[name] = package
+    return packages
+
+
+def profile(default: str = "release") -> str:
+    """The Package Profile Passed By The Rendered Job Or A Local Invocation."""
+    selected = os.environ.get("RELEASE_PROFILE") or default
+    if selected not in ("dev", "release"):
+        raise ToolError("RELEASE_PROFILE must be dev or release")
+    return selected
 
 
 def ignored(directory: Path, field: str) -> None:
@@ -110,6 +147,25 @@ def write_json(path: Path, value: object) -> None:
         raise ToolError(f"refusing linked staging file: {temporary}")
     temporary.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
     temporary.replace(path)
+
+
+@contextmanager
+def credential_free(settings: dict, *, profile: str = "release"):
+    """Temporarily Remove Publishing Credentials And Select The Requested Package Profile."""
+    declared = {name for lane in settings.get("package_signing", []) for name in lane.get("secrets", [])}
+    names = {name for name in os.environ if name.endswith(("_TOKEN", "_PASSWORD", "_SECRET")) or name in declared}
+    names.add("ACTIONS_ID_TOKEN_REQUEST_URL")
+    previous = {name: os.environ.pop(name) for name in names if name in os.environ}
+    previous_profile = os.environ.get("RELEASE_PROFILE")
+    os.environ["RELEASE_PROFILE"] = profile
+    try:
+        yield
+    finally:
+        os.environ.update(previous)
+        if previous_profile is None:
+            os.environ.pop("RELEASE_PROFILE", None)
+        else:
+            os.environ["RELEASE_PROFILE"] = previous_profile
 
 
 def main(

@@ -91,9 +91,7 @@ def _compare_files(expected: dict[Path, bytes], destination: Path) -> None:
     actual = {file.relative_to(destination): file.read_bytes() for file in destination.rglob("*") if file.is_file()}
     changed = sorted(str(path) for path in expected.keys() | actual.keys() if expected.get(path) != actual.get(path))
     if changed:
-        raise ValueError(
-            f"stale runtime resources in {destination}: {', '.join(changed)}; run `mise run prepare:report` and commit the output"
-        )
+        raise ValueError(f"stale runtime resources in {destination}: {', '.join(changed)}; run `mise run build` and commit the output")
 
 
 # === Entry Point === #

@@ -15,6 +15,7 @@
 import io
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -138,9 +139,9 @@ class ScheduleTests(unittest.TestCase):
             configuration = tomllib.loads((repository / "mise.toml").read_text(encoding="utf-8"))
             # Project The Authored Graph Without Product Prerequisites Or Native Test Binaries.
             source = (repository / "mise.toml").read_text(encoding="utf-8")
-            start = source.index("[tasks.test]")
-            stop = source.index("# === Bench === #", start)
-            tasks = source[start:stop]
+            blocks = re.split(r"(?=^\[tasks\.)", source, flags=re.MULTILINE)
+            tasks = "\n".join(block for block in blocks if block.startswith(('[tasks."test:', '[tasks."ci:test"]')))
+            tasks = tasks.replace('[tasks."ci:test"]', "[tasks.test]")
             (directory / "tools/python/tests/integration").mkdir(parents=True)
             (directory / "tools/project.toml").write_text("", encoding="utf-8")
             (directory / "tools/python/tests/integration/test_prepared.py").write_text(

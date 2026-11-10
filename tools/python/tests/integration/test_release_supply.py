@@ -30,7 +30,8 @@ from unittest import mock
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.release import layout, notices, policy, sbom
+from dokime_tools import policy
+from dokime_tools.release import layout, notices, sbom
 
 # Type Checking Imports
 

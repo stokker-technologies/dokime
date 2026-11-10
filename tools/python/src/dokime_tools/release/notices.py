@@ -33,12 +33,12 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from ..build import paths
-from ..package.staging import stage_file
-
 # Third Party Imports
 # Local Imports
-from . import policy, sbom
+from .. import policy
+from ..build import paths
+from ..package.staging import stage_file
+from . import sbom
 
 # Type Checking Imports
 

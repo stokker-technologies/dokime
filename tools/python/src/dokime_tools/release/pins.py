@@ -16,7 +16,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from . import policy
+from .. import policy
 
 # Type Checking Imports
 
@@ -36,10 +36,15 @@ def check(directory: Path, *, warn: bool = False) -> bool:
     metadata = policy.execute(directory, ["cargo", "metadata", "--locked", "--format-version", "1"], capture=True)
     packages = json.loads(metadata)["packages"]
     names = sorted({package["name"] for package in packages if (package.get("source") or "").startswith("git+")})
-    names = sorted(set(names) | {
-        dependency["name"] for package in packages for dependency in package.get("dependencies", [])
-        if (dependency.get("source") or "").startswith("git+")
-    })
+    names = sorted(
+        set(names)
+        | {
+            dependency["name"]
+            for package in packages
+            for dependency in package.get("dependencies", [])
+            if (dependency.get("source") or "").startswith("git+")
+        }
+    )
     if not names:
         return True
     message = "release requires registry dependencies; git dependencies: " + ", ".join(names)

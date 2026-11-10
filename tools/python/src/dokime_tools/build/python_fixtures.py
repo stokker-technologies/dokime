@@ -16,7 +16,7 @@ import sys
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import configuration, outputs, paths, storage
+from dokime_tools.build import configuration, outputs, paths
 from dokime_tools.package import plugins
 from dokime_tools.package.staging import clear_output, stage_file
 from dokime_tools.process import spawn_flags
@@ -45,7 +45,7 @@ def build(profile: str) -> list[str]:
     selectors = ["--locked", "--profile", profile, "--bins", "--features", "plugin-host/runtime"]
     for package in ("dokime-cli", "cargo-dokime", "plugin-host", "plugin-obc"):
         selectors.extend(("-p", package))
-    storage.preflight(ROOT)
+
     with messages.open("w", encoding="utf-8") as written:
         subprocess.run(
             ["cargo", "build", *selectors, "--message-format=json-render-diagnostics"],

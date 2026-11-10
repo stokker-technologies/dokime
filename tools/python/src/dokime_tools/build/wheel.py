@@ -18,7 +18,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import paths, storage
+from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output
 from dokime_tools.process import spawn_flags
 
@@ -45,7 +45,7 @@ def build(root: Path, profile: str) -> list[Path]:
     environment.pop("UV_PROJECT_ENVIRONMENT", None)
     selectors = ["--locked", "--manifest-path", "sdk/python/Cargo.toml", "--profile", profile]
     features = ["--features", "media-native"] if profile == "release" else []
-    storage.preflight(root)
+
     command = [
         sys.executable,
         "-m",

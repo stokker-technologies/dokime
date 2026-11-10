@@ -32,11 +32,12 @@ from ..build import paths
 from ..process import spawn_flags
 
 # isort: split
-from .. import temporary
+from .. import policy, temporary
 from ..package import run as packages
 from ..package.changelog import notes
+from ..screenshots import run as screenshots
 from ..test import archive
-from . import layout, notices, pins, policy, registry, sbom, screenshots, version
+from . import layout, notices, pins, registry, sbom, version
 
 # Type Checking Imports
 
@@ -543,8 +544,7 @@ def tag(directory: Path, settings: dict) -> None:
         registry.create_tag(settings, name, sha)
     if registry.remote_tag(settings, name) != sha:
         raise policy.ToolError(f"{name} was not created at {sha}")
-    if _task_defined(directory, "release:publish:rust"):
-        policy.execute(directory, ["mise", "run", "release:publish:rust"])
+    crates(directory, settings)
     # main is the last released commit: a fast-forward to the tag, never a merge or a force.
     _run(directory, ["git", "push", remote, f"{sha}:refs/heads/main"], token)
     print(f"{name}: tagged at {sha}; main fast-forwarded")
@@ -571,7 +571,7 @@ def rehearse(directory: Path, settings: dict, *, target: str | None = None, prof
         _refuse_overrides(directory)
         revision = _revision(directory) if stage_only else None
         dry(directory, settings, profile=profile, require_all=True, source_revision=revision, targets=targets)
-        if not stage_only and _task_defined(directory, "release:publish:rust"):
+        if not stage_only and _task_defined(directory, "release:tag"):
             registry.rehearse_crates(directory, skip_published=False)
         if not stage_only and _task_defined(directory, "release:publish:python"):
             registry.python(directory, settings, dry_run=True)

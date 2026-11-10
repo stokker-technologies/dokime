@@ -30,9 +30,10 @@ from typing import Any
 from ..process import spawn_flags
 
 # isort: split
-from ..build import paths, storage
+from .. import policy
+from ..build import paths
 from ..package import changelog
-from . import notices, pins, policy
+from . import notices, pins
 
 # Type Checking Imports
 
@@ -74,7 +75,7 @@ class ProviderRedirect(urllib.request.HTTPRedirectHandler):
 
 def publish_crates(directory: Path, *, sleep=time.sleep, clock=time.monotonic) -> None:
     """Publish Workspace Crates One At A Time In Dependency Order, Resuming Past Published Versions."""
-    storage.preflight(directory)
+
     if policy.execute(directory, ["git", "status", "--porcelain"], capture=True).strip():
         raise policy.ToolError("crate publication requires clean source before generated CHANGELOG staging")
     pins.check(directory)
@@ -90,7 +91,6 @@ def rehearse_crates(directory: Path, *, skip_published: bool = True) -> None:
     if not pins.check(directory, warn=nightly):
         return
     with policy.credential_free(policy.policy(directory, "release")):
-        storage.preflight(directory)
         packages = publishable(directory)
         metadata = policy.execute(directory, ["cargo", "metadata", "--format-version", "1", "--no-deps"], capture=True)
         target = Path(json.loads(metadata)["target_directory"])

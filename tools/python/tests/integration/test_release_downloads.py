@@ -21,7 +21,8 @@ from unittest import mock
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.release import layout, policy, run
+from dokime_tools import policy
+from dokime_tools.release import layout, run
 
 # Type Checking Imports
 

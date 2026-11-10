@@ -34,7 +34,7 @@ def build(profile: str) -> list[str]:
     """Generate The GUI Modules From The Product Build And Build The Live Frontend."""
     messages = configuration.messages(profile)
     if not messages.is_file():
-        raise ValueError(f"missing Product compiler messages {messages}; run `mise run build:rust` first")
+        raise ValueError(f"missing Product compiler messages {messages}; run `mise run build -- --language rust` first")
     generated.generate(messages, check=True)
     generated.stage(profile)
     built = frontend.build(profile)

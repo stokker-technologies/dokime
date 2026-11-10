@@ -28,7 +28,7 @@ from pathlib import Path
 # Third Party Imports
 # Local Imports
 from .. import temporary
-from ..build import paths, storage
+from ..build import paths
 from ..process import spawn_flags
 from . import archive, nextest, policy, pytest, report, traces, vitest
 
@@ -154,7 +154,6 @@ def coverage(
 
         # Instrumented Run
         if language == "rust":
-            storage.preflight(directory)
             binaries = archive.binaries(directory, profile)
             names = sorted(set(binaries.values()))
             expression, rest = nextest.selection(category, extra, names)
@@ -252,7 +251,9 @@ def bench(
             if refresh and status == 0:
                 print(f"::notice::benchmark baseline seeded: {name}")
             else:
-                print(f"benchmark baseline missing: {name}; run mise run bench:{language}:{category} --refresh-baseline")
+                print(
+                    f"benchmark baseline missing: {name}; run mise run bench -- --language {language} --layer {category} --refresh-baseline"
+                )
                 status = status or 1
             continue
         change = (median - baseline) / baseline * 100

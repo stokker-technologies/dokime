@@ -25,10 +25,9 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from .. import temporary
+from .. import policy, temporary
 from ..build import paths
 from ..process import spawn_flags
-from ..release import policy
 from . import changelog
 
 # Type Checking Imports

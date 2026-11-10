@@ -46,11 +46,15 @@ class RunTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.runners = [run]
-        for path in sorted((ROOT / "crates/cargo-dokime/templates").rglob("test/run.py.tmpl")):
-            namespace = runpy.run_path(str(path), run_name=f"{run.__package__}.template_runner")
-            module = ModuleType(namespace["__name__"])
-            module.__dict__.update(namespace)
-            cls.runners.append(module)
+        templates = ROOT / "crates/cargo-dokime/templates/tools/python/src/project_tools"
+        namespace = runpy.run_path(str(templates / "build/storage.py.tmpl"), run_name="dokime_tools.build.template_storage")
+        storage = ModuleType(namespace["__name__"])
+        storage.__dict__.update(namespace)
+        with patch.dict(sys.modules, {"dokime_tools.build.storage": storage}):
+            namespace = runpy.run_path(str(templates / "test/run.py.tmpl"), run_name=f"{run.__package__}.template_runner")
+        module = ModuleType(namespace["__name__"])
+        module.__dict__.update(namespace)
+        cls.runners.append(module)
 
     def test_benchmark_baseline_refresh_and_comparison(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -90,7 +94,7 @@ class RunTests(unittest.TestCase):
                     status = run.bench(directory, "system", "rust", ".", False, [])
                 self.assertEqual(status, 1)
                 self.assertIn("sidecar_ingest/scalar/0", output.getvalue())
-                self.assertIn("mise run bench:rust:system --refresh-baseline", output.getvalue())
+                self.assertIn("mise run bench -- --language rust --layer system --refresh-baseline", output.getvalue())
                 self.assertEqual(list(directory.rglob("dev/estimates.json")), [])
 
                 output = io.StringIO()

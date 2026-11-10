@@ -19,6 +19,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+# isort: split
 from .. import policy
 from ..test import archive
 
@@ -29,6 +30,7 @@ from ..test import archive
 # === Constants === #
 
 PNG = b"\x89PNG\r\n\x1a\n"
+MAX_BYTES = 4 * 1024 * 1024
 
 # === Types === #
 
@@ -78,8 +80,8 @@ def check(directory: Path, _: str = "check") -> None:
             raise policy.ToolError(f"screenshots must be flat regular files: {path.name}")
         if path.name in ["README.md", "manifest.json"]:
             continue
-        if path.suffix != ".png":
-            raise policy.ToolError(f"screenshot must be PNG: {path.name}")
+        if path.suffix != ".png" or path.stat().st_size > MAX_BYTES:
+            raise policy.ToolError(f"screenshot must be PNG at most 4 MiB: {path.name}")
         images.add(path.name)
         if path.name not in entries or not re.search(r"\]\((?:\./)?" + re.escape(path.name) + r"\)", readme):
             raise policy.ToolError(f"screenshot missing manifest or README reference: {path.name}")
@@ -101,6 +103,16 @@ def check(directory: Path, _: str = "check") -> None:
             ["git", "merge-base", "--is-ancestor", revision, branch],
             capture=True,
         )
+        behind = int(
+            policy.execute(
+                directory,
+                ["git", "rev-list", "--count", f"{revision}..{branch}"],
+                capture=True,
+            )
+        )
+        limit = settings.get("max_commits_behind", 0)
+        if not isinstance(limit, int) or limit < 0 or behind > limit:
+            raise policy.ToolError(f"screenshot revision is {behind} commits behind {branch}: {path.name}")
     if images != set(entries):
         raise policy.ToolError("screenshot manifest contains missing images")
 

@@ -26,7 +26,8 @@ from unittest.mock import Mock, patch
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.release import nightly, notices, pins, policy, registry
+from dokime_tools import policy
+from dokime_tools.release import nightly, notices, pins, registry
 
 # Type Checking Imports
 
@@ -171,11 +172,9 @@ class PinTests(unittest.TestCase):
         with (
             patch.object(pins, "check", return_value=False) as check,
             patch.dict(os.environ, {"GITHUB_WORKFLOW_REF": "owner/repo/.github/workflows/nightly.yml@refs/heads/dev"}, clear=True),
-            patch.object(registry.storage, "preflight") as preflight,
         ):
             registry.rehearse_crates(ROOT)
             self.assertTrue(check.call_args.kwargs["warn"])
-            preflight.assert_not_called()
 
 
 class ChannelTests(unittest.TestCase):

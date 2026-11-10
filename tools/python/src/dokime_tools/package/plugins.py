@@ -19,11 +19,12 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+from dokime_tools import policy
+
 # Third Party Imports
 # Local Imports
 from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output
-from dokime_tools.release import policy
 
 # Type Checking Imports
 

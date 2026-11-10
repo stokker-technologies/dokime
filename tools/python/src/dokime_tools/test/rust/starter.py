@@ -97,7 +97,9 @@ def test(profile: str) -> None:
             )
         # The Native Candidate Supplies The Authoring Tool; Other Tools Keep Their Locked Resolution.
         environment["PATH"] = os.pathsep.join((str(tool.parent), environment.get("PATH", "")))
-        environment["MISE_DISABLE_TOOLS"] = ",".join(filter(None, (environment.get("MISE_DISABLE_TOOLS"), "github:stokker-technologies/dokime")))
+        environment["MISE_DISABLE_TOOLS"] = ",".join(
+            filter(None, (environment.get("MISE_DISABLE_TOOLS"), "github:stokker-technologies/dokime"))
+        )
         if Path(shutil.which("cargo-dokime", path=environment["PATH"]) or "").resolve() != tool.resolve():
             raise ValueError("the starter must use the candidate authoring tool")
 
