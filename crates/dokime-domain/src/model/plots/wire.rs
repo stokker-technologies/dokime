@@ -195,7 +195,7 @@ pub struct PlotPayload {
     pub series_by: Option<String>,
     pub context: Option<Value>,
     pub series: Vec<PlotSeries>,
-    pub cartesian: Option<PlotCartesianFrame>,
+    pub frame: Option<PlotFrame>,
     pub markers: Vec<PlotMarker>,
     pub max_points: u64,
     pub window_s: Option<f64>,
@@ -245,9 +245,10 @@ pub struct PlotWindow {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotCartesianFrame {
-    pub mode: PlotCartesianMode,
-    pub series: Vec<PlotCartesianSeriesFrame>,
+pub struct PlotFrame {
+    pub mode: Option<PlotCartesianMode>,
+    pub time: Vec<f64>,
+    pub series: Vec<PlotColumn>,
     pub x_domain: Option<PlotDomain>,
     pub y_domain: Option<PlotDomain>,
     pub point_count: u64,
@@ -256,11 +257,12 @@ pub struct PlotCartesianFrame {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotCartesianSeriesFrame {
-    pub x: Vec<f64>,
+pub struct PlotColumn {
+    pub x: Vec<Value>,
 
     #[row(description = "A message wrapper preserves null y values without a NaN sentinel.")]
     pub y: Vec<NullableNumber>,
+    pub z: Vec<NullableNumber>,
 }
 
 #[harmos::message]
@@ -293,18 +295,9 @@ pub struct PlotSeries {
     pub key: String,
     pub label: String,
     pub unit: Option<String>,
-    pub points: Vec<PlotPoint>,
     pub raw_points: u64,
     pub downsampled: bool,
     pub format: Option<ValueFormat>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotPoint {
-    pub x: Option<Value>,
-    pub y: Option<f64>,
-    pub z: Option<f64>,
 }
 
 #[harmos::message]

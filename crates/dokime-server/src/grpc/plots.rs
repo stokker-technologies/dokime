@@ -478,7 +478,6 @@ impl Serve<contract::Watch> for Resources {
                             let mut refused = false;
                             // Evaluate The Whole Dirty Set Before Sending One Ordered Revision.
                             let results = resources.query_snapshots(&served, &at).await;
-                            statistics_at = Some(at.clone());
                             let mut frames = Vec::new();
                             for (current, result) in served.into_iter().zip(results) {
                                 let key = plot_key(&current);
@@ -500,8 +499,9 @@ impl Serve<contract::Watch> for Resources {
                                     refused = true;
                                 }
                             }
-                            // Only Delivered Updates Renew The Heartbeat; A Saved Cut May Already Be Covered.
+                            // A Saved Cut Already Delivered Needs Neither Another Statistics Read Nor A Renewed Heartbeat.
                             if !frames.is_empty() {
+                                statistics_at = Some(at.clone());
                                 heartbeat = Instant::now() + super::WATCH_HEARTBEAT;
                             }
                             self.send_revision(output, frames).await?;

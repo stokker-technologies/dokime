@@ -200,6 +200,9 @@ export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_poin
     markers?: PlotMarker[];
     /** One per series of a time series or scatter plot, over the shown window. */
     summaries?: SeriesSummary[];
+    bucket_width_s?: number | null;
+    bucket_window?: { from: number; to: number } | null;
+    replaced_buckets?: number[];
   };
 
 export type PlotPayloadEnvelope = Omit<NativePlotPayloadEnvelope, "payload" | "diagnostics"> & {

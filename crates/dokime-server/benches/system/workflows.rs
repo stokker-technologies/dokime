@@ -711,7 +711,9 @@ async fn first_frame(client: &Client, cycle_id: &str, execution_id: &str) -> mod
             let frame = revision.updates.pop().unwrap();
             assert_ne!(frame.kind, model::plots::wire::PlotStreamKind::Error, "the plot watch serves its snapshot");
             let payload = frame.envelope.as_ref().and_then(|envelope| envelope.payload.as_ref());
-            if payload.is_some_and(|payload| payload.series.iter().any(|series| !series.points.is_empty())) {
+            if payload
+                .is_some_and(|payload| payload.frame.as_ref().is_some_and(|frame| frame.series.iter().any(|series| !series.y.is_empty())))
+            {
                 return frame;
             }
         }

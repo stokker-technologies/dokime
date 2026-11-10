@@ -137,7 +137,7 @@ pub(crate) async fn late_samples_keep_time_order() {
         .into_inner();
     let payload = reply.envelopes[0].payload.as_ref().unwrap();
     assert_eq!(
-        payload.series[0].points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(),
+        payload.frame.as_ref().unwrap().series[0].y.iter().map(|point| point.value.unwrap()).collect::<Vec<_>>(),
         (0..20).map(f64::from).collect::<Vec<_>>()
     );
     let summary = &payload.summaries[0];
@@ -224,7 +224,7 @@ pub(crate) async fn sealed_window_all() {
         assert_eq!(served_points(&frame), STORED as usize + 1);
         let envelope = frame.envelope.unwrap();
         let payload = envelope.payload.unwrap();
-        assert_eq!(payload.series[0].points.last().unwrap().y, Some(STORED as f64));
+        assert_eq!(payload.frame.as_ref().unwrap().series[0].y.last().unwrap().value, Some(STORED as f64));
         if let Some(cut) = replacement_cut {
             assert_eq!(envelope.revision, cut);
         }
@@ -294,8 +294,8 @@ pub(crate) async fn saved_frontier_refreshes_affected_plots() {
             assert_eq!(envelope.revision, cut);
         }
         initial_cut = Some(envelope.revision);
-        let series = envelope.payload.unwrap().series;
-        let points: usize = series.iter().map(|series| series.points.len()).sum();
+        let series = envelope.payload.unwrap().frame.unwrap().series;
+        let points: usize = series.iter().map(|series| series.y.len()).sum();
         assert_eq!(points, if envelope.plot_id == idle { 0 } else { 10 });
         assert!(initial.insert(envelope.plot_id, series).is_none());
     }
@@ -318,12 +318,12 @@ pub(crate) async fn saved_frontier_refreshes_affected_plots() {
             assert_eq!(envelope.revision, cut);
         }
         replacement_cut = Some(envelope.revision);
-        let series = envelope.payload.unwrap().series;
+        let series = envelope.payload.unwrap().frame.unwrap().series;
         let previous = &initial[&envelope.plot_id];
         assert!(progress.contains(&envelope.plot_id.as_str()));
-        assert_eq!(series[0].points.len(), 11);
-        assert_eq!(series[0].points[..10], previous[0].points);
-        assert_eq!(series[0].points.last().unwrap().y, Some(10.0));
+        assert_eq!(series[0].y.len(), 11);
+        assert_eq!(series[0].y[..10], previous[0].y);
+        assert_eq!(series[0].y.last().unwrap().value, Some(10.0));
         assert!(refreshed.insert(envelope.plot_id));
     }
     assert_eq!(refreshed.len(), progress.len());
@@ -411,7 +411,7 @@ async fn live_plot_cadence() {
             .into_inner();
         assert_eq!(finite.envelopes.len(), 1);
         let envelope = finite.envelopes.pop().unwrap();
-        assert_eq!(envelope.payload.unwrap().series[0].points.len(), 2);
+        assert_eq!(envelope.payload.unwrap().frame.unwrap().series[0].y.len(), 2);
         assert!(envelope.revision <= saved.sequence);
     }
 
@@ -433,8 +433,8 @@ async fn live_plot_cadence() {
     let mut opening =
         client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: vec![timed.clone()] }).await.unwrap().into_inner();
     let frame = data_frame(&mut opening).await;
-    let points = &frame.envelope.as_ref().unwrap().payload.as_ref().unwrap().series[0].points;
-    assert_eq!(points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(), (0..1283).map(f64::from).collect::<Vec<_>>());
+    let points = &frame.envelope.as_ref().unwrap().payload.as_ref().unwrap().frame.as_ref().unwrap().series[0].y;
+    assert_eq!(points.iter().map(|point| point.value.unwrap()).collect::<Vec<_>>(), (0..1283).map(f64::from).collect::<Vec<_>>());
     drop(opening);
 
     // One Throttled Frame Covers The Burst, Even If A Normal Save Races It.
@@ -455,6 +455,24 @@ async fn live_plot_cadence() {
         assert_eq!(served_points(&frame), 1283);
     }
 
+    // Exact Statistics Follow The Drawn Cut Without Replacing Its Data.
+    loop {
+        let statistics = plots::statistics_frames(&mut watch).await;
+        if statistics.iter().any(|frame| frame.envelope.as_ref().unwrap().revision < revision) {
+            continue;
+        }
+        assert_eq!(statistics.len(), 8);
+        for frame in statistics {
+            let envelope = frame.envelope.unwrap();
+            assert_eq!(envelope.revision, revision);
+            let payload = envelope.payload.unwrap();
+            assert!(payload.series.is_empty());
+            assert_eq!(payload.summaries[0].count, 1283);
+            assert_eq!(payload.summaries[0].median, Some(641.0));
+        }
+        break;
+    }
+
     // The Same Rows Survive The Tail-To-Saved Handoff Once, Without A Gap.
     handle.storage().flush().await.unwrap();
     let mut finite = client
@@ -463,8 +481,8 @@ async fn live_plot_cadence() {
         .unwrap()
         .into_inner();
     let envelope = finite.envelopes.pop().unwrap();
-    let points = &envelope.payload.as_ref().unwrap().series[0].points;
-    assert_eq!(points.iter().map(|point| point.y.unwrap()).collect::<Vec<_>>(), (0..1283).map(f64::from).collect::<Vec<_>>());
+    let points = &envelope.payload.as_ref().unwrap().frame.as_ref().unwrap().series[0].y;
+    assert_eq!(points.iter().map(|point| point.value.unwrap()).collect::<Vec<_>>(), (0..1283).map(f64::from).collect::<Vec<_>>());
     assert!(handle.storage().cursor_saved().covers(&accepted).unwrap());
     // The Saved Handoff Produces Only A Keepalive, Never A Replayed Revision.
     // Processing That Save After This Advance Must Not Postpone The Heartbeat Without Sending Data.

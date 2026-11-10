@@ -3,7 +3,7 @@
 ## 1. Contract
 
 - [ ] 1.1 Record a baseline on Windows and Linux for a windowed live plot and a zoom over the three-day, thirty-plot workload: query time, bytes sent and redraw time.
-- [x] 1.2 Lock the source inventory: `crates/dokime-runtime/src/{plot,runtime/query/plots,storage/sqlite/data/telemetry}`, runtime signal kernels and their evidence, query and report consumers, plot contracts in `crates/dokime-domain/src/model/plots`, `crates/dokime-server/src/grpc/plots`, `crates/dokime-gui/src/{plots,components/document/PlotGroupGrid.tsx,stores/summary-window-store.ts,lib/api/native-plots.ts,lib/types}`, generated plot bindings, their focused tests and benches, Cargo dependencies, focused feature selection in `tools/python/` and `docs/tooling.md`, and affected plot documentation in `README.md` and `docs/`. Implement stored buckets, viewport queries, watch deltas, kernels, columnar wire and interface in that order. Preserve other workers' branding and remote access ownership. Final validation remains separate.
+- [x] 1.2 Lock the source inventory: `crates/dokime-runtime/src/{plot,runtime/query/plots,storage/sqlite/data/telemetry}`, runtime signal kernels and their evidence, query and report consumers, the plot-bucket format check in `crates/dokime-runtime/src/storage/sqlite/data.rs`, plot contracts in `crates/dokime-domain/src/model/plots`, `crates/dokime-server/src/grpc/{plots,plots.rs}`, `crates/dokime-gui/src/{plots,components/document/PlotGroupGrid.tsx,stores/summary-window-store.ts,lib/api/native-plots.ts,lib/types}`, generated plot bindings, their focused tests and benches, Cargo dependencies, focused feature selection in `tools/python/` and `docs/tooling.md`, and affected plot documentation in `README.md` and `docs/`. Implement stored buckets, viewport queries, watch deltas, kernels, columnar wire and interface in that order. Preserve other workers' branding and remote access ownership. Final validation remains separate.
 
 ## 2. Backend
 
@@ -14,7 +14,7 @@
 
 ## 3. Wire and Interface
 
-- [ ] 3.1 Send one columnar frame with a shared time column and delete the duplicate point-series representation.
+- [x] 3.1 Send one columnar frame with a shared time column and delete the duplicate point-series representation.
 - [ ] 3.2 Send the viewport and width from the interface, request detail on zoom and apply bucket deltas to the retained frame.
 
 ## 4. Final Validation

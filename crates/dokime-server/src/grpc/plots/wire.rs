@@ -217,18 +217,16 @@ fn fit_message<T: Portable>(
     let Some(payload) = &envelope.payload else {
         return Err(exhausted().into());
     };
-    let count = payload.series.iter().try_fold(0usize, |count, series| count.checked_add(series.points.len())).ok_or_else(exhausted)?;
+    let count = payload
+        .frame
+        .as_ref()
+        .map_or(Some(0), |frame| frame.series.iter().try_fold(0usize, |count, series| count.checked_add(series.y.len())))
+        .ok_or_else(exhausted)?;
     let series = payload.series.len().max(1);
-    // Points and the cartesian frame aligned with them grow together; the
-    // rest of the envelope is the same whatever the points. Its generation
-    // time is charged at its longest, so every delivery of this plot names
-    // the same bound however its trailing zeros fall.
-    // A Failing Projection Is Never Delivered; Release Its Points In Place.
+    // Charge Metadata Separately From The Single Columnar Frame.
+    // A Failing Projection Is Never Delivered; Release Its Columns In Place.
     if let Some(payload) = &mut envelope.payload {
-        payload.cartesian = None;
-        for series in &mut payload.series {
-            series.points = Vec::new();
-        }
+        payload.frame = None;
         let generated = payload.generated_at.len().max(GENERATED_AT_BYTES);
         payload.generated_at = "0".repeat(generated);
     }
@@ -435,7 +433,7 @@ fn plot_payload(value: dokime::runtime::query::PlotPayload) -> Result<dokime::do
         return Err(Status::resource_exhausted("plot exceeds retained point limit"));
     }
     let context = values(&value.context)?;
-    let cartesian = value.cartesian.map(plot_cartesian).transpose()?;
+    let frame = plot_frame(value.cartesian.as_ref(), &value.series)?;
     Ok(dokime::domain::model::plots::wire::PlotPayload {
         computed: value.computed.map(super::analysis::computation).transpose()?,
         stream: value.stream,
@@ -443,7 +441,7 @@ fn plot_payload(value: dokime::runtime::query::PlotPayload) -> Result<dokime::do
         series_by: value.series_by,
         context: Some(context),
         series: mapped(value.series, plot_series)?,
-        cartesian,
+        frame: Some(frame),
         markers: mapped(value.markers, plot_marker)?,
         max_points: u64::try_from(value.max_points).map_err(|_| Status::internal("plot max_points does not fit wire"))?,
         window_s: value.window_s,
@@ -607,24 +605,54 @@ fn wifi_occupancy(
     })
 }
 
-fn plot_cartesian(
-    value: dokime::runtime::query::PlotCartesianFrame,
-) -> Result<dokime::domain::model::plots::wire::PlotCartesianFrame, Status> {
-    Ok(dokime::domain::model::plots::wire::PlotCartesianFrame {
-        mode: match value.mode {
-            dokime::runtime::query::PlotCartesianMode::Aligned => dokime::domain::model::plots::wire::PlotCartesianMode::Aligned,
-            dokime::runtime::query::PlotCartesianMode::Faceted => dokime::domain::model::plots::wire::PlotCartesianMode::Faceted,
-        },
-        series: mapped(value.series, |series| {
-            Ok(dokime::domain::model::plots::wire::PlotCartesianSeriesFrame {
-                x: series.x,
-                y: mapped(series.y, |value| Ok(dokime::domain::model::plots::wire::NullableNumber { value }))?,
+fn plot_frame(
+    cartesian: Option<&dokime::runtime::query::PlotCartesianFrame>, series: &[dokime::runtime::query::PlotSeries],
+) -> Result<dokime::domain::model::plots::wire::PlotFrame, Status> {
+    use dokime::domain::model::plots::wire::{NullableNumber, PlotCartesianMode, PlotColumn, PlotFrame};
+    use dokime::runtime::query::PlotCartesianMode as Mode;
+
+    let aligned = cartesian.is_some_and(|frame| frame.mode == Mode::Aligned);
+    let time = if aligned {
+        cartesian.and_then(|frame| frame.series.first()).map(|series| series.x.clone()).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let columns = series
+        .iter()
+        .enumerate()
+        .map(|(index, series)| {
+            let (x, y, z) = if let Some(frame) = cartesian {
+                let column = &frame.series[index];
+                let x = if aligned { Vec::new() } else { column.x.iter().map(|x| serde_json::json!(x)).collect() };
+                (x, column.y.clone(), Vec::new())
+            } else {
+                (
+                    series.points.iter().map(|point| point.x.clone()).collect(),
+                    series.points.iter().map(|point| point.y).collect(),
+                    series.points.iter().map(|point| point.z).collect(),
+                )
+            };
+            Ok(PlotColumn {
+                x: mapped(x, |x| canonical::encode_json(x, &mut Budget::new()?, 0))?,
+                y: y.into_iter().map(|value| NullableNumber { value }).collect(),
+                z: z.into_iter().map(|value| NullableNumber { value }).collect(),
             })
-        })?,
-        x_domain: value.x_domain.map(plot_domain),
-        y_domain: value.y_domain.map(plot_domain),
-        point_count: u64::try_from(value.point_count).map_err(|_| Status::internal("plot point count does not fit wire"))?,
-        signature: value.signature,
+        })
+        .collect::<Result<Vec<_>, Status>>()?;
+    Ok(PlotFrame {
+        mode: cartesian.map(|frame| match frame.mode {
+            Mode::Aligned => PlotCartesianMode::Aligned,
+            Mode::Faceted => PlotCartesianMode::Faceted,
+        }),
+        time,
+        series: columns,
+        x_domain: cartesian.and_then(|frame| frame.x_domain.clone()).map(plot_domain),
+        y_domain: cartesian.and_then(|frame| frame.y_domain.clone()).map(plot_domain),
+        point_count: u64::try_from(
+            cartesian.map_or_else(|| series.iter().map(|series| series.points.len()).sum(), |frame| frame.point_count),
+        )
+        .map_err(|_| Status::internal("plot point count does not fit wire"))?,
+        signature: cartesian.map(|frame| frame.signature.clone()).unwrap_or_default(),
     })
 }
 
@@ -650,18 +678,9 @@ fn plot_series(value: dokime::runtime::query::PlotSeries) -> Result<dokime::doma
         key: value.key,
         label: value.label,
         unit: value.unit,
-        points: mapped(value.points, plot_point)?,
         raw_points: u64::try_from(value.raw_points).map_err(|_| Status::internal("plot raw point count does not fit wire"))?,
         downsampled: value.downsampled,
         format: optional_format(value.format.as_ref()),
-    })
-}
-
-fn plot_point(value: dokime::runtime::query::PlotPoint) -> Result<dokime::domain::model::plots::wire::PlotPoint, Status> {
-    Ok(dokime::domain::model::plots::wire::PlotPoint {
-        x: Some(canonical::encode_json(value.x, &mut Budget::new()?, 0)?),
-        y: value.y,
-        z: value.z,
     })
 }
 
@@ -680,6 +699,51 @@ fn plot_marker(value: dokime::runtime::query::PlotMarker) -> Result<dokime::doma
 mod tests {
     use super::*;
     use dokime::domain::model::plots::wire::{PlotEnvelope, PlotStreamKind, PlotStreamUpdate};
+
+    #[test]
+    fn columnar_frame_shares_time_and_preserves_independent_columns() {
+        use dokime::runtime::query::{PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotPoint, PlotSeries};
+        let series = PlotSeries {
+            key: "value".into(),
+            label: "Value".into(),
+            unit: None,
+            raw_points: 2,
+            downsampled: false,
+            format: None,
+            points: vec![PlotPoint {
+                x: serde_json::json!("Category"),
+                y: Some(2.0),
+                z: Some(7.0),
+            }],
+        };
+        let cartesian = PlotCartesianFrame {
+            mode: PlotCartesianMode::Aligned,
+            series: vec![
+                PlotCartesianSeriesFrame {
+                    x: vec![1.0, 2.0],
+                    y: vec![Some(2.0), None],
+                },
+                PlotCartesianSeriesFrame {
+                    x: vec![1.0, 2.0],
+                    y: vec![None, Some(4.0)],
+                },
+            ],
+            x_domain: None,
+            y_domain: None,
+            point_count: 2,
+            signature: "frame".into(),
+        };
+        let frame = plot_frame(Some(&cartesian), &[series.clone(), series.clone()]).unwrap();
+        assert_eq!(frame.time, vec![1.0, 2.0]);
+        assert!(frame.series.iter().all(|column| column.x.is_empty() && column.z.is_empty()));
+        assert_eq!(frame.series[0].y.iter().map(|value| value.value).collect::<Vec<_>>(), vec![Some(2.0), None]);
+        let frame = plot_frame(None, &[series.clone()]).unwrap();
+        assert!(frame.time.is_empty());
+        assert_eq!(frame.series[0].x.len(), 1);
+        assert_eq!(frame.series[0].z[0].value, Some(7.0));
+        let metadata = serde_json::to_value(plot_series(series).unwrap()).unwrap();
+        assert!(metadata.get("points").is_none());
+    }
 
     #[test]
     fn xy_request_style_roundtrip() {
