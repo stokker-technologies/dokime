@@ -108,10 +108,12 @@ fn install_bundle(schema: u32) -> Bundle {
 }
 
 fn run_cli(bundle: &Path, endpoint: &str) -> Result<Outcome, String> {
+    let pairing = crate::backend::pairing(endpoint);
     let output = dokime::domain::process::command(cli_executable())
         .args(["--color", "never", "plugin", "install"])
         .arg(bundle)
-        .args(["--endpoint", endpoint])
+        .arg("--remote")
+        .arg(pairing.path())
         .stdin(std::process::Stdio::null())
         .output()
         .map_err(|error| error.to_string())?;

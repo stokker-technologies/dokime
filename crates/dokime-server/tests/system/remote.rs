@@ -147,9 +147,6 @@ async fn configured_command(extension: &str, workflow: &str, endpoint: &str, dir
     paths.extend(std::env::split_paths(&inherited));
 
     command.env("PATH", std::env::join_paths(paths).unwrap()).current_dir(directory).kill_on_drop(true);
-    for name in ["DOKIME_KEY", "DOKIME_KEY_FILE", "DOKIME_ENV_FILE", "DOKIME_CA_CERTIFICATE", "DOKIME_BACKEND"] {
-        command.env_remove(name);
-    }
     command.env("DOKIME_REMOTE", &pairing);
     command
 }

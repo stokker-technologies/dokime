@@ -102,6 +102,8 @@ pub(crate) async fn response_publication_faults() {
         let mut owner = fixture(root.path(), &prepared_owner, gate.clone()).await;
         let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
         let endpoint = server.local_endpoint();
+        let pairing = crate::support::pairing(&endpoint).await;
+        let remote = pairing.path().to_str().unwrap();
 
         let directory = root.path().join("response");
         std::fs::create_dir(&directory).unwrap();
@@ -110,7 +112,7 @@ pub(crate) async fn response_publication_faults() {
             std::fs::write(&destination, b"original response").unwrap();
         }
         let command =
-            ["dokime", "operation", "call", "fixture.output.mutate", "--endpoint", &endpoint, "--output", destination.to_str().unwrap()];
+            ["dokime", "operation", "call", "fixture.output.mutate", "--remote", remote, "--output", destination.to_str().unwrap()];
         let arguments = command.into_iter().chain(overwrite.then_some("--overwrite"));
         let args = dokime_cli::Cli::try_parse_from(arguments).unwrap();
         let pending = args.run(dokime::config::Config::local(root.path()));
@@ -161,6 +163,8 @@ pub(crate) async fn response_unavailable_after_effect() {
     let mut owner = fixture(root.path(), &prepared_owner, gate.clone()).await;
     let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let endpoint = server.local_endpoint();
+    let pairing = crate::support::pairing(&endpoint).await;
+    let remote = pairing.path().to_str().unwrap();
 
     let directory = root.path().join("response");
     std::fs::create_dir(&directory).unwrap();
@@ -171,8 +175,8 @@ pub(crate) async fn response_unavailable_after_effect() {
         "operation",
         "call",
         "fixture.output.mutate",
-        "--endpoint",
-        &endpoint,
+        "--remote",
+        remote,
         "--json",
         "{\"unavailable\":true}",
         "--output",

@@ -408,8 +408,10 @@ async fn assert_remote_key_boundary(authenticated: bool) {
         .methods
         .into_iter()
         .collect();
-    let expected = methods;
-    assert_eq!(advertised, expected, "availability must include every served product operation");
+    let expected: std::collections::BTreeSet<_> =
+        owner.handle().grpc().methods().into_iter().map(|method| method.contract.grpc().unwrap().path().to_owned()).collect();
+    assert!(methods.is_subset(&expected), "the runtime must publish every canonical product operation");
+    assert_eq!(advertised, expected, "availability must include every published client operation");
 
     for case in cases() {
         let refusal = (case.call)(channel.clone(), token).await;

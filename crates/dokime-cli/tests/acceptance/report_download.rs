@@ -49,7 +49,8 @@ use crate::backend::{Fixture, FixtureConfig, Host, ID, Report, ReportMode};
 async fn call(endpoint: &str, directory: &Path, arguments: &[&str]) -> std::process::Output {
     let executable = std::env::var("NEXTEST_BIN_EXE_dokime").ok().or_else(|| std::env::var("CARGO_BIN_EXE_dokime").ok()).unwrap();
     let mut command = dokime::domain::process::command(executable);
-    command.current_dir(directory).args(arguments).args(["--endpoint", endpoint]).stdin(std::process::Stdio::null());
+    let pairing = crate::backend::pairing(endpoint);
+    command.current_dir(directory).args(arguments).arg("--remote").arg(pairing.path()).stdin(std::process::Stdio::null());
     tokio::task::spawn_blocking(move || command.output().unwrap()).await.unwrap()
 }
 

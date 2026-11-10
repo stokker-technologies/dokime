@@ -191,7 +191,7 @@ function ListenerControls({
         <SettingsCard title="Certificate">
           <SettingsRow
             label="Certificate Identity"
-            description="Certificate names refresh automatically. Reissuing preserves the CA trusted by existing remote files."
+            description="Replacing the self-signed certificate requires exporting and importing a new pairing file."
           >
             <Button
               variant="outline"

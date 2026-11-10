@@ -64,6 +64,8 @@ pub(crate) async fn execution_prompt_identity() {
     support::register_fixture_execution(&handle, suite.clone()).await;
     let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let endpoint = server.local_endpoint();
+    let pairing = crate::support::pairing(&endpoint).await;
+    let remote = pairing.path().to_str().unwrap();
     let target = dokime::client::Target::local(endpoint.clone()).unwrap();
     let client = dokime::client::Client::connect(target, None, None).await.unwrap();
     let cycle = client.create_cycle(create()).await.unwrap();
@@ -87,7 +89,7 @@ pub(crate) async fn execution_prompt_identity() {
     let execution_id = dokime::TestExecutionId::from_uuid(&first).unwrap();
     let execution = client.execution(execution_id.clone());
     let other = client.execution(dokime::TestExecutionId::from_uuid(&sibling).unwrap());
-    let command = ["dokime", "execution", "start", &first, "--endpoint", &endpoint];
+    let command = ["dokime", "execution", "start", &first, "--remote", remote];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     gate.started.notified().await;
 
@@ -107,8 +109,8 @@ pub(crate) async fn execution_prompt_identity() {
             &foreign_cycle,
             "--recovery-directory",
             recovery_path,
-            "--endpoint",
-            &endpoint,
+            "--remote",
+            remote,
         ]);
         let refused = dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap_err();
         assert_eq!(refused.exit_code(), std::process::ExitCode::from(2));
@@ -140,11 +142,11 @@ pub(crate) async fn execution_prompt_identity() {
     assert!(other.respond_prompt(&id, "yes".into(), values, true).await.is_err());
     assert!(handle.prompt_response(&id).await.is_none());
     let id_text = id.to_string();
-    let command = ["dokime", "execution", "prompt", "next", &first, "--wait-seconds", "5", "--id-only", "--endpoint", &endpoint];
+    let command = ["dokime", "execution", "prompt", "next", &first, "--wait-seconds", "5", "--id-only", "--remote", remote];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
-    let command = ["dokime", "execution", "prompt", "show", &first, &id_text, "--endpoint", &endpoint];
+    let command = ["dokime", "execution", "prompt", "show", &first, &id_text, "--remote", remote];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
-    let command = ["dokime", "execution", "prompt", "answer", &first, &id_text, "--action", "yes", "--endpoint", &endpoint];
+    let command = ["dokime", "execution", "prompt", "answer", &first, &id_text, "--action", "yes", "--remote", remote];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     assert_eq!(handle.prompt_response(&id).await.unwrap().action, "yes");
     assert!(
@@ -165,8 +167,8 @@ pub(crate) async fn execution_prompt_identity() {
         &first,
         "--wait-seconds",
         "5",
-        "--endpoint",
-        &endpoint,
+        "--remote",
+        remote,
         "--cancel-on-interrupt",
         "--owned-cycle",
         &cycle_text,
@@ -179,7 +181,7 @@ pub(crate) async fn execution_prompt_identity() {
 
     // === Stop A Different Execution While Its Question Waits === //
 
-    let command = ["dokime", "execution", "start", &sibling, "--endpoint", &endpoint];
+    let command = ["dokime", "execution", "start", &sibling, "--remote", remote];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     gate.started.notified().await;
     let waiting_id = dokime::model::identity::new_id::<PromptId>();
@@ -193,9 +195,9 @@ pub(crate) async fn execution_prompt_identity() {
         })
         .await
         .unwrap();
-    let command = ["dokime", "execution", "stop", &sibling, "--endpoint", &endpoint];
+    let command = ["dokime", "execution", "stop", &sibling, "--remote", remote];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
-    let command = ["dokime", "execution", "wait", &sibling, "--wait-seconds", "5", "--endpoint", &endpoint];
+    let command = ["dokime", "execution", "wait", &sibling, "--wait-seconds", "5", "--remote", remote];
     let cancelled = dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap_err();
     assert_eq!(cancelled.exit_code(), std::process::ExitCode::from(1), "cancelled evidence is sealed without claiming success");
     assert!(handle.prompt_response(&waiting_id).await.is_none());
@@ -221,8 +223,8 @@ pub(crate) async fn execution_prompt_identity() {
         "--parameters-json",
         "{\"fixture.result\":\"manual-value\"}",
         "--id-only",
-        "--endpoint",
-        &endpoint,
+        "--remote",
+        remote,
     ];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let case_id = {
@@ -236,7 +238,7 @@ pub(crate) async fn execution_prompt_identity() {
             .test_case_id
             .to_string()
     };
-    let command = ["dokime", "cycle", "append", &cycle_text, "--case-id", &case_id, "--id-only", "--endpoint", &endpoint];
+    let command = ["dokime", "cycle", "append", &cycle_text, "--case-id", &case_id, "--id-only", "--remote", remote];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let members = cycle.executions().await.unwrap();
     assert_eq!(members.len(), 3);

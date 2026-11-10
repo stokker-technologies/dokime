@@ -74,7 +74,7 @@ impl Policy {
 
 impl Authorizer for Policy {
     fn authorize(&self, context: &CallContext, provider: Provider<'_>) -> dokime::harmos::Result<Option<Authorization>> {
-        let Some(principal) = context.get::<Principal>() else {
+        let Some(_) = context.get::<Principal>() else {
             return Ok(None);
         };
         // Canonical Product Providers Include The Published Host Catalog; Harmos Owns
@@ -84,10 +84,7 @@ impl Authorizer for Policy {
             && provider.owner.as_str() == HOST_OWNER
             && (operation.starts_with(PRODUCT_NAMESPACE) || operation == dokime::harmos::builtins::host::Catalog::ID);
         if !product {
-            if principal.is_local() || provider.plugin {
-                return Ok(Some(Authorization::Full(provider.contract.clone())));
-            }
-            return Ok(None);
+            return Ok(Some(Authorization::Full(provider.contract.clone())));
         }
         let Ok(index) = self.requirements.binary_search_by(|requirement| requirement.contract.operation().id.cmp(&provider.definition.id))
         else {

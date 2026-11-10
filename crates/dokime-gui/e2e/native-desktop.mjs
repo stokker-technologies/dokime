@@ -4264,7 +4264,19 @@ async function emptyCycleHistory(session, cycleId, title, ownership) {
     ),
   );
   const archive = join(evidence, `empty-cycle-${cycleId}.zip`);
-  const result = await executeFile(cliBinary, ["cycle", "export", cycleId, "--endpoint", endpoint, "--output", archive, "--json"], {
+  const pairing = join(work, `empty-cycle-${cycleId}.pair`);
+  await writeFile(
+    pairing,
+    JSON.stringify({
+      version: 1,
+      endpoints: [endpoint],
+      backend_identifier: current.connection.backend.backendId,
+      label: "Fixture",
+      certificate_pem: null,
+      access_key: null,
+    }),
+  );
+  const result = await executeFile(cliBinary, ["cycle", "export", cycleId, "--remote", pairing, "--output", archive, "--json"], {
     windowsHide: true,
     cwd: work,
     timeout: WAIT_MS,

@@ -274,14 +274,16 @@ async fn artifact_transfer(message_bytes: usize) {
         let cli_server = service.listen_with(Config::local().with_max_message_bytes(message_bytes)).await.unwrap();
         let response_file = root.path().join("cli-artifact.bin");
         let endpoint = cli_server.local_endpoint();
+        let pairing = crate::support::pairing(&endpoint).await;
+        let remote = pairing.path().to_str().unwrap();
         let cli_request = std::str::from_utf8(&request_json).unwrap();
         let command = [
             "dokime",
             "operation",
             "call",
             "dokime.content.download_artifact",
-            "--endpoint",
-            &endpoint,
+            "--remote",
+            remote,
             "--json",
             cli_request,
             "--output",
@@ -325,9 +327,11 @@ async fn artifact_transfer(message_bytes: usize) {
         native.cycle(cycle_id.clone()).seal().await.unwrap();
         let cycle_export = root.path().join("cycle.zip");
         let endpoint = cli_server.local_endpoint();
+        let pairing = crate::support::pairing(&endpoint).await;
+        let remote = pairing.path().to_str().unwrap();
         let output = cycle_export.to_str().unwrap();
         let cycle_id = cycle_id.to_string();
-        let command = ["dokime", "cycle", "export", &cycle_id, "--endpoint", &endpoint, "--output", output];
+        let command = ["dokime", "cycle", "export", &cycle_id, "--remote", remote, "--output", output];
         dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
         cli_server.shutdown().await.unwrap();
         assert!(cycle_export.is_file());

@@ -243,6 +243,8 @@ pub(crate) async fn remote_cycle_seal() {
     let other = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
     let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let endpoint = server.local_endpoint();
+    let pairing = crate::support::pairing(&endpoint).await;
+    let remote = pairing.path().to_str().unwrap();
     let target = dokime::client::Target::local(endpoint.clone()).unwrap();
     let client = dokime::client::Client::connect(target, None, None).await.unwrap();
     let reply = client.cycle(cycle.clone()).seal().await.unwrap();
@@ -254,7 +256,7 @@ pub(crate) async fn remote_cycle_seal() {
     client.close_and_wait().await;
 
     let cycle_id = cycle.to_string();
-    let command = ["dokime", "cycle", "seal", &cycle_id, "--endpoint", &endpoint, "--json"];
+    let command = ["dokime", "cycle", "seal", &cycle_id, "--remote", remote, "--json"];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     assert_eq!(handle.watch_state().latest().state().cycles[&cycle], sealed);
 
@@ -278,12 +280,14 @@ pub(crate) async fn operation_response_files() {
     let cycle = handle.create_cycle(definition, Default::default()).await.unwrap();
     let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let endpoint = server.local_endpoint();
+    let pairing = crate::support::pairing(&endpoint).await;
+    let remote = pairing.path().to_str().unwrap();
     let destination = root.path().join("response.json");
     let output = destination.to_str().unwrap();
     let request = serde_json::json!({"cycleId": cycle.to_string(), "label": "First Call"}).to_string();
 
     let command =
-        ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--endpoint", &endpoint, "--json", &request, "--output", output];
+        ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--remote", remote, "--json", &request, "--output", output];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let snapshot = handle.watch_state().latest();
     assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "First Call");
@@ -294,8 +298,7 @@ pub(crate) async fn operation_response_files() {
     assert_eq!(events[0]["event"], "completion");
 
     let next = serde_json::json!({"cycleId": cycle.to_string(), "label": "Second Call"}).to_string();
-    let command =
-        ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--endpoint", &endpoint, "--json", &next, "--output", output];
+    let command = ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--remote", remote, "--json", &next, "--output", output];
     let error = dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap_err();
     assert!(matches!(error, dokime_cli::Error::Input(_)));
     let snapshot = handle.watch_state().latest();
@@ -314,8 +317,8 @@ pub(crate) async fn operation_response_files() {
         "operation",
         "call",
         "dokime.content.download_artifact",
-        "--endpoint",
-        &endpoint,
+        "--remote",
+        remote,
         "--json",
         &request,
         "--output",

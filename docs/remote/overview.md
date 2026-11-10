@@ -312,8 +312,8 @@ Keep the manifest, database, reports, artifacts and Arrow files together. Use
 | Linux package dependencies cannot resolve | Use the package manager for the matching DEB/RPM and architecture. Retain its error; the candidate does not establish compatibility with every distribution release. |
 | PowerShell rejects a script or JSON argument | Run PowerShell 7.3+ (`pwsh --version`), not Windows PowerShell 5.1. Follow your organization's script-execution policy. Batch is available without PowerShell 7. |
 | Status is unreachable | Keep the host running; check **Listening On**, the host IP, selected port, firewall and network route. A remote client must not use the bind address `0.0.0.0` or its own loopback address. |
-| Certificate verification fails | Export a current remote file if every saved address is obsolete. Leaf reissue preserves the pinned CA; use a fresh root only when deliberately replacing CA trust. Do not disable verification. |
-| Authentication fails | Check that the paired client has not been revoked. Create and import a new pairing for that client if needed. |
+| Certificate verification fails | Export and import a current pairing file after the server certificate changes. Do not disable verification. |
+| Authentication fails | Export and import a current pairing file. Exporting replaces the backend's key, so every client needs the new file. |
 | OBC operations/template are missing | Install the host-OS plugin from the same candidate, restart the host and check Plugins for loading errors. |
 | Existing evidence destination | Select a new evidence directory or explicitly choose overwrite. Preserve previous results you need to retain. |
 | A script timed out or disconnected | Retain its printed UUIDs; reconnect to the same host and inspect. Remote work may continue. Rerunning a script would create new attempts. |

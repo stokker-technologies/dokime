@@ -72,7 +72,7 @@ server's default local port; zero allocates an available port. `endpoint` and
 `DokimeClient` context whose lifetime is independent of the backend.
 
 Pairing export reuses the managed remote listener. When disabled, it starts TLS
-and per-client authentication on an available loopback port; already enabled
+and backend-key authentication on an available loopback port; already enabled
 settings remain authoritative. The GUI can import the exported file while the
 context runs. Context exit stops listeners and plugins before releasing storage.
 Export after shutdown starts raises `BackendClosed` without writing a file.

@@ -331,7 +331,7 @@ use that setting only in an isolated lab. There are no per-user roles or server
 permission files. TLS controls transport encryption and certificate verification
 independently of access-key authentication.
 
-Internal host providers that are not served to clients remain unavailable remotely.
+Operations without a client transport binding remain unavailable through gRPC.
 Plugin identity comes from the original runtime registration, never an owner
 name supplied by a caller. Plugins still declare their own requirements for
 calls into other plugins or host services; an operator's key cannot expand those
@@ -1406,7 +1406,7 @@ transfers use their operation idle policy. Most accept `--json` for scripts.
 | --- | --- | --- |
 | `dokime status` | Check backend identity, authentication and readiness. | `--remote` |
 | `dokime server` | Run the server in the CLI process. | `--application-root`, `--port` |
-| `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
+| `dokime gui` | Open the installed desktop GUI on a running backend. | `--remote`, `--gui` |
 
 ### Catalog and Plans
 

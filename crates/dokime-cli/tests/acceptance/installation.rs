@@ -23,7 +23,7 @@ use std::process::Command;
 
 /* === Constants === */
 
-const ENDPOINT: &str = "http://127.0.0.1:8765";
+const REMOTE: &str = "fixture.pair";
 
 /* === Macros === */
 
@@ -99,16 +99,16 @@ fn missing_programs_refused() {
     let cli = Path::new(&cli);
     let installed = installation(&[cli]);
 
-    let refusal = refused(dokime(installed.path()).args(["gui", "--endpoint", ENDPOINT]).output().unwrap());
+    let refusal = refused(dokime(installed.path()).args(["gui", "--remote", REMOTE]).output().unwrap());
     for expected in ["dokime-gui", "desktop installer", "DOKIME_HOME"] {
         assert!(refusal.contains(expected), "{refusal}");
     }
 }
 
-// the GUI receives the endpoint and the arguments after --.
+// The GUI Receives The Pairing File And The Arguments After --.
 
 #[cfg(unix)]
-fn gui_receives_endpoint() {
+fn gui_receives_pairing_file() {
     let cli = cli_executable();
     let cli = Path::new(&cli);
     let installed = installation(&[cli]);
@@ -116,16 +116,16 @@ fn gui_receives_endpoint() {
 
     // Installed Beside the CLI
     stub_gui(&installed.path().join("dokime-gui"), &arguments);
-    let output = dokime(installed.path()).args(["gui", "--endpoint", ENDPOINT, "--", "--shutdown-stdin"]).output().unwrap();
+    let output = dokime(installed.path()).args(["gui", "--remote", REMOTE, "--", "--shutdown-stdin"]).output().unwrap();
     succeeded(output);
-    assert_eq!(std::fs::read_to_string(&arguments).unwrap(), format!("--endpoint {ENDPOINT} --shutdown-stdin"));
+    assert_eq!(std::fs::read_to_string(&arguments).unwrap(), format!("--remote {REMOTE} --shutdown-stdin"));
 
     // Selected Explicitly
     let explicit = installed.path().join("custom-gui");
     std::fs::rename(installed.path().join("dokime-gui"), &explicit).unwrap();
-    let output = dokime(installed.path()).args(["gui", "--endpoint", ENDPOINT, "--gui"]).arg(&explicit).output().unwrap();
+    let output = dokime(installed.path()).args(["gui", "--remote", REMOTE, "--gui"]).arg(&explicit).output().unwrap();
     succeeded(output);
-    assert_eq!(std::fs::read_to_string(&arguments).unwrap(), format!("--endpoint {ENDPOINT}"));
+    assert_eq!(std::fs::read_to_string(&arguments).unwrap(), format!("--remote {REMOTE}"));
 }
 
 // The built executable: nextest names it at run time, so an archive extracted on another runner finds it.
@@ -151,7 +151,7 @@ fn installation_contract() {
     }
     #[cfg(unix)]
     {
-        eprintln!("Scenario: gui_receives_endpoint");
-        gui_receives_endpoint();
+        eprintln!("Scenario: gui_receives_pairing_file");
+        gui_receives_pairing_file();
     }
 }

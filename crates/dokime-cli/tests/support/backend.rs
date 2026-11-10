@@ -325,6 +325,21 @@ async fn report(
 
 /* === Public Functions === */
 
+pub fn pairing(endpoint: &str) -> tempfile::NamedTempFile {
+    use std::io::Write;
+    let mut file = tempfile::Builder::new().suffix(".pair").tempfile().unwrap();
+    let pairing = model::remote::PairingFile {
+        version: 1,
+        endpoints: vec![endpoint.to_owned()],
+        backend_identifier: ID.into(),
+        label: "Fixture".into(),
+        certificate_pem: None,
+        access_key: None,
+    };
+    file.write_all(&serde_json::to_vec(&pairing).unwrap()).unwrap();
+    file
+}
+
 /* === Private Functions === */
 
 /* === Tests === */

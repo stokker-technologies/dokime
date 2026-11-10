@@ -161,13 +161,15 @@ async fn finite_query_transports_and_cli_pages() {
         };
         std::fs::write(&input, json.to_string()).unwrap();
         let endpoint = cli_server.local_endpoint();
+        let pairing = crate::support::pairing(&endpoint).await;
+        let remote = pairing.path().to_str().unwrap();
         let args = dokime_cli::Cli::try_parse_from([
             "dokime",
             "operation",
             "call",
             ListCycles::ID,
-            "--endpoint",
-            &endpoint,
+            "--remote",
+            remote,
             "--input",
             input.to_str().unwrap(),
             "--output",
