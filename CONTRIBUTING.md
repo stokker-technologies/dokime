@@ -91,10 +91,11 @@ names read `<Workflow> / <Purpose>`: `CI / Validation`, `CI / Draft Review`,
 Job names read `<Stage> / <Subject>[ / <Kind>] [(<platform>)]`, such as
 `Check / Python`, `Test / Rust / Unit (windows)`, `Release / Tag`,
 `Nightly / Publish` or `Mirror / Push`; `CI / Required` is the aggregate gate.
-Release starts only for manual preparation, `v*` tag pushes and merged PRs into
-dev that change
-`tools/project.toml`, which every release review does; its jobs still require
-a `release/v*` head, so ordinary merges start no Release run.
+Release starts for manual dispatch, completed `CI` runs and `v*` tag pushes
+(excluding `v*-dev.*`). Successful validation of a merged `release/v*` review
+starts tagging its prepared, untagged release; unrelated completions skip release
+jobs. A dispatch on dev retries that release, even after later dev merges, or
+prepares the next release otherwise.
 
 Development and test builds use line tables for workspace crates and disable
 debug information for dependencies to reduce compilation and linking costs.
@@ -480,7 +481,10 @@ CI runs every pull request through the check, build, test and package matrices.
 Each work job calls one project task; the setup action runs `prepare` first.
 See [Repository Tooling](docs/tooling.md#validation) for artifact reuse and hidden CI tasks.
 
-Release reviews squash into dev. Before tagging or publishing, the release tasks
+Release reviews squash into dev immediately and their validation keeps running.
+When it completes green, tagging targets the release squash, even after later dev
+merges. Dispatch Release on dev to retry; the tag push publishes and verifies.
+Before tagging or publishing, the release tasks
 query GitHub for the exact target SHA's latest dev push run, its successful
 `CI / Required` check, and any additional required contexts in main's ruleset.
 Missing or pending proof waits up to 30 minutes; failed proof refuses release.

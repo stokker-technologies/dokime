@@ -50,7 +50,7 @@ resolver = "2"
 # === Workspace Package === #
 
 [workspace.package]
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 rust-version = "1.99"
 description = "Dokime application and runtime packages."
@@ -62,20 +62,17 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Local
-dokime = { version = "0.1.2", path = "crates/dokime" }
-dokime-client = { version = "0.1.2", path = "crates/dokime-client" }
-dokime-domain = { version = "0.1.2", path = "crates/dokime-domain" }
-dokime-macros = { version = "0.1.2", path = "crates/dokime-macros" }
-dokime-packaging = { version = "0.1.2", path = "crates/dokime-packaging" }
-dokime-runtime = { version = "0.1.2", path = "crates/dokime-runtime", default-features = false }
-dokime-server = { version = "0.1.2", path = "crates/dokime-server" }
-dokime-tracing = { version = "0.1.2", path = "crates/dokime-tracing" }
+dokime = { version = "0.1.3", path = "crates/dokime" }
+dokime-client = { version = "0.1.3", path = "crates/dokime-client" }
+dokime-domain = { version = "0.1.3", path = "crates/dokime-domain" }
+dokime-macros = { version = "0.1.3", path = "crates/dokime-macros" }
+dokime-packaging = { version = "0.1.3", path = "crates/dokime-packaging" }
+dokime-runtime = { version = "0.1.3", path = "crates/dokime-runtime", default-features = false }
+dokime-server = { version = "0.1.3", path = "crates/dokime-server" }
+dokime-tracing = { version = "0.1.3", path = "crates/dokime-tracing" }
 plugin-host = { path = "plugins/sidecars/host", default-features = false }
 
 # Git
-harmos = { version = "=0.1.13", git = "https://github.com/stokker-technologies/harmos", rev = "22a49b3b36c48d10ae53fb497c7219a94f6524f8" }
-harmos-packaging = { version = "=0.1.13", git = "https://github.com/stokker-technologies/harmos", rev = "22a49b3b36c48d10ae53fb497c7219a94f6524f8" }
-harmos-sdk = { version = "=0.1.13", git = "https://github.com/stokker-technologies/harmos", rev = "22a49b3b36c48d10ae53fb497c7219a94f6524f8" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }
@@ -89,6 +86,9 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
+harmos = { version = "=0.1.14" }
+harmos-packaging = { version = "=0.1.14" }
+harmos-sdk = { version = "=0.1.14" }
 hmac = { version = "0.13.0" }
 keyring = { version = "4.2.0" }
 keyring-core = { version = "=1.0.0" }

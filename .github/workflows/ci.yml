@@ -1024,7 +1024,7 @@ jobs:
       MISE_ENABLE_TOOLS: python,uv,node,pnpm
   cancel_closed:
     name: Cancel Closed Review
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && !(github.event.pull_request.merged && startsWith(github.head_ref, 'release/v'))
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -1039,4 +1039,4 @@ jobs:
       MISE_ENABLE_TOOLS: python,uv,node,pnpm
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref, 'release/v')) }}

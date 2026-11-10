@@ -218,10 +218,15 @@ Compiler caches are scoped by OS, architecture, compiler profile and the selecte
 Rust toolchain, followed by the restorable Cargo lock digest.
 
 Hidden `ci:nightly-freshness`, `ci:nightly-publish`, `ci:nightly-report`, `ci:review`,
-`ci:required`, `ci:mirror`, `ci:bindings`, `ci:sign-product` and `ci:sign-windows`
+`ci:release-mode`, `ci:required`, `ci:mirror`, `ci:bindings`, `ci:sign-product` and `ci:sign-windows`
 own provider operations. They accept `--help` and stay out of `mise tasks`.
 `prepare` only prepares dependencies. Release preparation includes its review;
-tagging and publication require exact-commit green CI. Windows signing prepares
+`ci:release-mode` selects tagging when a successful `CI` completion belongs to
+an already merged release review. Tagging uses that review's squash commit,
+even after later dev merges. A manual dispatch on dev retries the prepared,
+untagged release, or prepares the next release otherwise. Merging a release review
+keeps its validation running. Review artifact lookup requires green review validation;
+tagging and publication also require exact-commit green dev CI. Windows signing prepares
 product bytes in a task, retains Azure's provider action, then packages verified
 signed bytes before installer, updater and archive checksums.
 

@@ -631,6 +631,11 @@ hide = true
 description = "Nightly Report"
 run = "{{vars.tools}} dokime_tools.ci.workflow nightly-report"
 
+[tasks."ci:release-mode"]
+hide = true
+description = "Select Release Preparation or Tagging"
+run = "{{vars.tools}} dokime_tools.ci.workflow release-mode"
+
 [tasks."ci:review"]
 hide = true
 description = "Review"

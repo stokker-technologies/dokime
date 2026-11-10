@@ -40,7 +40,7 @@ runtime = []
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["plugin-sidecar"] }
-obc-runtime = { version = "0.1.2", path = "runtime" }
+obc-runtime = { version = "0.1.3", path = "runtime" }
 plugin-host = { workspace = true }
 
 # Git
@@ -86,13 +86,13 @@ tokio = { workspace = true }
 dokime-tracing = { workspace = true }
 
 # Git
-harmos-sdk = { workspace = true }
 
 # Error Handling
 
 # Logging
 
 # Utilities
+harmos-sdk = { workspace = true }
 sha2 = { workspace = true }
 
 # Serialization

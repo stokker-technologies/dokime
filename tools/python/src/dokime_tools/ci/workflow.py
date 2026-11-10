@@ -70,6 +70,7 @@ def main(arguments: list[str] | None = None) -> int:
             "nightly-freshness",
             "nightly-publish",
             "nightly-report",
+            "release-mode",
             "review",
             "required",
             "mirror",
@@ -138,6 +139,12 @@ def main(arguments: list[str] | None = None) -> int:
                 creationflags=spawn_flags(),
             )
         print(line)
+    elif operation == "release-mode":
+        from .review import github_release_mode
+
+        result = github_release_mode()
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+            output.write("".join(f"{key}={value}\n" for key, value in result.items()))
     elif operation == "review":
         runpy.run_path(str(Path(__file__).with_name("review.py")), run_name="__main__")
     elif operation == "required":

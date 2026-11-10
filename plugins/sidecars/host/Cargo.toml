@@ -52,7 +52,7 @@ runtime = [
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["plugin-sidecar"] }
-dokime-domain = { version = "0.1.2", path = "../../../crates/dokime-domain" }
+dokime-domain = { version = "0.1.3", path = "../../../crates/dokime-domain" }
 
 # Git
 
@@ -100,13 +100,13 @@ tokio-util = { workspace = true, features = ["rt"], optional = true }
 dokime-tracing = { workspace = true }
 
 # Git
-harmos-sdk = { workspace = true }
 
 # Error Handling
 
 # Logging
 
 # Utilities
+harmos-sdk = { workspace = true }
 
 # Serialization
 

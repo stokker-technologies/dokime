@@ -38,6 +38,19 @@ from dokime_tools.release import registry
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_release_mode_exports_routing_and_target_revision(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "output"
+            for mode, sha in (("tag", "a" * 40), ("prepare", ""), ("skip", "")):
+                with (
+                    self.subTest(mode=mode),
+                    patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}, clear=True),
+                    patch("dokime_tools.ci.review.github_release_mode", return_value={"mode": mode, "sha": sha}),
+                ):
+                    output.write_text("", encoding="utf-8")
+                    self.assertEqual(workflow.main(["release-mode"]), 0)
+                    self.assertEqual(output.read_text(encoding="utf-8"), f"mode={mode}\nsha={sha}\n")
+
     def test_required_rejects_failed_cancelled_and_unexpected_skips(self):
         for result in ("failure", "cancelled", "skipped"):
             environment = {"RESULTS": json.dumps({"test": {"result": result}})}
