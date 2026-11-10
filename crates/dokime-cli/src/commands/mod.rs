@@ -22,6 +22,7 @@ mod new;
 mod operation;
 mod plan;
 mod plugin;
+mod proto;
 mod server;
 mod status;
 
@@ -78,6 +79,9 @@ pub(crate) enum Command {
     #[command(subcommand, about = "Diagnose This Machine Without A Backend.")]
     Doctor(doctor::Command),
 
+    #[command(subcommand, about = "Export Protobuf Source Contracts.")]
+    Proto(proto::Command),
+
     Server(server::Args),
     Gui(gui::Args),
     Version(version::Args),
@@ -101,6 +105,7 @@ pub(crate) async fn run(command: Command, configuration: dokime::config::Config)
     let preferences = dokime::domain::model::settings::application::ClientPreferences::default();
     let settings = &preferences;
     match command {
+        Command::Proto(command) => proto::run(command),
         Command::New(args) => new::run(args),
         Command::Status(args) => status::run(args, settings).await,
         Command::Backend(command) => backend::run(command).await,

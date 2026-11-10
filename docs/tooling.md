@@ -111,6 +111,25 @@ native wheels; no source distribution or platform-independent wheel is produced.
 `test -- --language python --wheel` installs into a disposable environment outside the checkout
 and imports the native extension with isolated Python path handling.
 
+## Protocol Generation
+
+`proto/dokime/v1/` owns the checked-in execution, plugin, context-operation,
+catalog and document contracts. The Harmos transport is copied read-only under
+`proto/harmos/v1/` and must match the adopted Harmos revision.
+
+```sh
+mise run generate -- --protocol
+mise run test -- --package dokime-protocol --target integration
+mise run test -- --package dokime-cli --target integration --exact proto_export::proto_export
+```
+
+Generation and drift checks use the pinned vendored protobuf compiler; no
+installed `protoc` is needed. Builds consume the checked-in Rust under
+`crates/dokime-protocol/src/`, exposed as `dokime_protocol::v1` and
+`dokime_protocol::harmos::v1`. `mise run generate -- --protocol --check` runs the
+same drift check without regenerating committed source. Existing GUI/client
+contract generation continues separately through the ordinary `generate` task.
+
 ## Focused Python Checks
 
 `mise run test -- --language python --layer unit --select <expression>` and `mise run test -- --language python --layer integration --select <expression>` run the moved client tests against the installed native wheel. Build it first with `mise run build -- --language python`. `check -- --bindings` runs stubtest from an isolated installed-wheel environment. Python contract generation and its checked-in wire tree have been removed; private interpreter message views come from Rust reflection.

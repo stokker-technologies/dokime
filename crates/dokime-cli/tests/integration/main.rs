@@ -15,6 +15,10 @@ mod backend_profiles;
 mod commands;
 mod execution_inputs;
 mod operation_inputs;
+mod proto_export;
+
+#[path = "../support/protocol.rs"]
+mod protocol;
 
 #[path = "../support/configuration.rs"]
 mod configuration;

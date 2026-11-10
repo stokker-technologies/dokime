@@ -100,6 +100,7 @@ dokime-tracing = { workspace = true }
 base64 = { workspace = true }
 harmos-packaging = { workspace = true, features = ["generate-proto"] }
 harmos-sdk = { workspace = true }
+protoc-bin-vendored = { workspace = true }
 sha2 = { workspace = true }
 
 # Serialization

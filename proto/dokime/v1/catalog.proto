@@ -1,0 +1,146 @@
+syntax = "proto3";
+package dokime.v1;
+import "dokime/v1/values.proto";
+import "dokime/v1/documents.proto";
+
+// Each top-level section is serialized into harmos.v1.Section.payload, with its
+// fully qualified message name in Section.type. No versioned JSON sections.
+message Suites { repeated Suite suites = 1; }
+message Suite {
+  Metadata metadata = 1;
+  repeated TestCaseTemplate templates = 2;
+  repeated string tags = 3;
+  repeated Metadata parameter_groups = 4;
+}
+message TestCaseTemplate {
+  Metadata metadata = 1;
+  repeated Parameter parameters = 2;
+  repeated FileParameter files = 3;
+  repeated Document documents = 4;
+  repeated string tags = 5;
+  // Stable Private identifiers; initialize and cleanup are optional.
+  string materialize = 6;
+  optional string initialize = 7;
+  optional string cleanup = 8;
+  repeated Metadata parameter_groups = 9;
+}
+message Parameter {
+  Metadata metadata = 1;
+  ValueType type = 2;
+  string unit = 3;
+  bool required = 4;
+  string group = 5;
+  ParameterExpression expression = 6;
+  repeated Value choices = 7;
+  optional double min = 8;
+  optional double max = 9;
+  ParameterExpansion expansion = 10;
+  ValueType element_type = 11;
+  optional uint32 min_items = 12;
+  optional uint32 max_items = 13;
+  bool runtime_writable = 14;
+}
+message ParameterExpansion {
+  oneof kind {
+    bool single = 1;
+    bool cartesian = 2;
+    string zip = 3;
+  }
+}
+// A tree, never expression text. Range stop is exclusive; linspace includes stop.
+message ParameterExpression {
+  oneof kind {
+    Value literal = 1;
+    ParameterExpressions array = 2;
+    IntegerRange range = 3;
+    NumberRange arange = 4;
+    LinearSpace linspace = 5;
+    string reference = 6;
+    DynamicDefault dynamic_default = 7;
+    ParameterUnary unary = 8;
+    ParameterBinary binary = 9;
+  }
+}
+message ParameterExpressions { repeated ParameterExpression values = 1; }
+message IntegerRange { sint64 start = 1; sint64 stop = 2; sint64 step = 3; }
+message NumberRange { double start = 1; double stop = 2; double step = 3; }
+message LinearSpace { double start = 1; double stop = 2; uint64 count = 3; }
+message DynamicDefault { DynamicDefaultKey key = 1; ParameterExpression fallback = 2; }
+enum DynamicDefaultKey {
+  DYNAMIC_DEFAULT_KEY_UNSPECIFIED = 0;
+  DYNAMIC_DEFAULT_KEY_OPERATOR_NAME = 1;
+  DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL = 2;
+}
+message ParameterUnary { ParameterUnaryOperator operator = 1; ParameterExpression value = 2; }
+enum ParameterUnaryOperator { PARAMETER_UNARY_OPERATOR_UNSPECIFIED = 0; PARAMETER_UNARY_OPERATOR_NEGATE = 1; }
+message ParameterBinary {
+  ParameterBinaryOperator operator = 1;
+  ParameterExpression left = 2;
+  ParameterExpression right = 3;
+}
+enum ParameterBinaryOperator {
+  PARAMETER_BINARY_OPERATOR_UNSPECIFIED = 0;
+  PARAMETER_BINARY_OPERATOR_ADD = 1;
+  PARAMETER_BINARY_OPERATOR_SUBTRACT = 2;
+  PARAMETER_BINARY_OPERATOR_MULTIPLY = 3;
+  PARAMETER_BINARY_OPERATOR_DIVIDE = 4;
+}
+message FileParameter {
+  Metadata metadata = 1;
+  optional string default_value = 2;
+  bool required = 3;
+  repeated string media_types = 4;
+}
+message RecordContracts { repeated RecordContract records = 1; }
+message RecordContract {
+  Metadata metadata = 1;
+  // Fully qualified protobuf message in harmos.v1.Catalog.types.
+  string message = 2;
+}
+message Analyses { repeated Analysis analyses = 1; }
+message Analysis {
+  Metadata metadata = 1;
+  uint32 version = 2;
+  repeated Parameter parameters = 3;
+  repeated AnalysisOutput outputs = 4;
+  uint32 max_samples = 5;
+  uint32 max_output_values = 6;
+}
+message AnalysisOutput {
+  Metadata metadata = 1;
+  string unit = 2;
+  string axis = 3;
+  string axis_unit = 4;
+}
+message SettingsCatalog { repeated Setting settings = 1; }
+message Setting {
+  Metadata metadata = 1;
+  oneof kind {
+    BooleanSetting boolean = 2;
+    TextSetting text = 3;
+    PathSetting path = 4;
+    NumberSetting number = 5;
+    ChoiceSetting choice = 6;
+    SecretSetting secret = 7;
+  }
+}
+message BooleanSetting { bool default_value = 1; }
+message TextSetting { string default_value = 1; bool required = 2; }
+message PathSetting { string default_value = 1; bool required = 2; }
+message NumberSetting { double default_value = 1; optional double min = 2; optional double max = 3; optional double step = 4; }
+message ChoiceSetting {
+  string default_value = 1;
+  repeated SettingChoice choices = 2;
+  optional string provider = 3;
+}
+message SettingChoice { string value = 1; string label = 2; }
+message SecretSetting { bool required = 1; }
+message RunStart {
+  // Serialized request for a declared operation, using its protobuf contract.
+  string operation = 1;
+  bytes request = 2;
+}
+message Listeners { repeated RecordListener listeners = 1; }
+message RecordListener { string operation = 1; string record = 2; }
+// Plugin-wide streams use harmos.v1.Catalog.streams directly; execution stream
+// identifiers live in TestCase.streams. There is no dokime.telemetry section.
