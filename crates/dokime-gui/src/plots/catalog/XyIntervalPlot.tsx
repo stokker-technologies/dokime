@@ -43,6 +43,7 @@ export function XyIntervalPlot({
 
   return (
     <CartesianPlot
+      plotId={plot.key}
       badge="XY Interval"
       intervals
       cartesian={frame}

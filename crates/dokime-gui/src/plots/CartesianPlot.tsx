@@ -42,6 +42,8 @@ import { windowIndices } from "@/plots/reduce";
 import type { PlotViewportMode } from "@/plots/types";
 import { attachPan, type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
+import { useSummaryWindowStore } from "@/stores/summary-window-store";
+
 /* === Constants === */
 
 const GUI_POINT_MARK_THRESHOLD = 600;
@@ -86,6 +88,7 @@ const NO_PROMPTS: PromptMarker[] = [];
 /* === Types === */
 
 type CartesianPlotProps = {
+  plotId?: string;
   title: string;
   /** Hide a repeated title only when it has no unit to present beside it. */
   titleRepeated?: boolean;
@@ -190,6 +193,7 @@ let uPlotPromise: Promise<UPlotConstructor> | null = null;
 /* === Components === */
 
 export const CartesianPlot = memo(function CartesianPlot({
+  plotId,
   title,
   titleRepeated = false,
   cartesian,
@@ -232,7 +236,12 @@ export const CartesianPlot = memo(function CartesianPlot({
   const hiddenTracesRef = useRef<ReadonlySet<string>>(hiddenTraces);
   hiddenTracesRef.current = hiddenTraces;
   const onViewportChangeRef = useRef(onViewportChange);
-  onViewportChangeRef.current = onViewportChange;
+  const setSummaryWindow = useSummaryWindowStore((store) => store.setSummaryWindow);
+  onViewportChangeRef.current = onViewportChange ?? (!zoom && plotId ? (window) => setSummaryWindow(plotId, window) : undefined);
+  useEffect(() => {
+    if (!plotId || zoom) return;
+    return () => setSummaryWindow(plotId, null);
+  }, [plotId, setSummaryWindow, zoom]);
   const kinds = useMemo(() => markerKinds(markers, promptMarkers), [markers, promptMarkers]);
   const kindsRef = useRef(kinds);
   kindsRef.current = kinds;

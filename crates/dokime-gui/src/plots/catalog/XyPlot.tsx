@@ -31,6 +31,7 @@ export function XyPlot({
 }) {
   return (
     <CartesianPlot
+      plotId={plot.key}
       badge="XY"
       cartesian={plot.cartesian}
       colors={plot.colors}

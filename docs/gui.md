@@ -253,8 +253,9 @@ immediately. All uses one finite `Plots.QuerySnapshots` request per plot on entr
 and per button press, without polling, a plot watch or runtime-driven invalidation.
 Each plot has its own response budget and deadline; completed plots appear while
 others load, and a failed plot leaves the other plots available.
-Visibility, zoom and document updates do not reload All; changed query settings
-apply at the next explicit refresh. There is no background GUI plot prefetch.
+Zoom and panel-width changes request fresh detail for All. Visibility and
+document updates do not reload it; other changed query settings apply at the
+next explicit refresh. There is no background GUI plot prefetch.
 The button shows progress and is disabled while refreshing. Updated hh:mm:ss
 shows the last successful refresh time; failures use Notifications and leave
 that time unchanged.
@@ -268,10 +269,10 @@ Current All reads capture the checkpoint and frontier in one SQLite snapshot;
 concurrent writes do not cause a raw-history fallback. Explicit historical cuts
 retain their requested frontier. Exact
 analyses refuse captures beyond the exact preview capacity. Markers share the
-display point budget. Exact zoom statistics are unavailable after a preview has
-reduced its raw samples. Plain numeric time windows reuse indexed stored buckets with first, last,
+display point budget. A zoom requests its viewport from evidence even when the
+whole-history preview reduced its raw samples. Plain numeric time windows reuse indexed stored buckets with first, last,
 minimum, maximum and running moments. Only uncovered intervals and the admission
-tail read raw evidence. Requests carry an optional viewport and panel width;
+tail read raw evidence. The interface sends its held viewport and measured panel width;
 time buckets follow elapsed time rather than sample counts. Zoom requests can
 retrieve finer raw detail than the stored bucket interval.
 Numeric fields and plain same-stream field expressions use
@@ -296,6 +297,11 @@ complete dirty set in request order, including each plot's snapshot, changed tim
 replaces the bucket containing its timestamp. Exact statistics arrive on their
 own coalesced read and never block a redraw; their evidence revision can lag the
 latest drawn frame.
+The wire carries one columnar frame and series metadata. Aligned plots share
+one time column; independent axes retain their own x columns. The point-series
+copy is gone. The interface replaces changed buckets in its retained frame,
+expires rows outside the window and applies statistics independently without
+replacing the drawn columns. Reconnecting starts from a fresh snapshot.
 Opening snapshots use the same grouped delivery. The plots share the revision's
 transport budget; oversized payloads reduce from the retained query result,
 without rereading evidence. Finite All requests keep their independent budgets.

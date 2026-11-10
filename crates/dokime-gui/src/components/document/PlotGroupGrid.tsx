@@ -38,6 +38,8 @@ import { type PromptMarker, promptMarkers } from "@/plots/prompt-markers";
 import type { PlotViewportMode } from "@/plots/types";
 import { usePlotPalette } from "@/plots/use-plot-palette";
 
+import { useSummaryWindowStore } from "@/stores/summary-window-store";
+
 /* === Types === */
 
 export type PlotSettingsChange = (plotId: string, settings: PlotDisplaySettings) => Promise<void>;
@@ -213,6 +215,25 @@ const LivePlotCard = memo(function LivePlotCard({
   telemetry?: Record<string, TelemetryStream> | null;
   viewportMode: PlotViewportMode;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { zoom } = usePlotInteraction();
+  const setPanelWidth = useSummaryWindowStore((store) => store.setPanelWidth);
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel || zoom) return;
+    const measure = () => {
+      const width = Math.round(panel.getBoundingClientRect().width);
+      if (width < 1) return;
+      setPanelWidth(descriptor.plot_id, width);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(panel);
+    return () => {
+      observer.disconnect();
+      setPanelWidth(descriptor.plot_id, null);
+    };
+  }, [descriptor.plot_id, setPanelWidth, zoom]);
   const plot = useMemo(() => {
     const spec = livePlotSpec({
       descriptor,
@@ -227,7 +248,7 @@ const LivePlotCard = memo(function LivePlotCard({
   }, [descriptor, parameters, plotPalette, prompts, state, telemetry, titleRepeated]);
   const PlotSettingsButton = usePlotSettingsEditor();
   return (
-    <div className={plotCardClassName(plot)} data-live-mounted="true" data-plot-id={descriptor.plot_id}>
+    <div ref={panelRef} className={plotCardClassName(plot)} data-live-mounted="true" data-plot-id={descriptor.plot_id}>
       {onPlotSettingsChange && PlotSettingsButton ? (
         <PlotSettingsButton plot={descriptor} onSubmit={(settings) => onPlotSettingsChange(descriptor.plot_id, settings)}>
           {(actions) => plotElement(plot, resetKey, viewportMode, actions)}

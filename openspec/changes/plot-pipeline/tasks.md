@@ -15,7 +15,7 @@
 ## 3. Wire and Interface
 
 - [x] 3.1 Send one columnar frame with a shared time column and delete the duplicate point-series representation.
-- [ ] 3.2 Send the viewport and width from the interface, request detail on zoom and apply bucket deltas to the retained frame.
+- [x] 3.2 Send the viewport and width from the interface, request detail on zoom and apply bucket deltas to the retained frame.
 
 ## 4. Final Validation
 

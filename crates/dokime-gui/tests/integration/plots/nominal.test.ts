@@ -138,16 +138,16 @@ function hostFrame(
     generated_at: "2026-10-16T00:00:00Z",
     max_points: fields.maxPoints ?? 100,
     window_s: fields.windowS ?? null,
-    series: ys.map((y, index) => ({
+    series: ys.map((_, index) => ({
       key: fields.keys?.[index] ?? `trace-${index}`,
       label: `Trace ${index}`,
-      points: x.map((value, at) => ({ x: value, y: y[at] })),
+      points: [],
       raw_points: x.length,
       downsampled: false,
     })),
     cartesian: {
       mode: "aligned",
-      series: ys.map((y) => ({ x: [...x], y: [...y] })),
+      series: ys.map((y) => ({ x, y: [...y] })),
       point_count: ys.reduce((count, y) => count + y.filter((value) => value !== null).length, 0),
       signature: "host",
     },
@@ -277,7 +277,7 @@ async function mountPlotView(ids = ["pulse", "current"]) {
       root.unmount();
     });
     host.remove();
-    useSummaryWindowStore.setState({ windows: {} });
+    useSummaryWindowStore.setState({ windows: {}, widths: {} });
     animationFrame.mockRestore();
     cancelAnimationFrame.mockRestore();
     vi.useRealTimers();
@@ -427,11 +427,32 @@ test("Manual All Refresh", async () => {
   assert.equal(firstTime, completedAt);
   const label = view.host.querySelector('[role="status"]')?.textContent;
   assert.match(label ?? "", /^Updated \d{2}:\d{2}:\d{2}$/);
-  await view.runtimeUpdate([]);
-  await view.runtimeUpdate();
+  // Zoom Requests A New Viewport And Retains The Drawn Frame Until It Arrives.
+  const retained = view.states().pulse.payload;
   await act(async () => {
     useSummaryWindowStore.setState({ windows: { pulse: { from: 0, to: 1 } } });
   });
+  assert.equal(refreshFixture.read.mock.calls.length, 4);
+  assert.deepEqual(refreshFixture.read.mock.calls[2][1][0].viewport, { from: 0, to: 1 });
+  assert.equal(view.states().pulse.payload, retained);
+  await act(async () => {
+    complete(snapshotEnvelopes(view.plots));
+  });
+  await view.advance();
+  // A Measured Width Change Requests Another Frame At The Held Viewport.
+  await act(async () => {
+    useSummaryWindowStore.getState().setPanelWidth("pulse", 900);
+  });
+  assert.equal(refreshFixture.read.mock.calls.length, 6);
+  assert.equal(refreshFixture.read.mock.calls[4][1][0].panelWidth, 900);
+  assert.deepEqual(refreshFixture.read.mock.calls[4][1][0].viewport, { from: 0, to: 1 });
+  await act(async () => {
+    complete(snapshotEnvelopes(view.plots));
+  });
+  await view.advance();
+  const resizedTime = view.window().refresh.updatedAt;
+  await view.runtimeUpdate([]);
+  await view.runtimeUpdate();
   Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
   await act(async () => {
     document.dispatchEvent(new Event("visibilitychange"));
@@ -441,13 +462,13 @@ test("Manual All Refresh", async () => {
     document.dispatchEvent(new Event("visibilitychange"));
   });
   await view.advance(60_000);
-  assert.equal(refreshFixture.read.mock.calls.length, 2);
+  assert.equal(refreshFixture.read.mock.calls.length, 6);
   assert.equal(refreshFixture.watch.mock.calls.length, 1);
-  assert.equal(view.window().refresh.updatedAt, firstTime);
+  assert.equal(view.window().refresh.updatedAt, resizedTime);
   await view.click();
-  assert.equal(refreshFixture.read.mock.calls.length, 4);
+  assert.equal(refreshFixture.read.mock.calls.length, 8);
   assert.equal(view.button().disabled, true);
-  assert.ok(refreshFixture.read.mock.calls.slice(2).every((call) => call[1][0].maxPoints === 200));
+  assert.ok(refreshFixture.read.mock.calls.slice(6).every((call) => call[1][0].maxPoints === 200));
   await act(async () => {
     complete(snapshotEnvelopes(view.plots));
   });
@@ -1946,14 +1967,26 @@ test("Display Scale Converts Returned Points Statistics and References Without M
       parameters: { target_m: 0.005, tolerance_m: 0.001 },
     });
   const plot = present(payload);
+  assert.deepEqual(plot.series[0].points, []);
+  // Non-Cartesian Plots Still Scale Their Single Point Projection.
+  const column = payload.cartesian?.series[0];
+  assert.ok(column);
+  const points = {
+    ...payload,
+    cartesian: null,
+    series: [{ ...payload.series[0], points: column.x.map((x, row) => ({ x, y: column.y[row] })) }],
+  };
+  const originalPoints = structuredClone(points);
+  const bar = documentPlotSpec({ plot: { ...descriptor, plot_type: "bar" }, payload: points });
   assert.deepEqual(
-    plot.series[0].points.map(({ x, y }) => [x, y]),
+    bar.series[0].points.map(({ x, y }) => [x, y]),
     [
       [1, -2],
       [2, null],
       [3, 4],
     ],
   );
+  assert.deepEqual(points, originalPoints);
   assert.deepEqual(plot.cartesian?.series[0], { x: [1, 2, 3], y: [-2, null, 4] });
   assert.deepEqual(plot.cartesian?.y_domain, { min: -2, max: 4 });
   assert.deepEqual(plot.summaries, [

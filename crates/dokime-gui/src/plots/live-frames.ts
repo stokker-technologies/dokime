@@ -8,9 +8,8 @@
  */
 
 /*
- * Each live plot retains the latest bounded storage-query snapshot. A new
- * snapshot replaces the entire payload; the last rendered frame can remain
- * visible while its watch reconnects, without accumulating sample history.
+ * Live Plots Retain One Bounded Frame, Replacing Changed Time Buckets.
+ * Exact Statistics Advance Independently Of The Drawn Revision.
  */
 
 /* === Local Imports === */
@@ -29,6 +28,7 @@ export type LivePlotState = {
   diagnostics: PlotPayloadDiagnostics | null;
   /** The latest applied revision; older frames are counted as dropped. */
   revision: number;
+  statisticsRevision: number;
   epoch: string | null;
   selection: string | null;
   status: LivePlotStatus;
@@ -52,6 +52,7 @@ export function emptyLivePlotState(): LivePlotState {
     payload: null,
     diagnostics: null,
     revision: 0,
+    statisticsRevision: 0,
     epoch: null,
     selection: null,
     status: "idle",
@@ -109,14 +110,29 @@ export function applyPlotMessages(current: LivePlotState, messages: readonly Plo
     }
     // A snapshot opens its own origin: an empty plot's first one is revision 0.
     const sameOrigin = message.epoch === next.epoch && message.selection === next.selection;
+    if (message.kind === "statistics") {
+      if (!sameOrigin || !next.payload || message.revision < next.statisticsRevision) {
+        next = { ...next, droppedBatches: next.droppedBatches + 1 };
+        continue;
+      }
+      next = {
+        ...next,
+        payload: { ...next.payload, summaries: message.payload.summaries },
+        statisticsRevision: message.revision,
+        summaryInFlight: false,
+      };
+      continue;
+    }
     if (message.kind !== "snapshot" && (!sameOrigin || message.revision <= next.revision)) {
       next = { ...next, droppedBatches: next.droppedBatches + 1 };
       continue;
     }
 
-    const payload = retainFrame(message.payload);
+    const payload = message.kind === "delta" ? applyBucketDelta(next.payload, message.payload) : message.payload;
+    const summaries = payload.summaries?.length ? payload.summaries : sameOrigin ? next.payload?.summaries : [];
     next = {
-      payload,
+      payload: { ...payload, summaries },
+      statisticsRevision: message.payload.summaries?.length ? message.revision : sameOrigin ? next.statisticsRevision : 0,
       diagnostics: message.diagnostics ?? null,
       revision: message.revision,
       epoch: message.epoch,
@@ -124,7 +140,7 @@ export function applyPlotMessages(current: LivePlotState, messages: readonly Plo
       status: "live",
       error: null,
       droppedBatches: next.droppedBatches,
-      summaryInFlight: summaryInFlight("delivered"),
+      summaryInFlight: !message.payload.summaries?.length,
       waitingSince: null,
       heardAt: null,
     };
@@ -149,11 +165,49 @@ export function applyDocumentPlotMessages(current: LivePlotStateMap, messages: r
   return next;
 }
 
-/** Keep One Render Representation Of The Latest Server Snapshot. */
-function retainFrame(payload: PlotPayload): PlotPayload {
-  if (!payload.cartesian) return payload;
+/** Replace Complete Buckets, Including Expired Buckets With No Replacement Rows. */
+function applyBucketDelta(current: PlotPayload | null, delta: PlotPayload): PlotPayload {
+  const previous = current?.cartesian;
+  const incoming = delta.cartesian;
+  const width = delta.bucket_width_s;
+  if (
+    !current ||
+    !previous ||
+    !incoming ||
+    !width ||
+    current.bucket_width_s !== width ||
+    previous.mode !== "aligned" ||
+    incoming.mode !== "aligned" ||
+    current.series.length !== delta.series.length ||
+    current.series.some((series, index) => series.key !== delta.series[index].key)
+  ) {
+    throw new Error("Plot delta does not match its retained frame.");
+  }
+  const changed = new Set(delta.replaced_buckets ?? []);
+  const window = delta.bucket_window;
+  const rows = new Map<number, Array<number | null>>();
+  for (const [index, x] of (previous.series[0]?.x ?? []).entries()) {
+    if (changed.has(Math.floor(x / width)) || (window && (x < window.from || x > window.to))) continue;
+    rows.set(
+      x,
+      previous.series.map((column) => column.y[index] ?? null),
+    );
+  }
+  for (const [index, x] of (incoming.series[0]?.x ?? []).entries()) {
+    if (!changed.has(Math.floor(x / width)) || (window && (x < window.from || x > window.to))) continue;
+    rows.set(
+      x,
+      incoming.series.map((column) => column.y[index] ?? null),
+    );
+  }
+  const time = [...rows.keys()].sort((a, b) => a - b);
   return {
-    ...payload,
-    series: payload.series.map((series) => ({ ...series, points: [] })),
+    ...delta,
+    summaries: current.summaries,
+    cartesian: {
+      ...incoming,
+      series: incoming.series.map((_, column) => ({ x: time, y: time.map((x) => rows.get(x)?.[column] ?? null) })),
+    },
+    series: delta.series.map((series) => ({ ...series, points: [] })),
   };
 }
