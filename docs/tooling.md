@@ -208,6 +208,9 @@ including reviews into `dev`. There is no path-impact planner. A job checks out,
 uses the single setup action to install tools and run `prepare`, restores caches,
 downloads its declared inputs, runs one work task and uploads results. Platform
 values select the existing Linux and Windows runner images in each matrix.
+The setup action provisions Python 3.13 before native bootstrap; Ubuntu 22.04's
+system Python lacks the standard-library TOML reader used to select cache keys.
+Mise then installs the project's locked Python version for work tasks.
 
 `build --artifact product|tests|bench`, language builds and `package` own archive
 transport through `dokime_tools/ci/artifacts.py`. `CI_TRANSPORT=true` extracts only

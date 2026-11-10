@@ -101,6 +101,9 @@ outputs:
 runs:
   using: composite
   steps:
+  - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+    with:
+      python-version: '3.13'
   - shell: python
     run: import runpy; runpy.run_path('tools/python/src/dokime_tools/ci/native.py', run_name='__main__')
     id: native
