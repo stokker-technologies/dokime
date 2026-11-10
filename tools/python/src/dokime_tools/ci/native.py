@@ -128,6 +128,8 @@ def download(url, checksum, destination, opener=urllib.request.urlopen, sleep=ti
 
 
 def windows(workspace):
+    if sys.platform != "win32":
+        raise OSError("Windows provisioning requires Windows")
     temporary_root(workspace)
     vswhere = Path(os.environ["ProgramFiles(x86)"]) / "Microsoft Visual Studio/Installer/vswhere.exe"
     installation = subprocess.check_output(
@@ -231,6 +233,8 @@ def temporary_root(workspace):
 
 
 def native_temporary_paths():
+    if sys.platform != "win32":
+        raise OSError("native temporary directory lookup requires Windows")
     buffer = ctypes.create_unicode_buffer(32768)
     length = ctypes.windll.kernel32.GetTempPath2W(len(buffer), buffer)
     if not length or length >= len(buffer):

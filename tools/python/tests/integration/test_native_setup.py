@@ -87,14 +87,25 @@ class NativeSetupTests(unittest.TestCase):
                 return len(buffer.value)
 
             api = SimpleNamespace(kernel32=SimpleNamespace(GetTempPath2W=lookup))
-            with patch.object(ctypes, "windll", api, create=True), patch.object(tempfile, "gettempdir", return_value=str(python)):
+            with (
+                patch.object(sys, "platform", "win32"),
+                patch.object(ctypes, "windll", api, create=True),
+                patch.object(tempfile, "gettempdir", return_value=str(python)),
+            ):
                 paths = SETUP["native_temporary_paths"]()
             self.assertEqual(paths, [alias, native, python])
 
     def test_native_setup_refuses_unavailable_native_temp_path(self):
         api = SimpleNamespace(kernel32=SimpleNamespace(GetTempPath2W=lambda *_: 0))
-        with patch.object(ctypes, "windll", api, create=True), self.assertRaises(OSError):
+        with patch.object(sys, "platform", "win32"), patch.object(ctypes, "windll", api, create=True), self.assertRaises(OSError):
             SETUP["native_temporary_paths"]()
+
+    def test_windows_apis_refuse_other_platforms(self):
+        with patch.object(sys, "platform", "linux"):
+            with self.assertRaises(OSError):
+                SETUP["windows"](Path.cwd())
+            with self.assertRaises(OSError):
+                SETUP["native_temporary_paths"]()
 
     def test_native_setup_checks_concrete_files_and_folders(self):
         with tempfile.TemporaryDirectory() as directory:
