@@ -16,6 +16,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from environment import isolate_environment
+
 from dokime_tools.build import cargo, lint
 
 # Third Party Imports
@@ -90,6 +92,11 @@ class DesktopLintTests(unittest.TestCase):
 
 
 # === Public Functions === #
+
+
+def setUpModule():
+    isolate_environment()
+
 
 # === Private Functions === #
 

@@ -25,6 +25,8 @@ import urllib.parse
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from environment import isolate_environment
+
 # Third Party Imports
 # Local Imports
 from dokime_tools import policy
@@ -597,6 +599,11 @@ class FakeGitHub:
 
 
 # === Public Functions === #
+
+
+def setUpModule():
+    isolate_environment()
+
 
 # === Private Functions === #
 
