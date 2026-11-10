@@ -1,7 +1,8 @@
 # gRPC Plugins Design
 
-Status: shape agreed on 2026-11-10; not implemented. Code below is the
-intended shape, not landed source. Exact names and field numbers are settled
+Status: locked by the owner on 2026-11-10; not implemented, and
+implementation waits for the owner's go. Code below is the intended shape,
+not landed source. Exact names and field numbers are settled
 during implementation.
 
 ## The Flow
@@ -347,6 +348,19 @@ async with dokime.serve(ThermalCycle, address="127.0.0.1:7001") as plugin:
   `Remote` only. It does not start Dokime.
 - Authoring parity across languages and between sidecar and guest is a soft
   target.
+- Wasm guests are not Dokime plugins in the first version.
+
+### Pilot SDKs
+
+| Language | Folder | Plugin Placement | Distribution |
+| --- | --- | --- | --- |
+| Rust | `sdk/rust` | Managed and remote | Crate; `dokime-client` is its client half |
+| Python | `sdk/python` | Remote | One pure wheel |
+| C# | `sdk/csharp` | Remote first | NuGet package |
+| C++ | `sdk/cpp` | Remote first | Source archive with CMake, as `dokime-sdk-cpp` records |
+
+Each has both halves and builds on the Harmos SDK for the same language.
+Go is outside the pilot; `dokime-sdk-go` stays recorded for later.
 
 ## What It Removes
 
@@ -372,22 +386,16 @@ entries.
 
 Not yet decided with the owner; each is settled before its task starts.
 
-1. The fixed percentile set in `Statistics` (proposed: 5, 95, 99 and the
-   median).
-2. Whether a Wasm guest can be a managed Dokime plugin in the first version.
-3. Branding defects. Agreed rule: an organization pack brands what an
-   operator of that installation sees (desktop app, reports, installer, data
-   folder identity); the toolchain and contracts keep the Dokime name (the
-   `dokime` command, `dokime.v1`, pairing files, environment variables, SDK
-   packages, the client profiles folder). Places in the first group that
-   still show the built-in name are under research and belong to a separate
-   change.
-4. The sample rates of existing plugins, to confirm one sample per message is
-   enough for each.
-5. Reconciling the overlapping changes named in the proposal, including which
-   of them this change absorbs.
-6. One context type without template-specific parameters, which would absorb
-   `template-authoring-simplification`.
-7. Spec deltas that retire `python-backend`, `python-sdk`,
+1. Whether one sample per `Publish` message is enough for every existing
+   plugin's rate, or a fast device needs several samples per message from the
+   start.
+2. Whether managed bundles for C# and C++ plugins are in the pilot or follow
+   it.
+3. Spec deltas that retire `python-backend`, `python-sdk`,
    `python-plugin-authoring` and the reload and start-order requirements this
    change removes.
+
+Settled and recorded above: the percentile set, guests, settings reads, the
+proto export sources, state per language, and folding
+`template-authoring-simplification` into this change. Branding is the
+separate change `organization-pack-coverage`.

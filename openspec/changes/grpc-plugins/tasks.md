@@ -10,7 +10,6 @@
 
 - [ ] 2.1 Define `dokime.v1`: host operations for clients and plugins, `TestCase`, `Step`, `Criterion`, `Statistics`, with checked-in protos attached to releases.
 - [ ] 2.2 Add the host operations plugins need that exist only as evidence-page fields today: progress, log, traceability, document parts, record reads and statistics.
-
 - [ ] 2.3 Replace the JSON catalog sections with `dokime.v1` messages and add `dokime proto export`.
 - [ ] 2.4 Serve settings as a host operation and delete settings injection at start and the applied-versus-saved comparison.
 - [ ] 2.5 Add the per-execution resource store (`ctx.set`, `ctx.get`) for Rust and remove template fields and `Own`.
@@ -28,7 +27,9 @@
 
 - [ ] 4.1 Rust: authoring over the Harmos SDK with generated step and criterion operations and derived `materialize`; `dokime-client` as the client half.
 - [ ] 4.2 Python: pure package with the plugin half and the generated client half; rewrite the starter and `dokime new --lang python`.
-- [ ] 4.3 Migrate the host telemetry and OBC plugins and the samples.
+- [ ] 4.3 C#: `sdk/csharp` with both halves, a starter and `dokime new --lang csharp`.
+- [ ] 4.4 C++: `sdk/cpp` with both halves, a starter and `dokime new --lang cpp`.
+- [ ] 4.5 Migrate the host telemetry and OBC plugins and the samples.
 
 ## 5. Removal
 

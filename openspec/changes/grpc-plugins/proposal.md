@@ -1,7 +1,7 @@
 # gRPC Plugins
 
-Status: shape agreed with the owner on 2026-11-10; implementation waits for the
-owner's lock. Replaces `remote-plugins`. The Harmos change `grpc-plugins` is
+Status: locked by the owner on 2026-11-10; implementation has not started and
+waits for the owner's go. Replaces `remote-plugins`. The Harmos change `grpc-plugins` is
 the protocol side.
 
 ## Why
@@ -29,6 +29,7 @@ and lets Dokime delete the plumbing in between.
 - One Dokime protocol package, `dokime.v1`, holds every operation Dokime
   serves and the messages for the operations plugins serve.
 - Each `sdk/<language>` has two halves: provide plugins, and drive Dokime.
+  The pilot covers Rust, Python, C# and C++.
 - Python becomes a pure Python package, `Remote` only.
 - Removed: `<template>.run` and `.signal`, the signal and evidence-page
   protocol, the execution hand-off layer, embedded plugins, the PyO3 SDK and
@@ -64,8 +65,10 @@ and lets Dokime delete the plumbing in between.
 - Depends on the Harmos change `grpc-plugins`.
 - Supersedes `remote-plugins` (deleted with this change) and the 2026-11-07
   decision to build native SDKs over a C ABI.
-- `dokime-sdk`, `dokime-sdk-cpp`, `dokime-sdk-go`,
-  `template-authoring-simplification`, `runtime-stream-cadence` and
-  `telemetry-at-record` overlap and are reconciled before implementation
-  starts (`design.md`, Open Points).
+- Absorbs `template-authoring-simplification` (deleted with this change):
+  Rust steps take one context type with no template parameters, and the
+  plugin's own operation registry is its requirement inventory.
+- `dokime-sdk`, `dokime-sdk-cpp` and `dokime-sdk-go` are aligned to this
+  change. `runtime-stream-cadence` and `telemetry-at-record` touch the
+  stream path and are reconciled in task 1.2.
 - Private plugins migrate in their own repositories.

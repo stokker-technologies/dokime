@@ -20,3 +20,15 @@ Test engineers should write Dokime suites in Go, on top of Harmos's Go SDK.
 ## Distribution
 
 A Go module under `sdk/go`, installed with `go get` and released with subfolder tags. mise pins Go.
+
+## Alignment With gRPC Plugins
+
+Recorded on 2026-11-10. This change follows `grpc-plugins`:
+
+- The SDK has two halves: a plugin half over the Harmos SDK for the language
+  and a client half over `dokime.v1`.
+- A plugin is a gRPC server. A step, criterion, initialize and cleanup are
+  operations the host calls; there is no run loop in the SDK.
+- `dokime proto export` provides the `.proto` files; there is no
+  `dokime bindings` command.
+- Go is outside the pilot and follows it.
