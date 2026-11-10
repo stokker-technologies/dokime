@@ -45,7 +45,7 @@ are chosen by the operator and may be network or synchronized folders.
 | Application preferences, plugin settings and secret availability metadata | Operator settings and plugin discovery | `D/local.sqlite` | Local readers; authorized settings clients | Support bundle settings copies and backups; plugin receives its configured settings |
 | Protected secret values and client credentials | Operator secret entry and remote pairing | OS protected credential store; catalog metadata in `D/local.sqlite` | OS-authorized application and secret-consuming plugins | Used for configured authentication; protected values are not collected into support bundles |
 | Backend profiles and access files | Pairing/import and remote configuration | Windows `%APPDATA%/dokime/backends.json`; Linux `${XDG_CONFIG_HOME:-$HOME/.config}/dokime/backends.json`; macOS `$HOME/Library/Application Support/dokime/backends.json`; `DOKIME_PROFILES_FILE` can override; exported `.dokime-remote` at chosen destination | Local readers and recipients of exported access files | Explicit pairing-file sharing; copying application configuration |
-| Operational logs, errors and free-form diagnostic messages | Backend and plugin logging | `L/dokime.jsonl` and log rotation files | Local readers; authorized diagnostic clients | Selected log tail in support ZIP; manual log sharing or machine backups |
+| Operational logs, errors and free-form diagnostic messages | Backend and plugin logging | `L/<distribution-slug>.jsonl` and log rotation files | Local readers; authorized diagnostic clients | Selected log tail in support ZIP; manual log sharing or machine backups |
 | Reports, exports and desktop cached views | Operator report/export actions | Chosen destination; application cache under `A/cache` | Filesystem-authorized readers and recipients | Explicit sharing, synchronized folders and external backup systems |
 | Data-root backup ZIP | Desktop backup/reset workflow | By default a sibling `data-backup-YYYYMMDDTHHMMSSZ.zip`; selected destination can differ | Filesystem-authorized readers and recipients | Explicit copying/sharing or external backup systems; contains unredacted data-root contents |
 | Support ZIP | Explicit diagnostics download | Temporary archive during assembly; chosen download destination | Requesting client and filesystem-authorized readers/recipients | Operator explicitly sends the ZIP; collection does not submit it to the vendor |
@@ -88,7 +88,7 @@ that Dokime or third-party plugins make no network requests.
 
 The server collector in `crates/dokime-server/src/grpc/backend.rs` selects backend
 identity, health, the settings frame, installed-plugin settings and a bounded
-tail of `dokime.jsonl`. It does not collect the evidence database, Arrow streams
+tail of `<distribution-slug>.jsonl`. It does not collect the evidence database, Arrow streams
 or media files. Free-form settings and messages can still repeat evidence or
 personal information. Secret declarations expose identifiers and availability,
 not protected credential values. `MANIFEST.txt` lists each member and its possible

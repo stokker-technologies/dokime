@@ -1629,7 +1629,7 @@ stderr, then summarizes the output paths and elapsed time. Stdout contains only
 the output paths, or their JSON array with `--json`.
 
 An installer manifest selects the distribution version, optional installation
-identifier, organization override and exact Dokime binary version/target. For example, save
+identifier, organization pack and exact Dokime binary version/target. For example, save
 `company/installer.toml` for a native Windows build:
 
 ```toml
@@ -1650,9 +1650,8 @@ name = "plugin-host"
 path = "plugins/acme-bench.dokime"
 ```
 
-`organization` resolves relative to that manifest. It may contain a partial
-[organization override](#organization); omitted values and files inherit the
-selected distribution's organization defaults. On Linux, use `target = "x86_64-unknown-linux-gnu"` and
+`organization` resolves relative to that manifest. It names a complete
+[organization pack](#organization), replacing the selected distribution's bundled pack. On Linux, use `target = "x86_64-unknown-linux-gnu"` and
 `formats = ["deb", "rpm"]`. Linux packages declare dependencies that resolve on
 Ubuntu 22.04+, Debian 12+ and current Fedora; Dokime builds its Linux binaries on
 Ubuntu 22.04 so they run on that set. Assembly requires the matching native operating
@@ -1685,9 +1684,9 @@ The product build exports `product/installer-distribution/` under its matching
 unchanged CLI and GUI executables, license and the complete authored
 `organization/` default pack. Its manifest records compiled identity, exact
 Dokime version/target and SHA-256 hashes for every input, including every
-organization asset. Assembly resolves these distribution defaults with the optional
-company override, so it retains the selected release's appearance even when the
-authoring tool was built with different defaults.
+organization asset. Assembly selects the supplied complete organization pack or these distribution
+defaults. Without a supplied pack, the selected release's appearance applies even
+when the authoring tool was built with different defaults.
 Using that directory requires no application compilation:
 
 ```sh
@@ -1698,7 +1697,7 @@ Use top-level `[[plugin]]` entries to select installer plugins. Each entry sets
 exactly one of `name` or `path`; invalid entries report their one-based index.
 `name` selects a plugin from the release feed and need not match its bundle
 filename. `path` names a local bundle relative to `[installer] organization`,
-or to the distribution's `organization/` when no override is selected. Paths
+or to the distribution's `organization/` when no pack is supplied. Paths
 must stay inside that pack; a missing override file never falls back to a base
 plugin with the same filename. For this example, the local bundle lives at
 `company/organization/plugins/acme-bench.dokime`.
@@ -1871,8 +1870,8 @@ variable naming a file) or `private_key_env` (environment variable containing th
 base64-encoded key). Key files accept a minisign secret key or its base64 encoding.
 `password_env` names the external password variable. No secret is a CLI value or
 manifest value. The tool verifies signatures against the distribution's compiled
-updater public key and emits `.exe.sig` and `latest.json`. A company organization
-override defaults to disabled updates unless it explicitly sets `updates.mode`;
+updater public key and emits `.exe.sig` and `latest.json`. A supplied organization
+pack defaults to disabled updates unless it explicitly sets `updates.mode`;
 changing a pack does not replace compiled updater trust.
 
 The host includes an immutable `Configuration.sidecar` policy snapshot during
@@ -2022,8 +2021,8 @@ uninstall sidebars. PNGs are resized to fill the native 164×314 sidebar;
 transparent pixels are composited over `sidebar_color`. Without an image,
 packaging generates a solid-color bitmap.
 Colors use opaque `#RRGGBB`; omitted settings default to `#1B1915`. Invalid
-colors, missing image files and invalid PNG data fail validation. Folder
-overrides follow the same two-layer merge rules as other organization settings.
+colors, missing image files and invalid PNG data fail validation. Installer
+settings are read from the selected complete organization pack.
 DEB/RPM packages do not display these sidebar assets.
 
 Windows packaging replaces the staged GUI executable's icon resources with
@@ -2051,21 +2050,14 @@ put mode-specific treatments in `theme/light.css` and `theme/dark.css`. This
 class styles the in-app logo; native window, tray and installer icons use the
 `app.artwork` assets.
 
-Resolve the installation's default pack with an optional organization override
-before validation. Manifest tables merge recursively; present scalar and array
-values replace defaults. Omitted fields and files inherit, while a supplied file
-replaces the whole file at the same relative path. There are no deletion markers.
+Installer packaging is the only way to apply an organization pack. Supply a
+complete folder through `[installer] organization`; it replaces the distribution's
+bundled pack, with no inheritance of omitted manifest fields or files. Without a
+supplied pack, packaging uses the distribution's built-in appearance.
 Installer plugin selection is separate: the pack's optional `plugins/` folder
 stores local bundles, and only explicit `[[plugin]] path` entries (or CLI
 `--plugin` paths) include them. Plugin storage is excluded from the installed
 organization pack. See [Native Installers](#native-installers) for the manifest.
-A partial override can therefore contain only this manifest and a replacement
-`theme/light.css`:
-
-```toml
-[app]
-title_template = "Stokker Technologies — {app}"
-```
 
 The desktop's label, title, window/tray artwork and newly captured reports use
 the resolved pack. Installers place their default organization folder beside the
@@ -2073,7 +2065,8 @@ Windows executables or under `/usr/lib/<slug>/organization` on Linux. Captured
 reports embed their fonts, artwork and styles; historical reports retain the appearance captured with them. Installer assembly
 uses the resolved application and installer artwork to create native assets.
 Desktop and report browser tabs use the brand's logos, preferring contained artwork
-for the viewer's color scheme and keeping the default favicon when no logos apply.
+for the viewer's color scheme. Titles and icons use the resolved or captured
+appearance before the first frame.
 The installer manifest's distribution identifier owns storage identity; the
 organization pack changes appearance only. An organization manifest cannot set
 `app.identifier`, `app.slug` or `app.deep_link_scheme`. Without `distribution.json`,
@@ -2097,30 +2090,25 @@ Protocol/deep-link identity, updater verification trust and code-signing identit
 remain compiled. Reusing binaries with different distribution identities does not
 isolate those mechanisms.
 
-For source development, `mise run prepare:organization` refreshes the default
+For source development, the product build refreshes the default
 JSON and theme under `crates/dokime-gui/src/generated/organization/`. Desktop icon
 outputs and their integrity record live under `crates/dokime-gui/src-tauri/icons/`.
 The authored organization folder contains no `generated/` inputs. Rebuild when
-changing compiled defaults; installed packs can change runtime appearance
-without rebuilding the application.
+changing compiled defaults. Package a new installer to change installed appearance;
+reusing prebuilt binaries does not require recompiling them.
 
-To import an override, zip its organization folder and select it under Settings
-› Appearance › Organization Pack. Files may be at the ZIP root or under one top
-folder. A ZIP needs exactly one `organization.toml`, is limited to 20 MiB and
-200 entries, and accepts `.toml`, `.css`, `.woff2`, `.svg` and `.png` inputs.
-Licence `.txt` and `.md` files are skipped. Paths must stay inside the pack and
-links are refused. Include authored artwork under `icons/`; generated inputs
-are invalid.
+Settings offers no pack import, change or removal. Packs placed under the
+application data folder, including old `organization/active` and
+`organization/pending` folders, are ignored and preserved.
 
-The imported override applies on the next start. Startup resolves and validates
-the pending pack before promotion; invalid pending input remains available for
-diagnosis and retains the last valid active pack. If the active override cannot
-load, the default appearance applies. Activation errors appear under Settings
-› Diagnostics. Import and activation preserve application storage and historical
-reports.
-
-Organization overrides are stored under `organization/`. New archives use only
-`organization.toml`.
+The pack brands operator-facing windows, dialogs, interface labels, reports and
+messages. Suggested diagnostics, support, secrets and log filenames derive from
+the distribution identifier. The toolchain and shared contracts retain the Dokime
+name: commands and help, scaffolds, SDK packages, protocol and operation identifiers,
+file extensions, environment variables, credential stores and shared client profiles.
+Executable and process names remain unchanged. Upstream attribution stays intact.
+New remote access certificates use the resolved label; existing certificates keep
+their issued subject. Historical reports retain their captured appearance.
 
 Organization packs can also declare update defaults. Settings › Updates selects
 one source and `disabled`, `manual` or `automatic_check` locally. Automatic mode
