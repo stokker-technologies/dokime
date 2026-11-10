@@ -24,7 +24,7 @@ import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
-import { BackendsTable, backendValidation } from "@/features/settings/BackendsTable";
+import { BackendsTable } from "@/features/settings/BackendsTable";
 import { commands } from "@/lib/desktop/commands";
 import type { DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
@@ -195,8 +195,8 @@ test("Deleting the Active Backend Invalidates Its Generation and Owned Resources
   if (state.phase !== "connected") throw new Error("Expected Connected Session");
   const dispose = vi.fn();
   state.session.own(dispose);
-  fixture.invoke.mockResolvedValueOnce({ default: null, profiles: [] });
-  assert.deepEqual(await preferencesCommands.desktopBackendRemove("lab"), { default: null, profiles: [] });
+  fixture.invoke.mockResolvedValueOnce({ profiles: [] });
+  assert.deepEqual(await preferencesCommands.desktopBackendRemove("lab"), { profiles: [] });
   await owner.disconnect();
   assert.equal(state.session.identity.isCurrent(), false);
   assert.equal(dispose.mock.calls.length, 1);
@@ -212,19 +212,17 @@ test("Registry Commands Preserve Profile Fields Without Bearer Material", async 
     endpoint: "https://lab.local",
     endpoints: ["https://lab.local"],
     expected_backend_id: "fixture",
-    ca_certificate_pem: "fixture-ca",
-    secret: "keyring" as const,
+    certificate_pem: "fixture-ca",
+    pairing_file: "/fixture/lab.pair",
   };
-  const document = { default: null, profiles: [profile] };
+  const document = { profiles: [profile] };
   fixture.invoke.mockResolvedValue(document);
-  assert.deepEqual(await preferencesCommands.desktopBackendAdd(profile), document);
-  assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_add", { profile }]);
   assert.deepEqual(await preferencesCommands.desktopBackendsList(), document);
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backends_list", undefined]);
 });
 
 test("Pairing Commands Pass Only Identifiers and Saved Paths Across IPC", async () => {
-  const document = { default: null, profiles: [] };
+  const document = { profiles: [] };
   fixture.invoke.mockResolvedValueOnce(document);
   assert.deepEqual(await preferencesCommands.desktopBackendImportPairing("lab"), document);
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: "lab" }]);
@@ -233,40 +231,17 @@ test("Pairing Commands Pass Only Identifiers and Saved Paths Across IPC", async 
   assert.equal(await preferencesCommands.desktopBackendImportPairing(null), null);
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: null }]);
 
-  fixture.invoke.mockResolvedValueOnce("/private/Lab.dokime-remote");
-  assert.equal(await commands.desktopPairingCreate(), "/private/Lab.dokime-remote");
+  fixture.invoke.mockResolvedValueOnce("/private/Lab.pair");
+  assert.equal(await commands.desktopPairingCreate(), "/private/Lab.pair");
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_pairing_create", undefined]);
   fixture.invoke.mockResolvedValueOnce(null);
   assert.equal(await commands.desktopPairingCreate(), null);
 });
 
-test("Startup Attempts the Saved Default Once and Exposes Failure Without Fallback", async () => {
+test("Startup Without a Pairing Leaves Selection to the Operator", async () => {
   fixture.invoke.mockImplementation(async (command: string) => {
     if (command === "desktop_session_launch") return { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
-    if (command === "desktop_backends_list") return { default: "stale", profiles: [] };
-    if (command === "desktop_backend_use") return Promise.reject({ kind: "identity_changed" });
-    throw new Error(`Unexpected Command: ${command}`);
-  });
-  AppRoot();
-  assert.equal(fixture.effects.length, 1);
-  const cleanup = fixture.effects[0]();
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.deepEqual(
-    fixture.invoke.mock.calls.map(([command, args]) => [command, args]),
-    [
-      ["desktop_session_launch", undefined],
-      ["desktop_backends_list", undefined],
-      ["desktop_backend_use", { identifier: "stale" }],
-    ],
-  );
-  assert.equal(fixture.identity.mock.calls.length, 0);
-  cleanup();
-});
-
-test("Startup Without a Saved Default Leaves Selection to the Operator", async () => {
-  fixture.invoke.mockImplementation(async (command: string) => {
-    if (command === "desktop_session_launch") return { target: null, expectedBackendId: null, localBackendAvailable: true, error: null };
-    if (command === "desktop_backends_list") return { default: null, profiles: [] };
+    if (command === "desktop_backends_list") return { profiles: [] };
     throw new Error(`Unexpected Command: ${command}`);
   });
   AppRoot();
@@ -274,28 +249,9 @@ test("Startup Without a Saved Default Leaves Selection to the Operator", async (
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.deepEqual(
     fixture.invoke.mock.calls.map(([command]) => command),
-    ["desktop_session_launch", "desktop_backends_list"],
+    ["desktop_session_launch"],
   );
   cleanup();
-});
-
-test("Manual Backend Entry Accepts Only Unsecured Lab Origins and Distinct Identifiers", () => {
-  assert.deepEqual(backendValidation(" lab ", " http://lab.local:8765 ", []), {});
-  assert.deepEqual(Object.keys(backendValidation(" ", "not an origin", [])), ["identifier", "endpoint"]);
-  assert.deepEqual(Object.keys(backendValidation("lab", "http://lab.local", ["lab"])), ["identifier"]);
-  for (const identifier of [".", "..", "bad/id", "x".repeat(129)]) {
-    assert.deepEqual(Object.keys(backendValidation(identifier, "http://lab.local", [])), ["identifier"]);
-  }
-  for (const endpoint of [
-    "https://lab.local",
-    "ftp://lab.local",
-    "http://user:secret@lab.local",
-    "http://lab.local/path",
-    "http://lab.local/?key=secret",
-    "http://lab.local/#key",
-  ]) {
-    assert.deepEqual(Object.keys(backendValidation("lab", endpoint, [])), ["endpoint"]);
-  }
 });
 
 type TestElementProps = {
@@ -391,7 +347,7 @@ test("Remote Import Starts from the Backend Toolbar", async () => {
   assert.ok(table);
   const action = descendants(table.props.actions).find((element) => element.type === Button && element.props.children === "Import Remote");
   assert.ok(action);
-  fixture.invoke.mockResolvedValueOnce({ default: null, profiles: [] });
+  fixture.invoke.mockResolvedValueOnce({ profiles: [] });
   await action.props.onClick?.();
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: null }]);
 });

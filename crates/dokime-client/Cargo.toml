@@ -38,7 +38,6 @@ thiserror = { workspace = true }
 # Utilities
 harmos = { workspace = true, features = ["grpc"] }
 harmos-sdk = { workspace = true, features = ["grpc"] }
-keyring = { workspace = true }
 sha2 = { workspace = true }
 zeroize = { workspace = true }
 
@@ -51,6 +50,7 @@ serde_json = { workspace = true }
 # Configuration
 
 # Filesystem
+tempfile = { workspace = true }
 
 # Parsing
 

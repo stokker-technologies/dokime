@@ -51,7 +51,7 @@ from google.protobuf.message import Message
 
 def test_backend_pairing_and_shutdown(tmp_path: Path) -> None:
     async def story() -> None:
-        pairing = tmp_path / "lab.dokime-remote"
+        pairing = tmp_path / "lab.pair"
         application = tmp_path / "application"
         async with Backend(port=0, application_root=application) as backend:
             assert backend.root == application / "data"
@@ -62,14 +62,14 @@ def test_backend_pairing_and_shutdown(tmp_path: Path) -> None:
             document = json.loads(pairing.read_bytes())
             assert document["backend_identifier"] == identity.id
             assert document["label"] == "Bench 3"
-            assert document["access_key"] and document["ca_certificate_pem"]
+            assert document["access_key"] and document["certificate_pem"]
             assert all(endpoint.startswith("https://") for endpoint in document["endpoints"])
             async with DokimeClient.from_pairing(pairing) as attached:
                 assert (await attached.connect()).id == identity.id
             native = backend._inner
             assert native is not None
             stopping = native.close()
-            refused = tmp_path / "refused.dokime-remote"
+            refused = tmp_path / "refused.pair"
             with pytest.raises(BackendClosed):
                 native.export_pairing(refused, "Closed")
             assert not refused.exists()

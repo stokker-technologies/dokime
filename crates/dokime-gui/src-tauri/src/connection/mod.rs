@@ -28,10 +28,8 @@ use std::{
 
 // Third Party Imports
 use tokio_util::sync::CancellationToken;
-use zeroize::Zeroizing;
 
 // Local Imports
-use dokime::client::secrets::{KeyringStore, SecretStore};
 use dokime::domain::model::settings::application::ClientPreferences;
 
 /* === Constants === */
@@ -46,8 +44,6 @@ use dokime::domain::model::settings::application::ClientPreferences;
 pub struct ConnectionSession {
     preferences: Arc<Mutex<ClientPreferences>>,
     inner: Arc<Mutex<SessionState>>,
-    secrets: Arc<dyn SecretStore>,
-    secret_operations: Arc<tokio::sync::Mutex<()>>,
 }
 
 struct SessionState {
@@ -73,7 +69,7 @@ pub struct SessionLease {
 
 impl Default for ConnectionSession {
     fn default() -> Self {
-        Self::with_secrets(Arc::new(KeyringStore))
+        Self::with_settings(ClientPreferences::default())
     }
 }
 
@@ -107,11 +103,7 @@ impl ConnectionSession {
         Ok(())
     }
 
-    pub fn with_secrets(secrets: Arc<dyn SecretStore>) -> Self {
-        Self::with_secrets_and_settings(secrets, ClientPreferences::default())
-    }
-
-    fn with_secrets_and_settings(secrets: Arc<dyn SecretStore>, settings: ClientPreferences) -> Self {
+    fn with_settings(settings: ClientPreferences) -> Self {
         Self {
             preferences: Arc::new(Mutex::new(settings)),
             inner: Arc::new(Mutex::new(SessionState {
@@ -128,8 +120,6 @@ impl ConnectionSession {
                 lease: None,
                 profile: None,
             })),
-            secrets,
-            secret_operations: Arc::new(tokio::sync::Mutex::new(())),
         }
     }
 
@@ -186,7 +176,7 @@ impl ConnectionSession {
         let result = tokio::select! {
             biased;
             _ = cancellation.cancelled() => Err(ConnectionError::Superseded),
-            result = self.establish(&target, request.secrets, request.expected_backend_id.as_deref(), generation, cancellation.clone()) => result,
+            result = self.establish(&target, request.expected_backend_id.as_deref(), cancellation.clone()) => result,
         };
         let mut state = self.inner.lock().expect("connection state poisoned");
         if state.generation != generation {
@@ -210,75 +200,24 @@ impl ConnectionSession {
     }
 
     async fn establish(
-        &self, target: &transport::Target, secrets: ConnectionSecrets, expected_id: Option<&str>, generation: u64,
-        cancellation: CancellationToken,
+        &self, target: &transport::Target, expected_id: Option<&str>, cancellation: CancellationToken,
     ) -> Result<(SessionLease, BackendSnapshot), ConnectionError> {
-        let (token, remember) = match secrets {
-            ConnectionSecrets::None => (None, false),
-            ConnectionSecrets::Profile { credential } => {
-                let token = self
-                    .access_secrets(generation, &cancellation, move |store| {
-                        store.read(&credential).map_err(|_| ConnectionError::SecretsUnavailable)
-                    })
-                    .await?
-                    .ok_or(ConnectionError::SecretsUnavailable)?;
-                (Some(token), false)
-            }
-            ConnectionSecrets::Saved => {
-                let endpoint = target.endpoint.clone();
-                let token = self
-                    .access_secrets(generation, &cancellation, move |store| {
-                        store.read(&endpoint).map_err(|_| ConnectionError::SecretsUnavailable)
-                    })
-                    .await?
-                    .ok_or(ConnectionError::SecretsUnavailable)?;
-                (Some(token), false)
-            }
-            ConnectionSecrets::Bearer { token, remember } => (Some(Zeroizing::new(token)), remember),
-        };
         let client = dokime::client::Client::connect(
             target.inner.clone().with_settings(self.preferences()),
-            token.as_ref().map(|token| token.as_str()),
-            expected_id,
+            target.access_key.as_deref().map(String::as_str),
+            target.expected_backend_id.as_deref().or(expected_id),
         )
         .await
         .map_err(ConnectionError::from)?;
         let backend = transport::backend(client.backend());
-        let lease = SessionLease {
-            client,
-            cancellation,
-            preferences: Arc::clone(&self.preferences),
-        };
-        if remember && let Some(token) = token {
-            let endpoint = target.endpoint.clone();
-            self.access_secrets(generation, &lease.cancellation, move |store| {
-                store.write(&endpoint, token.as_str()).map_err(|_| ConnectionError::SecretsUnavailable)
-            })
-            .await?;
-        }
-        Ok((lease, backend))
-    }
-
-    async fn access_secrets<T: Send + 'static>(
-        &self, generation: u64, cancellation: &CancellationToken,
-        operation: impl FnOnce(&dyn SecretStore) -> Result<T, ConnectionError> + Send + 'static,
-    ) -> Result<T, ConnectionError> {
-        let ownership = Arc::clone(&self.secret_operations).lock_owned().await;
-        let store = Arc::clone(&self.secrets);
-        let state = Arc::clone(&self.inner);
-        let cancellation = cancellation.clone();
-        tokio::task::spawn_blocking(move || {
-            // Cancellation cannot stop an OS keyring operation already in progress.
-            // Keep serialization owned by the blocking work, even if its caller
-            // drops the JoinHandle. Newer writes must run after that operation.
-            let _ownership = ownership;
-            if cancellation.is_cancelled() || state.lock().expect("connection state poisoned").generation != generation {
-                return Err(ConnectionError::Superseded);
-            }
-            operation(store.as_ref())
-        })
-        .await
-        .map_err(|_| ConnectionError::SecretsUnavailable)?
+        Ok((
+            SessionLease {
+                client,
+                cancellation,
+                preferences: Arc::clone(&self.preferences),
+            },
+            backend,
+        ))
     }
 }
 

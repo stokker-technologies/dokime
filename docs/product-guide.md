@@ -263,38 +263,34 @@ Click a toast or history entry, or focus it and press Enter or Space, to open it
 ## Native Remote Access
 
 Choose **Export Remote Access** in Settings → Remote Access. The native save
-picker suggests a readable label and `.dokime-remote` filename. If the listener
+picker suggests a readable label and `.pair` filename. If the listener
 is off, one confirmation enables it on the saved port (8765 by default) and
 continues the export. The same confirmation warns that the file is secret.
-Rename its client later by selecting its label in **Paired Clients**.
 
-Each file has an independent revocable key. Anyone holding it has full control;
-transfer it privately and revoke its client if it is lost. Raw keys never enter
-the WebView, logs or saved backend profiles. The host retains only verifiers.
+The file contains the backend's access key and self-signed server certificate.
+Anyone holding it has full control; transfer it privately. Exporting again replaces
+the backend's single key and invalidates previously exported files. The host stores
+only its verifier. Raw keys stay in native code and never enter the WebView or logs.
 
 Endpoints are automatic: a specific bound address, or the hostname followed by
 real interface addresses in the listener address family, with private networks first
-and IPv4 link-local addresses last. Remote Access shows these addresses with their
-adapter names before export. Virtual/VPN adapters are
-excluded. Loopback addresses (`127.0.0.1`, `::1`) work on the same PC only; exports
-for a specific loopback bind carry **Same PC** in their generated label.
-The backend signs its listener leaf with a persistent CA, which the file pins.
-New interface addresses trigger a leaf reissue under that same CA, so existing
-files keep their trust. An old file still needs at least one reachable candidate,
-such as the hostname; export a new file if all its addresses become obsolete.
+and IPv4 link-local addresses last. Remote Access shows addresses and adapter names
+before export. Virtual/VPN adapters are excluded. Loopback addresses work on the same
+PC only. Clients try the file's endpoints in order and verify the expected backend
+identifier on connection and before application calls.
 
 Remote files are UTF-8 JSON v1, limited to 1 MiB, with exactly `version`,
-`endpoints` (an ordered nonempty list), `backend_identifier`, `label`,
-`ca_certificate_pem` and `access_key`. CA/key values may be null for explicitly
-unsecured lab listeners. Unknown fields, invalid identities or PEM, wildcard
-origins and inconsistent TLS/CA combinations are rejected. The remote security store
-also keeps format v1; old stores require a fresh application root and are never
-silently reset.
+`endpoints`, `backend_identifier`, `label`, `certificate_pem` and `access_key`.
+The certificate and key may be null for explicitly unsecured lab listeners.
+Unknown fields, invalid identities or PEM, wildcard origins and inconsistent
+TLS/certificate combinations are rejected. There is one self-signed server
+certificate, with no CA hierarchy. Replacing it requires exporting a new pairing.
+Incompatible old security stores require a fresh application root; existing data
+is never silently reset.
 
-Management remains available only through the native local listener. TLS and
-access-key authentication are independent advanced settings; disable either
-only in an isolated lab. Changing interface names or explicitly reissuing the
-leaf preserves its CA and existing access keys.
+Every connected client may call every operation served to clients, including media
+capture and listener management. TLS and access-key authentication remain independent
+advanced settings; disable either only in an isolated lab.
 
 Windows installation never needs administrator rights and does not change the
 firewall. On the computer exporting remote access, Settings → Remote Access checks
@@ -335,43 +331,34 @@ use that setting only in an isolated lab. There are no per-user roles or server
 permission files. TLS controls transport encryption and certificate verification
 independently of access-key authentication.
 
-Native-only operations and internal host providers remain unavailable remotely.
+Operations without a client transport binding remain unavailable through gRPC.
 Plugin identity comes from the original runtime registration, never an owner
 name supplied by a caller. Plugins still declare their own requirements for
 calls into other plugins or host services; an operator's key cannot expand those
 capabilities. A grant must name the operation being called. Discovery and
 invocation use the current provider contract; rediscover after provider changes.
 
-## Backend Profiles
+## Backend Pairing Files
 
-The desktop status bar shows the selected backend and its connection state. Click that status to open Backends in Settings.
-
-Settings → Backends and the CLI share `backends.json`. Each profile has a
-machine **Identifier** and a human **Label**. Choose **Import Remote**, or drop
-one `.dokime-remote` file onto the desktop window, as the primary setup path. The native importer saves its key in the OS keyring and its CA and
-expected identity and ordered endpoints in the profile, then connects. Validation precedes mutation; a failed profile
-save rolls back the newly created keyring entry. Duplicate identifiers are refused.
-
-The desktop tries its saved default once. An unavailable or mismatched backend
-opens selection without silently falling back to Local. Confirm deletion to
-remove a profile; deleting the active profile disconnects it and clears its default.
-Profile editing and local appearance preferences remain available offline.
+Name the pairing file explicitly or set `DOKIME_REMOTE`. With neither configured,
+the client reports how to set `DOKIME_REMOTE`; it never chooses an implicit remote.
+Clients and the desktop read the process environment without searching for `.env`.
+The server and development command retain explicit `--env-file` support.
 
 ```sh
-dokime backend add --remote lab.dokime-remote --identifier lab
-dokime backend use lab
-dokime status --backend lab --json
-dokime operation list --backend lab
-dokime operation show dokime.runtime.health --backend lab --json
+DOKIME_REMOTE=./lab.pair dokime status --json
+dokime status --remote lab.pair --json
+dokime operation list --remote lab.pair
 ```
 
-Omit `--identifier` to use the file's backend identifier. CLI remote import verifies
-the connection immediately; manual lab additions only save the profile. Manual entry is
-reserved for unsecured labs:
-
-```sh
-dokime backend add --identifier lab --label "Lab PC" --endpoint http://lab.example:8765
-```
+Settings → Backends lists the pairing-file folder. Import or drop one `.pair` file
+to copy it into that folder and connect. Its filename is the listing identifier;
+the file carries its label and complete connection data. Duplicate filenames are
+refused. Deleting the active pairing disconnects it. There is no registry document,
+default profile, OS credential-store association or remembered winning endpoint.
+The folder is `$XDG_CONFIG_HOME/dokime/remotes` (or `$HOME/.config/dokime/remotes`)
+on Linux, `$APPDATA/dokime/remotes` on Windows, and
+`$HOME/Library/Application Support/dokime/remotes` on macOS.
 
 Python constructs a client without opening a channel, then uses its normal
 asynchronous connection lifecycle:
@@ -382,7 +369,7 @@ from pathlib import Path
 from dokime import DokimeClient
 
 async def main() -> int:
-    async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
+    async with DokimeClient.from_pairing("examples/lab.pair") as client:
         async with client.new_cycle("Example Lab Tracking") as cycle:
             run = await cycle.start("example.demo.tracking", duration_min=10)
             async for record in run.records("example.tool.connected", "example.tool.disconnected"):
@@ -404,31 +391,19 @@ cancelled. A template expansion returns an ordered tuple of all execution handle
 manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
 are refused. See the [Python client guide](../sdk/python/README.md#creating-cycles).
 
-All clients try endpoint candidates in parallel with a short stagger configured
-by `client.endpoint_stagger_ms` (250 ms by default). Only a connection verified
-against the pinned CA and expected backend identity can win. The profile remembers
-the last successful endpoint and tries it first next time. Other candidates keep
-their original order. A failed connection leaves the imported profile available
-for retry. Python `from_pairing` retains its successful endpoint for that client;
-`from_profile` also saves successful endpoint selection in the shared profile.
-
-The SDK retains the imported key only in its redacted client credentials.
-Every first connection and reconnect validates expected backend identity before
-application calls. A mismatch never changes the saved default.
-
-`operation list` and `operation show` read live provider contracts, including
-owner, generation, grants, gRPC availability and conditional access. Discovery
-is bounded and does not promise admission of a later invocation. `show` retains
-all visible providers of the selected operation.
+Clients try endpoint candidates in their listed order. A failed connection leaves
+the pairing file available for retry. Certificate trust and expected backend
+identity are checked before a candidate is accepted. Operation discovery uses the
+current served contracts; rediscover after provider changes.
 
 `operation list` displays operation ID, provider owner and description. Select a
 provider explicitly for metadata or a call:
 
 ```sh
-dokime operation show OPERATION_ID --owner OWNER --backend lab --json
-dokime operation call OPERATION_ID --owner OWNER --backend lab --input request.json --output response.json
-dokime operation call OPERATION_ID --owner OWNER --backend lab --json '{"enabled":true}'
-dokime operation call OPERATION_ID --owner OWNER --backend lab --input request.json --input-stream-file items.jsonl --output response.json
+dokime operation show OPERATION_ID --owner OWNER --remote lab.pair --json
+dokime operation call OPERATION_ID --owner OWNER --remote lab.pair --input request.json --output response.json
+dokime operation call OPERATION_ID --owner OWNER --remote lab.pair --json '{"enabled":true}'
+dokime operation call OPERATION_ID --owner OWNER --remote lab.pair --input request.json --input-stream-file items.jsonl --output response.json
 ```
 
 `--input` and `--json` are mutually exclusive request sources; omitting both
@@ -453,7 +428,7 @@ evidence. From Rust, `dokime::client::Client::call_operation` uses the same live
 contract discovery and shared Harmos codec:
 
 ```rust
-let client = Client::connect(Target::new(endpoint, None)?, Some(token), None).await?;
+let client = Client::from_pairing(Some(std::path::Path::new("lab.pair"))).await?;
 let stream = client
     .call_operation("obc.bench.get_status", Some("plugin_obc"), b"{}", Vec::new())
     .await?;
@@ -466,11 +441,11 @@ stream.close().await;
 Browse the registered suite catalog, start an attempt and stop work explicitly:
 
 ```sh
-dokime catalog list --backend lab --json
-dokime catalog show REGISTERED_SUITE_ID --backend lab --json
-dokime execution start EXECUTION_UUID --backend lab --json
-dokime execution stop EXECUTION_UUID --backend lab --json
-dokime cycle seal CYCLE_UUID --backend lab --json
+dokime catalog list --remote lab.pair --json
+dokime catalog show REGISTERED_SUITE_ID --remote lab.pair --json
+dokime execution start EXECUTION_UUID --remote lab.pair --json
+dokime execution stop EXECUTION_UUID --remote lab.pair --json
+dokime cycle seal CYCLE_UUID --remote lab.pair --json
 ```
 
 Replace the identifiers with those returned by the backend. `catalog list
@@ -489,9 +464,9 @@ client provides the same durable boundary with `await cycle.seal()`, and
 Download saved evidence without running any work again:
 
 ```sh
-dokime execution export EXECUTION_UUID --backend lab --output execution.zip
-dokime cycle seal CYCLE_UUID --backend lab --json
-dokime cycle export CYCLE_UUID --backend lab --output cycle.zip
+dokime execution export EXECUTION_UUID --remote lab.pair --output execution.zip
+dokime cycle seal CYCLE_UUID --remote lab.pair --json
+dokime cycle export CYCLE_UUID --remote lab.pair --output cycle.zip
 ```
 
 A sealed execution is exportable while its cycle stays Active. A cycle export
@@ -523,47 +498,9 @@ The desktop's **Export Evidence** action uses the same exporter and a native
 save dialog. The Python handles provide `await execution.export(path)` and
 `await cycle.export(path)`, with `overwrite=True` for explicit replacement.
 
-Selection uses explicit `--backend` or `--endpoint`, then `DOKIME_BACKEND`, then
-that configuration's saved default. An explicit endpoint uses only secrets
-supplied for that invocation. Profile edits affect future connections.
-`backend list`, `show`, `use`, and `remove` operate offline; removal clears a
-matching default. Revoke access on the host through Paired Clients; removing
-a local profile alone does not revoke its key. `status` performs a bounded live
-identity, authentication and readiness check and returns nonzero on failure.
-Backend identity includes the compiled Rust target and product version.
-
-Configuration lives at `$XDG_CONFIG_HOME/dokime/backends.json` (falling back to
-`$HOME/.config/dokime/backends.json`) on Linux, `$APPDATA/dokime/backends.json` on
-Windows, or `$HOME/Library/Application Support/dokime/backends.json` on macOS.
-`--profiles-file` overrides `DOKIME_PROFILES_FILE` and the standard location.
-
-The version 1 JSON contract keeps secrets in a separate OS secret store:
-
-```json
-{
-  "version": 1,
-  "default": "lab",
-  "profiles": [{
-    "identifier": "lab",
-    "label": "Lab PC",
-    "endpoint": "https://dokime.example:8765",
-    "endpoints": ["https://dokime.example:8765", "https://192.168.1.50:8765"],
-    "expected_backend_id": "BACKEND_ID",
-    "ca_certificate_pem": null,
-    "secret": "keyring"
-  }]
-}
-```
-
-`endpoints` preserves imported candidate order; `endpoint` is the last verified
-success, initially the first candidate. Manual profiles use an empty candidate
-list. The OS keyring association stays stable when the winning endpoint changes.
-
-Identifiers contain 1–128 ASCII letters, digits, dots, underscores or hyphens;
-`.` and `..` are refused. Labels are nonblank, control-free and at most 256 bytes.
-Unknown fields, duplicate identifiers, unsupported versions, invalid endpoints
-and dangling defaults are refused. CLI edits lock and atomically replace the
-file; contention refuses the edit for retry. Tokens stay outside JSON.
+`status` performs a bounded live identity, authentication and readiness check and
+returns nonzero on failure. Backend identity includes the compiled Rust target and
+product version. The pairing file is the only remote connection input.
 
 Changing a stream row's fields automatically creates a stored revision. Rebuild
 and reload the plugin; no author version bump or backend restart is needed.
@@ -798,10 +735,10 @@ Name a template by the readable ID that `dokime catalog show` lists. Preview
 its cases, then materialize them before constructing execution attempts:
 
 ```sh
-dokime plan preview --template obc.charger.steady.measurement --backend lab --json
-dokime plan materialize --template obc.charger.steady.measurement --backend lab --json
-dokime cycle create --label "Campaign 1" --backend lab --json
-dokime cycle append CYCLE_ID --case-id CASE_ID --backend lab --json
+dokime plan preview --template obc.charger.steady.measurement --remote lab.pair --json
+dokime plan materialize --template obc.charger.steady.measurement --remote lab.pair --json
+dokime cycle create --label "Campaign 1" --remote lab.pair --json
+dokime cycle append CYCLE_ID --case-id CASE_ID --remote lab.pair --json
 ```
 
 Materialization captures the case's definition and provider revision. Append
@@ -815,13 +752,13 @@ UUID, or execution UUIDs from that exact append. This pulse selection produces
 one case and one attempt:
 
 ```sh
-case_id=$(dokime plan materialize --template obc.checks.pulse --parameters-json '{"sample_count":8}' --backend lab --id-only)
-cycle_id=$(dokime cycle create --label "Remote Pulse" --backend lab --id-only)
-execution_id=$(dokime cycle append "$cycle_id" --case-id "$case_id" --backend lab --id-only)
-dokime execution run "$execution_id" --records --samples --record-type 'obc.run.*' --stream obc.pulse --wait-seconds 60 --backend lab
-dokime execution export "$execution_id" --output pulse.zip --backend lab
-dokime cycle seal "$cycle_id" --backend lab
-dokime cycle export "$cycle_id" --output cycle.zip --backend lab
+case_id=$(dokime plan materialize --template obc.checks.pulse --parameters-json '{"sample_count":8}' --remote lab.pair --id-only)
+cycle_id=$(dokime cycle create --label "Remote Pulse" --remote lab.pair --id-only)
+execution_id=$(dokime cycle append "$cycle_id" --case-id "$case_id" --remote lab.pair --id-only)
+dokime execution run "$execution_id" --records --samples --record-type 'obc.run.*' --stream obc.pulse --wait-seconds 60 --remote lab.pair
+dokime execution export "$execution_id" --output pulse.zip --remote lab.pair
+dokime cycle seal "$cycle_id" --remote lab.pair
+dokime cycle export "$cycle_id" --output cycle.zip --remote lab.pair
 ```
 
 `execution start` admits one execution and returns without waiting.
@@ -860,7 +797,7 @@ Scripts can opt into cancellation and evidence recovery while running or waiting
 
 ```sh
 mkdir -p recovery
-dokime execution wait "$execution_id" --backend lab \
+dokime execution wait "$execution_id" --remote lab.pair \
   --cancel-on-interrupt --owned-cycle "$cycle_id" --recovery-directory recovery
 ```
 
@@ -897,14 +834,14 @@ materialize that case and explicitly Start its attempt so the script can answer:
 
 ```sh
 case_id=$(dokime plan materialize --template obc.checks.pulse \
-  --parameters-json '{"require_confirmation":true}' --backend lab --id-only)
-cycle_id=$(dokime cycle create --label "Remote Confirmation" --backend lab --id-only)
-execution_id=$(dokime cycle append "$cycle_id" --case-id "$case_id" --backend lab --id-only)
-dokime execution start "$execution_id" --backend lab
-prompt_id=$(dokime execution prompt next "$execution_id" --wait-seconds 60 --backend lab --id-only)
-dokime execution prompt show "$execution_id" "$prompt_id" --backend lab
-dokime execution prompt answer "$execution_id" "$prompt_id" --action yes --backend lab
-dokime execution wait "$execution_id" --wait-seconds 60 --backend lab
+  --parameters-json '{"require_confirmation":true}' --remote lab.pair --id-only)
+cycle_id=$(dokime cycle create --label "Remote Confirmation" --remote lab.pair --id-only)
+execution_id=$(dokime cycle append "$cycle_id" --case-id "$case_id" --remote lab.pair --id-only)
+dokime execution start "$execution_id" --remote lab.pair
+prompt_id=$(dokime execution prompt next "$execution_id" --wait-seconds 60 --remote lab.pair --id-only)
+dokime execution prompt show "$execution_id" "$prompt_id" --remote lab.pair
+dokime execution prompt answer "$execution_id" "$prompt_id" --action yes --remote lab.pair
+dokime execution wait "$execution_id" --wait-seconds 60 --remote lab.pair
 ```
 
 Prompt reads and answers require both exact identities. The server refuses stale
@@ -969,7 +906,7 @@ policy alongside its metadata:
 ```
 
 ```sh
-dokime cycle create --input-file cycle.json --backend lab --id-only
+dokime cycle create --input-file cycle.json --remote lab.pair --id-only
 ```
 
 Cycle creation is a separate non-idempotent mutation. If its response is
@@ -1424,7 +1361,7 @@ snapshot. These reads never start, stop, seal or follow an execution. Existing
 ```python
 from dokime import DokimeClient
 
-async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
+async with DokimeClient.from_pairing("examples/lab.pair") as client:
     async for execution in client.executions(template="example.measurement", status="failed"):
         async with execution.telemetry("example.stream", fields=["counter"]) as samples:
             frame = await samples.to_polars(max_rows=10_000)
@@ -1460,17 +1397,16 @@ The `dokime-cli` package installs the `dokime` executable.
 `dokime` connects to a backend; `cargo dokime sidecar` authors plugin bundles
 and `cargo dokime installer` assembles native distributions. Every
 command prints its full flags with `--help`. Backend RPC commands accept
-`--endpoint` or `--backend` and `--timeout-seconds` for unary waits; streaming
+`--remote` (or `DOKIME_REMOTE`) and `--timeout-seconds` for unary waits; streaming
 transfers use their operation idle policy. Most accept `--json` for scripts.
 
 ### Connection and Backends
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
-| `dokime status` | Check backend identity, authentication and readiness. | `--endpoint`, `--backend` |
-| `dokime backend add\|list\|show\|use\|remove` | Manage profiles; remote import also verifies the connection. | `--remote`, `--identifier`, `--label`, `--profiles-file` |
+| `dokime status` | Check backend identity, authentication and readiness. | `--remote` |
 | `dokime server` | Run the server in the CLI process. | `--application-root`, `--port` |
-| `dokime gui` | Open the installed desktop GUI on a running backend. | `--endpoint`, `--gui` |
+| `dokime gui` | Open the installed desktop GUI on a running backend. | `--remote`, `--gui` |
 
 ### Catalog and Plans
 
@@ -2890,23 +2826,13 @@ admission and live reads complete, then verifies the configured flush and combin
 saved/tail ordering. Raw local diagnostics are retained in the primary checkout at
 `target/benchmarks/document-scale-20261107/`.
 
-## Remote Certificate Refresh
+## Remote Certificate Replacement
 
-The managed remote listener reloads its TLS leaf in place. Existing connections
-and streaming calls continue; new handshakes use the replacement certificate
-under the same persistent pairing CA. Only enabled state, bind address/port,
-TLS mode or authentication mode changes detach and rebind the listener.
-Explicit certificate regeneration also reloads in place.
-
-Automatic refresh requires coverage of `settings.certificate_names` and every
-eligible endpoint advertised by new `.dokime-remote` pairings. Already covered
-names are compared without order or DNS case; disappearing addresses and excluded
-virtual/transient interfaces do not reissue a certificate. Missing advertised or
-configured names cause reissue. Prior SANs are retained while there is room after
-required names, preventing a disappearing/reappearing interface from causing churn.
-Configured and currently advertised names must all fit the listener's name budget;
-excess required names are rejected instead of silently leaving pairings uncovered.
-The refresh task is stopped and joined before listener management closes admission.
+The managed remote listener reloads its self-signed certificate in place. Existing
+connections continue; new handshakes require the replacement certificate from a
+new export. Export refreshes coverage for configured and advertised names. There is
+no background certificate authority or persistent CA trust. Enabled state, bind
+address, TLS mode and authentication mode changes detach and rebind the listener.
 
 Rust and Python clients retry an explicitly known unary read once after
 `UNAVAILABLE`, with a short reconnect delay inside the existing request deadline.

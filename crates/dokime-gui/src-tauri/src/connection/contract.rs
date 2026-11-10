@@ -32,7 +32,6 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct ConnectRequest {
     pub target: ConnectionTarget,
-    pub secrets: ConnectionSecrets,
     pub expected_backend_id: Option<String>,
 }
 
@@ -93,25 +92,8 @@ pub struct RegistryCause {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum ConnectionTarget {
-    Local {
-        endpoint: String,
-    },
-    Remote {
-        endpoint: String,
-        ca_certificate_pem: Option<String>,
-
-        #[serde(default)]
-        endpoints: Vec<String>,
-    },
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum ConnectionSecrets {
-    None,
-    Saved,
-    Profile { credential: String },
-    Bearer { token: String, remember: bool },
+    Local { endpoint: String },
+    Remote { pairing_file: String },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -128,7 +110,6 @@ pub enum ConnectionPhase {
 pub enum ConnectionError {
     Registry { message: String, cause: Option<Box<RegistryCause>> },
     InvalidTarget { message: String },
-    SecretsUnavailable,
     AuthenticationRequired,
     Unauthenticated,
     PermissionDenied,

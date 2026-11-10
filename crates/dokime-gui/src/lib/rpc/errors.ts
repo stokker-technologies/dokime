@@ -6,11 +6,10 @@ import type { RpcError } from "../desktop/rpc";
 import { rpcFailureDetails } from "./failure-details";
 
 const connectionErrorMessages: Record<Exclude<ConnectionError["kind"], "invalid_target" | "execution_rejected">, string> = {
-  registry: "The saved backend profiles could not be read or updated.",
-  secrets_unavailable: "No saved access token is available. Enter a token to connect.",
-  authentication_required: "The backend requires a valid access token.",
-  unauthenticated: "The backend requires a valid access token.",
-  permission_denied: "This account does not have permission to use the backend.",
+  registry: "The pairing files could not be read or updated.",
+  authentication_required: "The backend requires a valid pairing file.",
+  unauthenticated: "The backend requires a valid pairing file.",
+  permission_denied: "The backend refused this operation.",
   transport: "The endpoint could not be reached or its TLS certificate could not be verified.",
   incompatible_api: "The backend API is incompatible with this desktop version.",
   identity_changed: "The backend identity does not match the expected identity.",

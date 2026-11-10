@@ -63,7 +63,7 @@ class DokimeClient:
         rpc_timeout: float | None = None,
         preferences: Message | None = None,
         expected_backend_id: str | None = None,
-        ca_certificate_pem: str | None = None,
+        certificate_pem: str | None = None,
         access_key: str | None = None,
         endpoints: tuple[str, ...] = (),
         query_settings: QuerySettings | None = None,
@@ -71,20 +71,10 @@ class DokimeClient:
     @classmethod
     def from_pairing(
         cls,
-        path: str | Path,
-        *,
-        preferences: Message | None = None,
-        rpc_timeout: float | None = None,
-        query_settings: QuerySettings | None = None,
-    ) -> Self: ...
-    @classmethod
-    def from_profile(
-        cls,
-        identifier: str,
-        *,
         path: str | Path | None = None,
-        rpc_timeout: float | None = None,
+        *,
         preferences: Message | None = None,
+        rpc_timeout: float | None = None,
         query_settings: QuerySettings | None = None,
     ) -> Self: ...
     def executions(

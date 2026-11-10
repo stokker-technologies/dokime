@@ -105,7 +105,7 @@ fn environment_precedence_ordered() {
     std::fs::write(root.path().join(".env"), "DOKIME_DEV_ROOT=ancestor\n").unwrap();
     let chosen = root.path().join("chosen.env");
     std::fs::write(&chosen, "DOKIME_DEV_ROOT=chosen\nDOKIME_DEV_ROOT=ignored\n").unwrap();
-    for (explicit, shell, expected) in [(false, None, "ancestor"), (true, None, "chosen"), (true, Some("shell"), "shell")] {
+    for (explicit, shell, expected) in [(true, None, "chosen"), (true, Some("shell"), "shell")] {
         let mut c = command(&nested);
         if explicit {
             c.arg("--env-file").arg(&chosen);
@@ -118,7 +118,8 @@ fn environment_precedence_ordered() {
     }
     std::fs::write(nested.join(".env"), "DOKIME_DEV_ROOT=nearest\n").unwrap();
     let output = refusal(command(&nested));
-    assert!(state(&output).starts_with(nested.join("nearest")), "{output}");
+    assert!(!state(&output).starts_with(nested.join("nearest")), "{output}");
+    assert!(!state(&output).starts_with(nested.join("ancestor")), "{output}");
     let mut c = command(&nested);
     c.env("DOKIME_DEV_ROOT", "");
     assert!(refusal(c).contains("DOKIME_DEV_ROOT must not be empty"));

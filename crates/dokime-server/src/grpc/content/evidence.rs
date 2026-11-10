@@ -64,8 +64,7 @@ struct ExportFrames {
 impl Serve<DownloadEvidence> for Resources {
     fn serve<'a>(&'a self, request: DownloadEvidence, ctx: Context<'a, DownloadEvidence>) -> Served<'a, ()> {
         Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async {
+            async {
                 let subject = request.subject.clone().ok_or_else(|| Status::invalid_argument("evidence subject is required"))?;
                 let valid = match &subject {
                     EvidenceSubject::Execution(id) => TestExecutionId::from_uuid(id).map(|_| ()),
@@ -100,7 +99,7 @@ impl Serve<DownloadEvidence> for Resources {
                 .run(ctx.streams())
                 .await?;
                 Ok(().into())
-            })
+            }
             .await
         })
     }

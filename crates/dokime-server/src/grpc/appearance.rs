@@ -113,11 +113,10 @@ impl Serve<content::DownloadAppearanceAsset> for Resources {
         &'a self, request: content::DownloadAppearanceAsset, ctx: Context<'a, content::DownloadAppearanceAsset>,
     ) -> Served<'a, ()> {
         Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async {
+            async {
                 assets::download(&dokime::app::live_runtime(&self.runtime).await?, request, self.max_message_bytes, ctx.streams()).await?;
                 Ok(().into())
-            })
+            }
             .await
         })
     }

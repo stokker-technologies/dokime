@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { router } from "@/app/router";
 import { commands } from "@/lib/desktop/commands";
 import type { DesktopLaunch } from "@/lib/desktop/session";
-import { preferencesCommands } from "@/lib/desktop/settings";
 import { AppProviders } from "./AppProviders";
 import { ConnectionScreen } from "./native-session/ConnectionScreen";
 import { NativeSessionProvider } from "./native-session/NativeSessionProvider";
@@ -29,12 +28,8 @@ export function AppRoot() {
             request: {
               target: configuration.target,
               expectedBackendId: configuration.expectedBackendId,
-              secrets: { kind: configuration.target.kind === "remote" ? "saved" : "none" },
             },
           });
-        } else {
-          const backends = await preferencesCommands.desktopBackendsList();
-          if (active && backends.default) void owner.select({ kind: "profile", identifier: backends.default });
         }
       })
       .catch((error: unknown) => {

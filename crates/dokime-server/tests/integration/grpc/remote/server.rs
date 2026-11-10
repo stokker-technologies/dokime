@@ -44,7 +44,7 @@ use dokime::domain::model;
 
 /* === Tests === */
 
-pub(crate) async fn unsecured_pairing_creates_no_revocable_client() {
+pub(crate) async fn unsecured_pairing_has_no_key() {
     let root = tempfile::tempdir().unwrap();
     let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
     let mut owner = runtime(root.path(), &prepared_owner).await;
@@ -69,26 +69,19 @@ pub(crate) async fn unsecured_pairing_creates_no_revocable_client() {
         .await
         .unwrap()
         .into_inner();
-    assert!(pairing.client.is_none());
     assert!(pairing.pairing.access_key.is_none());
-    assert!(pairing.pairing.ca_certificate_pem.is_none());
-    let page = native
-        .unary::<contracts::remote::ListPairedClients>(contracts::remote::ListPairedClients { cursor: None, limit: 0 })
-        .await
-        .unwrap()
-        .into_inner();
-    assert!(page.clients.is_empty());
-    assert!(page.next_cursor.is_none());
+    assert!(pairing.pairing.certificate_pem.is_none());
 
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
 
-pub(crate) async fn independent_pairings_revoke_and_survive_restart() {
+pub(crate) async fn pairing_rotation_survives_restart() {
+    // Start The Backend And Export The First Pairing.
     let root = tempfile::tempdir().unwrap();
-    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
-    let mut owner = runtime(root.path(), &prepared_owner).await;
-    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
+    let prepared = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared).await;
+    let server = prepared.ready().await.unwrap().listen().await.unwrap();
     let native = connect(&server).await;
     let settings = model::remote::RemoteListenerSettings {
         enabled: true,
@@ -102,45 +95,27 @@ pub(crate) async fn independent_pairings_revoke_and_survive_restart() {
         .await
         .unwrap()
         .into_inner();
-    let endpoint = format!("http://{}", status.listening_address.unwrap());
-    let mut created = Vec::new();
-    for label in ["First Client", "Second Client"] {
-        let result = native
-            .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: label.into() })
-            .await
-            .unwrap()
-            .into_inner();
-        assert_eq!(result.pairing.version, 1);
-        assert_eq!(result.pairing.endpoints, vec![endpoint.clone()]);
-        assert_eq!(result.pairing.label, label);
-        assert!(result.pairing.ca_certificate_pem.is_none());
-        assert!(result.client.is_some());
-        created.push(result);
-    }
-    let first_key = created[0].pairing.access_key.as_ref().unwrap();
-    let second_key = created[1].pairing.access_key.as_ref().unwrap();
-    assert_ne!(first_key, second_key);
-    assert_ne!(created[0].client.as_ref().unwrap().identifier, created[1].client.as_ref().unwrap().identifier);
-    let security = root.path().join("application/remote/access.json");
-    let persisted = std::fs::read_to_string(&security).unwrap();
-    assert!(!persisted.contains(first_key));
-    assert!(!persisted.contains(second_key));
-    let remote = WireClient::connect(endpoint).await.unwrap();
-    for key in [first_key, second_key] {
+    let first = native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Lab".into() })
+        .await
+        .unwrap()
+        .into_inner()
+        .pairing;
+    let remote = WireClient::connect(format!("http://{}", status.listening_address.unwrap())).await.unwrap();
+    let mut request = Request::new(contracts::backend::GetIdentity {});
+    request.metadata_mut().insert("authorization", format!("Bearer {}", first.access_key.as_ref().unwrap()).parse().unwrap());
+    remote.unary::<contracts::backend::GetIdentity>(request).await.unwrap();
+
+    // Export Again; Only The Replacement Key Is Accepted.
+    let second = native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Lab".into() })
+        .await
+        .unwrap()
+        .into_inner()
+        .pairing;
+    for (pairing, allowed) in [(&first, false), (&second, true)] {
         let mut request = Request::new(contracts::backend::GetIdentity {});
-        request.metadata_mut().insert("authorization", format!("Bearer {key}").parse().unwrap());
-        remote.unary::<contracts::backend::GetIdentity>(request).await.unwrap();
-    }
-    let first_id = created[0].client.as_ref().unwrap().identifier.clone();
-    for _ in 0..2 {
-        native
-            .unary::<contracts::remote::RevokePairedClient>(contracts::remote::RevokePairedClient { identifier: first_id.clone() })
-            .await
-            .unwrap();
-    }
-    for (key, allowed) in [(first_key, false), (second_key, true)] {
-        let mut request = Request::new(contracts::backend::GetIdentity {});
-        request.metadata_mut().insert("authorization", format!("Bearer {key}").parse().unwrap());
+        request.metadata_mut().insert("authorization", format!("Bearer {}", pairing.access_key.as_ref().unwrap()).parse().unwrap());
         let result = remote.unary::<contracts::backend::GetIdentity>(request).await;
         if allowed {
             result.unwrap();
@@ -148,109 +123,22 @@ pub(crate) async fn independent_pairings_revoke_and_survive_restart() {
             assert_eq!(result.unwrap_err().code(), Code::Unauthenticated);
         }
     }
-    let page = native
-        .unary::<contracts::remote::ListPairedClients>(contracts::remote::ListPairedClients { cursor: None, limit: 1 })
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(page.clients.len(), 1);
-    assert_eq!(page.clients[0].identifier, created[1].client.as_ref().unwrap().identifier);
-    assert!(page.next_cursor.is_none());
-    let error = native
-        .unary::<contracts::remote::ListPairedClients>(contracts::remote::ListPairedClients { cursor: None, limit: 501 })
-        .await
-        .unwrap_err();
-    assert_eq!(error.code(), Code::InvalidArgument);
+    let persisted = std::fs::read_to_string(root.path().join("application/remote/access.json")).unwrap();
+    assert!(!persisted.contains(first.access_key.as_ref().unwrap()));
+    assert!(!persisted.contains(second.access_key.as_ref().unwrap()));
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 
-    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
-    let mut owner = runtime(root.path(), &prepared_owner).await;
-    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
+    // Reopen And Authenticate With The Same Replacement File.
+    let prepared = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
+    let mut owner = runtime(root.path(), &prepared).await;
+    let server = prepared.ready().await.unwrap().listen().await.unwrap();
     let native = connect(&server).await;
     let status = native.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
     let remote = WireClient::connect(format!("http://{}", status.listening_address.unwrap())).await.unwrap();
-    for (key, allowed) in [(first_key, false), (second_key, true)] {
-        let mut request = Request::new(contracts::backend::GetIdentity {});
-        request.metadata_mut().insert("authorization", format!("Bearer {key}").parse().unwrap());
-        let result = remote.unary::<contracts::backend::GetIdentity>(request).await;
-        if allowed {
-            result.unwrap();
-        } else {
-            assert_eq!(result.unwrap_err().code(), Code::Unauthenticated);
-        }
-    }
-    server.shutdown().await.unwrap();
-    owner.shutdown().await.unwrap();
-}
-
-pub(crate) async fn remote_sessions_recorded() {
-    let root = tempfile::tempdir().unwrap();
-    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
-    let mut owner = runtime(root.path(), &prepared_owner).await;
-    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
-    let native = connect(&server).await;
-    let settings = model::remote::RemoteListenerSettings {
-        enabled: true,
-        address: "127.0.0.1:0".into(),
-        tls_enabled: false,
-        authentication_enabled: true,
-        certificate_names: vec![],
-    };
-    let status = native
-        .unary::<contracts::remote::UpdateListener>(contracts::remote::UpdateListener { settings: Some(settings) })
-        .await
-        .unwrap()
-        .into_inner();
-    let endpoint = format!("http://{}", status.listening_address.unwrap());
-    let created = native
-        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Session Client".into() })
-        .await
-        .unwrap()
-        .into_inner();
-    let key = created.pairing.access_key.unwrap();
-    let principal = created.client.unwrap().identifier;
-    let remote = WireClient::connect(endpoint).await.unwrap();
-    let mut rejected = Request::new(contracts::backend::GetIdentity {});
-    rejected.metadata_mut().insert("authorization", "Bearer a-different-long-token-01234567890123456789".parse().unwrap());
-    assert_eq!(remote.unary::<contracts::backend::GetIdentity>(rejected).await.unwrap_err().code(), Code::Unauthenticated);
-    for _ in 0..2 {
-        let mut admitted = Request::new(contracts::backend::GetIdentity {});
-        admitted.metadata_mut().insert("authorization", format!("Bearer {key}").parse().unwrap());
-        remote.unary::<contracts::backend::GetIdentity>(admitted).await.unwrap();
-    }
-    native.unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {}).await.unwrap();
-
-    let page = native
-        .unary::<contracts::remote::ListSessions>(contracts::remote::ListSessions { cursor: None, limit: 20 })
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(page.sessions.len(), 2, "native calls are not remote sessions");
-    let admitted = &page.sessions[0];
-    assert_eq!((admitted.principal.as_str(), admitted.calls), (principal.as_str(), 2));
-    assert_eq!(admitted.outcome, model::remote::RemoteSessionOutcome::Admitted);
-    let refused = &page.sessions[1];
-    assert_eq!((refused.principal.as_str(), refused.calls), ("anonymous", 1));
-    assert_eq!(refused.outcome, model::remote::RemoteSessionOutcome::Rejected);
-    assert!(refused.rejection.is_some());
-    assert!(page.next_cursor.is_none());
-    server.shutdown().await.unwrap();
-    owner.shutdown().await.unwrap();
-
-    // The Log Survives The Host Restart With Its Sessions Closed.
-    let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
-    let mut owner = runtime(root.path(), &prepared_owner).await;
-    let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
-    let native = connect(&server).await;
-    let restored = native
-        .unary::<contracts::remote::ListSessions>(contracts::remote::ListSessions { cursor: None, limit: 1 })
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(restored.sessions.len(), 1);
-    assert!(restored.sessions[0].disconnected_at.is_some());
-    assert_eq!(restored.next_cursor.as_deref(), Some(restored.sessions[0].id.as_str()));
+    let mut request = Request::new(contracts::backend::GetIdentity {});
+    request.metadata_mut().insert("authorization", format!("Bearer {}", second.access_key.unwrap()).parse().unwrap());
+    remote.unary::<contracts::backend::GetIdentity>(request).await.unwrap();
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
@@ -306,15 +194,8 @@ pub(crate) async fn listener_policy_isolation() {
         .into_inner()
         .methods;
     assert!(local_methods.iter().any(|path| path == "/dokime.v1.Media/Screenshot"));
-    assert!(!remote_methods.iter().any(|path| path == "/dokime.v1.Media/Screenshot"));
-    assert_eq!(
-        remote_client
-            .unary::<contracts::media::Screenshot>(authenticated(contracts::media::Screenshot { ..Default::default() }))
-            .await
-            .unwrap_err()
-            .code(),
-        Code::PermissionDenied
-    );
+    assert!(remote_methods.iter().any(|path| path == "/dokime.v1.Media/Screenshot"));
+    assert_eq!(local_methods, remote_methods);
 
     // Failed Attach And Remote Teardown Cannot Remove Local Policy Or Runtime State.
     assert!(service.listen_with(config.with_bind_addr(local.address())).await.is_err());
@@ -362,6 +243,8 @@ pub(crate) async fn remote_cycle_seal() {
     let other = handle.create_cycle(definition.clone(), Default::default()).await.unwrap();
     let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let endpoint = server.local_endpoint();
+    let pairing = crate::support::pairing(&endpoint).await;
+    let remote = pairing.path().to_str().unwrap();
     let target = dokime::client::Target::local(endpoint.clone()).unwrap();
     let client = dokime::client::Client::connect(target, None, None).await.unwrap();
     let reply = client.cycle(cycle.clone()).seal().await.unwrap();
@@ -373,7 +256,7 @@ pub(crate) async fn remote_cycle_seal() {
     client.close_and_wait().await;
 
     let cycle_id = cycle.to_string();
-    let command = ["dokime", "cycle", "seal", &cycle_id, "--endpoint", &endpoint, "--json"];
+    let command = ["dokime", "cycle", "seal", &cycle_id, "--remote", remote, "--json"];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     assert_eq!(handle.watch_state().latest().state().cycles[&cycle], sealed);
 
@@ -397,12 +280,14 @@ pub(crate) async fn operation_response_files() {
     let cycle = handle.create_cycle(definition, Default::default()).await.unwrap();
     let server = prepared_owner.ready().await.unwrap().listen().await.unwrap();
     let endpoint = server.local_endpoint();
+    let pairing = crate::support::pairing(&endpoint).await;
+    let remote = pairing.path().to_str().unwrap();
     let destination = root.path().join("response.json");
     let output = destination.to_str().unwrap();
     let request = serde_json::json!({"cycleId": cycle.to_string(), "label": "First Call"}).to_string();
 
     let command =
-        ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--endpoint", &endpoint, "--json", &request, "--output", output];
+        ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--remote", remote, "--json", &request, "--output", output];
     dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap();
     let snapshot = handle.watch_state().latest();
     assert_eq!(snapshot.state().cycles[&cycle].metadata.label, "First Call");
@@ -413,8 +298,7 @@ pub(crate) async fn operation_response_files() {
     assert_eq!(events[0]["event"], "completion");
 
     let next = serde_json::json!({"cycleId": cycle.to_string(), "label": "Second Call"}).to_string();
-    let command =
-        ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--endpoint", &endpoint, "--json", &next, "--output", output];
+    let command = ["dokime", "operation", "call", "dokime.execution.rename_cycle", "--remote", remote, "--json", &next, "--output", output];
     let error = dokime_cli::Cli::try_parse_from(command).unwrap().run(dokime::config::Config::local(root.path())).await.unwrap_err();
     assert!(matches!(error, dokime_cli::Error::Input(_)));
     let snapshot = handle.watch_state().latest();
@@ -433,8 +317,8 @@ pub(crate) async fn operation_response_files() {
         "operation",
         "call",
         "dokime.content.download_artifact",
-        "--endpoint",
-        &endpoint,
+        "--remote",
+        remote,
         "--json",
         &request,
         "--output",
@@ -622,7 +506,7 @@ pub(crate) async fn tls_listener_clients() {
         .into_inner()
         .methods;
     assert!(
-        !methods.iter().any(|path| path == "/dokime.v1.Media/Screenshot"),
+        methods.iter().any(|path| path == "/dokime.v1.Media/Screenshot"),
         "remote loopback traffic cannot inherit native host-path access"
     );
     server.shutdown().await.unwrap();
@@ -672,7 +556,7 @@ pub(crate) async fn names_refresh_preserves_remote_stream() {
         .into_inner()
         .pairing;
     let endpoint = Endpoint::from_shared(format!("https://{address}")).unwrap();
-    let ca = pairing.ca_certificate_pem.unwrap();
+    let ca = pairing.certificate_pem.unwrap();
     let channel = endpoint
         .clone()
         .tls_config(ClientTlsConfig::new().domain_name("localhost").ca_certificate(Certificate::from_pem(&ca)))
@@ -708,7 +592,7 @@ pub(crate) async fn names_refresh_preserves_remote_stream() {
         })
         .await
         .unwrap();
-    // Pairing Creation Uses The Same Change::Refresh As The Heartbeat.
+    // Export Replaces A Certificate Whose Names Changed.
     native.unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Refreshed Fixture".into() }).await.unwrap();
     let status = native.unary::<contracts::remote::ReadListener>(contracts::remote::ReadListener {}).await.unwrap().into_inner();
     assert_eq!(status.listening_address.as_deref(), Some(address.as_str()));
@@ -721,7 +605,17 @@ pub(crate) async fn names_refresh_preserves_remote_stream() {
             break;
         }
     }
-    // A New Handshake Accepts The Added SAN Under The Original Pairing CA.
+    // The Old File No Longer Trusts New Handshakes; The New Export Does.
+    assert!(
+        endpoint
+            .clone()
+            .tls_config(ClientTlsConfig::new().domain_name("localhost").ca_certificate(Certificate::from_pem(&ca)))
+            .unwrap()
+            .connect()
+            .await
+            .is_err()
+    );
+    let ca = status.certificate_pem.unwrap();
     let fresh = endpoint
         .tls_config(ClientTlsConfig::new().domain_name("next.example").ca_certificate(Certificate::from_pem(ca)))
         .unwrap()

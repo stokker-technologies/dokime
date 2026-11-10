@@ -148,6 +148,23 @@ impl ExecutionFixture for FixtureProgressExecutor {
 
 /* === Public Functions === */
 
+pub async fn pairing(endpoint: &str) -> tempfile::NamedTempFile {
+    use std::io::Write;
+    let client = wire::WireClient::connect(endpoint.to_owned()).await.unwrap();
+    let identity = client.unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentity {}).await.unwrap().into_inner();
+    let pairing = model::remote::PairingFile {
+        version: 1,
+        endpoints: vec![endpoint.to_owned()],
+        backend_identifier: identity.backend_id,
+        label: "Fixture".into(),
+        certificate_pem: None,
+        access_key: None,
+    };
+    let mut file = tempfile::Builder::new().suffix(".pair").tempfile().unwrap();
+    file.write_all(&serde_json::to_vec(&pairing).unwrap()).unwrap();
+    file
+}
+
 pub(crate) async fn planned_cycle(
     client: &wire::WireClient, create: Request<contracts::execution::CreateCycle>, plan: model::planning::wire::SelectionPlan,
 ) -> Result<String, Status> {

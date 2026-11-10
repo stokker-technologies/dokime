@@ -112,11 +112,7 @@ fn load_environment(env_file: Option<&Path>) -> host::Result<()> {
     if let Some(path) = env_file {
         return dotenv::from_path(path).map_err(|_| host::Error::Input(format!("cannot load environment file {}", path.display())));
     }
-    match dotenv::dotenv() {
-        Ok(_) => Ok(()),
-        Err(dotenv::Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(_) => Err(host::Error::Input("cannot load project .env file".into())),
-    }
+    Ok(())
 }
 
 async fn development_control(session: &mut host::Session) {

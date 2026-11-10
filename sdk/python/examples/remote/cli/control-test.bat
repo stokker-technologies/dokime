@@ -3,7 +3,7 @@ rem Dokime - SPDX-License-Identifier: Apache-2.0
 setlocal EnableExtensions DisableDelayedExpansion
 
 rem Connection Parameters
-set "BACKEND_IDENTIFIER=lab"
+set "PAIRING_FILE=../lab.pair"
 
 rem Case and Execution Parameters
 set "TEMPLATE=obc.checks.pulse"
@@ -21,7 +21,7 @@ set "OUTPUT_DIRECTORY=test-evidence"
 set "OVERWRITE=false"
 
 rem Connect with the Explicit Parameters
-set CONNECTION=--backend "%BACKEND_IDENTIFIER%"
+set CONNECTION=--remote "%PAIRING_FILE%"
 
 set "CycleId="
 set "ExecutionId="

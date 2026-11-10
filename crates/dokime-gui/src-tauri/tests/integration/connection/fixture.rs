@@ -19,7 +19,6 @@ pub mod delivery;
 
 // Standard Library Imports
 use std::{
-    collections::BTreeMap,
     convert::Infallible,
     future::Future,
     net::{Ipv4Addr, SocketAddr},
@@ -36,10 +35,8 @@ use tonic::{
 };
 // Local Imports
 use dokime::client::contracts::{backend, plugins, runtime};
-use dokime::client::secrets::{Error as SecretError, SecretStore};
 use dokime::domain::model;
-use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionTarget};
-use zeroize::Zeroizing;
+use dokime_gui::connection::{ConnectRequest, ConnectionTarget};
 
 /* === Constants === */
 
@@ -60,9 +57,6 @@ static DESCRIPTOR: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| {
 /* === Type Aliases === */
 
 /* === Structs === */
-
-#[derive(Default)]
-pub struct MemorySecrets(pub Arc<Mutex<BTreeMap<String, String>>>);
 
 pub struct Gate {
     pub entered: Notify,
@@ -101,6 +95,8 @@ pub struct UploadInput {
 pub struct Listener {
     pub endpoint: String,
     pub task: tokio::task::JoinHandle<()>,
+    pub pairing_root: tempfile::TempDir,
+    pub backend_id: String,
 }
 
 /* === Enums === */
@@ -108,22 +104,6 @@ pub struct Listener {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl SecretStore for MemorySecrets {
-    fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
-        Ok(self.0.lock().unwrap().get(endpoint).cloned().map(Zeroizing::new))
-    }
-
-    fn write(&self, endpoint: &str, token: &str) -> Result<(), SecretError> {
-        self.0.lock().unwrap().insert(endpoint.into(), token.into());
-        Ok(())
-    }
-
-    fn remove(&self, endpoint: &str) -> Result<(), SecretError> {
-        self.0.lock().unwrap().remove(endpoint);
-        Ok(())
-    }
-}
 
 impl Gate {
     pub fn new() -> Self {
@@ -568,6 +548,7 @@ impl Listener {
             let _ = rustls::crypto::ring::default_provider().install_default();
             server = server.tls_config(ServerTlsConfig::new().identity(Identity::from_pem(certificate, key))).unwrap();
         }
+        let backend_id = service.id.clone();
         let task = tokio::spawn(async move {
             let server = server
                 .add_service(RuntimeService(service.clone()))
@@ -577,23 +558,37 @@ impl Listener {
             let server = server.add_service(delivery::Content(service));
             server.serve_with_incoming(TcpListenerStream::new(listener)).await.unwrap();
         });
-        Self { endpoint, task }
+        Self {
+            endpoint,
+            task,
+            pairing_root: tempfile::tempdir().unwrap(),
+            backend_id,
+        }
     }
     pub fn local(&self) -> ConnectRequest {
         ConnectRequest {
             target: ConnectionTarget::Local { endpoint: self.endpoint.clone() },
-            secrets: ConnectionSecrets::None,
             expected_backend_id: None,
         }
     }
     pub fn remote(&self, trust: bool, token: Option<&str>) -> ConnectRequest {
+        let certificate_pem = self.endpoint.starts_with("https:").then(|| {
+            if trust { IDENTITY.0.clone() } else { rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap().cert.pem() }
+        });
+        let file = model::remote::PairingFile {
+            version: 1,
+            endpoints: vec![self.endpoint.trim_end_matches('/').to_owned()],
+            backend_identifier: self.backend_id.clone(),
+            label: "Fixture".into(),
+            certificate_pem,
+            access_key: token.map(str::to_owned),
+        };
+        let path = tempfile::Builder::new().suffix(".pair").tempfile_in(self.pairing_root.path()).unwrap().into_temp_path().keep().unwrap();
+        std::fs::write(&path, serde_json::to_vec(&file).unwrap()).unwrap();
         ConnectRequest {
             target: ConnectionTarget::Remote {
-                endpoints: Vec::new(),
-                endpoint: self.endpoint.clone(),
-                ca_certificate_pem: trust.then(|| IDENTITY.0.clone()),
+                pairing_file: path.to_str().unwrap().to_owned(),
             },
-            secrets: token.map_or(ConnectionSecrets::None, |token| ConnectionSecrets::Bearer { token: token.into(), remember: false }),
             expected_backend_id: None,
         }
     }

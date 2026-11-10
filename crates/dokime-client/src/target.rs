@@ -59,16 +59,16 @@ pub struct Target {
 /* === Implementations === */
 
 impl Target {
-    pub fn new(endpoint: impl Into<String>, ca_certificate_pem: Option<String>) -> Result<Self> {
-        Self::parse(endpoint.into(), None, ca_certificate_pem)
+    pub fn new(endpoint: impl Into<String>, certificate_pem: Option<String>) -> Result<Self> {
+        Self::parse(endpoint.into(), None, certificate_pem)
     }
 
     pub fn local(endpoint: impl Into<String>) -> Result<Self> {
         Self::parse(endpoint.into(), Some(false), None)
     }
 
-    pub fn remote(endpoint: impl Into<String>, ca_certificate_pem: Option<String>) -> Result<Self> {
-        Self::parse(endpoint.into(), Some(true), ca_certificate_pem)
+    pub fn remote(endpoint: impl Into<String>, certificate_pem: Option<String>) -> Result<Self> {
+        Self::parse(endpoint.into(), Some(true), certificate_pem)
     }
 
     pub fn with_endpoints(mut self, endpoints: &[String]) -> Result<Self> {
@@ -140,13 +140,13 @@ impl Target {
             || matches!(url.host(), Some(Host::Ipv6(ip)) if ip.is_loopback());
         let remote = remote.unwrap_or(url.scheme() == "https" || !loopback);
         if ca.as_ref().is_some_and(|pem| pem.is_empty() || pem.len() > CA_BYTES || pem.contains('\0')) {
-            return Err(invalid_target("Invalid CA certificate."));
+            return Err(invalid_target("Invalid server certificate."));
         }
         if let Some(pem) = &ca {
-            super::pairing::validate_ca(pem).map_err(|_| invalid_target("Invalid CA certificate."))?;
+            super::pairing::validate_certificate(pem).map_err(|_| invalid_target("Invalid server certificate."))?;
         }
         if ca.is_some() && url.scheme() != "https" {
-            return Err(invalid_target("CA certificates require HTTPS."));
+            return Err(invalid_target("server certificates require HTTPS."));
         }
         if !remote && !loopback {
             return Err(invalid_target("Local endpoints require a literal loopback IP address."));

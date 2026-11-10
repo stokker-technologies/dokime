@@ -12,6 +12,8 @@
 # === Imports === #
 
 # Standard Library Imports
+from pathlib import Path as _Path
+
 # Third Party Imports
 # Local Imports
 from . import authoring as _authoring
@@ -138,7 +140,6 @@ from .client.models import UnsignedValue as UnsignedValue
 from .client.models import Value as Value
 from .client.planning import Template as Template
 from .client.planning import TestCase as TestCase
-from .client.profiles import Profile as Profile
 from .client.query.discovery import CycleStatus as CycleStatus
 from .client.query.discovery import CycleSummary as CycleSummary
 from .client.query.discovery import ExecutionStatus as ExecutionStatus
@@ -177,6 +178,11 @@ operation = _authoring.operation
 # === Classes === #
 
 # === Public Functions === #
+
+
+def connect(path: str | _Path | None = None) -> DokimeClient:
+    return DokimeClient.from_pairing(path)
+
 
 # === Private Functions === #
 

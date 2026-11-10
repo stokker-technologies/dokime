@@ -65,10 +65,9 @@ impl Serve<wire::UploadArtifact> for Resources {
         &'a self, _: wire::UploadArtifact, ctx: Context<'a, wire::UploadArtifact>,
     ) -> Served<'a, dokime::domain::model::content::wire::ArtifactMetadata> {
         Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
             let input = ctx.streams();
             let mut staged = Abandoning { upload: None };
-            crate::grpc::access::during(revoked, async {
+            async {
                 let first = input.recv().await.ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
                 let Some(dokime::domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
                     return Err(Status::invalid_argument("first artifact upload frame must be a header"));
@@ -131,7 +130,7 @@ impl Serve<wire::UploadArtifact> for Resources {
                     return Err(Status::resource_exhausted("artifact metadata exceeds response budget"));
                 }
                 Ok(output.into())
-            })
+            }
             .await
         })
     }

@@ -56,10 +56,12 @@ async fn operation_inputs() {
     }
 
     let directory = tempfile::tempdir().unwrap();
+    let remote_path = directory.path().join("missing.pair");
+    let remote = remote_path.to_str().unwrap();
     let destination = directory.path().join("response.json");
     std::fs::write(&destination, b"previous response").unwrap();
     let path = destination.to_str().unwrap();
-    let command = ["dokime", "operation", "call", "device.enable", "--endpoint", "http://", "--json", "{}", "--output", path];
+    let command = ["dokime", "operation", "call", "device.enable", "--remote", remote, "--json", "{}", "--output", path];
     let args = Cli::try_parse_from(command).unwrap();
     let error = args.run(configuration.clone()).await.unwrap_err();
     assert!(matches!(error, Error::Input(_)), "existing output must be refused before connection");
@@ -67,7 +69,7 @@ async fn operation_inputs() {
 
     let args = Cli::try_parse_from(command.into_iter().chain(["--overwrite"])).unwrap();
     let error = args.run(configuration.clone()).await.unwrap_err();
-    assert!(matches!(error, Error::Client(_)), "explicit overwrite may proceed to connection");
+    assert!(matches!(error, Error::Io(_)), "explicit overwrite may proceed to pairing-file input");
     assert_eq!(std::fs::read(&destination).unwrap(), b"previous response");
     assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1, "failed calls remove their staged output");
 
@@ -76,8 +78,8 @@ async fn operation_inputs() {
         "operation",
         "call",
         "device.enable",
-        "--endpoint",
-        "http://",
+        "--remote",
+        remote,
         "--json",
         "{broken",
         "--output",
@@ -95,8 +97,8 @@ async fn operation_inputs() {
         "operation",
         "call",
         "device.enable",
-        "--endpoint",
-        "http://",
+        "--remote",
+        remote,
         "--output",
         directory_output.to_str().unwrap(),
         "--overwrite",

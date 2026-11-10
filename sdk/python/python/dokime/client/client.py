@@ -11,7 +11,6 @@
 # === Imports === #
 
 # Standard Library Imports
-import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from contextlib import asynccontextmanager
@@ -25,7 +24,6 @@ from google.protobuf.message import Message
 
 # Local Imports
 from .. import _native
-from .._profiles import Profile
 from ..operation import Operation, ResponseStream
 from . import _wire
 from ._transport import DiscoveredOperation, Transport, _cursor
@@ -88,30 +86,28 @@ class DokimeClient:
         rpc_timeout: float | None = None,
         preferences: Message | None = None,
         expected_backend_id: str | None = None,
-        ca_certificate_pem: str | None = None,
+        certificate_pem: str | None = None,
         access_key: str | None = None,
         endpoints: tuple[str, ...] = (),
         query_settings: QuerySettings | None = None,
     ) -> None:
         preferences = preferences if preferences is not None else _client_preferences()
-        self._profile: tuple[Profile, Path] | None = None
         self._query_settings = query_settings if query_settings is not None else QuerySettings()
         self._transport = Transport(
             endpoint,
             access_key,
             preferences.request_timeout_ms / 1000 if rpc_timeout is None else rpc_timeout,
             connect_timeout_ms=preferences.connect_timeout_ms,
-            endpoint_stagger_ms=preferences.endpoint_stagger_ms,
             endpoints=endpoints,
             expected_backend_id=expected_backend_id,
-            ca_certificate_pem=ca_certificate_pem,
+            certificate_pem=certificate_pem,
         )
         self._transport.query_settings = self._query_settings
 
     @classmethod
     def from_pairing(
         cls,
-        path: str | Path,
+        path: str | Path | None = None,
         *,
         preferences: Message | None = None,
         rpc_timeout: float | None = None,
@@ -129,38 +125,8 @@ class DokimeClient:
             endpoints=tuple(pairing["endpoints"]),
             access_key=pairing["access_key"],
             expected_backend_id=pairing["backend_identifier"],
-            ca_certificate_pem=pairing["ca_certificate_pem"],
+            certificate_pem=pairing["certificate_pem"],
         )
-
-    @classmethod
-    def from_profile(
-        cls,
-        identifier: str,
-        *,
-        path: str | Path | None = None,
-        rpc_timeout: float | None = None,
-        preferences: Message | None = None,
-        query_settings: QuerySettings | None = None,
-    ) -> Self:
-        """Read An Unsecured Profile Without Native Keyring Access"""
-        from .profiles import configuration_path, load
-
-        preferences = preferences if preferences is not None else _client_preferences()
-        selected_path = configuration_path(path)
-        profile = load(identifier, path=selected_path)
-        client = cls(
-            profile.endpoint,
-            endpoints=profile.endpoints,
-            rpc_timeout=rpc_timeout,
-            preferences=preferences,
-            query_settings=query_settings,
-            expected_backend_id=profile.expected_backend_id,
-            ca_certificate_pem=profile.ca_certificate_pem,
-        )
-        if profile.secret == "keyring":
-            raise ValueError("This profile uses the native keyring; import its pairing with DokimeClient.from_pairing instead.")
-        client._profile = (profile, selected_path)
-        return client
 
     def executions(
         self,
@@ -233,18 +199,6 @@ class DokimeClient:
     async def connect(self) -> Backend:
         """Negotiate API identity and the operations available to the caller (also done lazily)."""
         backend = await self._transport.connect()
-        if self._profile is not None:
-            from .profiles import remember_endpoint
-
-            try:
-                async with self._transport._lock:
-                    if self._profile is not None:
-                        profile, path = self._profile
-                        await asyncio.to_thread(remember_endpoint, profile, path, self._transport._endpoint)
-                        self._profile = None
-            except (OSError, ValueError):
-                await self._transport.close()
-                raise
         return backend
 
     async def operations(self) -> tuple[DiscoveredOperation, ...]:
@@ -486,7 +440,6 @@ def _client_preferences() -> Message:
     defaults = {"client": json.loads(_native.preferences())}
     request = _wire.request("Settings", "UpdateApplicationSettings")
     request.update.settings.client.connect_timeout_ms = defaults["client"]["connect_timeout_ms"]
-    request.update.settings.client.endpoint_stagger_ms = defaults["client"]["endpoint_stagger_ms"]
     request.update.settings.client.request_timeout_ms = defaults["client"]["request_timeout_ms"]
     return request.update.settings.client
 

@@ -56,8 +56,7 @@ impl Serve<contract::CaptureCurrentDocument> for Resources {
         &'a self, mut request: contract::CaptureCurrentDocument, ctx: Context<'a, contract::CaptureCurrentDocument>,
     ) -> Served<'a, ()> {
         Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async {
+            async {
                 let (cycle, execution) = owner(request.scope.take())?;
                 let id = DocumentId::from_identifier(&request.document_id).map_err(|_| Status::invalid_argument("invalid document ID"))?;
                 // A scope without an execution names the cycle's own document.
@@ -113,7 +112,7 @@ impl Serve<contract::CaptureCurrentDocument> for Resources {
                 }
                 worker.await.map_err(|_| Status::internal("document worker failed"))??;
                 Ok(().into())
-            })
+            }
             .await
         })
     }

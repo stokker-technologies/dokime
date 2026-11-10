@@ -315,7 +315,7 @@ corruption or unavailable cut returns a typed failure, never a complete subset.
 ## Transport Access and CLI Paging
 
 Native and gRPC calls use the runtime's five canonical handlers. Existing remote
-keys grant full product read access; native-only operations keep their separate
+keys grant full access to served client operations; internal host operations keep their separate
 restrictions. Catalog authorization runs on every call, including continuations.
 Paired-client revocation cancels an admitted read with PermissionDenied. Shared
 configured active/pending limits bound admission; cancellation drops the reader
@@ -335,7 +335,7 @@ query command tree is required. Save `request.json` for a first cycle page:
 ```
 
 ```sh
-dokime operation call dokime.query.list_cycles --backend lab --input request.json --output page.json
+dokime operation call dokime.query.list_cycles --remote lab.pair --input request.json --output page.json
 ```
 
 The output is an event array. Its unary completion's `value` contains `rows`,
@@ -348,7 +348,7 @@ selection. For example, substitute the actual returned token here:
 ```
 
 ```sh
-dokime operation call dokime.query.list_cycles --backend lab --input next-request.json --output next-page.json
+dokime operation call dokime.query.list_cycles --remote lab.pair --input next-request.json --output next-page.json
 ```
 
 Repeat until `complete=true` and no `next` is returned, including after empty

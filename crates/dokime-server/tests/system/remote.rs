@@ -41,8 +41,6 @@ use dokime::domain::model::{
 
 /* === Constants === */
 
-const PROFILE_IDENTIFIER: &str = "lab";
-
 // The Identity the Examples' Pairing Files Expect from the Host Under Test
 static BACKEND_IDENTIFIER: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 
@@ -129,14 +127,9 @@ async fn configured_command(extension: &str, workflow: &str, endpoint: &str, dir
     std::fs::create_dir_all(directory).unwrap();
     let source = std::fs::read_to_string(&script).unwrap();
     let output = directory.to_str().unwrap();
-    let pairing = directory.join("lab.dokime-remote");
-    let profiles = directory.join("profiles.json");
-    import_profile(&binary, endpoint, &pairing, &profiles).await;
-    let mut values = vec![
-        ("BACKEND_IDENTIFIER", PROFILE_IDENTIFIER.to_owned()),
-        ("PAIRING_FILE", pairing.to_str().unwrap().to_owned()),
-        ("OUTPUT_DIRECTORY", output.to_owned()),
-    ];
+    let pairing = directory.join("lab.pair");
+    write_pairing(endpoint, &pairing);
+    let mut values = vec![("PAIRING_FILE", pairing.to_str().unwrap().to_owned()), ("OUTPUT_DIRECTORY", output.to_owned())];
     values.extend(parameters.iter().map(|(name, value)| (*name, (*value).to_owned())));
     let source = configure(&source, extension, &values);
     let configured = directory.join(script.file_name().unwrap());
@@ -154,36 +147,17 @@ async fn configured_command(extension: &str, workflow: &str, endpoint: &str, dir
     paths.extend(std::env::split_paths(&inherited));
 
     command.env("PATH", std::env::join_paths(paths).unwrap()).current_dir(directory).kill_on_drop(true);
-    for name in ["DOKIME_KEY", "DOKIME_KEY_FILE", "DOKIME_ENV_FILE", "DOKIME_CA_CERTIFICATE", "DOKIME_BACKEND"] {
-        command.env_remove(name);
-    }
-    command.env("DOKIME_PROFILES_FILE", &profiles);
+    command.env("DOKIME_REMOTE", &pairing);
     command
 }
 
-async fn import_profile(binary: &Path, endpoint: &str, pairing: &Path, profiles: &Path) {
-    // The Host Under Test Is An Unsecured Lab Listener: No CA Or Access Key.
+fn write_pairing(endpoint: &str, pairing: &Path) {
     let backend = BACKEND_IDENTIFIER.lock().unwrap().clone();
     let document = serde_json::json!({
-        "version": 1,
-        "endpoints": [endpoint],
-        "backend_identifier": backend,
-        "label": "Lab",
-        "ca_certificate_pem": null,
-        "access_key": null,
+        "version": 1, "endpoints": [endpoint], "backend_identifier": backend,
+        "label": "Lab", "certificate_pem": null, "access_key": null,
     });
     std::fs::write(pairing, serde_json::to_vec_pretty(&document).unwrap()).unwrap();
-    let _ = std::fs::remove_file(profiles);
-    let output = Command::from(dokime::domain::process::command(binary))
-        .args(["backend", "add", "--remote"])
-        .arg(pairing)
-        .args(["--identifier", PROFILE_IDENTIFIER])
-        .env("DOKIME_PROFILES_FILE", profiles)
-        .kill_on_drop(true)
-        .output()
-        .await
-        .unwrap();
-    assert!(output.status.success(), "profile import failed: {}", String::from_utf8_lossy(&output.stderr));
 }
 
 fn configure(source: &str, extension: &str, values: &[(&str, String)]) -> String {

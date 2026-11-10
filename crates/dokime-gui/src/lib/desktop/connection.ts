@@ -13,20 +13,10 @@
 /* === Types === */
 
 /** Attaching to a caller-owned listener never starts a runtime. */
-export type ConnectionTarget =
-  | { kind: "local"; endpoint: string }
-  | { kind: "remote"; endpoint: string; caCertificatePem: string | null; endpoints?: string[] };
-
-/** Input-only secrets. Secrets never appear in a connection snapshot. */
-export type ConnectionSecrets =
-  | { kind: "none" }
-  | { kind: "saved" }
-  | { kind: "profile"; credential: string }
-  | { kind: "bearer"; token: string; remember: boolean };
+export type ConnectionTarget = { kind: "local"; endpoint: string } | { kind: "remote"; pairingFile: string };
 
 export type ConnectRequest = {
   target: ConnectionTarget;
-  secrets: ConnectionSecrets;
   expectedBackendId: string | null;
 };
 
@@ -73,7 +63,6 @@ export type ConnectionSnapshot = {
 export type ConnectionError =
   | { kind: "registry"; message: string }
   | { kind: "invalid_target"; message: string }
-  | { kind: "secrets_unavailable" }
   | { kind: "authentication_required" }
   | { kind: "unauthenticated" }
   | { kind: "permission_denied" }

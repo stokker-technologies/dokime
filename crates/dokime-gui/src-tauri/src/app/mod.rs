@@ -74,7 +74,6 @@ pub fn run() {
         // GTK thread has started yet.
         unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
     }
-    dotenv::dotenv().ok();
     let organization = organization::resolve();
     let label = organization.label().to_owned();
     if let Err(error) = start_tauri_app(organization) {
@@ -115,9 +114,7 @@ fn start_tauri_app(organization: organization::OrganizationState) -> tauri::Resu
         .manage(paths)
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
-                if window.label() == "main"
-                    && paths.iter().any(|path| path.extension().is_some_and(|extension| extension == "dokime-remote"))
-                {
+                if window.label() == "main" && paths.iter().any(|path| path.extension().is_some_and(|extension| extension == "pair")) {
                     let app = window.app_handle().clone();
                     let paths = paths.clone();
                     tauri::async_runtime::spawn(async move {
@@ -127,7 +124,6 @@ fn start_tauri_app(organization: organization::OrganizationState) -> tauri::Resu
                                 crate::connection::registry::import_path(
                                     &app,
                                     &app.state::<crate::connection::registry::Registry>(),
-                                    &app.state::<crate::connection::ConnectionSession>(),
                                     paths[0].clone(),
                                     None,
                                 )
@@ -135,7 +131,7 @@ fn start_tauri_app(organization: organization::OrganizationState) -> tauri::Resu
                                 .map(|_| ())
                             } else {
                                 Err(crate::connection::ConnectionError::InvalidTarget {
-                                    message: "Drop exactly one .dokime-remote file".into(),
+                                    message: "Drop exactly one .pair file".into(),
                                 })
                             };
                             if let Err(error) = result {

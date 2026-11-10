@@ -46,7 +46,6 @@ pub(super) struct Policy {
 }
 
 struct Requirement {
-    local_only: bool,
     contract: dokime::harmos::operations::Contract,
 }
 
@@ -61,7 +60,6 @@ impl Policy {
         let mut requirements = Vec::new();
         <Operations as Catalog<Contracts>>::ENTRIES.try_for_each(|entry| {
             requirements.push(Requirement {
-                local_only: dokime::operations::local_only(entry.operation.id),
                 contract: entry.contract_with_settings(settings)?,
             });
             Ok::<_, Error>(())
@@ -76,7 +74,7 @@ impl Policy {
 
 impl Authorizer for Policy {
     fn authorize(&self, context: &CallContext, provider: Provider<'_>) -> dokime::harmos::Result<Option<Authorization>> {
-        let Some(principal) = context.get::<Principal>() else {
+        let Some(_) = context.get::<Principal>() else {
             return Ok(None);
         };
         // Canonical Product Providers Include The Published Host Catalog; Harmos Owns
@@ -86,10 +84,7 @@ impl Authorizer for Policy {
             && provider.owner.as_str() == HOST_OWNER
             && (operation.starts_with(PRODUCT_NAMESPACE) || operation == dokime::harmos::builtins::host::Catalog::ID);
         if !product {
-            if principal.is_local() || provider.plugin {
-                return Ok(Some(Authorization::Full(provider.contract.clone())));
-            }
-            return Ok(None);
+            return Ok(Some(Authorization::Full(provider.contract.clone())));
         }
         let Ok(index) = self.requirements.binary_search_by(|requirement| requirement.contract.operation().id.cmp(&provider.definition.id))
         else {
@@ -97,9 +92,7 @@ impl Authorizer for Policy {
             return Ok(None);
         };
         let requirement = &self.requirements[index];
-        if (requirement.local_only && !principal.is_local())
-            || !provider.contract.compatible_with_settings(&requirement.contract, &self.schema_settings)
-        {
+        if !provider.contract.compatible_with_settings(&requirement.contract, &self.schema_settings) {
             return Ok(None);
         }
         Ok(Some(Authorization::Full(provider.contract.clone())))

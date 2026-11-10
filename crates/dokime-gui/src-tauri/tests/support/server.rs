@@ -20,7 +20,7 @@ use std::{path::Path, sync::Arc};
 // Local Imports
 use super::artifact;
 use dokime::domain::model;
-use dokime_gui::connection::{ConnectRequest, ConnectionSecrets, ConnectionSession, ConnectionTarget};
+use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::BackendSelection;
 use dokime_server::grpc::{Config, Server};
 use {dokime::Identifier, dokime::Metadata, dokime::Runtime, dokime::RuntimeConfig};
@@ -78,7 +78,6 @@ impl Fixture {
         session
             .connect(ConnectRequest {
                 target: ConnectionTarget::Local { endpoint: server.local_endpoint() },
-                secrets: ConnectionSecrets::None,
                 expected_backend_id: None,
             })
             .await
@@ -129,7 +128,6 @@ pub fn attach(endpoint: String) -> BackendSelection {
     BackendSelection::Attach {
         request: ConnectRequest {
             target: ConnectionTarget::Local { endpoint },
-            secrets: ConnectionSecrets::None,
             expected_backend_id: None,
         },
     }

@@ -93,7 +93,6 @@ pub use telemetry::{RuntimeTelemetryFrame, RuntimeTelemetryRead, RuntimeTelemetr
 #[derive(Clone, Debug)]
 pub struct Caller {
     pub message_bytes: usize,
-    pub revoked: Option<tokio_util::sync::CancellationToken>,
 }
 
 /* === Enums === */

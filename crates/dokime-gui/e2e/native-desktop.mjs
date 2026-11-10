@@ -31,7 +31,7 @@
 //   f'. organization  native pack import, restart activation and invalid-pending retention
 //   f'. remote-access  listener and TLS setup, one pairing file per client exported from the
 //                      backend's Remote Access settings and imported in the desktop Backends
-//                      table, restart, independent revocation and lab modes
+//                      table, restart, independent key rotation and lab modes
 //   Report-producing journeys finalize by saving and reopening their sealed execution reports.
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
 //
@@ -568,7 +568,6 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   const home = join(work, "shell");
   const downloads = downloadsRoot ?? join(evidence, "downloads");
   const applicationRoot = distribution ? join(home, "data", distribution.identifier) : join(home, "application");
-  const profilesFile = join(home, windows ? "data" : "config", "dokime", "backends.json");
   for (const directory of ["config", "data", "state", "cache", "bin"]) {
     await mkdir(join(home, directory), { recursive: true });
   }
@@ -599,7 +598,6 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
         TAURI_WEBVIEW_AUTOMATION: "true",
         DOKIME_AUTOMATION_REPORT_OPENER: reportBrowser.endpoint,
         DOKIME_APPLICATION_ROOT: distribution ? "" : applicationRoot,
-        DOKIME_PROFILES_FILE: profilesFile,
         ...(distribution ? { DOKIME_OUTPUT_ROOT: "", DOKIME_PLUGINS_DIR: "" } : {}),
         ...(windows
           ? {
@@ -681,7 +679,6 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     closed: false,
     applicationRoot,
     downloads,
-    profilesFile,
     id: created.sessionId,
     lastBody: "",
     process: webdriver,
@@ -3240,7 +3237,6 @@ async function remoteAccessJourney(recoveredReports) {
     await session.clickNamed("button", "Regenerate Certificate");
     await settled();
   };
-  const profiles = join(work, "pairing-profiles.json");
   const env = { ...process.env, DOKIME_APPLICATION_ROOT: join(work, "cli") };
   delete env.DOKIME_ENDPOINT;
   const cli = (args, applicationRoot = env.DOKIME_APPLICATION_ROOT) =>
@@ -3250,10 +3246,10 @@ async function remoteAccessJourney(recoveredReports) {
       env: { ...env, DOKIME_APPLICATION_ROOT: applicationRoot },
       timeout: WAIT_MS,
     });
-  const connect = async (identifier, accepted, applicationRoot, profilesPath = profiles) => {
+  const connect = async (identifier, accepted, applicationRoot) => {
     let result;
     try {
-      result = await cli(["catalog", "list", "--backend", identifier, "--profiles-file", profilesPath], applicationRoot);
+      result = await cli(["catalog", "list", "--remote", join(work, `${identifier}.pair`)], applicationRoot);
     } catch (error) {
       assert.ok(!accepted, `The paired client establishes a real CLI connection: ${redact(error.stderr ?? error.message)}`);
       assert.equal(error.killed, false);
@@ -3265,7 +3261,7 @@ async function remoteAccessJourney(recoveredReports) {
     assert.ok(![...secrets].some((secret) => result.stdout.includes(secret) || result.stderr.includes(secret)));
   };
   const createPairing = async (identifier, address) => {
-    const path = join(await realpath(work), `${identifier}.dokime-remote`);
+    const path = join(await realpath(work), `${identifier}.pair`);
     const saved = await notice("Remote Access File Saved", async () => {
       await session.openPicker(await session.named("button", "Export Remote Access"));
       const picker = { window: null };
@@ -3276,15 +3272,7 @@ async function remoteAccessJourney(recoveredReports) {
     const pairing = JSON.parse(await readFile(path, "utf8"));
     assert.equal(pairing.version, 1);
     assert.deepEqual(pairing.endpoints, [address]);
-    if (pairing.access_key) {
-      secrets.add(pairing.access_key);
-      await session.clickNamed("button", pairing.label);
-      await session.type(await session.find("css selector", '[aria-label="Client Label"]'), identifier);
-      await session.clickNamed("button", "Rename");
-    } else {
-      assert.equal(await session.exists("button", pairing.label), false, "A keyless access file creates no paired-client verifier");
-    }
-    await cli(["backend", "add", "--remote", path, "--identifier", identifier, "--profiles-file", profiles]);
+    if (pairing.access_key) secrets.add(pairing.access_key);
     return path;
   };
 
@@ -3312,20 +3300,24 @@ async function remoteAccessJourney(recoveredReports) {
   await toggle("Listener Enabled", true);
   await restart();
   const address = await endpoint();
-  const first = await createPairing("desktop-first", address);
-  await createPairing("desktop-second", address);
+  await createPairing("desktop-first", address);
   await connect("desktop-first", true);
+  const second = await createPairing("desktop-second", address);
+  await connect("desktop-first", false);
   await connect("desktop-second", true);
 
   // Import Through The Desktop's Native Picker Without Exposing Credentials To The WebView.
   await session.goto("/settings/backends");
-  await session.clickNamed("button", "Add Backend");
-  const identifier = await until("backend identifier", () => session.find("css selector", '[aria-label="Backend Identifier"]'));
-  await session.type(identifier, "desktop-pairing");
-  await session.openPicker(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Import Remote']"));
+  await session.openPicker(await session.named("button", "Import Remote"));
   const importPicker = { window: null };
-  await until("native pairing import", () => chooseNativeFile(importPicker, first), WAIT_MS);
-  await until("imported backend", async () => hasText(await session.text(), "desktop-pairing"));
+  await until("native pairing import", () => chooseNativeFile(importPicker, second), WAIT_MS);
+  const importedIdentifier = JSON.parse(await readFile(second, "utf8")).backend_identifier;
+  await session.connected();
+  await session.execute(
+    "return window.__TAURI_INTERNALS__.invoke('desktop_session_select', {selection: {kind: 'attach', request: {target: {kind: 'local', endpoint: arguments[0]}, expectedBackendId: null}}})",
+    [backend.endpoint],
+  );
+  await session.goto("/settings/remote", { reload: true });
 
   // A Failed Bind Preserves The Existing Listener.
   await session.goto("/settings/remote", { reload: true });
@@ -3336,46 +3328,36 @@ async function remoteAccessJourney(recoveredReports) {
     await commitField("Listener Address", `127.0.0.1:${occupied.address().port}`);
     await notice("Remote Access Change Failed", restart);
     assert.equal(await endpoint(), address);
-    await connect("desktop-first", true);
+    await connect("desktop-second", true);
     await commitField("Listener Address", listenAddress);
     await restart();
   } finally {
     await new Promise((done) => occupied.close(done));
   }
 
-  // Restart Preserves Both Independent Client Verifiers.
+  // Restart Preserves The Single Backend Key.
   const nativeEndpoint = backend.endpoint;
   await stopBackend();
   backend = await startBackend(work, evidence, nativeEndpoint, "backend-remote-restart", fixturePlugin);
   await session.goto("/settings/remote", { reload: true });
   assert.equal(await endpoint(), address);
-  await connect("desktop-first", true);
+  await connect("desktop-first", false);
   await connect("desktop-second", true);
   const browserStorage = await session.execute("return JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]);");
   assert.ok(![...secrets].some((secret) => browserStorage.includes(secret)));
 
   // Revocation Preserves An Admitted Execution Waiting For Its Operator.
-  const remoteCycle = await prepareCycle(session, "Revocation Campaign", [[STARTUP_SUITE, STARTUP_TEMPLATE]]);
+  const remoteCycle = await prepareCycle(session, "Key Rotation Campaign", [[STARTUP_SUITE, STARTUP_TEMPLATE]]);
   const activeCycle = remoteCycle.id;
   assert.ok(await startCaseFromItsRow(session, STARTUP_TEMPLATE));
-  await until("operator prompt before revocation", () => startupPromptOpen(session), WAIT_MS);
+  await until("operator prompt before key rotation", () => startupPromptOpen(session), WAIT_MS);
   await session.goto("/settings/remote");
 
-  // Revoking One Client Leaves The Other Client And Local Desktop Connected.
-  const revoke = await until("first paired client", () =>
-    session.find(
-      "xpath",
-      "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]//button[@aria-label='Revoke']",
-    ),
-  );
-  await session.click(revoke);
-  await until(
-    "first client removed",
-    async () =>
-      (await session.findAll("xpath", "//table[@aria-label='Paired Clients']//tr[td[normalize-space(.)='desktop-first']]")).length === 0,
-  );
+  // Rotating The Backend Key Leaves Admitted Work And Native Access Running.
+  await createPairing("desktop-rotated", address);
   await connect("desktop-first", false);
-  await connect("desktop-second", true);
+  await connect("desktop-second", false);
+  await connect("desktop-rotated", true);
   await session.goto(`/cycles/${activeCycle}?view=cycle`);
   await cyclePhase(session, "Active");
   /* The cycle page names the execution waiting on input; the prompt itself is answered there. */
@@ -3383,7 +3365,7 @@ async function remoteAccessJourney(recoveredReports) {
     hasText(await session.text(), "Input needed on #"),
   );
   const running = await caseRowText(session, STARTUP_TEMPLATE);
-  assert.match(running, /\b(Running|Waiting)\b/, "revocation leaves the admitted execution running");
+  assert.match(running, /\b(Running|Waiting)\b/, "key rotation leaves the admitted execution running");
   await session.execute(
     `const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
       .find((candidate) => candidate.innerText.includes(arguments[0]));
@@ -3400,16 +3382,16 @@ async function remoteAccessJourney(recoveredReports) {
   assert.equal(decision.checkboxes, 0, "The decision belongs in the footer without a duplicate checkbox");
   await session.clickNamed("button", "Stop Execution");
   await session.waitForDom(
-    "revocation execution stopped",
+    "key rotation execution stopped",
     `const status = document.querySelector('li[data-execution-id="' + args[0] + '"]')?.dataset.executionStatus;
      return ["stopped", "interrupted"].includes(status) && document.querySelector('[data-execution-action="Re-Run"]:not(:disabled)');`,
     [remoteCycle.startupExecutionId],
   );
-  // Reissuing The Leaf Preserves The Existing CA Trust Anchor.
+  // Certificate Replacement Requires A New Export.
   await session.goto("/settings/remote");
   await showAdvanced();
   await regenerate();
-  await connect("desktop-second", true);
+  await connect("desktop-rotated", false);
   await createPairing("desktop-regenerated", address);
   await connect("desktop-regenerated", true);
 
@@ -3428,59 +3410,17 @@ async function remoteAccessJourney(recoveredReports) {
   await connect("desktop-lab-http", true);
   await toggle("Listener TLS", true);
   await restart();
-  await connect("desktop-regenerated", true);
+  await createPairing("desktop-restored", address);
+  await connect("desktop-restored", true);
   await writeFile(join(evidence, "invokes-remote-access.json"), JSON.stringify(await drainInvokeLedger(session), null, 2));
-  const clients = await Promise.allSettled(
-    Array.from({ length: 21 }, async (_, index) => {
-      const root = join(work, "session-clients", String(index));
-      await mkdir(root, { recursive: true });
-      const clientProfiles = join(root, "profiles.json");
-      await copyFile(profiles, clientProfiles);
-      await connect("desktop-regenerated", true, root, clientProfiles);
-    }),
-  );
-  for (const client of clients) if (client.status === "rejected") throw client.reason;
-  await session.goto("/settings/remote", { reload: true });
-  const pageSize = await until("remote session table page size", () =>
-    session.find("xpath", "//table[@aria-label='Recent Remote Sessions']/parent::div/parent::div//select[@data-testid='table-page-size']"),
-  );
-  await session.execute(
-    `const select = arguments[0];
-     if (![...select.options].some(option => option.value === '25')) throw new Error('The remote session table must offer twenty-five rows');
-     select.value = '25';
-     select.dispatchEvent(new Event('change', {bubbles: true}));`,
-    [pageSize],
-  );
-  // Reconnected Clients Can Reuse Peer Ports; Session IDs Own Pagination Identity.
-  const sessionRows = () =>
-    session.execute(`
-    const table = document.querySelector('table[aria-label="Recent Remote Sessions"]');
-    if (!table) return [];
-    table.scrollIntoView({block: 'center'});
-    return [...table.querySelectorAll('tbody tr[data-row-id]')].map(row => row.dataset.rowId);
-  `);
-  const firstPage = await until("twenty remote sessions", async () => {
-    const rows = await sessionRows();
-    return rows.length === 20 ? rows : null;
-  });
-  await session.clickNamed("button", "Older");
-  await until("second remote sessions page", async () => hasText(await session.text(), "Page 2"));
-  const secondPage = await until("older remote sessions", async () => {
-    const rows = await sessionRows();
-    return rows.length > 0 && rows.every((row) => !firstPage.includes(row)) ? rows : null;
-  });
-  assert.ok(secondPage.length <= 20, "Every remote session page is bounded to twenty rows");
-  await session.clickNamed("button", "Newer");
-  await until("newest remote sessions restored", async () => JSON.stringify(await sessionRows()) === JSON.stringify(firstPage));
   await session.screenshot("remote-access");
-  for (const identifier of ["desktop-first", "desktop-second", "desktop-regenerated", "desktop-lab-anonymous", "desktop-lab-http"]) {
-    await cli(["backend", "remove", "--identifier", identifier, "--profiles-file", profiles]);
-  }
   await session.goto("/settings/backends");
-  await openMenu(session, "desktop-pairing actions", '[data-row-id="desktop-pairing"] [data-testid="table-row-actions"]');
+  await openMenu(session, `${importedIdentifier} actions`, `[data-row-id="${importedIdentifier}"] [data-testid="table-row-actions"]`);
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
-  await session.waitForDom("paired backend removed", "return !document.querySelector('[data-row-id=\"desktop-pairing\"]');");
+  await session.waitForDom("paired backend removed", "return !document.querySelector('[data-row-id=\"' + args[0] + '\"]');", [
+    importedIdentifier,
+  ]);
   return { executionIds: remoteCycle.executionIds, reports: [...recoveredReports, remoteCycle.startupExecutionId] };
 }
 
@@ -3649,73 +3589,58 @@ async function settingsJourney(session, notes) {
     ]);
   }
 
-  /* Backend Dialog Validation, Cancelled Deletion And Selection Recovery. */
+  /* Pairing Validation, Cancelled Deletion And Selection Recovery. */
   await session.goto("/settings/backends");
-  await until("backend registry", () => session.exists("button", "Add Backend"));
+  await until("pairing folder", () => session.exists("button", "Import Remote"));
   const original = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
   const endpoint = original.connection.endpoint;
   assert.ok(endpoint);
-  const field = (label) => session.find("css selector", `[aria-label="${label}"]`);
-  const rowAction = (name, action) =>
-    session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[@aria-label='${action === "Select" ? "Connect" : action}']`);
-  const add = async (name, identity = "") => {
-    await session.clickNamed("button", "Add Backend");
-    await session.type(await field("Backend Identifier"), name);
-    if (identity) {
-      const pairing = join(work, `${name}.dokime-remote`);
-      await writeFile(
-        pairing,
-        JSON.stringify({
-          version: 1,
-          endpoints: [new URL(endpoint).origin],
-          backend_identifier: identity,
-          label: name,
-          ca_certificate_pem: null,
-          access_key: null,
-        }),
-      );
-      await session.openPicker(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Import Remote']"));
-      const picker = { window: null };
-      await until("native identity pairing import", () => chooseNativeFile(picker, pairing), WAIT_MS);
-      await until("native identity import completes", () =>
-        session.execute(`
-        return globalThis.__dokimeInvokes.some(entry => entry.command === 'desktop_backend_import_pairing' && entry.state !== 'pending');
-      `),
-      );
-      await until("identity mismatch refuses the imported connection", async () => {
-        const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
-        return status.connection.phase === "failed";
-      });
-      await session.goto("/settings/backends");
-    } else {
-      await session.type(await session.find("xpath", "//*[@role='dialog']//input[@id=//label[normalize-space(.)='Label']/@for]"), name);
-      await session.type(await field("Backend Endpoint"), endpoint);
-      await session.click(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Add Backend']"));
-    }
-    await until(`saved backend ${name}`, () => rowAction(name, "Select"));
+  const rowAction = (name) => session.find("xpath", `//tr[td[normalize-space(.)='${name}']]//button[@aria-label='Connect']`);
+  const add = async (name, identity = original.connection.backend.backendId) => {
+    const pairing = join(work, `${name}.pair`);
+    await writeFile(
+      pairing,
+      JSON.stringify({
+        version: 1,
+        endpoints: [new URL(endpoint).origin],
+        backend_identifier: identity,
+        label: name,
+        certificate_pem: null,
+        access_key: null,
+      }),
+    );
+    await session.openPicker(await session.named("button", "Import Remote"));
+    const picker = { window: null };
+    await until("native pairing import", () => chooseNativeFile(picker, pairing), WAIT_MS);
+    await until("import settles", async () => {
+      const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
+      return status.connection.phase === "connected" || status.connection.phase === "failed";
+    });
+    if (identity === original.connection.backend.backendId) await session.goto("/settings/backends");
+    await until(`saved backend ${name}`, () => rowAction(name));
   };
-  await session.clickNamed("button", "Add Backend");
-  await session.type(await field("Backend Identifier"), "native-invalid");
-  await session.type(
-    await session.find("xpath", "//*[@role='dialog']//input[@id=//label[normalize-space(.)='Label']/@for]"),
-    "native-invalid",
+  const invalid = join(work, "invalid.pair");
+  await writeFile(
+    invalid,
+    JSON.stringify({
+      version: 1,
+      endpoints: ["http://operator:private@127.0.0.1:8765"],
+      backend_identifier: "native-invalid",
+      label: "Invalid",
+      certificate_pem: null,
+      access_key: null,
+    }),
   );
-  await session.type(await field("Backend Endpoint"), "http://operator:private@127.0.0.1/");
-  await session.click(await session.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Add Backend']"));
-  await until("invalid origin refused", () =>
-    session.execute(`
-    const field = document.querySelector('[role="dialog"] input[aria-label="Backend Endpoint"]');
-    const explanation = document.getElementById(field?.getAttribute('aria-describedby'));
-    return field?.getAttribute('aria-invalid') === 'true' && Boolean(explanation?.textContent.trim());
-  `),
-  );
+  await session.openPicker(await session.named("button", "Import Remote"));
+  const invalidPicker = { window: null };
+  await until("invalid pairing picker", () => chooseNativeFile(invalidPicker, invalid), WAIT_MS);
+  await until("invalid pairing refused", async () => hasText(await toastText(session), "Remote Import Failed"));
   const unchanged = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
   assert.ok(!unchanged.profiles.some((profile) => profile.identifier === "native-invalid"));
-  await session.clickNamed("button", "Cancel");
 
   await add("native-recovery");
   await add("native-stale", "deliberately-wrong-native-identity");
-  await openMenu(session, "native-stale actions", '[data-row-id="native-stale"] [data-testid="table-row-actions"]');
+  await openMenu(session, "native-stale actions", '[data-row-id="deliberately-wrong-native-identity"] [data-testid="table-row-actions"]');
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Cancel");
   assert.ok(await rowAction("native-stale", "Select"));
@@ -3734,7 +3659,7 @@ async function settingsJourney(session, notes) {
     return hasText(await toastText(session), "Backend Connection Failed") && (await rowAction("native-recovery", "Select"));
   });
   const afterFailure = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
-  assert.equal(afterFailure.default, "native-recovery");
+  assert.ok(afterFailure.profiles.some((profile) => profile.label === "native-recovery"));
   await session.click(await rowAction("native-recovery", "Select"));
   await until("explicit profile recovery", async () => {
     const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
@@ -3742,12 +3667,12 @@ async function settingsJourney(session, notes) {
   });
   await session.connected();
   await session.goto("/settings/backends");
-  await openMenu(session, "native-stale actions", '[data-row-id="native-stale"] [data-testid="table-row-actions"]');
+  await openMenu(session, "native-stale actions", '[data-row-id="deliberately-wrong-native-identity"] [data-testid="table-row-actions"]');
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Confirm Delete");
   await until("stale profile removed", async () => {
     const document = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
-    return !document.profiles.some((profile) => profile.identifier === "native-stale");
+    return !document.profiles.some((profile) => profile.identifier === "deliberately-wrong-native-identity");
   });
 
   /* Diagnostics: read-only paths with Copy and Open, then the bundle itself. */
@@ -4339,7 +4264,19 @@ async function emptyCycleHistory(session, cycleId, title, ownership) {
     ),
   );
   const archive = join(evidence, `empty-cycle-${cycleId}.zip`);
-  const result = await executeFile(cliBinary, ["cycle", "export", cycleId, "--endpoint", endpoint, "--output", archive, "--json"], {
+  const pairing = join(work, `empty-cycle-${cycleId}.pair`);
+  await writeFile(
+    pairing,
+    JSON.stringify({
+      version: 1,
+      endpoints: [endpoint],
+      backend_identifier: current.connection.backend.backendId,
+      label: "Fixture",
+      certificate_pem: null,
+      access_key: null,
+    }),
+  );
+  const result = await executeFile(cliBinary, ["cycle", "export", cycleId, "--remote", pairing, "--output", archive, "--json"], {
     windowsHide: true,
     cwd: work,
     timeout: WAIT_MS,

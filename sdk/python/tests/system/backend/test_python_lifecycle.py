@@ -57,7 +57,7 @@ def test_python_lifecycle(host: Path, tmp_path: Path, monkeypatch: pytest.Monkey
 
     async def story() -> None:
         application = tmp_path / "application"
-        pairing = tmp_path / "bench.dokime-remote"
+        pairing = tmp_path / "bench.pair"
 
         # Start and Pair the Python Backend
         async with dokime.Backend(port=0, application_root=application, plugins=[plugin]) as backend:

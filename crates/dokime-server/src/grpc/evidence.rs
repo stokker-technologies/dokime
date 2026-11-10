@@ -299,8 +299,7 @@ impl Serve<v1::ListRecords> for Resources {
 impl Serve<v1::WatchRecords> for Resources {
     fn serve<'a>(&'a self, mut request: v1::WatchRecords, ctx: Context<'a, v1::WatchRecords>) -> Served<'a, ()> {
         Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async {
+            async {
                 let mut reader = Reader::new(
                     &dokime::app::live_runtime(&self.runtime).await?,
                     request.selection.take(),
@@ -331,7 +330,7 @@ impl Serve<v1::WatchRecords> for Resources {
                     ctx.streams().send_owned(Response::from_owner(page.owner())).await.map_err(crate::grpc::chunked::output_failure)?;
                     initial = false;
                 }
-            })
+            }
             .await
         })
     }

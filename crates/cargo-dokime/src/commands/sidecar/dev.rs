@@ -79,13 +79,13 @@ pub struct Args {
 
     #[arg(
         long,
-        help = "Load environment variables for the development host from exactly this file, instead of letting it search upward from its working directory for `.env`. Refused outright when the file does not exist — never a silent skip. A variable already exported in this shell always wins over one from either source, and the host reads its environment once at spawn: changing the file requires restarting `dev`."
+        help = "Load environment variables for the development host from exactly this file. Refused outright when the file does not exist — never a silent skip. A variable already exported in this shell always wins over one from either source, and the host reads its environment once at spawn: changing the file requires restarting `dev`."
     )]
     env_file: Option<PathBuf>,
 
     #[arg(
         long,
-        help = "Working directory for the development host; defaults to the directory `cargo dokime sidecar dev` was invoked from. Only the host process moves — this crate's own manifest, build and watch paths are unaffected. Without `--env-file`, this is also where the host's `.env` walk-up starts."
+        help = "Working directory for the development host; defaults to the directory `cargo dokime sidecar dev` was invoked from. Only the host process moves — this crate's own manifest, build and watch paths are unaffected. No implicit `.env` search is performed."
     )]
     cwd: Option<PathBuf>,
 
@@ -662,23 +662,10 @@ fn resolve_env_file(explicit: Option<&Path>) -> Result<Option<PathBuf>, Error> {
     }
 }
 
-fn locate_dotenv(directory: &Path) -> Option<PathBuf> {
-    let mut current = directory.to_owned();
-    loop {
-        let candidate = current.join(".env");
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-        if !current.pop() {
-            return None;
-        }
-    }
-}
-
 fn development_root(env_file: Option<&Path>, cwd: &Path, exported: Option<std::ffi::OsString>) -> Result<Option<PathBuf>, Error> {
     let root = match exported {
         Some(value) => Some(value),
-        None => match env_file.map(Path::to_owned).or_else(|| locate_dotenv(cwd)) {
+        None => match env_file.map(Path::to_owned) {
             Some(path) => environment_file_keys(&path)?.remove("DOKIME_DEV_ROOT").map(Into::into),
             None => None,
         },
@@ -708,18 +695,10 @@ fn development_state(persistent: Option<&Path>, root: Option<&Path>) -> Result<(
     Ok((temporary.path().canonicalize()?, Some(temporary)))
 }
 
-fn print_environment_source(terminal: &Terminal, env_file: Option<&Path>, cwd: &Path) {
+fn print_environment_source(terminal: &Terminal, env_file: Option<&Path>, _cwd: &Path) {
     match env_file {
         Some(path) => terminal.success(format!("Environment · loaded from {}", path.display())),
-        None => match locate_dotenv(cwd) {
-            Some(path) => {
-                terminal.success(format!("Environment · loaded from {} (found searching up from {})", path.display(), cwd.display()))
-            }
-            None => terminal.success(format!(
-                "Environment · no .env found searching up from {}; only already-exported variables reach the host",
-                cwd.display()
-            )),
-        },
+        None => terminal.success("Environment · using exported variables"),
     }
 }
 

@@ -41,22 +41,13 @@ pub(super) const SERVER_REMOTE_STORE_BYTES: u64 = 262_144;
 #[derive(Clone)]
 pub(super) struct Document {
     pub settings: RemoteListenerSettings,
-    pub clients: Vec<Client>,
+    pub verifier: Option<[u8; 32]>,
     pub identity: Option<Identity>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Client {
-    pub metadata: dokime::domain::model::remote::PairedClient,
-    pub verifier: [u8; 32],
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct Identity {
-    pub ca_certificate: String,
-    pub ca_private_key: String,
     pub certificate: String,
     pub private_key: String,
     pub names: Vec<String>,
@@ -65,7 +56,7 @@ pub(super) struct Identity {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Security {
-    clients: Vec<Client>,
+    verifier: Option<[u8; 32]>,
     identity: Option<Identity>,
 }
 
@@ -79,7 +70,7 @@ impl Document {
     pub fn initial() -> Self {
         Self {
             settings: dokime::domain::model::settings::wire::ApplicationSettings::default().listener,
-            clients: Vec::new(),
+            verifier: None,
             identity: None,
         }
     }
@@ -90,46 +81,26 @@ impl Identity {
         if names.is_empty() {
             return Err(super::Error::Configuration("TLS requires at least one advertised DNS name or IP address"));
         }
-        let mut params = rcgen::CertificateParams::default();
-        params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
-        params.key_usages = vec![rcgen::KeyUsagePurpose::KeyCertSign, rcgen::KeyUsagePurpose::CrlSign];
-        let pack =
-            dokime::config::organization::resolve().map_err(|_| super::Error::Configuration("cannot resolve certificate product label"))?;
-        params.distinguished_name.push(rcgen::DnType::CommonName, format!("{} Remote Access CA", pack.label()));
-        let key = rcgen::KeyPair::generate().map_err(|_| super::Error::Configuration("cannot generate remote CA key"))?;
-        let certificate = params.self_signed(&key).map_err(|_| super::Error::Configuration("cannot generate remote CA"))?;
-        let mut identity = Self {
-            ca_certificate: certificate.pem(),
-            ca_private_key: key.serialize_pem(),
-            certificate: String::new(),
-            private_key: String::new(),
-            names: Vec::new(),
-        };
-        identity.reissue(names)?;
-        Ok(identity)
-    }
-
-    pub fn reissue(&mut self, names: Vec<String>) -> Result<(), super::Error> {
-        let invalid = |_| super::Error::Configuration("cannot issue remote TLS certificate from persisted CA");
-        let key = rcgen::KeyPair::from_pem(&self.ca_private_key).map_err(invalid)?;
-        let issuer = rcgen::Issuer::from_ca_cert_pem(&self.ca_certificate, key).map_err(invalid)?;
-        let leaf_key = rcgen::KeyPair::generate().map_err(invalid)?;
-        let mut params = rcgen::CertificateParams::new(names.clone()).map_err(invalid)?;
+        let mut params =
+            rcgen::CertificateParams::new(names.clone()).map_err(|_| super::Error::Configuration("invalid remote certificate names"))?;
         params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ServerAuth];
         params.key_usages = vec![rcgen::KeyUsagePurpose::DigitalSignature];
-        let leaf = params.signed_by(&leaf_key, &issuer).map_err(invalid)?;
-        self.private_key.zeroize();
-        self.certificate = leaf.pem();
-        self.private_key = leaf_key.serialize_pem();
-        self.names = names;
-        Ok(())
+        let pack =
+            dokime::config::organization::resolve().map_err(|_| super::Error::Configuration("cannot resolve certificate product label"))?;
+        params.distinguished_name.push(rcgen::DnType::CommonName, format!("{} Remote Access", pack.label()));
+        let key = rcgen::KeyPair::generate().map_err(|_| super::Error::Configuration("cannot generate remote TLS key"))?;
+        let certificate = params.self_signed(&key).map_err(|_| super::Error::Configuration("cannot generate remote certificate"))?;
+        Ok(Self {
+            certificate: certificate.pem(),
+            private_key: key.serialize_pem(),
+            names,
+        })
     }
 }
 
 impl Drop for Identity {
     fn drop(&mut self) {
         self.private_key.zeroize();
-        self.ca_private_key.zeroize();
     }
 }
 
@@ -154,21 +125,19 @@ pub(super) fn read(path: &Path, settings: RemoteListenerSettings) -> Result<Docu
         .map_err(|_| super::Error::Configuration("incompatible remote security document; use a fresh application root"))?;
     let document = Document {
         settings,
-        clients: security.clients,
+        verifier: security.verifier,
         identity: security.identity,
     };
     validate(&document.settings)?;
-    validate_clients(&document.clients)?;
     Ok(document)
 }
 
 pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error> {
-    validate_clients(&document.clients)?;
     let parent = path.parent().ok_or(super::Error::Configuration("remote security path has no parent"))?;
     private_directory(parent).map_err(super::Error::RemoteStorage)?;
     let bytes = Zeroizing::new(
         serde_json::to_vec(&Security {
-            clients: document.clients.clone(),
+            verifier: document.verifier,
             identity: document.identity.clone(),
         })
         .map_err(|_| super::Error::Configuration("cannot encode remote security document"))?,
@@ -181,30 +150,12 @@ pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error
     Ok(())
 }
 
-pub(super) fn validate_clients(clients: &[Client]) -> Result<(), super::Error> {
-    if clients.len() > 512 {
-        return Err(super::Error::Configuration("paired client limit reached; revoke an unused client"));
-    }
-    for (index, client) in clients.iter().enumerate() {
-        let metadata = &client.metadata;
-        if uuid::Uuid::parse_str(&metadata.identifier).is_err()
-            || metadata.label.trim().is_empty()
-            || metadata.label.len() > 256
-            || metadata.label.chars().any(char::is_control)
-            || clients[..index].iter().any(|other| other.metadata.identifier == metadata.identifier || other.verifier == client.verifier)
-        {
-            return Err(super::Error::Configuration("invalid paired client security record"));
-        }
-    }
-    Ok(())
-}
-
 pub(super) fn validate(settings: &RemoteListenerSettings) -> Result<SocketAddr, super::Error> {
     settings.validate().map_err(super::Error::Listener)?;
     settings.address.parse::<SocketAddr>().map_err(|_| super::Error::Configuration("invalid listener address"))
 }
 
-// Creates the owner-only directory that holds remote security material and the session log.
+// Creates the owner-only directory that holds remote security material.
 pub(super) fn private_directory(path: &Path) -> std::io::Result<()> {
     let mut directory = std::fs::DirBuilder::new();
     directory.recursive(true);
@@ -429,28 +380,24 @@ mod tests {
         assert_eq!(default_names("[::]:8765".parse().unwrap(), None, ipv6, 32), ["2001:db8::7"]);
         assert!(detected_endpoints("[fe80::1234]:8765".parse().unwrap(), None, std::iter::empty(), 32).is_empty());
 
-        let mut identity = Identity::generate(hosts.iter().map(|host| host.address.clone()).collect()).unwrap();
-        let ca = identity.ca_certificate.clone();
-        let mut roots = rustls::RootCertStore::empty();
-        roots.add(CertificateDer::from_pem_slice(ca.as_bytes()).unwrap()).unwrap();
-        let verifier = rustls::client::WebPkiServerVerifier::builder_with_provider(
-            std::sync::Arc::new(roots),
-            std::sync::Arc::new(rustls::crypto::ring::default_provider()),
-        )
-        .build()
-        .unwrap();
-        let now = UnixTime::since_unix_epoch(std::time::Duration::from_secs(1_800_000_000));
         for hosts in [hosts, detect("169.254.23.42")] {
-            let names = hosts.iter().map(|host| host.address.clone()).collect();
-            identity.reissue(names).unwrap();
-            assert_eq!(identity.ca_certificate, ca);
-            let leaf = CertificateDer::from_pem_slice(identity.certificate.as_bytes()).unwrap();
+            let identity = Identity::generate(hosts.iter().map(|host| host.address.clone()).collect()).unwrap();
+            let mut roots = rustls::RootCertStore::empty();
+            let certificate = CertificateDer::from_pem_slice(identity.certificate.as_bytes()).unwrap();
+            roots.add(certificate.clone()).unwrap();
+            let verifier = rustls::client::WebPkiServerVerifier::builder_with_provider(
+                std::sync::Arc::new(roots),
+                std::sync::Arc::new(rustls::crypto::ring::default_provider()),
+            )
+            .build()
+            .unwrap();
+            let now = UnixTime::since_unix_epoch(std::time::Duration::from_secs(1_800_000_000));
             for endpoint in hosts {
                 let name = ServerName::try_from(endpoint.address.as_str()).unwrap();
-                verifier.verify_server_cert(&leaf, &[], &name, &[], now).unwrap();
+                verifier.verify_server_cert(&certificate, &[], &name, &[], now).unwrap();
             }
             let obsolete = ServerName::try_from("169.254.23.99").unwrap();
-            assert!(verifier.verify_server_cert(&leaf, &[], &obsolete, &[], now).is_err());
+            assert!(verifier.verify_server_cert(&certificate, &[], &obsolete, &[], now).is_err());
         }
     }
 }

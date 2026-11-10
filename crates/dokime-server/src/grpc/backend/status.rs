@@ -178,8 +178,7 @@ impl Serve<wire::GetAvailability> for Resources {
 impl Serve<wire::WatchLogs> for Resources {
     fn serve<'a>(&'a self, request: wire::WatchLogs, ctx: Context<'a, wire::WatchLogs>) -> Served<'a, ()> {
         Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async {
+            async {
                 let min_level = match request.min_level {
                     dokime::domain::model::backend::wire::LogLevel::Unspecified => dokime::domain::model::backend::wire::LogLevel::Trace,
                     level => level,
@@ -190,7 +189,7 @@ impl Serve<wire::WatchLogs> for Resources {
                 };
                 self.logs.watch(watch, ctx.streams()).await?;
                 Ok(().into())
-            })
+            }
             .await
         })
     }
@@ -199,8 +198,7 @@ impl Serve<wire::WatchLogs> for Resources {
 impl Serve<wire::CollectDiagnostics> for Resources {
     fn serve<'a>(&'a self, request: wire::CollectDiagnostics, ctx: Context<'a, wire::CollectDiagnostics>) -> Served<'a, ()> {
         Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async {
+            async {
                 super::archive::deliver(
                     &dokime::app::live_runtime(&self.runtime).await?,
                     &*self.identity().await?,
@@ -210,7 +208,7 @@ impl Serve<wire::CollectDiagnostics> for Resources {
                 )
                 .await?;
                 Ok(().into())
-            })
+            }
             .await
         })
     }

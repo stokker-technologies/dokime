@@ -69,75 +69,19 @@ pub struct PairingFile {
     pub label: String,
 
     #[serde(deserialize_with = "required_optional")]
-    pub ca_certificate_pem: Option<String>,
+    pub certificate_pem: Option<String>,
 
     #[serde(deserialize_with = "required_optional")]
     pub access_key: Option<String>,
 }
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PairedClient {
-    pub identifier: String,
-    pub label: String,
-    pub created_at: u64,
-    pub last_seen_at: Option<u64>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PairedClientPage {
-    pub clients: Vec<PairedClient>,
-    pub next_cursor: Option<String>,
-}
-
 #[harmos::message(skip_debug)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatedPairing {
-    pub client: Option<PairedClient>,
     pub pairing: PairingFile,
 }
 
-// One remote client's calls from one peer address, admitted or rejected.
-//
-// Times are Unix milliseconds. Transport drops are not observable, so a
-// session closes after a quiet interval and `disconnected_at` is its last call.
-#[harmos::message]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RemoteSession {
-    pub id: String,
-    pub peer_address: String,
-
-    // The paired client identifier for a verified key, otherwise `anonymous`.
-    pub principal: String,
-
-    pub connected_at: u64,
-    pub last_seen_at: u64,
-    pub disconnected_at: Option<u64>,
-    pub calls: u64,
-    pub outcome: RemoteSessionOutcome,
-
-    // Why the host refused the calls; set only for a rejected session.
-    pub rejection: Option<String>,
-}
-
-// Newest first; `next_cursor` continues with older sessions.
-#[harmos::message]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RemoteSessionPage {
-    pub sessions: Vec<RemoteSession>,
-    pub next_cursor: Option<String>,
-}
-
 /* === Enums === */
-
-#[harmos::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RemoteSessionOutcome {
-    Unspecified,
-    Admitted,
-    Rejected,
-}
 
 /* === Traits === */
 
@@ -225,10 +169,10 @@ impl PairingFile {
                 Err(_) if host.len() <= 253 && host.split('.').all(valid_dns_label) => {}
                 Err(_) => return Err("invalid pairing endpoint host".into()),
             }
-            match (scheme, &self.ca_certificate_pem) {
+            match (scheme, &self.certificate_pem) {
                 ("https", Some(pem)) => validate_certificate_pem(pem)?,
                 ("http", None) => {}
-                _ => return Err("HTTPS requires a CA certificate; HTTP must not include one".into()),
+                _ => return Err("HTTPS requires a server certificate; HTTP must not include one".into()),
             }
         }
         if self.access_key.as_ref().is_some_and(|key| !(32..=4096).contains(&key.len()) || !key.bytes().all(|byte| byte.is_ascii_graphic()))
@@ -258,7 +202,7 @@ impl std::fmt::Debug for PairingFile {
 
 impl std::fmt::Debug for CreatedPairing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("CreatedPairing").field("client", &self.client).field("pairing", &self.pairing).finish()
+        formatter.debug_struct("CreatedPairing").field("pairing", &self.pairing).finish()
     }
 }
 
@@ -279,25 +223,25 @@ fn validate_certificate_pem(pem: &str) -> Result<(), String> {
         .trim()
         .strip_prefix("-----BEGIN CERTIFICATE-----")
         .and_then(|body| body.strip_suffix("-----END CERTIFICATE-----"))
-        .ok_or("invalid CA certificate PEM")?;
+        .ok_or("invalid server certificate PEM")?;
     let body: String = body.chars().filter(|character| !character.is_ascii_whitespace()).collect();
-    let der = base64::engine::general_purpose::STANDARD.decode(body).map_err(|_| "invalid CA certificate PEM")?;
+    let der = base64::engine::general_purpose::STANDARD.decode(body).map_err(|_| "invalid server certificate PEM")?;
     // Check The DER Envelope; Transport Imports Validate X.509 And Trust.
     if der.len() < 4 || der[0] != 0x30 {
-        return Err("invalid CA certificate DER".into());
+        return Err("invalid server certificate DER".into());
     }
     let (header, length) = if der[1] & 0x80 == 0 {
         (2, usize::from(der[1]))
     } else {
         let count = usize::from(der[1] & 0x7f);
         if count == 0 || count > 4 || der.len() < 2 + count {
-            return Err("invalid CA certificate DER length".into());
+            return Err("invalid server certificate DER length".into());
         }
         let length = der[2..2 + count].iter().fold(0usize, |length, byte| (length << 8) | usize::from(*byte));
         (2 + count, length)
     };
     if length != der.len() - header || der.get(header) != Some(&0x30) {
-        return Err("invalid CA certificate DER envelope".into());
+        return Err("invalid server certificate DER envelope".into());
     }
     Ok(())
 }
@@ -322,7 +266,7 @@ mod tests {
             endpoints: vec!["http://127.0.0.1:8765".into()],
             backend_identifier: "backend-id".into(),
             label: "Lab".into(),
-            ca_certificate_pem: None,
+            certificate_pem: None,
             access_key: None,
         }
     }
@@ -354,7 +298,7 @@ mod tests {
         let mut unknown = encoded.clone();
         unknown["key"] = serde_json::Value::Null;
         assert!(serde_json::from_value::<PairingFile>(unknown).is_err());
-        for field in ["ca_certificate_pem", "access_key"] {
+        for field in ["certificate_pem", "access_key"] {
             let mut missing = encoded.clone();
             missing.as_object_mut().unwrap().remove(field);
             assert!(serde_json::from_value::<PairingFile>(missing).is_err());
@@ -386,7 +330,7 @@ mod tests {
         pairing.backend_identifier = " ".into();
         assert!(pairing.validate().is_err());
         pairing = lab();
-        pairing.ca_certificate_pem = Some("invalid".into());
+        pairing.certificate_pem = Some("invalid".into());
         assert!(pairing.validate().is_err());
         pairing.endpoints = vec!["https://localhost:8765".into()];
         assert!(pairing.validate().is_err());

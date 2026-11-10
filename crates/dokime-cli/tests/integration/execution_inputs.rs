@@ -70,6 +70,8 @@ async fn execution_inputs() {
     let execution = "00000000-0000-0000-0000-000000000001";
     let cycle = "00000000-0000-0000-0000-000000000002";
     let directory = tempfile::tempdir().unwrap();
+    let remote_path = directory.path().join("missing.pair");
+    let remote = remote_path.to_str().unwrap();
     let path = directory.path().to_str().unwrap();
     let export_output = directory.path().join("requested-export.zip");
     for command in [
@@ -90,12 +92,12 @@ async fn execution_inputs() {
             let arguments = command.iter().copied().chain(missing);
             assert!(Cli::try_parse_from(arguments).is_err(), "partial recovery choices must be refused");
         }
-        let recovery = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "http://"];
+        let recovery = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--remote", remote];
         let arguments = command.iter().copied().chain(recovery);
         let parsed = Cli::try_parse_from(arguments).unwrap();
         assert!(
-            matches!(parsed.run(configuration.clone()).await, Err(Error::Client(_))),
-            "complete choices pass offline validation before endpoint parsing"
+            matches!(parsed.run(configuration.clone()).await, Err(Error::Io(_))),
+            "complete choices pass offline validation before pairing-file input"
         );
         let destination = directory.path().join(format!("execution-{execution}.zip"));
         std::fs::write(&destination, b"previous evidence").unwrap();
@@ -103,7 +105,7 @@ async fn execution_inputs() {
         let parsed = Cli::try_parse_from(arguments).unwrap();
         assert!(
             matches!(parsed.run(configuration.clone()).await, Err(Error::Download(_))),
-            "output conflicts must be refused before endpoint parsing"
+            "output conflicts must be refused before pairing-file input"
         );
         assert_eq!(std::fs::read(&destination).unwrap(), b"previous evidence");
         std::fs::remove_file(destination).unwrap();
@@ -113,10 +115,10 @@ async fn execution_inputs() {
     for incomplete in [vec!["--cancel-on-interrupt"], vec!["--owned-cycle", cycle], vec!["--recovery-directory", path]] {
         assert!(Cli::try_parse_from(append.into_iter().chain(incomplete)).is_err());
     }
-    let flags = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--endpoint", "http://"];
+    let flags = ["--cancel-on-interrupt", "--owned-cycle", cycle, "--recovery-directory", path, "--remote", remote];
     let parsed = Cli::try_parse_from(append.into_iter().chain(flags)).unwrap();
-    assert!(matches!(parsed.run(configuration.clone()).await, Err(Error::Client(_))));
-    let flags = ["--cancel-on-interrupt", "--owned-cycle", execution, "--recovery-directory", path, "--endpoint", "http://"];
+    assert!(matches!(parsed.run(configuration.clone()).await, Err(Error::Io(_))));
+    let flags = ["--cancel-on-interrupt", "--owned-cycle", execution, "--recovery-directory", path, "--remote", remote];
     let parsed = Cli::try_parse_from(append.into_iter().chain(flags)).unwrap();
     assert!(matches!(parsed.run(configuration.clone()).await, Err(Error::Input(_))), "append cannot authorize recovery of another cycle");
 
@@ -155,8 +157,8 @@ async fn execution_inputs() {
             "frames.jsonl",
             "--json",
             "{}",
-            "--endpoint",
-            "http://127.0.0.1:8765",
+            "--remote",
+            remote,
         ])
         .is_ok()
     );
@@ -171,21 +173,21 @@ async fn execution_inputs() {
         "operation",
         "call",
         "dokime.runtime.health",
-        "--endpoint",
-        "http://",
+        "--remote",
+        remote,
         "--input",
         file.path().to_str().unwrap(),
     ])
     .unwrap();
     assert!(matches!(args.run(configuration.clone()).await, Err(Error::Input(_))));
 
-    let args = Cli::try_parse_from(["dokime", "operation", "call", "missing.operation", "--endpoint", "http://"]).unwrap();
-    assert!(matches!(args.run(configuration.clone()).await, Err(Error::Client(_))));
+    let args = Cli::try_parse_from(["dokime", "operation", "call", "missing.operation", "--remote", remote]).unwrap();
+    assert!(matches!(args.run(configuration.clone()).await, Err(Error::Io(_))));
 
-    let args = Cli::try_parse_from(["dokime", "operation", "call", "dokime.evidence.watch_records", "--endpoint", "http://"]).unwrap();
+    let args = Cli::try_parse_from(["dokime", "operation", "call", "dokime.evidence.watch_records", "--remote", remote]).unwrap();
     let refused = args.run(configuration.clone()).await.unwrap_err();
-    assert_eq!(refused.exit_code(), std::process::ExitCode::from(2));
-    assert!(matches!(refused, Error::Client(_)));
+    assert_eq!(refused.exit_code(), std::process::ExitCode::from(3));
+    assert!(matches!(refused, Error::Io(_)));
 
     for arguments in [
         vec!["execution", "stop", "invalid"],
@@ -234,7 +236,7 @@ async fn execution_inputs() {
         vec!["cycle", "append", "98184567-8924-4fb0-b4e2-667347e097a1", "--case-id", "invalid"],
         vec!["cycle", "append", "--input-file", file.path().to_str().unwrap()],
     ] {
-        let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "http://"])).unwrap();
+        let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--remote", remote])).unwrap();
         assert!(matches!(args.run(configuration.clone()).await, Err(Error::Input(_))));
     }
 
@@ -249,8 +251,8 @@ async fn execution_inputs() {
             "{\"suite_id\":\"bench.checks\",\"template_id\":\"bench.checks.probe_2\",\"parameters\":[],\"files\":[]}",
         ],
     ] {
-        let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--endpoint", "http://"])).unwrap();
-        assert!(matches!(args.run(configuration.clone()).await, Err(Error::Client(_))));
+        let args = Cli::try_parse_from(std::iter::once("dokime").chain(arguments).chain(["--remote", remote])).unwrap();
+        assert!(matches!(args.run(configuration.clone()).await, Err(Error::Io(_))));
     }
 }
 

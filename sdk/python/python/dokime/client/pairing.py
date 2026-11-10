@@ -13,6 +13,7 @@
 
 # Standard Library Imports
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +34,10 @@ from .. import _native
 # === Public Functions === #
 
 
-def read(path: str | Path) -> dict[str, Any]:
+def read(path: str | Path | None = None) -> dict[str, Any]:
+    path = path if path is not None else os.environ.get("DOKIME_REMOTE")
+    if not path:
+        raise ValueError("Name a .pair file or set DOKIME_REMOTE")
     return json.loads(_native.read_pairing(Path(path)))
 
 

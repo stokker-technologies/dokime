@@ -63,22 +63,21 @@ class Transport:
         timeout,
         *,
         connect_timeout_ms,
-        endpoint_stagger_ms=250,
         endpoints=(),
         expected_backend_id=None,
-        ca_certificate_pem=None,
+        certificate_pem=None,
     ):
-        self._endpoint = _native.validate_target(endpoint, ca_certificate_pem)
-        self._endpoints = tuple(_native.validate_target(item, ca_certificate_pem) for item in endpoints)
+        self._endpoint = _native.validate_target(endpoint, certificate_pem)
+        self._primary_endpoint = self._endpoint
+        self._endpoints = tuple(_native.validate_target(item, certificate_pem) for item in endpoints)
         self._access_key = access_key
         self._expected_backend_id = expected_backend_id
-        self._ca = ca_certificate_pem
+        self._ca = certificate_pem
         self.timeout = timeout
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("rpc_timeout must be finite and positive")
         self._settings = {
             "connect_timeout_ms": connect_timeout_ms,
-            "endpoint_stagger_ms": endpoint_stagger_ms,
             "request_timeout_ms": int(timeout * 1000),
         }
         self._lock = asyncio.Lock()
@@ -102,7 +101,12 @@ class Transport:
             settings = {**self._settings, "request_timeout_ms": int(self.timeout * 1000)}
             self._connecting = asyncio.ensure_future(
                 _native.Client.connect(
-                    self._endpoint, list(self._endpoints), json.dumps(settings), self._access_key, self._expected_backend_id, self._ca
+                    self._primary_endpoint,
+                    list(self._endpoints),
+                    json.dumps(settings),
+                    self._access_key,
+                    self._expected_backend_id,
+                    self._ca,
                 )
             )
             try:

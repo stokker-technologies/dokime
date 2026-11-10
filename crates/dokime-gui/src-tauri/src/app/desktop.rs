@@ -167,7 +167,7 @@ pub async fn desktop_pairing_create(
     window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle,
 ) -> Result<Option<PathBuf>, crate::Error> {
     use crate::connection::ConnectionError;
-    use dokime::operations::remote::{ReadListener, RevokePairedClient};
+    use dokime::operations::remote::ReadListener;
     let local = |message: String| ConnectionError::Registry { message, cause: None };
     ensure_main_window(&window).map_err(local)?;
     let status = state.status();
@@ -217,17 +217,17 @@ pub async fn desktop_pairing_create(
         let picked = app
             .dialog()
             .file()
-            .set_file_name(format!("{filename}.dokime-remote"))
+            .set_file_name(format!("{filename}.pair"))
             .add_filter(
                 format!("{} Remote Access File", app.state::<crate::app::organization::OrganizationState>().label()),
-                &["dokime-remote"],
+                &["pair"],
             )
             .blocking_save_file();
         let Some(picked) = picked else { return Ok(None) };
         let path = picked.into_path().map_err(|error| error.to_string())?;
-        let path = if path.extension().is_none() { path.with_extension("dokime-remote") } else { path };
-        if path.extension().and_then(|value| value.to_str()) != Some("dokime-remote") {
-            return Err("Remote access files require the .dokime-remote extension".into());
+        let path = if path.extension().is_none() { path.with_extension("pair") } else { path };
+        if path.extension().and_then(|value| value.to_str()) != Some("pair") {
+            return Err("Remote access files require the .pair extension".into());
         }
         match std::fs::symlink_metadata(&path) {
             Ok(metadata) => {
@@ -268,7 +268,7 @@ pub async fn desktop_pairing_create(
         Ok(bytes) => tauri::async_runtime::spawn_blocking(move || {
             use std::io::Write;
             let parent = destination.parent().ok_or("Pairing destination has no parent")?;
-            let mut staged = tempfile::Builder::new().prefix(".dokime-remote-").tempfile_in(parent).map_err(|error| error.to_string())?;
+            let mut staged = tempfile::Builder::new().prefix(".pair-").tempfile_in(parent).map_err(|error| error.to_string())?;
             set_private_file(staged.path())?;
             staged.write_all(&bytes).map_err(|error| error.to_string())?;
             staged.as_file().sync_all().map_err(|error| error.to_string())?;
@@ -289,12 +289,6 @@ pub async fn desktop_pairing_create(
         Err(_) => Err("Pairing file could not be encoded".into()),
     };
     if let Err(message) = saved {
-        if let Some(paired) = created.client {
-            client
-                .call(RevokePairedClient { identifier: paired.identifier })
-                .await
-                .map_err(|_| local(format!("{message}; the new paired client could not be revoked. Revoke it in Paired Clients.")))?;
-        }
         return Err(local(message).into());
     }
     Ok(Some(path))

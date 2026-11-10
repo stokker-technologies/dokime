@@ -67,5 +67,4 @@ async fn appearance() {
 async fn authorization() {
     authorization::table_covers_serves();
     stage(Box::pin(authorization::key_boundary_matrix())).await;
-    stage(Box::pin(authorization::remote_refuses_local())).await;
 }
