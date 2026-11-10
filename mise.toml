@@ -24,7 +24,7 @@ rust = { version = "1.99.0", components = "clippy,rustfmt,llvm-tools", profile =
 
 # Package Managers
 pnpm = "12.11.2"
-uv = "0.13.0"
+uv = "0.13.7"
 
 # Rust Toolchain
 "aqua:nextest-rs/nextest/cargo-nextest" = "0.9.148"
