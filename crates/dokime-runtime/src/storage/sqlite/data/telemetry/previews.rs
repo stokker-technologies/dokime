@@ -35,6 +35,11 @@ pub(in crate::storage::sqlite) const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS 
 CREATE TABLE IF NOT EXISTS storage_report_context (
     execution TEXT NOT NULL,stream TEXT NOT NULL,through TEXT NOT NULL,state BLOB NOT NULL,
     PRIMARY KEY(execution,stream)
+) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS storage_plot_buckets (
+    execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL,
+    width INTEGER NOT NULL, bucket INTEGER NOT NULL, through TEXT NOT NULL, state BLOB NOT NULL,
+    PRIMARY KEY(execution,stream,field,width,bucket)
 ) WITHOUT ROWID;";
 
 /* === Macros === */
@@ -60,6 +65,9 @@ pub(crate) struct Bucket {
     pub(crate) min: Point,
     pub(crate) max: Point,
     pub(crate) count: u64,
+    pub(crate) scale: f64,
+    pub(crate) sum: f64,
+    pub(crate) squares: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -99,6 +107,7 @@ pub(in crate::storage::sqlite) struct Batch {
     settings: crate::storage::sqlite::PreviewSettings,
     fields: FieldProjections,
     contexts: StreamContexts,
+    windows: BTreeMap<(String, String, String, i64, i64), (u64, Bucket)>,
 }
 
 /* === Enums === */
@@ -151,17 +160,20 @@ impl Projection {
 }
 
 impl Bucket {
-    fn new(point: Point) -> Self {
+    pub(crate) fn new(point: Point) -> Self {
         Self {
             first: point,
             last: point,
             min: point,
             max: point,
             count: 1,
+            scale: point.value.abs(),
+            sum: if point.value == 0.0 { 0.0 } else { point.value.signum() },
+            squares: if point.value == 0.0 { 0.0 } else { 1.0 },
         }
     }
 
-    fn merge(&mut self, other: Self) -> Result<(), Error> {
+    pub(crate) fn merge(&mut self, other: Self) -> Result<(), Error> {
         let order = |point: Point| (point.time, point.position);
         if order(other.first) < order(self.first) {
             self.first = other.first;
@@ -175,6 +187,14 @@ impl Bucket {
         if other.max.value > self.max.value {
             self.max = other.max;
         }
+        let scale = self.scale.max(other.scale);
+        if scale > 0.0 {
+            let left = self.scale / scale;
+            let right = other.scale / scale;
+            self.sum = self.sum * left + other.sum * right;
+            self.squares = self.squares * left * left + other.squares * right * right;
+        }
+        self.scale = scale;
         self.count = self.count.checked_add(other.count).ok_or(Error::Data("preview count overflow"))?;
         Ok(())
     }
@@ -234,6 +254,7 @@ impl Batch {
             settings,
             fields: BTreeMap::new(),
             contexts: BTreeMap::new(),
+            windows: BTreeMap::new(),
         }
     }
 
@@ -289,6 +310,27 @@ impl Batch {
             projection.exact.clear();
         }
         if value.is_some() {
+            let width = i64::try_from(self.settings.bucket_interval.as_nanos()).map_err(|_| Error::Data("preview interval overflow"))?;
+            let index = i64::try_from(time.div_euclid(i128::from(width))).map_err(|_| Error::Data("preview bucket overflow"))?;
+            let key = (execution.to_owned(), stream.to_owned(), field.to_owned(), width, index);
+            if let std::collections::btree_map::Entry::Vacant(entry) = self.windows.entry(key.clone()) {
+                let previous: Option<Vec<u8>> = connection
+                    .query_row(
+                        "SELECT state FROM storage_plot_buckets WHERE execution=?1 AND stream=?2 AND field=?3 AND width=?4 AND bucket=?5",
+                        params![execution, stream, field, width, index],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                let bucket = previous.as_deref().map(decode).transpose()?;
+                entry.insert((position, bucket.unwrap_or_else(|| Bucket::new(point))));
+                if previous.is_none() {
+                    projection.envelope.push(point, self.settings.bucket_count.get())?;
+                    return Ok(());
+                }
+            }
+            let (through, bucket) = self.windows.get_mut(&key).expect("loaded time bucket");
+            *through = position;
+            bucket.merge(Bucket::new(point))?;
             projection.envelope.push(point, self.settings.bucket_count.get())?;
         }
         Ok(())
@@ -328,6 +370,13 @@ impl Batch {
                 }
             }
         }
+        let mut buckets = connection.prepare_cached(
+            "INSERT INTO storage_plot_buckets VALUES (?1,?2,?3,?4,?5,?6,?7)
+             ON CONFLICT(execution,stream,field,width,bucket) DO UPDATE SET through=excluded.through,state=excluded.state",
+        )?;
+        for ((execution, stream, field, width, index), (through, bucket)) in self.windows {
+            buckets.execute(params![execution, stream, field, width, index, super::super::position(through), encode(&bucket)?])?;
+        }
         let mut query = connection.prepare_cached(
             "INSERT INTO storage_report_context VALUES (?1,?2,?3,?4)
             ON CONFLICT(execution,stream) DO UPDATE SET through=excluded.through,state=excluded.state",
@@ -340,6 +389,35 @@ impl Batch {
 }
 
 /* === Public Functions === */
+
+// Only Complete Buckets Inside The Window Are Reused; Callers Read Its Edges.
+pub(crate) fn window_buckets(
+    connection: &Connection, execution: &str, stream: &str, field: &str, from: i128, to: i128, at: u64,
+) -> Result<Vec<(i128, i128, Bucket)>, Error> {
+    let mut widths = connection.prepare("SELECT DISTINCT width FROM storage_plot_buckets WHERE execution=?1 AND stream=?2 AND field=?3")?;
+    let widths = widths.query_map(params![execution, stream, field], |row| row.get::<_, i64>(0))?.collect::<Result<Vec<_>, _>>()?;
+    let mut query = connection.prepare(
+        "SELECT bucket,through,state FROM storage_plot_buckets
+         WHERE execution=?1 AND stream=?2 AND field=?3 AND width=?4 AND bucket>=?5 AND bucket<?6 ORDER BY bucket",
+    )?;
+    let mut buckets = Vec::new();
+    for width in widths {
+        let span = i128::from(width);
+        let first = i64::try_from(from.div_euclid(span) + i128::from(from.rem_euclid(span) != 0))
+            .map_err(|_| Error::Data("preview range overflow"))?;
+        let last = i64::try_from(to.div_euclid(span)).map_err(|_| Error::Data("preview range overflow"))?;
+        let mut rows = query.query(params![execution, stream, field, width, first, last])?;
+        while let Some(row) = rows.next()? {
+            let start = i128::from(row.get::<_, i64>(0)?) * span;
+            let through: String = row.get(1)?;
+            if through > super::super::position(at) {
+                continue;
+            }
+            buckets.push((start, start + span, decode(super::super::blob(row, 2)?)?));
+        }
+    }
+    Ok(buckets)
+}
 
 pub(crate) fn report_context(
     connection: &Connection, execution: &str, stream: &str, at: u64,
@@ -465,20 +543,33 @@ pub(super) fn report_record_rows(
 }
 
 pub(crate) fn report_previews(
-    connection: &Connection, execution: String, at: harmos::storage::StorageCursor,
+    connection: &Connection, execution: String, at: harmos::storage::StorageCursor, window: Option<(i128, i128)>,
 ) -> Result<Vec<FieldPreview>, Error> {
     let head = super::super::saved(connection)?;
     head.history.check(&at.history)?;
     let mut query =
         connection.prepare("SELECT stream,field,envelope,through FROM storage_report_previews WHERE execution=?1 ORDER BY stream,field")?;
-    let mut rows = query.query([execution])?;
+    let mut rows = query.query([&execution])?;
     let mut fields = Vec::new();
     while let Some(row) = rows.next()? {
         let through: String = row.get(3)?;
         if through > super::super::position(at.sequence) {
             return Err(Error::Data("preview has advanced beyond requested evidence; request a current snapshot"));
         }
-        let projection = Projection::decode(super::super::blob(row, 2)?)?;
+        let mut projection = Projection::decode(super::super::blob(row, 2)?)?;
+        if let Some((from, to)) = window {
+            let stream: String = row.get(0)?;
+            let field: String = row.get(1)?;
+            let buckets = window_buckets(connection, &execution, &stream, &field, from, to, at.sequence)?;
+            let width = buckets.first().map(|(start, end, _)| end - start).unwrap_or(1);
+            projection.envelope = Envelope {
+                origin: 0,
+                width,
+                buckets: buckets.into_iter().map(|(start, _, bucket)| (start.div_euclid(width), bucket)).collect(),
+            };
+            projection.exact.retain(|(point, _)| point.time >= from && point.time < to);
+            projection.count = projection.envelope.buckets.values().map(|bucket| bucket.count).sum();
+        }
         fields.push(FieldPreview {
             stream: row.get(0)?,
             field: row.get(1)?,
@@ -632,6 +723,63 @@ mod tests {
     }
 
     #[test]
+    fn window_buckets_reopen_and_include_late_samples() {
+        use dokime_domain::model::values::Value;
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(SCHEMA).unwrap();
+        let mut settings = crate::config::local_storage_defaults().previews;
+        settings.bucket_interval = std::time::Duration::from_secs(1);
+        for (position, time, value) in [(1, 100_000_000, 2.0), (2, 900_000_000, 4.0), (3, 2_100_000_000, 9.0)] {
+            let mut batch = Batch::new(settings);
+            batch
+                .push(
+                    &connection,
+                    Input {
+                        execution: "execution",
+                        stream: "stream",
+                        position,
+                        time,
+                    },
+                    "value",
+                    Some(value),
+                    &Value::Number(value),
+                )
+                .unwrap();
+            batch.save(&connection).unwrap();
+        }
+        let buckets = window_buckets(&connection, "execution", "stream", "value", 0, 2_000_000_000, 3).unwrap();
+        assert_eq!(buckets.len(), 1);
+        let bucket = &buckets[0].2;
+        assert_eq!(bucket.count, 2);
+        assert_eq!(bucket.scale * bucket.sum / bucket.count as f64, 3.0);
+        assert_eq!(bucket.scale.powi(2) * bucket.squares / bucket.count as f64, 10.0);
+        assert!(window_buckets(&connection, "execution", "stream", "value", 1, 999_999_999, 3).unwrap().is_empty());
+
+        let mut batch = Batch::new(settings);
+        batch
+            .push(
+                &connection,
+                Input {
+                    execution: "execution",
+                    stream: "stream",
+                    position: 4,
+                    time: 500_000_000,
+                },
+                "value",
+                Some(-10.0),
+                &Value::Number(-10.0),
+            )
+            .unwrap();
+        batch.save(&connection).unwrap();
+        let buckets = window_buckets(&connection, "execution", "stream", "value", 0, 2_000_000_000, 4).unwrap();
+        assert_eq!(buckets[0].2.count, 3);
+        assert_eq!(buckets[0].2.min.value, -10.0);
+        assert_eq!(buckets[0].2.first.position, 1);
+        assert_eq!(buckets[0].2.last.position, 2);
+        assert!(window_buckets(&connection, "execution", "stream", "value", 0, 2_000_000_000, 3).unwrap().is_empty());
+    }
+
+    #[test]
     fn bucket_extrema() {
         for offset in [0, i128::from(u64::MAX) + 4096] {
             for maximum in [1, 8, 32] {
@@ -662,6 +810,10 @@ mod tests {
                     let members: Vec<_> =
                         fixture.iter().filter(|point| (point.time - envelope.origin).div_euclid(envelope.width) == *key).collect();
                     assert_eq!(bucket.count as usize, members.len());
+                    let mean = members.iter().map(|point| point.value).sum::<f64>() / members.len() as f64;
+                    assert!(
+                        (bucket.scale * bucket.sum / bucket.count as f64 - mean).abs() <= 1e-12 * mean.abs().max(bucket.scale).max(1.0)
+                    );
                     assert_eq!(bucket.min.value, members.iter().map(|point| point.value).fold(f64::INFINITY, f64::min));
                     assert_eq!(bucket.max.value, members.iter().map(|point| point.value).fold(f64::NEG_INFINITY, f64::max));
                     assert_eq!(bucket.first, **members.iter().min_by_key(|point| (point.time, point.position)).unwrap());

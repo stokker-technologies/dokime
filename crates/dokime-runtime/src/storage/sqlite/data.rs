@@ -336,7 +336,7 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
         let indexed: bool = connection.query_row(
             "SELECT count(*)=11 FROM sqlite_master WHERE type='table' AND name IN
                 ('files','streams','storage_record_visibility','storage_record_captures',
-                 'storage_numeric_summaries','storage_numeric_checkpoints','storage_report_previews','stream_samples',
+                 'storage_numeric_summaries','storage_numeric_checkpoints','storage_plot_buckets','storage_report_previews','stream_samples',
                  'storage_distinct_values','storage_value_postings','storage_distinct_fields')",
             [],
             |row| row.get(0),

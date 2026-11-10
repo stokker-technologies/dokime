@@ -76,7 +76,7 @@ impl State {
                         return Err(Error::Invalid("report boundary is not durable"));
                     }
                     let through = if request.current { head.clone() } else { request.at };
-                    let fields = previews::report_previews(connection, request.execution.clone(), through.clone())?;
+                    let fields = previews::report_previews(connection, request.execution.clone(), through.clone(), None)?;
                     let mut exact = aggregates::numeric_summaries(connection, request.execution.clone())?;
                     aggregates::exact_percentiles(connection, &root, &request.execution, &through, &mut exact, &request.percentiles)?;
                     let plots = crate::plot::preview::index::checkpoints(connection, &request.execution, through.sequence)?;

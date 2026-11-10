@@ -156,7 +156,7 @@ impl Tail {
 }
 
 impl State {
-    #[cfg(any(test, feature = "testing"))]
+    #[cfg(feature = "testing")]
     pub(in crate::storage::sqlite) async fn flush_telemetry_at(&self, storage: &Manager, now: Instant) -> Result<bool> {
         let cut = self.0.telemetry_tail.lock().unwrap().cut(storage.cursor_saved(), self.0.settings)?;
         let Some(cut) = cut else { return Ok(false) };

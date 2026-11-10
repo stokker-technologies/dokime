@@ -393,7 +393,7 @@ pub(super) fn exact_percentiles(
     connection: &Connection, root: &std::path::Path, execution: &str, through: &harmos::storage::StorageCursor,
     summaries: &mut [NumericSummary], requested: &std::collections::BTreeSet<(String, String, u8)>,
 ) -> Result<(), Error> {
-    let fields = super::previews::report_previews(connection, execution.into(), through.clone())?;
+    let fields = super::previews::report_previews(connection, execution.into(), through.clone(), None)?;
     let mut streams = BTreeMap::<String, Vec<usize>>::new();
     for (index, summary) in summaries.iter().enumerate() {
         streams.entry(summary.stream.clone()).or_default().push(index);

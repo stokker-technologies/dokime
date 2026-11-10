@@ -513,7 +513,7 @@ fn load_plan(
         }
         let head = crate::storage::sqlite::data::saved(connection)?;
         let cut = harmos::storage::StorageCursor { history: head.history, sequence: at };
-        let fields = checkpoint_state::report_previews(connection, execution.into(), cut)?;
+        let fields = checkpoint_state::report_previews(connection, execution.into(), cut, None)?;
         let selected = |field: &str| {
             plan.request.y_keys.iter().any(|key| key == field)
                 || plan.request.y_expressions.iter().any(

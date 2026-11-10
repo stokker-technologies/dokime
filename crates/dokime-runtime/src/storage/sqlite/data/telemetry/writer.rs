@@ -83,7 +83,7 @@ impl Store {
         }
     }
 
-    #[cfg(any(test, feature = "testing"))]
+    #[cfg(feature = "testing")]
     pub(in crate::storage::sqlite) fn fail_next_sync(&mut self) {
         self.fail_sync = true;
     }
