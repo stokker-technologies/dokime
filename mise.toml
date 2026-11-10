@@ -657,7 +657,8 @@ run = "{{vars.tools}} dokime_tools.release.run prepare"
 
 [tasks."release:publish"]
 description = "Publish a Tagged Release"
-run = [{ task = "release:publish:assets" }, { task = "release:publish:python" }, { task = "release:publish:finalize" }]
+# Python Registry Publication Waits For The Package Name Decision; The Wheel Is Still Built And Dry-Run Checked.
+run = [{ task = "release:publish:assets" }, { task = "release:publish:finalize" }]
 
 [tasks."release:publish:assets"]
 description = "Draft the Release with Its Assets and SHA256SUMS"
