@@ -11,6 +11,9 @@
 - [ ] 2.1 Define `dokime.v1`: host operations for clients and plugins, `TestCase`, `Step`, `Criterion`, `Statistics`, with checked-in protos attached to releases.
 - [ ] 2.2 Add the host operations plugins need that exist only as evidence-page fields today: progress, log, traceability, document parts, record reads and statistics.
 
+- [ ] 2.3 Replace the JSON catalog sections with `dokime.v1` messages and add `dokime proto export`.
+- [ ] 2.4 Serve settings as a host operation and delete settings injection and restart on save.
+
 ## 3. Host
 
 - [ ] 3.1 Adopt the Harmos `grpc-plugins` revision and add `Plugin::{Managed, Remote}` with the add and remove operations and entry states.

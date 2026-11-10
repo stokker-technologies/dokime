@@ -71,6 +71,11 @@ A step or criterion SHALL reach Dokime only by calling host operations through i
 - **WHEN** a criterion asks for a stream's statistics for one step
 - **THEN** the host returns statistics computed over that step's samples of the execution
 
+#### Scenario: Settings
+
+- **WHEN** a plugin's settings are saved while it is connected
+- **THEN** the plugin keeps running and its next settings read returns the saved values
+
 #### Scenario: Verdict
 
 - **WHEN** every criterion returns pass
@@ -98,6 +103,11 @@ Each language SDK SHALL let an author serve a plugin and drive Dokime through `d
 
 - **WHEN** a Python script serves a suite, adds its URL to a running Dokime, materializes cases and starts a cycle
 - **THEN** the cycle executes the suite's steps and the script observes its progress
+
+#### Scenario: Definitions Exported
+
+- **WHEN** an author runs the proto export command for `dokime.v1` or for one plugin
+- **THEN** it writes the `.proto` files the author's own toolchain generates code from
 
 #### Scenario: Generated Client
 

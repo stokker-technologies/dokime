@@ -173,7 +173,7 @@ declares as a requirement. The SDK methods are thin conveniences over
 | --- | --- |
 | `prompt(...)` | Ask the operator and wait for the answer |
 | `secret(identifier)` | Read Secret Storage |
-| `settings()` | Read the plugin's settings |
+| `settings()` | Read the plugin's settings when needed; nothing is injected at start and saving settings restarts nothing |
 | `record(kind, ...)` | Publish a record; returns once the host stored it |
 | `records(kind)` | Read the execution's records of a kind (`count`, `last`) |
 | `statistics(stream, step=None)` | Statistics of a stream so far, optionally for one step |
@@ -216,6 +216,39 @@ the host records which data each criterion read.
   acknowledged host operation on the step's own call.
 - Removed: stream leases, publication admission, sample and record delivery
   into a running template.
+
+## Calling Other Plugins
+
+A step calls an instrument operation that another plugin serves, in any
+language, as a typed call routed by the host (Harmos `grpc-plugins`, Calls
+Between Plugins). The definitions come from one command, which emits `.proto`
+files only; each language's own toolchain generates code from them.
+
+```sh
+dokime proto export --out proto/                    # dokime.v1
+dokime proto export --plugin thermal --out proto/   # one plugin's operations
+```
+
+```python
+from thermal.v1 import SetTemperature
+
+ctx.operation(SetTemperature(target=85))
+```
+
+Plugins connect independently and trust each other. A call to a plugin that
+is not connected is refused naming it.
+
+## Catalog Sections
+
+Dokime's contributions to a plugin's catalog become `dokime.v1` messages
+instead of versioned JSON blobs.
+
+| Today | Becomes |
+| --- | --- |
+| `dokime.suites` | `dokime.v1` suites: templates, parameters, files, documents |
+| `dokime.records`, `dokime.analyses`, `dokime.settings`, `dokime.run-start` | Typed `dokime.v1` messages |
+| `dokime.telemetry` | Folded into the plugin's stream declarations |
+| `dokime.listeners` | Removed with record and sample delivery |
 
 ## Protocol Packages
 
@@ -285,11 +318,17 @@ Not yet decided with the owner; each is settled before its task starts.
 1. The fixed percentile set in `Statistics` (proposed: 5, 95, 99 and the
    median).
 2. Whether a Wasm guest can be a managed Dokime plugin in the first version.
-3. How settings changes reach a running plugin.
+3. How `dokime proto export --plugin` finds the plugin. Proposed: through a
+   running Dokime as a client, from a plugin URL, or from a bundle path, so
+   the command never needs the data folder.
 4. The sample rates of existing plugins, to confirm one sample per message is
    enough for each.
 5. Reconciling the overlapping changes named in the proposal, including which
    of them this change absorbs.
-6. Spec deltas that retire `python-backend`, `python-sdk`,
+6. Authoring improvements under research: a per-execution typed resource
+   store instead of template fields that start empty; shorter return types
+   for operations and steps; one context type without template-specific
+   parameters, which also absorbs `template-authoring-simplification`.
+7. Spec deltas that retire `python-backend`, `python-sdk`,
    `python-plugin-authoring` and the reload and start-order requirements this
    change removes.

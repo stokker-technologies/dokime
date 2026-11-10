@@ -49,6 +49,11 @@ and lets Dokime delete the plumbing in between.
   existing install path and security roadmap.
 - The host telemetry plugin stays a managed plugin.
 - No throughput gate: design for simplicity, tune afterwards.
+- Calls to other plugins are typed protobuf calls; `dokime proto export`
+  provides the definitions. There is no dynamic call layer.
+- A plugin reads its settings through a host operation when it needs them.
+  Saving settings restarts nothing.
+- Dokime's catalog sections are typed `dokime.v1` messages.
 - Harmos stays generic. Every Dokime concept is an operation convention or a
   catalog section.
 
