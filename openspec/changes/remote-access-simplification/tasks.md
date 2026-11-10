@@ -8,7 +8,7 @@
 ## 2. Implementation
 
 - [ ] 2.1 Remove grants and per-operation permissions for clients.
-- [ ] 2.2 Read the connection from environment variables in every client and SDK, with the pairing file as the same values in a file.
+- [ ] 2.2 Read the pairing file named explicitly or through the environment in every client and SDK.
 - [ ] 2.3 Remove the mechanisms task 1.1 retires, with their tests and guidance.
 
 ## 3. Final Validation

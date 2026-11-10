@@ -43,7 +43,7 @@ process. Nothing above it branches on the variant.
 | Remote | A URL | Removing it from the list | Connecting, ready, unavailable |
 
 An entry exists until someone removes it; availability is a state. Adding and
-removing a remote plugin are Public operations, so the settings page and a
+removing a remote plugin are operations served to clients, so the settings page and a
 script use the same path.
 
 ## The Test Case
@@ -319,7 +319,11 @@ instead of versioned JSON blobs.
 | `harmos.v1` | Plugin service, catalog, child calls, streams, failures |
 | `dokime.v1` | Operations Dokime serves to clients and to plugins, and the messages for operations plugins serve (`TestCase`, `Step`, `Statistics`) |
 
-Visibility and grants decide who may call an operation. "Automation" names
+Visibility decides who may call an operation: `Host` operations are served to
+clients, `Public` operations are also callable by plugins, and the step,
+criterion, initialize and cleanup operations a plugin serves are `Host`, so
+only Dokime calls them. Most of today's operations are `Host`; the ones
+plugins need through `ctx` become `Public`. "Automation" names
 the activity of driving Dokime, not a package. The protos are attached to
 every release; a breaking change moves the package to `v2`.
 
@@ -344,7 +348,7 @@ async with dokime.serve(ThermalCycle, address="127.0.0.1:7001") as plugin:
             print(progress)
 ```
 
-- Every Public operation with a binding appears in every language's client
+- Every operation Dokime serves to clients appears in every language's client
   through generation; a check keeps the stubs in step with the protos.
 - Rust's client half is `dokime-client`, already used by the CLI and the
   desktop.

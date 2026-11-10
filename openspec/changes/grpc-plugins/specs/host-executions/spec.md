@@ -111,7 +111,7 @@ Each language SDK SHALL let an author serve a plugin and drive Dokime through `d
 
 #### Scenario: Generated Client
 
-- **WHEN** a Public operation with a binding is added to `dokime.v1`
+- **WHEN** an operation served to clients is added to `dokime.v1`
 - **THEN** every language's client exposes it after regeneration, and a check fails while the stubs are stale
 
 ### Requirement: Runtime-Free Authoring

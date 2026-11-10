@@ -2,7 +2,7 @@
 
 ### Requirement: Connected Clients Are Trusted
 
-A connected client SHALL be able to call every Public operation without grants, scopes or per-operation permissions.
+A connected client SHALL be able to call every operation the backend serves to clients, without grants, scopes or per-operation permissions.
 
 #### Scenario: Second Machine
 
@@ -11,14 +11,14 @@ A connected client SHALL be able to call every Public operation without grants, 
 
 ### Requirement: Environment Configuration
 
-A client SHALL take its connection from environment variables or from a pairing file carrying the same values.
+A client SHALL take its connection from a pairing file, named explicitly or through the environment.
 
 #### Scenario: Environment
 
-- **WHEN** the connection variables are set and a client connects without arguments
-- **THEN** it connects to the endpoint they name
+- **WHEN** the environment names a pairing file and a client connects without arguments
+- **THEN** it connects to the backend that file describes
 
 #### Scenario: Nothing Configured
 
 - **WHEN** no variable and no pairing file names a backend
-- **THEN** the client fails with a message naming the variables to set
+- **THEN** the client fails with a message naming the variable to set
