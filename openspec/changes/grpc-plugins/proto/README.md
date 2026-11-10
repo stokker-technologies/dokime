@@ -49,8 +49,8 @@ Each is open to review.
 - A step returns no values; `StepResponse` stays empty.
 - A criterion returns pass or fail and nothing else.
 - Statistics are per column, so the request names a field.
-
-## Questions for Review
-
-1. Whether `ctx.statistics` should also accept a record field, for numeric
-   values published as records.
+- Statistics cover streams only in the first version. A numeric series a
+  criterion judges belongs in a stream; a record field can be added later
+  as one new request field.
+- Visibility has two levels, and the host owns the clock (see the Harmos
+  draft).

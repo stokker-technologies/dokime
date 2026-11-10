@@ -36,6 +36,15 @@ replacement, and the same data travels in two representations.
 6. **FFT moves into Dokime** from Harmos, which no longer offers signal
    processing.
 
+## Memory
+
+The requirement that working memory stays flat as retained rows grow is
+removed. Using more memory while a report or plot is produced is
+acceptable when the result is correct and fast. At today's rates an
+execution's samples fit in memory many times over; signals in the
+kilohertz range are the case that could change this, and peak memory
+stays measured so that case is visible when it comes.
+
 ## Not in This Change
 
 - Replacing the temporary SQLite staging used for plots with expressions,

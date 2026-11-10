@@ -18,7 +18,7 @@ message Metadata {
 
 // ------------------------------------------------- Operations a plugin serves
 //
-// Operation identifiers, all with Host visibility:
+// Operation identifiers, all Private:
 //   <template>.materialize   MaterializeRequest -> TestCase       (pure)
 //   <template>.initialize    InitializeRequest  -> InitializeResponse   (optional)
 //   <template>.cleanup       CleanupRequest     -> CleanupResponse      (optional)
