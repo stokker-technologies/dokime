@@ -18,7 +18,7 @@
 
 ## 4. Workflows
 
-- [ ] 4.1 Rewrite the CI, Nightly and Release workflows so each job runs one task, per the shape task 1.1 records.
+- [x] 4.1 Rewrite the CI, Nightly and Release workflows so each job runs one task, per the shape task 1.1 records.
 
 ## 5. Final Validation
 
