@@ -62,7 +62,7 @@ pub(crate) fn finish(payload: ReadBatch<PlotPayload>, request: &PlotPayloadReque
         if !spectrum && !interval && !wifi {
             payload.analysis = analyses::analyze(&mut payload.series, request);
         }
-        payload.summaries = analyses::summarize(&payload.series, request);
+        payload.summaries = if request.defer_statistics { Vec::new() } else { analyses::summarize(&payload.series, request) };
         Ok::<_, crate::runtime::Error>(payload)
     })?;
     let payload = payload.try_map(|mut payload| {
@@ -96,19 +96,38 @@ pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest
         });
     }
     let spectrum = matches!(request.plot_type, Some(PlotType::FrequencySeries));
+    let timed = request.panel_width.filter(|_| {
+        matches!(request.plot_type, None | Some(PlotType::TimeSeries))
+            && request.x_key.as_deref().is_none_or(|key| key == "timestamp")
+            && request.x_expression.is_none()
+    });
+    let columns = timed.map(|width| (width as usize).min((payload.max_points / 6).max(1)));
+    let extent = request.viewport.or_else(|| {
+        let mut xs = payload.series.iter().flat_map(|series| series.points.iter().filter_map(analyses::point_x));
+        let first = xs.next()?;
+        let window = xs.fold(super::PlotWindow { from: first, to: first }, |window, x| super::PlotWindow {
+            from: window.from.min(x),
+            to: window.to.max(x),
+        });
+        Some(super::PlotWindow {
+            from: request.window_s.map_or(window.from, |seconds| window.to - seconds),
+            to: window.to,
+        })
+    });
+    if let (Some(columns), Some(window)) = (columns, extent) {
+        payload.bucket_window = Some(window);
+        let width = ((window.to - window.from) / columns.max(1) as f64).max(f64::EPSILON);
+        payload.bucket_width_s = Some(width);
+        payload.bucket_counts.clear();
+        for point in payload.series.iter().flat_map(|series| &series.points) {
+            if let Some(x) = analyses::point_x(point).filter(|x| window.from <= *x && *x <= window.to) {
+                *payload.bucket_counts.entry((x / width).floor() as i128).or_insert(0) += 1;
+            }
+        }
+    }
     for series in &mut payload.series {
-        let timed = request
-            .panel_width
-            .filter(|_| !spectrum && request.x_key.as_deref().is_none_or(|key| key == "timestamp") && request.x_expression.is_none());
-        let selected = if let Some(width) = timed {
-            Some(time_indices(
-                &series.points,
-                request.viewport.or_else(|| {
-                    let to = series.points.iter().filter_map(analyses::point_x).max_by(f64::total_cmp)?;
-                    Some(super::PlotWindow { from: to - request.window_s?, to })
-                }),
-                (width as usize).min((payload.max_points / 6).max(1)),
-            ))
+        let selected = if let Some(columns) = columns {
+            Some(time_indices(&series.points, extent, columns))
         } else {
             indexes(&series.points, payload.max_points, request.technique, spectrum)?
         };

@@ -122,7 +122,7 @@ fn append(
     read: &Read<'_>, payload: &mut PlotPayload, mut series: Series, request: &PlotPayloadRequest, context: &PlotPayloadContext,
 ) -> Result<()> {
     series.metadata.format = context.series_format.cloned();
-    if analyses::summarizes(request) {
+    if !request.defer_statistics && analyses::summarizes(request) {
         payload.summaries.push(series.summary(request.summary_window)?);
     }
     let invalid_z = request.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty());

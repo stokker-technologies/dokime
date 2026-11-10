@@ -292,7 +292,10 @@ All refreshes and frozen reports retain saved evidence cuts.
 
 A document watch evaluates its dirty plots together at one captured cut, reusing
 query deduplication and bounded storage readers. One watch message carries the
-complete dirty set in request order, including each plot's snapshot or error.
+complete dirty set in request order, including each plot's snapshot, changed time buckets or error. A late sample
+replaces the bucket containing its timestamp. Exact statistics arrive on their
+own coalesced read and never block a redraw; their evidence revision can lag the
+latest drawn frame.
 Opening snapshots use the same grouped delivery. The plots share the revision's
 transport budget; oversized payloads reduce from the retained query result,
 without rereading evidence. Finite All requests keep their independent budgets.

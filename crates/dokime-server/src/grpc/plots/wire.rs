@@ -406,6 +406,8 @@ fn finite_nonnegative(value: f64, label: &str) -> Result<f64, Status> {
 fn plot_stream_kind(value: PlotPayloadStreamKind) -> dokime::domain::model::plots::wire::PlotStreamKind {
     match value {
         PlotPayloadStreamKind::Snapshot => dokime::domain::model::plots::wire::PlotStreamKind::Snapshot,
+        PlotPayloadStreamKind::Delta => dokime::domain::model::plots::wire::PlotStreamKind::Delta,
+        PlotPayloadStreamKind::Statistics => dokime::domain::model::plots::wire::PlotStreamKind::Statistics,
         PlotPayloadStreamKind::Replace => dokime::domain::model::plots::wire::PlotStreamKind::Replace,
         PlotPayloadStreamKind::Error => dokime::domain::model::plots::wire::PlotStreamKind::Error,
     }
@@ -451,6 +453,11 @@ fn plot_payload(value: dokime::runtime::query::PlotPayload) -> Result<dokime::do
         cycle_started_at: value.cycle_started_at,
         analysis: value.analysis.map(plot_analysis).transpose()?,
         summaries: mapped(value.summaries, plot_series_summary)?,
+        bucket_width_s: value.bucket_width_s,
+        bucket_window: value
+            .bucket_window
+            .map(|window| dokime::domain::model::plots::wire::PlotWindow { from: window.from, to: window.to }),
+        replaced_buckets: value.replaced_buckets,
     })
 }
 

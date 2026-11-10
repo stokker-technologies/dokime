@@ -277,6 +277,8 @@ impl Checkpoint {
             request.scope = None;
             request.max_points = None;
             request.summary_window = None;
+            request.defer_statistics = false;
+            request.panel_width = None;
             request.technique = Default::default();
             request.x_format = None;
             request.y_format = None;
@@ -292,6 +294,8 @@ impl Checkpoint {
         saved.max_points = request.max_points;
         saved.scope = request.scope.clone();
         saved.summary_window = request.summary_window;
+        saved.defer_statistics = request.defer_statistics;
+        saved.panel_width = request.panel_width;
         saved.technique = request.technique;
         saved.x_format = request.x_format.clone().or(saved.x_format);
         saved.y_format = request.y_format.clone().or(saved.y_format);

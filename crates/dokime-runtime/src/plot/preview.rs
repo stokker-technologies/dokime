@@ -614,7 +614,8 @@ impl Preview {
             return Ok(payload);
         }
         let mut payload = super::finish_retained_plot_payload(harmos::storage::ReadBatch::new(payload), request)?.as_ref().clone();
-        if !self.reduced
+        if !request.defer_statistics
+            && !self.reduced
             && request.series_by.is_none()
             && request.series_by_expression.is_none()
             && request.window_s.is_none()

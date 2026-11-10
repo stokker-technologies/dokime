@@ -215,6 +215,9 @@ pub struct PlotPayload {
         description = "One summary per series, in series order, for time series and scatter plots: the statistics of the exact rows in the shown window."
     )]
     pub summaries: Vec<PlotSeriesSummary>,
+    pub bucket_width_s: Option<f64>,
+    pub bucket_window: Option<PlotWindow>,
+    pub replaced_buckets: Vec<f64>,
 }
 
 #[harmos::message]
@@ -634,6 +637,8 @@ pub enum PlotStreamKind {
     Unspecified,
     Snapshot,
     Replace,
+    Delta,
+    Statistics,
     Error,
 }
 

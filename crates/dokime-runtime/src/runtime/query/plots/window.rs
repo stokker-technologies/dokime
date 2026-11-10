@@ -209,6 +209,7 @@ pub(super) async fn query(
         .await??;
     let mut series = Vec::new();
     let mut summaries = Vec::new();
+    let mut bucket_counts = BTreeMap::new();
     for (key, stored, mut ranges) in stored {
         let mut buckets = BTreeMap::<i128, Bucket>::new();
         let mut coverage = Vec::new();
@@ -288,6 +289,10 @@ pub(super) async fn query(
         for sample in tail_samples.iter() {
             append(sample.clone())?;
         }
+        for bucket in buckets.values() {
+            let key = (bucket.first.time as f64 / 1e9 / (width as f64 / 1e9)).floor() as i128;
+            *bucket_counts.entry(key).or_insert(0) += bucket.count;
+        }
         let moments = buckets.values().cloned().reduce(|mut left, right| {
             left.merge(right).expect("bounded evidence count");
             left
@@ -335,7 +340,13 @@ pub(super) async fn query(
     let format = super::plot_payload_context(request, super::telemetry_contract(context, &request.stream), run, cycle, maximum);
     let mut payload =
         crate::plot::project_retained_plot_payload(&[], Default::default(), request, &context.generated_at, &format)?.as_ref().clone();
+    payload.bucket_width_s = Some(width as f64 / 1e9);
+    payload.bucket_window = Some(PlotWindow {
+        from: from as f64 / 1e9,
+        to: to as f64 / 1e9,
+    });
     payload.series = series;
+    payload.bucket_counts = bucket_counts;
     payload.summaries = summaries;
     payload.max_points = columns.saturating_add(2).saturating_mul(4);
     if let Some(contract) = super::telemetry_contract(context, &request.stream) {

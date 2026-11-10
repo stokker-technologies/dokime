@@ -124,6 +124,9 @@ pub struct PlotPayloadRequest {
 
     #[serde(default)]
     pub panel_width: Option<u32>,
+
+    #[serde(default)]
+    pub defer_statistics: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -170,6 +173,13 @@ pub struct PlotPayload {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub summaries: Vec<PlotSeriesSummary>,
+
+    pub bucket_width_s: Option<f64>,
+    pub bucket_window: Option<PlotWindow>,
+    pub replaced_buckets: Vec<f64>,
+
+    #[serde(skip)]
+    pub bucket_counts: BTreeMap<i128, u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -303,6 +313,8 @@ pub struct PlotMarker {
 pub enum PlotPayloadStreamKind {
     Snapshot,
     Replace,
+    Delta,
+    Statistics,
     Error,
 }
 

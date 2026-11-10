@@ -178,6 +178,7 @@ fn plot_request(request: dokime::domain::model::plots::wire::PlotRequest) -> Res
         window_s: request.window_s,
         scope: request.scope.map(record_scope).transpose()?,
         technique,
+        defer_statistics: false,
         summary_window,
         viewport,
         panel_width: request.panel_width,

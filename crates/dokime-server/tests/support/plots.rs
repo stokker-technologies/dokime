@@ -236,8 +236,12 @@ pub async fn data_frame(watch: &mut WireStream<model::plots::wire::PlotStreamFra
 
 pub async fn data_frames(watch: &mut WireStream<model::plots::wire::PlotStreamFrame>) -> Vec<model::plots::wire::PlotStreamUpdate> {
     loop {
-        let frame = watch.message().await.unwrap().unwrap();
+        let mut frame = watch.message().await.unwrap().unwrap();
         assert!(!frame.updates.is_empty());
+        frame.updates.retain(|update| update.kind != model::plots::wire::PlotStreamKind::Statistics);
+        if frame.updates.is_empty() {
+            continue;
+        }
         if frame.updates.iter().all(|update| update.kind == model::plots::wire::PlotStreamKind::Unspecified) {
             continue;
         }
