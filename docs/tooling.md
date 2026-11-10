@@ -207,7 +207,7 @@ the override with `Remove-Item Env:RUSTC_WRAPPER`.
 Run targeted tasks locally for changed behavior. Hosted CI and Nightly provide
 full validation across the declared platforms.
 
-Nightly runs every four hours or on manual dispatch, serializes runs without cancelling an active run, and skips scheduled heads already published or heads with another in-progress or queued Nightly run.
+Nightly runs every four hours or on manual dispatch, serializes runs without cancelling an active run, and skips the whole run after Plan / Freshness (every downstream job) for scheduled heads already published or heads with another in-progress or queued Nightly run.
 
 Release staging reads `NOTICE` and `THIRD-PARTY-NOTICES` from each target's
 `target/package/<profile>/<target>/rust/dokime-distribution-<version>-<triple>.zip`.
