@@ -1,20 +1,9 @@
-// DRAFT for owner review. Not implemented. See ../../README.md for the rules.
-//
-// Messages the redesign introduces. Suites, parameters, files, documents,
-// record contracts, analyses and settings keep their current shapes and are
-// exported into dokime.v1 by the existing generator.
 syntax = "proto3";
 
 package dokime.v1;
 
-import "google/protobuf/struct.proto";
+import "dokime/v1/values.proto";
 import "google/protobuf/timestamp.proto";
-
-message Metadata {
-  string identifier = 1;
-  string label = 2;
-  string description = 3;
-}
 
 // ------------------------------------------------- Operations a plugin serves
 //
@@ -24,12 +13,13 @@ message Metadata {
 //   <template>.cleanup       CleanupRequest     -> CleanupResponse      (optional)
 //   Step.operation           StepRequest        -> StepResponse
 //   Criterion.operation      CriterionRequest   -> CriterionResponse
-// The Harmos Request.scope of each call is the execution identifier.
+// Execution calls use the execution identifier as Harmos Request.scope.
+// Pure materialization has no execution scope, including during preview.
 
 message MaterializeRequest {
   string template = 1;
   // One resolved parameter set from the host's expansion.
-  map<string, google.protobuf.Value> parameters = 2;
+  map<string, Value> parameters = 2;
 }
 
 message TestCase {
@@ -37,7 +27,7 @@ message TestCase {
   // Plugin identifier and catalog digest the case was materialized from.
   string plugin = 2;
   bytes digest = 3;
-  map<string, google.protobuf.Value> parameters = 4;
+  map<string, Value> parameters = 4;
   repeated Step steps = 5;
   repeated Criterion criteria = 6;
   // Identifiers of the streams the host opens for the execution.
@@ -69,6 +59,9 @@ message StepRequest {
   string execution = 1;
   // Metadata.identifier of the step.
   string step = 2;
+  // Supplied on every execution call so the SDK can create its instance even
+  // when the template has no initialize operation.
+  TestCase test_case = 3;
 }
 
 message StepResponse {}
@@ -77,6 +70,7 @@ message CriterionRequest {
   string execution = 1;
   // Metadata.identifier of the criterion.
   string criterion = 2;
+  TestCase test_case = 3;
 }
 
 message CriterionResponse {
@@ -86,6 +80,7 @@ message CriterionResponse {
 message CleanupRequest {
   string execution = 1;
   Termination termination = 2;
+  TestCase test_case = 3;
 }
 
 message CleanupResponse {}
@@ -102,14 +97,14 @@ enum Termination {
 
 // ----------------------------------- Host operations a plugin calls (ctx)
 //
-// Public operations served by Dokime. Prompts, artifacts, file capture and
-// effects keep their current request shapes.
+// Public operations served by Dokime. See host.proto for the other context calls.
+// All calls inherit the execution scope of the parent Harmos invocation.
 //   dokime.execution.record       PublishRecord     -> RecordReceipt
 //   dokime.execution.records      RecordsRequest    -> Records
 //   dokime.execution.statistics   StatisticsRequest -> Statistics
 //   dokime.execution.progress     ReportProgress    -> ReportProgressResponse
 //   dokime.execution.log          WriteLog          -> WriteLogResponse
-//   dokime.settings.read          ReadSettings      -> Settings
+//   dokime.settings.read          ReadSettings      -> SavedSettings
 //   dokime.secrets.read           ReadSecret        -> Secret
 
 message PublishRecord {
@@ -202,9 +197,9 @@ enum Severity {
 
 message ReadSettings {}
 
-message Settings {
+message SavedSettings {
   // Saved values of the calling plugin's settings, by identifier.
-  google.protobuf.Struct values = 1;
+  map<string, Value> values = 1;
 }
 
 message ReadSecret {

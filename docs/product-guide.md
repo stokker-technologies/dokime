@@ -2185,6 +2185,26 @@ including each original refusal code, detail and diagnostic chain. The applicati
 log also retains structured startup diagnostics; the root message is a presentation
 of that data, without Rust Debug formatting.
 
+## Protocol Source Export
+
+Export the host's embedded Dokime and Harmos source contracts without a running
+backend or access to its storage:
+
+```sh
+dokime proto export --out proto/
+```
+
+The command writes only `.proto` files under `dokime/v1/` and `harmos/v1/`,
+creating package directories and replacing matching source files. Standard
+`google/protobuf` imports come from your language's protobuf toolchain. Generate
+language bindings with that toolchain. These are the new execution, plugin,
+context-operation, catalog and document definitions; existing client-service
+contracts still use the export below.
+
+`--plugin <name>` reports that plugin export is not available yet and writes
+nothing. Obtain plugin `.proto` sources from its author until export from a
+running host, plugin URL or bundle is implemented.
+
 ## Generated Clients
 
 Export the operation catalog's language-neutral protobuf contract without a running backend:

@@ -92,8 +92,16 @@ run = "{{vars.tools}} dokime_tools.ci.bootstrap --desktop"
 
 [tasks."generate"]
 description = "Generate Clients from Contracts"
-usage = 'flag "--check"'
-run = "{{vars.tools}} dokime_tools.prepare.generated --generate{% if usage.check %} --check{% endif %}"
+usage = 'flag "--check"; flag "--protocol" help="Generate Checked-In Protocol Bindings Only"'
+run = """
+{% if usage.protocol and usage.check %}
+mise run test -- --package dokime-protocol --target integration
+{% elif usage.protocol %}
+cargo run --locked --package dokime-protocol --example generate
+{% else %}
+{{vars.tools}} dokime_tools.prepare.generated --generate{% if usage.check %} --check{% endif %}
+{% endif %}
+"""
 
 # === Format === #
 
