@@ -173,7 +173,7 @@ declares as a requirement. The SDK methods are thin conveniences over
 | --- | --- |
 | `prompt(...)` | Ask the operator and wait for the answer |
 | `secret(identifier)` | Read Secret Storage |
-| `settings()` | Read the plugin's settings when needed; nothing is injected at start and saving settings restarts nothing |
+| `settings()` | Read the plugin's saved settings when needed. Nothing is injected at start, so the applied-versus-saved comparison and its "unapplied" state are removed |
 | `record(kind, ...)` | Publish a record; returns once the host stored it |
 | `records(kind)` | Read the execution's records of a kind (`count`, `last`) |
 | `statistics(stream, step=None)` | Statistics of a stream so far, optionally for one step |
@@ -235,8 +235,48 @@ from thermal.v1 import SetTemperature
 ctx.operation(SetTemperature(target=85))
 ```
 
+The export never reads the data folder. It takes the definitions from a
+running Dokime as a client, from a plugin URL through `Describe`, or from a
+bundle path. Only `dokime server` and `dokime doctor storage` open the data
+root, and they find it from the distribution identity beside the executable.
+
 Plugins connect independently and trust each other. A call to a plugin that
 is not connected is refused naming it.
+
+## Execution State
+
+```rust
+#[dokime::step("Connect")]
+async fn connect(ctx: &Context) -> Result<()> {
+    ctx.set(Charger::open(ctx.parameter("port")?).await?);
+    Ok(())
+}
+
+async fn cleanup(ctx: &Context) -> Result<()> {
+    if let Ok(charger) = ctx.get::<Charger>() {     // may never have been set
+        ctx.operation(ReleaseCharger { device_id: charger.device_id }).await?;
+    }
+    Ok(())
+}
+```
+
+- Each execution has one typed resource store with two verbs. `ctx.set(value)`
+  stores a value by its type and replaces an existing one, so a retried step
+  is safe. `ctx.get::<T>()` returns it or a named missing-resource error.
+- The store is visible to initialize, steps, observers, criteria and cleanup,
+  and is cleared when the execution ends.
+- It replaces `Own`, the shared resources returned from `initialize`.
+- Operations return their value directly (`Result<T>`); steps, criteria,
+  initialize and cleanup already do.
+
+## What Stays
+
+- The effects journal. It restores external changes after a host or plugin
+  crash, which a cleanup operation cannot; its inverses are ordinary
+  operation calls.
+- Cycle responsibilities in the host: lifecycle, queueing, pause and stop,
+  continuation, reruns, sealing and reports. "Cycles only group executions"
+  describes what a plugin sees.
 
 ## Catalog Sections
 
@@ -248,7 +288,7 @@ instead of versioned JSON blobs.
 | `dokime.suites` | `dokime.v1` suites: templates, parameters, files, documents |
 | `dokime.records`, `dokime.analyses`, `dokime.settings`, `dokime.run-start` | Typed `dokime.v1` messages |
 | `dokime.telemetry` | Folded into the plugin's stream declarations |
-| `dokime.listeners` | Removed with record and sample delivery |
+| `dokime.listeners` | Typed `dokime.v1` message. Plugin-wide record listeners are operations the host calls and stay; only delivery into a running template is removed |
 
 ## Protocol Packages
 
@@ -318,17 +358,14 @@ Not yet decided with the owner; each is settled before its task starts.
 1. The fixed percentile set in `Statistics` (proposed: 5, 95, 99 and the
    median).
 2. Whether a Wasm guest can be a managed Dokime plugin in the first version.
-3. How `dokime proto export --plugin` finds the plugin. Proposed: through a
-   running Dokime as a client, from a plugin URL, or from a bundle path, so
-   the command never needs the data folder.
+3. Whether a suite type keeps fields of its own next to the resource store,
+   and whether Rust steps still take `self`.
 4. The sample rates of existing plugins, to confirm one sample per message is
    enough for each.
 5. Reconciling the overlapping changes named in the proposal, including which
    of them this change absorbs.
-6. Authoring improvements under research: a per-execution typed resource
-   store instead of template fields that start empty; shorter return types
-   for operations and steps; one context type without template-specific
-   parameters, which also absorbs `template-authoring-simplification`.
+6. One context type without template-specific parameters, which would absorb
+   `template-authoring-simplification`.
 7. Spec deltas that retire `python-backend`, `python-sdk`,
    `python-plugin-authoring` and the reload and start-order requirements this
    change removes.

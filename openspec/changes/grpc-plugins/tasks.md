@@ -12,7 +12,8 @@
 - [ ] 2.2 Add the host operations plugins need that exist only as evidence-page fields today: progress, log, traceability, document parts, record reads and statistics.
 
 - [ ] 2.3 Replace the JSON catalog sections with `dokime.v1` messages and add `dokime proto export`.
-- [ ] 2.4 Serve settings as a host operation and delete settings injection and restart on save.
+- [ ] 2.4 Serve settings as a host operation and delete settings injection at start and the applied-versus-saved comparison.
+- [ ] 2.5 Add the per-execution resource store (`ctx.set`, `ctx.get`) and remove `Own`.
 
 ## 3. Host
 
