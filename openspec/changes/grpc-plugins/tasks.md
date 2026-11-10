@@ -8,7 +8,7 @@
 
 ## 2. Protocol
 
-- [ ] 2.1 Define `dokime.v1`: host operations for clients and plugins, `TestCase`, `Step`, `Criterion`, `Statistics`, with checked-in protos attached to releases.
+- [x] 2.1 Define `dokime.v1`: host operations for clients and plugins, `TestCase`, `Step`, `Criterion`, `Statistics`, with checked-in protos attached to releases.
 - [ ] 2.2 Add the host operations plugins need that exist only as evidence-page fields today: progress, log, traceability, document parts, record reads and statistics.
 - [ ] 2.3 Replace the JSON catalog sections with `dokime.v1` messages and add `dokime proto export`.
 - [ ] 2.4 Serve settings as a host operation and delete settings injection at start and the applied-versus-saved comparison.

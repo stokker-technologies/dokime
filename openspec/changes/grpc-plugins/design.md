@@ -1,9 +1,9 @@
 # gRPC Plugins Design
 
-Status: locked by the owner on 2026-11-10; not implemented, and
-implementation waits for the owner's go. Code below is the intended shape,
-not landed source. Exact names and field numbers are settled
-during implementation.
+Status: locked by the owner on 2026-11-10. The initial protocol slice is
+implemented as recorded below; the remaining redesign is the intended target,
+not landed source. Exact names and field numbers are settled during
+implementation.
 
 ## The Flow
 
@@ -552,14 +552,89 @@ run in wave 5.
 
 ## Open Points
 
-Not yet decided with the owner; each is settled before its task starts.
+The initial wire definitions are checked in at repository-root `proto/`.
+The choices for the protocol slice are recorded below; runtime adoption
+and migration of existing client services remain later-wave work.
 
-1. The exact wire format. A draft is in `proto/` with its compatibility
-   rules and review questions; it is agreed before any implementation.
-2. Spec deltas that retire `python-backend`, `python-sdk`,
+Not yet decided with the owner, before its task starts:
+
+1. Spec deltas that retire `python-backend`, `python-sdk`,
    `python-plugin-authoring` and the reload and start-order requirements this
    change removes.
 
 Client access and its security are the separate change
 `remote-access-simplification`. Branding is the separate change
 `organization-pack-coverage`.
+
+## Initial Protocol Slice Decisions
+
+The owner authorized tasks 2.1 and the host-source export half of 2.3. The
+canonical definitions now live in repository-root `proto/dokime/v1/`, replacing
+the drafts formerly below this change. This slice defines contracts; it does
+not serve new operations or migrate the existing catalog readers.
+
+- `Value` is an explicit protobuf oneof of null, boolean, signed and unsigned
+  integers, number, text, bytes, timestamps and lists. Parameters and saved settings use
+  named maps of these values; there are no JSON fields or arbitrary object bags.
+- `TestCaseTemplate` carries metadata, parameters, files, documents, tags,
+  parameter groups and stable materialize/optional initialize/cleanup operation
+  identifiers. Steps, criteria and execution stream identifiers belong only to
+  `TestCase`. Parameter expressions are recursive typed trees, including current
+  ranges, references, dynamic defaults, arithmetic and expansion selections.
+- The draft execution messages retain existing field numbers while replacing
+  JSON values before first adoption. Initialize, step, criterion and cleanup
+  requests all carry the full case. This corrects the draft's assumption that
+  initialize always supplies it: initialize is optional, and even cleanup may
+  be the first call for a case without steps or criteria. The SDK can therefore
+  create its execution instance on the first operation without depending on
+  materialize retaining state. Step/criterion calls also carry their identifier,
+  cleanup carries termination, and criterion returns only pass/fail. Pure
+  materialization has no execution scope, so preview needs no execution. Statistics with count zero have no
+  meaningful numeric fields. Record reads return count/last plus a bounded tail.
+- `Plugin` uses a managed/remote oneof, a distinct starting state for managed
+  entries, and a vendored `harmos.v1.Description` for connected identity,
+  digest, catalog and process start time. A managed placement names its installed
+  bundle; a remote placement names its URL. The description is absent before
+  first connection and retained while unavailable.
+- Catalog section payloads are `Suites`, `RecordContracts`, `Analyses`,
+  `SettingsCatalog`, `RunStart` and `Listeners`, identified by their fully
+  qualified protobuf names. Record types name their message in Harmos catalog
+  descriptors. Run-start retains operation plus serialized request; listeners
+  retain record kind plus operation. Stream declarations have one owner,
+  `harmos.v1.Catalog.streams`, rather than a second Dokime telemetry section.
+- Documents are recursive sections containing cards and subsections. Cards hold
+  markdown, plots, typed tables, summaries or an evidence-card enum. Expressions
+  are recursive field, aggregate and transform messages; no expression parser
+  is needed. Field references name the declared stream/record and field. Plot
+  kinds cover the current family; optional bin/sample/display fields and typed
+  reference lines/bands carry their data. Layout is columns, rows and order.
+- Prompt calls replace the old JSON question/answer carrier with explicit
+  definitions, fields, actions, validation, answer predicates, evidence conditions
+  and named values. Questions name their prompt/type and optionally carry an
+  inline definition; otherwise they use the typed `Prompts` catalog section.
+  Traceability upserts named typed entries by identifier. Document parts append a card or subsection to a named location.
+  Artifact calls acknowledge ordered chunks with explicit terminal/abort/replace
+  flags; file sources retain local/FTP, file/tree/newest, stream/mirror and gaps.
+  Line matchers resolve row descriptors from the catalog instead of carrying a
+  second schema. Existing effects retain their request fields and protobuf bytes
+  for inverse requests. Execution fields must match the inherited call scope.
+- Sleep and clock reads remain `harmos.clock.sleep` and `harmos.clock.now`.
+  Existing client gRPC services generated from `crates/dokime-operations` stay
+  where they are: Appearance, Backend, Catalog, Content, Documents, Evidence,
+  Execution, Health, History, Media, Notes, Observation, Planning, Plots, Plugins,
+  Prompts, Query, Remote, Reports, Runtime, Secrets, Settings and Telemetry. This slice
+  neither duplicates those services nor changes their consumers. The new saved
+  settings and secret-read messages are context operations for later host adoption.
+  List/read replies are named `PluginEntries` and `SavedSettings` to avoid
+  colliding with the existing `dokime.v1.Plugins` and `dokime.v1.Settings` services.
+- The Harmos source is a read-only copy from its `grpc-plugins` checkout and
+  must be refreshed to match the revision adopted in wave 2. No unpublished
+  Harmos crate is used. Rust generation uses the pinned vendored compiler, checks
+  in both packages and declares their source files generated in project policy.
+- `dokime proto export --out <dir>` writes the embedded root Dokime and Harmos
+  sources only, retaining package paths. Standard Google imports come from the
+  author's protobuf toolchain. It neither connects nor opens storage. `--plugin`
+  fails before writing, naming the unavailable feature and directing authors to
+  obtain plugin sources from their author. Running-host, Describe URL and bundle
+  export sources, catalog-reader migration and release attachment remain later
+  work; task 2.3 stays open.
