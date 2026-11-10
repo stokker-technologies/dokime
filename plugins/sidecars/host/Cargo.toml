@@ -100,13 +100,13 @@ tokio-util = { workspace = true, features = ["rt"], optional = true }
 dokime-tracing = { workspace = true }
 
 # Git
-harmos-sdk = { workspace = true }
 
 # Error Handling
 
 # Logging
 
 # Utilities
+harmos-sdk = { workspace = true }
 
 # Serialization
 
