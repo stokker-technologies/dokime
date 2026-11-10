@@ -637,7 +637,8 @@ jobs:
       with:
         summary-module: ""
     if: >-
-      (startsWith(github.ref, 'refs/tags/v') &&
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && (startsWith(github.ref, 'refs/tags/v') &&
       needs.validated.outputs.stable_release == 'true')
     environment: release
     env:
