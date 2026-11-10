@@ -39,11 +39,15 @@ replacement, and the same data travels in two representations.
 ## Not in This Change
 
 - Replacing the temporary SQLite staging used for plots with expressions,
-  grouping or markers. It exists to sort, group and join large row sets with
-  bounded memory by spilling to disk. A query engine over Arrow (DataFusion)
-  could replace it together with the custom projection and filter code. That
-  is tried in its own worktree after this change lands, and adopted only if
-  build times stay acceptable.
+  grouping or markers. It sorts, groups and joins raw rows with bounded
+  memory by spilling to disk. Proposed: once stored buckets answer most
+  plots, measure what these plots need at the target scale. If their rows
+  fit in memory with a stated bound, compute on Arrow columns in memory and
+  delete the staging; a plot beyond the bound is refused with a message to
+  narrow its window. If they do not fit, a query engine over Arrow
+  (DataFusion) replaces the staging and the custom projection and filter
+  code, tried in its own worktree and adopted only if build times stay
+  acceptable.
 - A separate storage tier for old data.
 
 ## Impact
