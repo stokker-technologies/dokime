@@ -375,8 +375,13 @@ Not yet decided with the owner; each is settled before its task starts.
 1. The fixed percentile set in `Statistics` (proposed: 5, 95, 99 and the
    median).
 2. Whether a Wasm guest can be a managed Dokime plugin in the first version.
-3. Which places follow an organization pack and which keep the Dokime name
-   as a shared facility. Under research.
+3. Branding defects. Agreed rule: an organization pack brands what an
+   operator of that installation sees (desktop app, reports, installer, data
+   folder identity); the toolchain and contracts keep the Dokime name (the
+   `dokime` command, `dokime.v1`, pairing files, environment variables, SDK
+   packages, the client profiles folder). Places in the first group that
+   still show the built-in name are under research and belong to a separate
+   change.
 4. The sample rates of existing plugins, to confirm one sample per message is
    enough for each.
 5. Reconciling the overlapping changes named in the proposal, including which
