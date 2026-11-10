@@ -142,7 +142,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
           <SettingsRow
             key={release.candidate}
             label={`${release.package} ${release.version}`}
-            description={`${release.target} · Dokime ${release.requiresDokime}`}
+            description={`${release.target} · ${brand.label} ${release.requiresDokime}`}
           >
             <Button
               size="sm"

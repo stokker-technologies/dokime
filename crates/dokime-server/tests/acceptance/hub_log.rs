@@ -38,7 +38,7 @@ use serde_json::Value;
 /* === Private Functions === */
 
 fn hub_log(root: &Path) -> std::path::PathBuf {
-    root.join("logs").join("dokime.jsonl")
+    root.join("logs").join("com-stokker-dokime.jsonl")
 }
 
 /* === Tests === */
@@ -128,7 +128,7 @@ fn reopened_log_rotates() {
     assert_eq!(records.len(), 2);
     assert_eq!(records[0]["fields"]["message"], "first record");
     assert_eq!(records[1]["fields"]["message"], "second record");
-    assert_eq!(std::fs::metadata(path.with_file_name("dokime.jsonl.1")).unwrap().len(), 32 * 1024 * 1024);
+    assert_eq!(std::fs::metadata(path.with_file_name("com-stokker-dokime.jsonl.1")).unwrap().len(), 32 * 1024 * 1024);
 }
 
 #[dokime_tracing::trace_test(logging)]
@@ -144,7 +144,7 @@ fn plain_rolling_file() {
     let files: Vec<_> = std::fs::read_dir(root.path().join("logs"))
         .unwrap()
         .map(Result::unwrap)
-        .filter(|entry| entry.file_name() != "dokime.jsonl")
+        .filter(|entry| entry.file_name() != "com-stokker-dokime.jsonl")
         .collect();
     assert_eq!(files.len(), 1, "exactly one plain rolling file");
     assert!(std::fs::read_to_string(files[0].path()).unwrap().contains("boot phase reached storage"));

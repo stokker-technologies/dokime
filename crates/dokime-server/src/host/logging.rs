@@ -152,7 +152,7 @@ impl LoggingGuards {
 pub fn init(paths: &dokime::paths::ApplicationPaths, ansi: bool) -> Result<LoggingGuards> {
     let journal = crate::trace::Journal::new(crate::trace::Limits::default());
     let (layer, appender_guard) = stderr_fmt_layer(ansi)?;
-    let (file_layer, file_appender_guard) = file_fmt_layer(&paths.logs())?;
+    let (file_layer, file_appender_guard) = file_fmt_layer(&paths.logs(), &paths.distribution.slug())?;
     let (hub_log_layer, hub_log_appender_guard) = super::hub_log::hub_log_layer(paths)?;
     #[cfg_attr(not(debug_assertions), allow(unused_mut))]
     let mut layers: Vec<BoxedLayer> = vec![layer, file_layer, hub_log_layer, crate::trace::layer(journal.clone())];
@@ -187,12 +187,12 @@ fn stderr_fmt_layer(ansi: bool) -> Result<(BoxedLayer, tracing_appender::non_blo
     Ok((fmt_layer(LogFormat::from_env(), writer, ansi)?, guard))
 }
 
-fn file_fmt_layer(directory: &Path) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard)> {
+fn file_fmt_layer(directory: &Path, slug: &str) -> Result<(BoxedLayer, tracing_appender::non_blocking::WorkerGuard)> {
     std::fs::create_dir_all(directory)
         .map_err(|error| Error::Setup(format!("failed to create log directory {}: {error}", directory.display())))?;
     let appender = tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
-        .filename_prefix("dokime-serve")
+        .filename_prefix(format!("{slug}-serve"))
         .filename_suffix("log")
         .max_log_files(usize::try_from(SERVER_RETAINED_LOG_FILES).expect("validated log retention count"))
         .build(directory)

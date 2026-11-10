@@ -318,7 +318,7 @@ impl Process {
 
 fn projection_error(source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> harmos::Error {
     harmos::Error::Backend {
-        operation: "project Dokime record",
+        operation: "project persisted record",
         kind: harmos::BackendFailure::Permanent,
         source: source.into(),
     }
@@ -334,7 +334,7 @@ fn project(envelope: &harmos::state::Envelope<&serde_json::Value>) -> harmos::Re
         };
         let persisted: PersistedRecord = serde_json::from_slice(&fact.payload).map_err(projection_error)?;
         if persisted.dokime_encoding != 2 {
-            return Err(projection_error("unsupported Dokime persistence encoding"));
+            return Err(projection_error("unsupported persistence encoding"));
         }
         let record = persisted.payload;
         if record.record.source != owner || record.record.record_type.as_str() != fact.name {

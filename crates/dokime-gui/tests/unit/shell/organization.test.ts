@@ -114,13 +114,13 @@ test("Brand Favicon Falls Back to Transparent or the Other Surface", () => {
   assert.equal(head.icon.href, LIGHT);
 });
 
-test("Missing Brand Logos Preserve the Default Favicon", () => {
+test("Missing Brand Logos Remove Previous Artwork", () => {
   const head = documentHead();
   applyBrandFavicon({ label: "Organization", logos: {} });
   applyReportAppearance(null);
-  assert.equal(head.querySelectorAll.mock.calls.length, 0);
+  assert.equal(head.querySelectorAll.mock.calls.length, 1);
   assert.equal(head.append.mock.calls.length, 0);
-  for (const icon of head.existing) assert.equal(icon.remove.mock.calls.length, 0);
+  for (const icon of head.existing) assert.equal(icon.remove.mock.calls.length, 1);
 });
 
 test("Report Favicon Uses Only Captured Image Data", () => {
@@ -133,7 +133,7 @@ test("Report Favicon Uses Only Captured Image Data", () => {
   head.append.mockClear();
   head.querySelectorAll.mockClear();
   applyReportAppearance({ ...appearance, logos: [{ variant: "contained_on_light", url: "https://example.com/logo.svg" }] });
-  assert.equal(head.querySelectorAll.mock.calls.length, 0);
+  assert.equal(head.querySelectorAll.mock.calls.length, 1);
   assert.equal(head.append.mock.calls.length, 0);
 });
 

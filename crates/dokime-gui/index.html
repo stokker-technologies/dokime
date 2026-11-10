@@ -11,6 +11,22 @@
     />
     <title>Dokime</title>
     <!-- END GENERATED BRAND HEAD -->
+    <script>
+      const pack = window.__DOKIME_ORGANIZATION_PACK__?.pack;
+      if (pack) {
+        document.title = pack.titleTemplate.replaceAll("{app}", pack.label);
+        const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+        const surface = dark ? "on_dark" : "on_light";
+        const logo = pack.logos[`contained_${surface}`] ?? pack.logos[`transparent_${surface}`] ?? Object.values(pack.logos)[0];
+        document.querySelectorAll('link[rel~="icon"]').forEach((icon) => icon.remove());
+        if (logo) {
+          const icon = document.createElement("link");
+          icon.rel = "icon";
+          icon.href = logo;
+          document.head.append(icon);
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

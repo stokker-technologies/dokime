@@ -24,13 +24,13 @@ import defaultBrandData from "../generated/organization/default-organization.jso
 const ORGANIZATION_PACK_STYLE_ID = "dokime-organization-pack";
 
 /**
- * What the desktop shell resolved before this page loaded: an operator's
+ * What the desktop shell resolved before this page loaded: the installation's
  * organization pack, or why it could not apply. Absent in a browser, a report and
  * in tests, where the compiled brand stands.
  */
 export const bootOrganization: BootOrganization = startBootOrganization();
 
-/** The operator's organization pack this process applies, above every other brand source. */
+/** The installation's organization pack this process applies, above every other brand source. */
 export const organizationPack: BootOrganizationPack | null = bootOrganization.pack;
 
 /**

@@ -138,6 +138,10 @@ pub(crate) fn preflight_appearance(
     Ok(bytes)
 }
 
+pub(crate) fn app_name<'a>(state: &'a crate::RuntimeState, brand: Option<&'a ResolvedBrand>) -> &'a str {
+    selected_customization(state, brand).and_then(|(_, customization)| customization.display_name.as_deref()).unwrap_or(DEFAULT_APP_NAME)
+}
+
 pub(crate) fn captured_appearance(state: &crate::RuntimeState, brand: Option<&ResolvedBrand>) -> RuntimeAppearanceFrame {
     let count = appearance_themes(state, brand).count();
     let mut themes = Vec::with_capacity(count);

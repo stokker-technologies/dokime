@@ -132,6 +132,7 @@ struct CycleFields<'a> {
     updated_at: &'a Timestamp,
     label: &'a str,
     case_count: usize,
+    app_name: &'a str,
 }
 
 /* === Enums === */
@@ -376,9 +377,9 @@ impl Groups for CountGroups {
 /* === Public Functions === */
 
 pub(crate) fn retained_state(
-    state: &RuntimeState, selected: Option<&RecordScope>, at: &Timestamp,
+    state: &RuntimeState, selected: Option<&RecordScope>, at: &Timestamp, app_name: &str,
 ) -> Result<harmos::storage::ReadBatch<Vec<TraceabilitySnapshot>>> {
-    collect_batch(&mut |groups| visit_state(state, selected, Some(at), groups))
+    collect_batch(&mut |groups| visit_state(state, selected, Some(at), app_name, groups))
 }
 
 pub(crate) fn retained_host(
@@ -433,7 +434,7 @@ pub(crate) fn replace_source(
 
 pub(crate) fn count(state: &RuntimeState) -> Result<usize> {
     let mut count = CountGroups::default();
-    visit_state(state, None, None, &mut count)?;
+    visit_state(state, None, None, "", &mut count)?;
     Ok(count.count)
 }
 
@@ -488,12 +489,16 @@ fn collect_batch(visit: &mut dyn FnMut(&mut dyn Groups) -> Result<()>) -> Result
     })
 }
 
-fn visit_state(state: &RuntimeState, selected: Option<&RecordScope>, at: Option<&Timestamp>, groups: &mut dyn Groups) -> Result<()> {
-    visit_derived(state, selected, at, groups)?;
+fn visit_state(
+    state: &RuntimeState, selected: Option<&RecordScope>, at: Option<&Timestamp>, app_name: &str, groups: &mut dyn Groups,
+) -> Result<()> {
+    visit_derived(state, selected, at, app_name, groups)?;
     visit_parameters(state, selected, at, groups)
 }
 
-fn visit_derived(state: &RuntimeState, selected: Option<&RecordScope>, at: Option<&Timestamp>, groups: &mut dyn Groups) -> Result<()> {
+fn visit_derived(
+    state: &RuntimeState, selected: Option<&RecordScope>, at: Option<&Timestamp>, app_name: &str, groups: &mut dyn Groups,
+) -> Result<()> {
     for cycle in state.cycles.values() {
         let count = cycle.execution_ids.len();
         let mut cases = reserved(count)?;
@@ -512,27 +517,28 @@ fn visit_derived(state: &RuntimeState, selected: Option<&RecordScope>, at: Optio
         if cycle.cycle.execution_ids.is_empty() {
             let scope = Scope::Cycle(&cycle.cycle.test_cycle_id);
             if scope.visible(selected) {
-                visit_cycle(cycle, scope, at, groups)?;
+                visit_cycle(cycle, scope, at, app_name, groups)?;
             }
             continue;
         }
         for execution in cycle.executions() {
             let scope = Scope::Borrowed(&execution.scope);
             if scope.visible(selected) {
-                visit_cycle(cycle, scope, at, groups)?;
+                visit_cycle(cycle, scope, at, app_name, groups)?;
             }
         }
     }
     Ok(())
 }
 
-fn visit_cycle<'a>(cycle: Cycle<'a>, scope: Scope<'a>, at: Option<&Timestamp>, groups: &mut dyn Groups) -> Result<()> {
+fn visit_cycle<'a>(cycle: Cycle<'a>, scope: Scope<'a>, at: Option<&Timestamp>, app_name: &str, groups: &mut dyn Groups) -> Result<()> {
     let execution = cycle.selected(scope);
     let fields = CycleFields {
         created_at: &cycle.cycle.created_at,
         updated_at: &cycle.cycle.updated_at,
         label: &cycle.cycle.metadata.label,
         case_count: cycle.case_count(),
+        app_name,
     };
     let index = execution.and_then(|execution| cycle.case_index(&execution.test_case_id));
     visit_test_groups(fields, execution, index, scope, at, groups)?;
@@ -667,7 +673,7 @@ fn visit_test_entries(
             visible_entry(
                 sink,
                 format_args!("execution.dokime_version"),
-                format_args!("Dokime Version"),
+                format_args!("{} Version", cycle.app_name),
                 EntryValue::Text(format_args!("{version}")),
                 format_args!("{source}"),
             )?;
@@ -1025,3 +1031,38 @@ fn visit_test_groups(
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_label_keeps_contract_identifier() {
+        let mut fixture: serde_json::Value = serde_json::from_str(include_str!("../report/fixtures/execution-report-input.json")).unwrap();
+        fixture["input"]["cycle"]["test_executions"][0]["snapshot"]["host_version"] = "1.2.3".into();
+        let captured: crate::report::CapturedExecutionReportInput = serde_json::from_value(fixture).unwrap();
+        let cycle = &captured.input.cycle;
+        for app_name in ["Test Console", "Test Station"] {
+            let fields = CycleFields {
+                created_at: &cycle.created_at,
+                updated_at: &cycle.updated_at,
+                label: &cycle.metadata.label,
+                case_count: 1,
+                app_name,
+            };
+            let entries = collect_entries(&mut |sink| {
+                visit_test_entries(
+                    fields,
+                    Some(&cycle.test_executions[0]),
+                    Some(0),
+                    dokime_domain::model::traceability::TEST_DEFINITION_TRACEABILITY.source,
+                    sink,
+                )
+            })
+            .unwrap();
+            let version = entries.iter().find(|entry| entry.metadata.identifier.as_str() == "execution.dokime_version").unwrap();
+            assert_eq!(version.metadata.label, format!("{app_name} Version"));
+            assert_eq!(version.value, Value::Text("1.2.3".into()));
+        }
+    }
+}

@@ -97,9 +97,10 @@ impl Session {
         let expected = expected_plugins(&args.plugins, SERVER_PLUGIN_BUNDLE_BYTES, &config.schema)?;
         on_phase("storage");
         let prepared_server = crate::grpc::Service::prepare(server_config)?;
+        let label = config.brand.as_ref().map(|brand| brand.identity.label.clone()).unwrap_or_else(|| config.title.clone());
         let runtime = dokime::app::launch_with(config, vec![prepared_server.composition()])
             .await
-            .map_err(|error| Error::launch(error, config_root.clone()))?;
+            .map_err(|error| Error::launch(error, config_root.clone(), label))?;
         let mut session = Self {
             executor: tokio::runtime::Handle::current(),
             resources: Some(Resources { runtime: Some(runtime), server: None }),

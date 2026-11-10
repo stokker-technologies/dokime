@@ -8,7 +8,7 @@
  */
 
 /**
- * Organization Pack Status The Desktop Shell Reports
+ * Installed Appearance Supplied By The Desktop Shell
  */
 
 /* === Imports === */
@@ -25,21 +25,7 @@
 
 /* === Types === */
 
-/** Mirrors `PackSummary` in `src-tauri/src/app/organization.rs`. */
-export type OrganizationPackSummary = {
-  label: string;
-  organization: string | null;
-};
-
-/** Mirrors `OrganizationStatus` in `src-tauri/src/app/organization.rs`. */
-export type OrganizationStatus = {
-  active: OrganizationPackSummary | null;
-  pending: OrganizationPackSummary | null;
-  removed: boolean;
-  error: string | null;
-};
-
-/** Mirrors `LoadedPack`: what the shell hands the frontend before it renders. */
+/** Mirrors `LoadedPack` in `src-tauri/src/app/organization.rs`. */
 export type BootOrganizationPack = {
   label: string;
   titleTemplate: string;
@@ -66,12 +52,6 @@ export type BootOrganization = { pack: BootOrganizationPack | null; error: strin
 /* === Classes === */
 
 /* === Public Functions === */
-
-export function organizationPackError(error: string | null, retained: boolean): string | null {
-  if (!error) return null;
-  const appearance = retained ? "The last valid pack remains active." : "The bundled organization applies.";
-  return `Not applied: ${error}. ${appearance}`;
-}
 
 /* === Private Functions === */
 

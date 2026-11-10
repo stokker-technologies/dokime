@@ -38,8 +38,6 @@ import { PanelHeader } from "@/shell/PageShell";
 import { usePageChrome } from "@/shell/page-chrome";
 import { ApplicationPreferences } from "./ApplicationPreferences";
 import { BackendsTable } from "./BackendsTable";
-import { PluginSettingsCards } from "./PluginSettingsCards";
-import { OrganizationPackRow } from "./sections/OrganizationPackRow";
 
 /* === Types === */
 
@@ -122,15 +120,6 @@ function SectionContent({
   retry: () => void;
   section: SettingsSectionId;
 }) {
-  if (section === "organization")
-    return (
-      <>
-        <SettingsCard title="Organization">
-          <OrganizationPackRow />
-        </SettingsCard>
-        <PluginSettingsCards cards={frame?.cards.filter((card) => card.section_id === "identity") ?? []} />
-      </>
-    );
   if (section === "backends") return <BackendsTable />;
   if (section === "appearance") return <ApplicationPreferences advanced={advanced} />;
   if (section === "remote") return <RemoteSection advanced={advanced} />;

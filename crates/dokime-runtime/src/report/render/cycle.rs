@@ -90,13 +90,14 @@ enum Section {
 
 impl Report<'_> {
     pub(crate) fn write(&self, writer: &mut dyn Write) -> Result<()> {
-        output::write_html(writer, self, REPORT_APP_TEMPLATE).map_err(|source| Error::InvalidReportInputs(source.to_string()))
+        output::write_html(writer, self, REPORT_APP_TEMPLATE, self.appearance)
+            .map_err(|source| Error::InvalidReportInputs(source.to_string()))
     }
 }
 
 impl Report<'_> {
     pub(in crate::report) fn write_prepared(&self, writer: &mut dyn Write, rows: &MemberRows) -> Result<()> {
-        output::write_html_with(writer, REPORT_APP_TEMPLATE, |writer| {
+        output::write_html_with(writer, REPORT_APP_TEMPLATE, self.appearance, |writer| {
             let mut fields = output::Object::new(writer)?;
             fields.field("appearance", self.appearance)?;
             fields.field("report_defaults", self.report_defaults)?;
@@ -107,7 +108,7 @@ impl Report<'_> {
                 "hub",
                 &Hub {
                     generator: "dokime-runtime",
-                    name: "Dokime",
+                    name: &self.appearance.app_name,
                     version: env!("CARGO_PKG_VERSION"),
                 },
             )?;
@@ -454,7 +455,7 @@ impl Serialize for Report<'_> {
             "hub",
             &Hub {
                 generator: "dokime-runtime",
-                name: "Dokime",
+                name: &self.appearance.app_name,
                 version: env!("CARGO_PKG_VERSION"),
             },
         )?;

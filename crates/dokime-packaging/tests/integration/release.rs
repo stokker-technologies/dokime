@@ -156,7 +156,7 @@ async fn verified_release_cache() {
 
     let mut feed = Feed::parse(&feed).unwrap();
     feed.plugins[0].targets.get_mut(target).unwrap().sha256 = "0".repeat(64);
-    let member = feed.plugins[0].select("0.1.3", target).unwrap();
+    let member = feed.plugins[0].select("0.1.3", target, "Dokime").unwrap();
     assert!(distribution::plugin(&archive, member, &feed.plugins[0]).is_err());
     stop.send(()).unwrap();
     server.await.unwrap();

@@ -17,7 +17,7 @@
 
 // Third Party Imports
 use serde::Serialize;
-use tauri::{State, WebviewWindow, ipc::Channel};
+use tauri::{Manager, State, WebviewWindow, ipc::Channel};
 use url::Url;
 
 // Local Imports
@@ -67,7 +67,8 @@ pub struct Release {
 /* === Public Functions === */
 
 pub async fn desktop_plugin_release_check(
-    window: WebviewWindow, connection: State<'_, ConnectionSession>, state: State<'_, UpdateState>, generation: String,
+    window: WebviewWindow, connection: State<'_, ConnectionSession>, state: State<'_, UpdateState>, app: tauri::AppHandle,
+    generation: String,
 ) -> Result<Vec<Release>, String> {
     let lease = plugins::admit(&window, &connection, &generation)?;
     let (policy, policy_generation) = state.snapshot()?;
@@ -85,7 +86,12 @@ pub async fn desktop_plugin_release_check(
     let mut releases = Vec::new();
     let mut candidates = Vec::new();
     for plugin in feed.plugins {
-        let Ok(member) = plugin.select(&backend.product_version, &backend.target).cloned() else { continue };
+        let Ok(member) = plugin
+            .select(&backend.product_version, &backend.target, app.state::<crate::app::organization::OrganizationState>().label())
+            .cloned()
+        else {
+            continue;
+        };
         let archive_url = source.asset(&member.archive)?;
         let archive_sha256 = sums.get(&member.archive).cloned().ok_or("SHA256SUMS has no plugin archive entry")?;
         let id = format!("{:032x}", rand::random::<u128>());
@@ -119,8 +125,8 @@ pub async fn desktop_plugin_release_check(
 }
 
 pub async fn desktop_plugin_release_install(
-    window: WebviewWindow, connection: State<'_, ConnectionSession>, state: State<'_, UpdateState>, generation: String, candidate: String,
-    progress: Channel<InstallProgress>,
+    window: WebviewWindow, connection: State<'_, ConnectionSession>, state: State<'_, UpdateState>, app: tauri::AppHandle,
+    generation: String, candidate: String, progress: Channel<InstallProgress>,
 ) -> Result<String, String> {
     let lease = plugins::admit(&window, &connection, &generation)?;
     let selected = {
@@ -137,7 +143,11 @@ pub async fn desktop_plugin_release_install(
         return Err("The plugin release source changed".into());
     }
     let client = lease.client();
-    selected.plugin.select(&client.backend().product_version, &client.backend().target)?;
+    selected.plugin.select(
+        &client.backend().product_version,
+        &client.backend().target,
+        app.state::<crate::app::organization::OrganizationState>().label(),
+    )?;
     let archive = sources::fetch(&selected.archive_url, distribution::ARCHIVE_MAX_BYTES).await?;
     let expected = selected.member.sha256.clone();
     let bytes = tauri::async_runtime::spawn_blocking(move || validate_release_archive(&archive, &selected))

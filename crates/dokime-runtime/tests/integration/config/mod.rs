@@ -65,9 +65,9 @@ async fn settings_backends() {
     installed_plugins::settings::install_definition_harmos().await;
     installed_plugins::settings::artifact_registration_visible().await;
     installed_plugins::settings::composed_plugin_process().await;
-    installed_plugins::brand::organization_overlay();
+    installed_plugins::brand::organization_replacement();
     installed_plugins::brand::organization_validation();
-    installed_plugins::brand::installer_sidebar_overlay();
+    installed_plugins::brand::installer_sidebar_pack();
     installed_plugins::brand::installer_sidebar_validation();
     installed_plugins::brand::generated_organization_stylesheet_matches_runtime_resolution();
     installed_plugins::brand::organization_toml_types();

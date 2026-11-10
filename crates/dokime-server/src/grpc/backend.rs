@@ -93,7 +93,13 @@ impl Collector<'_> {
         parts = parts.push(bundle::Part::json("backend/health.json", health_json(&self.health().await?))).await?;
         parts = parts.push(bundle::Part::json("settings/settings-frame.json", encoded(&self.runtime.settings_frame().await)?)).await?;
         if let Some(path) = source(DiagnosticPathKey::HubLog) {
-            parts = parts.push(bundle::Part::tail("logs/dokime.jsonl", path, log_tail_bytes)).await?;
+            parts = parts
+                .push(bundle::Part::tail(
+                    format!("logs/{}.jsonl", self.runtime.application_paths().distribution.slug()),
+                    path,
+                    log_tail_bytes,
+                ))
+                .await?;
         }
         for artifact_id in self.artifact_ids() {
             // `plugin_settings` is the settings surface's own read: its
@@ -115,6 +121,7 @@ impl Collector<'_> {
             }),
             generated_at,
             usize::try_from(SERVER_BUNDLE_BYTES).expect("validated diagnostics bundle size"),
+            self.runtime.application_paths().distribution.slug(),
         )
         .await
     }
@@ -140,7 +147,7 @@ pub(super) async fn collect(
 }
 
 pub(super) fn hub_log_path(paths: &dokime::paths::ApplicationPaths) -> std::path::PathBuf {
-    paths.logs().join(dokime::domains::exports::storage::HUB_LOG_FILENAME)
+    paths.logs().join(format!("{}.jsonl", paths.distribution.slug()))
 }
 
 /* === Private Functions === */

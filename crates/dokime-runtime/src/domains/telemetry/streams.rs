@@ -211,7 +211,10 @@ impl RuntimeHandle {
         &self, state: &crate::state::RuntimeState, scope: Option<&RecordScope>, samples: &[TelemetrySample], include_leases: bool,
         created_at: &Timestamp,
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<dokime_domain::model::traceability::TraceabilitySnapshot>>> {
-        let snapshots = crate::traceability::retained_state(state, scope, created_at)?;
+        let brand = self.brand.read().expect("brand lock is healthy");
+        let app_name = crate::installed_plugins::appearance::app_name(state, brand.as_ref());
+        let snapshots = crate::traceability::retained_state(state, scope, created_at, app_name)?;
+        drop(brand);
         self.enrich_retained_traceability(snapshots, scope, samples, include_leases)
     }
 
@@ -247,7 +250,11 @@ impl RuntimeHandle {
         &self, session: &crate::storage::Manager, state: &crate::state::RuntimeState, scope: Option<&RecordScope>,
         at: &harmos::storage::StorageCursor, include_leases: bool,
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Vec<dokime_domain::model::traceability::TraceabilitySnapshot>>> {
-        let snapshots = crate::traceability::retained_state(state, scope, &crate::model::time::now_utc())?;
+        let snapshots = {
+            let brand = self.brand.read().expect("brand lock is healthy");
+            let app_name = crate::installed_plugins::appearance::app_name(state, brand.as_ref());
+            crate::traceability::retained_state(state, scope, &crate::model::time::now_utc(), app_name)?
+        };
         let mut streams = Vec::new();
         streams.try_reserve_exact(1).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
         streams.push(Identifier::new("host.system").expect("valid stream").into());

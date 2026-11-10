@@ -15,10 +15,7 @@ pub(crate) mod paths;
 
 /* === Re-Exports === */
 
-pub use diagnostics::{
-    DIAGNOSTICS_COLLECT_BUNDLE_FILENAME, DiagnosticFileFormat, DiagnosticPathConvention, DiagnosticPathKey, HUB_LOG_FILENAME,
-    path_conventions,
-};
+pub use diagnostics::{DiagnosticFileFormat, DiagnosticPathConvention, DiagnosticPathKey, path_conventions};
 pub use error::{Result, StorageError};
 
 /* === Imports === */

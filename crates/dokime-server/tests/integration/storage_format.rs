@@ -52,7 +52,7 @@ async fn storage_format_refusal_keeps_the_server_storage_classification_and_file
     std::fs::write(&journal, bytes).unwrap();
     let config = dokime::config::Config::local(root.path());
     let error = dokime::app::launch(config).await.err().unwrap();
-    let error = dokime_server::host::Error::launch(error, root.path().to_owned());
+    let error = dokime_server::host::Error::launch(error, root.path().to_owned(), "Test Console".into());
     assert!(matches!(&error, dokime_server::host::Error::IncompatibleStorage { root: path, .. } if path == root.path()));
     assert_eq!(error.exit_code(), ExitCode::from(4));
     assert_eq!(std::fs::read(journal).unwrap(), bytes);

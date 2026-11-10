@@ -1773,6 +1773,7 @@ fn projected_status(state: &RuntimeState, cycle: &TestCycleId, execution: &TestE
         &state.cycle_view(cycle).unwrap(),
         execution,
         dokime_runtime::model::time::now_utc(),
+        "Test Console",
     )
     .unwrap()
     .into_iter()

@@ -145,7 +145,7 @@ pub(super) async fn collected_archive_material(client: &WireClient) {
 
     let header = header.expect("the stream opens with a header");
     assert!(
-        header.filename.starts_with("dokime-diagnostics-") && header.filename.ends_with(".zip"),
+        header.filename.starts_with("com-stokker-dokime-diagnostics-") && header.filename.ends_with(".zip"),
         "suggested filename was {}",
         header.filename
     );
@@ -158,7 +158,7 @@ pub(super) async fn collected_archive_material(client: &WireClient) {
 
     // The hub log is a declared convention with no writer in this runtime, so
     // its entry is listed and absent rather than missing from the inventory.
-    let log = header.entries.iter().find(|entry| entry.path == "logs/dokime.jsonl").expect("the hub log convention is listed");
+    let log = header.entries.iter().find(|entry| entry.path == "logs/com-stokker-dokime.jsonl").expect("the hub log convention is listed");
     assert!(!log.present);
     assert!(log.note.is_some());
 
@@ -220,7 +220,7 @@ pub(super) async fn collected_archive_material(client: &WireClient) {
 }
 
 pub(super) async fn collected_tail_preserves_selected_bytes(environment: &support::TestEnvironment, client: &WireClient) {
-    let log = environment.root.path().join("application/logs").join("dokime.jsonl");
+    let log = environment.root.path().join("application/logs").join("com-stokker-dokime.jsonl");
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
     type TailCase = (&'static [u8], u64, Option<&'static [u8]>);
     let cases: &[TailCase] = &[
@@ -251,7 +251,7 @@ pub(super) async fn collected_tail_preserves_selected_bytes(environment: &suppor
         while let Some(frame) = stream.message().await.unwrap() {
             match frame.payload.unwrap() {
                 model::backend::wire::DiagnosticsBundleFramePayload::Header(header) => {
-                    selected = header.entries.into_iter().find(|entry| entry.path == "logs/dokime.jsonl");
+                    selected = header.entries.into_iter().find(|entry| entry.path == "logs/com-stokker-dokime.jsonl");
                 }
                 model::backend::wire::DiagnosticsBundleFramePayload::Chunk(chunk) => {
                     assert_eq!(chunk.offset, archive.len() as u64);
@@ -272,10 +272,10 @@ pub(super) async fn collected_tail_preserves_selected_bytes(environment: &suppor
         match expected {
             Some(expected) => {
                 let mut bytes = Vec::new();
-                archive.by_name("logs/dokime.jsonl").unwrap().read_to_end(&mut bytes).unwrap();
+                archive.by_name("logs/com-stokker-dokime.jsonl").unwrap().read_to_end(&mut bytes).unwrap();
                 assert_eq!(bytes, *expected);
             }
-            None => assert!(archive.by_name("logs/dokime.jsonl").is_err()),
+            None => assert!(archive.by_name("logs/com-stokker-dokime.jsonl").is_err()),
         }
     }
 }
@@ -283,7 +283,7 @@ pub(super) async fn collected_tail_preserves_selected_bytes(environment: &suppor
 pub(super) async fn log_roundtrip(
     environment: &support::TestEnvironment, client: &WireClient,
 ) -> WireStream<model::backend::wire::LogFrame> {
-    let log = environment.root.path().join("application/logs/dokime.jsonl");
+    let log = environment.root.path().join("application/logs/com-stokker-dokime.jsonl");
     assert!(!log.exists());
     let request = contracts::backend::WatchLogs {
         min_level: model::backend::wire::LogLevel::Warn,

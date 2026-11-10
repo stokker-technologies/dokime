@@ -35,7 +35,7 @@ const DEFAULT_INSTALLER_SIDEBAR_COLOR: [u8; 3] = [0x1b, 0x19, 0x15];
 
 /* === Structs === */
 
-// A Validated Organization With All Inherited Files Included.
+// One Complete Validated Organization Pack.
 #[derive(Clone, Debug)]
 pub struct ResolvedPack {
     pub manifest: toml::Value,
@@ -134,14 +134,14 @@ pub fn brand() -> Option<ResolvedBrand> {
     super::compiled_brand()
 }
 
-// Overlay Authored Files And Manifest Fields Before Validating The Complete Pack.
-pub fn resolve(override_dir: Option<&Path>) -> Result<ResolvedPack, String> {
-    let base = installation_directory();
-    resolve_with_base(base.as_deref(), override_dir)
+// Read One Complete Pack, Falling Back To Embedded Defaults Only When Absent.
+pub fn resolve() -> Result<ResolvedPack, String> {
+    let directory = installation_directory();
+    resolve_directory(directory.as_deref())
 }
 
-pub fn resolve_with_base(base_dir: Option<&Path>, override_dir: Option<&Path>) -> Result<ResolvedPack, String> {
-    let mut files = match base_dir {
+pub fn resolve_directory(directory: Option<&Path>) -> Result<ResolvedPack, String> {
+    let mut files = match directory {
         Some(directory) => {
             let directory = directory.canonicalize().map_err(|error| error.to_string())?;
             let mut files = BTreeMap::new();
@@ -150,23 +150,12 @@ pub fn resolve_with_base(base_dir: Option<&Path>, override_dir: Option<&Path>) -
         }
         None => Bundled::files().iter().map(|(name, bytes)| ((*name).to_owned(), bytes.to_vec())).collect(),
     };
-    let bytes = files.get("organization.toml").ok_or("the bundled organization has no manifest")?;
-    let text = std::str::from_utf8(bytes).map_err(|_| "bundled organization manifest is not UTF-8")?;
-    let manifest_path = base_dir.unwrap_or(Path::new("organization")).join("organization.toml");
-    let mut manifest = parse_manifest(&manifest_path, text)?;
-    if let Some(directory) = override_dir {
-        let directory = directory.canonicalize().map_err(|error| error.to_string())?;
-        let mut overrides = BTreeMap::new();
-        collect_files(&directory, &directory, &mut overrides)?;
-        if let Some(bytes) = overrides.remove("organization.toml") {
-            let text = std::str::from_utf8(&bytes).map_err(|_| "organization.toml is not UTF-8")?;
-            let overlay = parse_manifest(&directory.join("organization.toml"), text)?;
-            merge(&mut manifest, overlay);
-        }
-        files.extend(overrides);
-    }
-    let text = toml::to_string(&manifest).map_err(|error| error.to_string())?;
-    files.insert("organization.toml".into(), text.into_bytes());
+    let bytes = files.get("organization.toml").ok_or("the organization has no manifest")?;
+    let text = std::str::from_utf8(bytes).map_err(|_| "organization manifest is not UTF-8")?;
+    let manifest_path = directory.unwrap_or(Path::new("organization")).join("organization.toml");
+    let manifest = parse_manifest(&manifest_path, text)?;
+    let normalized = toml::to_string(&manifest).map_err(|error| error.to_string())?;
+    files.insert("organization.toml".into(), normalized.into_bytes());
     let pack = ResolvedPack { manifest, files };
     validate(&pack)?;
     Ok(pack)
@@ -227,21 +216,6 @@ fn validate_installer(pack: &ResolvedPack) -> Result<(), String> {
     Ok(())
 }
 
-fn merge(base: &mut toml::Value, overlay: toml::Value) {
-    if let (Some(base), Some(overlay)) = (base.as_table_mut(), overlay.as_table()) {
-        for (key, value) in overlay {
-            match base.get_mut(key) {
-                Some(current) => merge(current, value.clone()),
-                None => {
-                    base.insert(key.clone(), value.clone());
-                }
-            }
-        }
-    } else {
-        *base = overlay;
-    }
-}
-
 fn validate_path(relative: &str) -> Result<(), String> {
     if relative == "generated" || relative.starts_with("generated/") {
         return Err("generated files are not authored organization inputs".into());
@@ -288,16 +262,5 @@ mod tests {
         assert!(error.contains(&path.display().to_string()), "{error}");
         assert!(error.contains("label"), "{error}");
         assert!(error.contains("line 2, column"), "{error}");
-    }
-
-    #[test]
-    fn overlay_values() {
-        let mut base: toml::Value = toml::from_str("keep = 1\narray = [1, 2]\n[table]\nleft = 1\nright = 2").unwrap();
-        let overlay = toml::from_str("array = [3]\n[table]\nleft = 9").unwrap();
-        merge(&mut base, overlay);
-        assert_eq!(base["keep"].as_integer(), Some(1));
-        assert_eq!(base["array"].as_array().unwrap(), &[toml::Value::Integer(3)]);
-        assert_eq!(base["table"]["left"].as_integer(), Some(9));
-        assert_eq!(base["table"]["right"].as_integer(), Some(2));
     }
 }

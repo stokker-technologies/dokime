@@ -82,7 +82,7 @@ impl Entries for OneEntry {
 /* === Public Functions === */
 
 pub(in crate::traceability) fn execution_snapshots(
-    cycle: &CycleView, scope: &RecordScope, admitted: Option<&TestExecution>, at: &Timestamp,
+    cycle: &CycleView, scope: &RecordScope, admitted: Option<&TestExecution>, at: &Timestamp, app_name: &str,
 ) -> Result<Vec<TraceabilitySnapshot>> {
     let execution = match &scope.test_execution_id {
         Some(id) => admitted
@@ -98,6 +98,7 @@ pub(in crate::traceability) fn execution_snapshots(
         updated_at: &cycle.updated_at,
         label: &cycle.metadata.label,
         case_count: cycle.cases().count(),
+        app_name,
     };
     let index = execution.and_then(|execution| cycle.cases().position(|case| case.test_case_id == execution.test_case_id));
     collect_groups(&mut |groups| visit_test_groups(fields, execution, index, Scope::Borrowed(scope), Some(at), groups))

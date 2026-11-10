@@ -206,9 +206,9 @@ pub(super) fn log_tail_ceiling(requested: Option<u64>, maximum: u64) -> u64 {
     requested.unwrap_or(maximum).min(maximum)
 }
 
-pub(super) async fn build(parts: Parts, context: Value, generated_at: Timestamp, maximum: usize) -> Result<Bundle, Status> {
+pub(super) async fn build(parts: Parts, context: Value, generated_at: Timestamp, maximum: usize, slug: String) -> Result<Bundle, Status> {
     let Parts { session, prepared } = parts;
-    let (file, mut metadata) = assemble(&session, prepared, context, generated_at, maximum).await?;
+    let (file, mut metadata) = assemble(&session, prepared, context, generated_at, maximum, &slug).await?;
 
     let handle = file.as_file().try_clone().map_err(|error| archive_failure(error, maximum))?;
     let mut reader = session.read_opened_file(handle, ByteRange { offset: 0, limit: None }).await.map_err(native_failure)?;
@@ -261,7 +261,7 @@ pub(super) fn native_failure(error: dokime::harmos::storage::Error) -> Status {
 
 async fn assemble(
     session: &dokime::storage::Manager, parts: ReadBatch<Vec<ReadBatch<Prepared>>>, mut context: Value, generated_at: Timestamp,
-    maximum: usize,
+    maximum: usize, slug: &str,
 ) -> Result<(tempfile::NamedTempFile, ReadBatch<Metadata>), Status> {
     let metadata = dokime::harmos::storage::ReadBatch::new(())
         .try_map(|_| {
@@ -283,7 +283,7 @@ async fn assemble(
                 note: None,
             });
             Ok(Metadata {
-                filename: archive_filename(&generated_at)?,
+                filename: archive_filename(&generated_at, slug)?,
                 generated_at: generated_at.clone(),
                 entries,
                 size_bytes: 0,
@@ -528,19 +528,20 @@ fn absence(error: &std::io::Error) -> String {
     }
 }
 
-fn archive_filename_bytes(generated_at: &Timestamp) -> usize {
+fn archive_filename_bytes(generated_at: &Timestamp, slug: &str) -> usize {
     let stamp = generated_at.to_datetime().map_or("unknown".len(), |moment| {
         let digits = moment.year().unsigned_abs().checked_ilog10().unwrap_or(0) as usize + 1;
         let year = (digits + usize::from(moment.year().is_negative())).max(4);
         year + "MMDDTHHMMSSZ".len()
     });
-    "dokime-diagnostics-".len() + stamp + ".zip".len()
+    slug.len() + "-diagnostics-".len() + stamp + ".zip".len()
 }
 
-fn archive_filename(generated_at: &Timestamp) -> Result<String, dokime::harmos::storage::Error> {
+fn archive_filename(generated_at: &Timestamp, slug: &str) -> Result<String, dokime::harmos::storage::Error> {
     let mut filename = String::new();
-    filename.try_reserve_exact(archive_filename_bytes(generated_at)).map_err(|_| allocation())?;
-    filename.push_str("dokime-diagnostics-");
+    filename.try_reserve_exact(archive_filename_bytes(generated_at, slug)).map_err(|_| allocation())?;
+    filename.push_str(slug);
+    filename.push_str("-diagnostics-");
     match generated_at.to_datetime() {
         Ok(moment) => write!(
             &mut filename,
@@ -578,8 +579,20 @@ fn too_large(maximum: usize) -> Status {
 
 #[cfg(test)]
 mod tests {
-    use super::{CappedFile, file_options, native_failure, zip_failure};
+    use super::{CappedFile, Timestamp, archive_filename, archive_filename_bytes, file_options, native_failure, zip_failure};
     use std::io::Write as _;
+
+    #[test]
+    fn archive_name_uses_distribution_slug() {
+        let at = Timestamp::new("2026-01-02T03:04:05Z");
+        for identifier in ["com.example.console", "org.example.lab"] {
+            let identity = dokime::paths::DistributionIdentity::new(identifier).unwrap();
+            let slug = identity.slug();
+            let filename = archive_filename(&at, &slug).unwrap();
+            assert_eq!(filename, format!("{slug}-diagnostics-20260102T030405Z.zip"));
+            assert_eq!(filename.len(), archive_filename_bytes(&at, &slug));
+        }
+    }
 
     #[test]
     fn read_error_cause() {

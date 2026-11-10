@@ -111,40 +111,32 @@ const REQUIRED_TEST_PALETTE: &[&str] = &[
 
 /* === Public Functions === */
 
-pub(crate) fn organization_overlay() {
-    use dokime_runtime::config::organization::resolve_with_base;
+pub(crate) fn organization_replacement() {
+    use dokime_runtime::config::organization::resolve_directory;
 
+    // Resolve The Bundled Default
+    let baseline = resolve_directory(None).unwrap();
     let root = tempdir().unwrap();
-    let baseline = resolve_with_base(None, None).unwrap();
     let installed = root.path().join("installed");
     baseline.write_to(&installed).unwrap();
-    let overrides = root.path().join("overrides");
-    fs::create_dir_all(overrides.join("logos")).unwrap();
-    fs::write(
-        overrides.join("organization.toml"),
-        "[app]\nlabel = 'Stokker Technologies'\n[app.organization]\nunit = 'Quality'\n[app.logos.transparent]\non_dark = 'icons/icon.png'\n",
-    )
-    .unwrap();
-    let replacement = b"<svg xmlns='http://www.w3.org/2000/svg' id='override'/>";
-    fs::write(overrides.join("logos/transparent-on-light.svg"), replacement).unwrap();
 
-    let pack = resolve_with_base(Some(&installed), Some(&overrides)).unwrap();
-    assert_eq!(pack.label(), "Stokker Technologies");
-    assert_eq!(pack.manifest["app"]["organization"]["unit"].as_str(), Some("Quality"));
-    assert_eq!(pack.manifest["app"]["organization"]["name"], baseline.manifest["app"]["organization"]["name"]);
-    assert_eq!(pack.files["logos/transparent-on-light.svg"], replacement);
-    assert_eq!(pack.files["theme/light.css"], baseline.files["theme/light.css"]);
-    assert!(pack.brand().unwrap().theme.unwrap().stylesheet.unwrap().contains("data:font/woff2;base64,"));
-    assert!(pack.brand().unwrap().logos.iter().any(|logo| logo.mime_type == "image/png"));
-
-    fs::remove_file(installed.join("theme/dark.css")).unwrap();
-    assert!(resolve_with_base(Some(&installed), Some(&overrides)).is_err());
+    // Resolve A Complete Replacement Without Inheriting Files
+    let replacement = root.path().join("replacement");
+    fs::create_dir_all(&replacement).unwrap();
+    fs::write(replacement.join("organization.toml"), "[app]\nlabel = 'Test Console'\n").unwrap();
+    let pack = resolve_directory(Some(&replacement)).unwrap();
+    assert_eq!(pack.label(), "Test Console");
+    assert_eq!(pack.files.len(), 1);
+    assert!(pack.brand().unwrap().logos.is_empty());
+    assert_eq!(resolve_directory(Some(&installed)).unwrap().files, baseline.files);
 }
 
 pub(crate) fn organization_validation() {
-    use dokime_runtime::config::organization::resolve_with_base;
+    use dokime_runtime::config::organization::resolve_directory;
 
     let overrides = tempdir().unwrap();
+    let baseline = resolve_directory(None).unwrap();
+    baseline.write_to(overrides.path()).unwrap();
     let manifest = overrides.path().join("organization.toml");
     for value in [
         "[app]\nidentifier = 'other.identity'",
@@ -153,14 +145,17 @@ pub(crate) fn organization_validation() {
         "[app.artwork]\ntray = 'logos/transparent-on-light.svg'",
         "[updates]\nmode = 'manual'\nsource = 'missing'",
     ] {
-        fs::write(&manifest, value).unwrap();
-        assert!(resolve_with_base(None, Some(overrides.path())).is_err());
+        let mut input: toml::Value = toml::from_str(value).unwrap();
+        let app = input.as_table_mut().unwrap().entry("app").or_insert_with(|| toml::Value::Table(Default::default()));
+        app.as_table_mut().unwrap().insert("label".into(), "Test Console".into());
+        fs::write(&manifest, toml::to_string(&input).unwrap()).unwrap();
+        assert!(resolve_directory(Some(overrides.path())).is_err());
     }
     fs::write(&manifest, "[app]\nlabel = 'Stokker Technologies'").unwrap();
     fs::create_dir(overrides.path().join("generated")).unwrap();
-    assert!(resolve_with_base(None, Some(overrides.path())).is_err());
+    assert!(resolve_directory(Some(overrides.path())).is_err());
 
-    let mut pack = resolve_with_base(None, None).unwrap();
+    let mut pack = resolve_directory(None).unwrap();
     pack.files.insert("../outside".into(), vec![0]);
     let destination = tempdir().unwrap();
     assert!(pack.write_to(&destination.path().join("target")).is_err());
@@ -168,7 +163,10 @@ pub(crate) fn organization_validation() {
 
     let active = destination.path().join("organization/active");
     fs::create_dir_all(&active).unwrap();
-    fs::write(active.join("organization.toml"), "invalid [").unwrap();
+    fs::write(active.join("organization.toml"), "[app]\nlabel = 'Ignored Pack'").unwrap();
+    let pending = destination.path().join("organization/pending");
+    fs::create_dir_all(&pending).unwrap();
+    fs::write(pending.join("organization.toml"), "invalid [").unwrap();
     let config = dokime_runtime::config::ApplicationOptions {
         application_root: Some(destination.path().into()),
         ..Default::default()
@@ -176,45 +174,33 @@ pub(crate) fn organization_validation() {
     .resolve()
     .unwrap();
     assert_eq!(config.brand.unwrap().identity.label, "Dokime");
-    assert_eq!(fs::read_to_string(active.join("organization.toml")).unwrap(), "invalid [");
+    assert!(fs::read_to_string(active.join("organization.toml")).unwrap().contains("Ignored Pack"));
+    assert_eq!(fs::read_to_string(pending.join("organization.toml")).unwrap(), "invalid [");
 }
 
-pub(crate) fn installer_sidebar_overlay() {
-    use dokime_runtime::config::organization::resolve_with_base;
+pub(crate) fn installer_sidebar_pack() {
+    use dokime_runtime::config::organization::resolve_directory;
 
-    let baseline = resolve_with_base(None, None).unwrap();
-    assert_eq!(baseline.installer_sidebar_color().unwrap(), [0x1b, 0x19, 0x15]);
-    assert!(baseline.installer_sidebar_image().is_none());
-    let root = tempdir().unwrap();
-    let installed = root.path().join("installed");
-    let overrides = root.path().join("overrides");
-    baseline.write_to(&installed).unwrap();
-    fs::create_dir_all(overrides.join("installer")).unwrap();
+    // Materialize A Complete Pack
+    let mut baseline = resolve_directory(None).unwrap();
     let image = baseline.files["icons/icon.png"].clone();
-    fs::write(overrides.join("installer/sidebar.png"), &image).unwrap();
-    let manifest = overrides.join("organization.toml");
-    fs::write(&manifest, "[installer]\nsidebar_image = 'installer/sidebar.png'").unwrap();
+    baseline.files.insert("installer/sidebar.png".into(), image.clone());
+    baseline.manifest["installer"]["sidebar_image"] = "installer/sidebar.png".into();
+    baseline.manifest["installer"]["sidebar_color"] = "#aB01fF".into();
+    let root = tempdir().unwrap();
+    baseline.write_to(root.path()).unwrap();
 
-    let pack = resolve_with_base(Some(&installed), Some(&overrides)).unwrap();
-    assert_eq!(pack.installer_sidebar_color().unwrap(), baseline.installer_sidebar_color().unwrap());
-    assert_eq!(pack.installer_sidebar_image(), Some(("installer/sidebar.png", image.as_slice())));
-    pack.write_to(&installed).unwrap();
-    fs::write(&manifest, "[installer]\nsidebar_color = '#aB01fF'").unwrap();
-
-    let pack = resolve_with_base(Some(&installed), Some(&overrides)).unwrap();
+    // Resolve The Installed Sidebar
+    let pack = resolve_directory(Some(root.path())).unwrap();
     assert_eq!(pack.installer_sidebar_color().unwrap(), [0xab, 0x01, 0xff]);
     assert_eq!(pack.installer_sidebar_image(), Some(("installer/sidebar.png", image.as_slice())));
-    let mut old_manifest = baseline.manifest.clone();
-    old_manifest.as_table_mut().unwrap().remove("installer");
-    fs::write(installed.join("organization.toml"), toml::to_string(&old_manifest).unwrap()).unwrap();
-    let old_pack = resolve_with_base(Some(&installed), None).unwrap();
-    assert_eq!(old_pack.installer_sidebar_color().unwrap(), [0x1b, 0x19, 0x15]);
 }
 
 pub(crate) fn installer_sidebar_validation() {
-    use dokime_runtime::config::organization::resolve_with_base;
+    use dokime_runtime::config::organization::resolve_directory;
 
     let overrides = tempdir().unwrap();
+    resolve_directory(None).unwrap().write_to(overrides.path()).unwrap();
     let manifest = overrides.path().join("organization.toml");
     let invalid = [
         "installer = 'invalid'",
@@ -236,8 +222,10 @@ pub(crate) fn installer_sidebar_validation() {
     ];
     fs::write(overrides.path().join("broken.png"), b"\x89PNG\r\n\x1a\ntruncated").unwrap();
     for value in invalid {
-        fs::write(&manifest, value).unwrap();
-        assert!(resolve_with_base(None, Some(overrides.path())).is_err(), "accepted invalid settings: {value}");
+        let mut input = toml::from_str::<toml::Value>(value).unwrap();
+        input.as_table_mut().unwrap().insert("app".into(), toml::toml! { label = "Test Console" }.into());
+        fs::write(&manifest, toml::to_string(&input).unwrap()).unwrap();
+        assert!(resolve_directory(Some(overrides.path())).is_err(), "accepted invalid settings: {value}");
     }
 }
 

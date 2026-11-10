@@ -267,7 +267,7 @@ impl Runtime {
             self.handle.provider_completion_result()?;
             if let Some(source) = &self.shutdown.task_failure {
                 return Err(crate::runtime::Error::Harmos(harmos::Error::TaskFailed {
-                    domain: "Dokime shutdown task",
+                    domain: "application shutdown task",
                     source: source.clone(),
                 }));
             }
@@ -419,7 +419,7 @@ impl Runtime {
         self.handle.provider_completion_result()?;
         if let Some(source) = &self.shutdown.task_failure {
             return Err(crate::runtime::Error::Harmos(harmos::Error::TaskFailed {
-                domain: "Dokime shutdown task",
+                domain: "application shutdown task",
                 source: source.clone(),
             }));
         }
