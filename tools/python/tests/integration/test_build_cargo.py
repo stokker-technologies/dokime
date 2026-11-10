@@ -36,6 +36,37 @@ from dokime_tools.ci import tasks
 
 
 class FocusedCargoTests(unittest.TestCase):
+    def test_focused_test_passes_features_before_harness_arguments(self):
+        arguments = [
+            "test",
+            "--package",
+            "dokime-runtime",
+            "--features",
+            "testing",
+            "--target",
+            "integration",
+            "--exact",
+            "config::settings_backends",
+        ]
+        with patch.object(tasks.transport, "receive"), patch.object(tasks.cargo, "focused", return_value=0) as focused:
+            self.assertEqual(tasks.main(arguments), 0)
+        focused.assert_called_once_with(
+            Path.cwd(),
+            "test",
+            [
+                "--locked",
+                "--package",
+                "dokime-runtime",
+                "--features",
+                "testing",
+                "--test",
+                "integration",
+                "config::settings_backends",
+                "--",
+                "--exact",
+            ],
+        )
+
     def test_dispatches_only_requested_operation(self):
         directory = Path.cwd()
         operations = ("build", "check", "test", "clippy", "run", "bench")

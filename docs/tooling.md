@@ -7,6 +7,7 @@ Preparation is explicit; focused builds and tests consume its installed dependen
 mise run prepare
 mise run build -- --package dokime-domain --check
 mise run test -- --package dokime-domain --target lib --exact state::records::set::tests::capture_snapshot_retains_only_owner_and_frontier
+mise run test -- --package dokime-runtime --features testing --target integration --exact config::settings_backends
 mise run format -- --check --language python
 mise run check -- --repository
 ```

@@ -43,6 +43,7 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
     parser.add_argument("--artifact", choices=("product", "tests", "bench", "fixtures"), default="product")
     parser.add_argument("--package")
+    parser.add_argument("--features")
     parser.add_argument("--target")
     parser.add_argument("--exact")
     parser.add_argument("--check", action="store_true")
@@ -80,6 +81,8 @@ def main(arguments: list[str] | None = None) -> int:
             parser.error("--package selects Cargo packages")
         operation = "check" if args.operation == "build" and args.check else args.operation
         command = ["--locked", "--package", args.package]
+        if args.features:
+            command += ["--features", args.features]
         if operation == "test":
             if not args.target:
                 parser.error("focused tests require --target lib or a test target name")
@@ -91,6 +94,8 @@ def main(arguments: list[str] | None = None) -> int:
         else:
             command += ["--profile", args.profile]
         return cargo.focused(Path.cwd(), operation, command)
+    if args.features:
+        parser.error("--features requires a focused package build or test")
     if args.exact or args.target and args.operation != "package":
         parser.error("--exact and --target require a focused test (or --target for package)")
     if args.operation == "test" and not any(
