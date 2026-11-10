@@ -430,12 +430,15 @@ impl RuntimeHandle {
         let created_at = crate::model::time::now_utc();
         self.with_latest_host_traceability(scope, |host, host_fingerprint| {
             let host_candidate = host.and_then(|sample| crate::traceability::host_traceability_page_candidate(sample, scope));
-            let (mut snapshots, has_more, host_selected) = crate::traceability::bounded_snapshots_from_state(
-                snapshot.state(),
-                scope,
+            let request = crate::traceability::TraceabilityPageRequest {
+                selected_scope: scope,
                 after,
                 limit,
-                crate::traceability::TraceabilityPageBudget { max_entries, max_bytes },
+                budget: crate::traceability::TraceabilityPageBudget { max_entries, max_bytes },
+            };
+            let (mut snapshots, has_more, host_selected) = crate::traceability::bounded_snapshots_from_state(
+                snapshot.state(),
+                request,
                 host_candidate.as_ref(),
                 created_at.clone(),
                 &app_name,

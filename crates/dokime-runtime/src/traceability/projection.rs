@@ -81,6 +81,13 @@ pub struct TraceabilityPageBudget {
     pub max_bytes: usize,
 }
 
+pub(crate) struct TraceabilityPageRequest<'a> {
+    pub selected_scope: Option<&'a RecordScope>,
+    pub after: &'a str,
+    pub limit: usize,
+    pub budget: TraceabilityPageBudget,
+}
+
 struct Candidate {
     parameter: Option<(RecordScope, String)>,
     additional: bool,
@@ -137,9 +144,10 @@ pub fn snapshots_from_parameters<'a>(
 }
 
 pub(crate) fn bounded_snapshots_from_state(
-    state: &RuntimeState, selected_scope: Option<&RecordScope>, after: &str, limit: usize, budget: TraceabilityPageBudget,
-    additional: Option<&TraceabilityPageCandidate>, created_at: Timestamp, app_name: &str,
+    state: &RuntimeState, request: TraceabilityPageRequest<'_>, additional: Option<&TraceabilityPageCandidate>, created_at: Timestamp,
+    app_name: &str,
 ) -> Option<(Vec<TraceabilitySnapshot>, bool, bool)> {
+    let TraceabilityPageRequest { selected_scope, after, limit, budget } = request;
     let candidate_limit = limit.saturating_add(1);
     if candidate_limit == 0 {
         return Some((Vec::new(), false, false));
@@ -721,16 +729,10 @@ fn resource_traceability_groups(
 
     let mut groups = Vec::new();
     for (index, (instance_id, (label, details))) in resources.into_iter().enumerate() {
-        groups.extend(resource_traceability_group(instance_id, label, details, index)?);
+        groups.extend(super::payload::resource_entries(instance_id, label, details, index)?);
     }
 
     Ok(groups)
-}
-
-fn resource_traceability_group(
-    instance_id: &str, label: &str, details: &BTreeMap<String, Value>, index: usize,
-) -> ProjectionResult<Vec<Vec<TraceabilityEntry>>> {
-    super::payload::resource_entries(instance_id, label, details, index)
 }
 
 pub(super) fn resource_traceability_value_visible(value: &Value) -> bool {

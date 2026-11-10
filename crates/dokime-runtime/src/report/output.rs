@@ -130,7 +130,7 @@ fn write_head(writer: &mut dyn Write, prefix: &str, appearance: &crate::installe
         let end = prefix.find("</head>").unwrap_or(0);
         (end, end)
     });
-    writer.write_all(prefix[..start].as_bytes())?;
+    writer.write_all(&prefix.as_bytes()[..start])?;
     let label = html_attribute(&appearance.app_name);
     write!(writer, "<title>{label} Report</title>")?;
     for (contained, transparent, media) in [
@@ -148,7 +148,7 @@ fn write_head(writer: &mut dyn Write, prefix: &str, appearance: &crate::installe
             write!(writer, "<link rel=\"icon\" media=\"{media}\" href=\"{url}\">")?;
         }
     }
-    writer.write_all(prefix[end..].as_bytes())
+    writer.write_all(&prefix.as_bytes()[end..])
 }
 
 fn html_attribute(value: &str) -> String {

@@ -219,7 +219,7 @@ pub async fn desktop_pairing_create(
             .file()
             .set_file_name(format!("{filename}.dokime-remote"))
             .add_filter(
-                &format!("{} Remote Access File", app.state::<crate::app::organization::OrganizationState>().label()),
+                format!("{} Remote Access File", app.state::<crate::app::organization::OrganizationState>().label()),
                 &["dokime-remote"],
             )
             .blocking_save_file();

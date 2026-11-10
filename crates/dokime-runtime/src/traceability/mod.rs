@@ -24,7 +24,7 @@ pub use projection::{
 };
 
 #[cfg(feature = "native")]
-pub(crate) use projection::{bounded_snapshots_from_state, host_traceability_page_candidate};
+pub(crate) use projection::{TraceabilityPageRequest, bounded_snapshots_from_state, host_traceability_page_candidate};
 
 #[cfg(feature = "native")]
 pub(crate) use projection::{resource_traceability, scope_discriminator, snapshots_from_execution_parameters, stated_execution_snapshots};

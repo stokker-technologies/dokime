@@ -97,7 +97,7 @@ pub async fn desktop_backend_import_pairing(
             .dialog()
             .file()
             .add_filter(
-                &format!("{} Remote Access File", picker.state::<crate::app::organization::OrganizationState>().label()),
+                format!("{} Remote Access File", picker.state::<crate::app::organization::OrganizationState>().label()),
                 &["dokime-remote"],
             )
             .blocking_pick_file()
