@@ -51,13 +51,57 @@ that carry their own logic beside the tasks.
   policy helpers, two of the screenshot code, the unused TOML formatter and
   its source helper, compiler-message parsing in two places, and a task
   dependency graph kept in three places.
-- **CI workflows call tasks.** A job checks out, sets up mise, restores the
-  cache, runs one task and uploads its results. The detail follows the CI
-  audit.
+- **CI workflows call tasks,** as the CI Shape section below describes.
+
+## CI Shape
+
+The workflows are 10,216 lines today (CI 4,521, Nightly 4,689, Release 925).
+Almost none of that is logic: checkout, setup, cache and artifact steps
+written out per job and per operating system are 73 percent of it, and
+conditions another 2,758 lines. The target is about 1,100 to 1,550 lines.
+
+- **One job template per kind of work, as a matrix.** Checks run over
+  languages, tests over languages and layers, builds and packages over
+  platforms. A platform is a matrix value, not a second copy of the steps.
+- **A job is: check out, set up mise, restore caches, download the build it
+  consumes, run one task, upload results.** The download is the one addition
+  to the plain shape; without it every consumer would compile again.
+- **Tasks own what the workflows and their scripts do today:** archiving and
+  extracting builds, the summaries, the Nightly freshness check and report,
+  the release review and green-commit check, signing order, and the mirror
+  push. The workflow keeps event routing, secrets, permissions, caches,
+  artifacts, concurrency and attestation.
+- **Duplicates go:** the two identical archive and extract scripts, the
+  cache-summary steps that usually print nothing, and the Windows disk
+  counters, which are a machine diagnostic.
+- **Jobs for removed things go with them:** the native wheel, stub and
+  fixture jobs, replaced by one proof of the pure Python package.
+
+```yaml
+check:
+  strategy:
+    matrix:
+      language: [rust, python, typescript]
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: ./.github/actions/setup
+    - run: mise run check -- --language ${{ matrix.language }}
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: check-${{ matrix.language }}
+        path: target/results
+```
 
 ## Open Points
 
-1. The CI shape, from the audit in progress.
+1. Impact planning. CI skips jobs a change cannot affect, using a dependency
+   graph that exists in the workflow, in a script and in `tools/python`.
+   Either it is removed and every pull request runs everything, or it stays
+   with one owner.
+2. Where the composite actions live. They are nearly identical in Dokime and
+   Harmos, and shared tooling no longer renders CI.
 
 Settled with the owner:
 
