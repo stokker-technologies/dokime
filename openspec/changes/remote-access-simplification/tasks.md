@@ -7,7 +7,7 @@
 
 ## 2. Implementation
 
-- [ ] 2.1 Remove grants and per-operation permissions for clients.
+- [ ] 2.1 Give a connected client every operation the backend serves to clients, per the scope task 1.1 settles.
 - [ ] 2.2 Read the pairing file named explicitly or through the environment in every client and SDK.
 - [ ] 2.3 Remove the mechanisms task 1.1 retires, with their tests and guidance.
 
