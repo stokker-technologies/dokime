@@ -133,7 +133,7 @@ Use the host's connected local desktop session, then open
 
 1. Choose **Export Remote Access** and confirm enablement if the listener is off.
    It uses the saved port, or 8765 by default, and detects the hostname and real
-   interface addresses automatically. Save `lab.dokime-remote`.
+   interface addresses automatically. Save `lab.pair`.
 2. Treat this file as a secret. Transfer it privately to the other PC. Loopback
    addresses work on the same PC only.
 3. Windows installation needs no administrator rights. If Remote Access shows a
@@ -145,27 +145,25 @@ Use the host's connected local desktop session, then open
    through the host firewall. Advanced listener settings can change that port.
 
 Transfer that pairing file privately to `remote-demo/` on the remote computer.
-It contains a one-time access key and public CA certificate; keep the file private.
-The host retains only a verifier. Create a separate pairing for each client, and
-revoke a lost client's entry in **Paired Clients**. Revocation leaves other clients usable.
+It contains the backend access key and self-signed server certificate; keep it private.
+The host retains only a verifier. Exporting again replaces the single key for every
+client; distribute the replacement file to each machine that should retain access.
 
 ## Connect from the Remote PC
 
-Import the pairing once into the native registry; its credential goes to the OS keyring:
+Name the pairing file on each command, or set `DOKIME_REMOTE`:
 
 ```sh
-dokime backend add --remote lab.dokime-remote --identifier lab
-dokime status --backend lab --json
-dokime operation list --backend lab
-dokime catalog list --backend lab --json
+dokime status --remote lab.pair --json
+dokime operation list --remote lab.pair
+dokime catalog list --remote lab.pair --json
 ```
 
 Status must report `ready`. Discovery must include `obc.device.read`,
 `obc.device.set_power` and the `obc.checks.pulse` template. The client checks both
 the TLS certificate and expected backend identity before calling application operations.
 Python scripts use `DokimeClient.from_pairing` and keep the credential only in
-that client's transport. CLI remote import verifies the connection; GUI import also connects and selects
-the new backend. Python constructs a client first, connecting on `async with` or
+that client's transport. GUI import copies the complete pairing into its pairing-file folder and connects. Python constructs a client first, connecting on `async with` or
 `await client.connect()`.
 
 ## Run the Three Workflows
@@ -179,8 +177,8 @@ Choose one family:
   `>=3.13,<3.16`, with a uv environment and a locally built matching wheel.
 
 Edit the globals at the top of each selected script. Native CLI scripts use
-`BACKEND_IDENTIFIER = lab` after the import above. Python scripts use
-`PAIRING_FILE = Path("../lab.dokime-remote")` when run inside `python/`.
+`PAIRING_FILE = ../lab.pair`. Python scripts use
+`PAIRING_FILE = Path("../lab.pair")` when run inside `python/`.
 Paths resolve relative to the terminal's working directory. Run scripts without arguments.
 
 `control-device` reads the manual device, powers it on, verifies its 230 V RMS

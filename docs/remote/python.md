@@ -62,7 +62,7 @@ those inputs already in uv's cache. The remote PC needs no Rust compiler.
 ```python
 from dokime import Aggregate, DokimeClient, ExecutionStatus, Predicate
 
-async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
+async with DokimeClient.from_pairing("../lab.pair") as client:
     async for execution in client.executions(status=ExecutionStatus.FAILED, since="2026-10-01"):
         records = execution.query_records("example.event", where={"status": "failed"})
         async for record in records:
@@ -105,7 +105,7 @@ Before starting your own work, inspect typed cycle statuses:
 ```python
 from dokime import CycleStatus, DokimeClient
 
-async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
+async with DokimeClient.from_pairing("../lab.pair") as client:
     busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
     if busy:
         raise RuntimeError("Backend has active work")
@@ -179,7 +179,7 @@ groups catalog rows and is separate from these telemetry statistics.
 Open each `control-*.py` file and select the private pairing file:
 
 ```python
-PAIRING_FILE = Path("../lab.dokime-remote")
+PAIRING_FILE = Path("../lab.pair")
 ```
 
 Run from `python/` so the path resolves. Each script constructs its client with
@@ -323,7 +323,7 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | uv cannot find a supported Python | Run `uv python install 3.13`, then sync with `--python 3.13`. Supported versions are 3.13, 3.14 and 3.15, not an unrestricted future version. |
 | The local wheel path is missing | Prepare the matching source wheel and copy the complete tutorial tree. `python/` and `wheels/` must remain siblings. |
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
-| `lab.dokime-remote` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
+| `lab.pair` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
 | A secret/certificate is refused | Follow the shared [connection troubleshooting](overview.md#troubleshooting), including process-key precedence and certificate identity. |
 | There is no record or sample output | Confirm the installed matching OBC plugin and the configured glob selections. A queued attempt may be waiting for another client's running execution. |
 | Previous evidence blocks a run | Select a new output directory or explicitly enable overwrite; preserve prior bundles. |

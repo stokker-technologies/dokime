@@ -403,7 +403,7 @@ from Inspect. Frozen HTML retains its original media and download links under
   Native connection handles and credentials stay outside the WebView. Listener
   status may expose this host's advertised addresses and adapter names for the
   export preview; keep that preview transient and out of logs, persisted browser
-  storage and report output. Connection credentials never belong in status or profiles.
+  storage and report output. Connection credentials remain inside native pairing-file handling.
 - `src-tauri/src/rpc/artifact_upload.rs` is the native file-backed adapter for
   artifact bytes. Do not add ordinary calls to it.
 - Native plugin file installation returns picker, file and backend failures to
@@ -539,18 +539,18 @@ The notice names the affected adapters, networks and categories. Outbound remote
 have no firewall action. Disabling remote access attempts owned-rule removal
 without prompting and reports skipped cleanup. Installers never manage rules.
 
-Settings → Remote Access exports `.dokime-remote` through the native save adapter
+Settings → Remote Access exports `.pair` through the native save adapter
 in `src-tauri/src/app/desktop.rs`. Confirmation combines listener enablement and
 the secret warning when stopped; running listeners export directly. Labels and
 all candidate endpoints come from native owners. `RemoteListenerStatus.endpoints`
 provides the same ordered addresses used by exports, with adapter names, for the
 pre-export list. Physical IPv4 link-local follows routable addresses; IPv6
 link-local remains excluded because remote origins have no zone-ID support.
-Paired Clients permits rename.
 The file bytes and raw key stay native; the export action returns only a saved path.
 
 Picker imports and window drops share `src-tauri/src/connection/registry.rs`:
-validate, save the profile/keyring association, then connect. Native import events
-refresh the frontend session generation so the opaque bridge follows the new
-backend. The Rust client races candidates only after TLS and identity verification;
-profiles remember the winning endpoint without changing their keyring association.
+validate, copy the complete pairing into the pairing-file folder, then connect.
+Native import events refresh the frontend session generation so the opaque bridge
+follows the new backend. The Rust client tries candidates in order after TLS and
+expected-backend verification. There is no credential-store association or saved
+winning endpoint.

@@ -88,7 +88,7 @@ production-line tooling or ready-made instrument drivers today.
 
 The desktop brings the test library, active cycles, measurements and evidence
 together. Start with the built-in Local backend or select a saved remote in
-Settings. Export a `.dokime-remote` access file on the host and import or drop it
+Settings. Export a `.pair` access file on the host and import or drop it
 on another desktop to connect. The desktop remembers that choice; operators do
 not need a source checkout. Windows installation needs no administrator rights;
 exposing remote access to other PCs may need an administrator to allow the app
@@ -127,8 +127,8 @@ contains the complete workflow, including
 
 ```sh
 dokime server --application-root ~/dokime-lab
-dokime status --backend lab --json
-dokime operation list --backend lab
+dokime status --remote lab.pair --json
+dokime operation list --remote lab.pair
 ```
 
 ### Python
@@ -162,7 +162,7 @@ uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra polars
 ```python
 from dokime import DokimeClient, ExecutionStatus
 
-async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+async with DokimeClient.from_pairing("lab.pair") as client:
     async for execution in client.executions(template="example.measurement", status=ExecutionStatus.FAILED):
         async with execution.telemetry("example.stream", fields=["counter"]) as samples:
             frame = await samples.to_polars(max_rows=10_000)
@@ -170,7 +170,7 @@ async with DokimeClient.from_pairing("lab.dokime-remote") as client:
 ```
 
 The [Python client guide](sdk/python/README.md) covers authentication,
-backend profiles, [query limits and dataframe types](sdk/python/README.md#optional-dataframes).
+pairing files, [query limits and dataframe types](sdk/python/README.md#optional-dataframes).
 The example requires the corresponding installed template and stream; finite
 queries never follow or change execution state. The [remote guide](docs/remote/python.md)
 retains the complete setup and runnable lifecycle examples.
@@ -265,11 +265,12 @@ Scoped evidence reads isolate other cycles; see the
 [storage read policies](docs/product-guide.md#storage-read-isolation)
 for corruption reporting and whole-root failures.
 
-The Backends table and CLI backend commands share `backends.json`. Import a `.dokime-remote` file with an Identifier and Label, connect to it, or
-remove it from the registry without connecting first. Revoke individual clients
-from the host’s Paired Clients table.
-Credentials remain in protected credential stores. Plugin settings and secret
-catalog metadata persist in SQLite; credential values are not stored there.
+The Backends table lists a folder of `.pair` files. Import a file to connect, or
+name it with `--remote lab.pair` or `DOKIME_REMOTE`. Each file contains the backend's
+single access key, server certificate, endpoints and expected backend identifier.
+Exporting again replaces the key for every client. Every connected client can call
+every operation the backend serves to clients. Plugin secrets remain in protected
+credential stores, with their catalog metadata in SQLite.
 Settings → Plugins keeps ordinary settings editable after startup fails and shows
 required secret identifiers. A missing-secret failure offers Set Secret, which opens
 Secret Storage's Add Secret dialog with its identifier prefilled; then retry the
@@ -308,8 +309,7 @@ Repeated sections use indexed pages; page navigation keeps one saved evidence cu
 Plot groups show numeric labels in ascending order, then text labels alphabetically.
 Different labels with equal numeric values remain separate and sort alphabetically.
 
-The live log, diagnostics bundle and remote sessions remain available; remote sessions refresh when opened or focused; remote sessions
-also provide Refresh. Cycle history shows absolute update times. Busy document
+The live log and diagnostics bundle remain available. Cycle history shows absolute update times. Busy document
 reads continue retrying, while other document failures retry once.
 
 ### Support and Security

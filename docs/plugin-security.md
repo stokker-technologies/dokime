@@ -135,7 +135,7 @@ their scope and priority separately.
 - **Optional WebAssembly Guests:** Admit untrusted logic through a constrained
   guest backend. This requires explicit host imports and filesystem, network,
   device and environment capabilities, resource limits, runtime patch ownership,
-  negative permission tests and compatibility rules for native-only operations.
+  negative permission tests and compatibility rules for served client operations.
 
 Signing would establish origin and integrity, not safe behavior. Guest support
 would need a reviewed capability contract before any sandbox claim.
