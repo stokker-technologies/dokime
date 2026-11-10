@@ -186,7 +186,8 @@ def main(arguments: list[str] | None = None) -> int:
         if args.dry:
             tasks = [("release:publish:dry", [])]
         else:
-            tasks = [(f"release:publish:{stage}", []) for stage in ([args.stage] if args.stage else ["assets", "python", "finalize"])]
+            # Python Registry Publication Waits For The Package Name Decision; Wheels Still Have Dry-Run Proof.
+            tasks = [(f"release:publish:{stage}", []) for stage in ([args.stage] if args.stage else ["assets", "finalize"])]
     if not tasks:
         parser.error("the selected operation has no implementation for this language")
     if args.operation == "publish" and not args.dry:

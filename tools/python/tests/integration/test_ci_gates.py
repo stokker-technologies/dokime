@@ -23,13 +23,14 @@ import unittest
 import urllib.error
 import urllib.parse
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from environment import isolate_environment
 
 # Third Party Imports
 # Local Imports
 from dokime_tools import policy
+from dokime_tools.ci import tasks, transport, workflow
 from dokime_tools.release import nightly, notices, pins, registry, run
 
 # Type Checking Imports
@@ -49,6 +50,33 @@ LATER = "c" * 40
 
 
 class ReleaseTagTests(unittest.TestCase):
+    def test_workflow_artifact_arguments(self):
+        archives = [Path(f"target/ci/package-release-python-{platform}.tar.zst") for platform in ("unix", "windows")]
+        for entry, arguments in ((tasks.main, ["publish"]), (workflow.main, ["release-verify"])):
+            with (
+                self.subTest(arguments=arguments),
+                patch.dict(os.environ, {"CI_TRANSPORT": "true"}, clear=True),
+                patch.object(transport.Path, "glob", return_value=archives),
+                patch.object(transport.artifacts, "extract", autospec=True) as extract,
+                patch.object(tasks.subprocess, "run", return_value=Mock(returncode=0)),
+                patch.object(workflow, "publication_guard"),
+                patch.object(run, "main", return_value=0),
+            ):
+                self.assertEqual(entry(arguments), 0)
+                self.assertEqual(extract.call_args_list, [call(ROOT, archive) for archive in archives])
+
+    def test_publication_skips_python_registry_unless_explicit(self):
+        for arguments, stages in (([], ["assets", "finalize"]), (["--stage", "python"], ["python"])):
+            with (
+                self.subTest(arguments=arguments),
+                patch.dict(os.environ, {}, clear=True),
+                patch.object(workflow, "publication_guard"),
+                patch.object(tasks.subprocess, "run", return_value=Mock(returncode=0)) as execute,
+            ):
+                self.assertEqual(tasks.main(["publish", *arguments]), 0)
+                commands = [call.args[0] for call in execute.call_args_list]
+                self.assertEqual(commands, [["mise", "run", f"release:publish:{stage}", "--"] for stage in stages])
+
     def setUp(self):
         self.action = runpy.run_path(str(ROOT / "tools/python/src/dokime_tools/ci/review.py"))
         self.project = (ROOT / "tools/project.toml").read_text(encoding="utf-8")
