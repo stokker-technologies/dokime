@@ -1162,7 +1162,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-dokime"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "clap",
  "dokime",
@@ -2382,7 +2382,7 @@ dependencies = [
 
 [[package]]
 name = "dokime"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2404,7 +2404,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-cli"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "base64 0.23.1",
  "clap",
@@ -2428,7 +2428,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-client"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "dokime-domain",
  "dokime-operations",
@@ -2455,7 +2455,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-domain"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "base64 0.23.1",
  "dokime-tracing",
@@ -2471,7 +2471,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-gui"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2513,7 +2513,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-macros"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "dokime",
  "dokime-tracing",
@@ -2528,7 +2528,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-operations"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "dokime-domain",
  "dokime-tracing",
@@ -2540,7 +2540,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-packaging"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "base64 0.23.1",
  "cargo_metadata 0.23.1",
@@ -2573,7 +2573,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-python"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -2593,7 +2593,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-runtime"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -2661,7 +2661,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-server"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anstream",
  "arrow-ipc",
@@ -2713,7 +2713,7 @@ dependencies = [
 
 [[package]]
 name = "dokime-tracing"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "dokime-domain",
  "dokime-macros",
@@ -5994,7 +5994,7 @@ dependencies = [
 
 [[package]]
 name = "obc-runtime"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "dokime",
  "serde",
@@ -7027,7 +7027,7 @@ dependencies = [
 
 [[package]]
 name = "plugin-host"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "criterion",
  "dokime",
@@ -7050,7 +7050,7 @@ dependencies = [
 
 [[package]]
 name = "plugin-obc"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "dokime",
  "dokime-tracing",
