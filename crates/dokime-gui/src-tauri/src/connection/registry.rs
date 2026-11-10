@@ -66,10 +66,7 @@ pub async fn desktop_backend_import_pairing(
         picker
             .dialog()
             .file()
-            .add_filter(
-                format!("{} Remote Access File", picker.state::<crate::app::organization::OrganizationState>().label()),
-                &["pair"],
-            )
+            .add_filter(format!("{} Remote Access File", picker.state::<crate::app::organization::OrganizationState>().label()), &["pair"])
             .blocking_pick_file()
     })
     .await

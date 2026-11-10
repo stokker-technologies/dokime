@@ -218,10 +218,7 @@ pub async fn desktop_pairing_create(
             .dialog()
             .file()
             .set_file_name(format!("{filename}.pair"))
-            .add_filter(
-                format!("{} Remote Access File", app.state::<crate::app::organization::OrganizationState>().label()),
-                &["pair"],
-            )
+            .add_filter(format!("{} Remote Access File", app.state::<crate::app::organization::OrganizationState>().label()), &["pair"])
             .blocking_save_file();
         let Some(picked) = picked else { return Ok(None) };
         let path = picked.into_path().map_err(|error| error.to_string())?;
