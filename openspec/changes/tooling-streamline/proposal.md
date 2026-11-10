@@ -94,17 +94,14 @@ check:
         path: target/results
 ```
 
-## Open Points
+## Settled
 
-1. Impact planning. CI skips jobs a change cannot affect, using a dependency
-   graph that exists in the workflow, in a script and in `tools/python`.
-   Either it is removed and every pull request runs everything, or it stays
-   with one owner.
-2. Where the composite actions live. They are nearly identical in Dokime and
-   Harmos, and shared tooling no longer renders CI.
-
-Settled with the owner:
-
+- Impact planning is removed. Every pull request runs every job, and the
+  dependency graph kept in the workflow, a script and `tools/python` is
+  deleted.
+- The composite actions stay in each repository, reduced to the setup
+  action. The duplication between products is accepted, since shared
+  tooling no longer renders CI.
 - Of the three compatibility configurations, only the WebAssembly check of
   the domain crate is kept, as one CI job. The all-features and
   no-default-features checks are dropped with the tasks that ran them.

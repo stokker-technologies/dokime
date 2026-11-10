@@ -2,7 +2,7 @@
 
 ## 1. Contract
 
-- [ ] 1.1 Settle the open points in `proposal.md` with the owner from the mechanism inventory, and record which mechanisms stay.
+- [ ] 1.1 Recheck the mechanism inventory against the current tree before removing anything.
 - [ ] 1.2 Lock the source inventory: clients, command-line tool, desktop, server listener, tests and guidance.
 
 ## 2. Implementation

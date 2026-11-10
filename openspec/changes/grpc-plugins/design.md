@@ -353,6 +353,50 @@ instead of versioned JSON blobs.
 | `dokime.telemetry` | Folded into the plugin's stream declarations |
 | `dokime.listeners` | Typed `dokime.v1` message. Plugin-wide record listeners are operations the host calls and stay; only delivery into a running template is removed |
 
+## Documents
+
+A document definition is data: one `dokime.v1` message in the plugin's
+catalog, the same whatever language wrote it. Each SDK offers builders that
+assemble that message, so they stay thin.
+
+```python
+temperature = dokime.Stream("chamber.temperature", Temperature, label="Chamber Temperature [°C]")
+celsius = temperature.field("celsius")
+
+trend = dokime.plot.time_series(celsius)
+spread = dokime.plot.histogram(celsius, label="Temperature Spread [°C]")
+section = dokime.Section("Temperature").plot(trend).plot(spread)
+
+document = dokime.Document("Thermal Cycle").section(section)
+template = template.document(document)
+```
+
+```rust
+let celsius = temperature.field("celsius");
+
+let trend = Plot::time_series(celsius.clone());
+let spread = Plot::histogram(celsius).label("Temperature Spread [°C]");
+let section = Section::new("Temperature").plot(trend).plot(spread);
+
+let document = Document::new("Thermal Cycle").section(section);
+let template = template.document(document);
+```
+
+- Sections, cards and plots are values, composed and passed by value.
+- A data expression is a small tree: a stream field, a record field, an
+  aggregate, a transform. It is built by chaining methods that have the same
+  names in every language. The host never parses expression text.
+- A field reference comes from the stream or record value the plugin already
+  declared, so a misspelled field is reported when the plugin starts.
+- The builders for message shapes are generated from the `.proto` files
+  where the language makes that practical. Only the expression chain and a
+  few conveniences are written by hand per language, so a new plot kind or
+  transform is one change to the definitions plus regeneration.
+- Later improvements land as additions to the same message: the `at`
+  transform that reads a stream's value at each record (`telemetry-at-record`),
+  and a command that renders a document from a recorded execution while it
+  is being authored.
+
 ## Protocol Packages
 
 | Package | Contents |
@@ -487,6 +531,24 @@ and cycle accounting (`transactions/provider*`, `provider_finish`).
 
 Kept for managed plugins: install, store, bundles, feeds and installer
 entries.
+
+## Implementation Waves
+
+Every change on this branch is delivered together. Work proceeds in waves;
+within a wave each worker owns a disjoint set of paths, and a wave starts
+when the one before it builds and its focused tests pass.
+
+| Wave | Work | Owned Paths |
+| --- | --- | --- |
+| 1, no dependency on Harmos | `organization-pack-coverage`; `remote-access-simplification`; `plot-pipeline`; `tooling-streamline`; the `dokime.v1` definitions (tasks 2.1, 2.3) | Desktop shell organization code and packaging; client, server remote access and the connection screen; plot query, previews, watch and the interface plot path; `mise.toml`, `tools/python`, `.github`; `proto/` |
+| 2 | Adopt the Harmos revision; migrate Dokime's operations, catalogs, transactions and messages off the Harmos macros | The whole workspace, one worker |
+| 3 | Execution manager, test case and materialization, host operations for plugins, stream ingest and statistics (tasks 2.2, 2.4, 2.5, 3.1 to 3.5); plugin entries and the settings page (3.6) | Runtime execution and domains; server operations; the settings interface |
+| 4 | SDKs for Rust, Python, C# and C++ with starters and the `dokime` commands (4.x); the host telemetry and OBC plugins; `domain-neutral-interface` | `sdk/`; `crates/dokime-cli`; `plugins/`; interface plot catalog and parameter editor |
+| 5 | Removals (5.x); `test-stories`; guides and README; final validation | Paths being deleted; test trees; documentation |
+
+Between waves 2 and 4 the product does not run end to end. Each wave proves
+itself with focused builds and tests of what it changed; the system stories
+run in wave 5.
 
 ## Open Points
 

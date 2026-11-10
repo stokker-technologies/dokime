@@ -63,13 +63,15 @@ is repeated under the same request identity so the backend applies it
 once. The client reports a failure only when the backend stays unreachable
 beyond the configured reconnect time.
 
-## Open Points
+## Settled
 
-1. Whether the check that a client reached the backend it expected stays. It
-   catches a pairing file used against the wrong machine after an address
-   changes hands.
-2. Whether the server keeps its own `.env` loader or reads only the
-   environment like the clients.
+- The client keeps the check that it reached the backend it expected. The
+  pairing file carries the backend's identifier and the client refuses any
+  other; this catches a file used against the wrong machine after an address
+  changes hands.
+- The server and the desktop read the environment like the clients. The
+  implicit search for a `.env` file is removed; an explicit `--env-file`
+  argument stays.
 
 ## Impact
 
