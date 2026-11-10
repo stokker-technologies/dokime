@@ -96,6 +96,10 @@ check:
 
 ## Settled
 
+- Tooling is duplicated between Dokime and Harmos on purpose: each project is
+  an independent module with its own copy. The copies are kept harmonized,
+  with the same task names, arguments, module layout and behaviour, and a
+  fix made in one is made in the other.
 - Impact planning is removed. Every pull request runs every job, and the
   dependency graph kept in the workflow, a script and `tools/python` is
   deleted.
