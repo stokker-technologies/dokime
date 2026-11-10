@@ -41,6 +41,8 @@
 - [ ] 5.4 Delete leases, sample and record delivery, replay and restart recovery during an execution.
 - [ ] 5.5 Remove or rework the tests tied to the old loop; update the README, guides and authoring guidance.
 - [ ] 5.6 Delete the template, step, criterion, suite, catalog and plugin macros and their tests; keep derives for messages, rows, records, parameters and settings.
+- [ ] 5.7 Make a client-only build free of the host runtime: `dokime-client` and the SDK client halves depend on the protocol definitions, not on a Harmos feature that enables the runtime.
+- [ ] 5.8 Remove the server build script's dependency on the product facade: protocol output comes from the checked-in definitions, and settings definitions get a definitions-only home.
 
 ## 6. Final Validation
 
