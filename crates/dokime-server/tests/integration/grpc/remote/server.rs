@@ -565,7 +565,8 @@ pub(crate) async fn names_refresh_preserves_remote_stream() {
         .await
         .unwrap();
     let remote = WireClient::new(channel);
-    let log = root.path().join("application/logs/dokime.jsonl");
+    let paths = handle.application_paths();
+    let log = paths.logs().join(format!("{}.jsonl", paths.distribution.slug()));
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
     let before = br#"{"timestamp":"2026-09-30T14:22:33Z","level":"ERROR","target":"fixture","fields":{"message":"before reload"}}
 "#;
