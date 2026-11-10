@@ -57,14 +57,17 @@ that carry their own logic beside the tasks.
 
 ## Open Points
 
-1. Which of the three compatibility configurations (all features, no default
-   features, WebAssembly for the domain crate) still needs a check, and where
-   it runs.
-2. Whether the compiler cache stays for local builds once incremental
-   compilation is on.
-3. The CI shape, from the audit in progress.
-4. Which parts of `tools/python` are fixed in the shared templates they were
-   seeded from, so new projects do not start with them.
+1. The CI shape, from the audit in progress.
+
+Settled with the owner:
+
+- Of the three compatibility configurations, only the WebAssembly check of
+  the domain crate is kept, as one CI job. The all-features and
+  no-default-features checks are dropped with the tasks that ran them.
+- The compiler cache stays for local builds. With incremental compilation on
+  it still serves dependencies and fresh checkouts.
+- Duplicates and dead modules that came from the shared templates are fixed
+  there as well, so new projects do not start with them.
 
 ## Impact
 
