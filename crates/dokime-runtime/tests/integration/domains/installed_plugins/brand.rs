@@ -185,11 +185,14 @@ pub(crate) fn installer_sidebar_pack() {
     let mut baseline = resolve_directory(None).unwrap();
     let image = baseline.files["icons/icon.png"].clone();
     baseline.files.insert("installer/sidebar.png".into(), image.clone());
-    baseline.manifest["installer"] = toml::toml! {
-        sidebar_image = "installer/sidebar.png"
-        sidebar_color = "#aB01fF"
-    }
-    .into();
+    baseline.manifest.as_table_mut().unwrap().insert(
+        "installer".into(),
+        toml::toml! {
+            sidebar_image = "installer/sidebar.png"
+            sidebar_color = "#aB01fF"
+        }
+        .into(),
+    );
     let root = tempdir().unwrap();
     baseline.write_to(root.path()).unwrap();
 
