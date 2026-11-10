@@ -149,13 +149,13 @@ impl Serve<contract::AudioRecording> for Resources {
 
 impl Serve<contract::ScreenRecording> for Unsupported {
     fn serve<'a>(&'a self, _: contract::ScreenRecording, _: Context<'a, contract::ScreenRecording>) -> Served<'a, ()> {
-        Box::pin(async move { async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }.await })
+        Box::pin(async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) })
     }
 }
 
 impl Serve<contract::CameraRecording> for Unsupported {
     fn serve<'a>(&'a self, _: contract::CameraRecording, _: Context<'a, contract::CameraRecording>) -> Served<'a, ()> {
-        Box::pin(async move { async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }.await })
+        Box::pin(async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) })
     }
 }
 
