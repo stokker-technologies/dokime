@@ -83,13 +83,13 @@ pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<Option<Conne
     if remote.is_some() && endpoint.is_some() {
         return Err("--remote and --endpoint are mutually exclusive".into());
     }
-    if let Some(pairing_file) = remote.or_else(|| std::env::var("DOKIME_REMOTE").ok().filter(|value| !value.is_empty())) {
-        if endpoint.is_none() {
-            return Ok(Some(ConnectRequest {
-                target: ConnectionTarget::Remote { pairing_file },
-                expected_backend_id: None,
-            }));
-        }
+    if let Some(pairing_file) = remote.or_else(|| std::env::var("DOKIME_REMOTE").ok().filter(|value| !value.is_empty()))
+        && endpoint.is_none()
+    {
+        return Ok(Some(ConnectRequest {
+            target: ConnectionTarget::Remote { pairing_file },
+            expected_backend_id: None,
+        }));
     }
     match endpoint {
         Some(endpoint) => {
