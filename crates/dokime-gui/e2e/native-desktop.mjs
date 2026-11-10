@@ -4732,7 +4732,7 @@ async function distributionIdentityJourney() {
     assert.ok(existsSync(join(application, "data")), "The owned backend uses this distribution's data directory");
     const logs = windows ? join(application, "logs") : join(shared, "shell", "state", identifier, "logs");
     assert.ok(
-      (await readdir(logs)).some((name) => name.startsWith("dokime-gui.")),
+      (await readdir(logs)).some((name) => name.startsWith(`${identifier.replaceAll(".", "-")}-gui.`) && name.endsWith(".log")),
       "Desktop logging uses this distribution's log directory",
     );
     const webview = join(application, windows ? "EBWebView" : "webview");
