@@ -16,7 +16,9 @@ import hashlib
 import io
 import json
 import os
+import re
 import runpy
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -27,6 +29,7 @@ from unittest.mock import Mock, patch
 
 # Third Party Imports
 # Local Imports
+from dokime_tools.ci import artifacts
 from dokime_tools.release import nightly, notices, pins, policy, registry, run
 
 # Type Checking Imports
@@ -76,6 +79,29 @@ class ImpactTests(unittest.TestCase):
 
 
 class ReleaseTagTests(unittest.TestCase):
+    def test_workflow_artifact_arguments(self):
+        for workflow in sorted((ROOT / ".github/workflows").glob("*.yml")):
+            source = workflow.read_text(encoding="utf-8")
+            commands = []
+            for match in re.finditer(r"""(?m)^ +command: ('(?:[^']|'')*'|"(?:[^"\\]|\\.)*")\s*$""", source):
+                scalar = match[1]
+                value = scalar[1:-1].replace("''", "'") if scalar.startswith("'") else json.loads(scalar)
+                value = re.sub(r"\$\{\{\s*env.PROFILE\s*\}\}", "release", value)
+                command = json.loads(value)
+                if "dokime_tools.ci.artifacts" in command:
+                    commands.append(command)
+            self.assertEqual(len(commands), source.count("dokime_tools.ci.artifacts"), workflow.name)
+            for command in commands:
+                arguments = command[command.index("dokime_tools.ci.artifacts") :]
+                with (
+                    self.subTest(workflow=workflow.name, arguments=arguments),
+                    patch.object(sys, "argv", arguments),
+                    patch.object(artifacts, "pack"),
+                    patch.object(artifacts, "extract"),
+                    patch.object(artifacts, "target", return_value="linux-x86_64"),
+                ):
+                    artifacts.main()
+
     def setUp(self):
         self.action = runpy.run_path(str(ROOT / ".github/actions/review-release/run.py"))
         self.project = (ROOT / "tools/project.toml").read_text(encoding="utf-8")
