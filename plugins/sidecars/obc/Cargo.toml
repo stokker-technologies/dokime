@@ -40,7 +40,7 @@ runtime = []
 [dependencies]
 # Local
 dokime = { workspace = true, features = ["plugin-sidecar"] }
-obc-runtime = { version = "0.1.3", path = "runtime" }
+obc-runtime = { version = "0.1.4", path = "runtime" }
 plugin-host = { workspace = true }
 
 # Git
