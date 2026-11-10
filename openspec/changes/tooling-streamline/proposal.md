@@ -27,7 +27,7 @@ that carry their own logic beside the tasks.
   | `lint` | `[--language rust\|python\|typescript]`; Lint Selected Languages |
   | `check` | `[--language rust\|python\|typescript\|toml] [--repository\|--bindings\|--supply\|--wasm] [--profile dev\|release]`; Format, Lint, Repository Checks and Generated Drift; Special Selections Run Only Their Check |
   | `build` | `[--profile dev\|release] [--artifact product\|tests\|bench\|fixtures] [--package NAME [--check]] [--language rust\|python\|typescript] [--binary NAME]`; Build Products, Archives or One Cargo Package; Fixtures Selects Native Python Inputs |
-  | `test` | `[--language rust\|python\|typescript] [--layer unit\|integration\|acceptance\|system] [--package NAME --target lib\|TEST_TARGET [--exact NAME]] [--coverage] [--profile dev\|release] [--project PATH] [--select EXPRESSION] [--artifacts PATH] [--wheel [--bindings]] [--starter]`; Run Existing Lanes or One Cargo Target; Focused Cargo Tests Use Dev Context |
+  | `test` | `[--language rust\|python\|typescript] [--layer unit\|integration\|acceptance\|system] [--package NAME --target lib\|TEST_TARGET [--exact NAME]] [--coverage] [--profile dev\|release] [--project sdk/python\|tools/python] [--select EXPRESSION] [--artifacts PATH] [--wheel [--bindings]] [--starter]`; Run Existing Lanes or One Cargo Target; Focused Cargo Tests Use Dev Context |
   | `bench` | `[--layer unit\|integration\|system] [--language rust\|python] [--binary NAME] [--select FILTER] [--refresh-baseline]`; Run Built Benchmarks |
   | `package` | `[--language rust\|python] [--profile dev\|release] [--target TARGET]`; Package Built Artifacts and Prepare Organization Resources |
   | `release:prepare` | Prepare the Release Branch |

@@ -16,7 +16,7 @@ mise run dev
 ```
 
 Windows and Linux are supported. Native Windows GUI tests require an interactive
-desktop and matching WebView2/EdgeDriver; `prepare:desktop` installs the driver.
+desktop and matching WebView2/EdgeDriver; system test setup installs the driver.
 Linux desktop tests use WebKitWebDriver and a display such as Xvfb. Their
 desktop bootstrap reuses installed Chrome or provisions the pinned Chrome For
 Testing build for real report rendering and owned-browser cleanup.
@@ -25,9 +25,8 @@ Native media capture also needs platform libraries. On Debian/Ubuntu, install
 `libasound2-dev`, `linux-libc-dev` and `libclang-dev`; Fedora uses
 `alsa-lib-devel`, `kernel-headers` and `clang`.
 
-Local native tasks serialize across repositories and worktrees and share a 20 GB
-sccache store; see [Workstation Builds](docs/tooling.md#workstation-builds) for
-the lock behavior and the per-run cache override.
+Local native tasks share a persistent 20 GB sccache store and use incremental
+compilation; see [Workstation Builds](docs/tooling.md#workstation-builds).
 
 ## Development Workflow
 
@@ -36,18 +35,14 @@ boundaries. Update affected examples when changing their API; flag stale example
 rather than silently deleting or simplifying them.
 
 Use Conventional Commits, such as `fix(runtime): preserve stopped execution evidence`.
-Keep generated outputs with their source. Refresh embedded reports with
-`mise run prepare:report` and organization assets with `mise run prepare:organization`.
-The report and TypeScript checks/tests depend on `prepare:generated`, which builds the
-contract generator and server export with the dev compiler profile before generating their
-modules. Product builds compile against the committed report and generate the frontend's
-modules from their own `cargo-dokime`, so `mise run build:typescript` follows
-`mise run build:rust`. Use `mise run prepare:generated -- --write` to refresh tracked Python
-and TypeScript clients; ordinary preparation checks them. CI lanes restore the matching
-Product modules and skip this producer instead of compiling again.
+Keep generated outputs with their source. `mise run generate` refreshes tracked
+clients; `mise run generate -- --check` checks drift. The current generator still
+builds the contract tool and server because their exports are not checked in yet.
+Build and package prepare organization assets and embedded reports automatically.
+`mise run build` produces the native binaries and the matching frontend.
 Organization defaults generate JSON/theme under
 `crates/dokime-gui/src/generated/organization/`; keep authored pack inputs separate.
-Build exports the matching native installer payload. `mise run package:rust`
+Build exports the matching native installer payload. `mise run package -- --language rust`
 uses the built authoring tool to assemble and inspect it without recompiling;
 see [Native Installers](docs/product-guide.md#native-installers) for downstream
 organization distributions and signing prerequisites.
@@ -109,17 +104,16 @@ Debug assertions and overflow checks remain enabled.
 
 ## Tests and Checks
 
-`lint:rust` runs Clippy with warnings denied; `check:rust` includes it and CI
+`lint -- --language rust` runs Clippy with warnings denied; `check -- --language rust` includes it and CI
 Check / Rust gates it. Build, test, bench and fixture tasks do not run Clippy.
-Focused compilation retains compiler preflight; Clippy is an explicit choice with
-`mise run build:rust:focused -- clippy <arguments>`.
-Use `mise run lint:rust --extended` for local compatibility lint coverage.
+Focused compilation dispatches directly to Cargo; Clippy is an explicit choice with
+`mise exec -- cargo clippy <arguments>`.
 
 For a compiler check covering the workspace targets and features selected by
 Build / Product and Build / Tests, including the Python SDK and its examples:
 
 ```sh
-mise run build:rust:focused -- check --locked --workspace --all-targets --features plugin-host/runtime,dokime-runtime/testing,dokime-gui/testing,tauri/custom-protocol
+mise exec -- cargo check --locked --workspace --all-targets --features plugin-host/runtime,dokime-runtime/testing,dokime-gui/testing,tauri/custom-protocol
 ```
 
 An ordinary workspace check omits `plugin-host/runtime`: the host's default
@@ -134,7 +128,7 @@ execution target is advisory and excludes compilation):
 
 ```sh
 mise run build
-mise run build:rust:tests
+mise run build -- --artifact tests
 mise run test
 ```
 
@@ -156,7 +150,7 @@ exit codes, wall times and an aggregate `time-summary.md`/`.json` live under
 `target/test-reports/run-<profile>-<native>/`; every lane also keeps its own time
 summary under `target/test-reports/<category>-<language>/`. Individual lane tasks
 remain independently usable; avoid running the same lane twice in one checkout.
-Run tooling alone with `mise run test:python:integration --project tools/python`;
+Run tooling alone with `mise run test -- --language python --layer integration --project tools/python`;
 add `--select schedule` to select its scheduling tests.
 Only one native desktop lane may use an interactive desktop session at a time,
 including runs from other worktrees. Reserve an idle test host for wall-clock
@@ -185,11 +179,11 @@ needed. Hosted CI and nightly test jobs already depend on their artifact produce
 and impact selection independently, without test-to-test dependencies or a shared
 concurrency group; each keeps its own public bootstrap and required platform legs.
 
-Use `mise run test:rust:acceptance -- --select 'test(=facade::typescript_facade_bridge)'` for one native acceptance story from the Tests archive.
-Use `mise run test:rust:system -- --select 'test(=plugin::remote_scripts)'` for one native system story from the same archive.
-Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
-Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/containers/history and its dependent attachment/recovery (`native-desktop`), native plugin installation/activation and settings (`desktop-configuration`), distribution/organization (`desktop-appearance`), remote access (`desktop-remote`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux. The configuration story exercises the native chooser, restart and installed plugin settings; other independent stories launch with the prepared plugin fixture. Lane hang guards come from `[conventions.testing.deadlines]` in `tools/project.toml`.
-Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
+Use `mise run test -- --language rust --layer acceptance --select 'test(=facade::typescript_facade_bridge)'` for one native acceptance story from the Tests archive.
+Use `mise run test -- --language rust --layer system --select 'test(=plugin::remote_scripts)'` for one native system story from the same archive.
+Use `mise run test -- --language typescript --layer unit --select <test-file>` for focused frontend unit proof against the current source. Preparation generates imports even for selected tests. The default unit lane restores the matched Product contracts and runs the complete suite.
+Use `mise run test -- --language typescript --layer system --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build` and `mise run build -- --artifact tests`. The default native system lane runs execution/containers/history and its dependent attachment/recovery (`native-desktop`), native plugin installation/activation and settings (`desktop-configuration`), distribution/organization (`desktop-appearance`), remote access (`desktop-remote`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux. The configuration story exercises the native chooser, restart and installed plugin settings; other independent stories launch with the prepared plugin fixture. Lane hang guards come from `[conventions.testing.deadlines]` in `tools/project.toml`.
+Use `mise run test -- --language python --layer unit --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 
 Run targeted tasks locally for changed behavior. Hosted CI and Nightly provide
 full validation across the declared platforms.
@@ -207,7 +201,7 @@ The GUI Tests feature `dokime-gui/testing` exposes the native Save workflow with
 a controlled picker result; its integration story uses real verified streams and
 atomic filesystem publication, including refusal and generation-change cleanup.
 Product enables neither testing feature. Focus one small guard with
-`mise run build:rust:focused -- test --locked -p dokime-runtime --features testing --test integration -- retained_evidence::retained_evidence --exact`.
+`mise exec -- cargo test --locked -p dokime-runtime --features testing --test integration -- retained_evidence::retained_evidence --exact`.
 
 Python acceptance and coverage also consume the matching Tests fixtures. All native
 artifact consumers select the graph profile through `TEST_PROFILE`. Coverage uses
@@ -255,11 +249,11 @@ are diagnostic output, never correctness assertions.
 
 ### Reading Test Traces
 
-After `mise run build:rust:tests`, select a small integration story with a nextest
+After `mise run build -- --artifact tests`, select a small integration story with a nextest
 filterset:
 
 ```sh
-mise run test:rust:integration -- --select 'test(=retained_evidence::retained_evidence)'
+mise run test -- --language rust --layer integration --select 'test(=retained_evidence::retained_evidence)'
 ```
 
 Integration, acceptance and system lanes set `DOKIME_TEST_TRACE_DIR` to
@@ -316,8 +310,8 @@ the same visible output at increasing retained row counts; RSS includes the
 whole process and periodic sampling can miss short peaks.
 
 ```sh
-mise run build:rust:bench --binary integration-runtime
-mise run bench:rust:integration -- --binary integration-runtime -- document_queries
+mise run build -- --artifact bench --binary integration-runtime
+mise run bench -- --language rust --layer integration --binary integration-runtime --select document_queries
 ```
 
 ### Storage Benchmarks
@@ -351,8 +345,8 @@ reference budgets, so the comparison measures configured systems rather than
 backend cost alone. Pure transform cases are identified separately.
 
 ```sh
-mise run build:rust:bench
-mise run bench:rust:integration -- storage/
+mise run build -- --artifact bench
+mise run bench -- --language rust --layer integration --select storage/
 ```
 
 The standard runner retains native Criterion results under `.stkr/benchmarks/`.
@@ -371,11 +365,11 @@ server workflow benchmarks. Shipping builds retain the product catalog. Runtime 
 the interval; publication, preview checkpoints and the final storage flush are inside.
 
 ```sh
-mise run build:rust:bench --binary system-runtime
-mise run bench:rust:system -- --binary system-runtime -- sidecar_ingest
+mise run build -- --artifact bench --binary system-runtime
+mise run bench -- --language rust --layer system --binary system-runtime --select sidecar_ingest
 ```
 
-For one diagnostic pass per case, append `--test` after `sidecar_ingest`.
+For one diagnostic pass per case, use `--select "sidecar_ingest --test"`.
 These passes retain explicit measurements without producing a Criterion estimate.
 `DOKIME_INGEST_ROWS` selects the row count (default 100,000, maximum 1,000,000);
 `DOKIME_INGEST_PAYLOAD_ROWS` selects the 4 KiB and 64 KiB case row count (default
@@ -412,8 +406,8 @@ The standard producer builds OBC separately so the host's runtime feature cannot
 link another sidecar declaration into its executable:
 
 ```sh
-mise run build:rust:bench
-mise run bench:rust:system -- report_saves_large_cycle
+mise run build -- --artifact bench
+mise run bench -- --language rust --layer system --select report_saves_large_cycle
 ```
 
 The fixed workload expands each plugin case 32 times. Each state uses a fresh
@@ -439,10 +433,10 @@ Set `DOKIME_FINALIZE_MEASURE=profile` in the shell for one pair of workloads wit
 JSON timings and runtime/report tracing on stderr, then run:
 
 ```sh
-mise run build:rust:focused -- bench --locked -p dokime-runtime --features testing,fault-injection --bench integration-runtime -- long_execution
+mise exec -- cargo bench --locked -p dokime-runtime --features testing,fault-injection --bench integration-runtime -- long_execution
 ```
 
-The focused task retains the standard compiler preflight. Use
+The native command uses Cargo directly. Use
 `DOKIME_FINALIZE_MEASURE=criterion` with the same selection for repeated native
 Criterion measurements. Fresh fixture construction is outside
 the measured intervals. The long workloads do not run without this explicit opt-in.
@@ -459,7 +453,7 @@ within the existing working-memory limit. Use an absolute `DOKIME_TEST_TRACE_DIR
 to retain runtime and rendering spans beside the timing samples.
 
 ```sh
-mise run build:rust:focused -- bench --locked -p dokime-runtime --features testing --bench integration-runtime -- heavy_paths
+mise exec -- cargo bench --locked -p dokime-runtime --features testing --bench integration-runtime -- heavy_paths
 ```
 
 ## Pull Requests

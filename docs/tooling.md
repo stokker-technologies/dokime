@@ -1,21 +1,32 @@
 # Repository Tooling
 
-`lint:rust` owns Clippy with warnings denied. `check:rust` includes it, and CI
-Check / Rust gates it. Build, test, bench, fixture and focused compilation tasks
-retain compiler preflight without running Clippy. Use an explicit
-`mise run build:rust:focused -- clippy <arguments>` for a selected Clippy run.
+Use `mise tasks` for the public entry points and pass arguments after `--`.
+Preparation is explicit; focused builds and tests consume its installed dependencies:
 
-Desktop and benchmark selections are covered by `lint:rust`.
+```sh
+mise run prepare
+mise run build -- --package dokime-domain --check
+mise run test -- --package dokime-domain --target lib --exact state::records::set::tests::capture_snapshot_retains_only_owner_and_frontier
+mise run format -- --check --language python
+mise run check -- --repository
+```
 
-`mise run lint:rust --extended` lints the optional compatibility selections;
-`build:rust:compatibility` checks them without Clippy. Extended lint remains local-only.
+`build --artifact tests` produces the CI archive; focused tests compile one Cargo
+target directly. `check` includes formatting, lint, repository configuration and
+generated drift; `--language` limits language checks. `--repository`, `--bindings`,
+`--supply` and `--wasm` select individual checks.
+
+`mise run lint -- --language rust` owns Clippy with warnings denied.
+`mise run check -- --language rust` includes it. Build, test, bench and focused
+compilation do not run Clippy or scan compiler output. For custom compiler
+arguments use `mise exec -- cargo <operation> <arguments>`.
 
 Mise is the public entry point. Python modules in `tools/python/src/dokime_tools/`
 own environment setup, synchronization, version metadata, binding generation,
 frontend preparation, native packaging, CI and
 test execution. The shared Python environment lives at repository-root `.venv/`.
 
-After changing Python dependencies, `mise run prepare --refresh-lock` refreshes
+After changing Python dependencies, `mise run prepare -- --refresh-lock` refreshes
 the workspace `uv.lock` before the ordinary locked synchronization. The test group
 includes both optional dataframe libraries; focused tabular tests also block their
 imports to verify dependency-free iteration and missing-extra errors.
@@ -28,7 +39,7 @@ Desktop development process trees are owned by the task-built `cargo-dokime`
 executable with the application's validated packaging settings. `mise run dev`
 selects that executable from its existing Cargo compiler record. The unchanged
 `tauri:dev` and `build:report:watch` package commands select the development
-artifact from `mise run build:rust` by default; `--build-json <record>` selects
+artifact from `mise run build -- --language rust` by default; `--build-json <record>` selects
 another successful task build. Missing artifacts fail explicitly; these
 launchers never build or install a supervisor. `tauri:dev --print-config`
 continues to inspect frontend launch configuration without an artifact.
@@ -37,11 +48,11 @@ Unix gets one graceful-wait budget and one forced-reap budget, up to twice the
 configured duration; Windows uses only the forced-reap budget. Surviving owned
 descendants are terminated even when their leader already exited.
 
-Each Python package carries its own `[tool.ty]` configuration. `lint:python`
+Each Python package carries its own `[tool.ty]` configuration. `lint -- --language python`
 type-checks the repository tooling with `ty check --project tools/python`;
-`check:python:bindings` checks the hand-maintained SDK stubs against the built extension with mypy stubtest and type-checks the SDK.
+`check -- --bindings` checks the hand-maintained SDK stubs against the built extension with mypy stubtest and type-checks the SDK.
 
-`mise run build:rust:tests` packages the host and OBC fixture bundles from the
+`mise run build -- --artifact tests` packages the host and OBC fixture bundles from the
 Tests compiler output under `target/build/<profile>/<target>/fixtures/plugins/`.
 Rust stories resolve those fixtures from the Tests export, so the archive owns
 the bundles its integration lane requires.
@@ -80,7 +91,7 @@ Restore prefixes try that identity first, then the former v5 identity containing
 run ID and attempt suffixes, so immutable caches retain the latest baseline.
 The restore identity no longer changes with the source revision or lock file.
 
-`mise run bench:rust:<leaf> --refresh-baseline` seeds missing native baselines
+`mise run bench -- --language rust --layer <leaf> --refresh-baseline` seeds missing native baselines
 and emits a `::notice::` naming each benchmark. Without refresh, a missing
 baseline fails and names the refresh command. Existing baselines retain their
 regression comparison and threshold; failed benchmark executions still fail.
@@ -90,10 +101,10 @@ regression comparison and threshold; failed benchmark executions still fail.
 `sdk/python` contains native Rust client, backend and callback wrappers, Python authoring declarations, contexts and readers. The `dokime-python` distribution and `dokime` import names are provisional; registry publication is refused until naming is settled.
 
 ```sh
-mise run build --profile dev
-mise run build:python --profile dev
-mise run test:python:wheel --profile dev
-mise run package:python --profile dev
+mise run build -- --profile dev
+mise run build -- --language python --profile dev
+mise run test -- --language python --wheel --profile dev
+mise run package -- --language python --profile dev
 ```
 
 The explicit Python producer uses maturin and PyO3's Python 3.13+ stable ABI.
@@ -109,19 +120,19 @@ units reuse only when their resolved dependency features match. The wheel and
 package exports use `target/{build,package}/<profile>/<native-target>/python/`.
 Package copies the built wheel and never compiles it. Release assets collect both
 native wheels; no source distribution or platform-independent wheel is produced.
-`test:python:wheel` installs into a disposable environment outside the checkout
+`test -- --language python --wheel` installs into a disposable environment outside the checkout
 and imports the native extension with isolated Python path handling.
 
 ## Focused Python Checks
 
-`mise run test:python:unit --select <expression>` and `mise run test:python:integration --select <expression>` run the moved client tests against the installed native wheel. Build it first with `mise run build:python`. `check:python:bindings` runs stubtest from an isolated installed-wheel environment. Python contract generation and its checked-in wire tree have been removed; private interpreter message views come from Rust reflection.
+`mise run test -- --language python --layer unit --select <expression>` and `mise run test -- --language python --layer integration --select <expression>` run the moved client tests against the installed native wheel. Build it first with `mise run build -- --language python`. `check -- --bindings` runs stubtest from an isolated installed-wheel environment. Python contract generation and its checked-in wire tree have been removed; private interpreter message views come from Rust reflection.
 
 For client acceptance without the desktop or Rust test archive, build the focused
 native inputs and select their fixture root:
 
 ```sh
-mise run build:python:fixtures
-mise run test:python:acceptance --artifacts target/build/dev/windows-x86_64/fixtures/python-client
+mise run build -- --language python --artifact fixtures
+mise run test -- --language python --layer acceptance --artifacts target/build/dev/windows-x86_64/fixtures/python-client
 ```
 
 Add `--select backend` to run only the installed-wheel backend startup, pairing,
@@ -129,7 +140,7 @@ storage refusal and installed-plugin collision stories during backend work.
 
 Use the corresponding native target directory on Linux. The foreign-operation
 socket fixtures come from Rust contract construction; refresh their JSON with
-`mise run build:rust:focused -- run --locked -p dokime-python --example client-contracts -- sdk/python/tests/integration/client/fixtures/operations.json`.
+`mise exec -- cargo run --locked -p dokime-python --example client-contracts -- sdk/python/tests/integration/client/fixtures/operations.json`.
 
 ## Python System Story and Batch Measurements
 
@@ -140,8 +151,8 @@ python`; it is embedded by `crates/dokime-cli/src/commands/new.rs`, so changing 
 starter requires rebuilding the CLI as well as validating the Python source.
 
 ```sh
-mise run build:python:fixtures
-mise run test:python:system --artifacts target/build/dev/windows-x86_64/fixtures/python-client
+mise run build -- --language python --artifact fixtures
+mise run test -- --language python --layer system --artifacts target/build/dev/windows-x86_64/fixtures/python-client
 ```
 
 The system story starts the generated Python plugin, exports pairing, runs a
@@ -153,8 +164,8 @@ select it. Use `linux-x86_64` for the corresponding local Linux fixture path.
 After validation has stopped, measure the same 10,000-row, 1,000-row-batch workload:
 
 ```sh
-mise run build:rust:focused -- run --locked -p dokime-python --example authoring-batch
-mise run bench:python:system
+mise exec -- cargo run --locked -p dokime-python --example authoring-batch
+mise run bench -- --language python --layer system
 ```
 
 The native example and Python benchmark both await admitted ingestion. Python's
@@ -178,28 +189,25 @@ Product operation policies keep their own deadlines.
 
 ## Workstation Builds
 
-Compiling tasks run through `tools/python/src/dokime_tools/build/machine.py`, which starts the
-shared compiler cache for the command. Nothing serializes compilation: tasks in
-any repository or worktree run at the same time, and no worker or compiler
-thread limits are added.
+`prepare` synchronizes the root Python environment and frontend dependencies.
+Every other task uses `uv run --no-sync`; run preparation after dependency changes.
+Focused package builds and tests start one Python interpreter, validate the selection
+and launch Cargo directly. They do not inspect or delete compiler output, acquire
+an output lock, create an archive or manage a compiler-cache server.
 
-For non-CI runs, `mise.toml` selects `RUSTC_WRAPPER=sccache`,
-`SCCACHE_DIR=<OS user cache>/sccache`, `SCCACHE_CACHE_SIZE=20G` and disables
-incremental compilation. Each worktree keeps its own `target/`; matching
-cacheable crate compilations can reuse results across worktrees. CI retains
-its existing per-profile cache settings. sccache is already a pinned mise tool.
-Local wrappers reuse the existing `ci/compiler.py` foreground-server helper with
-an owned endpoint, so an older daemon cannot silently select another store.
-Concurrent tasks each own a server on the same store. Only that owned server is
-stopped after the command; each task prints its cache hit and miss counts.
+For local builds, `mise.toml` selects `RUSTC_WRAPPER=sccache`,
+`SCCACHE_DIR=<OS user cache>/sccache` and `SCCACHE_CACHE_SIZE=20G`.
+sccache owns its persistent background server. Incremental compilation stays enabled;
+only CI sets `CARGO_INCREMENTAL=0`. Each checkout keeps its own `target/`.
+The session running compilation monitors free disk space outside project tooling.
 If allocation failures recur, disable it for one run by setting
 `RUSTC_WRAPPER` to an empty value:
 
 ```sh
-RUSTC_WRAPPER= mise run build:rust
+RUSTC_WRAPPER= mise run build -- --language rust
 ```
 
-In PowerShell use `$env:RUSTC_WRAPPER = ''; mise run build:rust`, then remove
+In PowerShell use `$env:RUSTC_WRAPPER = ''; mise run build -- --language rust`, then remove
 the override with `Remove-Item Env:RUSTC_WRAPPER`.
 
 ## Validation

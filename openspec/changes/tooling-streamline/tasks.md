@@ -7,14 +7,14 @@
 
 ## 2. Tasks
 
-- [ ] 2.1 Replace the task families with the entry points in `proposal.md`, with language and layer as arguments, and delete the unused and superseded tasks.
-- [ ] 2.2 Merge the generation tasks into `generate` and move organization and report preparation into `build` and `package`.
-- [ ] 2.3 Remove every `CARGO_INCREMENTAL` setting from `mise.toml` and tooling and set it once in the workflows.
+- [x] 2.1 Replace the task families with the entry points in `proposal.md`, with language and layer as arguments, and delete the unused and superseded tasks.
+- [x] 2.2 Merge the generation tasks into `generate` and move organization and report preparation into `build` and `package`.
+- [x] 2.3 Remove every `CARGO_INCREMENTAL` setting from `mise.toml` and tooling and set it once in the workflows.
 
 ## 3. Tooling
 
-- [ ] 3.1 Adopt the shared build tooling without the storage preflight and delete the wrapper code that existed only for it.
-- [ ] 3.2 Delete the duplicated and dead modules in `tools/python` and keep one task dependency graph.
+- [x] 3.1 Adopt the shared build tooling without the storage preflight and delete the wrapper code that existed only for it.
+- [x] 3.2 Delete the duplicated and dead modules in `tools/python` and keep one task dependency graph.
 
 ## 4. Workflows
 
@@ -23,7 +23,7 @@
 ## 5. Final Validation
 
 - [ ] 5.1 Run every entry point locally on Windows and Linux, and confirm hosted CI and Nightly run the same tasks.
-- [ ] 5.2 Update `CONTRIBUTING.md` and the tooling guide.
+- [x] 5.2 Update `CONTRIBUTING.md` and the tooling guide.
 
 ## Workflow Follow-Up
 
