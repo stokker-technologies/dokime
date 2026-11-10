@@ -48,12 +48,6 @@ pub enum Error {
         exit_code: ExitCode,
     },
 
-    #[error("Secret store deadline elapsed; an already-started store operation may still complete.")]
-    SecretTimeout,
-
-    #[error(transparent)]
-    Secrets(#[from] dokime_client::secrets::Error),
-
     #[error("{0}")]
     Check(#[source] Box<Error>),
 
@@ -91,13 +85,8 @@ impl From<dokime_client::profiles::Error> for Error {
     fn from(error: dokime_client::profiles::Error) -> Self {
         match error {
             dokime_client::profiles::Error::Invalid(message) => Self::Input(message),
-            dokime_client::profiles::Error::Schema { ref source } | dokime_client::profiles::Error::FileSchema { ref source, .. } => {
-                Self::Input(format!("{error}: {source}"))
-            }
             dokime_client::profiles::Error::Io(error) => error.into(),
             dokime_client::profiles::Error::Filesystem(error) => std::io::Error::from(error).into(),
-            dokime_client::profiles::Error::Secrets(error) => error.into(),
-            dokime_client::profiles::Error::Busy => Self::Setup(error.to_string()),
         }
     }
 }

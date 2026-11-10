@@ -46,7 +46,6 @@ pub(super) struct Policy {
 }
 
 struct Requirement {
-    local_only: bool,
     contract: dokime::harmos::operations::Contract,
 }
 
@@ -61,7 +60,6 @@ impl Policy {
         let mut requirements = Vec::new();
         <Operations as Catalog<Contracts>>::ENTRIES.try_for_each(|entry| {
             requirements.push(Requirement {
-                local_only: dokime::operations::local_only(entry.operation.id),
                 contract: entry.contract_with_settings(settings)?,
             });
             Ok::<_, Error>(())
@@ -97,9 +95,7 @@ impl Authorizer for Policy {
             return Ok(None);
         };
         let requirement = &self.requirements[index];
-        if (requirement.local_only && !principal.is_local())
-            || !provider.contract.compatible_with_settings(&requirement.contract, &self.schema_settings)
-        {
+        if !provider.contract.compatible_with_settings(&requirement.contract, &self.schema_settings) {
             return Ok(None);
         }
         Ok(Some(Authorization::Full(provider.contract.clone())))

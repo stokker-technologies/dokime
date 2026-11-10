@@ -81,11 +81,11 @@ pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "
 
 /* === Public Functions === */
 
-pub fn methods() -> impl Iterator<Item = (String, bool)> {
+pub fn methods() -> impl Iterator<Item = String> {
     let mut methods = Vec::new();
     let result = <Operations as Catalog<Contracts>>::ENTRIES.try_for_each(|entry| {
         let grpc = entry.grpc.as_ref().expect("product operations declare their gRPC binding");
-        methods.push((grpc.path(), dokime::operations::local_only(entry.operation.id)));
+        methods.push(grpc.path());
         Ok::<_, std::convert::Infallible>(())
     });
     match result {

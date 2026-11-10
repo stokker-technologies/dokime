@@ -27,7 +27,6 @@ use tonic::Status;
 
 // Local Imports
 use super::Error;
-use super::remote::sessions::{Outcome, SessionLog};
 
 /* === Constants === */
 
@@ -40,13 +39,11 @@ use super::remote::sessions::{Outcome, SessionLog};
 #[derive(Clone, Debug)]
 pub struct Principal {
     subject: String,
-    revoked: Option<tokio_util::sync::CancellationToken>,
     local: bool,
 }
 
 pub(super) struct Listeners {
     policies: RwLock<BTreeMap<SocketAddr, (Policy, bool)>>,
-    sessions: Arc<SessionLog>,
 }
 
 /* === Enums === */
@@ -56,7 +53,7 @@ pub(crate) enum Policy {
     TrustedLocal,
     Open,
     Key([u8; 32]),
-    Clients(Arc<super::remote::pairing::Registry>),
+    BackendKey(Arc<super::remote::pairing::Key>),
 }
 
 /* === Traits === */
@@ -77,11 +74,7 @@ impl Policy {
     fn authenticate_values<'a>(&self, mut secrets: impl Iterator<Item = Option<&'a str>>) -> Result<Principal, Status> {
         if matches!(self, Self::TrustedLocal | Self::Open) {
             let subject = if matches!(self, Self::TrustedLocal) { "local" } else { "remote" };
-            return Ok(Principal {
-                subject: subject.into(),
-                local: false,
-                revoked: None,
-            });
+            return Ok(Principal { subject: subject.into(), local: false });
         }
         let value = secrets
             .next()
@@ -96,18 +89,10 @@ impl Policy {
             .ok_or_else(|| Status::unauthenticated("invalid secrets"))?;
         let digest: [u8; 32] = Sha256::digest(token.as_bytes()).into();
         match self {
-            Self::Key(expected) if bool::from(digest.ct_eq(expected)) => Ok(Principal {
-                subject: "remote".into(),
-                local: false,
-                revoked: None,
-            }),
-            Self::Clients(clients) => {
-                let (subject, revoked) = clients.authenticate(&digest)?;
-                Ok(Principal {
-                    subject,
-                    local: false,
-                    revoked: Some(revoked),
-                })
+            Self::Key(expected) if bool::from(digest.ct_eq(expected)) => Ok(Principal { subject: "remote".into(), local: false }),
+            Self::BackendKey(clients) => {
+                clients.authenticate(&digest)?;
+                Ok(Principal { subject: "remote".into(), local: false })
             }
             _ => Err(Status::unauthenticated("invalid credentials")),
         }
@@ -116,10 +101,7 @@ impl Policy {
 
 impl Listeners {
     pub(super) fn new() -> Self {
-        Self {
-            policies: RwLock::new(BTreeMap::new()),
-            sessions: Arc::new(SessionLog::new()),
-        }
+        Self { policies: RwLock::new(BTreeMap::new()) }
     }
 
     pub(super) fn insert(&self, address: SocketAddr, policy: Policy, local: bool) {
@@ -150,20 +132,9 @@ impl Listeners {
         let (policy, local) = self.policy(address)?;
         let values = call.metadata().get_all("authorization");
         let authenticated = policy.authenticate_values(values.iter().map(|value| value.to_str().ok()));
-        // Native Callers Are Not Remote Sessions; Remote Refusals Are Recorded With Their Reason.
-        if let Some(peer) = call.peer().filter(|_| !local) {
-            match &authenticated {
-                Ok(principal) => self.sessions.record(peer, principal.subject(), Outcome::Admitted),
-                Err(status) => self.sessions.record(peer, "anonymous", Outcome::Rejected(status.message())),
-            }
-        }
         let mut principal = authenticated?;
         principal.local = local;
         Ok(principal)
-    }
-
-    pub(super) fn sessions(&self) -> Arc<SessionLog> {
-        self.sessions.clone()
     }
 }
 
@@ -185,21 +156,6 @@ impl dokime::harmos::grpc::authentication::Authenticator for Listeners {
 }
 
 /* === Public Functions === */
-
-pub(super) fn revocation(call: &dokime::harmos::operations::CallContext) -> Option<tokio_util::sync::CancellationToken> {
-    call.get::<Principal>().and_then(|principal| principal.revoked.clone())
-}
-
-pub(super) async fn during<T>(
-    revoked: Option<tokio_util::sync::CancellationToken>, future: impl std::future::Future<Output = Result<T, Status>>,
-) -> Result<T, Status> {
-    let Some(revoked) = revoked else { return future.await };
-    tokio::select! {
-        biased;
-        _ = revoked.cancelled() => Err(Status::unauthenticated("paired client has been revoked")),
-        result = future => result,
-    }
-}
 
 pub(super) fn verifier(key: &str) -> Result<[u8; 32], Error> {
     if !valid_key(key) {
@@ -245,37 +201,5 @@ mod tests {
         listeners.remove(remote);
         assert!(listeners.policy("127.0.0.1:45671".parse().unwrap()).is_err());
         assert!(listeners.policy(native).is_ok());
-    }
-}
-
-#[cfg(test)]
-mod revocation_tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn revoked_stream_drops_its_pending_work() {
-        let revoked = tokio_util::sync::CancellationToken::new();
-        let (dropped, mut observed) = tokio::sync::oneshot::channel();
-        struct Guard(Option<tokio::sync::oneshot::Sender<()>>);
-        impl Drop for Guard {
-            fn drop(&mut self) {
-                let _ = self.0.take().unwrap().send(());
-            }
-        }
-        let guard = Guard(Some(dropped));
-        let (started, start) = tokio::sync::oneshot::channel();
-        let work = async move {
-            let _guard = guard;
-            started.send(()).unwrap();
-            std::future::pending::<Result<(), Status>>().await
-        };
-        let cancel = async {
-            start.await.unwrap();
-            revoked.cancel();
-        };
-        let stream = during(Some(revoked.clone()), work);
-        let (result, ()) = tokio::join!(stream, cancel);
-        assert_eq!(result.unwrap_err().code(), tonic::Code::Unauthenticated);
-        assert_eq!(observed.try_recv(), Ok(()));
     }
 }

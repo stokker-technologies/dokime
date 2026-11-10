@@ -77,24 +77,6 @@ pub const FOLLOW: OperationPolicy = policy(Duration::from_secs(86_400));
 // Inside An `ORDINARY` Stop With Room To Save The Evidence; The Desktop And Server Stops Build On It.
 pub const STOP_SETTLEMENT: OperationPolicy = policy(Duration::from_secs(5));
 
-// Operations A Remote Listener Never Serves: They Reach The Host's Filesystem, Screen,
-// Camera, Microphone Or Listener Settings. A Remote Call's Loopback Address Grants No Native Trust.
-pub const LOCAL_ONLY: &[&str] = &[
-    <media::Screenshot as OperationDeclaration>::ID,
-    <media::Photo as OperationDeclaration>::ID,
-    <media::AudioRecording as OperationDeclaration>::ID,
-    <media::ScreenRecording as OperationDeclaration>::ID,
-    <media::CameraRecording as OperationDeclaration>::ID,
-    <remote::ReadListener as OperationDeclaration>::ID,
-    <remote::UpdateListener as OperationDeclaration>::ID,
-    <remote::CreatePairing as OperationDeclaration>::ID,
-    <remote::ListPairedClients as OperationDeclaration>::ID,
-    <remote::RevokePairedClient as OperationDeclaration>::ID,
-    <remote::ListSessions as OperationDeclaration>::ID,
-    <remote::RegenerateCertificate as OperationDeclaration>::ID,
-    <remote::RenamePairedClient as OperationDeclaration>::ID,
-];
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -182,10 +164,6 @@ pub enum Operations {
 // The gRPC method path an operation declares, such as `/dokime.v1.Notes/CreateNote`.
 pub fn path<O: OperationDeclaration>() -> String {
     O::GRPC.expect("product operations declare their gRPC binding").path()
-}
-
-pub fn local_only(id: &str) -> bool {
-    LOCAL_ONLY.contains(&id)
 }
 
 /* === Private Functions === */

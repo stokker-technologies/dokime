@@ -26,6 +26,7 @@ class Transport:
     query_settings: QuerySettings | None
     _channel: _native.Client | None
     _endpoint: str
+    _primary_endpoint: str
     _endpoints: tuple[str, ...]
     _access_key: str | None
     _expected_backend_id: str | None
@@ -38,10 +39,9 @@ class Transport:
         timeout: float,
         *,
         connect_timeout_ms: int,
-        endpoint_stagger_ms: int = 250,
         endpoints: tuple[str, ...] = (),
         expected_backend_id: str | None = None,
-        ca_certificate_pem: str | None = None,
+        certificate_pem: str | None = None,
     ) -> None: ...
     async def connect(self) -> Backend: ...
     def _available(self, operation: Operation) -> None: ...

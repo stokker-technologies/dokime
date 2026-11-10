@@ -48,9 +48,8 @@ use super::*;
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn pairing() {
-    stage(Box::pin(server::unsecured_pairing_creates_no_revocable_client())).await;
-    stage(Box::pin(server::independent_pairings_revoke_and_survive_restart())).await;
-    stage(Box::pin(server::remote_sessions_recorded())).await;
+    stage(Box::pin(server::unsecured_pairing_has_no_key())).await;
+    stage(Box::pin(server::pairing_rotation_survives_restart())).await;
 }
 
 #[dokime_tracing::trace_test]

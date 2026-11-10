@@ -45,16 +45,15 @@ import { preferencesCommands } from "@/lib/desktop/settings";
 test("Backend Action Menus Survive Owner Renders", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.spyOn(preferencesCommands, "desktopBackendsList").mockResolvedValue({
-    default: null,
     profiles: [
       {
         identifier: "lab",
         label: "Lab",
         endpoint: "http://127.0.0.1:8765",
         endpoints: [],
-        secret: "none",
+        pairing_file: "/fixture/lab.pair",
         expected_backend_id: null,
-        ca_certificate_pem: null,
+        certificate_pem: null,
       },
     ],
   });

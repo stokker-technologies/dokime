@@ -42,8 +42,8 @@ async def main() -> None:
     # Start the Backend
     async with dokime.Backend(port=0, application_root=Path(".dokime"), plugins=[plugin]) as backend:
         # Pair the Desktop
-        backend.export_pairing("bench.dokime-remote", label="Bench")
-        print(f"Backend: {backend.endpoint}; open bench.dokime-remote in the desktop", flush=True)
+        backend.export_pairing("bench.pair", label="Bench")
+        print(f"Backend: {backend.endpoint}; open bench.pair in the desktop", flush=True)
 
         # Serve Until Cancelled
         await asyncio.Event().wait()

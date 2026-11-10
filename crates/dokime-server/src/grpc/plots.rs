@@ -320,10 +320,8 @@ impl Serve<contract::QuerySnapshots> for Resources {
 impl Serve<contract::Watch> for Resources {
     fn serve<'a>(&'a self, mut request: contract::Watch, ctx: Context<'a, contract::Watch>) -> Served<'a, ()> {
         Box::pin(async move {
-            let call_context = ctx.call();
             let output = ctx.streams();
-            let revoked = crate::grpc::access::revocation(call_context);
-            crate::grpc::access::during(revoked, async {
+            async {
                 let runtime = &dokime::app::live_runtime(&self.runtime).await?;
                 let epoch = runtime.process_epoch().as_str().to_owned();
                 let (mut requests, selections) = decode_plot_requests(std::mem::take(&mut request.requests))?;
@@ -456,8 +454,7 @@ impl Serve<contract::Watch> for Resources {
                         next_flush = Some(last_flush + throttle);
                     }
                 }
-            })
-            .await
+            }.await
         })
     }
 }

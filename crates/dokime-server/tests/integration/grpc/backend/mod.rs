@@ -1035,7 +1035,7 @@ async fn execution_run_pagination() {
 async fn execution_run_requests() {
     Box::pin(requests::command_receipts_survive_restart()).await;
     Box::pin(requests::execution_admissions_restart()).await;
-    Box::pin(requests::pairing_revocation_preserves_execution_receipts()).await;
+    Box::pin(requests::pairing_rotation_preserves_execution_receipts()).await;
     Box::pin(requests::invalid_execution_admission()).await;
 }
 

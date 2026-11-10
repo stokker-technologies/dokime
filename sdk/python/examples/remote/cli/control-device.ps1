@@ -6,10 +6,10 @@ $PSNativeCommandArgumentPassing = 'Standard'
 $PSNativeCommandUseErrorActionPreference = $true
 
 # Connection Parameters
-$BACKEND_IDENTIFIER = 'lab'
+$PAIRING_FILE = '../lab.pair'
 
 # Connect with the Explicit Parameters
-$Connection = @('--backend', $BACKEND_IDENTIFIER)
+$Connection = @('--remote', $PAIRING_FILE)
 
 # Discover the Operation IDs Offered by the Installed Plugin.
 dokime operation list @Connection

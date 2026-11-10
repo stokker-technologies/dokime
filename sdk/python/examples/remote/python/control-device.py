@@ -32,7 +32,7 @@ from google.protobuf.json_format import MessageToDict
 # === Constants === #
 
 # Connection Parameters
-PAIRING_FILE = Path("../lab.dokime-remote")
+PAIRING_FILE = Path("../lab.pair")
 
 # === Types === #
 

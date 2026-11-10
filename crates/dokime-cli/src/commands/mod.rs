@@ -9,7 +9,6 @@
 
 /* === Modules === */
 
-mod backend;
 mod catalog;
 mod cycle;
 mod doctor;
@@ -53,9 +52,6 @@ pub(crate) enum Command {
 
     #[command(about = "Check Backend Identity, Authentication And Readiness With A Deadline.")]
     Status(status::Args),
-
-    #[command(subcommand, about = "Manage Saved Backend Profiles Without Connecting.")]
-    Backend(backend::Command),
 
     #[command(subcommand, about = "Submit Cycles And Recover Durable Request Progress.")]
     Cycle(cycle::Command),
@@ -103,7 +99,6 @@ pub(crate) async fn run(command: Command, configuration: dokime::config::Config)
     match command {
         Command::New(args) => new::run(args),
         Command::Status(args) => status::run(args, settings).await,
-        Command::Backend(command) => backend::run(command).await,
         Command::Cycle(command) => cycle::run(command, settings).await,
         Command::Execution(command) => execution::run(command, settings).await,
         Command::Catalog(command) => catalog::run(command, settings).await,

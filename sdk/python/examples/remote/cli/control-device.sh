@@ -3,10 +3,10 @@
 set -eu
 
 # Connection Parameters
-BACKEND_IDENTIFIER="lab"
+PAIRING_FILE="../lab.pair"
 
-# Select the Imported Profile Once; Each Call Below Shows Its Remote Command.
-set -- --backend "$BACKEND_IDENTIFIER"
+# Select The Pairing File; Each Call Below Shows Its Remote Command.
+set -- --remote "$PAIRING_FILE"
 
 trap 'printf "Stopped Waiting; Read Device State Before Resending An Unconfirmed Command\n" >&2; exit 130' INT TERM
 

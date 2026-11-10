@@ -9,6 +9,8 @@
 # === Imports === #
 
 # Standard Library Imports
+from pathlib import Path as _Path
+
 # Third Party Imports
 # Local Imports
 from ._native import __version__ as __version__
@@ -83,7 +85,6 @@ from .client.models import UnsignedValue as UnsignedValue
 from .client.models import Value as Value
 from .client.planning import Template as Template
 from .client.planning import TestCase as TestCase
-from .client.profiles import Profile as Profile
 from .client.query.discovery import CycleStatus as CycleStatus
 from .client.query.discovery import CycleSummary as CycleSummary
 from .client.query.discovery import ExecutionStatus as ExecutionStatus
@@ -119,6 +120,8 @@ from .client.query.statistics import Statistics as Statistics
 # === Classes === #
 
 # === Public Functions === #
+
+def connect(path: str | _Path | None = None) -> DokimeClient: ...
 
 # === Private Functions === #
 

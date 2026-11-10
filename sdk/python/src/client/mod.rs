@@ -12,7 +12,7 @@
 /* === Modules === */
 
 mod messages;
-mod profiles;
+mod pairing;
 
 /* === Re-Exports === */
 
@@ -267,7 +267,7 @@ pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyClient>()?;
     module.add_class::<PyStream>()?;
     messages::register(module)?;
-    profiles::register(module)
+    pairing::register(module)
 }
 
 /* === Private Functions === */

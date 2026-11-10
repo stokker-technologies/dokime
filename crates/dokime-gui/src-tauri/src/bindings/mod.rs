@@ -65,15 +65,12 @@ native_commands! {
         () -> Result<Option<std::path::PathBuf>, crate::Error>
         => crate::app::desktop::desktop_pairing_create;
     async desktop_backend_import_pairing
-        [window: tauri::WebviewWindow, app: tauri::AppHandle, registry: tauri::State<'_, crate::connection::registry::Registry>, connection: tauri::State<'_, crate::connection::ConnectionSession>]
+        [window: tauri::WebviewWindow, app: tauri::AppHandle, registry: tauri::State<'_, crate::connection::registry::Registry>]
         (identifier: Option<String>) -> Result<Option<dokime::client::profiles::Document>, crate::connection::ConnectionError>
         => crate::connection::registry::desktop_backend_import_pairing;
 
     async desktop_backends_list [] () -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
         => crate::connection::registry::desktop_backends_list;
-    async desktop_backend_add [registry: tauri::State<'_, crate::connection::registry::Registry>]
-        (profile: dokime::client::profiles::Profile) -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>
-        => crate::connection::registry::desktop_backend_add;
     async desktop_backend_remove
         [registry: tauri::State<'_, crate::connection::registry::Registry>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
         (identifier: String) -> Result<dokime::client::profiles::Document, crate::connection::ConnectionError>

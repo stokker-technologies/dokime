@@ -52,7 +52,6 @@ from .models import UnsignedValue as UnsignedValue
 from .models import Value as Value
 from .planning import Template as Template
 from .planning import TestCase as TestCase
-from .profiles import Profile as Profile
 from .query.discovery import CycleStatus as CycleStatus
 from .query.discovery import CycleSummary as CycleSummary
 from .query.discovery import ExecutionStatus as ExecutionStatus

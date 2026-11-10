@@ -16,16 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, fs::OpenOptions, sync::Mutex};
 
 // Third Party Imports
-use serde::Deserialize;
-use zeroize::Zeroizing;
 
 // Local Imports
 use dokime_client::{
-    profiles::{self, Error, Secret, Store},
-    secrets::{Error as SecretError, SecretStore},
+    pairing,
+    profiles::{self, Store},
 };
 
 /* === Constants === */
@@ -36,304 +33,72 @@ use dokime_client::{
 
 /* === Structs === */
 
-#[derive(Default)]
-struct Secrets {
-    values: Mutex<BTreeMap<String, String>>,
-    unavailable: bool,
-}
-
-#[derive(Deserialize)]
-struct Case {
-    name: String,
-    document: String,
-    valid: bool,
-}
-
-struct Credentials {
-    values: Mutex<BTreeMap<String, String>>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl SecretStore for Secrets {
-    fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
-        if self.unavailable {
-            return Err(SecretError::Unavailable);
-        }
-        Ok(self.values.lock().unwrap().get(endpoint).cloned().map(Zeroizing::new))
-    }
-    fn write(&self, endpoint: &str, token: &str) -> Result<(), SecretError> {
-        if self.unavailable {
-            return Err(SecretError::Unavailable);
-        }
-        self.values.lock().unwrap().insert(endpoint.to_owned(), token.to_owned());
-        Ok(())
-    }
-    fn remove(&self, endpoint: &str) -> Result<(), SecretError> {
-        if self.unavailable {
-            return Err(SecretError::Unavailable);
-        }
-        self.values.lock().unwrap().remove(endpoint);
-        Ok(())
-    }
-}
-
-impl SecretStore for Credentials {
-    fn read(&self, key: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
-        Ok(self.values.lock().unwrap().get(key).cloned().map(Zeroizing::new))
-    }
-
-    fn write(&self, key: &str, token: &str) -> Result<(), SecretError> {
-        self.values.lock().unwrap().insert(key.to_owned(), token.to_owned());
-        Ok(())
-    }
-
-    fn remove(&self, key: &str) -> Result<(), SecretError> {
-        self.values.lock().unwrap().remove(key);
-        Ok(())
-    }
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */
 
-fn pairing(key: char) -> dokime_domain::model::remote::PairingFile {
-    dokime_domain::model::remote::PairingFile {
-        version: 1,
-        endpoints: vec!["http://127.0.0.1:8765".into()],
-        backend_identifier: "backend".into(),
-        label: "Lab Backend".into(),
-        ca_certificate_pem: None,
-        access_key: Some(key.to_string().repeat(32)),
-    }
-}
-
 /* === Tests === */
 
 #[test]
-fn rejected_profile_read_preserves_file_and_schema_cause() {
-    let directory = tempfile::tempdir().unwrap();
-    let path = directory.path().join("backends.json");
-    let store = Store::new(&path);
+fn pairing_folder_lists_files_and_keeps_credentials_native() {
+    // Validate Shared Pairing Inputs At The Real File Boundary.
+    let root = tempfile::tempdir().unwrap();
+    let input = root.path().join("input.pair");
+    let cases: Vec<serde_json::Value> = serde_json::from_str(include_str!("../fixtures/pairing.json")).unwrap();
+    for case in cases {
+        std::fs::write(&input, case["document"].as_str().unwrap()).unwrap();
+        assert_eq!(pairing::read(&input).is_ok(), case["valid"].as_bool().unwrap(), "{}", case["name"]);
+    }
+    std::fs::write(&input, vec![b' '; 1_048_577]).unwrap();
+    assert!(pairing::read(&input).is_err());
+    std::fs::write(&input, [0xff]).unwrap();
+    assert!(pairing::read(&input).is_err());
+
+    // Import A Pairing Into An Empty Folder.
+    let store = Store::new(root.path().join("remotes"));
     assert!(store.load().unwrap().profiles.is_empty());
-    assert!(!path.exists());
-    let bytes = br#"{"unexpected": true, "profiles": []}"#;
-    std::fs::write(&path, bytes).unwrap();
-    let error = store.load().unwrap_err();
-    let Error::FileSchema { path: actual, source } = &error else { panic!("{error:?}") };
-    assert_eq!(actual, &path);
-    assert!(error.to_string().contains(path.to_str().unwrap()));
-    assert!(source.to_string().contains("unexpected"));
-    assert_eq!(std::error::Error::source(&error).unwrap().to_string(), source.to_string());
-    assert_eq!(std::fs::read(&path).unwrap(), bytes);
-    assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
-}
-
-#[dokime_tracing::trace_test]
-#[test]
-fn profiles() {
-    let directory = tempfile::tempdir().unwrap();
-    let path = directory.path().join("backends.json");
-    let store = Store::new(&path);
-    let secrets = Secrets::default();
-
-    // Read The Shared Language Fixtures Through Their Real File Boundaries.
-    let cases: Vec<Case> = serde_json::from_str(include_str!("../fixtures/profiles.json")).unwrap();
-    for case in &cases {
-        assert_eq!(profiles::decode(case.document.as_bytes()).is_ok(), case.valid, "{}", case.name);
-        std::fs::write(&path, &case.document).unwrap();
-        assert_eq!(store.load().is_ok(), case.valid, "{}", case.name);
-    }
-    std::fs::remove_file(&path).unwrap();
-    let original_document = profiles::decode(cases[0].document.as_bytes()).unwrap();
-    let pairings: Vec<Case> = serde_json::from_str(include_str!("../fixtures/pairing.json")).unwrap();
-    let pairing_path = directory.path().join("fixture.dokime-remote");
-    for case in &pairings {
-        std::fs::write(&pairing_path, &case.document).unwrap();
-        assert_eq!(dokime_client::pairing::read(&pairing_path).is_ok(), case.valid, "{}", case.name);
-    }
-    std::fs::write(&pairing_path, vec![b' '; 1_048_577]).unwrap();
-    assert!(dokime_client::pairing::read(&pairing_path).is_err());
-    std::fs::write(&pairing_path, [0xff]).unwrap();
-    assert!(dokime_client::pairing::read(&pairing_path).is_err());
-    std::fs::write(&pairing_path, &pairings[0].document).unwrap();
-    let pairing = dokime_client::pairing::read(&pairing_path).unwrap();
-    let obsolete = directory.path().join("old.dokime-pair");
-    std::fs::write(&obsolete, &pairings[0].document).unwrap();
-    assert!(dokime_client::pairing::read(&obsolete).is_err());
-
-    // Refused Imports Leave An Empty Store And No Credential.
-    let unavailable = Secrets { unavailable: true, ..Secrets::default() };
-    assert!(store.import_pairing(&pairing, "lab", &unavailable).is_err());
-    assert!(store.load().unwrap().profiles.is_empty());
-    assert!(!path.exists());
-
-    struct PublicationFailure<'a> {
-        secrets: &'a Secrets,
-        destination: std::path::PathBuf,
-    }
-    impl SecretStore for PublicationFailure<'_> {
-        fn read(&self, key: &str) -> Result<Option<Zeroizing<String>>, SecretError> {
-            self.secrets.read(key)
-        }
-        fn write(&self, key: &str, token: &str) -> Result<(), SecretError> {
-            self.secrets.write(key, token)?;
-            // A Directory At The Destination Refuses Atomic File Publication.
-            std::fs::create_dir(&self.destination).unwrap();
-            Ok(())
-        }
-        fn remove(&self, key: &str) -> Result<(), SecretError> {
-            self.secrets.remove(key)
-        }
-    }
-    let failure = PublicationFailure {
-        secrets: &secrets,
-        destination: path.clone(),
+    let key = "a".repeat(64);
+    let file = pairing::PairingFile {
+        version: 1,
+        endpoints: vec!["http://127.0.0.1:8765".into(), "http://127.0.0.1:8766".into()],
+        backend_identifier: "backend".into(),
+        label: "Lab".into(),
+        certificate_pem: None,
+        access_key: Some(key.clone()),
     };
-    assert!(store.import_pairing(&pairing, "lab", &failure).is_err());
-    assert!(secrets.values.lock().unwrap().is_empty());
-    assert!(path.is_dir());
-    std::fs::remove_dir(&path).unwrap();
-
-    // Contention And Invalid Updates Preserve The Published Document.
-    let unchanged = |_: &mut profiles::Document| Ok(());
-    let initialized = store.update(unchanged);
-    initialized.unwrap();
-    let original = std::fs::read(&path).unwrap();
-    let lock = OpenOptions::new().read(true).write(true).open(directory.path().join("backends.json.lock")).unwrap();
-    lock.lock().unwrap();
-    let contended = store.update(unchanged);
-    assert!(matches!(contended, Err(Error::Busy)));
-    assert_eq!(std::fs::read(&path).unwrap(), original);
-    drop(lock);
-    assert!(
-        store
-            .update(|document| {
-                document.default = Some("absent".into());
-                Ok(())
-            })
-            .is_err()
-    );
-    assert_eq!(std::fs::read(&path).unwrap(), original);
-    store
-        .update(|document| {
-            *document = original_document;
-            Ok(())
-        })
-        .unwrap();
-    let reopened = Store::new(&path);
-    let mut document = reopened.load().unwrap();
-    document.profiles[0].secret = Secret::Keyring;
-    let selected = profiles::select(&document, Some("local"), None, Some("unknown")).unwrap();
-    assert_eq!(selected.expected_backend_id.as_deref(), Some("machine-1"));
-    assert_eq!(selected.secret, Secret::Keyring);
-    let direct = profiles::select(&document, None, Some("http://127.0.0.1:9000"), Some("unknown")).unwrap();
-    assert_eq!(direct.secret, Secret::None);
-    assert!(direct.expected_backend_id.is_none());
-    assert!(profiles::select(&document, Some("local"), Some("http://127.0.0.1"), None).is_err());
-    assert!(profiles::select(&document, None, None, Some("unknown")).is_err());
-    document.default = None;
-    document.profiles.clear();
-    assert_eq!(selected.target.endpoint(), "http://127.0.0.1:8765/");
-    assert!(profiles::select(&document, None, None, None).is_err());
-    let selection = profiles::select(&reopened.load().unwrap(), None, None, None).unwrap();
-
-    // A Default Edit Does Not Redirect An In-Flight Login.
-    store
-        .update(|document| {
-            document.default = None;
-            Ok(())
-        })
-        .unwrap();
-    store.remember(&selection, "private-token", &secrets).unwrap();
-    assert_eq!(profiles::get(&store.load().unwrap(), "local").unwrap().secret, Secret::Keyring);
-    assert_eq!(secrets.read(&selection.credential_key()).unwrap().unwrap().as_str(), "private-token");
-    let bytes = std::fs::read(store.path()).unwrap();
-    assert!(!String::from_utf8(bytes).unwrap().contains("private-token"));
-    secrets.remove(&selection.credential_key()).unwrap();
-    assert!(secrets.read(&selection.credential_key()).unwrap().is_none());
-    // A Target Edit Refuses To Save For The New Association.
-    store
-        .update(|document| {
-            document.profiles[0].endpoint = "http://127.0.0.1:9000".into();
-            Ok(())
-        })
-        .unwrap();
-    let before = std::fs::read(store.path()).unwrap();
-    assert!(store.remember(&selection, "other-token", &secrets).is_err());
-    assert!(secrets.values.lock().unwrap().is_empty());
-    assert_eq!(std::fs::read(store.path()).unwrap(), before);
-    let current = profiles::select(&store.load().unwrap(), Some("local"), None, None).unwrap();
-    assert!(matches!(store.remember(&current, "private-token", &unavailable), Err(Error::Secrets(SecretError::Unavailable))));
-    assert_eq!(std::fs::read(store.path()).unwrap(), before);
-
-    // Import, Reopen And Select Without Publishing Credential Bytes.
-    let profile = store.import_pairing(&pairing, "lab", &secrets).unwrap();
-    assert_eq!(profile.identifier, "lab");
-    assert_eq!(profile.label, pairing.label);
-    assert_eq!(profile.expected_backend_id.as_deref(), Some(pairing.backend_identifier.as_str()));
-    let selected = profiles::select(&reopened.load().unwrap(), Some("lab"), None, None).unwrap();
-    let target = dokime_client::Target::new(&pairing.endpoints[0], pairing.ca_certificate_pem.clone())
-        .unwrap()
-        .with_endpoints(&pairing.endpoints)
-        .unwrap();
-    assert!(selected.target == target);
-    let key = secrets.read(&selected.credential_key()).unwrap().unwrap();
-    assert_eq!(key.as_str(), pairing.access_key.as_ref().unwrap());
-    let original = std::fs::read(store.path()).unwrap();
-    assert!(!String::from_utf8_lossy(&original).contains(key.as_str()));
-    assert!(store.import_pairing(&pairing, "lab", &secrets).is_err());
-    assert_eq!(std::fs::read(store.path()).unwrap(), original);
-    assert_eq!(secrets.values.lock().unwrap().len(), 1);
-    assert!(store.import_pairing(&pairing, "bad/identifier", &secrets).is_err());
-    assert_eq!(secrets.values.lock().unwrap().len(), 1);
-    assert_eq!(std::fs::read(store.path()).unwrap(), original);
-
-    // An Unavailable Keyring Also Preserves An Existing Catalog And Credential.
-    assert!(store.import_pairing(&pairing, "second", &unavailable).is_err());
-    assert_eq!(std::fs::read(store.path()).unwrap(), original);
-    assert_eq!(secrets.values.lock().unwrap().len(), 1);
-    // Remember The Verified Winner Without Moving The Stable Keyring Association.
-    store.remember_endpoint(&selected, &pairing.endpoints[1]).unwrap();
-    let remembered = profiles::selection(profiles::get(&store.load().unwrap(), "lab").unwrap()).unwrap();
-    assert_eq!(remembered.target.endpoint().trim_end_matches('/'), pairing.endpoints[1]);
-    assert_eq!(remembered.credential_key(), selected.credential_key());
-    assert_eq!(secrets.read(&remembered.credential_key()).unwrap().unwrap().as_str(), key.as_str());
-    assert!(store.remember_endpoint(&selected, "http://unselected:8765").is_err());
-    assert!(store.remember_endpoint(&selected, &pairing.endpoints[0]).is_err());
-}
-
-#[test]
-fn pairing_profiles_keep_independent_credentials() {
-    let root = tempfile::tempdir().unwrap();
-    let store = Store::new(root.path().join("backends.json"));
-    let secrets = Credentials { values: Mutex::new(BTreeMap::new()) };
-    let first = store.import_pairing(&pairing('a'), "first", &secrets).unwrap();
-    let second = store.import_pairing(&pairing('b'), "second", &secrets).unwrap();
-    let first_key = profiles::selection(&first).unwrap().credential_key();
-    let second_key = profiles::selection(&second).unwrap().credential_key();
-    assert_ne!(first_key, second_key);
-    assert_eq!(secrets.read(&first_key).unwrap().unwrap().as_str(), "a".repeat(32));
-    assert_eq!(secrets.read(&second_key).unwrap().unwrap().as_str(), "b".repeat(32));
-    assert!(store.load().unwrap().default.is_none());
-    assert!(store.import_pairing(&pairing('c'), "first", &secrets).is_err());
-    assert_eq!(secrets.read(&first_key).unwrap().unwrap().as_str(), "a".repeat(32));
-}
-
-#[test]
-fn invalid_pairing_never_opens_registry_or_keyring() {
-    let root = tempfile::tempdir().unwrap();
-    let path = root.path().join("absent/backends.json");
-    let store = Store::new(&path);
-    let secrets = Credentials { values: Mutex::new(BTreeMap::new()) };
-    let mut invalid = pairing('a');
+    let mut invalid = file.clone();
     invalid.endpoints = vec!["http://0.0.0.0:8765".into()];
-    assert!(store.import_pairing(&invalid, "first", &secrets).is_err());
-    assert!(!path.parent().unwrap().exists());
-    assert!(secrets.values.lock().unwrap().is_empty());
+    assert!(store.import_pairing(&invalid, "lab").is_err());
+    assert!(!store.path().exists());
+    let imported = store.import_pairing(&file, "lab").unwrap();
+    assert!(store.path().join("lab.pair").is_file());
+    assert!(store.import_pairing(&file, "lab").is_err());
+    assert!(store.import_pairing(&file, "../escape").is_err());
+
+    // Listing Exposes Metadata; Selection Reads The Original Secret And Identity.
+    let document = store.load().unwrap();
+    assert_eq!(document.profiles, vec![imported]);
+    assert!(!serde_json::to_string(&document).unwrap().contains(&key));
+    let selection = profiles::selection(profiles::get(&document, "lab").unwrap()).unwrap();
+    assert_eq!(selection.access_key.as_deref().map(String::as_str), Some(key.as_str()));
+    assert_eq!(selection.expected_backend_id.as_deref(), Some("backend"));
+    assert_eq!(pairing::read(&store.path().join("lab.pair")).unwrap(), file);
+    assert!(pairing::read(&store.path().join("lab.json")).is_err());
+
+    // Removing A Backend Removes Its Only Connection Input.
+    store.remove("lab").unwrap();
+    assert!(store.load().unwrap().profiles.is_empty());
+    assert!(profiles::selection(&document.profiles[0]).is_err());
+
+    // Refuse An Unreadable Pairing Without Resetting Its Contents.
+    let path = store.path().join("broken.pair");
+    std::fs::write(&path, b"invalid pairing").unwrap();
+    assert!(store.load().is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), b"invalid pairing");
 }

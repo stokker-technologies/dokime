@@ -53,8 +53,7 @@ struct Resources {
 impl Serve<wire::DownloadExecutionFile> for Resources {
     fn serve<'a>(&'a self, request: wire::DownloadExecutionFile, ctx: Context<'a, wire::DownloadExecutionFile>) -> Served<'a, ()> {
         Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async {
+            async {
                 let runtime = &dokime::app::live_runtime(&self.runtime).await?;
                 let message_limit = self.maximum;
                 let (id, _) = super::files::execution(runtime, &request.execution_id)?;
@@ -104,7 +103,7 @@ impl Serve<wire::DownloadExecutionFile> for Resources {
                     frames::complete(source.metadata().size_bytes, &digest, message_limit).map_err(|error| stream_failure(error.into()))?;
                 ctx.streams().send_owned(complete).await.map_err(crate::grpc::chunked::output_failure)?;
                 Ok(().into())
-            })
+            }
             .await
         })
     }

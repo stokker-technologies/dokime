@@ -93,10 +93,8 @@ impl Serve<contract::Photo> for Resources {
 impl Serve<contract::AudioRecording> for Resources {
     fn serve<'a>(&'a self, request: contract::AudioRecording, ctx: Context<'a, contract::AudioRecording>) -> Served<'a, ()> {
         Box::pin(async move {
-            let call_context = ctx.call();
             let output = ctx.streams();
-            let revoked = crate::grpc::access::revocation(call_context);
-            crate::grpc::access::during(revoked, async {
+            async {
                 let limit = recording_limit(request.maximum_seconds)?;
                 let scope = capture_scope(request.scope.as_ref())?;
                 let started =
@@ -143,27 +141,21 @@ impl Serve<contract::AudioRecording> for Resources {
                     .await
                     .map_err(crate::grpc::chunked::output_failure)?;
                 Ok::<_, Status>(().into())
-            })
+            }
             .await
         })
     }
 }
 
 impl Serve<contract::ScreenRecording> for Unsupported {
-    fn serve<'a>(&'a self, _: contract::ScreenRecording, ctx: Context<'a, contract::ScreenRecording>) -> Served<'a, ()> {
-        Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }).await
-        })
+    fn serve<'a>(&'a self, _: contract::ScreenRecording, _: Context<'a, contract::ScreenRecording>) -> Served<'a, ()> {
+        Box::pin(async move { async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }.await })
     }
 }
 
 impl Serve<contract::CameraRecording> for Unsupported {
-    fn serve<'a>(&'a self, _: contract::CameraRecording, ctx: Context<'a, contract::CameraRecording>) -> Served<'a, ()> {
-        Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }).await
-        })
+    fn serve<'a>(&'a self, _: contract::CameraRecording, _: Context<'a, contract::CameraRecording>) -> Served<'a, ()> {
+        Box::pin(async move { async { Err(Status::failed_precondition(NO_VIDEO_ENCODER)) }.await })
     }
 }
 

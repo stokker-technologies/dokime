@@ -106,10 +106,8 @@ impl Serve<wire::ListSamples> for Resources {
 impl Serve<wire::WatchSamples> for Resources {
     fn serve<'a>(&'a self, mut request: wire::WatchSamples, ctx: Context<'a, wire::WatchSamples>) -> Served<'a, ()> {
         Box::pin(async move {
-            let call_context = ctx.call();
             let output = ctx.streams();
-            let revoked = crate::grpc::access::revocation(call_context);
-            crate::grpc::access::during(revoked, async {
+            async {
                 let mut selection = request.selection.take().ok_or_else(|| Status::invalid_argument("telemetry selection is missing"))?;
                 if selection.latest || request.follow && selection.scope.as_ref().and_then(|scope| scope.execution_id.as_ref()).is_none() {
                     return Err(Status::invalid_argument("telemetry watch requires forward paging and an execution scope when following"));
@@ -143,7 +141,7 @@ impl Serve<wire::WatchSamples> for Resources {
                         }
                     };
                 }
-            })
+            }
             .await
         })
     }

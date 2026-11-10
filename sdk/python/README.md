@@ -58,7 +58,7 @@ import asyncio, dokime
 
 async def main():
     async with dokime.Backend(port=0) as backend:
-        backend.export_pairing("lab.dokime-remote", label="Bench 3")
+        backend.export_pairing("lab.pair", label="Bench 3")
 
 
 asyncio.run(main())
@@ -132,7 +132,7 @@ uv run python main.py
 ```
 
 Use the matching native wheel or the Git installation command above. Import
-`bench.dokime-remote` into the desktop while the process runs, select **Bench /
+`bench.pair` into the desktop while the process runs, select **Bench /
 Capture**, confirm connections, and review voltage samples. Ctrl+C closes the
 backend. The generated project contains simulated instrument operation `Read`;
 replace its implementation with your driver. Steps and observers import the
@@ -180,70 +180,37 @@ including binary values. `push(row)` also supports nested and repeated fields
 for low-rate publication. Arrays are snapshotted before awaiting,
 so callers can reuse them after the call returns.
 
-## Named Backend Profiles
+## Pairing Files
 
-Read an unsecured lab profile explicitly:
+Read a pairing file explicitly, or omit its path to use `DOKIME_REMOTE`:
 
 ```python
 from dokime import DokimeClient
 
-async with DokimeClient.from_profile("lab") as client:
+async with DokimeClient.from_pairing("lab.pair") as client:
+    backend = await client.connect()
+
+async with DokimeClient.from_pairing() as client:
     backend = await client.connect()
 ```
 
-`from_profile` reads configuration once and starts no server. Use `path` to
-select another profile file, or `DOKIME_PROFILES_FILE` to override the standard
-OS configuration location. The Rust CLI manages these profiles through
-`dokime backend add/list/show/use/remove`. Python and Rust share the same
-unversioned JSON profile schema: `profiles` holds the entries and optional
-`default` selects one. A `version` field is rejected. `decode()` returns a
-`Document` snapshot with `default` and `profiles` fields. Python keeps the selected endpoint,
-CA and expected backend identity for that connection; later default edits have
-no effect. An unexpected identity fails negotiation before workflow mutations.
-Python does not read the native keyring. For an authenticated backend, create a
-remote access file on its host and import that file instead:
-
-```python
-async with DokimeClient.from_pairing("lab.dokime-remote") as client:
-    backend = await client.connect()
-```
-
-The constructor reads and validates that explicit file before connecting. It
-retains all endpoints, expected backend identity, persistent CA and independent access key
-for the connection. Protect the remote file as a credential; revoking its
-paired client on the host prevents further use. See the
-[remote access walkthrough](../../docs/remote/overview.md) for the host and second-PC flow.
-
-Candidates connect in parallel with the configured short stagger (250 ms by
-default). The first connection that verifies the pinned CA and backend identity
-wins; losing attempts are closed. Reconnects try that endpoint first. A client
-loaded with `from_profile` also saves its successful endpoint for later clients.
-The listener reloads leaves in place under the same persistent CA when advertised
-or configured names are missing. Covered address flaps preserve the certificate
-and existing streams.
-
-The endpoint scheme selects native gRPC transport: `https://` verifies TLS,
-while explicit `http://` permits plaintext for an isolated lab and exposes keys
-and data. The listener decides independently whether a key is required. A
-profile marked `keyring` is refused by `from_profile`; use `from_pairing`.
-CA certificates apply only to HTTPS; certificate verification is never disabled.
-
-```python
-async with DokimeClient("http://127.0.0.1:8765") as client:
-    backend = await client.connect()
-```
+The file supplies ordered endpoints, expected backend identity, a self-signed
+server certificate and the backend's single access key. Protect it as a credential.
+Exporting again replaces the key for every client. Endpoints are tried in order;
+TLS trust and backend identity must match. Replacing the certificate requires a
+new pairing export. There is no profile registry, credential-store association or
+per-client revocation. Python does not search for `.env` files.
 
 ## Client Configuration
 
 Each connection uses the native application defaults for
-`connect_timeout_ms`, `request_timeout_ms` and `endpoint_stagger_ms`. Direct construction, `from_pairing` and
-`from_profile` also accept `preferences=`, a reflected client-preferences message
+`connect_timeout_ms` and `request_timeout_ms`. Direct construction and `from_pairing` accept `preferences=`, a reflected client-preferences message
 with those fields, and an explicit `rpc_timeout` override. Streaming
 operation deadlines come from their declared contracts.
 
 Python does not load or create a local application-settings file. Application
-preferences belong to the backend's SQLite settings owner; named profiles remain
-in their separate `backends.json` document. Legacy TOML files are left untouched.
+preferences belong to the backend's SQLite settings owner. Pairing files contain
+the remote connection inputs.
 
 ## Creating Cycles
 
@@ -256,7 +223,7 @@ from dokime import DokimeClient
 
 
 async def main() -> int:
-    async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
+    async with DokimeClient.from_pairing("examples/lab.pair") as client:
         async with client.new_cycle("Example Lab Tracking") as cycle:
             run = await cycle.start("example.demo.tracking", duration_min=10)
             async for record in run.records("example.tool.connected", "example.tool.disconnected"):
@@ -350,7 +317,7 @@ without waiting for completion so the script can answer:
 import asyncio
 from contextlib import aclosing
 
-async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+async with DokimeClient.from_pairing("lab.pair") as client:
     async with client.new_cycle("Confirmation") as cycle:
         execution = await cycle.start("obc.checks.pulse", require_confirmation=True)
         async with asyncio.timeout(60):
@@ -428,7 +395,7 @@ releases; follow their setup instructions to prepare a matching local wheel.
 ```python
 from dokime import DokimeClient
 
-async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+async with DokimeClient.from_pairing("lab.pair") as client:
     execution = await client.execution(execution_id)
     await execution.start()
     async for record in execution.records("obc.run.*"):
@@ -462,7 +429,7 @@ The plugins' own requirements for calls into other plugins or host services
 remain enforced independently of the access key.
 
 ```python
-async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+async with DokimeClient.from_pairing("lab.pair") as client:
     providers = await client.operations()
     provider = await client.show("stokker_sensor.read", owner="stokker_sensor")
     request = provider.operation.request()
@@ -575,7 +542,7 @@ Use typed statuses to refuse a new run while the backend has active work:
 ```python
 from dokime import CycleStatus, DokimeClient, ExecutionStatus
 
-async with DokimeClient.from_pairing("lab.dokime-remote") as client:
+async with DokimeClient.from_pairing("lab.pair") as client:
     busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
     if busy:
         raise RuntimeError("Backend has active work")

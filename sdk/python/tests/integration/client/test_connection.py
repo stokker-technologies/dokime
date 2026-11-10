@@ -176,22 +176,22 @@ def test_transport_secrets(endpoint: str, monkeypatch: pytest.MonkeyPatch, tmp_p
     assert client._transport._access_key is None
     if endpoint.startswith("http:"):
         with pytest.raises(ValueError):
-            DokimeClient(endpoint, ca_certificate_pem="certificate")
+            DokimeClient(endpoint, certificate_pem="certificate")
     else:
         with pytest.raises(ValueError):
-            DokimeClient(endpoint, ca_certificate_pem="certificate")
+            DokimeClient(endpoint, certificate_pem="certificate")
 
 
 def test_pairing_checks_identity_before_calls_and_after_reconnect(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     async def scenario() -> None:
         async with serve() as (server, _):
-            path = tmp_path / "lab.dokime-remote"
+            path = tmp_path / "lab.pair"
             document = {
                 "version": 1,
                 "endpoints": [server.endpoint],
                 "backend_identifier": server.backend_id,
                 "label": "Lab",
-                "ca_certificate_pem": None,
+                "certificate_pem": None,
                 "access_key": None,
             }
             path.write_text(json.dumps(document), encoding="utf-8")
@@ -221,21 +221,20 @@ def test_pairing_checks_identity_before_calls_and_after_reconnect(integration_lo
     integration_loop.run(scenario())
 
 
-def test_remote_candidates_choose_verified_identity_and_remember(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
+def test_remote_candidates_follow_file_order_and_verify_identity(integration_loop: asyncio.Runner, tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with serve() as (stalled, _), serve() as (wrong, _), serve() as (good, _):
-            stalled.identity_gate.clear()
+        async with serve() as (wrong, _), serve() as (good, _):
             wrong.backend_id = "wrong-backend"
             good.backend_id = "expected-backend"
             document = {
                 "version": 1,
-                "endpoints": [stalled.endpoint, wrong.endpoint, good.endpoint],
+                "endpoints": [wrong.endpoint, good.endpoint],
                 "backend_identifier": good.backend_id,
                 "label": "Remote Test",
-                "ca_certificate_pem": None,
+                "certificate_pem": None,
                 "access_key": None,
             }
-            path = tmp_path / "remote.dokime-remote"
+            path = tmp_path / "remote.pair"
             path.write_text(json.dumps(document), encoding="utf-8")
             client = DokimeClient.from_pairing(path)
             try:
@@ -245,13 +244,12 @@ def test_remote_candidates_choose_verified_identity_and_remember(integration_loo
                 await client._transport._channel.close()
                 client._transport._channel = None
                 client._transport.backend = None
-                # A remembered success stays first even if another endpoint becomes valid.
+                # Reconnecting Retains The File's Order, Without Remembering A Winner.
                 wrong.backend_id = good.backend_id
                 assert (await client.connect()).id == good.backend_id
-                assert client._transport._endpoint == good.endpoint
+                assert client._transport._endpoint == wrong.endpoint
             finally:
                 await client.close()
-            stalled.identity_gate.set()
             document["endpoints"] = [wrong.endpoint, good.endpoint]
             document["backend_identifier"] = "missing-backend"
             path.write_text(json.dumps(document), encoding="utf-8")

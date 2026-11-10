@@ -33,8 +33,8 @@ use crate::installation::{Program, hand_over};
 #[derive(Debug, clap::Args)]
 #[command(about = "Open The Installed Desktop GUI On A Running Backend; Arguments After -- Reach It Verbatim.", trailing_var_arg = true)]
 pub struct Args {
-    #[arg(long, visible_alias = "connect", help = "Native gRPC endpoint of the backend.")]
-    endpoint: String,
+    #[arg(long, help = "Pairing File; Defaults To DOKIME_REMOTE.")]
+    remote: Option<PathBuf>,
 
     #[arg(long, help = "GUI executable. Defaults to the installed dokime-gui.")]
     gui: Option<PathBuf>,
@@ -55,7 +55,10 @@ pub fn run(args: Args) -> crate::Result<()> {
     let gui = Program::GUI.resolve(args.gui.as_deref())?;
 
     let mut command = dokime::domain::process::command(gui);
-    command.arg("--endpoint").arg(args.endpoint).args(args.arguments);
+    if let Some(path) = args.remote {
+        command.arg("--remote").arg(path);
+    }
+    command.args(args.arguments);
     hand_over(command)
 }
 

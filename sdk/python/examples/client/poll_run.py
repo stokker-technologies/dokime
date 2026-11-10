@@ -30,7 +30,7 @@ from dokime.client import DokimeClient, Execution, Value
 
 # === Constants === #
 
-PAIRING_FILE = Path("lab.dokime-remote")
+PAIRING_FILE = Path("lab.pair")
 CYCLE_LABEL = "Polling Demonstration"
 TEMPLATE = "obc.checks.pulse"
 PARAMETERS: dict[str, Value] = {"sample_count": 8}

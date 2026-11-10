@@ -72,7 +72,7 @@ pub struct Args {
 
     #[arg(
         long,
-        help = "Load environment variables from exactly this file with dotenv, instead of searching upward from the working directory for `.env`. Refused outright when the file does not exist — never a silent skip. Either way, a variable already exported in this process always wins over one loaded from a file, and the environment is read once at startup: changing the file requires restarting `dokime server`."
+        help = "Load environment variables from exactly this file with dotenv. Refused outright when the file does not exist — never a silent skip. Either way, a variable already exported in this process always wins over one loaded from a file, and the environment is read once at startup: changing the file requires restarting `dokime server`."
     )]
     pub env_file: Option<PathBuf>,
 

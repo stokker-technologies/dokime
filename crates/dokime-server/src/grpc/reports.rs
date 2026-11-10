@@ -66,15 +66,13 @@ enum PreparedOperations {
 impl Serve<wire::DownloadCycleReport> for Resources {
     fn serve<'a>(&'a self, request: wire::DownloadCycleReport, ctx: Context<'a, wire::DownloadCycleReport>) -> Served<'a, ()> {
         Box::pin(async move {
-            let call_context = ctx.call();
             let output = ctx.streams();
-            let revoked = crate::grpc::access::revocation(call_context);
-            crate::grpc::access::during(revoked, async {
+            async {
                 let cycle = TestCycleId::from_uuid(request.cycle_id.clone()).map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
                 let identifier = report_identifier(&request.identifier)?;
                 let report = dokime::app::live_runtime(&self.runtime).await?.open_cycle_report(&cycle).await.map_err(report_failure)?;
                 deliver(self, report, &identifier, output).await
-            })
+            }
             .await
         })
     }
@@ -83,10 +81,8 @@ impl Serve<wire::DownloadCycleReport> for Resources {
 impl Serve<wire::DownloadExecutionReport> for Resources {
     fn serve<'a>(&'a self, request: wire::DownloadExecutionReport, ctx: Context<'a, wire::DownloadExecutionReport>) -> Served<'a, ()> {
         Box::pin(async move {
-            let call_context = ctx.call();
             let output = ctx.streams();
-            let revoked = crate::grpc::access::revocation(call_context);
-            crate::grpc::access::during(revoked, async {
+            async {
                 let execution = TestExecutionId::from_uuid(request.execution_id.clone())
                     .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
                 let identifier =
@@ -94,7 +90,7 @@ impl Serve<wire::DownloadExecutionReport> for Resources {
                 let report =
                     dokime::app::live_runtime(&self.runtime).await?.open_execution_report(&execution).await.map_err(report_failure)?;
                 deliver(self, report, &identifier, output).await
-            })
+            }
             .await
         })
     }

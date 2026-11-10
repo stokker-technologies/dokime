@@ -13,7 +13,6 @@
 
 pub(super) mod operations;
 pub(super) mod pairing;
-pub(super) mod sessions;
 mod store;
 
 /* === Re-Exports === */
@@ -29,11 +28,10 @@ use tokio::sync::Mutex;
 // Local Imports
 use super::{Config, Error, Server, Service, TlsIdentity};
 use dokime::RuntimeHandle;
-use dokime::domain::model::remote::{RemoteListenerSettings, RemoteListenerStatus, RemoteSessionPage};
+use dokime::domain::model::remote::{RemoteListenerSettings, RemoteListenerStatus};
 
 /* === Constants === */
 
-const SERVER_REMOTE_HEARTBEAT_MS: u64 = 5_000;
 const SERVER_REMOTE_NAMES: u64 = 32;
 
 /* === Macros === */
@@ -46,11 +44,8 @@ pub(super) struct Controller {
     runtime: RuntimeHandle,
     service: Service,
     path: PathBuf,
-    sessions: Arc<sessions::SessionLog>,
     state: Mutex<State>,
-    clients: Arc<pairing::Registry>,
-    refresh_stop: tokio::sync::watch::Sender<bool>,
-    refresh_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    key: Arc<pairing::Key>,
 }
 
 struct State {
@@ -79,7 +74,7 @@ impl State {
             settings: Some(self.document.settings.clone()),
             listening_address: self.server.as_ref().map(|server| server.address().to_string()),
             certificate_pem: self.document.identity.as_ref().map(|identity| identity.certificate.clone()),
-            key_configured: !self.document.clients.is_empty(),
+            key_configured: self.document.verifier.is_some(),
             error: self.error.clone(),
             endpoints: self
                 .server
@@ -94,35 +89,8 @@ impl State {
 
 impl Controller {
     pub(super) async fn start(self: &Arc<Self>) {
-        let mut task = self.refresh_task.lock().await;
         let mut state = self.state.lock().await;
         state.closing = false;
-        if task.is_none() {
-            self.refresh_stop.send_replace(false);
-            let mut stopping = self.refresh_stop.subscribe();
-            let weak = Arc::downgrade(self);
-            let mut shutdown = self.runtime.watch_state();
-            *task = Some(tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_millis(SERVER_REMOTE_HEARTBEAT_MS));
-                interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-                loop {
-                    tokio::select! {
-                        biased;
-                        _ = stopping.wait_for(|stopping| *stopping) => return,
-                        _ = shutdown.wait_until(|snapshot| snapshot.state().shutting_down) => return,
-                        _ = interval.tick() => {}
-                    }
-                    let Some(controller) = weak.upgrade() else { return };
-                    if let Err(error) = controller.apply(Change::Refresh).await {
-                        tracing::error!(%error, "remote certificate names could not be refreshed");
-                    }
-                    if let Err(error) = controller.flush_clients().await {
-                        tracing::error!(%error, "paired client timestamps could not be saved");
-                    }
-                }
-            }));
-        }
-        drop(task);
         if state.server.is_some() {
             return;
         }
@@ -166,27 +134,14 @@ impl Controller {
     }
 
     pub(super) async fn stop(&self) -> Result<(), Error> {
-        let mut task = self.refresh_task.lock().await;
-        self.refresh_stop.send_replace(true);
-        if let Some(task) = task.as_mut() {
-            task.await?;
-        }
-        task.take();
-        self.flush_clients().await?;
         let mut state = self.state.lock().await;
         state.closing = true;
-        let sessions = self.sessions.clone();
-        tokio::task::spawn_blocking(move || sessions.flush()).await?;
         if let Some(server) = state.server.as_mut() {
             server.detach_listener().await?;
             state.server = None;
         }
         state.bound = None;
         Ok(())
-    }
-
-    fn sessions(&self, cursor: Option<&str>, limit: u32) -> Result<RemoteSessionPage, Error> {
-        self.sessions.list(cursor, limit).map_err(Error::Configuration)
     }
 
     async fn status(&self) -> RemoteListenerStatus {
@@ -212,11 +167,8 @@ impl Controller {
         if !settings.enabled {
             return Ok(None);
         }
-        let policy = if settings.authentication_enabled {
-            super::access::Policy::Clients(self.clients.clone())
-        } else {
-            super::access::Policy::Open
-        };
+        let policy =
+            if settings.authentication_enabled { super::access::Policy::BackendKey(self.key.clone()) } else { super::access::Policy::Open };
         let tls = if settings.tls_enabled {
             let identity =
                 document.identity.as_ref().ok_or(Error::Configuration("configure certificate identities before enabling TLS"))?;
@@ -285,7 +237,6 @@ impl Controller {
         let snapshot = self.runtime.read_application_settings().await?;
         let mut candidate = state.document.clone();
         candidate.settings = snapshot.settings.listener.clone();
-        candidate.clients = self.clients.records();
         match change {
             Change::Settings(settings) => {
                 store::validate(&settings)?;
@@ -299,10 +250,7 @@ impl Controller {
                 candidate.settings.certificate_names = names;
                 let detected = store::host_names(store::validate(&candidate.settings)?, SERVER_REMOTE_NAMES as usize);
                 let names = certificate_names(&candidate.settings.certificate_names, detected)?;
-                match &mut candidate.identity {
-                    Some(identity) => identity.reissue(names)?,
-                    None => candidate.identity = Some(store::Identity::generate(names)?),
-                }
+                candidate.identity = Some(store::Identity::generate(names)?);
             }
             Change::Refresh => {
                 // Address And Access Changes Remain Pending Until Their Explicit Commit.
@@ -403,20 +351,12 @@ pub(super) async fn activate(runtime: &RuntimeHandle, service: Service) -> Resul
     let read_path = path.clone();
     let settings = runtime.read_application_settings().await?.settings.listener;
     let document = tokio::task::spawn_blocking(move || store::read(&read_path, settings)).await??;
-    let sessions = service.sessions();
-    let log = sessions.clone();
-    let log_path = path.with_file_name("sessions.json");
-    tokio::task::spawn_blocking(move || log.attach(log_path)).await?;
-    spawn_session_flush(Arc::downgrade(&sessions), std::time::Duration::from_millis(SERVER_REMOTE_HEARTBEAT_MS));
-    let clients = Arc::new(pairing::Registry::new(document.clients.clone()));
+    let key = Arc::new(pairing::Key::new(document.verifier));
     let controller = Arc::new(Controller {
         runtime: runtime.clone(),
         service,
         path,
-        sessions,
-        clients,
-        refresh_stop: tokio::sync::watch::channel(false).0,
-        refresh_task: Mutex::new(None),
+        key,
         state: Mutex::new(State {
             document,
             server: None,
@@ -457,7 +397,7 @@ fn refresh_identity_for_names(document: &mut store::Document, detected: Vec<Stri
     }
     match &mut document.identity {
         Some(identity) if identity.names == names => {}
-        Some(identity) => identity.reissue(names)?,
+        Some(_) => document.identity = Some(store::Identity::generate(names)?),
         None => document.identity = Some(store::Identity::generate(names)?),
     }
     Ok(())
@@ -483,21 +423,6 @@ fn certificate_names(configured: &[String], advertised: Vec<String>) -> Result<V
     Ok(names)
 }
 
-// Calls Only Mark The Log; Writes Are Batched So Authentication Never Waits On Storage.
-fn spawn_session_flush(sessions: std::sync::Weak<sessions::SessionLog>, heartbeat: std::time::Duration) {
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(heartbeat);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        loop {
-            interval.tick().await;
-            let Some(log) = sessions.upgrade() else { return };
-            if tokio::task::spawn_blocking(move || log.flush()).await.is_err() {
-                return;
-            }
-        }
-    });
-}
-
 /* === Tests === */
 
 #[cfg(test)]
@@ -521,11 +446,11 @@ mod tests {
         document.settings.certificate_names = vec!["LAB.EXAMPLE".into()];
         refresh_identity_for_names(&mut document, vec!["192.168.1.10".into()]).unwrap();
         assert_eq!(document.identity.as_ref().unwrap().certificate, certificate);
-        let ca = document.identity.as_ref().unwrap().ca_certificate.clone();
+        let previous = document.identity.as_ref().unwrap().certificate.clone();
         refresh_identity_for_names(&mut document, vec!["192.168.1.30".into()]).unwrap();
         let identity = document.identity.as_ref().unwrap();
         assert_ne!(identity.certificate, certificate);
-        assert_eq!(identity.ca_certificate, ca);
+        assert_ne!(identity.certificate, previous);
         assert!(identity.names.contains(&"192.168.1.10".into()));
         document.settings.certificate_names.push("new.example".into());
         refresh_identity_for_names(&mut document, vec!["192.168.1.30".into()]).unwrap();

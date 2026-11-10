@@ -181,7 +181,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
               </div>
               <BackendsTable
                 failure={error && !diagnostics ? <p>{connectionError(error)}</p> : undefined}
-                endpoint={failedEndpoint ?? launch?.target?.endpoint}
+                endpoint={failedEndpoint ?? (launch?.target?.kind === "local" ? launch.target.endpoint : launch?.target?.pairingFile)}
                 onConnect={() => {
                   localAttempt.current = false;
                 }}
@@ -200,7 +200,6 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                       request: {
                         target: launch.target,
                         expectedBackendId: launch.expectedBackendId,
-                        secrets: { kind: launch.target.kind === "remote" ? "saved" : "none" },
                       },
                     });
                   else if (launch?.localBackendAvailable) void owner.select({ kind: "owned_local" });

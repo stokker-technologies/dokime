@@ -156,8 +156,8 @@ async fn owned_trace_tail() {
 #[cfg(feature = "testing")]
 #[dokime_tracing::trace_test]
 #[tokio::test]
-async fn remote_export_enables_saved_listener_and_preserves_ca_on_reissue() {
-    use dokime::operations::remote::{ListPairedClients, ReadListener, RegenerateCertificate, RenamePairedClient, UpdateListener};
+async fn remote_export_enables_saved_listener_and_replaces_certificate() {
+    use dokime::operations::remote::{ReadListener, RegenerateCertificate, UpdateListener};
     let fixture = crate::support::server::Fixture::new().await;
     let client =
         dokime::client::Client::connect(dokime::client::Target::local(fixture.server.local_endpoint()).unwrap(), None, None).await.unwrap();
@@ -175,17 +175,7 @@ async fn remote_export_enables_saved_listener_and_preserves_ca_on_reissue() {
     stable.address = running.listening_address.clone().unwrap();
     client.call(UpdateListener { settings: Some(stable) }).await.unwrap();
     let old_leaf = running.certificate_pem.unwrap();
-    let paired_id = exported.client.as_ref().unwrap().identifier.clone();
-    client
-        .call(RenamePairedClient {
-            identifier: paired_id.clone(),
-            label: "Renamed Test".into(),
-        })
-        .await
-        .unwrap();
-    let paired = client.call(ListPairedClients { cursor: None, limit: 100 }).await.unwrap();
-    assert_eq!(paired.clients.iter().find(|entry| entry.identifier == paired_id).unwrap().label, "Renamed Test");
-    let target = dokime::client::Target::remote(&exported.pairing.endpoints[0], exported.pairing.ca_certificate_pem.clone()).unwrap();
+    let target = dokime::client::Target::remote(&exported.pairing.endpoints[0], exported.pairing.certificate_pem.clone()).unwrap();
     let connected =
         dokime::client::Client::connect(target.clone(), exported.pairing.access_key.as_deref(), Some(&exported.pairing.backend_identifier))
             .await
@@ -199,9 +189,15 @@ async fn remote_export_enables_saved_listener_and_preserves_ca_on_reissue() {
         .unwrap();
     assert_ne!(old_leaf, next.certificate_pem.unwrap());
     let reexported = dokime_gui::testing::create_remote_access(&client, "Another Client".into(), false).await.unwrap();
-    assert_eq!(reexported.pairing.ca_certificate_pem, exported.pairing.ca_certificate_pem);
-    let connected =
+    assert_ne!(reexported.pairing.certificate_pem, exported.pairing.certificate_pem);
+    assert!(
         dokime::client::Client::connect(target, exported.pairing.access_key.as_deref(), Some(&exported.pairing.backend_identifier))
+            .await
+            .is_err()
+    );
+    let target = dokime::client::Target::remote(&reexported.pairing.endpoints[0], reexported.pairing.certificate_pem.clone()).unwrap();
+    let connected =
+        dokime::client::Client::connect(target, reexported.pairing.access_key.as_deref(), Some(&reexported.pairing.backend_identifier))
             .await
             .unwrap();
     connected.close_and_wait().await;

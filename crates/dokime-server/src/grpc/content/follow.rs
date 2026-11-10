@@ -53,8 +53,7 @@ struct Resources {
 impl Serve<wire::FollowExecutionFile> for Resources {
     fn serve<'a>(&'a self, request: wire::FollowExecutionFile, ctx: Context<'a, wire::FollowExecutionFile>) -> Served<'a, ()> {
         Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async {
+            async {
                 let runtime = &dokime::app::live_runtime(&self.runtime).await?;
                 let (execution, _) = super::files::execution(runtime, &request.execution_id)?;
                 if request.relative_path.is_empty() {
@@ -112,7 +111,7 @@ impl Serve<wire::FollowExecutionFile> for Resources {
                     }
                 }
                 Ok(().into())
-            })
+            }
             .await
         })
     }

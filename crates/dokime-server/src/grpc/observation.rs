@@ -114,10 +114,8 @@ impl Serve<wire::GetRuntimeShell> for Resources {
 impl Serve<wire::WatchRuntime> for Resources {
     fn serve<'a>(&'a self, request: wire::WatchRuntime, ctx: Context<'a, wire::WatchRuntime>) -> Served<'a, ()> {
         Box::pin(async move {
-            let call_context = ctx.call();
             let output = ctx.streams();
-            let revoked = crate::grpc::access::revocation(call_context);
-            crate::grpc::access::during(revoked, async {
+            async {
                 let mut watch = dokime::app::live_runtime(&self.runtime).await?.watch_state();
                 let mut snapshot = watch.latest();
                 canonical::cursor(&snapshot).validate(request.cursor.as_ref(), false).map_err(canonical::cursor_failure)?;
@@ -153,7 +151,7 @@ impl Serve<wire::WatchRuntime> for Resources {
                     }
                     resynchronized = false;
                 }
-            })
+            }
             .await
         })
     }
@@ -162,10 +160,8 @@ impl Serve<wire::WatchRuntime> for Resources {
 impl Serve<wire::WatchExecutionProgress> for Resources {
     fn serve<'a>(&'a self, request: wire::WatchExecutionProgress, ctx: Context<'a, wire::WatchExecutionProgress>) -> Served<'a, ()> {
         Box::pin(async move {
-            let call_context = ctx.call();
             let output = ctx.streams();
-            let revoked = crate::grpc::access::revocation(call_context);
-            crate::grpc::access::during(revoked, async {
+            async {
                 let execution = TestExecutionId::from_uuid(request.test_execution_id.clone())
                     .map_err(|_| Status::invalid_argument("invalid test execution UUID"))?;
                 let mut watch = dokime::app::live_runtime(&self.runtime).await?.watch_execution_progress();
@@ -193,7 +189,7 @@ impl Serve<wire::WatchExecutionProgress> for Resources {
                     heartbeat = false;
                     snapshot = next;
                 }
-            })
+            }
             .await
         })
     }

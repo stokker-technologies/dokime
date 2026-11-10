@@ -111,24 +111,15 @@ impl Queries {
     }
 
     async fn run<O: Operation, T>(&self, ctx: &Context<'_, O>, work: impl Future<Output = Result<T, Status>>) -> Result<T, Status> {
-        let revoked = ctx.call().get::<Caller>().and_then(|caller| caller.revoked.as_ref());
-        self.read(O::ID, ctx.cancelled(), revoked, work).await
+        self.read(O::ID, ctx.cancelled(), work).await
     }
 
     async fn read<T>(
-        &self, operation: &str, cancelled: impl Future<Output = ()>, revoked: Option<&tokio_util::sync::CancellationToken>,
-        work: impl Future<Output = Result<T, Status>>,
+        &self, operation: &str, cancelled: impl Future<Output = ()>, work: impl Future<Output = Result<T, Status>>,
     ) -> Result<T, Status> {
-        let revocation = async {
-            match revoked {
-                Some(revoked) => revoked.cancelled().await,
-                None => std::future::pending().await,
-            }
-        };
         tokio::select! {
             biased;
             () = cancelled => Err(Status::cancelled("Query cancelled")),
-            () = revocation => Err(status(Failure::new(Reason::PermissionDenied, operation, "Query access was revoked"))),
             result = async {
                 let _permit = self.admit(operation).await?;
                 work.await
@@ -212,14 +203,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cancellation_and_revocation_drop_active_work_and_release_admission() {
+    async fn cancellation_drops_active_work_and_releases_admission() {
         struct Dropped(Arc<AtomicBool>);
         impl Drop for Dropped {
             fn drop(&mut self) {
                 self.0.store(true, Ordering::SeqCst);
             }
         }
-        for revoke in [false, true] {
+        {
             let queries = queries();
             let dropped = Arc::new(AtomicBool::new(false));
             let guard = Dropped(dropped.clone());
@@ -228,17 +219,12 @@ mod tests {
                 std::future::pending::<Result<(), Status>>().await
             };
             let cancelled = tokio_util::sync::CancellationToken::new();
-            let revoked = tokio_util::sync::CancellationToken::new();
-            let mut pending = Box::pin(queries.read(ListSamples::ID, cancelled.cancelled(), Some(&revoked), work));
+            let mut pending = Box::pin(queries.read(ListSamples::ID, cancelled.cancelled(), work));
             assert!(futures_util::poll!(&mut pending).is_pending());
             assert!(queries.active.try_acquire().is_err());
-            if revoke {
-                revoked.cancel();
-            } else {
-                cancelled.cancel();
-            }
+            cancelled.cancel();
             let error = pending.await.unwrap_err();
-            assert_eq!(error.code(), if revoke { Code::PermissionDenied } else { Code::Cancelled });
+            assert_eq!(error.code(), Code::Cancelled);
             assert!(dropped.load(Ordering::SeqCst));
             assert!(queries.admit(ListCycles::ID).await.is_ok());
         }

@@ -69,7 +69,6 @@ pub struct ReportDefaults {
 pub struct ClientPreferences {
     pub connect_timeout_ms: u64,
     pub request_timeout_ms: u64,
-    pub endpoint_stagger_ms: u64,
 }
 
 #[harmos::message(skip_default)]
@@ -169,7 +168,6 @@ impl Default for ClientPreferences {
         Self {
             connect_timeout_ms: 10_000,
             request_timeout_ms: 30_000,
-            endpoint_stagger_ms: 250,
         }
     }
 }
@@ -237,8 +235,7 @@ impl ApplicationSettings {
 impl ClientPreferences {
     pub fn validate(&self) -> Result<(), String> {
         validate_duration(self.connect_timeout_ms)?;
-        validate_duration(self.request_timeout_ms)?;
-        validate_duration(self.endpoint_stagger_ms)
+        validate_duration(self.request_timeout_ms)
     }
 }
 

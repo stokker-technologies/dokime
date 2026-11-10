@@ -151,10 +151,8 @@ impl Serve<v1::GetInstallation> for Resources {
 impl Serve<v1::Install> for Resources {
     fn serve<'a>(&'a self, _: v1::Install, ctx: Context<'a, v1::Install>) -> Served<'a, plugins_model::PluginInstallation> {
         Box::pin(async move {
-            let call_context = ctx.call();
             let input = ctx.streams();
-            let revoked = crate::grpc::access::revocation(call_context);
-            crate::grpc::access::during(revoked, async {
+            async {
                 let operation = dokime::app::live_runtime(&self.runtime).await?.operation_progress().begin("Installing Plugin");
                 operation.phase("Receiving Archive");
                 let installed = self.install(input, &operation).await;
@@ -162,7 +160,7 @@ impl Serve<v1::Install> for Resources {
                     operation.fail(status.message());
                 }
                 installed
-            })
+            }
             .await
         })
     }

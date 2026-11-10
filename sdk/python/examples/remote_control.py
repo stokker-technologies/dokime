@@ -29,7 +29,7 @@ from dokime.client import DokimeClient
 
 # === Constants === #
 
-PAIRING_FILE = Path("lab.dokime-remote")
+PAIRING_FILE = Path("lab.pair")
 WAIT_S: float | None = None
 
 # === Types === #

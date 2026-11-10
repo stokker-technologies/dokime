@@ -22,9 +22,9 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
 // Local Imports
-use super::{ConnectionError, ConnectionSession, ConnectionSnapshot};
+use super::{ConnectionError, ConnectionSnapshot};
 use crate::native_session::{BackendSelection, DesktopSessionControl};
-use dokime::client::profiles::{Document, Profile, Store};
+use dokime::client::profiles::{Document, Store};
 
 /* === Constants === */
 
@@ -57,49 +57,18 @@ pub async fn desktop_backends_list() -> Result<Document, ConnectionError> {
     load().await
 }
 
-pub async fn desktop_backend_add(registry: State<'_, Registry>, profile: Profile) -> Result<Document, ConnectionError> {
-    let _serial = registry.serial.lock().await;
-    let endpoint =
-        url::Url::parse(&profile.endpoint).map_err(|_| ConnectionError::InvalidTarget { message: "Invalid lab endpoint".into() })?;
-    if endpoint.scheme() != "http"
-        || profile.ca_certificate_pem.is_some()
-        || profile.expected_backend_id.is_some()
-        || profile.secret != dokime::client::profiles::Secret::None
-    {
-        return Err(ConnectionError::InvalidTarget {
-            message: "Secure backends require a pairing file".into(),
-        });
-    }
-    tokio::task::spawn_blocking(move || {
-        let store = Store::discover(None).map_err(persistence)?;
-        store
-            .update(|document| {
-                if document.profiles.iter().any(|saved| saved.identifier == profile.identifier) {
-                    return Err(dokime::client::profiles::Error::Invalid("Backend identifier already exists".into()));
-                }
-                document.profiles.push(profile);
-                Ok(document.clone())
-            })
-            .map_err(persistence)
-    })
-    .await
-    .map_err(|_| ConnectionError::BackendUnavailable)?
-}
-
 pub async fn desktop_backend_import_pairing(
-    window: WebviewWindow, app: AppHandle, registry: State<'_, Registry>, connection: State<'_, ConnectionSession>,
-    identifier: Option<String>,
+    window: WebviewWindow, app: AppHandle, registry: State<'_, Registry>, identifier: Option<String>,
 ) -> Result<Option<Document>, ConnectionError> {
     crate::app::desktop::ensure_main_window(&window).map_err(|message| ConnectionError::InvalidTarget { message })?;
     let picker = app.clone();
-    let selected = tokio::task::spawn_blocking(move || {
-        picker.dialog().file().add_filter("Dokime Remote Access File", &["dokime-remote"]).blocking_pick_file()
-    })
-    .await
-    .map_err(|_| ConnectionError::BackendUnavailable)?;
+    let selected =
+        tokio::task::spawn_blocking(move || picker.dialog().file().add_filter("Dokime Remote Access File", &["pair"]).blocking_pick_file())
+            .await
+            .map_err(|_| ConnectionError::BackendUnavailable)?;
     let Some(selected) = selected else { return Ok(None) };
     let path = selected.into_path().map_err(|error| ConnectionError::Registry { message: error.to_string(), cause: None })?;
-    import_path(&app, &registry, &connection, path, identifier)
+    import_path(&app, &registry, path, identifier)
         .await
         .inspect_err(|error| {
             let _ = app.emit("desktop://remote-import-failed", error);
@@ -108,17 +77,15 @@ pub async fn desktop_backend_import_pairing(
 }
 
 pub async fn import_path(
-    app: &AppHandle, registry: &Registry, connection: &ConnectionSession, path: std::path::PathBuf, identifier: Option<String>,
+    app: &AppHandle, registry: &Registry, path: std::path::PathBuf, identifier: Option<String>,
 ) -> Result<Document, ConnectionError> {
     let identifier = {
         let _serial = registry.serial.lock().await;
-        let _secrets = connection.secret_operations.lock().await;
-        let secrets = connection.secrets.clone();
         tokio::task::spawn_blocking(move || {
             let pairing = dokime::client::pairing::read(&path).map_err(persistence)?;
             let identifier = identifier.as_deref().unwrap_or(&pairing.backend_identifier);
             let store = Store::discover(None).map_err(persistence)?;
-            store.import_pairing(&pairing, identifier, secrets.as_ref()).map_err(persistence)?;
+            store.import_pairing(&pairing, identifier).map_err(persistence)?;
             Ok::<_, ConnectionError>(identifier.to_owned())
         })
         .await
@@ -136,16 +103,8 @@ pub async fn desktop_backend_remove(
     let removed_identifier = identifier.clone();
     let document = tokio::task::spawn_blocking(move || {
         let store = Store::discover(None).map_err(persistence)?;
-        store
-            .update(|document| {
-                dokime::client::profiles::get(document, &identifier)?;
-                document.profiles.retain(|profile| profile.identifier != identifier);
-                if document.default.as_deref() == Some(identifier.as_str()) {
-                    document.default = None;
-                }
-                Ok(document.clone())
-            })
-            .map_err(persistence)
+        store.remove(&identifier).map_err(persistence)?;
+        store.load().map_err(persistence)
     })
     .await
     .map_err(|_| ConnectionError::BackendUnavailable)??;
@@ -158,31 +117,6 @@ pub async fn desktop_backend_use(
 ) -> Result<ConnectionSnapshot, ConnectionError> {
     let _serial = registry.serial.lock().await;
     Ok(owner.select(BackendSelection::Profile { identifier }).await.map_err(session_error)?.connection)
-}
-
-pub async fn remember(connection: &ConnectionSession, generation: &str, profile: Profile) -> Result<(), ConnectionError> {
-    let connection = connection.clone();
-    let generation = generation.to_owned();
-    tokio::task::spawn_blocking(move || {
-        let store = Store::discover(None).map_err(persistence)?;
-        let endpoint = connection.lease(&generation)?.client().endpoint().trim_end_matches('/').to_owned();
-        connection.with_current(&generation, || {
-            store
-                .update(|document| {
-                    if dokime::client::profiles::get(document, &profile.identifier)? != &profile {
-                        return Err(dokime::client::profiles::Error::Invalid("Backend changed during connection".into()));
-                    }
-                    document.profiles.iter_mut().find(|saved| saved.identifier == profile.identifier).expect("checked profile").endpoint =
-                        endpoint;
-                    document.default = Some(profile.identifier.clone());
-                    Ok(())
-                })
-                .map_err(persistence)
-        })??;
-        connection.selected_profile(&generation, profile.identifier)
-    })
-    .await
-    .map_err(|_| ConnectionError::BackendUnavailable)?
 }
 
 pub fn session_error(error: crate::native_session::DesktopSessionError) -> ConnectionError {
@@ -210,16 +144,3 @@ fn persistence(error: dokime::client::profiles::Error) -> ConnectionError {
 }
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn profiles_schema_cause_survives_notification_serialization() {
-        let error = dokime::client::profiles::decode(br#"{"unexpected": true}"#).unwrap_err();
-        let source = std::error::Error::source(&error).unwrap().to_string();
-        let carrier = serde_json::to_value(super::persistence(error)).unwrap();
-        assert_eq!(carrier["kind"], "registry");
-        assert_eq!(carrier["cause"]["message"], source);
-        assert!(carrier["cause"]["cause"].is_null());
-    }
-}

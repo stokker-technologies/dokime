@@ -278,7 +278,7 @@ pub(crate) async fn execution_admissions_restart() {
     rebooted.shutdown().await.unwrap();
 }
 
-pub(crate) async fn pairing_revocation_preserves_execution_receipts() {
+pub(crate) async fn pairing_rotation_preserves_execution_receipts() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
     let prepared_owner = dokime_server::grpc::Service::prepare(Config::local()).unwrap();
@@ -300,17 +300,11 @@ pub(crate) async fn pairing_revocation_preserves_execution_receipts() {
         .into_inner();
     let endpoint = format!("http://{}", listening.listening_address.unwrap());
     let first = native
-        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Revoked Client".into() })
-        .await
-        .unwrap()
-        .into_inner();
-    let second = native
-        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Surviving Client".into() })
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Initial Pairing".into() })
         .await
         .unwrap()
         .into_inner();
     let key = first.pairing.access_key.unwrap();
-    let surviving_key = second.pairing.access_key.unwrap();
     let client = WireClient::connect(endpoint).await.unwrap();
     let cycle = support::planned_cycle(&client, auth(create(), &key), selection_plan(&owner)).await.unwrap();
     let cycle_id = dokime::domain::model::identity::TestCycleId::from_uuid(cycle.clone()).unwrap();
@@ -321,25 +315,22 @@ pub(crate) async fn pairing_revocation_preserves_execution_receipts() {
     started(&gate).await;
     let running = receipt(&handle, &admission.command_id).await;
     assert_eq!(running.summary.phase, model::execution::request::RunPhase::Running);
-    assert_eq!(running.submitted_by.as_deref(), Some(first.client.as_ref().unwrap().identifier.as_str()));
+    assert_eq!(running.submitted_by.as_deref(), Some("remote"));
     let selection = handle.watch_state().latest().state().cycles[&cycle_id].execution_ids.clone();
 
-    // Revoke One Principal While Its Authenticated Stream Is Open.
+    // Rotate The Backend Key While Previously Admitted Work Remains Owned.
     let mut watching = client
         .download::<contracts::observation::WatchRuntime>(auth(contracts::observation::WatchRuntime { cursor: None }, &key))
         .await
         .unwrap()
         .into_inner();
     assert!(watching.message().await.unwrap().is_some());
-    native
-        .unary::<contracts::remote::RevokePairedClient>(contracts::remote::RevokePairedClient {
-            identifier: first.client.unwrap().identifier,
-        })
+    let second = native
+        .unary::<contracts::remote::CreatePairing>(contracts::remote::CreatePairing { label: "Replacement Pairing".into() })
         .await
-        .unwrap();
-    while let Ok(Some(frame)) = watching.message().await {
-        assert!(!frame.shutting_down, "revocation leaves the runtime alive");
-    }
+        .unwrap()
+        .into_inner();
+    let surviving_key = second.pairing.access_key.unwrap();
     let refused = client.unary::<contracts::execution::StartExecution>(auth(request.clone(), &key)).await.unwrap_err();
     assert_eq!(refused.code(), Code::Unauthenticated);
     let unchanged = receipt(&handle, &admission.command_id).await;
@@ -361,6 +352,7 @@ pub(crate) async fn pairing_revocation_preserves_execution_receipts() {
     assert_eq!(completed.summary.finished, 1);
     assert_eq!(completed.summary.failed, 0);
 
+    drop(watching);
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }

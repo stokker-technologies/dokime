@@ -54,8 +54,7 @@ struct Resources {
 impl Serve<content_wire::DownloadArtifact> for Resources {
     fn serve<'a>(&'a self, request: content_wire::DownloadArtifact, ctx: Context<'a, content_wire::DownloadArtifact>) -> Served<'a, ()> {
         Box::pin(async move {
-            let revoked = crate::grpc::access::revocation(ctx.call());
-            crate::grpc::access::during(revoked, async {
+            async {
                 let id =
                     ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
                 let reader = dokime::app::live_runtime(&self.runtime)
@@ -79,7 +78,7 @@ impl Serve<content_wire::DownloadArtifact> for Resources {
                 )
                 .await?;
                 Ok(().into())
-            })
+            }
             .await
         })
     }

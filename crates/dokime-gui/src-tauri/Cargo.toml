@@ -73,7 +73,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Configuration
-dotenv = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true }

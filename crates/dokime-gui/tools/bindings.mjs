@@ -83,9 +83,9 @@ writeFileSync(
 );
 const nativeSource = readFileSync(resolve(gui, "src-tauri/src/bindings/mod.rs"), "utf8");
 const nativePattern =
-  /async\s+(desktop_(?:backends_list|backend_add|backend_import_pairing|backend_remove|backend_use|settings_read|settings_update))\s*\[[\s\S]*?\]\s*\(([\s\S]*?)\)\s*->\s*Result<([^,]+),/g;
+  /async\s+(desktop_(?:backends_list|backend_import_pairing|backend_remove|backend_use|settings_read|settings_update))\s*\[[\s\S]*?\]\s*\(([\s\S]*?)\)\s*->\s*Result<([^,]+),/g;
 const nativeBindings = [...nativeSource.matchAll(nativePattern)];
-if (nativeBindings.length !== 7) throw new Error("Native preferences command inventory is incomplete.");
+if (nativeBindings.length !== 6) throw new Error("Native preferences command inventory is incomplete.");
 const nativeType = (rust) => {
   const type = rust.trim();
   if (type.startsWith("Option<") && type.endsWith(">")) return `${nativeType(type.slice(7, -1))} | null`;
@@ -93,7 +93,7 @@ const nativeType = (rust) => {
 };
 const nativeLines = [
   "// Generated From The Native Command Inventory. Do Not Edit.",
-  'import type { Document, Profile, SettingsScope, SettingsSnapshot, UpdateSettings } from "./application-settings";',
+  'import type { Document, SettingsScope, SettingsSnapshot, UpdateSettings } from "./application-settings";',
   'import type { ConnectionSnapshot } from "@/lib/desktop/connection";',
   "export function createPreferencesCommands(invoke: <T>(command: string, args?: Record<string, unknown>) => Promise<T>) {",
   "  return {",

@@ -25,7 +25,7 @@ use std::{
 use super::backend::Backend;
 use super::storage::StorageRoot;
 use super::{BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot, StorageResetReason};
-use crate::connection::{ConnectRequest, ConnectionSecrets, ConnectionSession, ConnectionTarget};
+use crate::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 
 /* === Constants === */
 
@@ -186,28 +186,12 @@ impl DesktopSession {
             None
         };
         let selection = if let Some(profile) = &selected {
-            let selected = dokime::client::profiles::selection(profile).map_err(|error| Error::Startup {
-                message: error.to_string(),
-                diagnostics: None,
-            })?;
-            let target = if selected.target.is_remote() || !profile.endpoints.is_empty() {
-                ConnectionTarget::Remote {
-                    endpoint: profile.endpoint.clone(),
-                    endpoints: profile.endpoints.clone(),
-                    ca_certificate_pem: profile.ca_certificate_pem.clone(),
-                }
-            } else {
-                ConnectionTarget::Local { endpoint: profile.endpoint.clone() }
-            };
-            let secrets = match profile.secret {
-                dokime::client::profiles::Secret::None => ConnectionSecrets::None,
-                dokime::client::profiles::Secret::Keyring => ConnectionSecrets::Profile { credential: selected.credential_key() },
-            };
             BackendSelection::Attach {
                 request: ConnectRequest {
-                    target,
-                    secrets,
-                    expected_backend_id: profile.expected_backend_id.clone(),
+                    target: ConnectionTarget::Remote {
+                        pairing_file: profile.pairing_file.clone(),
+                    },
+                    expected_backend_id: None,
                 },
             }
         } else {
@@ -241,7 +225,7 @@ impl DesktopSession {
             }
         }
         if let (Ok(snapshot), Some(profile)) = (&result, selected)
-            && let Err(error) = crate::connection::registry::remember(&self.0.connection, &snapshot.connection.generation, profile).await
+            && let Err(error) = self.0.connection.selected_profile(&snapshot.connection.generation, profile.identifier)
         {
             if self.current(revision).is_ok() {
                 self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
@@ -433,7 +417,6 @@ impl DesktopSession {
                 (
                     ConnectRequest {
                         target: ConnectionTarget::Local { endpoint },
-                        secrets: ConnectionSecrets::None,
                         expected_backend_id: None,
                     },
                     BackendOwnership::OwnedLocal,

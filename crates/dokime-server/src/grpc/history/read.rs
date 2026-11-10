@@ -52,10 +52,8 @@ impl Serve<history::DownloadCheckpointArtifact> for Resources {
         &'a self, mut request: history::DownloadCheckpointArtifact, ctx: Context<'a, history::DownloadCheckpointArtifact>,
     ) -> Served<'a, ()> {
         Box::pin(async move {
-            let call_context = ctx.call();
             let output = ctx.streams();
-            let revoked = crate::grpc::access::revocation(call_context);
-            crate::grpc::access::during(revoked, async {
+            async {
                 let checkpoint = wire::checkpoint(request.checkpoint.take())?;
                 let artifact_id =
                     ArtifactId::from_uuid(request.artifact_id.clone()).map_err(|_| Status::invalid_argument("invalid artifact UUID"))?;
@@ -72,7 +70,7 @@ impl Serve<history::DownloadCheckpointArtifact> for Resources {
                 )
                 .await?;
                 Ok(().into())
-            })
+            }
             .await
         })
     }

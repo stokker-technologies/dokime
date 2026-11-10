@@ -315,8 +315,6 @@ fn read_only(path: &str) -> bool {
             | "/dokime.v1.Query/ListExecutions"
             | "/dokime.v1.Query/ListRecords"
             | "/dokime.v1.Query/ListSamples"
-            | "/dokime.v1.Remote/ListPairedClients"
-            | "/dokime.v1.Remote/ListSessions"
             | "/dokime.v1.Remote/ReadListener"
             | "/dokime.v1.Runtime/GetHealth"
             | "/dokime.v1.Runtime/GetIdentity"

@@ -18,27 +18,20 @@
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
 // Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import { RemoteSessionsCard } from "@/features/settings/sections/RemoteSessionsCard";
 import { FirewallNotice } from "@/features/settings/sections/FirewallNotice";
 import { commitListener, type ListenerChange, type ListenerStatus, listenerRunning } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import { toast } from "@/lib/notifications";
-import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 
 /* === Re-Exports === */
@@ -128,7 +121,6 @@ function ListenerControls({
   const client = useQueryClient();
   const queryKey = ["settings", "remote-listener", session.identity.generation];
   const [busy, setBusy] = useState(false);
-  const [clientsRevision, setClientsRevision] = useState(0);
   const settings = status.settings;
   if (!settings) throw new Error("Backend omitted listener settings.");
   const running = listenerRunning(status);
@@ -170,12 +162,10 @@ function ListenerControls({
         if (path !== null) {
           toast.success("Remote Access File Saved", { description: path });
           void client.invalidateQueries({ queryKey });
-          setClientsRevision((revision) => revision + 1);
         }
       } catch (error) {
         const reason = failureOf(error, "Settings Operation Failed").message;
         fail("Remote Access File Not Saved", reason, error);
-        setClientsRevision((revision) => revision + 1);
       }
     });
   }
@@ -223,12 +213,11 @@ function ListenerControls({
       )}
       <SettingsCard
         title="Remote Access Files"
-        description="Export a separate secret file for each client. Anyone with the file has full control; transfer it privately."
+        description="Anyone with the file has full control. Exporting again replaces the key for every client; transfer the replacement privately."
       >
         <div className="grid gap-3 p-4">
           <p className="text-sm text-muted-foreground">
-            Endpoints are detected automatically. Loopback addresses (127.0.0.1, ::1) work on the same PC only. Rename client labels later
-            in Paired Clients.
+            Endpoints are detected automatically. Loopback addresses (127.0.0.1, ::1) work on the same PC only.
           </p>
           <ul aria-label="Export Endpoints" className="grid gap-1 text-sm">
             {status.endpoints.map((endpoint) => (
@@ -243,146 +232,7 @@ function ListenerControls({
           </Button>
         </div>
       </SettingsCard>
-      <PairedClients key={clientsRevision} session={session} />
-      {session.snapshot.connection.backend?.methods.includes("/dokime.v1.Remote/ListSessions") ? (
-        <RemoteSessionsCard session={session} />
-      ) : null}
     </>
-  );
-}
-
-function PairedClients({ session }: { session: ConnectedSession }) {
-  type Page = Wire<Awaited<ReturnType<typeof rpc.remoteListPairedClients>>>;
-  type Client = Page["clients"][number];
-  const [page, setPage] = useState<Page | null>(null);
-  const [request, setRequest] = useState<{ cursor?: string }>({});
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-  const [renaming, setRenaming] = useState<Client | null>(null);
-  const [name, setName] = useState("");
-  useEffect(() => {
-    let active = true;
-    setBusy(true);
-    setPage(null);
-    setError(null);
-    void rpc
-      .remoteListPairedClients(session.identity, { cursor: request.cursor, limit: 100 })
-      .then((next) => {
-        if (active && session.identity.isCurrent()) setPage(next);
-      })
-      .catch((failure: unknown) => {
-        if (active) setError(failure);
-      })
-      .finally(() => {
-        if (active) setBusy(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [session, request]);
-  async function revoke(identifier: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      await rpc.remoteRevokePairedClient(session.identity, { identifier });
-      if (!session.identity.isCurrent()) return;
-      setRequest((value) => ({ ...value }));
-    } catch (failure) {
-      setError(failure);
-    } finally {
-      setBusy(false);
-    }
-  }
-  const columns = dataTableColumns<Client>();
-  return (
-    <SettingsCard>
-      <DataTable
-        aria-label="Paired Clients"
-        title="Paired Clients"
-        data={page?.clients ?? []}
-        getRowId={(client) => client.identifier}
-        emptyText={busy ? "Loading Paired Clients…" : "No Paired Clients"}
-        columns={columns.columns([
-          columns.accessor("label", {
-            header: "Label",
-            cell: ({ row }) => (
-              <Button
-                variant="ghost"
-                disabled={busy}
-                onClick={() => {
-                  setRenaming(row.original);
-                  setName(row.original.label);
-                }}
-              >
-                {row.original.label}
-              </Button>
-            ),
-          }),
-          columns.accessor((client) => new Date(Number(client.createdAt)).toLocaleString(), { id: "created", header: "Created" }),
-          columns.accessor((client) => (client.lastSeenAt == null ? "—" : new Date(Number(client.lastSeenAt)).toLocaleString()), {
-            id: "lastSeen",
-            header: "Last Seen",
-          }),
-          columns.display({
-            id: "actions",
-            header: "Actions",
-            cell: ({ row }) => (
-              <DataTableRowActions
-                label={row.original.label}
-                primary={{ label: "Revoke", icon: Ban, disabled: busy, onSelect: () => void revoke(row.original.identifier) }}
-              />
-            ),
-          }),
-        ])}
-        actions={
-          <Button disabled={busy} variant="outline" onClick={() => setRequest((value) => ({ ...value }))}>
-            Refresh
-          </Button>
-        }
-      />
-      {renaming && (
-        <form
-          className="flex gap-2 p-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setBusy(true);
-            setError(null);
-            void rpc
-              .remoteRenamePairedClient(session.identity, { identifier: renaming.identifier, label: name })
-              .then(() => {
-                setRenaming(null);
-                setRequest((value) => ({ ...value }));
-              })
-              .catch((failure: unknown) => setError(failure))
-              .finally(() => setBusy(false));
-          }}
-        >
-          <Input
-            aria-label="Client Label"
-            required
-            maxLength={256}
-            value={name}
-            disabled={busy}
-            onChange={(event) => setName(event.target.value)}
-          />
-          <Button type="submit" disabled={busy}>
-            Rename
-          </Button>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => setRenaming(null)}>
-            Cancel
-          </Button>
-        </form>
-      )}
-      {Boolean(error) && <NotificationMessage error={error}>{failureOf(error, "Settings Operation Failed").message}</NotificationMessage>}
-      <div className="flex gap-2 p-4">
-        <Button disabled={busy || !request.cursor} variant="outline" onClick={() => setRequest({})}>
-          First Page
-        </Button>
-        <Button disabled={busy || !page?.nextCursor} variant="outline" onClick={() => setRequest({ cursor: page?.nextCursor })}>
-          Next Page
-        </Button>
-      </div>
-    </SettingsCard>
   );
 }
 

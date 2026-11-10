@@ -262,19 +262,6 @@ async fn finite_query_failures_and_cancellation() {
     assert_eq!(status.code(), Code::InvalidArgument);
     assert_eq!(detail(&status).reason, Reason::InvalidContinuation);
 
-    // Trusted Revocation Context Cancels Work Before Capture And Leaves Admission Reusable.
-    let revoked = tokio_util::sync::CancellationToken::new();
-    revoked.cancel();
-    let mut context = CallContext::default();
-    context
-        .insert(dokime::runtime::query::Caller {
-            message_bytes: 65536,
-            revoked: Some(revoked),
-        })
-        .unwrap();
-    let error = handle.operations().with_context(context).operation::<ListCycles>(cycles()).await.unwrap_err();
-    let dokime::harmos::Error::OperationFailed { source, .. } = error else { panic!("expected an operation failure") };
-    assert_eq!(source.downcast_ref::<tonic::Status>().unwrap().code(), Code::PermissionDenied);
     let cancelled = handle.operations().submit::<ListCycles>(cycles()).unwrap();
     cancelled.request_cancel();
     assert!(cancelled.await.is_err());

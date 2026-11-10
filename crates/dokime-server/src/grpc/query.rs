@@ -61,8 +61,7 @@ enum PreparedOperations {
 impl dokime::harmos::grpc::middleware::Middleware for QueryContext {
     fn enter<'a>(&'a self, call: &'a mut dokime::harmos::grpc::middleware::Invocation) -> dokime::harmos::grpc::middleware::Enter<'a> {
         Box::pin(async move {
-            let revoked = super::access::revocation(call.context());
-            call.context_mut().insert(dokime::runtime::query::Caller { message_bytes: self.0, revoked })?;
+            call.context_mut().insert(dokime::runtime::query::Caller { message_bytes: self.0 })?;
             Ok(())
         })
     }

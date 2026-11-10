@@ -32,6 +32,8 @@ pub(super) struct Target {
     pub endpoint: String,
     pub remote: bool,
     pub inner: dokime::client::Target,
+    pub access_key: Option<zeroize::Zeroizing<String>>,
+    pub expected_backend_id: Option<String>,
 }
 
 /* === Enums === */
@@ -42,17 +44,20 @@ pub(super) struct Target {
 
 impl Target {
     pub fn parse(target: ConnectionTarget) -> Result<Self, ConnectionError> {
-        let inner = match target {
-            ConnectionTarget::Local { endpoint } => dokime::client::Target::local(endpoint),
-            ConnectionTarget::Remote { endpoint, ca_certificate_pem, endpoints } => {
-                dokime::client::Target::remote(endpoint, ca_certificate_pem).and_then(|target| target.with_endpoints(&endpoints))
+        let (inner, access_key, expected_backend_id) = match target {
+            ConnectionTarget::Local { endpoint } => (dokime::client::Target::local(endpoint).map_err(ConnectionError::from)?, None, None),
+            ConnectionTarget::Remote { pairing_file } => {
+                let selection = dokime::client::pairing::resolve(Some(std::path::Path::new(&pairing_file)))
+                    .map_err(|error| ConnectionError::InvalidTarget { message: error.to_string() })?;
+                (selection.target, selection.access_key, selection.expected_backend_id)
             }
-        }
-        .map_err(ConnectionError::from)?;
+        };
         Ok(Self {
             endpoint: inner.endpoint().to_owned(),
             remote: inner.is_remote(),
             inner,
+            access_key,
+            expected_backend_id,
         })
     }
 }

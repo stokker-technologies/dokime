@@ -1,4 +1,4 @@
 .venv/
 .dokime/
-*.dokime-remote
+*.pair
 __pycache__/

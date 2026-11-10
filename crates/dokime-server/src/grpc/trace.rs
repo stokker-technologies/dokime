@@ -59,13 +59,11 @@ struct Resources {
 impl Serve<wire::WatchTrace> for Resources {
     fn serve<'a>(&'a self, request: wire::WatchTrace, ctx: Context<'a, wire::WatchTrace>) -> Served<'a, ()> {
         Box::pin(async move {
-            let call_context = ctx.call();
             let output = ctx.streams();
-            let revoked = crate::grpc::access::revocation(call_context);
-            crate::grpc::access::during(revoked, async {
+            async {
                 self.follow(&request, output).instrument(tracing::info_span!(WATCH_SPAN)).await?;
                 Ok(().into())
-            })
+            }
             .await
         })
     }

@@ -138,16 +138,10 @@ try {
   const dataRoot = join(work, "tampered", "shell", "application", "data");
   const backend = await startBackend(work, evidence, undefined, "backend", true, { dataRoot });
   const a = await desktop("a");
-  await a.clickNamed("button", "Add Backend");
-  await a.type(await a.find("css selector", '[aria-label="Backend Identifier"]'), "fixture-host");
-  await a.type(await a.find("xpath", "//*[@role='dialog']//input[@id=//label[normalize-space(.)='Label']/@for]"), "Fixture Host");
-  await a.type(await a.find("css selector", '[aria-label="Backend Endpoint"]'), backend.endpoint);
-  await a.click(await a.find("xpath", "//*[@role='dialog']//button[normalize-space(.)='Add Backend']"));
-  await a.click(
-    await until("the fixture host profile", () =>
-      a.find("xpath", "//tr[td[normalize-space(.)='fixture-host']]//button[@aria-label='Connect']"),
-    ),
-  );
+  await invoke(a, "desktop_session_select", {
+    selection: { kind: "attach", request: { target: { kind: "local", endpoint: backend.endpoint }, expectedBackendId: null } },
+  });
+  await a.goto("/settings/remote", { reload: true });
   await a.connected();
 
   // Export Through The Same Native Adapter As Settings → Remote Access.
@@ -161,16 +155,11 @@ try {
       certificateNames: ["localhost", "127.0.0.1"],
     },
   });
-  const access = join(work, "shared.dokime-remote");
+  const access = join(work, "shared.pair");
   assert.equal(await pick(a, "desktop_pairing_create", {}, access, "Save"), access);
   const pairing = JSON.parse(await readFile(access, "utf8"));
-  assert.ok(pairing.ca_certificate_pem && pairing.access_key, "The exported file carries the native trust anchor and credential");
-  const before = await call(a, "Remote", "ListPairedClients");
-  const client = before.clients.find((candidate) => candidate.label === pairing.label);
-  assert.ok(client, "Export creates a host-owned paired client");
-  assert.equal(client.lastSeenAt, undefined, "An unused pairing has no authenticated calls");
-
-  // Each Desktop Imports Into Its Own Registry And OS-Keyring Association.
+  assert.ok(pairing.certificate_pem && pairing.access_key, "The exported file carries the native trust anchor and credential");
+  // Each Desktop Imports A Complete Pairing Into Its Own Folder.
   const b = await desktop("b");
   for (const [name, gui] of [
     ["a", a],
@@ -292,24 +281,9 @@ try {
   }
   assert.equal(reports[0], reports[1], "Both clients receive the same sealed report");
   assert.deepEqual(archives[0], archives[1], "Both clients receive the same sealed checkpoints and evidence counts");
-  // Pairing Administration Belongs To The Host, So Reuse A's Saved Local Connection.
-  await a.goto("/settings/backends");
-  await a.click(await a.find("xpath", "//tr[td[normalize-space(.)='fixture-host']]//button[@aria-label='Connect']"));
-  await until("GUI A reconnects to the local host", async () => !(await invoke(a, "desktop_session_status")).connection.remote);
-  await a.connected();
-  const seen = await call(a, "Remote", "ListPairedClients");
-  const used = seen.clients.find((candidate) => candidate.identifier === client.identifier);
-  assert.notEqual(used.lastSeenAt, client.lastSeenAt, "Authenticated remote calls populate Paired Clients last-seen");
-  await a.goto("/settings/remote");
-  await until("Paired Clients displays the shared credential", async () => (await a.text()).includes(pairing.label));
-  await a.goto("/settings/backends");
-  await a.click(await a.find("xpath", "//tr[td[normalize-space(.)='story-a']]//button[@aria-label='Connect']"));
-  await until("GUI A restores its verified remote connection", async () => (await invoke(a, "desktop_session_status")).connection.remote);
-  await a.connected();
-
   // A Third Desktop Refuses A Tampered Identity Before Ordinary Commands.
   const c = await desktop("tampered");
-  const tampered = join(work, "tampered.dokime-remote");
+  const tampered = join(work, "tampered.pair");
   await writeFile(tampered, JSON.stringify({ ...pairing, backend_identifier: randomUUID() }));
   await assert.rejects(
     pick(c, "desktop_backend_import_pairing", { identifier: "tampered" }, tampered),
@@ -332,30 +306,18 @@ try {
   assert.ok(await c.exists("button", "Start Local Backend"));
   assert.equal((await call(a, "Execution", "GetExecution", { executionId })).summary.sealed, true);
 
-  // Revoke The Single Shared Client On The Host; Both Next Calls Are Refused.
-  const env = { ...process.env, DOKIME_APPLICATION_ROOT: join(work, "admin") };
-  delete env.DOKIME_KEY;
-  delete env.DOKIME_ENDPOINT;
-  await promisify(execFile)(
-    cli,
-    [
-      "operation",
-      "call",
-      "dokime.remote.revoke_paired_client",
-      "--endpoint",
-      backend.endpoint,
-      "--json",
-      JSON.stringify({ identifier: client.identifier }),
-    ],
-    { env, windowsHide: true },
-  );
+  // Rotating The Backend Key Invalidates The Shared Pairing For Both Clients.
+  await call(a, "Remote", "CreatePairing", { label: "Replacement" });
   for (const gui of [a, b]) {
     await assert.rejects(call(gui, "Catalog", "ListSuites"), (error) => error.detail.kind === "grpc" && error.detail.detail.code === 16);
     await gui.clickNamed("button", "Library");
-    await until("GUI renders revoked credential failure", async () =>
+    await until("GUI renders rotated credential failure", async () =>
       /invalid credentials|unauthenticated|valid access token/i.test(await gui.text()),
     );
-    assert.ok(await gui.execute("return Boolean(document.body && window.__TAURI_INTERNALS__);"), "Revocation leaves a responsive WebView");
+    assert.ok(
+      await gui.execute("return Boolean(document.body && window.__TAURI_INTERNALS__);"),
+      "Key rotation leaves a responsive WebView",
+    );
   }
 } catch (error) {
   failure = error;
@@ -369,19 +331,6 @@ try {
   const cleanups = [
     ...sessions.toReversed().map((gui) => async () => {
       try {
-        const profiles = gui.profilesFile;
-        const document = await readFile(profiles, "utf8")
-          .then(JSON.parse)
-          .catch((error) => {
-            if (error.code === "ENOENT") return { profiles: [] };
-            throw error;
-          });
-        for (const profile of document.profiles) {
-          await promisify(execFile)(cli, ["backend", "remove", "--identifier", profile.identifier, "--profiles-file", profiles], {
-            windowsHide: true,
-            env: { ...process.env, DOKIME_APPLICATION_ROOT: gui.applicationRoot },
-          });
-        }
         await gui.close();
       } finally {
         await terminate(gui.process);
