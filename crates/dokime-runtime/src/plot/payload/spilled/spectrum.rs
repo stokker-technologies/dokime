@@ -75,7 +75,7 @@ pub(super) fn transform(series: &mut Series, request: &PlotPayloadRequest) -> Re
         })?;
         mean /= n as f64;
     }
-    let mut buffer = harmos::signal::FftBuffer::new(size).map_err(failure)?;
+    let mut buffer = crate::signal::FftBuffer::new(size).map_err(failure)?;
     let mut index = 0;
     let mut gain = 0.0;
     series.visit(|point| {
@@ -91,7 +91,7 @@ pub(super) fn transform(series: &mut Series, request: &PlotPayloadRequest) -> Re
     })?;
     match buffer.transform(|| true) {
         Ok(()) => {}
-        Err(harmos::signal::Error::InvalidInput { .. }) => return Ok(Some("FFT exceeds finite range".into())),
+        Err(crate::signal::Error::InvalidInput { .. }) => return Ok(Some("FFT exceeds finite range".into())),
         Err(error) => return Err(failure(error)),
     }
     let mut points = Points::new()?;

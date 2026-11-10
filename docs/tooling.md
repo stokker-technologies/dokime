@@ -11,6 +11,9 @@ mise run format -- --check --language python
 mise run check -- --repository
 ```
 
+`build` and `test` accept `--features "feature-a,feature-b"` (or a space-separated list)
+with `--package`, forwarding the list unchanged to Cargo with defaults enabled.
+
 `build --artifact tests` produces the CI archive; focused tests compile one Cargo
 target directly. `check` includes formatting, lint, repository configuration and
 generated drift; `--language` limits language checks. `--repository`, `--bindings`,

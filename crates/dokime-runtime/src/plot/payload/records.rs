@@ -17,7 +17,7 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 // Third Party Imports
-use harmos::signal::{Aggregates, Series};
+use crate::signal::{Aggregates, Series};
 use harmos::storage::ReadBatch;
 use serde_json::Value as JsonValue;
 

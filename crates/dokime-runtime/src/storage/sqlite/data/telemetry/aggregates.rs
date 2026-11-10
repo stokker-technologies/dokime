@@ -1080,7 +1080,7 @@ mod tests {
     #[test]
     fn moments_match_harmos() {
         let mut indexed = Moments::default();
-        let mut reference = harmos::signal::Summary::new();
+        let mut reference = crate::signal::Summary::new();
         for value in [-7.0, 3.0, 11.0, -0.0, 0.0, 3.0, 99.0] {
             indexed.push(value).unwrap();
             indexed = Moments::decode(&indexed.encode()).unwrap();

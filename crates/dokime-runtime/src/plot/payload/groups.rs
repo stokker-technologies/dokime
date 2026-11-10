@@ -20,7 +20,7 @@ use std::fmt::{self, Write};
 use std::ops::Range;
 
 // Third Party Imports
-use harmos::signal::{Aggregates, Series};
+use crate::signal::{Aggregates, Series};
 use harmos::storage::ReadBatch;
 
 // Local Imports

@@ -20,7 +20,6 @@
 // Third Party Imports
 use harmos::{
     Aggregate,
-    signal::Summary,
     storage::query::{
         Accumulator,
         scalar::{Agg, ScalarValue},
@@ -38,6 +37,7 @@ use super::{
     series::{Series, scalar_number},
 };
 use crate::runtime::Result;
+use crate::signal::Summary;
 
 /* === Constants === */
 

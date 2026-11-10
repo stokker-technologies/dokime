@@ -28,7 +28,6 @@ use harmos::{
             transform::{
                 FieldPath, FieldPathExecution, Transform,
                 aggregate::{Aggregate as Fold, Measure},
-                downsample::{Algorithm, Downsample},
                 histogram::Histogram,
                 sort::{Sort, SortKey},
             },
@@ -37,7 +36,7 @@ use harmos::{
 };
 
 // Local Imports
-use super::{DownsampleTechnique, PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotSeriesSummary, PlotWindow};
+use super::{PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotSeriesSummary, PlotWindow};
 use crate::{
     runtime::{Error, Result},
     storage::{Manager, telemetry::TypedCodec},
@@ -64,7 +63,7 @@ struct NativeTable {
 }
 
 struct SeriesStatistics {
-    moments: harmos::signal::Summary,
+    moments: crate::signal::Summary,
     eligible: usize,
     extent: Option<PlotWindow>,
     previous: Option<f64>,
@@ -189,36 +188,8 @@ pub(crate) async fn materialize(
         } else {
             ordered.transform(&Transform::Filter(summary_filter(&value(key), &axis, None, x == "timestamp")?), &mut || Ok(()))?
         };
-        let reduction_rows = selected_input.len();
-        let technique = match request.technique {
-            DownsampleTechnique::Auto | DownsampleTechnique::Unspecified if reduction_rows <= maximum.saturating_mul(4) => {
-                DownsampleTechnique::Lttb
-            }
-            DownsampleTechnique::Auto | DownsampleTechnique::Unspecified => DownsampleTechnique::MinMax,
-            technique => technique,
-        };
-        let algorithm = if eligible != reduction_rows
-            || maximum == 1
-            || matches!(technique, DownsampleTechnique::Raw)
-            || (maximum < 3 && matches!(technique, DownsampleTechnique::Lttb))
-        {
-            Algorithm::Decimate
-        } else if matches!(technique, DownsampleTechnique::MinMax) {
-            Algorithm::Extrema
-        } else {
-            Algorithm::Lttb
-        };
-        let selected = selected_input.transform(
-            &Transform::Downsample(Downsample {
-                max_rows: maximum,
-                algorithm,
-                value: Some(value(key)),
-                axis: Some(axis.clone()),
-            }),
-            &mut || Ok(()),
-        )?;
         let mut points = Vec::new();
-        let mut reader = selected.reader()?;
+        let mut reader = selected_input.reader()?;
         while let Some(batch) = reader.next(&mut || Ok(()))? {
             use arrow_array::{Array, StringArray};
             points.try_reserve(batch.num_rows()).map_err(|_| invalid("plot point allocation failed"))?;
@@ -331,7 +302,7 @@ async fn native_table(
     let mut statistics = keys
         .iter()
         .map(|_| SeriesStatistics {
-            moments: harmos::signal::Summary::new(),
+            moments: crate::signal::Summary::new(),
             eligible: 0,
             extent: None,
             previous: None,

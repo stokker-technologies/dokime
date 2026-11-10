@@ -51,7 +51,10 @@ pub(super) fn select_viewport(selection: &mut TelemetrySelection, request: &Plot
         request.viewport.filter(|_| request.x_key.as_deref().is_none_or(|key| key == "timestamp") && request.x_expression.is_none())
     {
         selection.start = Some(timestamp((window.from * 1e9) as i128)?);
-        selection.end = Some(timestamp((window.to * 1e9) as i128)?);
+        let end = ((window.to * 1e9) as i128)
+            .checked_add(1_000)
+            .ok_or_else(|| crate::runtime::Error::Operation("plot viewport timestamp overflows".into()))?;
+        selection.end = Some(timestamp(end)?);
     }
     Ok(())
 }
@@ -269,7 +272,10 @@ pub(super) async fn query(
         for (start, end) in merged {
             let mut gap = selection.clone();
             gap.start = Some(timestamp(start)?);
-            gap.end = Some(timestamp(end - 1)?);
+            // Candidate Bounds Must Survive SystemTime's Platform Precision.
+            let candidate_end =
+                end.checked_add(1_000).ok_or_else(|| crate::runtime::Error::Operation("plot window timestamp overflows".into()))?;
+            gap.end = Some(timestamp(candidate_end)?);
             visit_saved(
                 runtime.storage(),
                 &saved,
@@ -281,7 +287,14 @@ pub(super) async fn query(
                     ..Default::default()
                 },
                 &runtime.local_storage,
-                &mut append,
+                &mut |sample: crate::telemetry::TelemetrySample| {
+                    let Some(time) = crate::plot::parse_timestamp(sample.timestamp.as_str()) else { return Ok(()) };
+                    let time = time.unix_timestamp_nanos();
+                    if time < start || time >= end {
+                        return Ok(());
+                    }
+                    append(sample)
+                },
             )
             .await?;
         }
@@ -347,7 +360,7 @@ pub(super) async fn query(
     });
     payload.series = series;
     payload.bucket_counts = bucket_counts;
-    payload.summaries = summaries;
+    payload.summaries = if request.defer_statistics { Vec::new() } else { summaries };
     payload.max_points = columns.saturating_add(2).saturating_mul(4);
     if let Some(contract) = super::telemetry_contract(context, &request.stream) {
         crate::plot::preview::index::decorate(&mut payload, std::slice::from_ref(contract), request);

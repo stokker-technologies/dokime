@@ -115,6 +115,27 @@ class TaskSelectionTests(unittest.TestCase):
                     Path.cwd(), "test", ["--locked", "--package", "example", *selected, "suite::one test", "--", "--exact"]
                 )
 
+    def test_focused_features_reach_cargo_unchanged(self):
+        # Select A Focused Build Or Test With Defaults Enabled
+        for operation in ("build", "test"):
+            for features in ("testing,fft", "testing fft"):
+                arguments = [operation, "--package", "example", "--features", features]
+                suffix = ["--profile", "dev"] if operation == "build" else ["--lib"]
+                if operation == "test":
+                    arguments += ["--target", "lib"]
+                with self.subTest(operation=operation, features=features), patch.object(tasks.cargo, "focused", return_value=0) as focused:
+                    self.assertEqual(tasks.main(arguments), 0)
+                    focused.assert_called_once_with(
+                        Path.cwd(), operation, ["--locked", "--package", "example", "--features", features, *suffix]
+                    )
+
+    def test_features_require_a_focused_package(self):
+        # Reject Features Before Dispatching An Unfocused Task
+        for operation in ("build", "test"):
+            with self.subTest(operation=operation), patch.object(tasks.cargo, "focused") as focused, self.assertRaises(SystemExit):
+                tasks.main([operation, "--features", "testing"])
+            focused.assert_not_called()
+
     def test_language_layer_and_tooling_selections_use_existing_leaves(self):
         cases = [
             (

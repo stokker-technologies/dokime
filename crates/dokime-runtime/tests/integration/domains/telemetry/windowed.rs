@@ -53,7 +53,11 @@ async fn windowed_plot_zoom_and_late_sample() {
     request.marker_record_types.clear();
     request.panel_width = Some(4);
     let wide = fixture.runtime.query_plot_payloads(vec![request.clone()]).await.unwrap();
-    assert_eq!(wide[0].payload.series[0].raw_points, 65);
+    assert_eq!(
+        wide[0].payload.series[0].raw_points, 65,
+        "window={:?}, points={:?}",
+        wide[0].payload.bucket_window, wide[0].payload.series[0].points
+    );
     assert!(wide[0].payload.series[0].points.len() < 65);
     assert_eq!(wide[0].payload.summaries[0].count, 65);
 
@@ -67,7 +71,7 @@ async fn windowed_plot_zoom_and_late_sample() {
     // Fetch More Detail For A Narrow Viewport At The Same Width.
     let mut zoom = request.clone();
     zoom.viewport = Some(PlotWindow { from: 100.0, to: 110.0 });
-    let detail = fixture.runtime.query_plot_payloads(vec![zoom]).await.unwrap();
+    let detail = fixture.runtime.query_plot_payloads(vec![zoom.clone()]).await.unwrap();
     assert_eq!(detail[0].payload.series[0].raw_points, 11);
     assert!(detail[0].payload.series[0].points.iter().all(|point| {
         let at = time::OffsetDateTime::parse(point.x.as_str().unwrap(), &time::format_description::well_known::Rfc3339)
@@ -87,6 +91,32 @@ async fn windowed_plot_zoom_and_late_sample() {
         })
         .count();
     assert!(detail[0].payload.series[0].points.len() > wide_visible);
+
+    // The Raw Fallback Includes The Same Viewport Endpoints.
+    zoom.max_points = Some(0);
+    let raw = fixture.runtime.query_plot_payloads(vec![zoom]).await.unwrap();
+    assert_eq!(raw[0].payload.series[0].raw_points, 11);
+    assert_eq!(raw[0].payload.series[0].points.len(), 11);
+    assert_eq!(raw[0].payload.summaries[0].count, 11);
+
+    // Independent X Axes Fetch Detail For Their Own Viewport.
+    let mut xy =
+        fixture.requests(100, None).into_iter().find(|request| request.plot_type == Some(dokime_runtime::document::PlotType::Xy)).unwrap();
+    xy.style = dokime_runtime::document::PlotStyle::Points;
+    xy.viewport = Some(PlotWindow { from: 100.0, to: 110.0 });
+    xy.summary_window = xy.viewport;
+    xy.panel_width = Some(4);
+    let detail = fixture.runtime.query_plot_payloads(vec![xy]).await.unwrap();
+    assert_eq!(detail[0].payload.series[0].points.len(), 11);
+    assert!(detail[0].payload.series[0].points.iter().all(|point| (100.0..=110.0).contains(&point.x.as_f64().unwrap())));
+    assert_eq!(detail[0].payload.summaries[0].count, 11);
+
+    // Deferred Statistics Never Mark A Draw Frame As Exact.
+    let mut deferred = request.clone();
+    deferred.defer_statistics = true;
+    let pending = fixture.runtime.query_plot_payloads(vec![deferred]).await.unwrap();
+    assert!(pending[0].payload.summaries.is_empty());
+    assert!(!pending[0].payload.series[0].points.is_empty());
 
     // Reopen A Previously Saved Bucket For A Late Arrival.
     fixture.append(80, 1).await;

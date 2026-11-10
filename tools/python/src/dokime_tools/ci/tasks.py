@@ -43,6 +43,7 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
     parser.add_argument("--artifact", choices=("product", "tests", "bench", "fixtures"), default="product")
     parser.add_argument("--package")
+    parser.add_argument("--features")
     parser.add_argument("--target")
     parser.add_argument("--exact")
     parser.add_argument("--check", action="store_true")
@@ -73,6 +74,8 @@ def main(arguments: list[str] | None = None) -> int:
         parser.error("the selected operation has no implementation for this language")
     if args.operation == "build" and args.check and not args.package:
         parser.error("build --check requires --package")
+    if args.features and not args.package:
+        parser.error("--features requires --package")
     if args.package:
         if args.operation not in ("build", "test"):
             parser.error("--package requires build or test")
@@ -80,6 +83,8 @@ def main(arguments: list[str] | None = None) -> int:
             parser.error("--package selects Cargo packages")
         operation = "check" if args.operation == "build" and args.check else args.operation
         command = ["--locked", "--package", args.package]
+        if args.features:
+            command += ["--features", args.features]
         if operation == "test":
             if not args.target:
                 parser.error("focused tests require --target lib or a test target name")

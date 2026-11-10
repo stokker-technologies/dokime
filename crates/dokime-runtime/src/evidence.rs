@@ -16,8 +16,8 @@
 /* === Re-Exports === */
 
 pub use crate::execution::evidence::Samples;
+pub use crate::signal::{Aggregates, Series, Summary};
 pub use harmos::Aggregate;
-pub use harmos::signal::{Aggregates, Series, Summary};
 
 /* === Imports === */
 

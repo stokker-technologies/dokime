@@ -212,7 +212,8 @@ async fn query_plot_payloads_with_context(
             ));
         }
         let streams = request_telemetry_streams(&request);
-        let request = canonical_plot_request(request, &streams);
+        let mut request = canonical_plot_request(request, &streams);
+        request.summary_window = request.summary_window.or(request.viewport);
         let mut key = serde_json::to_value(&request).map_err(|error| crate::runtime::Error::Operation(error.to_string()))?;
         key.as_object_mut().expect("plot request is an object").remove("plot_id");
         let key = key.to_string();

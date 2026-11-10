@@ -24,14 +24,10 @@ use arrow_schema::{DataType, Field, Schema};
 use harmos::storage::query::{
     Accumulator, Table, TableWriter,
     scalar::{Agg, ScalarValue},
-    transform::{
-        FieldPath, Transform,
-        downsample::{Algorithm, Downsample},
-    },
 };
 
 // Local Imports
-use super::super::{DownsampleTechnique, PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, analyses};
+use super::super::{PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, analyses};
 use super::input::failure;
 use crate::runtime::Result;
 
@@ -181,50 +177,11 @@ impl Series {
         })
     }
 
-    pub(super) fn reduce(mut self, maximum: usize, technique: DownsampleTechnique) -> Result<PlotSeries> {
-        let rows = self.table.len();
-        if maximum == 0 || rows <= maximum {
-            visit_table(&self.table, |point| {
-                self.metadata.points.push(point);
-                Ok(())
-            })?;
-            return Ok(self.metadata);
-        }
-        let technique = match technique {
-            DownsampleTechnique::Auto | DownsampleTechnique::Unspecified if rows <= maximum.saturating_mul(4) => DownsampleTechnique::Lttb,
-            DownsampleTechnique::Auto | DownsampleTechnique::Unspecified => DownsampleTechnique::MinMax,
-            technique => technique,
-        };
-        let mut missing_y = false;
-        let mut missing_x = false;
-        self.visit(|point| {
-            missing_y |= point.y.is_none_or(|value| !value.is_finite());
-            missing_x |= analyses::point_x(&point).is_none();
-            Ok(())
-        })?;
-        let decimate = maximum == 1
-            || technique == DownsampleTechnique::Raw
-            || missing_y
-            || (technique == DownsampleTechnique::Lttb && (maximum < 3 || missing_x));
-        let algorithm = if decimate {
-            Algorithm::Decimate
-        } else if technique == DownsampleTechnique::MinMax {
-            Algorithm::Extrema
-        } else {
-            Algorithm::Lttb
-        };
-        let transform = Transform::Downsample(Downsample {
-            max_rows: maximum,
-            algorithm,
-            value: Some(FieldPath { fields: vec!["y".into()] }),
-            axis: Some(FieldPath { fields: vec!["axis".into()] }),
-        });
-        let reduced = self.table.transform(&transform, &mut || Ok(()))?;
-        visit_table(&reduced, |point| {
+    pub(super) fn collect(mut self) -> Result<PlotSeries> {
+        visit_table(&self.table, |point| {
             self.metadata.points.push(point);
             Ok(())
         })?;
-        self.metadata.downsampled = true;
         Ok(self.metadata)
     }
 }

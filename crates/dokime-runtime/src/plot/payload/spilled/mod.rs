@@ -31,7 +31,7 @@ pub(crate) use input::Input;
 use harmos::storage::ReadBatch;
 
 // Local Imports
-use super::{PlotAnalysis, PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotWindow, analyses, cartesian};
+use super::{PlotAnalysis, PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotWindow, analyses};
 use crate::{document::PlotType, runtime::Result};
 use input::Read;
 use series::Series;
@@ -107,11 +107,7 @@ pub(crate) fn project(
             payload.x_key = "frequency_hz".into();
             payload.x_format = None;
         }
-        if request.analysis.is_none() {
-            payload.cartesian = cartesian::cartesian_frame(&payload.series, request.plot_type.as_ref(), &request.x_scale, &request.y_scale)
-                .map_err(crate::runtime::Error::Operation)?;
-        }
-        let payload = if request.panel_width.is_some() { super::finish_plot_frame(payload, request)? } else { payload };
+        let payload = if request.analysis.is_none() { super::finish_plot_frame(payload, request)? } else { payload };
         Ok(ReadBatch::new(payload))
     })
 }
@@ -132,25 +128,13 @@ fn append(
         });
     }
     if request.analysis.is_some() {
-        payload.series.push(series.reduce(0, request.technique)?);
+        payload.series.push(series.collect()?);
         return Ok(());
     }
     if !invalid_z && !matches!(payload.analysis, Some(PlotAnalysis::Error { .. })) {
         analyze(read, payload, &mut series, request)?;
     }
-    let technique =
-        if request.plot_type == Some(PlotType::FrequencySeries) { super::DownsampleTechnique::MinMax } else { request.technique };
-    let maximum = if request.plot_type == Some(PlotType::FrequencySeries) && payload.max_points == 1 {
-        series.metadata.downsampled = series.table.len() > 1;
-        2
-    } else {
-        payload.max_points
-    };
-    let timed = request.panel_width.is_some()
-        && matches!(request.plot_type, None | Some(PlotType::TimeSeries))
-        && request.x_key.as_deref().is_none_or(|key| key == "timestamp")
-        && request.x_expression.is_none();
-    payload.series.push(series.reduce(if timed { 0 } else { maximum }, technique)?);
+    payload.series.push(series.collect()?);
     Ok(())
 }
 

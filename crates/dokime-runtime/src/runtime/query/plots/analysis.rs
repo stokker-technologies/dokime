@@ -227,7 +227,7 @@ impl Prepared {
                 let indices = match budget {
                     1 => vec![0],
                     2 => vec![0, output.values.len() - 1],
-                    _ => harmos::signal::lttb(&output.axis, &output.values, budget),
+                    _ => crate::signal::lttb(&output.axis, &output.values, budget),
                 };
                 display_indices.insert(output.key.clone(), indices.into_iter().map(|index| index as u32).collect());
             }
