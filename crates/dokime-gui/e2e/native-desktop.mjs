@@ -28,7 +28,7 @@
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, shared secrets, diagnostics
 //   f'. plugin-install  native bundle picker, direct installation, restart activation and catalog
-//   f'. organization  native pack import, restart activation and invalid-pending retention
+//   f'. organization  installed pack appearance, ignored application packs and update policy
 //   f'. remote-access  listener and TLS setup, one pairing file per client exported from the
 //                      backend's Remote Access settings and imported in the desktop Backends
 //                      table, restart, independent key rotation and lab modes
@@ -995,7 +995,6 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     const sections = {
       backends: "Backends",
       appearance: "Appearance",
-      organization: "Organization",
       plugins: "Plugins",
       secrets: "Secret Storage",
       remote: "Remote Access",
@@ -3446,7 +3445,6 @@ async function settingsJourney(session, notes) {
   const sections = [
     ["backends", "Backends"],
     ["appearance", "Appearance"],
-    ["organization", "Organization"],
     ["plugins", "Plugins"],
     ["secrets", "Secrets"],
     ["remote", "Remote Access"],
@@ -4750,10 +4748,14 @@ async function distributionIdentityJourney() {
 }
 
 async function organizationJourney() {
-  const root = join(work, "shell", "application", "organization");
-  const archive = join(work, "organization.zip");
+  await closeSession();
+  const installation = join(work, "installed-organization");
+  const pack = join(installation, "organization");
+  await mkdir(join(pack, "logos"), { recursive: true });
+  const shell = join(installation, basename(shellBinary));
+  await copyFile(shellBinary, shell);
   const manifest = `[app]
-label = "Stokker Technologies"
+label = "Test Console"
 title_template = "{app}"
 [app.logos.transparent]
 on_light = "logos/mark.svg"
@@ -4770,50 +4772,27 @@ project = "lab/dokime"
 [updates.connections.lab]
 host = "https://127.0.0.1:1"
 `;
-  await executeFile(
-    "python",
-    [
-      "-c",
-      `import sys, zipfile
-with zipfile.ZipFile(sys.argv[1], "w") as archive:
-    archive.writestr("organization.toml", sys.argv[2])
-    archive.writestr("logos/mark.svg", '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="currentColor"/></svg>')
-`,
-      archive,
-      manifest,
-    ],
-    { windowsHide: true, timeout: WAIT_MS },
+  await writeFile(join(pack, "organization.toml"), manifest);
+  await writeFile(
+    join(pack, "logos/mark.svg"),
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="currentColor"/></svg>',
   );
-  const choose = async () => {
-    await session.goto("/settings/organization");
-    await session.openPicker(await session.named("button", "Choose File…"));
-    const picker = { window: null };
-    await until("native organization file picker", () => chooseNativeFile(picker, archive), WAIT_MS);
-    await until("pending organization pack", async () => hasText(await session.text(), "Applies on next start."));
-  };
   const restart = async () => {
     await closeSession();
-    session = await startSession(work, backend.endpoint, evidence);
+    session = await startSession(work, backend.endpoint, evidence, { shell });
     await sizeViewport(session, densities.desktop);
     await session.connected();
-    await session.goto("/settings/organization");
   };
-  await choose();
-  assert.equal(
-    await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"),
-    "Dokime",
-    "Staging does not change this boot's appearance",
-  );
   await restart();
-  await until("native organization activation", async () => hasText(await session.text(), "Active since this start."));
-  assert.ok(hasText(await session.text(), "Stokker Technologies"), "The mounted shell applies the imported label");
+  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"), "Test Console");
+  assert.equal(await session.execute("return document.title;"), "Test Console");
+  await session.goto("/settings/about");
   assert.equal(
-    await readFile(join(root, "active", "organization.toml"), "utf8"),
-    manifest,
-    "The resolved application root owns the active pack",
+    await session.execute(`return [...document.querySelectorAll('nav[aria-label="Settings Sections"] button')]
+      .some(button => button.textContent.trim() === "Organization" || button.getAttribute("aria-label") === "Organization");`),
+    false,
   );
-  assert.equal(existsSync(join(root, "pending")), false, "Activation promotes the pending directory");
-  await session.screenshot("organization-active");
+  await session.screenshot("organization-installed");
 
   await session.goto("/settings/about");
   await session.clickCss('[data-testid="desktop-updates-open"]');
@@ -4847,8 +4826,11 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   await session.screenshot("organization-update-policy");
   await session.key("Escape");
   await session.waitForDom("update policy dialog closed", `return !document.querySelector('[role=dialog][data-state=open]');`);
-  await choose();
-  await writeFile(join(root, "pending", "organization.toml"), "invalid [");
+  const root = join(session.applicationRoot, "organization");
+  await mkdir(join(root, "active"), { recursive: true });
+  await mkdir(join(root, "pending"), { recursive: true });
+  await writeFile(join(root, "active/organization.toml"), '[app]\nlabel = "Ignored Pack"\n');
+  await writeFile(join(root, "pending/organization.toml"), "invalid [");
   await restart();
   await session.goto("/settings/about");
   await session.clickCss('[data-testid="desktop-updates-open"]');
@@ -4856,23 +4838,13 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
   assert.equal(await selection("Update Checks"), "disabled");
   await session.key("Escape");
   await session.waitForDom("update policy dialog closed", `return !document.querySelector('[role=dialog][data-state=open]');`);
-  await session.goto("/settings/organization");
-  assert.ok(hasText(await session.text(), "Stokker Technologies"), "An invalid pending pack retains the active appearance");
-  assert.equal(await readFile(join(root, "active", "organization.toml"), "utf8"), manifest);
-  assert.equal(
-    await readFile(join(root, "pending", "organization.toml"), "utf8"),
-    "invalid [",
-    "Rejected input remains available for diagnosis",
-  );
-  await session.goto("/settings/diagnostics");
-  await until("visible organization activation error", async () => /pending organization pack/i.test(await session.text()));
-  await session.screenshot("organization-invalid-pending");
-  await session.goto("/settings/organization");
-  await session.clickNamed("button", "Remove");
-  await until("organization removal queued", async () => hasText(await session.text(), "Bundled organization applies on next start."));
-  await restart();
-  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"), "Dokime");
-  assert.ok(hasText(await session.text(), "Bundled Organization"), "Removal restores the bundled appearance on restart");
+  assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"), "Test Console");
+  assert.equal(await readFile(join(root, "active/organization.toml"), "utf8"), '[app]\nlabel = "Ignored Pack"\n');
+  assert.equal(await readFile(join(root, "pending/organization.toml"), "utf8"), "invalid [");
+  await session.screenshot("organization-application-packs-ignored");
+  await closeSession();
+  session = await startSession(work, backend.endpoint, evidence);
+  await session.connected();
 }
 
 async function writeJunit() {
