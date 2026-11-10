@@ -63,7 +63,7 @@ export async function removeSecret(session: SessionIdentity, identifier: string,
 export async function exportSecrets(session: SessionIdentity, identifiers: string[], generation: bigint) {
   const archive = await rpc.secretsExport(session, { identifiers, generation });
   if (archive.data.byteLength > MAX_ARCHIVE_BYTES) throw new Error("Secret archive exceeds its size limit");
-  return saveNativeDocument(session, { kind: "secret_archive", filename: "dokime-secrets.b64", bytes: archive.data });
+  return saveNativeDocument(session, { kind: "secret_archive", filename: "secrets.b64", bytes: archive.data });
 }
 
 export async function pickSecretArchive(session: SessionIdentity): Promise<Uint8Array | null> {

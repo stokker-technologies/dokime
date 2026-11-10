@@ -63,7 +63,7 @@ async fn watch_liveness() {
     support::register_fixture_progress_and_idle_execution(&handle, support::fixture_suite(&["passed"])).await;
     let id = Identifier::new("fixture.progress").unwrap();
     publish(&handle, &id, 0, 10).await;
-    let log = root.path().join("application/logs/dokime.jsonl");
+    let log = root.path().join("application/logs/com-stokker-dokime.jsonl");
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
     let record = br#"{"timestamp":"2026-09-30T14:22:33.000001Z","level":"ERROR","target":"fixture","fields":{"message":"fixture"}}
 "#;

@@ -63,7 +63,7 @@ rand = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
 zeroize = { workspace = true }
-# Organization packs from Finder, Explorer and `zip` are deflated.
+# Storage Backups And Plugin Archives Use ZIP.
 zip = { workspace = true, features = ["deflate-flate2-zlib-rs"] }
 
 # Serialization

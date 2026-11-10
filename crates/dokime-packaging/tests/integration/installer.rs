@@ -140,7 +140,7 @@ async fn distribution_identity() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("distribution");
     std::fs::create_dir_all(source.join("bin")).unwrap();
-    let pack = dokime::config::organization::resolve(None).unwrap();
+    let pack = dokime::config::organization::resolve().unwrap();
     pack.write_to(&source.join("organization")).unwrap();
     std::fs::write(source.join("LICENSE"), b"fixture license").unwrap();
     let suffix = if cfg!(windows) { ".exe" } else { "" };

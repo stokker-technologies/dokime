@@ -25,8 +25,6 @@ use serde::{Deserialize, Serialize};
 
 const LOGS_DIR: &str = "logs";
 const DIAGNOSTICS_DIR: &str = "diagnostics";
-pub const HUB_LOG_FILENAME: &str = "dokime.jsonl";
-pub const DIAGNOSTICS_COLLECT_BUNDLE_FILENAME: &str = "dokime-diagnostics.zip";
 
 /* === Macros === */
 
@@ -67,13 +65,15 @@ pub enum DiagnosticFileFormat {
 
 pub fn path_conventions(paths: &crate::paths::ApplicationPaths) -> Vec<DiagnosticPathConvention> {
     let application_root = &paths.root;
+    let slug = paths.distribution.slug();
+    let log_filename = format!("{slug}.jsonl");
     let hub_log = DiagnosticPathConvention {
         key: DiagnosticPathKey::HubLog,
         format: DiagnosticFileFormat::Jsonl,
-        absolute_path: Some(path_to_string(&paths.logs().join(HUB_LOG_FILENAME))),
-        relative_path: format!("{LOGS_DIR}/{HUB_LOG_FILENAME}"),
+        absolute_path: Some(path_to_string(&paths.logs().join(&log_filename))),
+        relative_path: format!("{LOGS_DIR}/{log_filename}"),
     };
-    let collect_bundle = format!("{DIAGNOSTICS_DIR}/{DIAGNOSTICS_COLLECT_BUNDLE_FILENAME}");
+    let collect_bundle = format!("{DIAGNOSTICS_DIR}/{slug}-diagnostics.zip");
 
     vec![hub_log, root_path_convention(DiagnosticPathKey::CollectBundle, DiagnosticFileFormat::Zip, application_root, collect_bundle)]
 }
@@ -100,3 +100,23 @@ fn path_to_string(path: &Path) -> String {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn distribution_names_follow_paths() {
+        for identifier in ["com.example.console", "org.example.lab"] {
+            let mut paths = crate::paths::ApplicationPaths::new("application");
+            paths.distribution = crate::paths::DistributionIdentity::new(identifier).unwrap();
+            let slug = paths.distribution.slug();
+            let conventions = path_conventions(&paths);
+            let log = conventions.iter().find(|entry| entry.key == DiagnosticPathKey::HubLog).unwrap();
+            assert_eq!(log.relative_path, format!("logs/{slug}.jsonl"));
+            assert_eq!(log.absolute_path.as_deref(), Some(paths.logs().join(format!("{slug}.jsonl")).to_string_lossy().as_ref()));
+            let bundle = conventions.iter().find(|entry| entry.key == DiagnosticPathKey::CollectBundle).unwrap();
+            assert_eq!(bundle.relative_path, format!("diagnostics/{slug}-diagnostics.zip"));
+        }
+    }
+}

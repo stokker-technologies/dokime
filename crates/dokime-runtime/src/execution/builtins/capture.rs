@@ -458,7 +458,7 @@ async fn prepare(
     validate_output(output, selection.single).map_err(|error| error.to_string())?;
     let root = match &selection.location {
         FileLocation::Local(local) => PathBuf::from(&local.path),
-        FileLocation::Ftp(_) => return Err("capturing an FTP source needs the Dokime host".into()),
+        FileLocation::Ftp(_) => return Err("capturing an FTP source needs the application host".into()),
     };
     let matcher = FileMatcher::compile(&selection.rules).map_err(|error| error.to_string())?;
     let source = LocalSource::open(root.to_str().ok_or("capture root must be UTF-8")?).await.map_err(|error| error.to_string())?;

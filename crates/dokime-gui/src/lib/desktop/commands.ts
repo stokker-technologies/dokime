@@ -22,7 +22,6 @@ import type { InstallPluginProgress } from "@/lib/api/native-plugins";
 import { isReportBuild } from "@/lib/ui-mode";
 import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
 import type { BuildIdentity } from "./connection";
-import type { OrganizationStatus } from "./organization";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot, StorageBackupDestination } from "./session";
 import type { ParameterOverrides } from "./settings";
 import { settleUnlessStopping } from "./stopping";
@@ -92,12 +91,6 @@ export const commands = {
   desktopPluginInstallFile: (generation: string, drop: boolean, progress: Channel<InstallPluginProgress>) =>
     invoke<string | null>("desktop_plugin_install_file", { generation, drop, progress }),
   desktopSetTitle: (title: string) => invoke<null>("desktop_set_title", { title }),
-  /** The organization pack applied at boot and the one that applies on the next start. */
-  desktopOrganizationStatus: () => invoke<OrganizationStatus>("desktop_organization_status"),
-  /** Pick, validate and stage an organization pack zip; null when the picker is dismissed. */
-  desktopOrganizationChoose: () => invoke<OrganizationStatus | null>("desktop_organization_choose"),
-  /** Delete the pending and active packs; the compiled brand applies on the next start. */
-  desktopOrganizationRemove: () => invoke<OrganizationStatus>("desktop_organization_remove"),
   /** Drain all runtime resources before requesting Tauri's non-cancellable restart. */
   desktopRestart: () => invoke<null>("desktop_restart"),
   desktopParametersRead: () => invoke<ParameterOverrides | null>("desktop_parameters_read"),

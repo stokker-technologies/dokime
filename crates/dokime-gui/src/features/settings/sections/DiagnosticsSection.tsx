@@ -26,8 +26,6 @@ import { SettingsRow } from "@/features/settings/SettingsRow";
 import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirmed } from "@/features/settings/storage-reset-model";
 import { saveNativeDiagnosticsBundle } from "@/lib/api/native-document-delivery";
 import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/native-diagnostics";
-import { bootOrganization, organizationPack } from "@/lib/brand";
-import { organizationPackError } from "@/lib/desktop/organization";
 import { isTauriDesktop, openLocalPath } from "@/lib/desktop-open";
 import { useSettingsFrameQuery } from "../settings-queries";
 
@@ -53,17 +51,6 @@ export function DiagnosticsSection() {
     <>
       <SettingsCard title="Support">
         <DiagnosticsBundleRow />
-      </SettingsCard>
-      <SettingsCard title="Runtime">
-        <SettingsRow
-          label="Organization Pack"
-          failure={bootOrganization.error}
-          error={organizationPackError(bootOrganization.error, organizationPack !== null)}
-        >
-          <span className="text-sm text-muted-foreground">
-            {organizationPack ? `${organizationPack.label} pack applied` : "Compiled Brand"}
-          </span>
-        </SettingsRow>
       </SettingsCard>
       {resettable && directory ? (
         <SettingsCard description="Shown only in development builds that own their local backend." title="Development">

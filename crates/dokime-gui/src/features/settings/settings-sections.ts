@@ -25,11 +25,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "appearance",
     label: "Appearance",
-    description: "Theme, density, and brand identity",
+    description: "Theme and density",
     icon: Palette,
     group: "primary",
   },
-  { id: "organization", label: "Organization", description: "Organization identity and pack", icon: Palette, group: "primary" },
   {
     id: "plugins",
     label: "Plugins",

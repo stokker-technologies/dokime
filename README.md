@@ -118,7 +118,8 @@ Click either to inspect the full message, failure causes and available technical
 
 Use `dokime` to run a server or control an existing backend. Use
 `cargo dokime sidecar` to create, build and inspect plugins, and
-`cargo dokime installer` to package prebuilt binaries with an organization pack.
+`cargo dokime installer` to package prebuilt binaries with a complete organization pack.
+Installer packaging is the only way to apply a pack; Settings has no pack import.
 `cargo dokime bindings proto` exports protobuf contracts. The [CLI reference](docs/product-guide.md#cli-reference)
 contains the complete workflow, including
 [finite query paging](docs/query-api.md#transport-access-and-cli-paging).

@@ -13,7 +13,7 @@ mod pack;
 pub mod policy;
 pub mod theme;
 
-pub use pack::{ResolvedPack, brand, installation_directory, resolve, resolve_with_base};
+pub use pack::{ResolvedPack, brand, installation_directory, resolve, resolve_directory};
 
 /* === Re-Exports === */
 

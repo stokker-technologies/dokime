@@ -47,7 +47,7 @@ fn malformed_policy_diagnostics_do_not_echo_manifest_values() {
     let manifest = format!("{MANIFEST_TEXT}\n[updates]\nmode = 'private-value-42'\n");
     std::fs::write(root.path().join(MANIFEST), manifest).unwrap();
 
-    let error = load(root.path()).unwrap_err();
+    let error = resolve_directory(Some(root.path())).unwrap_err();
 
     assert!(error.contains("organization update policy is invalid"));
     assert!(!error.contains("private-value-42"));

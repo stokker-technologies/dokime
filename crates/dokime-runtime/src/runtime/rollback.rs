@@ -66,7 +66,7 @@ impl Drop for Preparing {
         if let Some(receipt) = self.0.take() {
             tokio::spawn(async move {
                 if let Err(error) = receipt.retry().await {
-                    tracing::error!(%error, "cancelled Dokime startup cleanup failed");
+                    tracing::error!(%error, "cancelled application startup cleanup failed");
                 }
             });
         }

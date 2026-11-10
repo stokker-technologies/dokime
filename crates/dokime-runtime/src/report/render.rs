@@ -242,9 +242,9 @@ struct StepOwner<'a> {
 struct ReportValue<'a>(&'a Value);
 
 #[derive(Serialize)]
-struct Hub {
+struct Hub<'a> {
     generator: &'static str,
-    name: &'static str,
+    name: &'a str,
     version: &'static str,
 }
 

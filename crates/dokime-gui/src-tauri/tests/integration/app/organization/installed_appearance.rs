@@ -43,33 +43,11 @@ use super::*;
 /* === Tests === */
 
 #[test]
-fn the_repository_organization_folder_zipped_as_is_loads() {
-    for prefix in ["", "organization/"] {
-        let files = validate_archive(&zip_folder(&organization_folder(), prefix)).unwrap();
-        assert!(files.contains_key(Path::new("organization.toml")));
-        assert!(files.keys().all(|path| !path.starts_with("generated")));
-        assert!(!files.contains_key(Path::new("fonts/OFL.txt")));
-        let root = tempfile::tempdir().unwrap();
-        for (relative, contents) in &files {
-            let path = root.path().join(relative);
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(path, contents).unwrap();
-        }
-        let pack = load(root.path()).unwrap();
-        assert_eq!(pack["label"], "Dokime");
-        assert_eq!(pack["logos"].as_object().unwrap().len(), 4);
-        assert!(pack["css"].as_str().unwrap().contains("data:font/woff2;base64,"));
-        assert!(pack["css"].as_str().unwrap().contains("--brand-radius-sm"));
-        assert!(!pack["css"].as_str().unwrap().contains("url(\"fonts/"));
-    }
-}
-
-#[test]
 fn bundled_pack_loads_without_a_system_temp_directory() {
     const CHILD: &str = "DOKIME_TEST_MISSING_TEMP";
     if std::env::var_os(CHILD).is_some() {
         assert!(!std::env::temp_dir().exists());
-        let pack = dokime::config::organization::resolve_with_base(None, None).unwrap();
+        let pack = dokime::config::organization::resolve_directory(None).unwrap();
         let loaded = implementation::testing::inspect_resolved(pack).unwrap();
         assert!(!loaded["logos"].as_object().unwrap().is_empty());
         assert!(!loaded["css"].as_str().unwrap().is_empty());
@@ -98,7 +76,7 @@ fn memory_css_matches_the_disk_fixture() {
         ("logos/test.svg", LOGO, "image/svg+xml"),
         ("images/test.png", &[137, 80, 78, 71], "image/png"),
     ];
-    let mut pack = dokime::config::organization::resolve_with_base(None, None).unwrap();
+    let mut pack = dokime::config::organization::resolve_directory(None).unwrap();
     let mut expected = css.replace("/* fixture */", "");
     for (relative, bytes, mime) in fixtures {
         let path = root.path().join(relative);

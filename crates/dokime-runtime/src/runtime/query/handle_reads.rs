@@ -423,6 +423,10 @@ impl RuntimeHandle {
         &self, snapshot: &RuntimeStateSnapshot, scope: Option<&dokime_domain::model::execution::RecordScope>, after: &str, limit: usize,
         max_entries: usize, max_bytes: usize,
     ) -> crate::runtime::Result<(Vec<TraceabilitySnapshot>, bool, String)> {
+        let app_name = {
+            let brand = self.brand.read().expect("brand lock is healthy");
+            crate::installed_plugins::appearance::app_name(snapshot.state(), brand.as_ref()).to_owned()
+        };
         let created_at = crate::model::time::now_utc();
         self.with_latest_host_traceability(scope, |host, host_fingerprint| {
             let host_candidate = host.and_then(|sample| crate::traceability::host_traceability_page_candidate(sample, scope));
@@ -434,6 +438,7 @@ impl RuntimeHandle {
                 crate::traceability::TraceabilityPageBudget { max_entries, max_bytes },
                 host_candidate.as_ref(),
                 created_at.clone(),
+                &app_name,
             )
             .ok_or_else(|| crate::runtime::Error::Operation("traceability page exceeds the bounded page budget".into()))?;
             if host_selected {

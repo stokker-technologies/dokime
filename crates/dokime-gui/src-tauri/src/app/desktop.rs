@@ -218,7 +218,10 @@ pub async fn desktop_pairing_create(
             .dialog()
             .file()
             .set_file_name(format!("{filename}.dokime-remote"))
-            .add_filter("Dokime Remote Access File", &["dokime-remote"])
+            .add_filter(
+                &format!("{} Remote Access File", app.state::<crate::app::organization::OrganizationState>().label()),
+                &["dokime-remote"],
+            )
             .blocking_save_file();
         let Some(picked) = picked else { return Ok(None) };
         let path = picked.into_path().map_err(|error| error.to_string())?;
@@ -318,6 +321,12 @@ pub async fn desktop_save_document(
     ensure_main_window(&window)?;
     ensure_picker_kind(document.kind)?;
     let (filename, bytes, kind) = validate_save_document(&generation, &document)?;
+    let filename = if kind == DesktopSaveKind::SecretArchive {
+        let suggested = format!("{}-secrets.b64", app.state::<dokime::paths::ApplicationPaths>().distribution.slug());
+        sanitize_filename(&suggested, kind, DESKTOP_REPORT_FILENAME_CHARS as usize)?
+    } else {
+        filename
+    };
     let session = state.inner().clone();
     ensure_document_session(&session, &generation)?;
     let selected = tauri::async_runtime::spawn_blocking(move || {

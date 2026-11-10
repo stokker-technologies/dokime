@@ -89,15 +89,7 @@ impl ApplicationOptions {
     fn load(&self) -> io::Result<(Option<organization::ResolvedBrand>, ApplicationPaths)> {
         let executable = env::current_exe()?;
         let paths = ApplicationPaths::resolve_for(&executable, DEFAULT_APPLICATION_ID, self.application_root.clone())?;
-        let active = paths.root.join("organization/active");
-        let pack = match organization::resolve(active.is_dir().then_some(active.as_path())) {
-            Ok(pack) => pack,
-            Err(error) if active.is_dir() => {
-                tracing::error!(%error, "the active organization is invalid; using bundled defaults");
-                organization::resolve(None).map_err(io::Error::other)?
-            }
-            Err(error) => return Err(io::Error::other(error)),
-        };
+        let pack = organization::resolve().map_err(io::Error::other)?;
         let brand = Some(pack.brand().map_err(io::Error::other)?);
         Ok((brand, paths))
     }

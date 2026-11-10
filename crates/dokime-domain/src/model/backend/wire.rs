@@ -171,7 +171,7 @@ pub struct DiagnosticsBundleFrame {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsBundleHeader {
     #[row(
-        description = "Suggested save name, dokime-diagnostics-<utc timestamp>.zip. It is a name, not a backend path: nothing is written to the storage root."
+        description = "Suggested save name, <distribution slug>-diagnostics-<utc timestamp>.zip. It is a name, not a backend path: nothing is written to the storage root."
     )]
     pub filename: String,
 

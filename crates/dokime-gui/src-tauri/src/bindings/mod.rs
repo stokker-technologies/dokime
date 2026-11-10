@@ -199,25 +199,6 @@ native_commands! {
         (title: String) -> Result<(), String>
         => crate::app::desktop::desktop_set_title;
 
-    // The organization pack applied at boot and the one that applies on the next start.
-    sync desktop_organization_status
-        [state: tauri::State<'_, crate::app::organization::OrganizationState>]
-        () -> Result<crate::app::organization::OrganizationStatus, String>
-        => crate::app::organization::desktop_organization_status;
-
-    // Pick, validate and stage a organization pack zip; None when the picker is dismissed.
-    async desktop_organization_choose
-        [app: tauri::AppHandle]
-        () -> Result<Option<crate::app::organization::OrganizationStatus>, String>
-        => crate::app::organization::desktop_organization_choose;
-
-    // Delete the pending and active packs; the compiled brand applies on the next start.
-    async desktop_organization_remove
-        [app: tauri::AppHandle]
-        () -> Result<crate::app::organization::OrganizationStatus, String>
-        => crate::app::organization::desktop_organization_remove;
-
-    // Drain all runtime resources before requesting Tauri's non-cancellable restart.
     async desktop_restart
         [app: tauri::AppHandle]
         () -> Result<(), String>
@@ -254,12 +235,12 @@ native_commands! {
         => crate::app::updates::desktop_updates_install;
 
     async desktop_plugin_release_check
-        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>, app: tauri::AppHandle]
         (generation: String) -> Result<Vec<crate::app::updates::plugins::Release>, String>
         => crate::app::updates::plugins::desktop_plugin_release_check;
 
     async desktop_plugin_release_install
-        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>]
+        [window: tauri::WebviewWindow, connection: tauri::State<'_, crate::connection::ConnectionSession>, state: tauri::State<'_, crate::app::updates::UpdateState>, app: tauri::AppHandle]
         (generation: String, candidate: String, progress: tauri::ipc::Channel<crate::app::plugins::InstallProgress>) -> Result<String, String>
         => crate::app::updates::plugins::desktop_plugin_release_install;
 }

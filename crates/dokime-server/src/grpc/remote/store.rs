@@ -93,7 +93,9 @@ impl Identity {
         let mut params = rcgen::CertificateParams::default();
         params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
         params.key_usages = vec![rcgen::KeyUsagePurpose::KeyCertSign, rcgen::KeyUsagePurpose::CrlSign];
-        params.distinguished_name.push(rcgen::DnType::CommonName, "Dokime Remote Access CA");
+        let pack =
+            dokime::config::organization::resolve().map_err(|_| super::Error::Configuration("cannot resolve certificate product label"))?;
+        params.distinguished_name.push(rcgen::DnType::CommonName, format!("{} Remote Access CA", pack.label()));
         let key = rcgen::KeyPair::generate().map_err(|_| super::Error::Configuration("cannot generate remote CA key"))?;
         let certificate = params.self_signed(&key).map_err(|_| super::Error::Configuration("cannot generate remote CA"))?;
         let mut identity = Self {

@@ -93,7 +93,14 @@ pub async fn desktop_backend_import_pairing(
     crate::app::desktop::ensure_main_window(&window).map_err(|message| ConnectionError::InvalidTarget { message })?;
     let picker = app.clone();
     let selected = tokio::task::spawn_blocking(move || {
-        picker.dialog().file().add_filter("Dokime Remote Access File", &["dokime-remote"]).blocking_pick_file()
+        picker
+            .dialog()
+            .file()
+            .add_filter(
+                &format!("{} Remote Access File", picker.state::<crate::app::organization::OrganizationState>().label()),
+                &["dokime-remote"],
+            )
+            .blocking_pick_file()
     })
     .await
     .map_err(|_| ConnectionError::BackendUnavailable)?;

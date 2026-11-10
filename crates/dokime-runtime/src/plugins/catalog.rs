@@ -139,7 +139,7 @@ pub(crate) fn selected_files(bundle: &Bundle) -> Result<Vec<&harmos_packaging::b
 }
 
 pub(crate) fn guest_refused(path: &str) -> PluginError {
-    PluginError::Invalid(format!("Dokime admits native sidecar plugins only; `{path}` declares a WebAssembly guest"))
+    PluginError::Invalid(format!("This installation admits native sidecar plugins only; `{path}` declares a WebAssembly guest"))
 }
 
 pub(crate) fn native(declaration: &Declaration) -> bool {

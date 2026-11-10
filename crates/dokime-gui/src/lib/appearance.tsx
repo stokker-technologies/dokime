@@ -125,7 +125,7 @@ function titleFromAppearance(appearance: RuntimeAppearanceFrame): string {
   return template.replaceAll("{app}", appearance.app_name);
 }
 
-/** The operator's organization pack is the brand: it replaces the identity the backend reports. */
+/** The installation's organization pack is the brand: it replaces the identity the backend reports. */
 function withOrganizationPack(frame: RuntimeAppearanceFrame): RuntimeAppearanceFrame {
   if (!organizationPack) return frame;
   return {

@@ -114,11 +114,11 @@ impl Plugin {
         Ok(())
     }
 
-    pub fn select(&self, host_version: &str, target: &str) -> Result<&Member, String> {
+    pub fn select(&self, host_version: &str, target: &str, label: &str) -> Result<&Member, String> {
         let host = Version::parse(host_version).map_err(|error| error.to_string())?;
         let requirement = VersionReq::parse(&self.requires_dokime).map_err(|error| error.to_string())?;
         if !requirement.matches(&host) {
-            return Err(format!("Plugin {} requires Dokime {}", self.name, self.requires_dokime));
+            return Err(format!("Plugin {} requires {label} {}", self.name, self.requires_dokime));
         }
         if let Some(member) = self.targets.get(target) {
             return Ok(member);
@@ -163,9 +163,12 @@ mod tests {
             "targets":{"native":{"archive":"sidecars.zip", "member":"opaque-name.dokime", "sha256":"a".repeat(64)}}});
         let mut value = serde_json::json!({"format_version":2,"plugins":[plugin]});
         let feed = Feed::parse(&serde_json::to_vec(&value).unwrap()).unwrap();
-        assert_eq!(feed.plugins[0].select("0.1.3", "native").unwrap().member, "opaque-name.dokime");
-        assert!(feed.plugins[0].select("0.2.0", "native").is_err());
-        assert!(feed.plugins[0].select("0.1.3", "foreign").is_err());
+        assert_eq!(feed.plugins[0].select("0.1.3", "native", "Dokime").unwrap().member, "opaque-name.dokime");
+        assert!(feed.plugins[0].select("0.2.0", "native", "Dokime").is_err());
+        let label = "Test Console";
+        let error = feed.plugins[0].select("0.2.0", "native", label).unwrap_err();
+        assert!(error.contains(label));
+        assert!(feed.plugins[0].select("0.1.3", "foreign", "Dokime").is_err());
         value["format_version"] = 1.into();
         assert!(Feed::parse(&serde_json::to_vec(&value).unwrap()).is_err());
         value["format_version"] = 2.into();
@@ -184,6 +187,6 @@ mod tests {
         let member = serde_json::json!({"archive":"guests.zip","member":"guest.dokime","sha256":"a".repeat(64)});
         value["plugins"][0]["targets"] = serde_json::json!({"any": member});
         let feed = Feed::parse(&serde_json::to_vec(&value).unwrap()).unwrap();
-        assert_eq!(feed.plugins[0].select("0.1.3", "native").unwrap().archive, "guests.zip");
+        assert_eq!(feed.plugins[0].select("0.1.3", "native", "Dokime").unwrap().archive, "guests.zip");
     }
 }

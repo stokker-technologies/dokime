@@ -39,6 +39,7 @@ pub const DEFAULT_APPLICATION_ID: &str = "com.stokker.dokime";
 pub struct ApplicationPaths {
     pub root: PathBuf,
     logs: PathBuf,
+    pub distribution: DistributionIdentity,
 }
 
 /* === Enums === */
@@ -70,7 +71,11 @@ impl ApplicationPaths {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         let root = root.into();
         let logs = root.join("logs");
-        Self { root, logs }
+        Self {
+            root,
+            logs,
+            distribution: DistributionIdentity::new(DEFAULT_APPLICATION_ID).expect("valid compiled identity"),
+        }
     }
 
     pub fn logs(&self) -> PathBuf {
@@ -94,10 +99,12 @@ impl ApplicationPaths {
     }
 
     fn resolve_with(application_id: &str, root: Option<PathBuf>, windows: bool, get: impl Fn(&str) -> Option<PathBuf>) -> io::Result<Self> {
-        DistributionIdentity::new(application_id).map_err(io::Error::other)?;
+        let distribution = DistributionIdentity::new(application_id).map_err(io::Error::other)?;
         if let Some(root) = root {
             let root = std::path::absolute(root)?;
-            return Ok(Self::new(root));
+            let mut paths = Self::new(root);
+            paths.distribution = distribution;
+            return Ok(paths);
         }
         let absolute = |key| {
             let path = get(key)?;
@@ -108,6 +115,7 @@ impl ApplicationPaths {
         let base = if windows { absolute("LOCALAPPDATA") } else { absolute("XDG_DATA_HOME").or(data_fallback) };
         let base = base.ok_or_else(|| io::Error::other("the application data home must be an absolute directory"))?;
         let mut paths = Self::new(base.join(application_id));
+        paths.distribution = distribution;
         if windows {
             return Ok(paths);
         }

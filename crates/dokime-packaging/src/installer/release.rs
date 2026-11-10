@@ -142,7 +142,7 @@ impl Release {
                 .iter()
                 .find(|plugin| &plugin.name == name)
                 .ok_or_else(|| Error::Invalid(format!("release has no plugin named {name}")))?;
-            let member = plugin.select(version, target).map_err(Error::Invalid)?;
+            let member = plugin.select(version, target, "Dokime").map_err(Error::Invalid)?;
             if !members.insert(member.member.to_ascii_lowercase()) {
                 return Err(Error::Invalid("release plugins have colliding member names".into()));
             }

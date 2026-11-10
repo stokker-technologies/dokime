@@ -75,8 +75,10 @@ pub fn run() {
         unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
     }
     dotenv::dotenv().ok();
-    if let Err(error) = start_tauri_app() {
-        eprintln!("failed to run {} desktop shell: {error}", crate::PRODUCT);
+    let organization = organization::resolve();
+    let label = organization.label().to_owned();
+    if let Err(error) = start_tauri_app(organization) {
+        eprintln!("failed to run {label} desktop shell: {error}");
         std::process::exit(1);
     }
 }
@@ -89,12 +91,12 @@ pub async fn desktop_restart(app: tauri::AppHandle) -> Result<(), String> {
 
 /* === Private Functions === */
 
-fn start_tauri_app() -> tauri::Result<()> {
-    // Resolve Identity Before Logging, Organization Or Windows.
+fn start_tauri_app(organization: organization::OrganizationState) -> tauri::Result<()> {
+    // Resolve Distribution Paths Before Logging Or Windows.
     let mut context = tauri::generate_context!();
     let paths = dokime::paths::ApplicationPaths::resolve(&context.config().identifier)?;
     context.config_mut().app.app_directories_override = Some(tauri::utils::config::AppDirectoriesOverride::Root(paths.root.clone()));
-    let _log_guards = logging::init(&paths.logs(), DESKTOP_RETAINED_LOG_FILES as usize);
+    let _log_guards = logging::init(&paths.logs(), DESKTOP_RETAINED_LOG_FILES as usize, &paths.distribution.slug(), organization.label());
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     let launch = crate::native_session::launch::configuration(arguments.clone());
     let shutdown_stdin = launch.error.is_none() && arguments.iter().any(|argument| argument == "--shutdown-stdin");
@@ -103,6 +105,7 @@ fn start_tauri_app() -> tauri::Result<()> {
     let controls = bindings::invoke_handler();
     let rpc = crate::rpc::handler();
     let builder = tauri::Builder::default()
+        .manage(organization)
         .manage(_log_guards.journal.clone())
         .manage(crate::rpc::Bridge::new())
         .manage(crate::connection::ConnectionSession::default())

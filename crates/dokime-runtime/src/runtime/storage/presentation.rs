@@ -129,7 +129,12 @@ pub(super) fn capture(
                     )
                 })
             });
-            snapshots.extend(crate::traceability::execution_traceability(cycle, execution, cycle.updated_at.clone())?);
+            snapshots.extend(crate::traceability::execution_traceability(
+                cycle,
+                execution,
+                cycle.updated_at.clone(),
+                &appearance.app_name,
+            )?);
             snapshots
         },
         prompts: source::clone_rows(|| source::prompt_rows(state, &execution_scope))?,

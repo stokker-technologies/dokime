@@ -666,7 +666,7 @@ fn seal_failure_cause(error: &Error) -> String {
     };
     let message = crate::runtime::error::chain_message(error);
     if undecodable {
-        return format!("stored evidence could not be decoded; it was likely written by an incompatible Dokime build: {message}");
+        return format!("stored evidence could not be decoded; it was likely written by an incompatible application build: {message}");
     }
     message
 }

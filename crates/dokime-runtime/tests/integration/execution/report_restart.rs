@@ -47,7 +47,7 @@ use {dokime_runtime::operations::reports::MaterializeReport, model::reports::wir
 pub(crate) async fn persisted_cycle_restart() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
-    let mut pack = dokime_runtime::config::organization::resolve_with_base(None, None).unwrap();
+    let mut pack = dokime_runtime::config::organization::resolve_directory(None).unwrap();
     pack.manifest["app"]["label"] = toml::Value::String("Stokker Technologies".into());
     let mut brand = pack.brand().unwrap();
     brand.materialize_logos(&root.path().join("appearance")).unwrap();
@@ -72,6 +72,11 @@ pub(crate) async fn persisted_cycle_restart() {
     let sealed_html = crate::service_support::reports::bytes(runtime.storage(), &seal.report).await;
     let captured = crate::service_support::reports::parse(std::str::from_utf8(&sealed_html).unwrap());
     assert_eq!(captured["appearance"]["app_name"], "Stokker Technologies");
+    assert_eq!(captured["hub"]["name"], captured["appearance"]["app_name"]);
+    let label = captured["appearance"]["app_name"].as_str().unwrap();
+    let head = std::str::from_utf8(&sealed_html).unwrap().split_once("</head>").unwrap().0;
+    assert!(head.contains(&format!("<title>{label} Report</title>")));
+    assert!(head.contains(captured["appearance"]["logos"][0]["url"].as_str().unwrap()));
     assert!(captured["appearance"]["logos"][0]["url"].as_str().unwrap().starts_with("data:image/svg+xml;base64,"));
     assert!(captured["appearance"]["themes"][0]["stylesheet"].as_str().unwrap().contains("data:font/woff2;base64,"));
     let input_bytes = crate::service_support::reports::bytes(runtime.storage(), &seal.source.context).await;

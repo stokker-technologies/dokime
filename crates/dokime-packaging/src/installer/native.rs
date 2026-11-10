@@ -507,10 +507,10 @@ fn desktop_entry(identity: &distribution::Identity, label: &str) -> String {
 
 fn resolve_organization(manifest: &Manifest, source: &Path) -> Result<dokime::config::organization::ResolvedPack, Error> {
     let base = source.join("organization");
-    let overrides = manifest.installer.organization.as_deref();
-    let resolved = dokime::config::organization::resolve_with_base(Some(&base), overrides);
+    let directory = manifest.installer.organization.as_deref().unwrap_or(&base);
+    let resolved = dokime::config::organization::resolve_directory(Some(directory));
     let mut pack = resolved.map_err(Error::Invalid)?;
-    let Some(folder) = overrides else {
+    let Some(folder) = manifest.installer.organization.as_deref() else {
         return Ok(pack);
     };
     if explicit_update_mode(folder)? {
@@ -786,6 +786,29 @@ mod tests {
         assert!(uninstall.contains("SetShellVarContext all"));
         assert!(script.contains("DeleteRegKey SHCTX \"${UNINSTKEY}\""));
         assert!(include_str!("hooks.nsh").contains("StrCpy $0 \"Machine\""));
+    }
+
+    #[test]
+    fn supplied_pack_replaces_distribution_default() {
+        // Stage The Distribution Default
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("distribution");
+        let baseline = dokime::config::organization::resolve_directory(None).unwrap();
+        baseline.write_to(&source.join("organization")).unwrap();
+        let text = "[installer]\nversion='1.2.3'\nformats=['nsis']\n[dokime]\nversion='1.2.3'\ntarget='x86_64-pc-windows-msvc'";
+        let mut manifest: Manifest = toml::from_str(text).unwrap();
+        let default = resolve_organization(&manifest, &source).unwrap();
+        assert_eq!(default.label(), baseline.label());
+
+        // Supply An Independent Complete Pack
+        let replacement = root.path().join("replacement");
+        std::fs::create_dir_all(&replacement).unwrap();
+        std::fs::write(replacement.join("organization.toml"), "[app]\nlabel='Test Console'\n").unwrap();
+        manifest.installer.organization = Some(replacement);
+        let resolved = resolve_organization(&manifest, &source).unwrap();
+        assert_eq!(resolved.label(), "Test Console");
+        assert!(resolved.files.keys().all(|path| path == "organization.toml"));
+        assert!(resolved.asset("application").is_none());
     }
 
     #[test]

@@ -58,12 +58,13 @@ pub enum Error {
     BackendRunning { root: PathBuf },
 
     #[error(
-        "Dokime cannot open the data root {}.\n\
+        "{label} cannot open the data root {}.\n\
          The stored data is not usable by this build: {reason}.\n\
          Move or delete that directory, or point DOKIME_OUTPUT_ROOT at a fresh directory.",
         .root.display()
     )]
     IncompatibleStorage {
+        label: String,
         root: PathBuf,
         reason: String,
 
@@ -118,13 +119,18 @@ impl Error {
         })
     }
 
-    pub fn launch(error: dokime::runtime::Error, root: PathBuf) -> Self {
+    pub fn launch(error: dokime::runtime::Error, root: PathBuf, label: String) -> Self {
         let reason = match storage_refusal(&error) {
             Some(dokime::storage::sqlite::Error::Owned) => return Self::BackendRunning { root },
             Some(refusal) if incompatible(refusal) => refusal.to_string(),
             _ => return Self::Runtime(error),
         };
-        Self::IncompatibleStorage { root, reason, source: Box::new(error) }
+        Self::IncompatibleStorage {
+            label,
+            root,
+            reason,
+            source: Box::new(error),
+        }
     }
     pub(crate) fn shutdown(server: std::result::Result<(), crate::grpc::Error>, runtime: dokime::runtime::Result<()>) -> Result<()> {
         match (server, runtime) {

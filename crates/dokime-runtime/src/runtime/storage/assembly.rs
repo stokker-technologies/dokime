@@ -87,7 +87,7 @@ pub(crate) async fn initialize(
 /* === Private Functions === */
 
 fn reconciliation_error(source: impl std::error::Error + Send + Sync + 'static) -> harmos::Error {
-    harmos::Error::backend("reconcile native Dokime storage", harmos::BackendFailure::Permanent, source)
+    harmos::Error::backend("reconcile native storage", harmos::BackendFailure::Permanent, source)
 }
 
 /* === Tests === */

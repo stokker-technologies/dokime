@@ -46,7 +46,7 @@ use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 
 #[test]
 fn sidebar_color_and_image_precedence() {
-    let mut pack = dokime::config::organization::resolve_with_base(None, None).unwrap();
+    let mut pack = dokime::config::organization::resolve_directory(None).unwrap();
     pack.manifest.as_table_mut().unwrap().remove("installer");
     let scratch = tempfile::tempdir().unwrap();
     let path = scratch.path().join("sidebar.bmp");
