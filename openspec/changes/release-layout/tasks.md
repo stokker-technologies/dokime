@@ -19,5 +19,5 @@
 
 ## Workflow Follow-Up
 
-- The `cargo-dokime` archives and the Python wheels leave the release with `grpc-plugins`.
-- Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
+- Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- Run only focused tasks until combined source closure; final native proof remains separate.

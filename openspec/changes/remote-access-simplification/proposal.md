@@ -1,7 +1,7 @@
 # Remote Access Simplification
 
-Status: locked by the owner on 2026-11-10; implementation has not started
-and waits for the owner's go. Independent of `grpc-plugins`.
+Status: pairing-file simplification is implemented. Transparent recovery
+remains deferred pending owner confirmation and an upstream transport contract. Independent of `grpc-plugins`.
 
 ## Why
 
@@ -56,7 +56,7 @@ pairing valid across a certificate change.
 
 ## Connection Drops
 
-A transient connection drop is not an error for a client. The client object
+Target contract, not implemented: a transient connection drop is not an error for a client. The client object
 stays valid and reconnects by itself. A read is repeated; a watch resumes
 where it stopped without gaps or duplicates; a request that changes state
 is repeated under the same request identity so the backend applies it
@@ -72,6 +72,16 @@ beyond the configured reconnect time.
 - The server and the desktop read the environment like the clients. The
   implicit search for a `.env` file is removed; an explicit `--env-file`
   argument stays.
+
+## Open Points
+
+### Awaiting Owner Confirmation
+
+- Defer task 2.4, transparent recovery. It requires request deduplication for
+  ordinary mutations and replay cursors for watches in Harmos; this scope is
+  absent from the upstream gRPC design. Keep the promised behavior and task
+  open until the owner settles that dependency. Execution command identities
+  alone do not satisfy it.
 
 ## Impact
 

@@ -11,25 +11,23 @@ The dokime and dokime-server libraries SHALL retain their published identities. 
 - **AND** registry publication excludes CLI and GUI crates while release assets contain the remaining declared executable owners
 
 ### Requirement: Validate in the Assigned Worktree
-Local implementation SHALL use the assigned worktree without a separate source checkout. After combined source closure, the canonical verified ci:simulate gate SHALL execute the rendered job graph and artifact dependencies across every declared required platform. A platform filter SHALL represent partial proof. Native provider checks SHALL remain required before protected integration.
-
-#### Scenario: Run Serial Local Simulation
-- **WHEN** the local simulator executes the candidate
-- **THEN** it runs one ready job at a time across native Windows and Docker/WSL Linux
-- **AND** it imposes no CPU, memory or thread limits, sets no compiler parallelism and offers no resource-budget flags
-- **AND** every required job retains its canonical commands and artifact dependencies
+Local implementation SHALL use the assigned worktree and focused project tasks. Hosted CI and Nightly SHALL provide final proof on every required native platform. Windows proof SHALL NOT substitute for Linux proof. Authorized dev integration SHALL remain ungated.
 
 #### Scenario: Deliver an Archive Portability Repair
-- **WHEN** the candidate completes combined source and the full local simulator gate
-- **THEN** the next PR update starts required hosted native checks with archive workspace remapping
-- **AND** integration remains blocked until transported consumers and every required native platform pass
+- **WHEN** a source-complete candidate carries an archive portability repair
+- **THEN** hosted native checks exercise transported consumers on both required platforms
+- **AND** final proof remains open for any missing or failing platform result
+
+#### Scenario: Native Proof Is Missing
+- **WHEN** one required platform has no result
+- **THEN** that proof remains open and no cross-platform pass is claimed
 
 ### Requirement: Share Native Compilation Ownership
-Hosted CI Product and Tests SHALL compile independently in parallel per platform/profile, under repository-owned canonical configurations and matching Clippy. Local simulation SHALL execute those producers serially. Product SHALL use default Cargo dev or release; all Tests, matching Clippy and local extended configurations SHALL use default unoptimized test. Project compiler profile overrides SHALL be absent. Bench SHALL use default bench. The graph artifact namespace SHALL remain explicit and independent of the Cargo test output directory. Shipping behavior and canonical coverage SHALL remain intact. Check SHALL not compile; Test and Package SHALL consume existing exports. Noncanonical compatibility and fault injection SHALL remain explicit local-only extended validation.
+Product and Tests SHALL compile separately per native platform/profile using Cargo defaults and explicit artifact namespaces. Clippy SHALL run in lint tasks. Bench SHALL use the default bench profile. Tests and packages SHALL consume existing declared exports. Project compiler profile overrides SHALL be absent; shipping behavior and coverage SHALL remain intact.
 
 #### Scenario: Build a Native Candidate
 - **WHEN** native CI builds the candidate
-- **THEN** Product and canonical Tests producers run independently in parallel, and consumers use explicit artifact inputs
+- **THEN** Product and canonical Tests producers run independently, and consumers use explicit artifact inputs
 - **AND** compatible compiler outputs may be reused without promising one compilation for distinct targets
 - **AND** warm-cache whole pipelines remain below 45 minutes, targeting 30, and Tests Build is no longer than Product Build; breaches receive phase-level investigation without silent coverage reduction
 
@@ -39,7 +37,7 @@ Hosted CI Product and Tests SHALL compile independently in parallel per platform
 
 #### Scenario: Explicit Local Extended Validation
 - **WHEN** an operator explicitly requests local extended validation
-- **THEN** all-features, no-default-features and declared WebAssembly compatibility proof remain available alongside preserved instrumented stories
+- **THEN** the declared WebAssembly proof and instrumented stories remain available; removed all-features and no-default-features matrices are not restored
 - **AND** ordinary canonical-capable cases remain in provider CI
 
 #### Scenario: Compile Release Compatibility Proofs

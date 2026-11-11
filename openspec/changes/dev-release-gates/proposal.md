@@ -8,7 +8,7 @@ commit validation gates.
 
 ## What Changes
 
-- Dev pushes select package dependencies and the Tests producer; PRs retain suites.
+- Dev pushes run quick checks and builds without packages, publication or suites; PRs run all applicable jobs without impact planning.
 - Git dependencies are allowed in development and rejected for releases; nightly warns.
 - Release tagging and publication verify the target commit's green CI through the API.
 - Dev assets are replaced only while drafted, then published together after both platforms.
@@ -16,7 +16,7 @@ commit validation gates.
 
 ## Impact
 
-Workflows, composite impact/review actions, Python CI/release tooling, tooling
+Workflows, the setup action, Python CI/release tooling, tooling
 tests, task/policy declarations and CONTRIBUTING are owned by this branch.
 Product/test code and repository settings are excluded. PR #160 supplies the
-package-scope design. Delivery is one ready PR, with CI observed once and no merge.
+package-scope design. Delivery is part of the combined `feat/grpc-plugins` candidate; this specification-only assignment grants no remote authority.

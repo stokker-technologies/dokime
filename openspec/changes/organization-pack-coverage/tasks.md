@@ -19,14 +19,17 @@
 
 ## 4. Final Validation
 
-- [ ] 4.1 Run focused desktop, report and packaging tests for a packaged pack and no pack; update the product guide's organization section.
-
+- [ ] 4.1 Run focused packaged desktop, report and packaging proof with a supplied pack and with the default appearance; Linux and packaged desktop stories remain unproven.
 - [x] 4.2 Repair the installer sidebar fixture to create its optional installer table explicitly.
 - [x] 4.3 Update the remote log-stream fixture and desktop distribution story to use distribution-derived log names.
 - [x] 4.4 Replace the removed runtime pack-import journey with installed-pack loading, ignored application-folder packs and retained update-policy coverage; remove Organization navigation from the settings journey.
 - [x] 4.5 Run the Windows merge-and-repair focused Rust tests, package checks, settings unit tests and Rust check. Linux and packaged desktop system stories remain hosted proof; `docs/tooling.md` has no focused packaged-story procedure.
 
+## 5. Documentation
+
+- [x] 5.1 Update the product guide's organization section and affected GUI, privacy and README claims for installer-only appearance.
+
 ## Workflow Follow-Up
 
-- Executable and process names are out of scope by decision.
-- Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
+- Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- Run only focused tasks until combined source closure; final native proof remains separate.

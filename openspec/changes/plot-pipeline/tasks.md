@@ -23,5 +23,5 @@
 
 ## Workflow Follow-Up
 
-- Try a query engine over Arrow in its own worktree once this lands; adopt it only if build times stay acceptable.
-- Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
+- Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- Run only focused tasks until combined source closure; final native proof remains separate.

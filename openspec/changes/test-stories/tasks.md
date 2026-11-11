@@ -30,5 +30,5 @@
 
 ## Workflow Follow-Up
 
-- Tests of the plugin, execution and remote access areas are rewritten under this convention in `grpc-plugins` and `remote-access-simplification`.
-- Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
+- Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- Run only focused tasks until combined source closure; final native proof remains separate.
