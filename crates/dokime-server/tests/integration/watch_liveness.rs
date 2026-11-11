@@ -81,6 +81,17 @@ async fn watch_liveness() {
     };
     assert_eq!(opened.kind, model::plots::wire::PlotStreamKind::Snapshot);
     assert_eq!(served_points(&opened), 10);
+    // Exact Statistics Follow The Snapshot Before The Quiet Period Begins.
+    let statistics = loop {
+        let mut revision = plots.message().await.unwrap().unwrap();
+        assert_eq!(revision.updates.len(), 1);
+        let frame = revision.updates.pop().unwrap();
+        if frame.kind != model::plots::wire::PlotStreamKind::Unspecified {
+            break frame;
+        }
+    };
+    assert_eq!(statistics.kind, model::plots::wire::PlotStreamKind::Statistics);
+    assert!(statistics.envelope.unwrap().payload.is_some());
     let logs = client
         .stream(contracts::backend::WatchLogs {
             min_level: model::backend::wire::LogLevel::Error,
@@ -127,7 +138,7 @@ async fn watch_liveness() {
         let mut revision = plots.message().await.unwrap().unwrap();
         assert_eq!(revision.updates.len(), 1);
         let frame = revision.updates.pop().unwrap();
-        if frame.kind != model::plots::wire::PlotStreamKind::Unspecified {
+        if !matches!(frame.kind, model::plots::wire::PlotStreamKind::Unspecified | model::plots::wire::PlotStreamKind::Statistics) {
             break frame;
         }
     };
