@@ -40,7 +40,13 @@ def host(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(bootstrap.os, "geteuid", lambda: 1001, raising=False)
     monkeypatch.setattr(bootstrap.shutil, "which", lambda name: "/usr/bin/" + name)
     monkeypatch.setattr(bootstrap, "_package_installed", lambda package: False)
-    monkeypatch.setattr(bootstrap, "_run", commands.append)
+    def run(command, **options):
+        commands.append(command)
+        assert options["stdin"] == subprocess.DEVNULL
+        return subprocess.CompletedProcess(command, 0, stdout="")
+
+    monkeypatch.setattr(bootstrap.subprocess, "run", run)
+    monkeypatch.setattr(bootstrap.time, "sleep", lambda delay_s: None)
     return commands
 
 
@@ -53,9 +59,10 @@ def test_install_packages(monkeypatch: pytest.MonkeyPatch, host, uid: int, runti
     prefix = [] if uid == 0 else ["sudo", "-n"]
     selected = bootstrap.GUI_RUNTIME_PACKAGES if runtime else bootstrap.GUI_PACKAGES
     packages = (*selected, *(bootstrap.DESKTOP_PACKAGES if desktop else ()))
+    apt = [*prefix, "apt-get", "-o", f"Acquire::Retries={bootstrap.APT_ACQUIRE_RETRIES}"]
     assert host == [
-        [*prefix, "apt-get", "update"],
-        [*prefix, "apt-get", "install", "-y", "--no-install-recommends", *packages],
+        [*apt, "-o", "APT::Update::Error-Mode=any", "update"],
+        [*apt, "install", "-y", "--no-install-recommends", *packages],
     ]
 
 
@@ -78,15 +85,17 @@ def test_skip_installation(monkeypatch: pytest.MonkeyPatch, host, state: str) ->
     assert host == []
 
 
-def test_sudo_refusal(monkeypatch: pytest.MonkeyPatch, host) -> None:
-    def refuse(command):
+def test_sudo_refusal_preserves_diagnostics_after_retries(monkeypatch: pytest.MonkeyPatch, host) -> None:
+    def refuse(command, **options):
         host.append(command)
-        raise subprocess.CalledProcessError(1, command)
+        assert options["stdin"] == subprocess.DEVNULL
+        return subprocess.CompletedProcess(command, 1, stdout="sudo: a password is required\n")
 
-    monkeypatch.setattr(bootstrap, "_run", refuse)
-    with pytest.raises(subprocess.CalledProcessError):
+    monkeypatch.setattr(bootstrap.subprocess, "run", refuse)
+    with pytest.raises(RuntimeError, match="sudo: a password is required"):
         bootstrap.install_gui_packages()
-    assert host == [["sudo", "-n", "apt-get", "update"]]
+    assert host
+    assert all(command[:3] == ["sudo", "-n", "apt-get"] and command[-1] == "update" for command in host)
 
 
 # === Private Functions === #

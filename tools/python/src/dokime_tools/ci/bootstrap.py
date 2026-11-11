@@ -173,7 +173,7 @@ def install_gui_packages(*, runtime: bool = False, desktop: bool = False) -> Non
         prefix = ["sudo", "-n"]
     elif os.geteuid() != 0:
         raise SystemExit("GUI prerequisites are missing and apt-get needs root; install the selected packages or run this as root.")
-    fetch_packages(packages, prefix)
+    fetch_packages(packages, prefix, runner=subprocess.run, sleep=time.sleep)
 
 
 def fetch_packages(
@@ -202,7 +202,7 @@ def fetch_packages(
                 encoding="utf-8",
                 errors="replace",
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                stdin=sys.stdin,
+                stdin=subprocess.DEVNULL,
             )
             print(result.stdout, end="", flush=True)
             if result.returncode:
