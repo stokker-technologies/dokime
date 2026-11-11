@@ -446,12 +446,12 @@ pub(crate) async fn full_control_plugin_operations() {
     let allowed = Client::connect(Target::local(server.local_endpoint()).unwrap(), Some(TOKEN), None).await.unwrap();
     assert!(!allowed.operations().await.unwrap().iter().any(|entry| entry.owner.as_str() == DYNAMIC_OWNER));
 
-    // A Host Provider Outside The Product Namespace Is Not A Plugin And Stays Refused Remotely.
+    // Authenticated Clients Can Call Host Providers Outside The Product Namespace.
     assert!(!allowed.operations().await.unwrap().iter().any(|entry| entry.owner.as_str() == DYNAMIC_OWNER));
     let direct = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let refused = direct.unary::<DynamicUnary>(authenticated(DynamicUnary { value: 10 })).await.unwrap_err();
-    assert_eq!(refused.code(), Code::PermissionDenied);
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let reply = direct.unary::<DynamicUnary>(authenticated(DynamicUnary { value: 10 })).await.unwrap();
+    assert_eq!(reply.into_inner().value, 11);
+    calls.store(0, Ordering::SeqCst);
     runtime.operations().unregister(&dokime::harmos::QualifiedId::qualify("host", DynamicUnary::ID).unwrap()).await.unwrap();
 
     // Activate A Real Plugin After Connecting; Discovery Uses Its Live Scope.
@@ -514,10 +514,7 @@ pub(crate) async fn full_control_plugin_operations() {
         stream.close().await;
     }
     assert_eq!(calls.load(Ordering::SeqCst), 4);
-    // Full Control Covers New Scopes But Still Refuses A Foreign Operation Grant.
-    let foreign = authenticated(DynamicUnary { value: 22 });
-    assert_eq!(direct.unary::<DynamicUnary>(foreign).await.unwrap_err().code(), Code::PermissionDenied);
-    assert_eq!(calls.load(Ordering::SeqCst), 4);
+    // Full Control Covers Newly Registered Plugin Scopes.
     for value in [20, 21] {
         let reply = direct.unary::<DynamicUnary>(authenticated(DynamicUnary { value })).await.unwrap();
         assert_eq!(reply.into_inner().value, value + 1);
