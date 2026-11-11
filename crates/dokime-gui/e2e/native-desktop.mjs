@@ -1517,16 +1517,9 @@ async function setDensity(session, variant) {
 }
 
 async function selectDensity(session, density) {
-  const control = await until("local density preference", () => session.find("css selector", 'select[id="local-appearance.density"]'));
-  await session.execute(
-    `
-    const select = arguments[0], value = arguments[1];
-    if (![...select.options].some(option => option.value === value)) throw new Error('Density option is absent');
-    select.value = value;
-    select.dispatchEvent(new Event('change', {bubbles: true}));
-  `,
-    [control, density],
-  );
+  await session.clickNamed("combobox", "Density");
+  const option = density[0].toUpperCase() + density.slice(1);
+  await session.clickNamed("option", option);
 }
 
 /** Dismiss Toasts Through Their Controls Before The Next Pointer Target. */
