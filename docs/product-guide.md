@@ -361,7 +361,9 @@ on Linux, `$APPDATA/dokime/remotes` on Windows, and
 `$HOME/Library/Application Support/dokime/remotes` on macOS.
 
 Python constructs a client without opening a channel, then uses its normal
-asynchronous connection lifecycle:
+asynchronous connection lifecycle. The flat lifecycle target below adds public
+`cycle.close()`; current source still exposes cycle cleanup through context
+entry/exit. See the [follow-up inventory](../openspec/changes/imported-executions/design.md):
 
 ```python
 import asyncio
@@ -369,21 +371,25 @@ from pathlib import Path
 from dokime import DokimeClient
 
 async def main() -> int:
-    async with DokimeClient.from_pairing("examples/lab.pair") as client:
-        async with client.new_cycle("Example Lab Tracking") as cycle:
-            run = await cycle.start("example.demo.tracking", duration_min=10)
-            async for record in run.records("example.tool.connected", "example.tool.disconnected"):
-                print(record.type)
-        await cycle.save(Path("target/reports/tracking") / run.id, report="cycle.summary")
-        return run.outcome.exit_code
+    client = DokimeClient.from_pairing("examples/lab.pair")
+    await client.connect()
+    cycle = await client.create_cycle(label="Example Lab Tracking")
+    run = await cycle.start("example.demo.tracking", duration_min=10)
+    async for record in run.records("example.tool.connected", "example.tool.disconnected"):
+        print(record.type)
+    await cycle.close()
+    await cycle.save(Path("target/reports/tracking") / run.id, report="cycle.summary")
+    await client.close()
+    return run.outcome.exit_code
+
 
 raise SystemExit(asyncio.run(main()))
 ```
 
 The example requires the corresponding installed template. With the OBC fixture,
-use `cycle.start("obc.checks.pulse", sample_count=8)`. Cycle contexts seal and drain
-on normal exit, exceptions and cancellation, including Ctrl+C; cleanup failures
-are grouped with the original failure. Await a run directly for its saved outcome.
+use `cycle.start("obc.checks.pulse", sample_count=8)`. Explicit `cycle.close()` seals and drains owned work. Use `try/finally` to
+retain cleanup on exceptions and cancellation, including Ctrl+C; cleanup failures
+remain grouped with the original failure in the target API. Await a run directly for its saved outcome.
 Terminal record/sample iterators accept positional filters and provide `.to_json()`.
 The outcome's exit code is 0 for passed, 1 for nonpassing, 130 for interrupted or
 cancelled. A template expansion returns an ordered tuple of all execution handles.
@@ -459,7 +465,8 @@ Cancelling an ordinary local wait leaves admitted backend work running.
 `cycle seal` waits for the durable cycle seal. Repeating it is safe, including
 after a lost response. Other cycles remain available. The Python
 client provides the same durable boundary with `await cycle.seal()`, and
-`async with client.new_cycle(label)` applies it automatically on every exit.
+the flat lifecycle target exposes `await cycle.close()` to seal and drain owned
+work. Use `try/finally` when cleanup must survive exceptions or cancellation.
 
 Download saved evidence without running any work again:
 
@@ -1361,13 +1368,16 @@ snapshot. These reads never start, stop, seal or follow an execution. Existing
 ```python
 from dokime import DokimeClient
 
-async with DokimeClient.from_pairing("examples/lab.pair") as client:
-    async for execution in client.executions(template="example.measurement", status="failed"):
-        async with execution.telemetry("example.stream", fields=["counter"]) as samples:
-            frame = await samples.to_polars(max_rows=10_000)
-            metadata = samples.metadata
-            assert metadata is not None
-            print(frame, metadata.schema, samples.snapshot, samples.complete)
+client = DokimeClient.from_pairing("examples/lab.pair")
+await client.connect()
+async for execution in client.executions(template="example.measurement", status="failed"):
+    samples = execution.telemetry("example.stream", fields=["counter"])
+    frame = await samples.to_polars(max_rows=10_000)
+    metadata = samples.metadata
+    assert metadata is not None
+    print(frame, metadata.schema, samples.snapshot, samples.complete)
+    await samples.aclose()
+await client.close()
 ```
 
 The selected template/stream must be installed. Install the optional helper from
@@ -1383,7 +1393,7 @@ captured schema, snapshot and completeness. Sparse empty pages can continue.
 half-open UTC intervals. Collections and dataframe helpers default to finite
 client `QuerySettings.max_rows` and decoded `max_bytes`; exceeding either or
 losing a later page raises without returning a partial materialization.
-Close abandoned readers with their async context or `aclose()`.
+Close abandoned readers with their explicit `aclose()`.
 
 The same five operations support [CLI first/next-page requests](query-api.md#transport-access-and-cli-paging).
 Keep the returned continuation unchanged, including after an empty page, until

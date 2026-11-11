@@ -17,11 +17,13 @@
 - [ ] 2.7 Attach the checked-in protocol sources to releases through the archive owned by `release-layout` task 2.3.
 - [ ] 2.8 Wave 2: make proto files authoritative, put generated definitions and light helpers in protocol, document cross-language semantics for each SDK, and inventory Harmos native state/recovery/storage semantics retained in `harmos-domain`; move wire mirrors out.
 
+- [ ] 2.9 Before 3.2/3.3, adopt the origin union from `imported-executions`: PluginRun owns template/plugin/digest/process start time; Import owns source hashes/client/import time. Reserve removed TestCase fields, regenerate bindings and migrate execution persistence, materialization consumers and plugin-call envelopes to origin.
+
 ## 3. Host
 
 - [ ] 3.1 Adopt the Harmos `grpc-plugins` revision and add `Plugin::{Managed, Remote}` with the add and remove operations and entry states.
-- [ ] 3.2 Move phases and criteria from the template to the test case and call `materialize` per parameter set, with rematerialization on a changed digest.
-- [ ] 3.3 Build the execution manager: initialize, steps, criteria and cleanup as operation calls, with retries, cancel, interactive commands and sealing on a changed start time.
+- [ ] 3.2 After 2.9, move phases and criteria from the template to the test case and call `materialize` per parameter set, with rematerialization on a changed PluginRun-origin digest.
+- [ ] 3.3 After 2.9, build the execution manager on ExecutionOrigin and persist PluginRun provenance: initialize, steps, criteria and cleanup as operation calls, with retries, cancel, interactive commands and sealing on a changed start time.
 - [ ] 3.4 Open and close catalog and test case streams and ingest samples in arrival order.
 - [ ] 3.5 Compute stream statistics per execution and step range.
 - [ ] 3.6 Replace Settings › Plugins with managed and remote entries and their states.
@@ -35,7 +37,7 @@
 
 - [ ] 4.1 Wave 4, Rust: make `sdk/rust` the `dokime` product crate with `use dokime::prelude::*;`, plugin authoring and the absorbed client half, generated step/criterion operations and derived `materialize`; product dependencies stop at protocol and compile no host. Align Harmos's `sdk/rust` entry point as `harmos`.
 - [ ] 4.2 Move the plugin, installer and proto commands into `dokime`, add `dokime new --lang`, and delete `crates/cargo-dokime`.
-- [ ] 4.3 Python: pure package with the plugin half and the generated client half; rewrite the starter and `dokime new --lang python`.
+- [ ] 4.3 Python: flat public APIs with value composition and explicit close, no required context managers; pure package with the plugin half and the generated client half; rewrite the starter and `dokime new --lang python`.
 - [ ] 4.4 C#: `sdk/csharp` with both halves, a starter and `dokime new --lang csharp`.
 - [ ] 4.5 C++: `sdk/cpp` with both halves, a starter and `dokime new --lang cpp`.
 - [ ] 4.6 Migrate the host telemetry and OBC plugins and the samples.
@@ -69,6 +71,7 @@
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - SDK system tests run in Nightly only, not on pull requests.
 - Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- `imported-executions` contributes the origin union before the execution manager; import operations, SDK builders and report/interface marking follow the SDK wave and storage-interface.
 - Start `storage-interface` only after wave 5: benchmark before/after with multi-day data, extend Harmos storage first, then extract `dokime-storage`; no storage extension or extraction in the gRPC waves.
 - Run only focused tasks until combined source closure; final native proof remains separate.
 

@@ -163,8 +163,8 @@ Status must report `ready`. Discovery must include `obc.device.read`,
 `obc.device.set_power` and the `obc.checks.pulse` template. The client checks both
 the TLS certificate and expected backend identity before calling application operations.
 Python scripts use `DokimeClient.from_pairing` and keep the credential only in
-that client's transport. GUI import copies the complete pairing into its pairing-file folder and connects. Python constructs a client first, connecting on `async with` or
-`await client.connect()`.
+that client's transport. GUI import copies the complete pairing into its pairing-file folder and connects. Python constructs a client first, connecting with `await client.connect()` and releasing local resources with
+`await client.close()`.
 
 ## Run the Three Workflows
 

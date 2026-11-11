@@ -73,9 +73,8 @@ message Metadata {
 }
 
 message TestCase {
-  string template = 1;
-  string plugin = 2;                  // plugin id
-  bytes digest = 3;                   // catalog digest it was materialized from
+  reserved 1, 2, 3;
+  reserved "template", "plugin", "digest";
   map<string, Value> parameters = 4;  // resolved
   repeated Step steps = 5;
   repeated Criterion criteria = 6;
@@ -93,6 +92,15 @@ message Criterion {
 }
 ```
 
+The execution owns `ExecutionOrigin`, a `dokime.v1` oneof of `PluginRun`
+(plugin, template, digest and plugin process `started_at`) and `Import`
+(source files with hashes, importing client and import time). The full protobuf
+sketch is in `../imported-executions/proposal.md`. The fields above move from
+TestCase into PluginRun; preserve the remaining TestCase field numbers. Plugin
+calls carry origin beside the full case so dispatch and SDK instance creation
+never invent provenance. Materialization routing still names the template in
+MaterializeRequest; the host captures plugin identity and digest from the catalog.
+
 - Generated operation names only need to be stable within one catalog digest.
   The host materializes again when the digest changed before execution.
 - A step's retry count is its operation's retry policy.
@@ -101,7 +109,19 @@ message Criterion {
 
 ## Execution
 
+Establish the origin union and migrate call envelopes before building this
+manager. A plugin execution has PluginRun origin; digest rematerialization and
+restart comparisons read that origin, not TestCase fields. The host records
+plugin process start time when creating the execution. Imported executions use
+the same execution store, cycle membership, history, plots, statistics, documents,
+report and seal paths with Import origin, parameters and streams but no steps or
+criteria. Every surface marks them imported; optional passed/failed is attributed
+to the importer rather than evaluated by Dokime. No fake plugin is needed.
+Import delivery belongs to `imported-executions`, after the SDK wave and the
+columnar path of `storage-interface`, not this manager's plugin loop.
+
 ```text
+host: create execution with PluginRun origin
 host: open the test case's streams
 host: <template>.initialize(execution, parameters)
 host: for each step: invoke step.operation          (retries per its policy)
@@ -270,7 +290,7 @@ judges belongs in a stream, not in records.
   interval and the SDK answers it with the function's value, stamped with
   the tick's time. A stream without an observer is a generator that yields
   samples when the device produces them.
-- The host owns the only clock. `ctx.sleep` is a host call, so a test can
+- For live plugin runs, the host owns the only clock. `ctx.sleep` is a host call, so a test can
   advance time for Dokime and every plugin together and a long story
   finishes at once.
 - Records are not a stream. A verdict may rest on them, so each is an
@@ -428,6 +448,11 @@ every release; a breaking change moves the package to `v2`.
 
 ## SDKs
 
+Python public APIs always offer a flat form: compose values and submit them to
+one call, and explicitly close resources. No API requires a context manager.
+Import builders and their one-call submission arrive in `imported-executions`
+after this SDK wave and `storage-interface`.
+
 | Half | Uses | Built On |
 | --- | --- | --- |
 | Plugin | `harmos.v1` transport, `dokime.v1` messages and host calls | The Harmos SDK for the language |
@@ -438,13 +463,15 @@ every release; a breaking change moves the package to `v2`.
 import dokime
 from suite import ThermalCycle
 
-async with dokime.serve(ThermalCycle, address="127.0.0.1:7001") as plugin:
-    async with dokime.connect("bench.pair") as client:
-        await client.plugins.add(plugin.url)
-        cases = await client.templates.materialize("thermal.cycle", parameters={"limit": [70, 85]})
-        cycle = await client.cycles.start(cases)
-        async for progress in cycle.watch():
-            print(progress)
+plugin = await dokime.serve(ThermalCycle, address="127.0.0.1:7001")
+client = await dokime.connect("bench.pair")
+await client.plugins.add(plugin.url)
+cases = await client.templates.materialize("thermal.cycle", parameters={"limit": [70, 85]})
+cycle = await client.cycles.start(cases)
+async for progress in cycle.watch():
+    print(progress)
+await client.close()
+await plugin.close()
 ```
 
 - Every operation Dokime serves to clients appears in every language's client
@@ -655,7 +682,7 @@ remain separate. Existing archives are historical requirements, not new slices.
 | --- | --- | --- |
 | 1 | Organization source done; finish packaged proof. Remote source done except deferred recovery 2.4; finish connection proof. Plot source done; baseline 1.1 and comparison 4.1 open. Tooling partial: entry points and matrices landed, superseded leaves remain. Protocol definitions and host-source export done; release archive open. | Organization shell/packaging; remote client/server/connection UI; plot runtime/server/UI; `mise.toml`, `tools/python`, `.github`; `proto/`, protocol crate |
 | 2 | Pending: adopt Harmos and first extend its client-facing gRPC declarations/codecs for generated protobuf types and descriptors (3.8). Migrate catalogs, transactions and messages; refresh vendored definitions. Establish proto/helper and Harmos native-domain ownership (2.8). | Harmos declarations/codecs and SDK consumers; workspace dependency and protocol consumers |
-| 3 | Pending: execution manager, materialization, context operations, resource store, stream ingest/statistics and plugin entries (2.2–2.5, 3.2–3.6). Move declarations and protocol-message handlers together into operations with narrow resources; register directly and remove forwarding per area (3.9). Move server behavior into operations, remote access into listener/configuration and one authorization hook, startup into runtime; retain transactions/state/cycles together (3.10–3.11). | Operations; runtime execution, resources and listener; former server behavior; settings UI |
+| 3 | Pending: first land the `dokime.v1` ExecutionOrigin union and migrate TestCase identity fields/call envelopes (2.9); then execution manager, materialization, context operations, resource store, stream ingest/statistics and plugin entries (2.2–2.5, 3.2–3.6). Move declarations and protocol-message handlers together into operations with narrow resources; register directly and remove forwarding per area (3.9). Move server behavior into operations, remote access into listener/configuration and one authorization hook, startup into runtime; retain transactions/state/cycles together (3.10–3.11). | Operations; runtime execution, resources and listener; former server behavior; settings UI |
 | 4 | Pending: four SDKs and starters (4.x); `sdk/rust` is `dokime` with plugin and client halves, matching `harmos`. CLI and desktop host through runtime; replace build-script facade imports with protocol (4.8–4.9). Migrate built-in plugins and `domain-neutral-interface`. | `sdk/`, CLI, desktop host composition, build scripts, plugins and protocol consumers |
 | 5 | Pending: removals (5.x), including server, client crate, domain, dead conversions and operations contract-only feature. Keep tracing small. Complete `test-stories`, guides, README and final native validation. Reconcile retained Arrow, identity, installer, cadence, marker and embedded-server proof tasks and `prototype-streamline` work. `release-layout` and `dev-release-gates` own release/CI follow-through; `telemetry-at-record` remains deferred. | Removed crates/features, manifests, tests, docs, packaging and retained change owners |
 | After 5 | Separate `storage-interface` change: before-and-after benchmarks including multi-day data; design and implement five generic capabilities in Harmos first, then break Dokime storage cycles and extract one `dokime-storage`. Not part of a gRPC implementation wave. | Harmos storage contracts/backends; Dokime storage, queries and consumers |
@@ -705,9 +732,10 @@ not serve new operations or migrate the existing catalog readers.
   identifiers. Steps, criteria and execution stream identifiers belong only to
   `TestCase`. Parameter expressions are recursive typed trees, including current
   ranges, references, dynamic defaults, arithmetic and expansion selections.
-- Execution messages retain their defined field numbers and use typed
+- Execution messages retain their defined field numbers except the explicitly
+  reserved TestCase fields moved to PluginRun origin, and use typed
   values before first adoption. Initialize, step, criterion and cleanup
-  requests all carry the full case. Initialize is optional, and even cleanup may
+  requests all carry the full case and execution origin. Initialize is optional, and even cleanup may
   be the first call for a case without steps or criteria. The SDK can therefore
   create its execution instance on the first operation without depending on
   materialize retaining state. Step/criterion calls also carry their identifier,
@@ -761,3 +789,6 @@ not serve new operations or migrate the existing catalog readers.
   obtain plugin sources from their author. Running-host, Describe URL and bundle
   export sources, catalog-reader migration and release attachment remain later
   work; task 2.3 stays open.
+
+`imported-executions` first contributes the origin union before wave 3; its
+remaining delivery follows the SDK wave and `storage-interface` after wave 5.

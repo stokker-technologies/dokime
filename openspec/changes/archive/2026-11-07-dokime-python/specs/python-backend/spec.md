@@ -1,16 +1,16 @@
 ## ADDED Requirements
 
 ### Requirement: Python-Started Backend
-Python SHALL start a backend with a port and configuration as an async context, using the
-server crate, and stop it in order when the context exits.
+Python SHALL start a backend with a port and configuration through explicit start(), using the
+server crate, and stop it in order through close(), without requiring a context manager.
 
 #### Scenario: Normal Exit
-- **WHEN** the context exits with no cycle running
+- **WHEN** the caller closes the backend with no cycle running
 - **THEN** listeners and plugins stop and the data root is released
 
 #### Scenario: Port Unavailable
 - **WHEN** the requested port is in use
-- **THEN** entry raises a typed error naming the address, and no backend remains
+- **THEN** start raises a typed error naming the address, and no backend remains
 
 ### Requirement: Shared Data Root
 A Python-started backend SHALL default to the data root the GUI and server use, and accept

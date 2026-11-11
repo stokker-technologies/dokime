@@ -62,18 +62,20 @@ those inputs already in uv's cache. The remote PC needs no Rust compiler.
 ```python
 from dokime import Aggregate, DokimeClient, ExecutionStatus, Predicate
 
-async with DokimeClient.from_pairing("../lab.pair") as client:
-    async for execution in client.executions(status=ExecutionStatus.FAILED, since="2026-10-01"):
-        records = execution.query_records("example.event", where={"status": "failed"})
-        async for record in records:
-            print(record.to_json())
-        async for bucket in execution.telemetry(
-            "example.wifi.link", fields=["rssi"],
-            where=[Predicate("rssi", "gte", -80)],
-            between=("2026-10-01", "2026-10-02"), at=records.snapshot,
-            every="1s", agg=Aggregate.mean(),
-        ):
-            print(bucket.start, bucket.fields)
+client = DokimeClient.from_pairing("../lab.pair")
+await client.connect()
+async for execution in client.executions(status=ExecutionStatus.FAILED, since="2026-10-01"):
+    records = execution.query_records("example.event", where={"status": "failed"})
+    async for record in records:
+        print(record.to_json())
+    async for bucket in execution.telemetry(
+        "example.wifi.link", fields=["rssi"],
+        where=[Predicate("rssi", "gte", -80)],
+        between=("2026-10-01", "2026-10-02"), at=records.snapshot,
+        every="1s", agg=Aggregate.mean(),
+    ):
+        print(bucket.start, bucket.fields)
+await client.close()
 ```
 
 Query factories are lazy and read one fixed cut of the connected backend's local
@@ -85,11 +87,12 @@ Use `pages()` to inspect schema, effective limits and completeness, and
 [client guide](../../sdk/python/README.md#finite-evidence-queries)
 for projection, version selection and cycle record queries.
 
-To materialize a finite result, close the reader through its async context:
+To materialize a finite result, close the reader explicitly:
 
 ```python
-async with execution.query_records("example.event") as records:
-    rows = await records.collect(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+records = execution.query_records("example.event")
+rows = await records.collect(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+await records.aclose()
 ```
 
 Omitted limits use finite client `QuerySettings` defaults. Row or decoded-byte
@@ -105,13 +108,16 @@ Before starting your own work, inspect typed cycle statuses:
 ```python
 from dokime import CycleStatus, DokimeClient
 
-async with DokimeClient.from_pairing("../lab.pair") as client:
-    busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
-    if busy:
-        raise RuntimeError("Backend has active work")
-    async for schema in client.record_schemas():
-        columns = [field.identifier for field in schema.fields]
-        print(schema.record_type, columns)
+client = DokimeClient.from_pairing("../lab.pair")
+await client.connect()
+busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
+if busy:
+    await client.close()
+    raise RuntimeError("Backend has active work")
+async for schema in client.record_schemas():
+    columns = [field.identifier for field in schema.fields]
+    print(schema.record_type, columns)
+await client.close()
 ```
 
 This check observes a snapshot; another client can start afterward, and the
@@ -139,15 +145,16 @@ uv sync --locked --python 3.13
 Use the actual matching wheel version. Given an execution handle or summary:
 
 ```python
-async with execution.telemetry("example.stream", fields=["counter", "cpu.load"]) as samples:
-    frame = await samples.to_polars(max_rows=10_000, max_bytes=16 * 1024 * 1024)
-    metadata = samples.metadata
-    assert metadata is not None
-    print(frame, metadata.schema, samples.snapshot, samples.complete)
-
-async with execution.query_records("example.event") as records:
-    frame = await records.to_pandas(max_rows=10_000)
-    print(frame.attrs["dokime"])
+samples = execution.telemetry("example.stream", fields=["counter", "cpu.load"])
+frame = await samples.to_polars(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+metadata = samples.metadata
+assert metadata is not None
+print(frame, metadata.schema, samples.snapshot, samples.complete)
+await samples.aclose()
+records = execution.query_records("example.event")
+frame = await records.to_pandas(max_rows=10_000)
+print(frame.attrs["dokime"])
+await records.aclose()
 ```
 
 Only the selected helper imports its library. Missing extras raise

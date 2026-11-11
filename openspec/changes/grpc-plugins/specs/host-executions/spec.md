@@ -97,7 +97,7 @@ The host SHALL open the streams a test case names before initialize and close th
 
 ### Requirement: SDKs Provide and Drive
 
-Each language SDK SHALL let an author serve a plugin and drive Dokime through `dokime.v1` from the same package.
+Each language SDK SHALL let an author serve a plugin and drive Dokime through `dokime.v1` from the same package. Python SHALL offer flat value composition and explicit resource close without requiring a context manager.
 
 #### Scenario: Script Runs Its Own Suite
 
@@ -136,3 +136,13 @@ Project creation, plugin packaging, installer packaging and proto export SHALL l
 
 - **WHEN** `--lang` names a language with no SDK
 - **THEN** the command fails, lists the supported languages and creates nothing
+
+### Requirement: Execution Origin Before Host Adoption
+
+Before execution-manager adoption, dokime.v1 SHALL define ExecutionOrigin with PluginRun and Import variants. PluginRun SHALL own template, plugin, digest and plugin start time, replacing TestCase identity fields. Execution persistence and plugin-call envelopes SHALL carry origin from the start.
+
+#### Scenario: Plugin Execution Created
+
+- **WHEN** the host materializes and starts a plugin test case
+- **THEN** the execution stores PluginRun provenance and operation calls receive origin beside the full case
+- **AND** digest and restart checks read that origin without fabricated import plugin identity

@@ -19,6 +19,9 @@ and lets Dokime delete the plumbing in between.
   `Remote` (a URL the user adds). Both are the same gRPC connection.
 - The flow is `TestCaseTemplate` → expand (host) → `materialize` (plugin,
   pure) → `TestCase` → execute (host) → `Execution`.
+- Executions carry an origin union before the manager is built: PluginRun owns
+  plugin, template, digest and process start time; Import owns source hashes,
+  importing client and import time. TestCase identity fields move into PluginRun.
 - A `TestCase` names its steps, criteria and streams. Steps, criteria,
   `initialize` and `cleanup` are plugin operations the host calls; the host
   owns ordering, retries, cancellation, cleanup and verdicts.
@@ -28,6 +31,8 @@ and lets Dokime delete the plumbing in between.
   operations.
 - One Dokime protocol package, `dokime.v1`, holds every operation Dokime
   serves and the messages for the operations plugins serve.
+- Python APIs offer flat value composition and explicit close, without requiring
+  a context manager.
 - Each `sdk/<language>` has two halves: provide plugins, and drive Dokime.
   The pilot covers Rust, Python, C# and C++.
 - `sdk/rust` is the `dokime` crate itself, with plugin and client halves and
@@ -53,7 +58,8 @@ and lets Dokime delete the plumbing in between.
 - A plugin restart during an execution seals the execution and its cycles.
   There is no resume. A dropped connection to the same process fails only the
   step in flight, which is retried when the step allows it.
-- Evidence is ordered by arrival at the host.
+- Live plugin evidence is ordered by arrival at the host; imported tables retain
+  source timestamps under the later `imported-executions` change.
 - A remote plugin is trusted by whoever adds its URL. Bundles keep the
   existing install path and security roadmap.
 - The host telemetry plugin stays a managed plugin.

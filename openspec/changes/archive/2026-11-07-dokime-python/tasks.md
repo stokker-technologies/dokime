@@ -18,7 +18,7 @@
 ## 3. Backend
 
 - [x] 3.1 Let `Session::start` accept embedded providers and expose pairing export.
-- [x] 3.2 Add the Backend async context, port and root configuration, and typed startup errors.
+- [x] 3.2 Add the explicit Backend start/close lifecycle, port and root configuration, and typed startup errors.
 - [x] 3.3 Load installed plugins and refuse Python plugin IDs that clash with them.
 
 ## 4. Plugin Authoring
