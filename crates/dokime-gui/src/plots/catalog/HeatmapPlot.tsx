@@ -77,13 +77,13 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
     : [];
   const legendId = `heatmap-legend-${plot.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
   const clipId = `${legendId}-clip`;
-  const referenceCoordinate = (axis: "x" | "y", value: number | null | undefined) => {
-    const logarithmic = (axis === "x" ? plot.xScale : plot.yScale) === "log";
+  const referenceCoordinate = (value: number | null | undefined) => {
+    const logarithmic = plot.yScale === "log";
     if (typeof value !== "number" || !Number.isFinite(value) || (logarithmic && value <= 0)) {
       return null;
     }
 
-    const coordinate = (axis === "x" ? xScale : yScale)(value);
+    const coordinate = yScale(value);
     return Number.isFinite(coordinate) ? coordinate : null;
   };
   const summary = points.length
@@ -208,30 +208,23 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
             ))}
             <g clipPath={`url(#${clipId})`} data-testid="heatmap-references">
               {plot.referenceBands.map((band) => {
-                const first = referenceCoordinate(band.axis, band.min);
-                const second = referenceCoordinate(band.axis, band.max);
+                const first = referenceCoordinate(band.min);
+                const second = referenceCoordinate(band.max);
                 if (first === null || second === null) return null;
 
-                const start = Math.max(Math.min(first, second), band.axis === "x" ? MARGIN.left : MARGIN.top);
-                const end = Math.min(Math.max(first, second), band.axis === "x" ? MARGIN.left + plotWidth : MARGIN.top + plotHeight);
+                const start = Math.max(Math.min(first, second), MARGIN.top);
+                const end = Math.min(Math.max(first, second), MARGIN.top + plotHeight);
                 if (end <= start) return null;
 
-                const x = band.axis === "x" ? start : MARGIN.left;
-                const y = band.axis === "y" ? start : MARGIN.top;
+                const x = MARGIN.left;
+                const y = start;
                 const color = band.color || "var(--foreground)";
-                const label = band.label ?? `${band.axis.toUpperCase()} reference band`;
+                const label = band.label ?? "Y reference band";
 
                 return (
-                  <g key={JSON.stringify(band)} data-reference-band={band.axis}>
+                  <g key={JSON.stringify(band)} data-reference-band="y">
                     <title>{label}</title>
-                    <rect
-                      x={x}
-                      y={y}
-                      width={band.axis === "x" ? end - start : plotWidth}
-                      height={band.axis === "y" ? end - start : plotHeight}
-                      fill={color}
-                      fillOpacity={0.15}
-                    />
+                    <rect x={x} y={y} width={plotWidth} height={end - start} fill={color} fillOpacity={0.15} />
                     {band.label ? (
                       <text x={x + 4} y={Math.min(y + 14, MARGIN.top + plotHeight - 4)} fill={color} fontSize={11}>
                         {band.label}
@@ -241,38 +234,30 @@ export function HeatmapPlot({ plot }: { plot: PlotCardSpec }) {
                 );
               })}
               {plot.referenceLines.map((line) => {
-                const coordinate = referenceCoordinate(line.axis, line.value);
+                const coordinate = referenceCoordinate(line.value);
                 if (coordinate === null) return null;
 
-                const minimum = line.axis === "x" ? MARGIN.left : MARGIN.top;
-                const maximum = minimum + (line.axis === "x" ? plotWidth : plotHeight);
+                const minimum = MARGIN.top;
+                const maximum = minimum + plotHeight;
                 if (coordinate < minimum || coordinate > maximum) return null;
 
                 const color = line.color || "var(--foreground)";
-                const label =
-                  line.label ??
-                  `${line.axis.toUpperCase()} = ${formatNumber(line.value as number, (line.axis === "x" ? plot.xFormat : plot.yFormat) ?? null)}`;
+                const label = line.label ?? `Y = ${formatNumber(line.value as number, plot.yFormat ?? null)}`;
 
                 return (
-                  <g key={JSON.stringify(line)} data-reference-line={line.axis}>
+                  <g key={JSON.stringify(line)} data-reference-line="y">
                     <title>{label}</title>
                     <line
-                      x1={line.axis === "x" ? coordinate : MARGIN.left}
-                      x2={line.axis === "x" ? coordinate : MARGIN.left + plotWidth}
-                      y1={line.axis === "y" ? coordinate : MARGIN.top}
-                      y2={line.axis === "y" ? coordinate : MARGIN.top + plotHeight}
+                      x1={MARGIN.left}
+                      x2={MARGIN.left + plotWidth}
+                      y1={coordinate}
+                      y2={coordinate}
                       stroke={color}
                       strokeWidth={1}
                       strokeDasharray="5 3"
                     />
                     {line.label ? (
-                      <text
-                        x={line.axis === "x" ? Math.min(coordinate + 4, MARGIN.left + plotWidth - 4) : MARGIN.left + 4}
-                        y={line.axis === "y" ? Math.max(coordinate - 4, MARGIN.top + 14) : MARGIN.top + 14}
-                        fill={color}
-                        fontSize={11}
-                        textAnchor={line.axis === "x" && coordinate > MARGIN.left + plotWidth / 2 ? "end" : "start"}
-                      >
+                      <text x={MARGIN.left + 4} y={Math.max(coordinate - 4, MARGIN.top + 14)} fill={color} fontSize={11} textAnchor="start">
                         {line.label}
                       </text>
                     ) : null}

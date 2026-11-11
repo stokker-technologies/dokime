@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -23,6 +24,7 @@ use dokime_runtime::prompts::{DeclaredPrompt, FormPrompt, PromptDefinition};
 use dokime_runtime::records::RecordSeverity;
 
 /* === Constants === */
+
 const SUITE: &str = "prompts.checks";
 const TEMPLATE: &str = "prompts.checks.ask";
 
@@ -31,6 +33,7 @@ const TEMPLATE: &str = "prompts.checks.ask";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::prompt(
     id = "prompts.checks.signoff",
     label = "Sign off",
@@ -42,12 +45,16 @@ const TEMPLATE: &str = "prompts.checks.ask";
 pub struct SignOff {
     #[prompt(label = "Operator note", default = "steady", max_length = 200)]
     pub note: String,
+
     #[prompt(default = true)]
     pub accepted: bool,
+
     #[prompt(label = "Sweep", default = Sweep::Fast)]
     pub sweep: Sweep,
+
     #[prompt(default = Some(3))]
     pub retries: Option<i64>,
+
     #[prompt(label = "Sweeps to repeat", default = vec![Sweep::Slow], min_items = 1)]
     pub repeats: Vec<Sweep>,
 }
@@ -66,10 +73,12 @@ struct Ask {
 }
 
 /* === Enums === */
+
 #[dokime_runtime::choice]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Sweep {
     Fast,
+
     #[choice(label = "Slow and careful")]
     Slow,
 }
@@ -80,9 +89,6 @@ enum Error {
     Sdk(#[from] dokime_runtime::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum PluginSuites {
     Checks(Checks),
@@ -93,14 +99,18 @@ enum ChecksTemplates {
     Ask(Ask),
 }
 
-#[dokime_runtime::suite(id = SUITE, label = "Prompts", templates = ChecksTemplates)]
-impl Checks {}
-
 #[dokime_runtime::catalog]
 enum AskPrompts {
     SignOff(SignOff),
     Go(Go),
 }
+
+/* === Traits === */
+
+/* === Implementations === */
+
+#[dokime_runtime::suite(id = SUITE, label = "Prompts", templates = ChecksTemplates)]
+impl Checks {}
 
 #[dokime_runtime::template(id = TEMPLATE, label = "Ask", prompts = AskPrompts)]
 impl Ask {
@@ -150,6 +160,7 @@ impl Ask {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn logged(report: &dokime_runtime::plugin::testing::Report) -> Vec<String> {
     report.log().iter().map(|entry| entry.message.clone()).collect()
 }

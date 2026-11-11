@@ -1,0 +1,139 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime-python"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Native Dokime Python SDK."
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# === Package Targets === #
+
+[lib]
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+
+# === Features === #
+
+[features]
+# Match The Product Server's Optional Release Capture Support.
+media-native = ["dokime-server/media-native"]
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime = { workspace = true, features = ["client", "native"] }
+dokime-server = { workspace = true }
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+pyo3 = { workspace = true }
+
+# Serialization
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+async-trait = { workspace = true }
+pyo3-async-runtimes = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+
+# Networking
+tonic = { workspace = true }
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+[dev-dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+tempfile = { workspace = true }
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+[[example]]
+name = "client-contracts"
+path = "tests/fixtures/contracts.rs"
+
+[[example]]
+name = "authoring-batch"
+path = "tests/fixtures/authoring_batch.rs"
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

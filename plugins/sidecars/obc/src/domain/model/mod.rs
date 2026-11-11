@@ -9,6 +9,16 @@
 
 /* === Modules === */
 
+#[cfg(feature = "benchmarks")]
+pub mod ingest;
+
+pub mod bench;
+pub mod measurement;
+pub mod prompts;
+pub mod settings;
+
+pub mod charger;
+
 pub mod connections;
 pub mod device;
 pub mod readiness;

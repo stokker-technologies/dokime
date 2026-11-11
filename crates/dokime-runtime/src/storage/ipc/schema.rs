@@ -230,7 +230,7 @@ mod tests {
             opaque: r#"{ "value": [1, true] }"#.into(),
         };
         let contract = TelemetryContract::declared("roundtrip.fixture", "Round Trip")
-            .typed::<Reading>()
+            .typed::<Reading>(1)
             .column(TelemetryColumn::declared("clock", "Clock", ValueType::Datetime, TelemetryRole::Value))
             .column(TelemetryColumn::declared("opaque", "Opaque", ValueType::Object, TelemetryRole::Value));
         let codec = crate::storage::telemetry::codec(&contract, &Default::default()).unwrap();
@@ -274,12 +274,13 @@ mod tests {
         }
         assert_eq!(schema.metadata().get("contract_hash").unwrap().len(), 64);
         let batch = crate::storage::ipc::record_batch(schema.clone(), &[(9, admitted)]).unwrap();
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("roundtrip.arrow");
-        let mut writer = crate::storage::ipc::Writer::create(&path, schema.clone()).unwrap();
-        let index = writer.append(&batch).unwrap();
+        let options = crate::storage::ipc::options().unwrap();
+        let mut writer = arrow_ipc::writer::FileWriter::try_new_with_options(Vec::new(), &schema, options).unwrap();
+        writer.write(&batch).unwrap();
         writer.finish().unwrap();
-        let batch = crate::storage::ipc::read_batch(&path, schema, &index).unwrap();
+        let bytes = writer.into_inner().unwrap();
+        let mut reader = arrow_ipc::reader::FileReader::try_new(std::io::Cursor::new(bytes), None).unwrap();
+        let batch = reader.next().unwrap().unwrap();
         let (position, restored) = crate::storage::ipc::telemetry_entry(&batch, 0, &contract).unwrap();
         let mut tail = original.sample.values.clone();
         crate::storage::ipc::normalize_values(batch.schema().field(1), &mut tail).unwrap();

@@ -70,6 +70,7 @@ struct CredentialStore(Arc<keyring_core::CredentialStore>);
 pub(crate) enum SecretStoreError {
     #[error("Secret catalog storage failed: {0}")]
     Storage(#[from] crate::storage::Error),
+
     #[error("{0}")]
     Invalid(&'static str),
 

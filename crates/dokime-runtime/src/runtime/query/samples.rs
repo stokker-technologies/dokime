@@ -345,12 +345,28 @@ mod tests {
 
     #[test]
     fn query_versions() {
+        #[harmos::message]
+        struct First {
+            counter: i64,
+        }
+
+        #[harmos::message]
+        struct Second {
+            counter: i64,
+            extra: String,
+        }
+
+        #[harmos::message]
+        struct Incompatible {
+            counter: f64,
+            extra: String,
+        }
+
         let column =
             |id: &str, kind| TelemetryColumn::new(Metadata::new(Identifier::new(id).unwrap(), id, None), kind, TelemetryRole::Value);
-        let mut first = TelemetryContract::declared("query.readings", "Readings");
+        let mut first = TelemetryContract::declared("query.readings", "Readings").typed::<First>(1);
         first.columns = vec![column("counter", ValueType::Integer)];
-        let mut second = first.clone();
-        second.schema_version = 2;
+        let mut second = first.clone().typed::<Second>(1);
         second.columns.push(column("extra", ValueType::Text));
         let config =
             crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
@@ -402,13 +418,16 @@ mod tests {
             Plan::new(&bytes, request, &snapshot, &config, "test.query")
         };
         let plan = prepare(&[first.clone(), second.clone()], &request).unwrap();
-        assert_eq!(plan.read.versions, vec![1, 2]);
+        let mut versions = vec![first.schema_version, second.schema_version];
+        versions.sort_unstable();
+        assert_eq!(plan.read.versions, versions);
         assert_eq!(plan.read.fields, vec!["counter", "extra"]);
         assert!(plan.selection.schema().fields[0].nullable);
         second.columns[0].value_type = ValueType::Number;
+        second = second.typed::<Incompatible>(1);
         assert_eq!(prepare(&[first.clone(), second.clone()], &request).err().unwrap().reason, Reason::IncompatibleSchema);
-        request.versions = vec![1];
+        request.versions = vec![first.schema_version];
         request.fields = vec!["counter".into()];
-        assert_eq!(prepare(&[first, second], &request).unwrap().read.versions, vec![1]);
+        assert_eq!(prepare(&[first, second], &request).unwrap().read.versions, request.versions);
     }
 }

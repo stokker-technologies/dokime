@@ -78,13 +78,13 @@ pub struct Collected {
 impl dokime::StreamSpec for Network {
     type Row = crate::Network;
     const ID: &'static str = "host.network";
-    const VERSION: u32 = 1;
+
     const WINDOW: usize = <crate::Network as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for Network {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::Network).typed::<crate::Network>()
+        crate::host_telemetry_contract(HostTelemetryStream::Network)
     }
 }
 

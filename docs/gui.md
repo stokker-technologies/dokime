@@ -63,6 +63,27 @@ retains the original files even when their metadata cannot be decoded.
 
 ## Cycle Lists and Restart Recovery
 
+Finished executions whose template is absent from the connected backend's live
+catalog show **Plugin Unavailable** in Control. Their saved evidence stays
+readable; the execution card and its menu offer no re-run. A Python plugin is
+available only while its registering backend runs. Start that backend again,
+or install the original native plugin revision, before running its cases again.
+The catalog's pending or failed read never asserts that a plugin is absent.
+
+While a step runs, Control states the step's label as its plugin names it, or
+its humanized id before a step record exists; the id itself stays in the
+journal and logs. Beside the bar it shows the runtime's progress phase and
+count, `Samples 38/100`, or the count alone when the phase is empty. The cycle's
+Control reads `Execution 2 · Sample Loop` with the same bar.
+
+The cycle's menu offers **Rerun Cycle** in every phase, sealed and archived
+alike. It calls `Execution.RerunCycle` and opens the new cycle. When the reply
+skips cases or drops parameters, that cycle's Control card states them, one line
+per reason: `2 cases skipped: obc.pulse, obc.sweep, its suite no longer declares
+this case`. The notices live in `src/stores/rerun-notice-store.ts` for the
+session only. A rerun cycle's summary reads `Rerun of <source title>`, linking to
+the source.
+
 The Cycles home and sidebar share `Execution.ListCycles`. The backend selects
 current live cycles and durable sealed cycle headers as one list, with the same
 filter, ordering and continuation rules. A live cycle supersedes its saved
@@ -86,6 +107,15 @@ report finalization resumes from its frozen terminal header. A seal that cannot
 complete settles as Seal Failed: the Cycles home lists it under Needs Attention,
 and the cycle's control card shows the cause with Retry Seal and Archive, each
 behind a confirmation. Startup does not retry a Seal Failed cycle.
+
+## Organization Pack Loading
+
+The desktop reads resolved organization manifests, logos, CSS and fonts directly
+from memory, including inlined CSS URLs. Loading the bundled pack does not use
+`TMP` or `TEMP`. User-selected ZIP files are read from their chosen path; staging,
+active and pending packs, and replacement backups live under `organization/` in
+the application data root. Disk packs are resolved before using the same in-memory
+loader.
 
 ## Keyboard Focus and Theme Colors
 
@@ -118,6 +148,13 @@ and filter controls remain usable. Preserve the case of unit symbols.
 
 ## Document Summaries
 
+Author documents with `Document::new("Hold at Temperature")`; identifiers derive
+from labels, as for traceability and sections. Use `document.id("hold");` to retain
+a key across label edits. Invalid or empty derived keys and collisions in one
+registry are refused with an instruction to set `.id(...)`. GUI routes continue
+to select the runtime's internal `default` execution document, which merges the
+template's authored content with built-in results and evidence.
+
 Document structure commits before the saved-evidence wait. Each pending binding
 uses an independent query through the existing document capture operation, with
 its own cancellation and retry lifetime. Runtime invalidation preserves in-flight
@@ -147,6 +184,53 @@ only the page currently displayed in the GUI. A failed data binding retains its
 card diagnostic in the saved document.
 
 ## Telemetry Plots
+
+`unit` is only a label. A plot's optional `scale` multiplies returned time-series
+y values for display, including points, axis ticks, cursor/tooltips, statistics
+and y reference lines/bands. Count and timestamps stay unchanged. Live plots and
+frozen HTML use `src/plots/grouping.ts` for the same conversion, without mutating
+query payloads. Explicit conversion uses a numeric axis, including encoded 0/1
+Boolean values; ordinary Boolean plots retain False/True labels.
+Scale defaults to 1.0 and is omitted from documents when absent. Validation
+requires a positive finite constant and refuses other plot kinds, custom analyses
+and alternate x axes. Filters and section repeats still use stored units;
+evidence, exports, criteria, query plans and expressions remain unchanged.
+
+Reference bands and lines belong to the plot and always use its Y axis. Bounds,
+centers, tolerances and line values accept `f64` or an existing expression handle
+(or `DataExpression`); constants do not become data expressions, so
+`plot.y(10.0)` is still invalid. All reference values use stored units and scale
+with the data when `plot.scale(...)` is set:
+
+```rust
+plot.reference_band("Requirement", -10.0, 10.0);
+plot.reference_band("Limits", Parameters::lower_limit_c(), Parameters::upper_limit_c());
+plot.reference_tolerance("Requirement", 0.0, Parameters::angle_tolerance_arcsec());
+plot.reference_tolerance("Target ± Band", Parameters::target_c(), Parameters::band_c());
+plot.reference_line("Limit", Parameters::limit_c());
+```
+
+Each case resolves its captured parameter values through the same presentation
+path in live plots and frozen HTML. Missing or invalid dynamic bounds are undrawn.
+In Cartesian plots, every band whose bounds resolve is drawn as a translucent fill with solid edges,
+and the Y range widens to include each band and line value plus 15% padding of
+the spanned values, so a band that contains every sample still shows both
+edges inside the plot.
+
+A reference keeps an explicit author color. One left at the definition default
+takes the reference palette in order: a plot's bands first, then its lines. The
+reference palette is a muted sequence (`--plot-reference-1` to `-4` in
+`crates/dokime-gui/src/styles.css`), lower in chroma than any series color, so
+a plot's first band never reads as its first trace:
+
+| Mode  | 1         | 2         | 3         | 4         |
+| ----- | --------- | --------- | --------- | --------- |
+| Light | `#415166` | `#9c8378` | `#435f52` | `#8f889f` |
+| Dark  | `#8ba2b2` | `#e5d5c3` | `#987f7f` | `#dacbde` |
+Document validation refuses reversed literal bounds and negative literal tolerance,
+naming the plot. The development document/storage format stays at v1; existing
+incompatible documents require an explicit fresh storage root, preserving old data.
+
 
 Live and frozen report plots retain samples from the selected execution,
 including shared streams captured by its leases. Authored stream aliases resolve
@@ -202,18 +286,25 @@ stream's declared window. A flush moves those rows into saved batches without a
 gap or duplicate. Tail rows shown live can be lost in a crash. Finite queries,
 All refreshes and frozen reports retain saved evidence cuts.
 
-Numeric time series and histograms show numeric statistics. XY scatter, XY line,
-XY interval, trajectory and heatmap plots omit the statistics block in both the
+A document watch evaluates its dirty plots together at one captured cut, reusing
+query deduplication and bounded storage readers. One watch message carries the
+complete dirty set in request order, including each plot's snapshot or error.
+Opening snapshots use the same grouped delivery. The plots share the revision's
+transport budget; oversized payloads reduce from the retained query result,
+without rereading evidence. Finite All requests keep their independent budgets.
+Already delivered revisions are suppressed; keepalives remain payload-free
+pending notices. The frontend decodes each revision in full and applies its
+updates through one shared animation-frame commit, so the document's charts
+receive the complete revision together.
+
+Numeric time series and histograms show numeric statistics. XY, XY interval, trajectory and heatmap plots omit the statistics block in both the
 desktop and report renderer. XY traces keep their ordinary legend.
 
-Event markers join the plot's legend table after the traces, one row per record
-type, with a matching dashed-line glyph and the number of markers in the shown
-x window. Prompt Asked and Prompt Answered have their own rows, with hollow and
-filled caps matching the canvas. Marker rows leave cursor and statistics cells
-empty. Clicking a row hides or restores only that kind; visibility belongs to
-the plot card, like trace visibility. Frozen HTML reports retain these toggles.
-Marker colors come from the theme's plot palette, and hovering a visible marker
-shows its recorded label through the same tooltip for events and prompts; markers
+Plot legend tables list traces only. Clicking a trace row hides or restores that
+trace within its plot card. Event and prompt markers always remain drawn on the
+canvas, with no legend rows or visibility controls. Marker colors come from the
+reference palette by marker kind, never from the series palette, and hovering a marker shows its recorded label through the
+same tooltip for events and prompts; markers
 never draw permanent canvas labels. The tooltip stays inside the plot card,
 and prompt labels take precedence over event labels at the same position. It
 wraps long labels and ellipsizes after three lines while retaining the start.
@@ -224,6 +315,29 @@ Point styles draw samples independently of hover. Line, stepped and line-point
 styles also mark lone samples between gaps, including nullable XY coordinates.
 Window reduction retains gap separators so retained samples never gain a line
 across missing evidence. Live and frozen plots share this drawing path.
+Each series takes one color, its declared color or the plot palette at its
+series index, for its line, point marks, hover mark and legend swatch. Every plot
+starts at the first palette entry: the plot's title and position never offset it. Point and
+line-point marks are opaque discs in that color with a 1 px plot-background
+outline to separate overlapping samples. Point marks are normally 8 px, or 5 px
+for dense captures; hover marks grow by 2 px.
+The desktop selects its plot palette from the resolved application theme;
+frozen reports use the palette applied for their displayed color mode.
+
+The default organization theme (`organization/theme/`, `--chart-1` to `-8`)
+ships a spectral pastel series palette that opens on the brand red and runs
+through orange, yellow, green, teal, blue, violet and pink. Light entries
+alternate lightness so neighbours stay apart on warm paper; dark entries are
+pastel. Both pass the color validator's adjacent color-vision and normal-vision
+separation checks; light entries below 3:1 contrast rely on the legend table
+and hover readout, and dark entries sit above the validator's lightness band by
+design. An organization pack or plugin theme that declares its own chart colors
+replaces this palette.
+
+| Mode  | Red       | Orange    | Yellow    | Green     | Teal      | Blue      | Violet    | Pink      |
+| ----- | --------- | --------- | --------- | --------- | --------- | --------- | --------- | --------- |
+| Light | `#b54a46` | `#de9046` | `#847514` | `#67b36a` | `#008574` | `#619dda` | `#6f4fa1` | `#d887ae` |
+| Dark  | `#d67069` | `#eeaf6e` | `#a2933b` | `#88cf8a` | `#37a69a` | `#85bcf5` | `#987aca` | `#eca0c4` |
 
 Time series of declared Boolean fields, including host `host.network.internet`,
 use a stepped state axis labeled **False** and **True**, without numeric statistics.
@@ -267,10 +381,9 @@ from Inspect. Frozen HTML retains its original media and download links under
 
 ## Canonical Bindings and Transport
 
-- `mise run check:typescript:generated --source` checks locally prepared bindings
-  and GUI types. Without `--source`, the generated check restores staged Product
-  bindings for artifact validation. `mise run check:typescript` owns formatting
-  and lint.
+- `mise run check:typescript:generated` regenerates the bindings and GUI types
+  from the current sources and type-checks them; it never restores staged build
+  output. `mise run check:typescript` owns formatting and lint.
 - Rust `dokime-operations` declarations own operation contracts and
   `dokime-domain` owns their messages; do not maintain parallel domain DTOs or a second codec.
 - `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
@@ -362,7 +475,17 @@ from Inspect. Frozen HTML retains its original media and download links under
   with their session or subscription owner. Canceling a subscription does not stop
   the backend producer. WebView TLS requires platform-trusted certificates.
 
+
 ## Failure Presentation
+
+User-facing errors name the action that can resolve the failure. Offer Try Again
+only when retry can help. A real unrecoverable failure directs the operator to
+Settings → Diagnostics → Support Bundle so logs can reach the plugin developer.
+Ambiguous stored stream definitions instead explain that the evidence cannot be
+repaired and advise a fresh storage root, preserving the original files.
+Failed report finalization settles Control and the sidebar through the same
+terminal projection as successful publication; its durable cause remains visible
+after reload. Initialization precedes ordinary steps and cleanup in both views.
 
 Every GUI failure enters `failureOf(error, title)` in
 `src/lib/notification-details.ts`. Its serializable `NotificationFailure` carries

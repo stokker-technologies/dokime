@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -22,6 +23,7 @@ use super::documents;
 use crate::storage::{Error, Result, objects::metadata};
 
 /* === Constants === */
+
 const MAX_DEPTH: usize = 64;
 
 /* === Macros === */
@@ -29,6 +31,7 @@ const MAX_DEPTH: usize = 64;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(super) struct Layout {
@@ -42,14 +45,17 @@ struct Node {
     section: Option<Section>,
     card: Option<documents::Placement>,
 }
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Section {
     #[serde(default)]
     node_id: String,
+
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     repeat: Option<documents::Repeat>,
 }
@@ -59,6 +65,7 @@ struct Section {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Layout {
     pub(super) fn encoding_memory(value: &crate::document::DocumentLayout) -> Result<usize> {
         let mut count = 0;
@@ -130,6 +137,7 @@ impl Serialize for Layout {
         layout.serialize(serializer)
     }
 }
+
 impl<'de> Deserialize<'de> for Layout {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let source = crate::document::DocumentLayout::deserialize(deserializer)?;
@@ -140,6 +148,7 @@ impl<'de> Deserialize<'de> for Layout {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn encoding_node(value: &crate::document::DocumentNode, depth: usize, count: &mut usize) -> Result<usize> {
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("document layout exceeds depth limit"));

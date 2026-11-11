@@ -116,7 +116,7 @@ impl OperationHost for StepOperationHost {
                 let binding = self.binding.clone().ok_or(CallError::Unavailable)?;
                 let payload = encoded.clone();
                 let run = LocalRun::spawn::<O, _>(
-                    move |cancel, ready| serve(binding.clone(), payload.clone(), cancel, ready),
+                    move |cancel| serve(binding.clone(), payload.clone(), cancel),
                     true,
                     retry,
                     self.binding.as_ref().map(|binding| binding.journal.clone()),
@@ -127,15 +127,9 @@ impl OperationHost for StepOperationHost {
             match &self.caller.0 {
                 Road::Unmounted => Err(CallError::Unavailable),
                 Road::Host(host) => {
-                    let readiness_host = routed(host, &self.stage, O::ID).map_err(refusal)?;
-                    let ticket =
-                        (O::ID == <dokime_operations::files::WatchFile as OperationDeclaration>::ID).then(super::WatchTicket::issue);
-                    let submitting = match &ticket {
-                        Some(ticket) => readiness_host.with_value(ticket.clone()).map_err(refusal)?,
-                        None => readiness_host.clone(),
-                    };
-                    let instance = submitting.invoke::<O, E>(request, retry, _endpoints).await?;
-                    Ok(StepInstance::host(&self.handles, instance, &encoded, readiness_host, ticket.map(|ticket| ticket.ticket)))
+                    let routed_host = routed(host, &self.stage, O::ID).map_err(refusal)?;
+                    let instance = routed_host.invoke::<O, E>(request, retry, _endpoints).await?;
+                    Ok(StepInstance::host(&self.handles, instance, &encoded))
                 }
                 Road::Local(operations) => {
                     let answer = operations
@@ -144,7 +138,7 @@ impl OperationHost for StepOperationHost {
                         .ok_or_else(|| step_refusal(format!("the harness registered no answer for operation `{}`", O::ID)))?;
                     let payload = encoded.clone();
                     let run = LocalRun::spawn::<O, _>(
-                        move |_, _| answer(payload.clone()),
+                        move |_| answer(payload.clone()),
                         false,
                         retry,
                         self.binding.as_ref().map(|binding| binding.journal.clone()),

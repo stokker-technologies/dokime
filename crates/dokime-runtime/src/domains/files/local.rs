@@ -8,7 +8,7 @@
  */
 
 // A directory on the backend host. Discovery never follows symbolic links, so
-// a watch cannot leave its root or loop through a linked tree.
+// a capture cannot leave its root or loop through a linked tree.
 
 /* === Modules === */
 
@@ -48,20 +48,17 @@ pub(crate) struct LocalSource {
 /* === Implementations === */
 
 impl LocalSource {
-    pub(crate) async fn open(root: &str, wait: bool) -> Result<Self> {
+    pub(crate) async fn open(root: &str) -> Result<Self> {
         let path = Path::new(root);
         if !path.is_absolute() {
-            return Err(invalid("a local watch root must be an absolute path"));
+            return Err(invalid("a local capture root must be an absolute path"));
         }
         let root = match tokio::fs::canonicalize(path).await {
             Ok(root) => root,
-            Err(source) if wait && source.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Self { root: path.to_owned(), depth: usize::MAX });
-            }
             Err(source) => return Err(source_error(root, source)),
         };
-        if !tokio::fs::metadata(&root).await.map_err(|source| unreachable_source(format!("watch root {root:?}: {source}")))?.is_dir() {
-            return Err(invalid("a local watch root must be a directory"));
+        if !tokio::fs::metadata(&root).await.map_err(|source| unreachable_source(format!("capture root {root:?}: {source}")))?.is_dir() {
+            return Err(invalid("a local capture root must be a directory"));
         }
         Ok(Self { root, depth: usize::MAX })
     }
@@ -114,14 +111,14 @@ impl LocalSource {
 fn walk(root: &Path, depth: usize, matcher: &FileMatcher, scan_entries: usize) -> Result<Listing> {
     let metadata = std::fs::metadata(root).map_err(|source| source_error(&root.display().to_string(), source))?;
     if !metadata.is_dir() {
-        return Err(invalid("a local watch root must be a directory"));
+        return Err(invalid("a local capture root must be a directory"));
     }
     let mut listing = Listing::new();
     let mut visited = 0_usize;
     for entry in walkdir::WalkDir::new(root).follow_links(false).min_depth(1).max_depth(depth) {
         visited += 1;
         if visited > scan_entries {
-            return Err(capped(format!("the watch root holds more than {scan_entries} entries")));
+            return Err(capped(format!("the capture root holds more than {scan_entries} entries")));
         }
         let entry = match entry {
             Ok(entry) => entry,
@@ -129,13 +126,13 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher, scan_entries: usize) -
             Err(source) if source.io_error().is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) => {
                 continue;
             }
-            Err(source) => return Err(invalid(format!("cannot scan watch root: {source}"))),
+            Err(source) => return Err(invalid(format!("cannot scan capture root: {source}"))),
         };
         if !entry.file_type().is_file() {
             continue;
         }
         let Some(relative) = relative_path(root, entry.path()) else {
-            tracing::warn!(path = %entry.path().display(), "file watch skips a path that is not UTF-8");
+            tracing::warn!(path = %entry.path().display(), "file capture skips a path that is not UTF-8");
             continue;
         };
         if !matcher.matches(&relative) {
@@ -144,7 +141,7 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher, scan_entries: usize) -
         let metadata = match entry.metadata() {
             Ok(metadata) => metadata,
             Err(source) if source.io_error().is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound) => continue,
-            Err(source) => return Err(invalid(format!("cannot inspect watch source {relative:?}: {source}"))),
+            Err(source) => return Err(invalid(format!("cannot inspect capture source {relative:?}: {source}"))),
         };
         std::fs::File::open(entry.path()).map_err(|source| source_error(&relative, source))?;
         listing.insert(
@@ -161,9 +158,9 @@ fn walk(root: &Path, depth: usize, matcher: &FileMatcher, scan_entries: usize) -
 
 fn source_error(path: &str, source: std::io::Error) -> crate::runtime::Error {
     if source.kind() == std::io::ErrorKind::NotFound {
-        return crate::runtime::Error::not_found("file_watch_missing", format!("watch source {path:?}: {source}"));
+        return crate::runtime::Error::not_found(super::MISSING, format!("capture source {path:?}: {source}"));
     }
-    invalid(format!("watch source {path:?}: {source}"))
+    invalid(format!("capture source {path:?}: {source}"))
 }
 
 fn relative_path(root: &Path, path: &Path) -> Option<String> {

@@ -69,7 +69,7 @@ impl AllPlots {
         settings.local_storage.previews.exact_points = std::num::NonZeroUsize::new(exact_points).unwrap();
         let (owner, runtime) = started_with_fixture(settings, executor.clone()).await;
         let definitions = definitions();
-        let mut document = Document::new("default", "Plot History");
+        let mut document = Document::new("Plot History");
         let mut section = DocumentSection::new("Measurements");
         for plot in &definitions {
             section.plot(plot.clone());
@@ -83,7 +83,7 @@ impl AllPlots {
                 let stream = format!("fixture.plot.s{index}");
                 TelemetryContract {
                     stream: identifier(&stream),
-                    schema_version: 1,
+                    schema_version: harmos::domain::streams::revision(&schema, 1).unwrap(),
                     metadata: metadata(&stream, "Plot Samples"),
                     template_id: None,
                     owner: None,
@@ -252,7 +252,7 @@ fn definitions() -> Vec<PlotDefinition> {
             }
         }
         plots.push(scan);
-        let mut xy = PlotDefinition::with_type("XY Fields", PlotType::XyLine);
+        let mut xy = PlotDefinition::with_type("XY Fields", PlotType::Xy);
         xy.id(if expressions { "fixture.xy.expression" } else { "fixture.xy.stored" });
         xy.stream("fixture.plot.s9");
         if expressions {

@@ -11,21 +11,17 @@
 
 /* === Modules === */
 
-mod authoring_catalog;
-mod execution_artifacts;
-mod execution_run;
-mod execution_seal_report;
+mod grpc;
+mod host;
+
 mod finite_queries;
-mod plugin_lifecycle;
 mod query_roundtrip;
-mod server_diagnostics;
-mod server_pairing_remote;
-mod settings_backends;
-mod telemetry_watch_plot;
 mod watch_liveness;
 
 #[path = "../support/mod.rs"]
 mod support;
+
+mod storage_format;
 
 /* === Re-Exports === */
 
@@ -40,6 +36,7 @@ use tonic::{
 };
 // Local Imports
 use dokime::client::contracts;
+pub use dokime_server::Error;
 use dokime_server::grpc::{Config, Server, TlsIdentity};
 use support::wire::*;
 use {dokime::Identifier, dokime::Metadata, dokime::Runtime};

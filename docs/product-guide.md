@@ -2,6 +2,13 @@
 
 Detailed concepts, supported interfaces and existing authoring examples. For installation, start with the [Quick Start](../README.md#quick-start).
 
+The [Privacy and Data Flows](privacy.md) guide inventories evidence, host
+measurements, settings, logs, exports and backups, and provides a customer
+processing-record worksheet. Dokime does not encrypt evidence at rest; evidence
+relies on operating-system disk encryption, which the customer must enable.
+Archiving hides evidence rather than deleting it; scheduled retention and
+per-execution deletion are not available.
+
 ## Install Tools with Mise
 
 Select the CLI and authoring tool from one release in your mise configuration,
@@ -38,6 +45,43 @@ ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are no
 downloads. The `nightly` prerelease uses the same asset names and workspace version,
 omits unsigned `latest.json`, and identifies its source commit in release notes.
 
+`downloads.json` describes every other asset of the same release for download
+pages and scripts; `latest.json` stays the updater's own feed and lists only
+updatable installers. The release tooling generates it from the staged upload
+inventory and SHA256SUMS, and every release and the `nightly` prerelease publish
+it beside `latest.json`, at `/releases/latest/download/downloads.json` for the
+latest release. `channel` is `stable` or `nightly` and `tag` is the release tag
+(`v0.1.2` or `nightly`) under which each `url` downloads. Each artifact has a
+`kind` (`installer`, `payload`, `cli`, `cargo-dokime`, `sdk-python`, `plugin`,
+`checksums`, `changelog` or `other`), `os` (`windows`, `linux` or `any`), `arch`
+(`x86_64` or `any`) and `format` (`exe`, `zip`, `deb`, `rpm`, `tar.gz`, `whl`,
+`txt`, `md` or the extension of an `other` asset). `sha256` repeats the
+SHA256SUMS digest; SHA256SUMS remains the integrity source and does not list
+`downloads.json` itself. Select assets by these fields, never by name patterns:
+
+```json
+{
+  "version": "0.1.2",
+  "channel": "stable",
+  "tag": "v0.1.2",
+  "pub_date": "2026-11-08T12:00:00Z",
+  "artifacts": [
+    {
+      "kind": "installer",
+      "os": "linux",
+      "arch": "x86_64",
+      "format": "deb",
+      "name": "dokime_0.1.2_amd64.deb",
+      "url": "https://github.com/stokker-technologies/dokime/releases/download/v0.1.2/dokime_0.1.2_amd64.deb",
+      "size": 48213504,
+      "sha256": "<digest>"
+    }
+  ]
+}
+```
+
+Releases up to v0.1.2 predate `downloads.json` and used older asset names.
+
 Every build also carries its source commit and, for published builds, its
 channel. `dokime --version` and `cargo dokime --version` print, for example,
 `dokime 0.1.2 (766330b7 nightly)`; `version --json` adds `revision` and `channel`.
@@ -47,14 +91,37 @@ takes the commit from CI's `GITHUB_SHA`, otherwise from the Git checkout, markin
 uncommitted tracked changes `-dirty`; without either it reports `unknown`.
 Builds from `v*` tags are `release`, the nightly workflow's are `nightly`, and
 other builds name no channel.
-OBC and remote examples remain candidate/source fixtures. Python distributions
-publish to PyPI. CI's `upload.json` is not a release download.
+OBC and remote examples remain candidate/source fixtures. Native SDK wheels are
+packaged per platform and attached to releases. Registry publication is refused
+until the owner settles the Python package and import name. CI's `upload.json`
+is not a release download.
 
 `mise run release:rehearse` consumes existing release-profile packages for every
 configured target and runs staging and registry dry runs with credentials
 removed. It does not create a remote rehearsal release. The integration owner
 must re-register crates.io and PyPI Trusted Publishing to `release.yml`,
 environment `release`, before the first publication under this workflow.
+
+## Start a Python Project
+
+Install the native SDK with [uv](../sdk/python/README.md#install), using the same
+candidate revision as the backend or desktop. The Git install builds with uv
+and Rust supplied by mise; native wheels require no compiler. The provisional
+package is `dokime-python`, importing `dokime`.
+
+```sh
+dokime new bench --lang python
+cd bench
+uv add /path/to/dokime_python-0.1.2-cp313-abi3-win_amd64.whl
+uv run python main.py
+```
+
+Use the platform's matching wheel. The [starter](../sdk/python/examples/starter/)
+keeps `main.py`, plugin composition, instrument operations and suites separate.
+Import its generated pairing file into the desktop and run **Bench / Capture**.
+The prompt confirms connections before simulated voltage acquisition. See
+[plugin authoring](plugins.md#python-projects) for the operation boundary and
+[remote Python](remote/python.md) to control an existing backend instead.
 
 ## The Test Domain
 
@@ -139,6 +206,19 @@ results and stored evidence.
 Starting an unrun case in an open cycle after its plugin is removed fails clearly
 with `execution_plugin_unavailable`; install the original revision or add a case
 from an available plugin.
+
+**Rerun Cycle** creates a new Active cycle from any existing cycle, whether
+Active, Sealed or archived. It takes the source's planned cases in order and
+plans each again by suite, case and parameters, unrun and without attempts or
+evidence. The new cycle keeps the source's title unless another is given, its
+description, tags, attributes and Continue Automatically, and records the source
+in its `rerun_of` attribute, which `CycleSummary.rerun_of` exposes. The source is
+untouched. Cases resolve against the plugin installed now, not the source's
+definition revision, so a changed plugin runs its current version. A case whose
+suite or case is no longer declared is skipped, and parameters the current case
+no longer declares are dropped; the reply reports both with their reasons. When
+no case survives, the rerun is refused with `rerun_no_cases`, naming the plugin
+and the missing cases, and nothing is created.
 
 Seal Failed is settled: later startups do not seal it again. Retry Seal resumes
 from the saved evidence, without requiring the plugin, and returns to
@@ -299,7 +379,7 @@ asynchronous connection lifecycle:
 ```python
 import asyncio
 from pathlib import Path
-from dokime_client import DokimeClient
+from dokime import DokimeClient
 
 async def main() -> int:
     async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
@@ -322,7 +402,7 @@ The outcome's exit code is 0 for passed, 1 for nonpassing, 130 for interrupted o
 cancelled. A template expansion returns an ordered tuple of all execution handles.
 `cycle.save` writes per-execution ZIPs, cycle.zip, optional report.html and a
 manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
-are refused. See the [Python client guide](../packages/dokime-client/README.md#creating-cycles).
+are refused. See the [Python client guide](../sdk/python/README.md#creating-cycles).
 
 All clients try endpoint candidates in parallel with a short stagger configured
 by `client.endpoint_stagger_ms` (250 ms by default). Only a connection verified
@@ -485,9 +565,31 @@ Unknown fields, duplicate identifiers, unsupported versions, invalid endpoints
 and dangling defaults are refused. CLI edits lock and atomically replace the
 file; contention refuses the edit for retry. Tokens stay outside JSON.
 
-Development contracts remain v1. Use fresh storage when a schema or evidence
-format becomes incompatible. There are no migrations, compatibility aliases or
-automatic root resets; existing files and evidence are never silently deleted.
+Changing a stream row's fields automatically creates a stored revision. Rebuild
+and reload the plugin; no author version bump or backend restart is needed.
+Each row retains its own definition, so earlier executions remain readable.
+Queries and documents select stream ids and columns: a missing column contributes
+no values, and an incompatible column is identified on its affected binding while
+other evidence remains readable. Catalogs and live plots show the active stream.
+
+Stream and record revisions are opaque identities derived from their schemas,
+compared only for equality. Rebuild plugins against the matching Harmos SDK;
+Python record declarations no longer accept a `schema` argument. Stored evidence
+keeps the definitions captured for its execution, so changing or removing a
+plugin does not invalidate the root or rewrite old evidence.
+
+Root compatibility belongs to Dokime's built-in persistent state: journal replay,
+snapshots and catalogs. Built-in object shape revisions are derived once per
+type and reused during storage catalog validation. An unreadable built-in record names the state that cannot
+be decoded and advises a fresh root. Evidence codecs, document definitions and
+plugin schemas never participate in a whole-root digest. Obsolete digest markers
+are preserved and ignored. The custom interned snapshot encoding retains its
+existing key because Harmos cannot describe that custom Serde representation.
+Database layout and supported input framing remain v1. There are no migrations,
+compatibility aliases or automatic root resets; existing files are never silently
+deleted. Keeping old built-in journal records across a product shape change would
+require storing their definitions with each journal entry and decoding against
+those definitions, rather than the running product's current typed identity.
 
 ## Shared Plugin Secrets
 
@@ -585,12 +687,18 @@ enabling, disabling or removing one, take effect in the running backend; nothing
 asks to restart Dokime. The plugin shows **Restarting…** while it starts, is
 replaced or stops. While any cycle is active, the change shows **Restart
 Pending** and applies once no cycle is active; running executions are never
-stopped for it. After a successful live stop, the removed or replaced
-installation's row and bundle are deleted. If deletion fails, its row retains
-the error until startup retries. If a reinstall or update is refused, the previous
+stopped for it. After a successful replacement, every earlier installation of
+that package is discarded, including failed or never-started installations:
+their rows, bundles, boot failures and startup notifications are cleared. Startup
+also clears pending removals left by earlier builds. After a successful live stop,
+the removed installation's row and bundle are deleted. If deletion fails, its row
+retains the error and **Delete** remains available to try again; startup retries too.
+If a reinstall or update is refused, the previous
 version keeps running and stays installed, and the refused bundle is listed as
-**Refused** with its reason until the next start deletes it. A plugin that did not
-start offers **Reload**, which starts only that plugin again, at once even while
+**Refused** with its reason until it is deleted, a later replacement succeeds,
+or the next start deletes it. Failed and refused installations always offer
+**Delete**. An installed plugin that did not start also offers **Reload** and an
+enable switch; a refused replacement offers neither. **Reload** starts only that plugin again, at once even while
 a cycle is active. See
 [Plugins](plugins.md#live-installation-changes) for the admission rules.
 
@@ -777,7 +885,7 @@ The [Remote CLI Workflows](remote/cli.md) include
 linear device, test and confirmation exercises for POSIX shell, PowerShell 7.3+ and
 Command Prompt. Edit their connection, execution, observation and file globals,
 then run without arguments. Their names, grouping and meanings match the
-[Python examples](../packages/dokime-client/examples/remote/python/control-test.py).
+[Python examples](../sdk/python/examples/remote/python/control-test.py).
 The scripts require the matching CLI and simulated OBC plugin; a matching
 first-party release combination and native workflow validation remain pending.
 The [candidate walkthrough](remote/overview.md) explains
@@ -897,7 +1005,7 @@ use dokime::definition::ParameterDefault;
 #[dokime::parameters]
 pub struct Parameters {
     #[parameter(
-        label = "AC Voltage (RMS)", unit = "V",
+        label = "AC RMS Voltage", unit = "V",
         expansion = "cartesian",
         default = ParameterDefault::space([207.0, 230.0, 253.0]),
     )]
@@ -918,21 +1026,29 @@ inputs before execution, so the procedure and its document see the same values.
 ### Run the Procedure and Capture Evidence
 
 OBC's [steady-state template](../plugins/sidecars/obc/src/suites/steady/measurement.rs)
-initializes shared device resources, energizes the charger, observes its
+initializes a plugin-owned device, energizes the charger, observes its
 waveform, asks the operator to inspect the trace, and attaches a measurement
-summary. Cleanup stops the simulated device.
+summary. Cleanup releases the simulated device through an operation.
 
-This excerpt is the template's measurement observer. `InputMeasurement`,
-`Samples`, `ObserverStreams`, and `reading` belong to the example:
+This excerpt is the template's measurement observer. `SampleCharger`, `Row`,
+`Samples`, `Streams`, and `measurement` belong to the example:
 
 ```rust
-#[dokime::observer(interval_ms = 5, streams = ObserverStreams)]
+#[dokime::observer(interval_ms = STEADY_INTERVAL_MS, streams = Streams)]
 async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
-    let row = reading(ctx.resources())?;
-    ctx.stream::<InputMeasurement>()
-        .into::<Samples>()
-        .push(row)
-        .await;
+    let index = ctx.resources().produced.load(Ordering::Acquire);
+
+    // Sample Charger
+    let operation = SampleCharger {
+        device_id: ctx.resources().device_id,
+        elapsed_s: 0.1 + index as f64 * ctx.resources().interval_s,
+    };
+    let sample = ctx.operation(operation).await?;
+
+    // Publish Measurement
+    let row = measurement::row(index, sample.reading, "stream");
+    ctx.stream::<Row>().into::<Samples>().push(row).await;
+    ctx.resources().produced.store(index + 1, Ordering::Release);
     Ok(())
 }
 ```
@@ -944,13 +1060,17 @@ were captured and that the completion record accepted the run:
 ```rust
 #[dokime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = "Trace Accepted")]
 fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-    Ok(
-        ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
-            && super::super::support::decided(
-                ctx.records::<Completed>(),
-                |run| run.accepted,
-            )?,
-    )
+    let samples = ctx.samples::<Samples>();
+    let records = ctx.records::<Completed>()?;
+    let completed = records.last()
+        .ok_or_else(|| Error::MissingEvidence(Completed::RECORD_TYPE.into()))?;
+
+    // Check / Number of Rows
+    let number_ok = samples.len() as u64 >= ctx.parameters().sample_count()?;
+
+    // Check / Operator Acceptance
+    let accepted_ok = completed.accepted;
+    Ok(number_ok && accepted_ok)
 }
 ```
 
@@ -967,95 +1087,127 @@ Use `.start().await?` for an instance you will join or cancel. The operation
 macro owns the default policy. `.retry(settings.retry)` overrides one call only;
 obtain the choice from settings, parameters or configuration. Enabled retry
 overrides require declared replay safety, preserve operation deadlines and record
-each attempt in the execution log. Templates have no `.lane()` option.
+each attempt in the execution log. These JSON `operation_attempt` records use
+Trace for first-attempt success, Info for success after a retry, Debug for
+cancellation, and Warn for failure, timeout or unavailability. Templates have
+no `.lane()` option.
 
-A step also reaches two built-in operations through `ctx.operation(request)`,
+Attempt records include `started_at` (the observation's wall-clock timestamp),
+`elapsed_ms` (handler duration, excluding retry delay and middleware), and
+`attempt_timeout_ms` (the operation policy's attempt timeout). Local operations
+capture the same timing around their handler and cancellation settlement.
+
+At each step end, `dokime.operations.latency` summarizes each operation used in
+that stage. Execution end also retains unfinished stage summaries and a whole-run
+summary (`stage: "execution"`). Fields are `operation`, `stage`, `attempts`,
+`successes`, `failures`, `p50_elapsed_ms`, `p95_elapsed_ms`, `max_elapsed_ms` and
+`slowest_instance`. Percentiles use nearest rank; all non-success outcomes count
+as failures. Ties for slowest use the largest instance ID. The level is Info when
+p95 strictly exceeds half an observed policy's attempt timeout, otherwise Debug.
+
+`dokime.observers.cadence` summarizes backend observer activations seen while an
+execution is open, separately by `plugin`, `observer` and `activation`. These are
+backend diagnostics, including shared observers; presence does not claim that the
+execution leased that observer. Cumulative summaries are emitted every 60 reported
+ticks and at execution end, with `reason`, `configured_interval_ms`,
+`mean_actual_interval_ms`, `maximum_gap_ms`, `ticks`, `skipped_ticks`,
+`refused_ticks` and `longest_callback_ms`. Skipped ticks have no actual start and
+are excluded from interval averaging; the mean is null until two starts exist.
+A gap strictly above twice the configured interval emits a Warn
+`dokime.observers.gap` naming the observer and activation; summaries containing
+such gaps are Warn, otherwise Debug. Harmos's cadence frame carries no operation
+or call identity, so these reports do not guess which operation caused a gap.
+No timer or observer scheduling policy is added.
+
+
+A step also reaches four built-in operations through `ctx.operation(request)`,
 with nothing to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
 sends its output to the execution log or into an artifact, and records its exit.
-`WatchFile` captures a device log written during the step into an artifact and
-turns matching lines into rows and records. The
+`CopyFiles`, `StartCapture` and `StopCapture` bring files into the execution's evidence.
+
+### File Capture
+
+To keep one local file as it stands, import it. The plugin's own process reads
+the file, so there is no FTP and no capture limit:
+
+```rust
+ctx.artifacts().import(&self.log, "device/boot.log")?;
+```
+
+To pick up the newest file in a folder at the start, copy it. `CopyFiles` copies
+its source once and answers with what it sealed:
+
+```rust
+// Copy Newest Log
+let source = FileSource::newest(&log_folder, [FileRule::include("*.log")]);
+let request = CopyFiles::new(source, "logs");
+let copied = ctx.operation(request).await?;
+```
+
+To stream a live log, start a capture before the producer writes. `StartCapture`
+returns once its baseline is taken, so the producer needs no startup wait, and
+`StopCapture` answers once everything is sealed. The
 [startup template](../plugins/sidecars/obc/src/suites/startup/sequence.rs) tails the
 simulated charger's log this way:
 
 ```rust
-let watch = ctx
-    .operation(WatchFile {
-        execution_id: None,
-        source: Some(FileWatchSource {
-            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-                root: self.log.to_string_lossy().into_owned(),
-            })),
-        }),
-        recursive: false,
-        rules: Vec::new(),
-        maximum_files: None,
-        output: "charger".into(),
-        artifact: Some("charger/device.log".into()),
-        policy: FileWatchPolicy::Stream,
-        selection: FileWatchSelection::All,
-        wait_for_source_seconds: None,
-        poll_interval_ms: Some(FILE_POLL_MS),
-        maximum_seconds: Some(1),
-        maximum_bytes: None,
-        matchers: vec![LineMatcher::publishing::<ChargerLog>(
-            r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)",
-        )],
-        markers: Vec::new(),
-    })
-    .start()
-    .await?;
-watch.armed().await?;
-// The baseline is established; the charger can now start logging its readings.
-let captured = watch.cancel().await?.into_owned();
+// Start Capture
+let matcher = LineMatcher::publishing::<ChargerLog>(PATTERN);
+let request = StartCapture::new(FileSource::file(&self.log), "charger/device.log", StreamCapture::plain().matcher(matcher));
+let capture = ctx.operation(request).await?;
+
+// Log Readings
+self.device.sample(0.0);
+
+// Stop Capture
+let request = StopCapture { capture_id: capture.capture_id };
+let captured = ctx.operation(request).await?.into_owned();
 ```
 
-For a directory source, set `recursive: true` or supply `rules`. Rules use the
-existing ordered `FileRule` include/exclude globs over forward-slash paths relative
-to the root; the last matching rule wins. Recursive discovery includes subfolders
-created after arming. Empty rules with recursion enabled include every file;
-`recursive: false` with rules scans only the root directory. Empty rules with
-recursion disabled retain the single-file behavior above.
-
-For example, a step can stream a vendor application's three log trees under
-`logs/<relative path>`, preserving directory and file names:
+To keep a file that is rewritten during the execution, such as a zip archive,
+mirror it. A Mirror checks the file for a change once per interval and ignores
+change notifications. Its final pass runs when the capture stops:
 
 ```rust
-let request = WatchFile {
-    execution_id: None,
-    source: Some(FileWatchSource {
-        payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
-            root: vendor_root.to_string_lossy().into_owned(),
-        })),
-    }),
-    output: "logs".into(),
-    artifact: None,
-    recursive: true,
-    rules: ["Logs/**", "Logs_SSI/**", "Logs_Instruments/**"]
-        .into_iter()
-        .map(|glob| FileRule { glob: glob.into(), action: FileRuleAction::Include })
-        .collect(),
-    policy: FileWatchPolicy::Stream,
-    selection: FileWatchSelection::All,
-    wait_for_source_seconds: None,
-    poll_interval_ms: Some(250),
-    maximum_seconds: None,
-    maximum_files: Some(128),
-    maximum_bytes: None,
-    matchers: Vec::new(),
-    markers: Vec::new(),
-};
-let watch = ctx.operation(request.clone()).start().await?;
-watch.armed().await?;
-// Run the vendor application, then seal its captured logs.
-let captured = watch.cancel().await?.into_owned();
+// Start Archive Mirror
+let source = FileSource::file(&self.archive);
+let request = StartCapture::new(source, "device/results.zip", MirrorCapture::every(ctx.parameters().archive_interval_s));
+let capture = ctx.operation(request).await?;
 ```
 
-Stream captures existing files from their arm-point length and later arrivals
-from byte zero. Existing files that contribute no bytes produce no artifact;
-new empty files are retained. Captured Stream files appear immediately in the
-live artifact tree at `artifacts/<output>/<relative path>`, with their growing
-size and content available before sealing. Their viewer shows Finished after
-capture closes. UUIDs remain internal artifact identities.
+Take the interval from settings or parameters. `MirrorCapture::configured()` uses
+the configured interval. A mirrored artifact becomes visible when it seals, so an
+interim refetch can never expose a half-written archive; a failed refetch keeps
+the last whole copy.
+
+**Sources.** `FileSource::file` names one file, which must exist at the start.
+`FileSource::tree` names a directory and its ordered rules, and `FileSource::newest`
+selects the newest match of the same rules at the start, breaking ties by path, and
+follows it through rotation without switching to a later arrival. It fails when
+nothing matches. Rules use `FileRule::include` and `FileRule::exclude` over
+forward-slash paths relative to the root, and the last matching rule wins. Depth
+follows the rules: `*.log` stays at the top level, `**/*.log` descends, and empty
+rules select every file at any depth. A tree over an accessible empty directory
+starts at once and captures later files from byte zero, including a log the
+producer creates after the start. Use `FileLocation::ftp(url, secret_id)` in place
+of a local path for an FTP source. Unavailable FTP roots fail immediately because
+FTP status 550 cannot distinguish missing roots from denied access.
+
+**Output.** For a file source, `output` is the full artifact name. For a tree or
+newest source, it is a prefix under which relative paths are preserved; empty means
+the artifact root. Unknown extensions use `application/octet-stream`. Artifact paths
+must be relative, use forward slashes and contain no traversal, absolute path,
+reserved device name or invalid portable filename segment. The harness uses the same
+local discovery, glob matching and artifact-name validation as the native host.
+
+**Stream behavior.** Stream captures existing files from their baseline length and
+later arrivals from byte zero. Existing files that contribute no bytes produce no
+artifact; new empty files are retained. Captured Stream files appear immediately in
+the live artifact tree at `artifacts/<output>/<relative path>`, with their growing
+size and content available before sealing. Their viewer shows Finished after capture
+closes. UUIDs remain internal artifact identities. Detected replacement and
+copy-truncate boundaries retain separately named artifact segments; the file limit
+bounds simultaneous captures rather than the lifetime number of rotations.
 
 Step uploads use the same `artifacts/<requested path>` rule. Within one execution,
 paths are reserved in admission order: repeated `logs/device.log` becomes
@@ -1064,62 +1216,50 @@ Replacement and copy-truncate segments retain their `.segmentN` names before
 collision suffixing. This changes development stored paths without migration;
 existing storage is never silently reset.
 
-To mirror only ZIP archives anywhere below the same root,
-use `policy: FileWatchPolicy::Mirror` and
-`rules: vec![FileRule { glob: "**/*.zip".into(), action: FileRuleAction::Include }]`.
-Directory watches require `artifact: None`; `output` is the artifact prefix.
-The file cap defaults to 64 (maximum 256), and the byte cap applies across all
-files and sealed segments. Polling uses the request interval or host settings.
+**Ownership.** The execution owns a capture, so one step can start it and a later
+step can stop it. A capture nothing stops seals when the execution ends. `StopCapture`
+is an ordinary request, not a cancellation: it waits for sealing within its attempt
+deadline, returns any seal failure, a repeat returns the same outcome, and abandoning
+the call abandons only its reply. `CopyFiles` keeps sealing and answers when cancelled,
+within that same deadline. Stopping an execution still waits for all captured files
+and the durable execution seal.
 
-Single-file snapshots may use names such as `capture.diag` or `capture.hpl30`
-with `output: String::new()` to retain them at the artifact root. Unknown
-extensions use `application/octet-stream`. Artifact paths must be relative,
-use forward slashes and contain no traversal, absolute path, reserved device
-name or invalid portable filename segment. The harness uses the same local
-discovery, glob matching and artifact-name validation as the native host.
+**Evidence.** Every source gap becomes a `dokime.files.capture_gap` record with its
+path, offset and reason, and a capture that ends early becomes a
+`dokime.files.capture_failed` record, whether or not anything stops the capture.
+`StopCapture` also reports its gaps. A file whose artifact content cannot be captured
+is retained as a failed artifact with its error and no downloadable content. Reports
+list failed artifacts alongside the remaining evidence; the failure does not prevent
+Stop, provider completion or report saving. Storage failures outside artifact content
+capture still fail the save.
 
-`All` follows baseline files and later arrivals. `Latest` selects the newest
-baseline file by modification time, breaking ties by path, while `New` captures
-only files discovered after the baseline, from byte zero. Accessible empty
-directories arm immediately for `All` and `New`. Detected replacement and
-copy-truncate boundaries retain separately named artifact segments; the file
-limit bounds simultaneous captures rather than the lifetime number of rotations.
-Use `wait_for_source_seconds` for bounded waiting when a local source or an FTP
-file beneath an accessible root may appear later. Unavailable FTP roots fail
-immediately because FTP status 550 cannot distinguish missing roots from denied
-access. Permission and invalid-path failures remain immediate.
+**Limits.** Requests carry no limits. File and byte limits, the capture capacity, the
+Mirror interval and its bounds come from `RuntimeConfig::file_capture`, and Stream
+polling comes from `storage.filesystem.poll_interval`. Local Stream captures rescan on
+native directory notifications, with the poll interval as the fallback upper bound;
+FTP sources poll. Exceeding a limit fails explicitly and retains what was captured.
 
-Local watches rescan on native directory notifications. The configured poll
-interval remains the fallback upper bound when notifications are unavailable;
-FTP watches use that interval. Execution sealing and cancellation wake watches
-independently of either source.
-
-A file whose artifact content cannot be captured is retained as a failed artifact
-with its error and no downloadable content. Reports list failed artifacts alongside
-the remaining evidence; the failure does not prevent Stop, provider completion or
-report saving. Storage failures outside artifact content capture still fail the save.
+**FTP.** FTP sources compile only with the `ftp` feature. Shipped server, desktop and
+CLI builds enable it, and plugin sidecars do not need it because the host serves
+captures. A build without it refuses an FTP source with `file_capture_unsupported`.
 
 Use `instance.request_cancel().await?` to signal cancellation and retain the
 handle, or `instance.cancel().await?` to cancel and receive its final response.
-Processes return their exit status; cancelling a file watch on its own waits for
-captured files to seal before replying, retaining any seal failure. Its cancellation
-grace covers the existing `WatchFile` attempt deadline (`FOLLOW.attempt_timeout`);
-it does not extend that deadline or impose the shorter run-stop reply budget.
-When stopping an execution, cancelled watch calls acknowledge cancellation while
-their registered captures finish sealing under that execution's capture barrier.
-Stop still waits for all captured files and the durable execution seal.
+Processes return their exit status.
 Anything a step leaves running is cancelled when the step ends, with a warning
-record.
+record. A capture is not an instance and keeps running.
 
 ### Capture and Edit Traceability
 
 Steps contribute traceability through their context, alongside document additions:
 
 ```rust
-ctx.traceability().section(TraceabilitySection::new("dut", "Device Under Test"));
-ctx.traceability().row("dut", TraceabilityRow::text("serial", "Serial", "SN-7"));
+let mut section = TraceabilitySection::new("Device Under Test");
+section.id("dut"); // Keep the key stable across label changes.
+ctx.traceability().section(section);
+ctx.traceability().row("dut", TraceabilityRow::text("Serial", "SN-7"));
 // A later step can correct the same row without duplicating it.
-ctx.traceability().row("dut", TraceabilityRow::text("serial", "Serial", "SN-8"));
+ctx.traceability().row("dut", TraceabilityRow::text("Serial", "SN-8"));
 ```
 
 `section` adds or replaces the complete section by identifier. `row` adds or
@@ -1137,27 +1277,55 @@ The storage baseline remains v1 and existing storage is never automatically rese
 
 Compose plots from the same typed measurement fields used by the procedure.
 This shortened example follows OBC's
-[measurement document](../plugins/sidecars/obc/src/suites/common/measurement.rs); `stream` selects
-the suite-owned stream carrying `InputMeasurement` rows:
+[measurement document](../plugins/sidecars/obc/src/domain/model/measurement.rs); `stream` selects
+the suite-owned stream carrying `Row` rows:
 
 ```rust
-let mut voltage = Plot::xy_line("Battery Voltage");
+let mut voltage = Plot::xy("Battery Voltage");
 voltage.unit("V");
-voltage.x(InputMeasurement::column_elapsed_s().on(stream));
-voltage.y(InputMeasurement::column_dc_voltage_v().on(stream));
+voltage.x(Row::column_elapsed_s().on(stream));
+voltage.y(Row::column_dc_voltage_v().on(stream));
 
 let mut charging = Section::new("Battery Charging");
 charging.plot(voltage);
 
-let mut document = Document::new("default", "Charger Qualification");
+let mut document = Document::new("Charger Qualification");
 document.section(charging);
 ```
+
+`Document::new(label)` derives its identifier with the same normalization as
+traceability and sections: `Charger Qualification` becomes `charger.qualification`.
+Set `document.id("qualification");` when label edits must preserve the key.
+Validation refuses empty or invalid derived identifiers and duplicate identifiers
+within one document registry; set `.id(...)` to resolve them. Each template declares
+one document. Runtime execution views retain their internal `default` document,
+combining that authored content with built-in results and evidence.
 
 Declare a bare label and a structured unit, such as `"Battery Voltage"` and
 `.unit("V")`. The GUI and report HTML render these as `Battery Voltage [V]` on
 one line. All unit-bearing labels use square brackets directly after the label;
 table headers truncate with a full-text tooltip instead of wrapping the unit
 below the title. Preserve unit symbols and case.
+
+`unit` is only a label; it never converts data. To display stored metres as
+millimetres on a time-series y axis:
+
+```rust
+let mut distance = Plot::time_series("Distance Delta");
+distance.unit("mm");
+distance.y(Row::column_distance_delta_m());
+distance.scale(1e3);
+```
+
+`scale` defaults to 1.0 and is omitted from serialization when absent. Document
+validation requires a positive finite constant, naming the plot on refusal.
+Only time-series y values against the row timestamp are supported; other plot
+kinds, custom analyses and alternate x axes refuse `.scale(...)`.
+Live plots and frozen HTML multiply returned points, y-axis/cursor/tooltip
+values, min, max, mean, median, percentiles, std, RMS and y reference lines/bands.
+Count stays unchanged. Filters such as `.only(column.gt(...))` and section
+repeats use stored units. Stored evidence, exports, criteria, query plans and
+expressions are unchanged; arithmetic such as `column * 1e3` remains unsupported.
 
 Column handles keep plot expressions tied to the declared data shape, and they
 compare straight into filters: `voltage.only(column.gt(0.0))` narrows a plot,
@@ -1168,6 +1336,26 @@ the section. Templates can also add parameter-based reference
 bands; the
 [soak starter](../crates/cargo-dokime/templates/src/suites/soak/hold.rs) demonstrates
 a target-temperature band and event markers.
+
+Reference bands and lines belong to the plot and always use its Y axis. Bounds,
+centers, tolerances and line values accept `f64` or an existing expression handle
+(or `DataExpression`); constants do not become data expressions, so
+`plot.y(10.0)` is still invalid. All reference values use stored units and scale
+with the data when `plot.scale(...)` is set:
+
+```rust
+plot.reference_band("Requirement", -10.0, 10.0);
+plot.reference_band("Limits", Parameters::lower_limit_c(), Parameters::upper_limit_c());
+plot.reference_tolerance("Requirement", 0.0, Parameters::angle_tolerance_arcsec());
+plot.reference_tolerance("Target ± Band", Parameters::target_c(), Parameters::band_c());
+plot.reference_line("Limit", Parameters::limit_c());
+```
+
+Each case resolves its captured parameter values through the same presentation
+path in live plots and frozen HTML. Missing or invalid dynamic bounds are undrawn.
+Document validation refuses reversed literal bounds and negative literal tolerance,
+naming the plot. The development document/storage format stays at v1; existing
+incompatible documents require an explicit fresh storage root, preserving old data.
 
 Numeric time series list their traces in a statistics table beneath
 the plot instead of a legend: count, min, max, mean, median, std, and rms of
@@ -1234,7 +1422,7 @@ snapshot. These reads never start, stop, seal or follow an execution. Existing
 `records()`/`samples()` still replay and follow through the execution seal.
 
 ```python
-from dokime_client import DokimeClient
+from dokime import DokimeClient
 
 async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
     async for execution in client.executions(template="example.measurement", status="failed"):
@@ -1247,9 +1435,9 @@ async with DokimeClient.from_pairing("examples/lab.dokime-remote") as client:
 
 The selected template/stream must be installed. Install the optional helper from
 the same matching wheel, for example
-`uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars`; use `--extra pandas`
+`uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra polars`; use `--extra pandas`
 and `to_pandas(max_rows=...)` for Pandas. Iteration and `collect` need neither extra.
-The [client guide](../packages/dokime-client/README.md#optional-dataframes) describes
+The [client guide](../sdk/python/README.md#optional-dataframes) describes
 declared nullable dtypes, exact large integers, UTC timestamps and metadata access.
 
 Factories are lazy; `pages()` pulls on demand and exposes effective limits,
@@ -1295,13 +1483,14 @@ transfers use their operation idle policy. Most accept `--json` for scripts.
 
 ### Cycles and Executions
 
-Exercised by [control-test](../packages/dokime-client/examples/remote/cli/control-test.sh)
-and [control-prompt](../packages/dokime-client/examples/remote/cli/control-prompt.sh).
+Exercised by [control-test](../sdk/python/examples/remote/cli/control-test.sh)
+and [control-prompt](../sdk/python/examples/remote/cli/control-prompt.sh).
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
 | `dokime cycle create` | Create an empty active cycle. | `--label`, `--continue-automatically`, `--id-only` |
 | `dokime cycle append` | Register executions in an existing cycle. | `--case-id`, `--id-only`, `--cancel-on-interrupt` |
+| `dokime cycle rerun` | Create a new planned cycle from an existing cycle's cases. | `--label`, `--json`, `--id-only` |
 | `dokime cycle seal` | Close admission, stop the cycle's work and wait for sealing. | `--json` |
 | `dokime cycle report` | Download a running or sealed cycle's HTML report. | `--output`, `--overwrite`, `--identifier` |
 | `dokime cycle export` | Download the evidence ZIP of a sealed cycle. | `--output`, `--overwrite` |
@@ -1370,7 +1559,7 @@ Use the generic operation command for [first and next pages](query-api.md#transp
 Python exposes [lazy readers and bounded conversions](#finite-evidence-queries)
 over those same contracts.
 
-Exercised by [control-device](../packages/dokime-client/examples/remote/cli/control-device.sh).
+Exercised by [control-device](../sdk/python/examples/remote/cli/control-device.sh).
 
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
@@ -1707,7 +1896,7 @@ policies remain declared operation contracts.
 | `dokime-cli` | Installs the `dokime` command; owns parsing and commands. |
 | `dokime-domain` | Internal pure definitions, exposed as `dokime::domain`. |
 | `dokime-runtime` | Internal runtime implementation, re-exported by `dokime`. |
-| `dokime-client` | Remote implementation, exposed as `dokime::client`. |
+| `dokime-python` | Remote implementation, exposed as `dokime::client`. |
 | `dokime-server` | Shared server library embedded by CLI and GUI. |
 | `dokime-gui` | Native desktop and embedded local server ownership. |
 | `dokime-packaging`, `cargo-dokime` | Sidecar and native-installer packaging and authoring tools. |
@@ -1791,6 +1980,11 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 - [Plugins](plugins.md) — the host telemetry plugin, plugin lifecycle, bundles and installation.
 - [Desktop GUI](gui.md) — frontend layout, generated outputs and the desktop transport rules.
 - [Repository Tooling](tooling.md) — mise tasks, Python tooling and desktop development processes.
+- [Deployment](deployment.md) — Windows code signing, per-machine and silent installation, Linux package verification, network and privilege expectations.
+- [Privacy and Data Flows](privacy.md) — data inventory, storage locations, retention and deletion, support bundle contents.
+- [Plugin Security](plugin-security.md) — the plugin trust boundary and native process authority.
+- [Support](support.md) — support and end-of-life policy.
+- [Compliance](compliance.md) — the compliance assessment and vulnerability reporting.
 - [Screenshots](../screenshots/README.md) — the published product images and how to regenerate them.
 - [Plugin Starter](../crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Entry Library And Plugin SDK](../crates/dokime/src/lib.rs) — public entry point for authoring APIs.
@@ -2180,9 +2374,10 @@ metadata; capture cost still scales with their cardinality, rather than sample h
 
 Specialized projections apply filters and scopes before accumulating data. They
 keep exact inputs up to `exact_points` (2,000 by default). Longer time series use
-extrema envelopes; XY scatter keeps paired coordinates in a density grid (64 by
-64 by default), re-binning occupied cells as extents grow. Each cell retains its
-sample count. Group counters and numeric moments update incrementally, and
+extrema envelopes. `Plot::xy(label)` defaults to `PlotStyle::Line`;
+`Points` keeps paired coordinates in a density grid (64 by 64 by default),
+re-binning occupied cells as extents grow. Each cell retains its sample count.
+`Line`, `LinePoints` and `Step` retain the ordered envelope without a grid. Group counters and numeric moments update incrementally, and
 record durations retain the preceding matching record and telemetry context.
 `groups` bounds series and correlation keys (256 by default). Plots with fewer
 than four points render normally. Analyses that need more exact history than the
@@ -2234,7 +2429,10 @@ stages remain complete across retries.
 
 Execution logs use `artifacts/execution.log`, rolling over to `execution.2.log`,
 `execution.3.log` and the next free collision suffix. The log retains the plain
-name when a step uploads an artifact named `execution.log`. Logs segment at
+name when a step uploads an artifact named `execution.log`. Saved logs and
+evidence exports retain every level, including Trace. The GUI console defaults
+to Info, hiding Trace and Debug; select Trace in its existing level filter for
+all levels. The live console remembers the selected filter. Logs segment at
 64 MiB and stop capture explicitly at 1 GiB per
 execution or permanent disk failure. Existing evidence remains intact. Capture
 failure appears in evidence health and affects the terminal result when required
@@ -2252,6 +2450,13 @@ Document bindings retain their 64 MiB bound; large raw evidence remains paged.
 
 Diagnostics retain the live log and Collect Diagnostics bundle. Startup doctor
 and diagnostics snapshot artifacts are no longer produced or bundled.
+
+Support bundles contain backend identity, health, settings and a bounded log
+tail, with a `MANIFEST.txt` inventory. Git identity fields, email-containing text
+and user-profile paths are redacted by default; free-form content can still
+contain personal information. Protected secret values are excluded. Collection
+downloads a ZIP without automatically sending it to
+support. Review it before sharing; see [Support Bundles](privacy.md#support-bundles).
 
 ### Measured Stream Performance
 
@@ -2703,6 +2908,11 @@ Sample and record listeners can reconnect once between successfully delivered
 pages, preserving stream/journal cursors and checking the backend epoch. Raw
 streams expose failures to their caller because arbitrary streams have no generic
 resume contract. Non-transient failures and exhausted retries remain visible.
+
+Rust and Python clients send HTTP/2 keepalive pings only with active calls, every
+320 seconds (the grpcio fixture's 300-second minimum plus a 20-second acknowledgment
+margin), with a 20-second acknowledgment timeout; Harmos retains its disabled
+server-initiated keepalive and 20-second timeout.
 
 ## Transfer Deadlines
 

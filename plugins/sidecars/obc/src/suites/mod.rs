@@ -13,7 +13,6 @@
 mod benchmarks;
 
 pub mod checks;
-pub mod common;
 pub mod protection;
 pub mod recovery;
 pub mod startup;

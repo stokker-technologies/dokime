@@ -18,6 +18,8 @@ use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
 use harmos::storage::FileReference;
+use harmos::storage::StorageBackends;
+use model::execution::{HealthItem, OperatorNote};
 use sha2::Digest;
 
 // Local Imports
@@ -27,8 +29,6 @@ use dokime_runtime::records::RecordContract;
 use dokime_runtime::report::{CycleReportInput, saved::CapturedExecutionReportInput};
 use dokime_runtime::storage::{Backend, Manager, objects::execution::Execution};
 use dokime_runtime::telemetry::contract::TelemetryContract;
-use harmos::storage::StorageBackends;
-use model::execution::{HealthItem, OperatorNote};
 
 /* === Constants === */
 
@@ -37,14 +37,22 @@ use model::execution::{HealthItem, OperatorNote};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReportOwner;
+
+#[derive(Default, serde::Deserialize)]
+pub struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<dokime_runtime::storage::Manager>,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::Application for ReportOwner {
     type Lanes = ReportOwner;
     type State = ();
@@ -68,12 +76,6 @@ impl harmos::operations::Lane for ReportOwner {
     }
 }
 
-#[derive(Default, serde::Deserialize)]
-pub struct StorageConfig {
-    #[serde(skip)]
-    storage: Option<dokime_runtime::storage::Manager>,
-}
-
 impl harmos::Lifecycle for ReportOwner {
     type Config = StorageConfig;
     type Error = harmos::Error;
@@ -90,6 +92,7 @@ impl harmos::Lifecycle for ReportOwner {
 }
 
 /* === Public Functions === */
+
 pub async fn storage_runtime(manager: &Manager) -> harmos::Runtime<ReportOwner> {
     harmos::Runtime::<ReportOwner>::launch((), StorageConfig { storage: Some(manager.clone()) }).await.unwrap()
 }
@@ -178,20 +181,26 @@ pub async fn render_annotated(input: &CycleReportInput, notes: Vec<OperatorNote>
         .unwrap(),
     };
     let mut record_contracts: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
-    for record in &input.records {
-        let mut contract = RecordContract::declared(record.record_type.as_str(), "Fixture Record");
-        contract.schema_version = record.schema_version;
+    let mut records = Vec::new();
+    for mut record in &input.records {
+        let contract = RecordContract::declared(record.record_type.as_str(), "Fixture Record");
+        record.schema_version = contract.schema_version();
         record_contracts.entry(record.record_type.clone()).or_default().insert(record.schema_version, contract);
+        records.push(record);
     }
+    input.records = records.into();
     let mut telemetry_contracts: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
+    let mut telemetry = Vec::new();
     for sample in &input.telemetry {
-        let mut contract = TelemetryContract::declared(sample.stream.as_str(), "Fixture Stream");
-        contract.schema_version = sample.schema_version;
-        contract.storage_schema = Some(
-            crate::service_support::contracts::fixture_schema(sample.stream.as_str()).expect("report fixture declares its row schema"),
-        );
+        let mut sample = sample.clone();
+        let schema =
+            crate::service_support::contracts::fixture_schema(sample.stream.as_str()).expect("report fixture declares its row schema");
+        let contract = TelemetryContract::declared(sample.stream.as_str(), "Fixture Stream").with_storage_schema(schema, 1);
+        sample.schema_version = contract.schema_version;
         telemetry_contracts.entry(sample.stream.clone()).or_default().insert(sample.schema_version, contract);
+        telemetry.push(sample);
     }
+    input.telemetry = telemetry.into();
     let captured = CapturedExecutionReportInput {
         report_defaults: Default::default(),
         final_report: true,

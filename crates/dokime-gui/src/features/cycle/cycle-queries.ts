@@ -31,11 +31,12 @@ import {
   appendNativeCaseAttempt,
   cancelNativeTestExecution,
   deleteNativeTestCycleCases,
+  fetchNativeCycleLabel,
   fetchNativeTestCycleDetail,
   pauseNativeTestExecution,
   renameNativeTestCycle,
   renameNativeTestExecution,
-  reopenNativeTestCycle,
+  rerunNativeTestCycle,
   resumeNativeTestExecution,
   sealNativeTestCycle,
   setNativeCycleArchived,
@@ -93,6 +94,18 @@ export function useCycleRuntimeShellQuery(cycleId: string) {
     queryKey: [...workflowQueryKeys.runtimeShell(), cycleId, generationOf(session)],
   });
   return snapshot ? frozenQuery(snapshot.runtimeShell) : query;
+}
+
+/** The label of the cycle this one reruns, for its lineage link; none in a frozen report. */
+export function useCycleLabelQuery(cycleId: string | null) {
+  const snapshot = useCycleSnapshotSource();
+  const session = useNativeSessionOptional();
+  const query = useQuery({
+    enabled: cycleId !== null && session !== null,
+    queryFn: () => fetchNativeCycleLabel(identityOf(session), cycleId ?? ""),
+    queryKey: [...workflowQueryKeys.cycleDetail(cycleId ?? ""), "label", generationOf(session)],
+  });
+  return snapshot ? frozenQuery(null) : query;
 }
 
 /* A frozen cycle has no pending prompt by construction: generation waits for
@@ -157,8 +170,8 @@ export function useCycleCommands(cycleId: string) {
         renameNativeTestExecution(session().identity, executionId, label),
       onSettled: invalidateAll,
     }),
-    copyCycle: useMutation({
-      mutationFn: () => reopenNativeTestCycle(session().identity, cycleId),
+    rerunCycle: useMutation({
+      mutationFn: () => rerunNativeTestCycle(session().identity, cycleId),
       onSettled: invalidateAll,
     }),
     deleteCase: useMutation({

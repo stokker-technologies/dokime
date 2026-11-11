@@ -61,8 +61,7 @@ pub struct TypedCodec {
     validator: Validator,
 }
 
-// Composed Codecs Reused Across Admission Batches, Keyed By Stream And Schema Version.
-// Each entry keeps the payload graph it was built from, so a redefined graph rebuilds it.
+// Composed Codecs Retained By Stream And Immutable Schema Revision.
 #[derive(Default)]
 pub struct CodecCache {
     entries: Mutex<BTreeMap<(Identifier, u32), CachedCodec>>,
@@ -142,12 +141,14 @@ impl TypedCodec {
                 cardinality: Cardinality::Required,
             },
         ]];
+        let mut representations = BTreeMap::new();
         for (graph, offset) in [(&metadata, 1), (payload, payload_offset)] {
+            representations.extend(graph.representations.iter().map(|(index, value)| (index + offset, value.clone())));
             append_definitions(&mut definitions, graph, offset)?;
         }
 
         // Validate and Name the Composed Graph
-        let graph = Schema { root: 0, definitions };
+        let graph = Schema { root: 0, definitions, representations };
         let prepared = graph.prepare(settings);
         let invalid_composition = Error::Invalid("composed telemetry graph exceeds schema limits");
         prepared.map_err(|_| invalid_composition)?;
@@ -227,16 +228,27 @@ impl TypedCodec {
     // The One Payload Pass For A Row Whose Values Are Projected From Its Bytes.
     pub(crate) fn decode_payload(&self, payload: &[u8]) -> Result<BTreeMap<String, Value>> {
         payload_pass();
-        decode_values(&self.validator, payload)
+        self.project_payload(payload)
+    }
+
+    fn project_payload(&self, payload: &[u8]) -> Result<BTreeMap<String, Value>> {
+        projected_values(&self.validator, payload).map_err(|reason| {
+            let stream = self.schema.id.as_str().strip_prefix("dokime.telemetry.").unwrap_or(self.schema.id.as_str()).to_owned();
+            let column = values_definition(&self.graph)
+                .ok()
+                .and_then(|root| self.graph.definitions.get(root))
+                .map(|fields| fields.iter().map(|field| field.name.as_ref()).collect::<Vec<_>>().join(", "))
+                .unwrap_or_else(|| "unknown".into());
+            tracing::error!(%stream, %column, %reason, "typed telemetry payload projection failed");
+            Error::TelemetryProjection { stream, column }
+        })
     }
 
     fn metadata(
         &self, epoch: &SessionId, ordinal: u64, sample: &crate::telemetry::TelemetrySample, scope: Option<&RecordScope>,
         projected: Vec<Signal>,
     ) -> Result<Metadata> {
-        if sample.schema_version != self.schema.version.get()
-            || self.schema.id.as_str().strip_prefix("dokime.telemetry.") != Some(sample.stream.as_str())
-        {
+        if self.schema.id.as_str().strip_prefix("dokime.telemetry.") != Some(sample.stream.as_str()) {
             return Err(Error::Invalid("typed telemetry sample differs from registered stream schema"));
         }
         let epoch = sample::copy_text(epoch.as_str())?;
@@ -257,7 +269,7 @@ impl TypedCodec {
             ordinal,
             sample_id,
             stream,
-            schema_version: sample.schema_version,
+            schema_version: self.schema.version.get(),
             sequence: sample.sequence,
             timestamp,
             timestamp_value,
@@ -317,7 +329,7 @@ impl TypedCodec {
         if uppercase_epoch {
             return Err(Error::Invalid("stored telemetry metadata is not canonical"));
         }
-        let mut decoded = decode_values(&self.validator, payload)?;
+        let mut decoded = self.project_payload(payload)?;
         let original_metadata = serde_json::to_string(&metadata)?;
         let mut strings = Vec::new();
         for (name, value) in &decoded {
@@ -382,7 +394,8 @@ impl CodecCache {
             .find(|((stream, version), _)| stream == &contract.stream && *version == contract.schema_version)
             .map(|(_, entry)| entry)
             .ok_or(Error::Invalid("telemetry producer schema is not registered"))?;
-        if !entry.registered || contract.storage_schema.as_ref() != Some(&entry.payload) {
+        let same = contract.storage_schema.as_ref().map(|payload| same_graph(payload, &entry.payload)).transpose()?.unwrap_or(false);
+        if !entry.registered || !same {
             return Err(Error::Invalid("telemetry producer schema differs from its registered graph"));
         }
         Ok(Arc::clone(&entry.codec))
@@ -417,7 +430,12 @@ impl CodecCache {
         let payload = contract.storage_schema.as_ref().ok_or(Error::Invalid("captured telemetry has no typed storage schema"))?;
         let key = (contract.stream.clone(), contract.schema_version);
         let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
-        if entries.get(&key).is_none_or(|entry| &entry.payload != payload) {
+        if let Some(entry) = entries.get(&key)
+            && !same_graph(&entry.payload, payload)?
+        {
+            return Err(Error::TelemetryIntegrity { stream: contract.stream.to_string() });
+        }
+        if !entries.contains_key(&key) {
             let payload = payload.clone();
             let codec = codec(contract, settings)?;
             let entry = CachedCodec {
@@ -433,6 +451,19 @@ impl CodecCache {
 }
 
 /* === Public Functions === */
+
+pub(crate) fn same_graph(left: &Schema, right: &Schema) -> Result<bool> {
+    if left == right {
+        return Ok(true);
+    }
+    let canonical = |graph: &Schema| {
+        graph
+            .root()
+            .and_then(harmos::schema::identity::canonical)
+            .map_err(|_| Error::Invalid("telemetry schema has no canonical definition"))
+    };
+    Ok(canonical(left)? == canonical(right)?)
+}
 
 pub fn codec(contract: &TelemetryContract, settings: &harmos::config::SchemaSettings) -> Result<TypedCodec> {
     let schema = contract.storage_schema.as_ref().ok_or(Error::Invalid("captured telemetry has no typed storage schema"))?;
@@ -755,7 +786,7 @@ mod tests {
     fn cache_reuses_codecs_until_the_graph_changes() {
         let cache = CodecCache::default();
         let settings = harmos::config::SchemaSettings::default();
-        let contract = TelemetryContract::declared("cache.fixture", "Cache").typed::<Reading>();
+        let contract = TelemetryContract::declared("cache.fixture", "Cache").typed::<Reading>(1);
 
         let first = cache.codec(&contract, &settings).unwrap();
         let reused = cache.codec(&contract, &settings).unwrap();
@@ -764,19 +795,41 @@ mod tests {
         cache.mark_registered(&contract, &first);
         assert!(cache.unregistered(&contract, &settings).unwrap().is_none());
 
-        // A Redefined Graph Under the Same Version Builds and Registers Afresh
-        let mut redefined = TelemetryContract::declared("cache.fixture", "Cache").typed::<Renamed>();
-        redefined.schema_version = contract.schema_version;
+        // A Changed Row Receives Its Own Revision And Retains The Previous Codec.
+        let redefined = TelemetryContract::declared("cache.fixture", "Cache").typed::<Renamed>(1);
         let rebuilt = cache.codec(&redefined, &settings).unwrap();
         assert!(!Arc::ptr_eq(&first, &rebuilt));
-        // An Old Registration Completing After Redefinition Cannot Mark The New Graph Saved.
+        assert_ne!(first.schema(), rebuilt.schema());
+        assert!(Arc::ptr_eq(&cache.registered(&contract).unwrap(), &first));
+        // An Old Registration Cannot Mark The New Revision Saved.
         cache.mark_registered(&contract, &first);
         assert!(cache.unregistered(&redefined, &settings).unwrap().is_some());
     }
 
     #[test]
+    fn stream_revision_collision_cannot_replace_a_registered_codec() {
+        let cache = CodecCache::default();
+        let settings = Default::default();
+        let old = TelemetryContract::declared("collision.reading", "Reading").typed::<Reading>(1);
+        let mut changed = TelemetryContract::declared("collision.reading", "Reading").typed::<Renamed>(1);
+        let codec = cache.codec(&old, &settings).unwrap();
+        cache.mark_registered(&old, &codec);
+        changed.schema_version = old.schema_version;
+        assert!(matches!(cache.codec(&changed, &settings), Err(Error::TelemetryIntegrity { stream }) if stream == old.stream.as_str()));
+        assert!(Arc::ptr_eq(&cache.registered(&old).unwrap(), &codec));
+    }
+
+    #[test]
+    fn stream_revision_projection_errors_identify_the_stream_and_columns() {
+        let contract = TelemetryContract::declared("projection.reading", "Reading").typed::<Reading>(1);
+        let codec = codec(&contract, &Default::default()).unwrap();
+        assert!(matches!(codec.decode_payload(&[]), Err(Error::TelemetryProjection { stream, column })
+            if stream == contract.stream.as_str() && column == "value"));
+    }
+
+    #[test]
     fn numeric_projection_is_verified_against_payload() {
-        let contract = TelemetryContract::declared("fixture.numeric", "Numeric").typed::<Reading>();
+        let contract = TelemetryContract::declared("fixture.numeric", "Numeric").typed::<Reading>(1);
         let codec = codec(&contract, &harmos::config::SchemaSettings::default()).unwrap();
         let payload = Reading { value: 7.0 }.encode();
         let values = BTreeMap::from([("value".to_owned(), Value::Number(7.0))]);

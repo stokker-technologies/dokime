@@ -36,8 +36,6 @@ use tokio::task::JoinHandle;
 
 // Local Imports
 use crate::host::StepHandleCancelled;
-use dokime_domain::model::files::wire::FileWatchSourcePayload;
-use dokime_operations::files::WatchFile;
 use dokime_operations::process::RunProcess;
 
 /* === Constants === */
@@ -92,7 +90,6 @@ pub struct StepInstance<O: OperationDeclaration> {
     id: Id,
     slot: Arc<Slot<O>>,
     released: bool,
-    readiness: Option<Readiness>,
 }
 
 struct Slot<O: OperationDeclaration> {
@@ -110,10 +107,12 @@ pub(crate) struct LocalRun {
     id: Id,
     attempt: Arc<AtomicUsize>,
     outcome: Arc<Mutex<Option<Outcome>>>,
-    readiness: watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>,
 }
 
 struct LocalAttempt {
+    started_at: harmos::state::Timestamp,
+    instant: tokio::time::Instant,
+    attempt_timeout: Duration,
     journal: Option<Arc<dyn crate::transport::Journal>>,
     operation: &'static str,
     instance: u64,
@@ -124,12 +123,6 @@ struct LocalAttempt {
 }
 
 /* === Enums === */
-
-enum Readiness {
-    // A Host-Routed Watch Is Found By The Ticket It Was Submitted With.
-    Host(Supervisor, Option<u64>),
-    Local(watch::Receiver<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>),
-}
 
 enum Running<O: OperationDeclaration> {
     Host(HostInstance<O>),
@@ -188,8 +181,8 @@ impl Handles {
 
 impl LocalRun {
     pub(crate) fn spawn<O: OperationDeclaration, F>(
-        mut serve: impl FnMut(watch::Receiver<bool>, super::builtins::Ready) -> F + Send + 'static, cooperative: bool,
-        retry: Option<harmos::RetryPolicy>, journal: Option<Arc<dyn crate::transport::Journal>>, stage: String,
+        mut serve: impl FnMut(watch::Receiver<bool>) -> F + Send + 'static, cooperative: bool, retry: Option<harmos::RetryPolicy>,
+        journal: Option<Arc<dyn crate::transport::Journal>>, stage: String,
     ) -> Result<Self, CallError>
     where
         F: Future<Output = Result<Vec<u8>, String>> + Send + 'static,
@@ -203,7 +196,6 @@ impl LocalRun {
         static NEXT: AtomicU64 = AtomicU64::new(LOCAL_IDS);
         let id = Id::new(NEXT.fetch_sub(1, Ordering::Relaxed));
         let (cancel, mut cancelled) = watch::channel(false);
-        let (ready, readiness) = watch::channel(None);
         let attempt = Arc::new(AtomicUsize::new(0));
         let outcome = Arc::new(Mutex::new(None));
         let progress = attempt.clone();
@@ -221,6 +213,9 @@ impl LocalRun {
                 }
                 progress.store(attempt, Ordering::Relaxed);
                 let mut evidence = LocalAttempt {
+                    started_at: harmos::state::Timestamp::now(),
+                    instant: tokio::time::Instant::now(),
+                    attempt_timeout: policy.attempt_timeout,
                     journal: journal.clone(),
                     operation: O::ID,
                     instance: id.value(),
@@ -230,7 +225,7 @@ impl LocalRun {
                     observed: observed.clone(),
                 };
                 let (interrupt, signal) = watch::channel(false);
-                let mut body = Box::pin(serve(signal, ready.clone()));
+                let mut body = Box::pin(serve(signal));
                 let answer = tokio::select! {
                     biased;
                     _ = cancelled.changed() => None,
@@ -288,7 +283,6 @@ impl LocalRun {
         Ok(Self {
             task: Some(task),
             cancel,
-            readiness,
             id,
             attempt,
             outcome,
@@ -341,26 +335,34 @@ impl Drop for LocalAttempt {
         }
         *self.observed.lock().unwrap_or_else(PoisonError::into_inner) = Some(self.outcome);
         if let Some(journal) = &self.journal {
-            let entry = super::log::operation_attempt(self.operation, self.instance, None, &self.stage, self.attempt, self.outcome);
-            journal.log(super::log::Level::Info, entry.message);
+            let entry = super::log::operation_attempt(
+                self.operation,
+                self.instance,
+                None,
+                &self.stage,
+                self.attempt,
+                self.outcome,
+                super::log::AttemptTiming {
+                    started_at: self.started_at,
+                    elapsed: self.instant.elapsed(),
+                    attempt_timeout: self.attempt_timeout,
+                },
+            );
+            let level = super::log::Level::try_from(entry.level).expect("operation attempt has a known log level");
+            journal.log(level, entry.message);
         }
     }
 }
 
 impl<O: OperationDeclaration> StepInstance<O> {
-    pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8], host: Supervisor, ticket: Option<u64>) -> Self {
+    pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8]) -> Self {
         let id = instance.id();
-        let mut handle = Self::tracked(handles, id, Running::Host(instance), request);
-        handle.readiness = Some(Readiness::Host(host, ticket));
-        handle
+        Self::tracked(handles, id, Running::Host(instance), request)
     }
 
     pub(crate) fn local(handles: &Handles, run: LocalRun, request: &[u8]) -> Self {
         let id = run.id;
-        let readiness = run.readiness.clone();
-        let mut handle = Self::tracked(handles, id, Running::Local(run), request);
-        handle.readiness = Some(Readiness::Local(readiness));
-        handle
+        Self::tracked(handles, id, Running::Local(run), request)
     }
 
     fn tracked(handles: &Handles, id: Id, running: Running<O>, request: &[u8]) -> Self {
@@ -377,12 +379,7 @@ impl<O: OperationDeclaration> StepInstance<O> {
             name,
         });
         handles.track(Arc::clone(&slot) as Arc<dyn Sweep>);
-        Self {
-            id,
-            slot,
-            released: false,
-            readiness: None,
-        }
+        Self { id, slot, released: false }
     }
 
     pub fn id(&self) -> Id {
@@ -442,33 +439,6 @@ impl<O: OperationDeclaration> StepInstance<O> {
     pub fn detach(mut self) -> Id {
         self.released = true;
         self.id
-    }
-}
-
-impl StepInstance<WatchFile> {
-    pub async fn armed(&self) -> Result<dokime_domain::model::files::wire::FileWatchArmed, crate::Error> {
-        match self.readiness.as_ref() {
-            Some(Readiness::Host(_, None)) => Err(refused("file watch was submitted without a readiness ticket").into()),
-            Some(Readiness::Host(host, Some(ticket))) => {
-                let response = host
-                    .operation::<dokime_operations::files::AwaitFileWatchArmed>(dokime_operations::files::AwaitFileWatchArmed {
-                        instance_id: *ticket,
-                    })
-                    .await?;
-                Ok(response.into_owned())
-            }
-            Some(Readiness::Local(signal)) => {
-                let mut signal = signal.clone();
-                loop {
-                    let value = signal.borrow_and_update().clone();
-                    if let Some(value) = value {
-                        return value.map_err(refused).map_err(crate::Error::from);
-                    }
-                    signal.changed().await.map_err(|_| refused("file watch stopped before capture was armed; inspect its outcome"))?;
-                }
-            }
-            None => Err(refused("file watch has no readiness binding").into()),
-        }
     }
 }
 
@@ -598,16 +568,6 @@ fn label<O: OperationDeclaration>(request: &[u8]) -> (&'static str, String) {
     {
         return ("process", process.program);
     }
-    if O::ID == <WatchFile as harmos::operations::OperationDeclaration>::ID
-        && let Ok(watch) = WatchFile::decode(request)
-    {
-        let source = match watch.source.and_then(|source| source.payload) {
-            Some(FileWatchSourcePayload::Local(local)) => local.root,
-            Some(FileWatchSourcePayload::Ftp(ftp)) => ftp.url,
-            None => String::new(),
-        };
-        return ("watch", watch.artifact.unwrap_or(source));
-    }
     ("operation", O::ID.to_owned())
 }
 
@@ -620,10 +580,15 @@ mod tests {
     use std::sync::atomic::AtomicBool;
 
     #[derive(Default)]
-    struct Evidence(Mutex<Vec<serde_json::Value>>);
+    struct Evidence {
+        entries: Mutex<Vec<serde_json::Value>>,
+        levels: Mutex<Vec<super::super::log::Level>>,
+    }
+
     impl Journal for Evidence {
-        fn log(&self, _: super::super::log::Level, message: String) {
-            self.0.lock().unwrap().push(serde_json::from_str(&message).unwrap());
+        fn log(&self, level: super::super::log::Level, message: String) {
+            self.entries.lock().unwrap().push(serde_json::from_str(&message).unwrap());
+            self.levels.lock().unwrap().push(level);
         }
         fn record(&self, _: dokime_domain::model::records::publication::RecordPublishRequest) {}
     }
@@ -643,7 +608,7 @@ mod tests {
     async fn local_retry_retains_defaults_deadlines_and_attempt_evidence() {
         let evidence = Arc::new(Evidence::default());
         let mut default =
-            LocalRun::spawn::<Read, _>(|_, _| std::future::pending(), false, None, Some(evidence.clone()), "step/read".into()).unwrap();
+            LocalRun::spawn::<Read, _>(|_| std::future::pending(), false, None, Some(evidence.clone()), "step/read".into()).unwrap();
         assert!(default.join(Read::ID).await.is_err());
         let calls = Arc::new(AtomicUsize::new(0));
         let invoked = calls.clone();
@@ -655,7 +620,7 @@ mod tests {
             },
         };
         let mut retrying = LocalRun::spawn::<Read, _>(
-            move |_, _| {
+            move |_| {
                 let first = invoked.fetch_add(1, Ordering::SeqCst) == 0;
                 Box::pin(async move { if first { std::future::pending().await } else { Ok(42_u64.encode()) } })
             },
@@ -668,12 +633,16 @@ mod tests {
         assert_eq!(u64::decode(&retrying.join(Read::ID).await.unwrap()).unwrap(), 42);
         assert_eq!(calls.load(Ordering::SeqCst), 2);
         let mut later =
-            LocalRun::spawn::<Read, _>(|_, _| std::future::pending(), false, None, Some(evidence.clone()), "step/read".into()).unwrap();
+            LocalRun::spawn::<Read, _>(|_| std::future::pending(), false, None, Some(evidence.clone()), "step/read".into()).unwrap();
         assert!(later.join(Read::ID).await.is_err());
-        let entries = evidence.0.lock().unwrap();
+        let entries = evidence.entries.lock().unwrap();
         let attempts =
             entries.iter().map(|entry| (entry["attempt"].as_u64().unwrap(), entry["outcome"].as_str().unwrap())).collect::<Vec<_>>();
         assert_eq!(attempts, [(0, "timed_out"), (0, "timed_out"), (1, "succeeded"), (0, "timed_out")]);
+        assert_eq!(entries.iter().map(|entry| entry["elapsed_ms"].as_f64().unwrap()).collect::<Vec<_>>(), [10.0, 10.0, 0.0, 10.0]);
+        assert!(entries.iter().all(|entry| !entry["started_at"].is_null()));
+        use super::super::log::Level;
+        assert_eq!(*evidence.levels.lock().unwrap(), [Level::Warn, Level::Warn, Level::Info, Level::Warn]);
         assert_eq!(entries[1]["instance"], entries[2]["instance"]);
         assert_ne!(entries[0]["instance"], entries[1]["instance"]);
         assert!(entries.iter().all(|entry| entry["operation"] == Read::ID && entry["stage"] == "step/read"));
@@ -687,7 +656,7 @@ mod tests {
         let entered = started.clone();
         let settled = completed.clone();
         let run = LocalRun::spawn::<Read, _>(
-            move |mut cancelled, _| {
+            move |mut cancelled| {
                 let entered = entered.clone();
                 let settled = settled.clone();
                 async move {
@@ -712,9 +681,10 @@ mod tests {
         handles.sweep().await;
         assert!(completed.load(Ordering::SeqCst));
         assert!(handles.sweep().await.is_empty());
-        let entries = evidence.0.lock().unwrap();
+        let entries = evidence.entries.lock().unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0]["outcome"], "cancelled");
+        assert_eq!(*evidence.levels.lock().unwrap(), [super::super::log::Level::Debug]);
     }
 
     #[tokio::test(start_paused = true)]
@@ -725,7 +695,7 @@ mod tests {
         let entered = started.clone();
         let settled = completed.clone();
         let run = LocalRun::spawn::<Read, _>(
-            move |mut cancelled, _| {
+            move |mut cancelled| {
                 let entered = entered.clone();
                 let settled = settled.clone();
                 async move {
@@ -750,7 +720,7 @@ mod tests {
         assert!(completed.load(Ordering::SeqCst));
         assert_eq!(warnings.len(), 1);
         assert!(handles.sweep().await.is_empty());
-        let entries = evidence.0.lock().unwrap();
+        let entries = evidence.entries.lock().unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0]["outcome"], "cancelled");
     }

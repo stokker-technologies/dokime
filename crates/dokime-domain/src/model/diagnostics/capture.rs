@@ -55,7 +55,7 @@ executable";
 
 /* === Structs === */
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Diagnostic {
     pub message: String,
 
@@ -388,3 +388,29 @@ fn spans() -> Vec<String> {
 }
 
 /* === Tests === */
+
+#[cfg(all(test, feature = "diagnostics"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn report_paths_redact_only_profile_roots() {
+        for (home, profile, external, expected) in [
+            ("/home/operator", "/home/operator/report.html", "/fixture/reports/report.html", "~/report.html"),
+            (r"C:\Users\operator", r"C:\Users\operator\report.html", r"C:\fixture\reports\report.html", r"~\report.html"),
+        ] {
+            let redaction = Redaction {
+                root: None,
+                home: Some(home.into()),
+                user: Some("operator".into()),
+            };
+            let diagnostic = Diagnostic {
+                chain: vec![format!("fixture-save-root: {profile}"), format!("fixture-save-root: {external}")],
+                ..Diagnostic::default()
+            };
+            let redacted = diagnostic.redact(&redaction);
+            assert_eq!(redacted.chain, [format!("fixture-save-root: {expected}"), format!("fixture-save-root: {external}")]);
+            assert!(!redacted.chain.iter().any(|cause| cause.contains(home)));
+        }
+    }
+}

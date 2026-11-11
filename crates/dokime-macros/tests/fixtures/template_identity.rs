@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,6 +26,7 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Unnamed;
 
 struct Capitalized;
@@ -36,6 +38,7 @@ struct Unscoped;
 /* === Traits === */
 
 /* === Implementations === */
+
 #[sdk::template(label = "Unnamed")]
 impl Unnamed {}
 
@@ -48,6 +51,7 @@ impl Unscoped {}
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() {}
 
 /* === Tests === */

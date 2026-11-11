@@ -33,6 +33,7 @@ const shown = vi.hoisted(() => ({
   info: vi.fn((_title: ReactNode) => "info"),
   success: vi.fn((_title: ReactNode) => "success"),
   warning: vi.fn((_title: ReactNode) => "warning"),
+  dismiss: vi.fn(),
 }));
 const controls = vi.hoisted(() => ({ close: () => {}, copy: () => {}, buttons: [] as (() => void)[] }));
 vi.mock("sonner", () => ({ toast: shown }));
@@ -152,6 +153,25 @@ test("Unread and Clear", async () => {
   assert.equal((await history.notificationPage()).records.find((value) => value.id === "000")?.title, "row-0");
   await history.clearNotifications();
   assert.deepEqual((await history.notificationPage()).records, []);
+});
+
+test("Discarded Plugin Notifications Clear After Reopening", async () => {
+  const history = await import("@/lib/notifications");
+  const failed = { ...record(0), id: "1:failed:boot", pluginSettings: "failed", tone: "error" as const };
+  const kept = { ...record(1), id: "1:kept:boot", pluginSettings: "kept", tone: "error" as const };
+  const otherSession = { ...record(2), id: "2:remote:boot", pluginSettings: "remote", tone: "error" as const };
+  await history.recordNotification(failed);
+  await history.recordNotification(kept);
+  await history.recordNotification(otherSession);
+  await history.recordNotification(record(3));
+  vi.resetModules();
+  const reopened = await import("@/lib/notifications");
+  reopened.openNotificationDetails(failed);
+  await reopened.clearPluginNotifications("1", new Set(["kept"]));
+  const remaining = (await reopened.notificationPage()).records;
+  assert.deepEqual(new Set(remaining.map((row) => row.id)), new Set([kept.id, otherSession.id, record(3).id]));
+  assert.deepEqual(shown.dismiss.mock.calls, [[failed.id]]);
+  assert.equal(reopened.getNotificationDetails(), null);
 });
 
 test("Failed Open Retries", async () => {

@@ -46,6 +46,7 @@ use dokime_runtime::state::RuntimeState;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub async fn settle<T, F, Fut>(runtime: &RuntimeHandle, mut check: F) -> T
 where
     F: FnMut() -> Fut,

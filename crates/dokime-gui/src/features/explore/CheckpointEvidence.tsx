@@ -195,7 +195,7 @@ function Telemetry({ checkpoint, session }: SessionProps) {
             >
               {query.data.telemetryTables.map((item) => (
                 <option key={item.table} value={item.table}>
-                  {item.schema?.metadata?.label || item.schema?.stream || item.table} · v{item.schema?.schemaVersion ?? "?"}
+                  {item.schema?.metadata?.label || item.schema?.stream || item.table}
                 </option>
               ))}
             </select>

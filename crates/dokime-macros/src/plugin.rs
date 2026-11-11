@@ -303,10 +303,11 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
         hosted.push(syn::parse_quote!(#sdk::transport::OperatorQuestion));
         hosted.push(syn::parse_quote!(#sdk::transport::LeaseAsk));
         hosted.push(syn::parse_quote!(#sdk::__harmos::builtins::streams::Publish));
-        // The host's step built-in every template reaches through
-        // `ctx.operation(request)` without listing it.
-        hosted.push(syn::parse_quote!(#sdk::operations::files::WatchFile));
-        hosted.push(syn::parse_quote!(#sdk::operations::files::AwaitFileWatchArmed));
+        // The host's step built-ins every template reaches through
+        // `ctx.operation(request)` without listing them.
+        hosted.push(syn::parse_quote!(#sdk::operations::files::CopyFiles));
+        hosted.push(syn::parse_quote!(#sdk::operations::files::StartCapture));
+        hosted.push(syn::parse_quote!(#sdk::operations::files::StopCapture));
     }
     if contributed.records.is_some() {
         hosted.push(syn::parse_quote!(#sdk::records::RecordPublication));

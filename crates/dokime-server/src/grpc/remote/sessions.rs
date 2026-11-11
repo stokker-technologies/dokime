@@ -36,13 +36,13 @@ const SERVER_REMOTE_PAGE_BYTES: u64 = 1_048_576;
 const SERVER_REMOTE_PAGE_ITEMS: u64 = 100;
 const SERVER_REMOTE_SESSIONS: u64 = 500;
 
-// The log keeps the most recent sessions only.
-
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
+// The log keeps the most recent sessions only.
 
 // Remote sessions as the authenticator sees them, persisted beside the listener security.
 pub(crate) struct SessionLog {
@@ -61,7 +61,6 @@ struct State {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Document {
-    version: u32,
     next: u64,
     sessions: Vec<RemoteSession>,
 }
@@ -118,7 +117,6 @@ impl SessionLog {
             (
                 path,
                 Document {
-                    version: 1,
                     next: state.next,
                     sessions: state.sessions.clone(),
                 },
@@ -130,7 +128,7 @@ impl SessionLog {
         }
     }
 
-    fn record_at(&self, peer: SocketAddr, principal: &str, outcome: Outcome<'_>, now: u64) {
+    pub(crate) fn record_at(&self, peer: SocketAddr, principal: &str, outcome: Outcome<'_>, now: u64) {
         let (kind, rejection) = match outcome {
             Outcome::Admitted => (RemoteSessionOutcome::Admitted, None),
             Outcome::Rejected(reason) => (RemoteSessionOutcome::Rejected, Some(reason.to_owned())),
@@ -168,7 +166,7 @@ impl SessionLog {
         state.sessions.drain(..excess);
     }
 
-    fn list_at(&self, cursor: Option<&str>, limit: u32, now: u64) -> Result<RemoteSessionPage, &'static str> {
+    pub(crate) fn list_at(&self, cursor: Option<&str>, limit: u32, now: u64) -> Result<RemoteSessionPage, &'static str> {
         let before = match cursor {
             Some(cursor) => cursor.parse::<u64>().map_err(|_| "invalid remote session cursor")?,
             None => u64::MAX,
@@ -215,9 +213,6 @@ fn read(path: &Path, maximum: usize) -> Result<Option<Document>, String> {
     }
     let bytes = dokime::harmos::filesystem::input::read(path, maximum).map_err(|error| error.to_string())?;
     let document: Document = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if document.version != 1 {
-        return Err(format!("unsupported version {}", document.version));
-    }
     Ok(Some(document))
 }
 
@@ -283,29 +278,5 @@ mod tests {
         assert_eq!(seen.first(), Some(&peer(usize::try_from(SERVER_REMOTE_SESSIONS).unwrap() as u16 + 24).to_string()));
         assert_eq!(seen.last(), Some(&peer(25).to_string()));
         assert!(log.list_at(Some("not-a-cursor"), 20, 1_000).is_err());
-    }
-
-    #[test]
-    fn the_log_survives_a_restart_with_open_sessions_closed() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("remote").join("sessions.json");
-        let log = SessionLog::new();
-        log.attach(path.clone());
-        log.record_at(peer(7000), "anonymous", Outcome::Admitted, 5_000);
-        log.flush();
-        let restored = SessionLog::new();
-        restored.attach(path.clone());
-        let page = restored.list_at(None, 20, 6_000).unwrap();
-        assert_eq!(page.sessions.len(), 1);
-        assert_eq!(page.sessions[0].disconnected_at, Some(5_000));
-        restored.record_at(peer(7001), "anonymous", Outcome::Admitted, 6_000);
-        assert_eq!(restored.list_at(None, 20, 6_000).unwrap().sessions[0].id, "2");
-
-        std::fs::write(&path, b"not json").unwrap();
-        let unreadable = SessionLog::new();
-        unreadable.attach(path.clone());
-        unreadable.record_at(peer(7002), "anonymous", Outcome::Admitted, 7_000);
-        unreadable.flush();
-        assert_eq!(std::fs::read(&path).unwrap(), b"not json");
     }
 }

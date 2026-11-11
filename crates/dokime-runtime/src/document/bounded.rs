@@ -104,8 +104,8 @@ impl<'a> SharedBindings<'a> {
         Ok(())
     }
 
-    /// Captures the definition; repeats resolved ahead of it, if given, expand
-    /// over those values instead of over this capture's own rows.
+    // Captures the definition; repeats resolved ahead of it, if given, expand
+    // over those values instead of over this capture's own rows.
     pub(crate) fn capture(
         &self, definition: &'a DocumentDefinition, repeats: Option<&super::resolve::RepeatValues>,
     ) -> crate::Result<crate::document::capture::Capture> {
@@ -218,8 +218,6 @@ pub(crate) fn capture_document_borrowed(
     SharedBindings::new(input.selection, input.data, limits)?.capture(input.definition, None)
 }
 
-/* === Private Functions === */
-
 pub(crate) fn card_size<T: Serialize + ?Sized>(value: &T, maximum: usize, depth: usize, card: &str) -> crate::Result<()> {
     let reached = document_size(value, usize::MAX, depth).map_err(|error| match error {
         DocumentLimit::Depth { limit, reached } => super::DocumentFailure::Budget {
@@ -255,6 +253,8 @@ pub(crate) fn check_payload(payload: DocumentPayload, limits: DocumentLimits) ->
     Ok(payload)
 }
 
+/* === Private Functions === */
+
 /* === Tests === */
 
 #[cfg(test)]
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn actual_limits() {
         use crate::document::DocumentCard;
-        let mut definition = DocumentDefinition::new("bindings.structure", "Structure");
+        let mut definition = DocumentDefinition::new("Structure");
         for index in 0..150 {
             definition.cards.push(DocumentCard::text(format!("card.{index}"), "Card", "Contents").into());
         }
@@ -307,7 +307,7 @@ mod tests {
         use dokime_domain::model::identity::{Identifier, Metadata};
 
         // Authored Through The Builder: Elapsed Time Is The Repeated Value.
-        let mut authored = DocumentDefinition::new("repeats.authored", "Authored");
+        let mut authored = DocumentDefinition::new("Authored");
         let mut laps = DocumentSection::new("Laps");
         laps.id("fixture.laps");
         laps.each(record("fixture.end").time_between("fixture.start"), "Lap {value}");
@@ -315,7 +315,7 @@ mod tests {
 
         // Stored Or Wire Layout: Elapsed Time Orders A Row-Local Value.
         let section = Identifier::new("fixture.channels").unwrap();
-        let mut stored = DocumentDefinition::new("repeats.stored", "Stored");
+        let mut stored = DocumentDefinition::new("Stored");
         stored.layout.nodes.push(DocumentNode::Section(Box::new(DocumentSectionNode {
             node_id: section.clone(),
             metadata: Metadata::new(section, "Channels", None),
@@ -351,7 +351,7 @@ mod tests {
     #[test]
     fn normalization_preserves_placements() {
         use crate::document::{DocumentCard, DocumentSection};
-        let mut definition = DocumentDefinition::new("normalization", "Normalization");
+        let mut definition = DocumentDefinition::new("Normalization");
         definition.cards.push(DocumentCard::text("shared", "Original", "before").into());
         let mut section = DocumentSection::new("Legacy");
         section.cards.push(DocumentCard::text("shared", "Replacement", "after"));

@@ -82,6 +82,12 @@ pub struct AdmissionIssue {
     pub expected: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RegistryCause {
+    pub message: String,
+    pub cause: Option<Box<RegistryCause>>,
+}
+
 /* === Enums === */
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -120,7 +126,7 @@ pub enum ConnectionPhase {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ConnectionError {
-    Registry { message: String },
+    Registry { message: String, cause: Option<Box<RegistryCause>> },
     InvalidTarget { message: String },
     SecretsUnavailable,
     AuthenticationRequired,

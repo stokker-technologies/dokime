@@ -41,6 +41,7 @@ use std::path::PathBuf;
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[dokime_tracing::trace_test]
 #[test]
 fn templates_avoid_manifests() {

@@ -168,7 +168,7 @@ pub async fn desktop_pairing_create(
 ) -> Result<Option<PathBuf>, crate::Error> {
     use crate::connection::ConnectionError;
     use dokime::operations::remote::{ReadListener, RevokePairedClient};
-    let local = |message: String| ConnectionError::Registry { message };
+    let local = |message: String| ConnectionError::Registry { message, cause: None };
     ensure_main_window(&window).map_err(local)?;
     let status = state.status();
     let lease = state.lease(&status.generation)?;
@@ -304,6 +304,7 @@ pub async fn create_remote_access(
     if enable {
         let mut settings = client.call(ReadListener {}).await?.settings.ok_or_else(|| crate::connection::ConnectionError::Registry {
             message: "Listener settings unavailable".into(),
+            cause: None,
         })?;
         settings.enabled = true;
         client.call(UpdateListener { settings: Some(settings) }).await?;

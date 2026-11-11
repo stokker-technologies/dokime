@@ -21,7 +21,7 @@ use serde::Deserialize;
 use url::Url;
 
 // Local Imports
-use crate::app::organization::policy::{Mode, Source, UpdatePolicy, https_url};
+use dokime::config::organization::policy::{Mode, Source, UpdatePolicy, https_url};
 
 /* === Constants === */
 

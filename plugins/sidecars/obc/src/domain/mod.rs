@@ -9,10 +9,12 @@
 
 /* === Modules === */
 
+pub mod document;
 pub mod model;
-pub mod operations;
 
 /* === Re-Exports === */
+
+pub use crate::error::Error;
 
 /* === Imports === */
 

@@ -12,13 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
-use dokime::harmos::plugin::inventory::{Declaration, Facility, contracts};
 use harmos_packaging::bundle::{Bundle, Executable, Identity, Limits, Source};
 
 // Local Imports
+use dokime::harmos::plugin::inventory::{Declaration, Facility, contracts};
 
 /* === Constants === */
 
@@ -110,8 +111,6 @@ fn package(binary: &[u8], settings: &dokime::harmos::config::SchemaSettings) -> 
     )
 }
 
-/* === Tests === */
-
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn large_metadata_admitted() {
@@ -134,6 +133,17 @@ async fn large_metadata_admitted() {
     drop(store);
     database.close().await.unwrap();
 }
+
+#[cfg(unix)]
+fn links(root: &std::path::Path, file: &std::path::Path) {
+    let link = root.join("link.dokime");
+    std::os::unix::fs::symlink(file, &link).unwrap();
+    assert!(dokime_packaging::bundle::read(&link).is_err());
+    std::fs::remove_file(file).unwrap();
+    assert!(dokime_packaging::bundle::read(&link).is_err());
+}
+
+/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[test]
@@ -173,13 +183,4 @@ fn bundle() {
     assert!(dokime_packaging::bundle::read(root.path()).is_err());
     #[cfg(unix)]
     links(root.path(), &file);
-}
-
-#[cfg(unix)]
-fn links(root: &std::path::Path, file: &std::path::Path) {
-    let link = root.join("link.dokime");
-    std::os::unix::fs::symlink(file, &link).unwrap();
-    assert!(dokime_packaging::bundle::read(&link).is_err());
-    std::fs::remove_file(file).unwrap();
-    assert!(dokime_packaging::bundle::read(&link).is_err());
 }

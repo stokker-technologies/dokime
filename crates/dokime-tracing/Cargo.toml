@@ -68,7 +68,7 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 # Local
-dokime-domain = { workspace = true }
+dokime-domain = { path = "../dokime-domain" }
 
 # Git
 

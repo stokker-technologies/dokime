@@ -25,6 +25,7 @@ use std::time::Duration;
 use dokime_packaging::{Error, process::run};
 
 /* === Constants === */
+
 // A bounded wait for a process that has already been signalled to disappear;
 // the operating system exposes no portable exit notification for a process
 // this story does not own.
@@ -45,6 +46,7 @@ const GONE_POLL: Duration = Duration::from_millis(5);
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 #[cfg(unix)]
 fn shell(script: &str) -> std::process::Command {
     let mut command = dokime::domain::process::command("sh");
@@ -70,7 +72,7 @@ async fn wait_gone(pid: &str) {
 }
 
 fn deadline() -> Duration {
-    let policy: toml::Value = toml::from_str(include_str!("../../../../.stkr/project.toml")).unwrap();
+    let policy: toml::Value = toml::from_str(include_str!("../../../../tools/project.toml")).unwrap();
     let seconds = policy["conventions"]["testing"]["deadlines"]["acceptance"].as_integer().unwrap();
     Duration::from_secs(seconds.try_into().unwrap())
 }
@@ -232,8 +234,6 @@ async fn fixture(mode: String) {
     }
 }
 
-/* === Tests === */
-
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn process() {
@@ -251,3 +251,5 @@ async fn process() {
     deadline_stops_descendants(root.path()).await;
     leader_exit_keeps_descendants_owned(root.path()).await;
 }
+
+/* === Tests === */

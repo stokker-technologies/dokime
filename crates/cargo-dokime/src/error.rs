@@ -33,6 +33,7 @@
 pub enum Error {
     #[error("development child exited with status {0}")]
     DevelopmentExit(i32),
+
     #[error("cancelled")]
     Cancelled,
 
@@ -47,9 +48,6 @@ pub enum Error {
 
     #[error(transparent)]
     Json(#[from] serde_json::Error),
-
-    #[error(transparent)]
-    Bindings(#[from] harmos_packaging::python::Error),
 
     #[error(transparent)]
     Proto(#[from] harmos_packaging::proto::ExportError),

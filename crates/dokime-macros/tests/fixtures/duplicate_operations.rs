@@ -9,41 +9,10 @@
 
 /* === Modules === */
 
-mod first {
-    use super::POLICY;
-
-    #[sdk::operation(id = "duplicated.read", description = "Reads.", policy = POLICY, response = ())]
-    #[derive(PartialEq)]
-    pub struct Read {}
-
-    impl sdk::Operation for Read {
-        type Error = sdk::Refusal;
-
-        async fn run(self, _: sdk::harmos::Context<'_, Self>) -> Result<sdk::harmos::Response<()>, sdk::Refusal> {
-            Ok(().into())
-        }
-    }
-}
-
-mod second {
-    use super::POLICY;
-
-    #[sdk::operation(id = "duplicated.read", description = "Reads.", policy = POLICY, response = ())]
-    #[derive(PartialEq)]
-    pub struct Read {}
-
-    impl sdk::Operation for Read {
-        type Error = sdk::Refusal;
-
-        async fn run(self, _: sdk::harmos::Context<'_, Self>) -> Result<sdk::harmos::Response<()>, sdk::Refusal> {
-            Ok(().into())
-        }
-    }
-}
-
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -51,6 +20,7 @@ mod second {
 // Local Imports
 
 /* === Constants === */
+
 const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
@@ -63,9 +33,11 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Duplicated;
 
 /* === Enums === */
+
 #[sdk::harmos::catalog(harmos_path = sdk::harmos)]
 enum DuplicatedOperations {
     First(first::Read),
@@ -75,6 +47,7 @@ enum DuplicatedOperations {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl sdk::harmos::builtins::lifecycle::Policy for Duplicated {
     const INITIALIZATION_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
     const SHUTDOWN_POLICY: sdk::harmos::operations::OperationPolicy = POLICY;
@@ -105,10 +78,105 @@ impl Duplicated {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() {
     // Schema markers link only through a reachable `markers()` call, as the
     // sidecar runtime makes; inspection resolves contracts against them.
     std::hint::black_box(<Duplicated as sdk::harmos::plugin::Declared>::markers()).unwrap();
+}
+
+mod first {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+    use super::POLICY;
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    #[sdk::operation(id = "duplicated.read", description = "Reads.", policy = POLICY, response = ())]
+    #[derive(PartialEq)]
+    pub struct Read {}
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    impl sdk::Operation for Read {
+        type Error = sdk::Refusal;
+
+        async fn run(self, _: sdk::harmos::Context<'_, Self>) -> Result<sdk::harmos::Response<()>, sdk::Refusal> {
+            Ok(().into())
+        }
+    }
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    /* === Tests === */
+}
+
+mod second {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+    use super::POLICY;
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    #[sdk::operation(id = "duplicated.read", description = "Reads.", policy = POLICY, response = ())]
+    #[derive(PartialEq)]
+    pub struct Read {}
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    impl sdk::Operation for Read {
+        type Error = sdk::Refusal;
+
+        async fn run(self, _: sdk::harmos::Context<'_, Self>) -> Result<sdk::harmos::Response<()>, sdk::Refusal> {
+            Ok(().into())
+        }
+    }
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    /* === Tests === */
 }
 
 /* === Tests === */

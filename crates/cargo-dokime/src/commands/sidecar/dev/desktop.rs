@@ -7,7 +7,7 @@
  * ***
  */
 
-//! Run the frontend's prepared commands under the configured native development owner.
+// Run the frontend's prepared commands under the configured native development owner.
 
 /* === Modules === */
 
@@ -67,8 +67,10 @@ struct Process {
 struct Interrupts {
     #[cfg(unix)]
     interrupt: tokio::signal::unix::Signal,
+
     #[cfg(unix)]
     terminate: tokio::signal::unix::Signal,
+
     #[cfg(unix)]
     hangup: tokio::signal::unix::Signal,
 }

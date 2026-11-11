@@ -43,7 +43,6 @@ use dokime_cli::{Cli, Error};
 
 /* === Private Functions === */
 
-/* === Tests === */
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn backend_profiles() {
@@ -140,3 +139,5 @@ async fn backend_profiles() {
     let exhausted = dokime::client::Error::Rpc(tonic::Status::resource_exhausted("response budget"));
     assert_eq!(Error::Operation(exhausted.into()).exit_code(), std::process::ExitCode::from(4));
 }
+
+/* === Tests === */

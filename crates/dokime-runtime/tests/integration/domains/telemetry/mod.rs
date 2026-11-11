@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 mod aggregates;
 mod all_plots;
 mod connectivity;
@@ -17,6 +18,7 @@ pub(crate) mod sampling;
 pub(crate) mod shared;
 
 /* === Re-Exports === */
+
 pub(crate) use crate::service_support::prelude::*;
 
 /* === Imports === */

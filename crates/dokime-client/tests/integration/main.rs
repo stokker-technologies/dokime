@@ -10,6 +10,8 @@
 // In-process client stories, one module per client domain.
 
 /* === Modules === */
+
+mod follow;
 mod profiles;
 
 /* === Re-Exports === */

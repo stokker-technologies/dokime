@@ -77,6 +77,7 @@ pub struct Contention {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 // cases whose own stream spans many pages replay and seal independent of history.
 pub async fn paged_evidence_settles(size: Sampling) {
     let root = tempdir().unwrap();

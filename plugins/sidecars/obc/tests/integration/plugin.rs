@@ -83,6 +83,21 @@ fn executable_declares_routes() {
                 "obc.bench.list_connections",
                 "obc.device.read",
                 "obc.device.set_power",
+                // Charger and Host Access Stay in Their Operation Owners.
+                "obc.charger.clear_fault",
+                "obc.charger.encode_summary",
+                "obc.charger.initialize",
+                "obc.charger.inject_fault",
+                "obc.charger.probe_restart",
+                "obc.charger.read",
+                "obc.charger.release",
+                "obc.charger.sample",
+                "obc.charger.sample_batch",
+                "obc.charger.set_load",
+                "obc.charger.start",
+                "obc.charger.stop",
+                "obc.system.collect",
+                "obc.wait",
                 // The ripple analysis the plugin contributes is an operation too.
                 "plugin_obc.analysis.ripple",
                 // Every template of every suite serves a run and a signal.

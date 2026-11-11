@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -39,7 +40,6 @@ use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSess
 
 /* === Private Functions === */
 
-/* === Tests === */
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn attached_backend_survives() {
@@ -208,3 +208,5 @@ async fn remote_export_enables_saved_listener_and_preserves_ca_on_reissue() {
     assert_ne!(exported.pairing.access_key, reexported.pairing.access_key);
     fixture.close().await;
 }
+
+/* === Tests === */

@@ -36,7 +36,6 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.executions.append")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppendExecutions {
     pub cycle_id: TestCycleId,
@@ -45,6 +44,8 @@ pub struct AppendExecutions {
     pub occurred_at: Timestamp,
     pub settings: BTreeMap<String, BTreeMap<String, Value>>,
 }
+
+retained_transaction!(AppendExecutions, "dokime.execution.executions.append");
 
 /* === Enums === */
 

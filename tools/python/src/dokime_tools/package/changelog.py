@@ -18,7 +18,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from ..release import policy
+from .. import policy
 
 # Type Checking Imports
 

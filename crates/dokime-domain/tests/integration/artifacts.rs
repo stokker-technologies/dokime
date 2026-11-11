@@ -18,10 +18,10 @@
 // Standard Library Imports
 
 // Third Party Imports
+use model::artifacts::name::{self, InvalidName};
 
 // Local Imports
 use dokime_domain::model;
-use model::artifacts::name::{self, InvalidName};
 
 /* === Constants === */
 
@@ -42,6 +42,7 @@ use model::artifacts::name::{self, InvalidName};
 /* === Private Functions === */
 
 /* === Tests === */
+
 #[dokime_tracing::trace_test]
 #[test]
 fn artifact_names_validate() {

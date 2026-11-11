@@ -30,7 +30,7 @@ use dokime::domain::model::remote::{RemoteEndpoint, RemoteListenerSettings};
 
 /* === Constants === */
 
-const SERVER_REMOTE_STORE_BYTES: u64 = 262_144;
+pub(super) const SERVER_REMOTE_STORE_BYTES: u64 = 262_144;
 
 /* === Macros === */
 
@@ -40,7 +40,6 @@ const SERVER_REMOTE_STORE_BYTES: u64 = 262_144;
 
 #[derive(Clone)]
 pub(super) struct Document {
-    pub version: u32,
     pub settings: RemoteListenerSettings,
     pub clients: Vec<Client>,
     pub identity: Option<Identity>,
@@ -66,7 +65,6 @@ pub(super) struct Identity {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Security {
-    version: u32,
     clients: Vec<Client>,
     identity: Option<Identity>,
 }
@@ -80,7 +78,6 @@ struct Security {
 impl Document {
     pub fn initial() -> Self {
         Self {
-            version: 1,
             settings: dokime::domain::model::settings::wire::ApplicationSettings::default().listener,
             clients: Vec::new(),
             identity: None,
@@ -154,14 +151,10 @@ pub(super) fn read(path: &Path, settings: RemoteListenerSettings) -> Result<Docu
     let security: Security = serde_json::from_slice(&bytes)
         .map_err(|_| super::Error::Configuration("incompatible remote security document; use a fresh application root"))?;
     let document = Document {
-        version: security.version,
         settings,
         clients: security.clients,
         identity: security.identity,
     };
-    if document.version != 1 {
-        return Err(super::Error::Configuration("unsupported remote security document version"));
-    }
     validate(&document.settings)?;
     validate_clients(&document.clients)?;
     Ok(document)
@@ -173,7 +166,6 @@ pub(super) fn write(path: &Path, document: &Document) -> Result<(), super::Error
     private_directory(parent).map_err(super::Error::RemoteStorage)?;
     let bytes = Zeroizing::new(
         serde_json::to_vec(&Security {
-            version: document.version,
             clients: document.clients.clone(),
             identity: document.identity.clone(),
         })
@@ -333,64 +325,11 @@ fn valid_dns(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::grpc::remote::SERVER_REMOTE_NAMES;
 
     fn default_names<'a>(
         address: SocketAddr, host_name: Option<String>, interfaces: impl Iterator<Item = (&'a str, IpAddr)>, maximum: usize,
     ) -> Vec<String> {
         detected_endpoints(address, host_name, interfaces, maximum).into_iter().map(|endpoint| endpoint.address).collect()
-    }
-
-    #[test]
-    fn persistent_identity_and_verifier() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("remote/access.json");
-        let mut document = read(&path, Document::initial().settings).unwrap();
-        document.settings.certificate_names = vec!["localhost".into(), "127.0.0.1".into()];
-        document.identity = Some(Identity::generate(document.settings.certificate_names.clone()).unwrap());
-        document.clients.push(Client {
-            metadata: dokime::domain::model::remote::PairedClient {
-                identifier: uuid::Uuid::now_v7().to_string(),
-                label: "Lab".into(),
-                created_at: 1,
-                last_seen_at: None,
-            },
-            verifier: [17; 32],
-        });
-        write(&path, &document).unwrap();
-        let before = std::fs::read(&path).unwrap();
-        let restored = read(&path, Document::initial().settings).unwrap();
-        assert_eq!(restored.clients[0].verifier, document.clients[0].verifier);
-        assert_eq!(restored.identity.as_ref().unwrap().certificate, document.identity.as_ref().unwrap().certificate);
-        assert!(restored.identity.as_ref().unwrap().private_key == document.identity.as_ref().unwrap().private_key);
-        let security = serde_json::from_slice::<serde_json::Value>(&before).unwrap();
-        assert!(security.get("access_key").is_none());
-        assert!(security.get("settings").is_none());
-        write(&path, &restored).unwrap();
-        assert!(std::fs::read(&path).unwrap() == before);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
-            assert_eq!(std::fs::metadata(path.parent().unwrap()).unwrap().permissions().mode() & 0o777, 0o700);
-        }
-    }
-
-    #[test]
-    fn invalid_explicit_security_is_not_reset() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("access.json");
-        std::fs::write(&path, b"invalid private material").unwrap();
-        let error = read(&path, Document::initial().settings).err().unwrap();
-        assert!(!error.to_string().contains("private material"));
-        assert_eq!(std::fs::read(&path).unwrap(), b"invalid private material");
-        assert!(read(root.path(), Document::initial().settings).is_err());
-        let mut document = Document::initial();
-        document.version = 2;
-        write(&path, &document).unwrap();
-        assert!(read(&path, Document::initial().settings).is_err());
-        std::fs::write(&path, vec![b'a'; usize::try_from(SERVER_REMOTE_STORE_BYTES).unwrap() + 1]).unwrap();
-        assert!(read(&path, Document::initial().settings).is_err());
     }
 
     #[test]
@@ -412,27 +351,16 @@ mod tests {
     fn default_certificate_identities() {
         let wildcard: SocketAddr = "0.0.0.0:8765".parse().unwrap();
         let interfaces = ["127.0.0.1", "192.168.1.20", "fe80::1", "192.168.1.20", "2001:db8::7"].map(|ip| ip.parse().unwrap());
-        let names = default_names(
-            wildcard,
-            Some("Lab-Host.".into()),
-            interfaces.into_iter().map(|ip| ("Ethernet", ip)),
-            usize::try_from(SERVER_REMOTE_NAMES).unwrap(),
-        );
+        let names = default_names(wildcard, Some("Lab-Host.".into()), interfaces.into_iter().map(|ip| ("Ethernet", ip)), 32);
         assert_eq!(names, ["lab-host", "192.168.1.20"]);
         let mut settings = Document::initial().settings;
         settings.certificate_names = names;
         validate(&settings).unwrap();
         let specific: SocketAddr = "10.0.0.5:8765".parse().unwrap();
-        assert_eq!(
-            default_names(specific, Some("bad_name".into()), std::iter::empty(), usize::try_from(SERVER_REMOTE_NAMES).unwrap()),
-            ["10.0.0.5"]
-        );
-        assert_eq!(default_names(wildcard, None, std::iter::empty(), usize::try_from(SERVER_REMOTE_NAMES).unwrap()), ["127.0.0.1"]);
+        assert_eq!(default_names(specific, Some("bad_name".into()), std::iter::empty(), 32), ["10.0.0.5"]);
+        assert_eq!(default_names(wildcard, None, std::iter::empty(), 32), ["127.0.0.1"]);
         let many = (0..64u8).map(|index| IpAddr::from([10, 0, 1, index]));
-        assert_eq!(
-            default_names(wildcard, None, many.map(|ip| ("Ethernet", ip)), usize::try_from(SERVER_REMOTE_NAMES).unwrap()).len(),
-            usize::try_from(SERVER_REMOTE_NAMES).unwrap()
-        );
+        assert_eq!(default_names(wildcard, None, many.map(|ip| ("Ethernet", ip)), 32).len(), 32);
     }
     #[test]
     fn physical_interfaces_rank_before_public_and_virtual_adapters_are_excluded() {
@@ -515,36 +443,12 @@ mod tests {
             identity.reissue(names).unwrap();
             assert_eq!(identity.ca_certificate, ca);
             let leaf = CertificateDer::from_pem_slice(identity.certificate.as_bytes()).unwrap();
-            let origins = super::super::pairing::endpoints(hosts, 8765, true);
-            for origin in origins {
-                let host = origin.strip_prefix("https://").unwrap().rsplit_once(':').unwrap().0;
-                let name = ServerName::try_from(host).unwrap();
+            for endpoint in hosts {
+                let name = ServerName::try_from(endpoint.address.as_str()).unwrap();
                 verifier.verify_server_cert(&leaf, &[], &name, &[], now).unwrap();
             }
             let obsolete = ServerName::try_from("169.254.23.99").unwrap();
             assert!(verifier.verify_server_cert(&leaf, &[], &obsolete, &[], now).is_err());
         }
-    }
-
-    #[test]
-    fn leaf_reissue_preserves_persistent_ca() {
-        let mut identity = Identity::generate(vec!["localhost".into()]).unwrap();
-        let ca = identity.ca_certificate.clone();
-        let ca_key = identity.ca_private_key.clone();
-        let leaf = identity.certificate.clone();
-        identity.reissue(vec!["localhost".into(), "192.168.1.21".into()]).unwrap();
-        assert_eq!(identity.ca_certificate, ca);
-        assert!(identity.ca_private_key == ca_key);
-        assert_ne!(identity.certificate, leaf);
-        let key = rcgen::KeyPair::from_pem(&ca_key).unwrap();
-        assert!(rcgen::Issuer::from_ca_cert_pem(&ca, key).is_ok());
-        let root = tempfile::tempdir().unwrap();
-        let mut document = Document::initial();
-        document.identity = Some(identity);
-        let path = root.path().join("access.json");
-        write(&path, &document).unwrap();
-        let mut restored = read(&path, document.settings).unwrap().identity.unwrap();
-        restored.reissue(vec!["localhost".into(), "192.168.1.22".into()]).unwrap();
-        assert_eq!(restored.ca_certificate, ca);
     }
 }

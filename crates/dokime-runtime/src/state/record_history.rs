@@ -68,18 +68,19 @@ impl RecordHistory {
     }
 
     fn store(&mut self, contract: &RecordContract, policy: Redefinition) -> Result<(), String> {
-        if let Some(previous) = self.get(&contract.record_type, contract.schema_version) {
+        if let Some(previous) = self.get(&contract.record_type, contract.schema_version()) {
             if previous.record_schema() == contract.record_schema() {
                 return Ok(());
             }
-            if policy == Redefinition::Refuse {
+            if policy == Redefinition::Refuse && previous.storage_schema() != contract.storage_schema() {
                 return Err(format!(
                     "{} version {} was previously admitted with a different definition",
-                    contract.record_type, contract.schema_version
+                    contract.record_type,
+                    contract.schema_version()
                 ));
             }
         }
-        self.0.entry(contract.record_type.clone()).or_default().insert(contract.schema_version, contract.clone());
+        self.0.entry(contract.record_type.clone()).or_default().insert(contract.schema_version(), contract.clone());
         Ok(())
     }
 }

@@ -38,7 +38,7 @@ use super::{PluginError, PluginMetadata, PluginStore, digest, read_bounded};
 /* === Implementations === */
 
 impl PluginStore {
-    /// Reconcile Installer Plugins Once Per Distribution, Retrying Incomplete Starts.
+    // Reconcile Installer Plugins Once Per Distribution, Retrying Incomplete Starts.
     pub async fn install_distribution(
         &self, directory: &Path, configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
     ) -> Result<(), PluginError> {

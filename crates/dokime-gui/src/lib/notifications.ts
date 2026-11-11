@@ -172,6 +172,31 @@ export async function clearNotifications(): Promise<void> {
   await refresh();
 }
 
+/** Retire Startup Notifications Whose Installation Has Left This Backend Session. */
+export async function clearPluginNotifications(generation: string, installations: ReadonlySet<string>): Promise<void> {
+  const connection = await open();
+  const transaction = connection.transaction("notifications", "readwrite");
+  const request = transaction.objectStore("notifications").openCursor();
+  const removed: string[] = [];
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+    const record = cursor.value as NotificationRecord;
+    if (record.pluginSettings && record.id.startsWith(`${generation}:`) && !installations.has(record.pluginSettings)) {
+      cursor.delete();
+      removed.push(record.id);
+    }
+    cursor.continue();
+  };
+  await completed(transaction);
+  for (const id of removed) {
+    displayToast.dismiss(id);
+    delivered.delete(id);
+    if (selectedNotification?.id === id) openNotificationDetails(null);
+  }
+  if (removed.length) await refresh();
+}
+
 export function useNotificationSummary(): Summary {
   return useSyncExternalStore(
     subscribe,
@@ -338,6 +363,7 @@ function showNotification(record: NotificationRecord, options: ExternalToast = {
   );
   return displayToast[record.tone](content, {
     ...options,
+    id: options.id ?? record.id,
     description: undefined,
     ...(record.tone === "error" ? { duration: Infinity } : {}),
   });

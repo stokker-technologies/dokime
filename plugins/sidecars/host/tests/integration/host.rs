@@ -13,6 +13,8 @@
 
 /* === Modules === */
 
+mod cpu;
+
 /* === Re-Exports === */
 
 /* === Imports === */

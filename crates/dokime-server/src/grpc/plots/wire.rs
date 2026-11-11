@@ -115,10 +115,10 @@ pub(super) fn envelope(
 
 pub(super) fn stream_frame(
     kind: PlotPayloadStreamKind, value: dokime::harmos::storage::ReadBatch<PlotPayloadEnvelope>, epoch: &str, selection: &str, limit: usize,
-) -> Result<dokime::harmos::storage::ReadBatch<dokime::domain::model::plots::wire::PlotStreamFrame>, FrameError> {
+) -> Result<dokime::harmos::storage::ReadBatch<dokime::domain::model::plots::wire::PlotStreamUpdate>, FrameError> {
     value.try_map(|value| {
         let envelope = plot_envelope(value, epoch, selection)?;
-        let mut frame = dokime::domain::model::plots::wire::PlotStreamFrame {
+        let mut frame = dokime::domain::model::plots::wire::PlotStreamUpdate {
             kind: plot_stream_kind(kind),
             envelope: Some(envelope),
         };
@@ -256,6 +256,7 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime::domain::mod
         analysis: request.analysis.as_ref().map(super::analysis::selection_wire).transpose()?,
         plot_id: request.plot_id.clone(),
         plot_type: request.plot_type.as_ref().map_or(dokime::domain::model::plots::wire::PlotType::Unspecified, enums::plot_type),
+        style: enums::plot_style(&request.style),
         x_scale: enums::axis_scale(&request.x_scale),
         y_scale: enums::axis_scale(&request.y_scale),
         stream,
@@ -278,7 +279,7 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime::domain::mod
             .max_points
             .map(|value| u64::try_from(value).map_err(|_| Status::internal("plot max_points does not fit wire")))
             .transpose()?,
-        window_s: request.window_s.map(|value| finite_duration(value, "plot window_s")).transpose()?,
+        window_s: request.window_s.map(|value| finite_nonnegative(value, "plot window_s")).transpose()?,
         scope: request.scope.as_ref().map(canonical::scope).transpose()?,
         technique: enums::downsample_technique(&request.technique),
         summary_window: request
@@ -307,6 +308,7 @@ fn data_transform_wire(transform: &DataTransform) -> Result<dokime::domain::mode
 fn plot_presentation(input: &PlotInput) -> Result<dokime::domain::model::documents::wire::PlotPresentation, Status> {
     let (x_axis, x_axis_unit) = enums::plot_axis(input.x_axis.as_ref());
     Ok(dokime::domain::model::documents::wire::PlotPresentation {
+        scale: input.scale,
         style: enums::plot_style(&input.style),
         fft: Some(plot_fft_wire(&input.fft)?),
         interval: Some(plot_interval_wire(&input.interval)?),
@@ -347,12 +349,21 @@ fn plot_histogram_wire(value: &HistogramOptions) -> Result<dokime::domain::model
     })
 }
 
+fn reference_value(value: &dokime::document::ReferenceValue) -> Result<dokime::domain::model::documents::wire::PlotReferenceValue, Status> {
+    use dokime::document::ReferenceValue;
+    let (constant, expression) = match value {
+        ReferenceValue::Constant(value) => {
+            finite_number(*value, "plot reference value")?;
+            (Some(*value), None)
+        }
+        ReferenceValue::Expression(value) => (None, Some(data_expression_wire(value)?)),
+    };
+    Ok(dokime::domain::model::documents::wire::PlotReferenceValue { constant, expression })
+}
+
 fn plot_reference_line_wire(value: &ReferenceLine) -> Result<dokime::domain::model::documents::wire::PlotReferenceLine, Status> {
     Ok(dokime::domain::model::documents::wire::PlotReferenceLine {
-        axis: enums::reference_axis(&value.axis),
-        value: value.value.map(|value| finite_number(value, "plot reference line value")).transpose()?,
-        source: value.source.as_ref().map(data_expression_wire).transpose()?,
-        source_scale: finite_number(value.source_scale, "plot reference line source_scale")?,
+        value: reference_value(&value.value)?,
         label: value.label.clone(),
         color: value.color.clone(),
     })
@@ -360,13 +371,12 @@ fn plot_reference_line_wire(value: &ReferenceLine) -> Result<dokime::domain::mod
 
 fn plot_reference_band_wire(value: &ReferenceBand) -> Result<dokime::domain::model::documents::wire::PlotReferenceBand, Status> {
     Ok(dokime::domain::model::documents::wire::PlotReferenceBand {
-        axis: enums::reference_axis(&value.axis),
-        min: value.min.map(|value| finite_number(value, "plot reference band min")).transpose()?,
-        max: value.max.map(|value| finite_number(value, "plot reference band max")).transpose()?,
+        min: value.min.as_ref().map(reference_value).transpose()?,
+        max: value.max.as_ref().map(reference_value).transpose()?,
+        center: value.center.as_ref().map(reference_value).transpose()?,
+        tolerance: value.tolerance.as_ref().map(reference_value).transpose()?,
         label: value.label.clone(),
         color: value.color.clone(),
-        center: value.center.as_ref().map(data_expression_wire).transpose()?,
-        tolerance: value.tolerance.as_ref().map(data_expression_wire).transpose()?,
     })
 }
 
@@ -389,10 +399,6 @@ fn finite_nonnegative(value: f64, label: &str) -> Result<f64, Status> {
         return Err(Status::internal(format!("{label} is negative")));
     }
     Ok(value)
-}
-
-fn finite_duration(value: f64, label: &str) -> Result<f64, Status> {
-    finite_nonnegative(value, label)
 }
 
 fn plot_stream_kind(value: PlotPayloadStreamKind) -> dokime::domain::model::plots::wire::PlotStreamKind {
@@ -664,11 +670,43 @@ fn plot_marker(value: dokime::runtime::query::PlotMarker) -> Result<dokime::doma
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dokime::domain::model::plots::wire::{PlotEnvelope, PlotStreamFrame, PlotStreamKind};
+    use dokime::domain::model::plots::wire::{PlotEnvelope, PlotStreamKind, PlotStreamUpdate};
+
+    #[test]
+    fn xy_request_style_roundtrip() {
+        use dokime::document::{PlotStyle, PlotType};
+        use dokime::runtime::query::PlotPayloadRequest;
+
+        for style in [PlotStyle::Line, PlotStyle::Points, PlotStyle::LinePoints, PlotStyle::Step] {
+            let request = PlotPayloadRequest {
+                stream: "tracking".into(),
+                plot_type: Some(PlotType::Xy),
+                style: style.clone(),
+                x_key: Some("easting_m".into()),
+                y_keys: vec!["northing_m".into()],
+                ..Default::default()
+            };
+            let wire = plot_request_wire(&request).unwrap();
+            let (decoded, _) = super::super::cursor::decode_plot_requests(vec![wire]).unwrap();
+            assert_eq!(decoded[0].plot_type, request.plot_type);
+            assert_eq!(decoded[0].style, style);
+            assert_eq!(decoded[0].x_key, request.x_key);
+            assert_eq!(decoded[0].y_keys, request.y_keys);
+        }
+        let mut wire = plot_request_wire(&PlotPayloadRequest {
+            stream: "tracking".into(),
+            plot_type: Some(PlotType::Xy),
+            ..Default::default()
+        })
+        .unwrap();
+        wire.style = dokime::domain::model::documents::wire::PlotStyle::Unspecified;
+        let (decoded, _) = super::super::cursor::decode_plot_requests(vec![wire]).unwrap();
+        assert_eq!(decoded[0].style, PlotStyle::Line);
+    }
 
     #[test]
     fn complete_stream_frame_limits() {
-        let mut frame = PlotStreamFrame {
+        let mut frame = PlotStreamUpdate {
             kind: PlotStreamKind::Error,
             envelope: Some(PlotEnvelope {
                 plot_id: "temperature".to_owned(),
@@ -680,7 +718,7 @@ mod tests {
                 warnings: vec!["unavailable".to_owned()],
             }),
         };
-        let select: fn(&mut PlotStreamFrame) -> &mut PlotEnvelope = |frame| frame.envelope.as_mut().expect("fixture envelope");
+        let select: fn(&mut PlotStreamUpdate) -> &mut PlotEnvelope = |frame| frame.envelope.as_mut().expect("fixture envelope");
         let encoded = crate::grpc::content::output_frame_len(&frame).unwrap();
         assert!(fit_message(&mut frame, select, encoded, true).is_ok());
         assert!(matches!(fit_message(&mut frame, select, encoded - 1, true), Err(FrameError::Status(_))));

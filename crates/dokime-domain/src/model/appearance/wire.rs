@@ -10,6 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+
 pub use crate::model::plugins::LogoVariant;
 
 /* === Imports === */

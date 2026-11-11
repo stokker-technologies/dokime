@@ -76,7 +76,6 @@ impl Operation for LoadHold {
         let summary = hold(self, settings, source, ctx.cancelled(), |row| {
             let request = Publish {
                 stream: LoadControl::ID.to_owned(),
-                schema: LoadControl::VERSION,
                 sequence: None,
                 published_unix_micros: None,
                 context: None,
@@ -236,7 +235,6 @@ mod tests {
             assert_eq!(target.id, Publish::ID);
             let request = request.downcast::<Publish>().unwrap();
             assert_eq!(request.stream, LoadControl::ID);
-            assert_eq!(request.schema, LoadControl::VERSION);
             let row = LoadControl::decode(&request.payload).unwrap();
             self.0.send(row).unwrap();
             static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);

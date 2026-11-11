@@ -9,33 +9,36 @@
 
 /* === Local Imports === */
 
+import type { ReferenceBand, ReferenceLine, ReferenceValue } from "@/lib/document-contracts";
 import { formatTitleWord } from "@/lib/format";
-import type { DocumentReferenceLine, DocumentViewPlot, PlotPayload, TelemetryStream, ValueFormat } from "@/lib/types";
-import { isRecord } from "@/lib/utils";
+import type {
+  DocumentReferenceBand,
+  DocumentReferenceLine,
+  DocumentViewPlot,
+  PlotPayload,
+  TelemetryStream,
+  ValueFormat,
+} from "@/lib/types";
 import { elapsedColumnUnit } from "@/plots/axis";
-import { plotColor } from "@/plots/colors";
+import { plotColor, referenceColor } from "@/plots/colors";
 import { histogramAxes } from "@/plots/histogram-axes";
 import type { PlotCardSpec } from "@/plots/types";
 
 /* === Public Functions === */
 
-/** The card spec of the plot at `position` within the card titled `title`. */
+/** The card spec of one document plot; its series take the plot palette in order. */
 export function documentPlotSpec({
   parameters,
   payload,
   plot,
   plotPalette,
-  position,
   telemetry,
-  title,
 }: {
   parameters?: Record<string, unknown> | null;
   payload: PlotPayload | null | undefined;
   plot: DocumentViewPlot;
   plotPalette?: readonly string[] | null;
-  position: number;
   telemetry?: Record<string, TelemetryStream> | null;
-  title: string;
 }): PlotCardSpec {
   const series = labelSeries({
     plot,
@@ -57,7 +60,7 @@ export function documentPlotSpec({
   // it waits for its first frame.
   const xFormat = payload?.x_format ?? plot.x_format ?? null;
 
-  return {
+  const spec: PlotCardSpec = {
     key: plot.plot_id,
     stream: plot.stream,
     title: plot.title,
@@ -89,9 +92,9 @@ export function documentPlotSpec({
         telemetry?.[plot.stream]?.spec?.columns.some((column) => column.name === field && column.value_type === "boolean"),
       ),
     unit: plot.unit ?? commonUnit(series),
-    colors: series.map((_, index) => plotColor(title, position + index, plotPalette)),
-    referenceLines: resolveReferenceLines(plot.reference_lines ?? [], plot, telemetry, parameters),
-    referenceBands: plot.reference_bands ?? [],
+    colors: series.map((_, index) => plotColor(index, plotPalette)),
+    referenceLines: resolveReferenceLines(plot.reference_lines ?? [], plot.reference_bands?.length ?? 0, plot, telemetry, parameters),
+    referenceBands: resolveReferenceBands(plot.reference_bands ?? [], plot, telemetry, parameters),
     stateLabel: state.label,
     stateDetail: state.detail,
     contextSummary: plotContextSummary({ stream: plot.stream, telemetry, context: payload?.context }),
@@ -108,6 +111,7 @@ export function documentPlotSpec({
     summaries: payload?.summaries ?? null,
     summaryPending: false,
   };
+  return scalePresentation(spec, plot.scale ?? 1);
 }
 
 /**
@@ -140,6 +144,36 @@ export { plotColor };
 
 /* === Private Functions === */
 
+/** Shared by live snapshots, zoom summaries and frozen HTML; never mutates query payloads. */
+function scalePresentation(plot: PlotCardSpec, scale: number): PlotCardSpec {
+  if (scale === 1) return plot;
+  const scaled = (value: number | null | undefined) => (value == null ? value : value * scale);
+  const cartesian = plot.cartesian;
+  return {
+    ...plot,
+    booleanAxis: false,
+    series: plot.series.map((series) => ({
+      ...series,
+      points: series.points.map((point) => ({ ...point, y: point.y === null ? null : point.y * scale })),
+    })),
+    cartesian: cartesian
+      ? {
+          ...cartesian,
+          series: cartesian.series.map((series) => ({ ...series, y: series.y.map((value) => (value === null ? null : value * scale)) })),
+          y_domain: cartesian.y_domain ? { min: cartesian.y_domain.min * scale, max: cartesian.y_domain.max * scale } : cartesian.y_domain,
+          signature: `${cartesian.signature}:scale:${scale}`,
+        }
+      : cartesian,
+    summaries: plot.summaries?.map((summary) =>
+      Object.fromEntries(
+        Object.entries(summary).map(([key, value]) => [key, key !== "count" && typeof value === "number" ? value * scale : value]),
+      ),
+    ) as PlotCardSpec["summaries"],
+    referenceLines: plot.referenceLines.map((line) => ({ ...line, value: scaled(line.value) })),
+    referenceBands: plot.referenceBands.map((band) => ({ ...band, min: scaled(band.min), max: scaled(band.max) })),
+  };
+}
+
 /** An RFC3339 payload timestamp as epoch seconds, or `null` when absent or unparseable. */
 function epochSecondsOf(timestamp: string | null | undefined): number | null {
   if (!timestamp) {
@@ -154,59 +188,59 @@ function commonUnit(series: PlotPayload["series"]): string | null {
   return units.size === 1 ? (series[0]?.unit ?? null) : null;
 }
 
+/** Lines continue the reference palette after the plot's bands. */
 function resolveReferenceLines(
-  lines: DocumentReferenceLine[],
+  lines: ReferenceLine[],
+  bandCount: number,
   plot: DocumentViewPlot,
   telemetry: Record<string, TelemetryStream> | null | undefined,
   parameters: Record<string, unknown> | null | undefined,
 ): DocumentReferenceLine[] {
-  return lines.map((line) => {
-    if (Number.isFinite(line.value)) {
-      return line;
+  return lines.map((line, index) => ({
+    ...line,
+    color: referenceColor(line.color, bandCount + index),
+    value: referenceValue(line.value, plot, telemetry, parameters),
+  }));
+}
+
+function resolveReferenceBands(
+  bands: ReferenceBand[],
+  plot: DocumentViewPlot,
+  telemetry: Record<string, TelemetryStream> | null | undefined,
+  parameters: Record<string, unknown> | null | undefined,
+): DocumentReferenceBand[] {
+  return bands.map((band, index) => {
+    let min = referenceValue(band.min, plot, telemetry, parameters);
+    let max = referenceValue(band.max, plot, telemetry, parameters);
+    if (band.center != null || band.tolerance != null) {
+      const center = referenceValue(band.center, plot, telemetry, parameters);
+      const tolerance = referenceValue(band.tolerance, plot, telemetry, parameters);
+      min = center !== null && tolerance !== null && tolerance >= 0 ? center - tolerance : null;
+      max = center !== null && tolerance !== null && tolerance >= 0 ? center + tolerance : null;
     }
-    const value = referenceLineSourceValue(line, plot, telemetry, parameters);
-    if (value === null) {
-      return line;
+    if (min === null || max === null || !Number.isFinite(min) || !Number.isFinite(max) || min > max) {
+      min = null;
+      max = null;
     }
-    const sourceScale = numberValue(line.source_scale) ?? 1.0;
-    return { ...line, value: value * sourceScale };
+    return { label: band.label, color: referenceColor(band.color, index), min, max };
   });
 }
 
-function referenceLineSourceValue(
-  line: DocumentReferenceLine,
+/** One resolution path for live views and serialized frozen documents. */
+function referenceValue(
+  value: ReferenceValue | null | undefined,
   plot: DocumentViewPlot,
   telemetry: Record<string, TelemetryStream> | null | undefined,
   parameters: Record<string, unknown> | null | undefined,
 ): number | null {
-  const source = line.source;
-  if (!isRecord(source)) {
-    return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (!value) return null;
+  const source = value.source;
+  if (source.type === "telemetry") {
+    const stream = source.stream ?? plot.stream;
+    return numberValue(latestSample(telemetry, stream)?.[source.field]);
   }
-  const sourceRecord: Record<string, unknown> = source;
-
-  const directKind = textValue(sourceRecord.kind);
-  if (directKind === "static") {
-    return numberValue(sourceRecord.value);
-  }
-  if (directKind === "telemetry_value") {
-    const stream = textValue(sourceRecord.stream) ?? plot.stream;
-    const field = textValue(sourceRecord.field);
-    return field ? numberValue(latestSample(telemetry, stream)?.[field]) : null;
-  }
-
-  const nestedSource = sourceRecord.source;
-  const expressionSource = isRecord(nestedSource) ? nestedSource : sourceRecord;
-  const expressionType = textValue(expressionSource.type);
-  if (expressionType === "telemetry") {
-    const stream = textValue(expressionSource.stream) ?? plot.stream;
-    const field = textValue(expressionSource.field);
-    return field ? numberValue(latestSample(telemetry, stream)?.[field]) : null;
-  }
-  if (expressionType === "parameter") {
-    const field = textValue(expressionSource.name);
-    return field ? numberValue(parameters?.[field]) : null;
-  }
+  if (source.type === "parameter") return numberValue(parameters?.[source.name]);
   return null;
 }
 
@@ -371,10 +405,6 @@ function latestSample(telemetry: Record<string, TelemetryStream> | null | undefi
 
 function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function textValue(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function firstText(...values: unknown[]): string | undefined {

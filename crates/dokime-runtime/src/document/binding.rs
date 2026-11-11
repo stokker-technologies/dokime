@@ -235,8 +235,8 @@ pub(super) fn validate(cards: &[DocumentCardDefinition], nodes: &[DocumentNode])
     Ok(())
 }
 
-/// Refuses a repeated section, at any depth, whose value, order or filters
-/// select on `time_between`: a repeat names its instances from row-local values.
+// Refuses a repeated section, at any depth, whose value, order or filters
+// select on `time_between`: a repeat names its instances from row-local values.
 pub(crate) fn validate_repeat_selectors(nodes: &[DocumentNode]) -> Result<()> {
     for node in nodes {
         let DocumentNode::Section(section) = node else {
@@ -351,7 +351,35 @@ pub(super) fn evaluate(expression: &DataExpression, evidence: Evidence<'_>, sele
     }
     let cases = if per_case { evidence.context.cases().collect::<Vec<_>>() } else { Vec::new() };
     let plan = Plan::compile(expression, per_case.then_some(cases.len()))?;
-    plan.evaluate(expression, evidence, &cases, selected)
+    plan.evaluate(expression, evidence, &cases, selected).map_err(|error| {
+        if let DataSource::Telemetry { stream, field } = &expression.source
+            && matches!(error, crate::Error::Document(DocumentFailure::Evaluation { .. }))
+        {
+            return DocumentFailure::TelemetryColumn {
+                stream: stream.clone(),
+                column: field.clone(),
+                source: Box::new(error),
+            }
+            .into();
+        }
+        error
+    })
+}
+
+pub(crate) fn expression_needs_telemetry(expression: &DataExpression, context: Context<'_>) -> bool {
+    matches!(expression.source, DataSource::Telemetry { .. })
+        || (matches!(expression.source, DataSource::Dimension { .. }) && !context.supplies(&expression.source))
+}
+
+pub(super) fn validate_expression(expression: &DataExpression, aggregate: bool) -> Result<()> {
+    if let Some(index) = expression.transforms.iter().position(|transform| matches!(transform, DataTransform::PerCase)) {
+        let suffix = &expression.transforms[index + 1..];
+        if !aggregate || suffix.len() != 1 || suffix.first().is_some_and(|transform| !matches!(transform, DataTransform::Aggregate(_))) {
+            return Err(failure("per-case scalar summaries require one final outer fold"));
+        }
+        return validate_selector(&expression.source, &expression.transforms[..index], true);
+    }
+    validate_selector(&expression.source, &expression.transforms, aggregate)
 }
 
 /* === Private Functions === */
@@ -403,11 +431,6 @@ fn validate_pair(expression: &DataExpression, other: &DataExpression) -> Result<
     Ok(())
 }
 
-pub(crate) fn expression_needs_telemetry(expression: &DataExpression, context: Context<'_>) -> bool {
-    matches!(expression.source, DataSource::Telemetry { .. })
-        || (matches!(expression.source, DataSource::Dimension { .. }) && !context.supplies(&expression.source))
-}
-
 fn repeat_needs(repeat: &super::DocumentSectionRepeat, needs: impl Fn(&DataExpression) -> bool + Copy) -> bool {
     needs(&repeat.value) || repeat.order_by.as_ref().is_some_and(needs) || repeat.filters.iter().any(|filter| needs(&filter.expression))
 }
@@ -419,17 +442,6 @@ fn nodes_need(nodes: &[DocumentNode], needs: impl Fn(&DataExpression) -> bool + 
         }
         _ => false,
     })
-}
-
-pub(super) fn validate_expression(expression: &DataExpression, aggregate: bool) -> Result<()> {
-    if let Some(index) = expression.transforms.iter().position(|transform| matches!(transform, DataTransform::PerCase)) {
-        let suffix = &expression.transforms[index + 1..];
-        if !aggregate || suffix.len() != 1 || suffix.first().is_some_and(|transform| !matches!(transform, DataTransform::Aggregate(_))) {
-            return Err(failure("per-case scalar summaries require one final outer fold"));
-        }
-        return validate_selector(&expression.source, &expression.transforms[..index], true);
-    }
-    validate_selector(&expression.source, &expression.transforms, aggregate)
 }
 
 fn validate_selector(source: &DataSource, transforms: &[DataTransform], aggregate: bool) -> Result<()> {

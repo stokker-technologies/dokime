@@ -29,6 +29,7 @@ use dokime_domain::model::content::wire;
 use dokime_runtime::ExecutionFileFollower;
 
 /* === Constants === */
+
 // The followed native output.
 const PATH: &str = "follow.bin";
 
@@ -53,6 +54,7 @@ const REWRITTEN: &[u8] = b"changed retained prefix with extra bytes";
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // The running execution of a blocked cycle and its followed output path, holding `ORIGINAL`.
 async fn producing(handle: &RuntimeHandle, cycle: &TestCycleId) -> (TestExecutionId, String) {
     let cycle = wait_for_cycle_lifecycle(handle, cycle, CycleStatus::Running).await;
@@ -114,8 +116,6 @@ fn assert_abandoned(frame: &harmos::operations::Response<wire::ExecutionFileFoll
     assert_eq!(terminal.length, ORIGINAL.len() as u64);
     assert!(terminal.sealed.is_none(), "an abandoned production is never sealed");
 }
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread")]
@@ -213,3 +213,5 @@ async fn follow_terminal_interleavings() {
     // The capture resident retains the source failure through shutdown.
     assert!(owner.shutdown().await.is_err());
 }
+
+/* === Tests === */

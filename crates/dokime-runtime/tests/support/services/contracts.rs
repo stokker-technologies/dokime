@@ -12,19 +12,20 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
+use harmos::{
+    Message,
+    schema::{Described, graph::Schema},
+};
 
 // Local Imports
 use super::{identifier, metadata};
 use dokime_runtime::records::{RecordContract, RecordField, RecordSeverity};
 use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole, TelemetryRow};
 use dokime_runtime::{Identifier, Value, ValueType};
-use harmos::{
-    Message,
-    schema::{Described, graph::Schema},
-};
 
 /* === Constants === */
 
@@ -33,6 +34,7 @@ use harmos::{
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -78,6 +80,7 @@ pub struct TrackingRow {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn fixture_schema(stream: &str) -> Option<Schema> {
     let settings = harmos::config::SchemaSettings::default();
     let definition = match stream {
@@ -129,7 +132,6 @@ pub fn typed_fixture_sample(mut sample: dokime_runtime::telemetry::TelemetrySamp
 pub fn fixture_record_contract() -> RecordContract {
     RecordContract {
         record_type: identifier("fixture.event"),
-        schema_version: 1,
         metadata: metadata("fixture.event", "Fixture Event"),
         display: Default::default(),
         template_id: None,
@@ -144,7 +146,7 @@ pub fn fixture_record_contract() -> RecordContract {
 pub fn fixture_telemetry_contract() -> TelemetryContract {
     TelemetryContract {
         stream: identifier("fixture.telemetry"),
-        schema_version: 1,
+        schema_version: harmos::domain::streams::revision(&fixture_schema("fixture.telemetry").unwrap(), 1).unwrap(),
         metadata: metadata("fixture.telemetry", "Fixture Telemetry"),
         template_id: None,
         owner: None,
@@ -162,7 +164,6 @@ pub fn fixture_telemetry_contract() -> TelemetryContract {
 pub fn tracking_warning_contract() -> RecordContract {
     RecordContract {
         record_type: Identifier::new("tracking.fixture_warning").unwrap(),
-        schema_version: 1,
         metadata: metadata("tracking.fixture_warning", "Tracking Fixture Warning"),
         display: Default::default(),
         template_id: None,
@@ -177,7 +178,6 @@ pub fn tracking_warning_contract() -> RecordContract {
 pub fn custom_record_contract() -> RecordContract {
     RecordContract {
         record_type: identifier("custom.measurement"),
-        schema_version: 1,
         metadata: metadata("custom.measurement", "Custom Measurement"),
         display: Default::default(),
         template_id: None,
@@ -206,7 +206,7 @@ pub fn suite_telemetry_contracts() -> Vec<TelemetryContract> {
 pub fn tracking_contract() -> TelemetryContract {
     TelemetryContract {
         stream: identifier("tracking"),
-        schema_version: 1,
+        schema_version: harmos::domain::streams::revision(&fixture_schema("tracking").unwrap(), 1).unwrap(),
         metadata: metadata("tracking", "Tracking"),
         template_id: None,
         owner: None,
@@ -263,6 +263,7 @@ pub fn minimal_tracking_contract() -> TelemetryContract {
         default_x: Some("elapsed_s".to_owned()),
         ..tracking_contract()
     }
+    .typed::<MinimalTrackingRow>(1)
 }
 
 pub fn conflicting_tracking_contract() -> TelemetryContract {
@@ -280,6 +281,7 @@ pub fn wifi_occupancy_contract() -> TelemetryContract {
 }
 
 /* === Private Functions === */
+
 fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(sample: &dokime_runtime::telemetry::TelemetrySample) -> Vec<u8> {
     let mut values = Value::Object(sample.values.clone()).to_plain_json().unwrap();
     let graph = Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap();

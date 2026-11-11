@@ -13,8 +13,13 @@
 
 /* === Imports === */
 
-use super::*;
+// Standard Library Imports
+
+// Third Party Imports
 use serde::{Deserialize, Serialize};
+
+// Local Imports
+use super::*;
 
 /* === Constants === */
 

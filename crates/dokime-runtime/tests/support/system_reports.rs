@@ -8,11 +8,15 @@
  */
 
 // Shared System Story Teardown. Integration And Unit Fixtures Keep Their Native Lifecycle.
+
 #![allow(dead_code)]
 
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
@@ -20,18 +24,24 @@ use std::{
     ops::{Deref, DerefMut},
     path::Path,
 };
+
 // Third Party Imports
 use sha2::{Digest, Sha256};
+
 // Local Imports
 use dokime_runtime::ExecutionOutputContent;
 use dokime_runtime::{Runtime as NativeRuntime, RuntimeHandle};
 
 /* === Constants === */
+
 const EXEMPTIONS: &str = include_str!("system_reports.json");
 
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 pub struct Artifact {
     pub size_bytes: u64,
     pub sha256: String,
@@ -43,8 +53,11 @@ pub struct Runtime {
 }
 
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 impl From<NativeRuntime> for Runtime {
     fn from(owner: NativeRuntime) -> Self {
         Self { owner, finalize: required() }
@@ -76,6 +89,7 @@ impl Runtime {
 }
 
 /* === Public Functions === */
+
 pub fn required() -> bool {
     let executable = std::env::current_exe().unwrap();
     let name = executable.file_stem().unwrap().to_str().unwrap();
@@ -155,25 +169,6 @@ pub async fn finalize(handle: &RuntimeHandle) {
     eprintln!("reopened {saved} sealed execution reports with {artifacts_saved} artifacts");
 }
 
-/* === Private Functions === */
-fn system_suffix(hash: &str) -> bool {
-    hash.as_bytes().iter().all(u8::is_ascii_hexdigit)
-}
-
-async fn save_cycle(handle: &RuntimeHandle, cycle: dokime_runtime::CycleView, root: &Path) -> (usize, usize) {
-    if cycle.test_executions.is_empty() {
-        return (0, 0);
-    }
-    handle.seal_cycle(cycle.test_cycle_id, dokime_runtime::runtime::command::CommandContext::default()).await.unwrap();
-
-    let saved = cycle.test_executions.len();
-    let mut artifacts = 0;
-    for execution in cycle.test_executions {
-        artifacts += save_execution(handle, &execution.test_execution_id, root).await;
-    }
-    (saved, artifacts)
-}
-
 pub(crate) async fn save_execution(handle: &RuntimeHandle, id: &dokime_runtime::TestExecutionId, root: &Path) -> usize {
     let checkpoint = handle.execution_saved_checkpoint(id.clone()).await.unwrap();
     let view = dokime_runtime::runtime::ExecutionView::open_checkpoint(handle.storage(), &checkpoint).await.unwrap().unwrap();
@@ -215,6 +210,26 @@ pub(crate) async fn save_execution(handle: &RuntimeHandle, id: &dokime_runtime::
     let reopened = dokime_runtime::runtime::ExecutionView::open_checkpoint(handle.storage(), &checkpoint).await.unwrap().unwrap();
     assert_eq!(reopened.execution().saved.as_ref(), Some(&seal));
     artifacts.len()
+}
+
+/* === Private Functions === */
+
+fn system_suffix(hash: &str) -> bool {
+    hash.as_bytes().iter().all(u8::is_ascii_hexdigit)
+}
+
+async fn save_cycle(handle: &RuntimeHandle, cycle: dokime_runtime::CycleView, root: &Path) -> (usize, usize) {
+    if cycle.test_executions.is_empty() {
+        return (0, 0);
+    }
+    handle.seal_cycle(cycle.test_cycle_id, dokime_runtime::runtime::command::CommandContext::default()).await.unwrap();
+
+    let saved = cycle.test_executions.len();
+    let mut artifacts = 0;
+    for execution in cycle.test_executions {
+        artifacts += save_execution(handle, &execution.test_execution_id, root).await;
+    }
+    (saved, artifacts)
 }
 
 async fn save_file(

@@ -37,6 +37,7 @@ use dokime_runtime::{PromptId, Value};
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub async fn assert_late_answer_refused(runtime: &RuntimeHandle, id: &PromptId) {
     let error = runtime
         .submit_prompt_response(

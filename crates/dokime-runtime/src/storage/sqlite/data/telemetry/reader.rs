@@ -53,7 +53,7 @@ pub(in crate::storage::sqlite) struct CachedBatch {
     batch: arrow_array::RecordBatch,
 }
 
-pub(crate) struct NumericRow {
+pub struct NumericRow {
     pub timestamp: dokime_domain::model::time::Timestamp,
     pub sequence: u64,
     pub values: Vec<Option<f64>>,

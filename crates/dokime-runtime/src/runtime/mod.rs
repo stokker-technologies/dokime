@@ -27,8 +27,8 @@ pub(crate) mod storage;
 /* === Re-Exports === */
 
 pub use crate::execution::context::ExecutionCycleContext;
-pub use embedded::EmbeddedProvider;
 pub(crate) use embedded::Templates as EmbeddedTemplates;
+pub use embedded::{EmbeddedHost, EmbeddedObserver, EmbeddedProvider};
 pub use error::{Error, Result};
 pub use handle::{CapturedRecord, CapturedRecords, RuntimeHandle};
 pub(crate) use native_telemetry::Admission as ExecutionPublicationAdmission;

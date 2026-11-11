@@ -96,10 +96,11 @@ names read `<Workflow> / <Purpose>`: `CI / Validation`, `CI / Draft Review`,
 Job names read `<Stage> / <Subject>[ / <Kind>] [(<platform>)]`, such as
 `Check / Python`, `Test / Rust / Unit (windows)`, `Release / Tag`,
 `Nightly / Publish` or `Mirror / Push`; `CI / Required` is the aggregate gate.
-Release starts only for manual preparation, `v*` tag pushes and merged PRs into
-dev that change
-`tools/project.toml`, which every release review does; its jobs still require
-a `release/v*` head, so ordinary merges start no Release run.
+Release starts for manual dispatch, completed `CI` runs and `v*` tag pushes
+(excluding `v*-dev.*`). Successful validation of a merged `release/v*` review
+starts tagging its prepared, untagged release; unrelated completions skip release
+jobs. A dispatch on dev retries that release, even after later dev merges, or
+prepares the next release otherwise.
 
 Development and test builds use line tables for workspace crates and disable
 debug information for dependencies to reduce compilation and linking costs.
@@ -114,6 +115,20 @@ Check / Rust gates it. Build, test, bench and fixture tasks do not run Clippy.
 Focused compilation retains compiler preflight; Clippy is an explicit choice with
 `mise run build:rust:focused -- clippy <arguments>`.
 Use `mise run lint:rust --extended` for local compatibility lint coverage.
+
+For a compiler check covering the workspace targets and features selected by
+Build / Product and Build / Tests, including the Python SDK and its examples:
+
+```sh
+mise run build:rust:focused -- check --locked --workspace --all-targets --features plugin-host/runtime,dokime-runtime/testing,dokime-gui/testing,tauri/custom-protocol
+```
+
+An ordinary workspace check omits `plugin-host/runtime`: the host's default
+features expose definitions only, and its binary and integration tests require
+`runtime`. `--all-targets` includes test harnesses and examples. This compiler
+check does not link products, create test archives or run compile-contract cases;
+the canonical producers below own those outputs. Release builds additionally
+select `dokime-server/media-native`.
 
 Build matching artifacts, then run every test lane concurrently (the five-minute
 execution target is advisory and excludes compilation):
@@ -132,17 +147,23 @@ restores generated contracts and extracts the Rust archive once before concurren
 readers start. Standalone Rust lanes also reuse one extraction for listing and
 execution; standalone system runs unpack their binaries and shared runtime inputs
 without the other test layers, keeping extraction within hosted disk capacity.
-The entry runs all ten
-lanes even if one fails and returns failure if any lane fails. Full lane logs,
+The aggregate owns a native mise task lock across preparation, consumers and
+collection. Its referenced tasks share that permit and run concurrently; the
+ordinary one-task default remains in place for standalone language tasks.
+Canonical mise task references schedule all eleven product lanes concurrently,
+plus the tooling integration tests. Each prepared leaf records its actual exit
+code; the final collection returns failure for any failed or missing result. Full lane logs,
 exit codes, wall times and an aggregate `time-summary.md`/`.json` live under
 `target/test-reports/run-<profile>-<native>/`; every lane also keeps its own time
 summary under `target/test-reports/<category>-<language>/`. Individual lane tasks
 remain independently usable; avoid running the same lane twice in one checkout.
+Run tooling alone with `mise run test:python:integration --project tools/python`;
+add `--select schedule` to select its scheduling tests.
 Only one native desktop lane may use an interactive desktop session at a time,
 including runs from other worktrees. Reserve an idle test host for wall-clock
 comparisons; simultaneous external test runs can trip existing liveness guards.
 
-The scheduler reserves CPU headroom for the desktop and divides the remaining
+Shared preparation reserves CPU headroom for the desktop and divides the remaining
 logical CPU slots across the four Rust nextest lanes, Python integration and both
 Vitest lanes. All seven pools use that worker count. Standalone
 Rust lanes keep nextest's CPU-sized pool; standalone Python integration uses
@@ -171,17 +192,8 @@ Use `mise run test:typescript:unit -- --select <test-file>` for focused frontend
 Use `mise run test:typescript:system -- --select two-gui-remote` to run the native two-desktop remote-control story alone. It consumes dev Product and Tests artifacts, including the OBC fixture; prepare them with `mise run build:rust`, `mise run build:typescript`, `mise run build:rust:desktop` and `mise run build:rust:tests`. The default native system lane runs execution/containers/history and its dependent attachment/recovery (`native-desktop`), native plugin installation/activation and settings (`desktop-configuration`), distribution/organization (`desktop-appearance`), remote access (`desktop-remote`), owned-backend lifecycle (`desktop-ownership`), and two-desktop control on Windows and Linux. The configuration story exercises the native chooser, restart and installed plugin settings; other independent stories launch with the prepared plugin fixture. Lane hang guards come from `[conventions.testing.deadlines]` in `tools/project.toml`.
 Use `mise run test:python:unit -- --select <pytest-expression>` for focused Python unit proof against the staged client wheel.
 
-During implementation, run targeted checks for changed behavior. Once all agreed
-source work and targeted proof are complete, push the authorized candidate, verify its remote SHA and immediately run
-the full local gate alongside hosted CI:
-
-```sh
-mise run ci:simulate
-```
-
-The default run covers every declared required platform; selecting one platform
-is only partial proof. Local simulation runs independent jobs concurrently in dependency order by default.
-Use `mise run ci:simulate --jobs 1` to execute the same complete graph one job at a time on machines that need serial validation.
+Run targeted tasks locally for changed behavior. Hosted CI and Nightly provide
+full validation across the declared platforms.
 Changes limited to skills, agent guidance, README or
 CONTRIBUTING files select no execution jobs; the required status gate still
 completes. Other documentation uses its declared checks, while mixed source or
@@ -461,7 +473,20 @@ Contributions use the repository's [Apache-2.0 license](LICENSE). Release
 publication is a separate authorized workflow; ordinary candidate validation
 does not publish packages or create tags.
 
-Release reviews squash into dev. Before tagging or publishing, `release.yml`
+The [support policy](docs/support.md) describes stable, nightly and proposed
+end-of-life terms. Release notes should include a **Validation** paragraph naming
+the tag and exact commit, the validating CI run URL, and executed pass/fail/skipped
+counts by platform, language and test layer. Reuse Nightly report evidence only
+when it matches that commit; report missing or pending layers explicitly. Static
+test-marker counts are not execution evidence. This release-note enrichment is
+pending implementation by the release-tooling owner. The existing Nightly / Report
+line provides suite status and the run URL; per-layer counts must come from that
+run's executed test reports, not from its job-status list.
+
+Release reviews squash into dev immediately and their validation keeps running.
+When it completes green, tagging targets the release squash, even after later dev
+merges. Dispatch Release on dev to retry; the tag push publishes and verifies.
+Before tagging or publishing, `release.yml`
 queries GitHub for the exact target SHA's latest dev push run, its successful
 `CI / Required` check, and any additional required contexts in main's ruleset.
 Missing or pending proof waits up to 30 minutes; failed proof refuses release.
@@ -481,3 +506,7 @@ Workflow changes do not configure repository settings.
 Use the [issue tracker](https://github.com/stokker-technologies/dokime/issues).
 Include the operating system, revision, reproduction steps and relevant logs,
 with secrets and private test data removed.
+
+Send vulnerabilities through the private channel in [SECURITY.md](SECURITY.md)
+(pending publication). See [Support](docs/support.md) for proposed acknowledgement
+targets and the commercial-contact placeholder; these are not resolution guarantees.

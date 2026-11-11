@@ -62,10 +62,10 @@ struct Captured {
 pub(super) fn records(
     contracts: &[RecordContract], id: &str, request: &SelectionRequest<'_>, config: &QueryConfig,
 ) -> Result<Schema, Box<Failure>> {
-    let selected = select(contracts.iter().filter(|c| c.record_type.as_str() == id).map(|c| c.schema_version), id, request, config)?;
+    let selected = select(contracts.iter().filter(|c| c.record_type.as_str() == id).map(|c| c.schema_version()), id, request, config)?;
     let mut versions = Vec::new();
     let mut schema_bytes = 0_usize;
-    for contract in contracts.iter().filter(|c| c.record_type.as_str() == id && selected.contains(&c.schema_version)) {
+    for contract in contracts.iter().filter(|c| c.record_type.as_str() == id && selected.contains(&c.schema_version())) {
         config.bound(contract.fields.len(), config.limits().fields, "fields", request.operation)?;
         config.bound(versions.len() + 1, config.limits().versions, "versions", request.operation)?;
         schema_bytes = schema_bytes.saturating_add(harmos::MemorySize::memory_size(contract));
@@ -77,7 +77,10 @@ pub(super) fn records(
                 declared(field.metadata.identifier.as_str(), &field.value_type, !field.required || field.nullable, field.unit.as_ref())
             })
             .collect();
-        versions.push(Captured { version: contract.schema_version, fields });
+        versions.push(Captured {
+            version: contract.schema_version(),
+            fields,
+        });
     }
     merge(versions, id, request, config)
 }
@@ -207,10 +210,19 @@ fn merge(mut versions: Vec<Captured>, id: &str, request: &SelectionRequest<'_>, 
                     _ => false,
                 };
                 if previous.field.value_type != field.field.value_type || !compatible_unit {
+                    let selected = request.fields.is_empty()
+                        || request.fields.contains(&field.field.id)
+                        || request.predicates.iter().any(|predicate| predicate.field == field.field.id);
+                    if !selected {
+                        continue;
+                    }
                     let mut error = Failure::new(
                         Reason::IncompatibleSchema,
                         request.operation,
-                        "Captured versions have incompatible types or units; select one version explicitly",
+                        format!(
+                            "Stream `{id}` column `{}` has incompatible captured types or units. Read the executions separately to retain their original values.",
+                            field.field.id
+                        ),
                     );
                     error.field = Some(field.field.id.clone());
                     error.available_versions = available;

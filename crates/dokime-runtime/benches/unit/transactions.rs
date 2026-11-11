@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::hint::black_box;
 
@@ -43,6 +44,7 @@ use {
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn benchmark(criterion: &mut Criterion) {
     let folded = fold(prepared(500));
     assert_eq!(folded.record_count, 500);
@@ -58,6 +60,7 @@ pub fn benchmark(criterion: &mut Criterion) {
 }
 
 /* === Private Functions === */
+
 fn prepared(count: u64) -> (RuntimeState, Vec<PublishRecord>) {
     let mut state = RuntimeState::new(dokime_runtime::model::identity::new_id());
     state.install_builtin_domains().unwrap();

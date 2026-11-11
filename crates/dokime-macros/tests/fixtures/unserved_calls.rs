@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,6 +20,7 @@
 // Local Imports
 
 /* === Constants === */
+
 const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
@@ -31,6 +33,7 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[sdk::operation(id = "mismatched.read_voltage", description = "Reads.", policy = POLICY, response = ())]
 #[derive(PartialEq)]
 struct ReadVoltage {}
@@ -42,6 +45,7 @@ struct Checks;
 struct Plugin;
 
 /* === Enums === */
+
 #[sdk::catalog]
 enum ProbeRequired {
     ReadVoltage(ReadVoltage),
@@ -63,6 +67,7 @@ enum NoOperations {}
 /* === Traits === */
 
 /* === Implementations === */
+
 impl sdk::Operation for ReadVoltage {
     type Error = sdk::Refusal;
 
@@ -124,6 +129,7 @@ impl Plugin {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() -> std::io::Result<()> {
     sdk::plugin::run::<Plugin>()
 }

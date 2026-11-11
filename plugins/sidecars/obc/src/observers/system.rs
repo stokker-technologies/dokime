@@ -16,11 +16,10 @@
 // Standard Library Imports
 
 // Third Party Imports
-use sysinfo::{Pid, System as Machine};
 
 // Local Imports
 // Third-Party Imports
-use crate::settings::SYSTEM_INTERVAL_MS;
+use crate::domain::model::settings::SYSTEM_INTERVAL_MS;
 use crate::{Error, ObcPlugin};
 use dokime::harmos::ExecutionContext;
 use dokime::harmos::sidecar::{ObserverContext, Publisher};
@@ -40,15 +39,20 @@ use dokime::harmos::sidecar::{ObserverContext, Publisher};
     description = "Process and system CPU and memory observed by the OBC plugin."
 )]
 pub struct SystemRow {
+    #[row(unit = "%")]
     process_cpu_percent: f64,
+
+    #[row(unit = "B")]
     process_memory_bytes: i64,
+
+    #[row(unit = "%")]
     system_cpu_percent: f64,
+
+    #[row(unit = "B")]
     system_memory_used_bytes: i64,
 }
 
-pub(crate) struct System {
-    machine: Machine,
-}
+pub(crate) struct System;
 
 /* === Enums === */
 
@@ -64,20 +68,20 @@ pub enum Streams {
 #[dokime::observer(interval_ms = SYSTEM_INTERVAL_MS, streams(SystemRow), activation = "demand")]
 impl System {
     async fn initialize(_: &ExecutionContext) -> Result<Self, Error> {
-        Ok(Self { machine: Machine::new()? })
+        Ok(Self)
     }
 
     async fn observe(&mut self, ctx: &ObserverContext<'_, Publisher<ObcPlugin>>) -> Result<(), Error> {
-        self.machine.refresh_all();
-        let system_cpu_percent = f64::from(self.machine.global_cpu_usage());
-        let system_memory_used_bytes = integer(self.machine.used_memory());
-        let process = self.machine.process(Pid::from_u32(std::process::id()));
+        // Collect System Measurements
+        let operation = crate::operations::system::CollectSystem {};
+        let reading = ctx.operation(operation).await?;
 
+        // Publish System Measurements
         let row = SystemRow {
-            process_cpu_percent: process.map(|process| f64::from(process.cpu_usage())).unwrap_or_default(),
-            process_memory_bytes: process.map(|process| integer(process.memory())).unwrap_or_default(),
-            system_cpu_percent,
-            system_memory_used_bytes,
+            process_cpu_percent: reading.process_cpu_percent,
+            process_memory_bytes: reading.process_memory_bytes,
+            system_cpu_percent: reading.system_cpu_percent,
+            system_memory_used_bytes: reading.system_memory_used_bytes,
         };
         ctx.publish(row).await?;
 
@@ -88,9 +92,5 @@ impl System {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-fn integer(value: u64) -> i64 {
-    i64::try_from(value).unwrap_or(i64::MAX)
-}
 
 /* === Tests === */

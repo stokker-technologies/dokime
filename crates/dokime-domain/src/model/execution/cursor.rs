@@ -27,9 +27,8 @@ use super::ExecutionCheckpoint;
 
 /* === Constants === */
 
-const VERSION: u8 = 1;
-const BYTES: usize = 1 + 32 + size_of::<u64>();
-const TEXT: usize = BYTES.div_ceil(3) * 4 - 1;
+const BYTES: usize = 32 + size_of::<u64>();
+const TEXT: usize = (BYTES * 4).div_ceil(3);
 
 /* === Macros === */
 
@@ -88,15 +87,18 @@ impl PageCursor {
             return Err(invalid("native continuation did not advance"));
         }
         let mut bytes = [0u8; BYTES];
-        bytes[0] = VERSION;
-        bytes[1..33].copy_from_slice(&self.identity);
-        bytes[33..].copy_from_slice(&position.to_be_bytes());
+        bytes[..32].copy_from_slice(&self.identity);
+        bytes[32..].copy_from_slice(&position.to_be_bytes());
         let mut text = String::new();
         text.try_reserve_exact(TEXT).map_err(|_| exhausted())?;
         if text.capacity() > TEXT {
             return Err(exhausted());
         }
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode_string(bytes, &mut text);
+        // Encode Into The Fixed Output Slice: encode_string Reserves Padded Space Even Without Padding.
+        let mut encoded = [0u8; TEXT];
+        let length = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode_slice(bytes, &mut encoded).map_err(|_| exhausted())?;
+        let encoded = std::str::from_utf8(&encoded[..length]).expect("base64 is ASCII");
+        text.push_str(encoded);
         if text.len() != TEXT || text.capacity() > TEXT {
             return Err(exhausted());
         }
@@ -116,11 +118,11 @@ fn decode(after: &str) -> Result<([u8; 32], u64)> {
     let length = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode_slice(after, &mut bytes)
         .map_err(|_| invalid("invalid native page cursor"))?;
-    if length != BYTES || bytes[0] != VERSION {
-        return Err(invalid("invalid native page cursor version"));
+    if length != BYTES {
+        return Err(invalid("invalid native page cursor length"));
     }
-    let identity = bytes[1..33].try_into().expect("fixed native cursor identity");
-    let position = u64::from_be_bytes(bytes[33..].try_into().expect("fixed native cursor position"));
+    let identity = bytes[..32].try_into().expect("fixed native cursor identity");
+    let position = u64::from_be_bytes(bytes[32..].try_into().expect("fixed native cursor position"));
     if position == 0 {
         return Err(invalid("native page cursor is not a saved admission"));
     }
@@ -130,7 +132,7 @@ fn decode(after: &str) -> Result<([u8; 32], u64)> {
 fn identity(checkpoint: &ExecutionCheckpoint, kind: &str, source: &str) -> [u8; 32] {
     let mut digest = Sha256::new();
     for text in [
-        "dokime.native-evidence-page.v1",
+        "dokime.native-evidence-page",
         kind,
         source,
         checkpoint.execution_id.as_str(),
@@ -160,3 +162,20 @@ fn exhausted() -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cursor_encodes_bounded_continuations() {
+        for (identity, after, position) in [([0; 32], 0, 1), ([255; 32], 7, 8), ([42; 32], u64::MAX - 1, u64::MAX)] {
+            let cursor = PageCursor { identity, after };
+            let encoded = cursor.encode(position).unwrap();
+            assert_eq!(decode(&encoded).unwrap(), (identity, position));
+            assert_eq!(PageCursor::requested(Some(&encoded)).unwrap(), position);
+            assert!(size_of::<String>() + encoded.capacity() <= PageCursor::memory());
+            assert!(cursor.encode(after).is_err());
+        }
+    }
+}

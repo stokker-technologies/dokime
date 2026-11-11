@@ -52,8 +52,8 @@ use request::{canonical_plot_request, scope_selection};
 
 /* === Structs === */
 
-/// What a live plot watch re-reads a plot for: rows on the telemetry streams
-/// it reads, and state changes when it reads records or no telemetry at all.
+// What a live plot watch re-reads a plot for: rows on the telemetry streams
+// it reads, and state changes when it reads records or no telemetry at all.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlotWatchKeys {
     telemetry_streams: Vec<String>,
@@ -67,13 +67,13 @@ pub struct PlotWatchKeys {
 /* === Implementations === */
 
 impl RuntimeHandle {
-    /// Coalescing progress after telemetry is readable from the admission tail.
-    /// Subscribing never requests persistence or retains another copy of the rows.
+    // Coalescing progress after telemetry is readable from the admission tail.
+    // Subscribing never requests persistence or retains another copy of the rows.
     pub fn watch_plot_telemetry(&self) -> tokio::sync::watch::Receiver<u64> {
         self.local_storage.watch_telemetry()
     }
 
-    /// Telemetry streams between two readable frontiers, including the unflushed tail.
+    // Telemetry streams between two readable frontiers, including the unflushed tail.
     pub async fn plot_streams_between(
         &self, after: &harmos::storage::StorageCursor, at: &harmos::storage::StorageCursor,
     ) -> crate::runtime::Result<std::collections::BTreeSet<String>> {
@@ -92,14 +92,14 @@ impl PlotWatchKeys {
         }
     }
 
-    /// Whether a row published on `stream` can change this plot.
+    // Whether a row published on `stream` can change this plot.
     pub fn reads_stream(&self, stream: &str) -> bool {
         self.telemetry_streams
             .iter()
             .any(|declared| crate::plot::stream_matches_alias(stream, declared) || crate::plot::stream_matches_alias(declared, stream))
     }
 
-    /// Whether a runtime state change can change this plot.
+    // Whether a runtime state change can change this plot.
     pub fn follows_state(&self) -> bool {
         self.records || self.telemetry_streams.is_empty()
     }
@@ -107,7 +107,7 @@ impl PlotWatchKeys {
 
 /* === Public Functions === */
 
-/// Reduces Display Points Without Repeating Evidence Reads Or Analysis.
+// Reduces Display Points Without Repeating Evidence Reads Or Analysis.
 pub fn reduce_plot_payload(
     envelope: harmos::storage::ReadBatch<PlotPayloadEnvelope>, request: &PlotPayloadRequest, maximum: usize,
 ) -> crate::runtime::Result<harmos::storage::ReadBatch<PlotPayloadEnvelope>> {

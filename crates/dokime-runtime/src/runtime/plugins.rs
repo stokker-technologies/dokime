@@ -209,6 +209,18 @@ impl PluginHost {
     async fn install_plugins_with(&mut self, progress: &Operation) -> Result<()> {
         let config = self.handle.config();
         let store = self.handle.plugin_store();
+        if !self.embedded.is_empty() {
+            for entry in store.list().await.map_err(operation)? {
+                if entry.installation.state == crate::plugins::PluginState::RemovalPending {
+                    continue;
+                }
+                if let Some(metadata) = entry.metadata
+                    && let Some(plugin) = metadata.owners.into_iter().find(|owner| self.embedded.contains_key(owner))
+                {
+                    return Err(Error::PluginIdConflict { plugin });
+                }
+            }
+        }
         store.sweep().await.map_err(operation)?;
         let mut inputs = config.plugins.clone();
         if let Some(directory) = &config.plugin_lookup {
@@ -361,7 +373,7 @@ impl PluginHost {
             if let PluginProvenance::Installed { install_id, .. } = input.provenance {
                 self.handle.plugin_boot.write().expect("plugin boot lock poisoned").insert(install_id, true);
             }
-            record(&store, &input, None).await;
+            self.record_loaded(&store, &input).await;
         }
         self.expose_plugins()?;
         self.publish_hosted();
@@ -583,6 +595,16 @@ impl PluginHost {
         }
     }
 
+    // Startup And Live Activation Retire Superseded Installations Through The Same Store Path.
+    async fn record_loaded(&mut self, store: &PluginStore, input: &PluginBundle) {
+        record(store, input, None).await;
+        let Some(install) = input.install_id() else { return };
+        match store.discard_replaced(install).await {
+            Ok(removed) => self.handle.plugin_boot.write().expect("plugin boot lock poisoned").retain(|id, _| !removed.contains(id)),
+            Err(error) => tracing::error!(%install, %error, "replaced plugin installations could not be discarded"),
+        }
+    }
+
     // The Admitted Bundle That Runs `plugin`, And Its Display Name.
     fn program_package(&self, plugin: &str) -> Option<(PluginBundle, String)> {
         self.plugins
@@ -667,10 +689,10 @@ impl PluginHost {
                 })
                 .filter(|contract| {
                     state
-                        .historical_record_contract(&contract.record_type, contract.schema_version)
+                        .historical_record_contract(&contract.record_type, contract.schema_version())
                         .is_some_and(|old| old.record_schema() != contract.record_schema())
                 })
-                .map(|contract| (contract.record_type.to_string(), contract.schema_version))
+                .map(|contract| (contract.record_type.to_string(), contract.schema_version()))
                 .collect()
         };
         // Resolve the complete dependency graph before interrupting any resource.
@@ -804,6 +826,43 @@ impl PluginHost {
 }
 
 /* === Public Functions === */
+
+pub(super) fn start_error(plugin: &str, name: &str, error: &harmos::Error) -> dokime_domain::model::plugins::wire::PluginStartFailure {
+    let cause = error.failure();
+    let report = cause.and_then(harmos::operations::StartupReport::from_failure);
+    if let Some(failure) = cause {
+        tracing::debug!(plugin_id = plugin, failure = %serde_json::to_string(failure).expect("plugin failure serializes"), "plugin startup diagnostics");
+    }
+    let secret = |failure: &harmos::domain::Failure| {
+        (failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE))
+            .then(|| failure.detail("dokime.secret").map(str::to_owned))
+            .flatten()
+    };
+    let missing_secret =
+        report.as_ref().and_then(|report| report.roots.iter().find_map(|issue| secret(&issue.failure))).or_else(|| cause.and_then(secret));
+    let prose = |failure: &harmos::domain::Failure| {
+        secret(failure).map(|secret| crate::Error::UnavailableSecret(secret).to_string()).unwrap_or_else(|| failure.cause().to_owned())
+    };
+    let message = report
+        .as_ref()
+        .map(|report| report.roots.iter().map(|issue| prose(&issue.failure)).collect::<Vec<_>>().join("; "))
+        .unwrap_or_else(|| cause.map(prose).unwrap_or_else(|| harmos::domain::failure::Report(error).to_string()));
+    let code = report
+        .as_ref()
+        .and_then(|report| report.roots.iter().find_map(|issue| issue.failure.refusal_code()))
+        .or_else(|| cause.and_then(|failure| failure.refusal_code()));
+    dokime_domain::model::plugins::wire::PluginStartFailure {
+        plugin_id: plugin.to_owned(),
+        plugin_name: name.to_owned(),
+        message: format!("Plugin {name} could not start: {message}"),
+        code: code.map(|code| code.to_string()),
+        missing_secret,
+        consequences: report
+            .map(|report| report.consequences.into_iter().map(|issue| issue.failure.cause().to_owned()).collect())
+            .unwrap_or_default(),
+        carrier: cause.map(|failure| failure.encode()).unwrap_or_default(),
+    }
+}
 
 /* === Private Functions === */
 
@@ -980,8 +1039,8 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, handle: &super:
     })
 }
 
-/// Extracts an installed bundle once per archive digest. The directory is
-/// renamed into place complete, so its presence means it is ready to reuse.
+// Extracts an installed bundle once per archive digest. The directory is
+// renamed into place complete, so its presence means it is ready to reuse.
 fn cached_extraction(
     bundle: &harmos_packaging::bundle::Bundle, extraction: &std::path::Path, content_digest: &str,
 ) -> std::result::Result<PathBuf, harmos_packaging::Error> {
@@ -1356,45 +1415,22 @@ async fn record(store: &PluginStore, input: &PluginBundle, error: Option<dokime_
     }
 }
 
-pub(super) fn start_error(plugin: &str, name: &str, error: &harmos::Error) -> dokime_domain::model::plugins::wire::PluginStartFailure {
-    let cause = error.failure();
-    let report = cause.and_then(harmos::operations::StartupReport::from_failure);
-    if let Some(failure) = cause {
-        tracing::debug!(plugin_id = plugin, failure = %serde_json::to_string(failure).expect("plugin failure serializes"), "plugin startup diagnostics");
-    }
-    let secret = |failure: &harmos::domain::Failure| {
-        (failure.refusal_code() == Some(dokime_domain::model::plugins::error::MISSING_SECRET_CODE))
-            .then(|| failure.detail("dokime.secret").map(str::to_owned))
-            .flatten()
-    };
-    let missing_secret =
-        report.as_ref().and_then(|report| report.roots.iter().find_map(|issue| secret(&issue.failure))).or_else(|| cause.and_then(secret));
-    let prose = |failure: &harmos::domain::Failure| {
-        secret(failure).map(|secret| crate::Error::UnavailableSecret(secret).to_string()).unwrap_or_else(|| failure.cause().to_owned())
-    };
-    let message = report
-        .as_ref()
-        .map(|report| report.roots.iter().map(|issue| prose(&issue.failure)).collect::<Vec<_>>().join("; "))
-        .unwrap_or_else(|| cause.map(prose).unwrap_or_else(|| harmos::domain::failure::Report(error).to_string()));
-    let code = report
-        .as_ref()
-        .and_then(|report| report.roots.iter().find_map(|issue| issue.failure.refusal_code()))
-        .or_else(|| cause.and_then(|failure| failure.refusal_code()));
-    dokime_domain::model::plugins::wire::PluginStartFailure {
-        plugin_id: plugin.to_owned(),
-        plugin_name: name.to_owned(),
-        message: format!("Plugin {name} could not start: {message}"),
-        code: code.map(|code| code.to_string()),
-        missing_secret,
-        consequences: report
-            .map(|report| report.consequences.into_iter().map(|issue| issue.failure.cause().to_owned()).collect())
-            .unwrap_or_default(),
-        carrier: cause.map(|failure| failure.encode()).unwrap_or_default(),
-    }
-}
-
 fn operation(error: impl std::fmt::Display) -> Error {
     Error::Operation(error.to_string())
+}
+
+#[cfg(feature = "testing")]
+impl crate::Runtime {
+    pub async fn prepared_plugin_configuration(&self, id: &str) -> Option<Vec<u8>> {
+        let host = self.host.lock().await;
+        host.plugins
+            .values()
+            .map(|active| &active.package)
+            .chain(&host.pending_plugins.0)
+            .flat_map(|package| &package.programs)
+            .find(|program| program.executable.id() == id)
+            .map(|program| program.definition.configuration.clone())
+    }
 }
 
 /* === Tests === */
@@ -1525,115 +1561,6 @@ mod tests {
                 ..Default::default()
             },
         }
-    }
-
-    #[dokime_runtime::settings]
-    #[derive(Clone, Debug, Default, PartialEq)]
-    struct CaptureSettings {
-        capture: Capture,
-    }
-
-    #[dokime_runtime::section(label = "File Capture")]
-    #[derive(Clone, Debug, Default, PartialEq)]
-    struct Capture {
-        #[setting(label = "Capture Files", default = false)]
-        enabled: bool,
-    }
-
-    // An Inert Installable Sidecar Declaring The Capture Settings Catalog.
-    fn capture_bundle(owner: &str) -> Vec<u8> {
-        use crate::plugin::registration::{SETTINGS_NAMESPACE, SettingsRegistration, domain_schema};
-        use crate::plugin::settings::PluginSettings;
-        use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
-
-        let registration = harmos::sidecar::Registration {
-            namespace: SETTINGS_NAMESPACE.into(),
-            schema: domain_schema(SETTINGS_NAMESPACE),
-            payload: serde_json::to_vec(&SettingsRegistration {
-                catalog: CaptureSettings::catalog(),
-                ..Default::default()
-            })
-            .unwrap(),
-        };
-        let policy = harmos::operations::OperationPolicy {
-            timeout: std::time::Duration::from_secs(120),
-            attempt_timeout: std::time::Duration::from_secs(120),
-            cancellation_timeout: std::time::Duration::ZERO,
-            retries: harmos::operations::RetryPolicy::Never,
-        };
-        let declaration =
-            serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"});
-        let lifecycle = serde_json::json!([
-            {"action": "initialize", "identity": "harmos.operation.v1", "policy": policy},
-            {"action": "shutdown", "identity": "harmos.operation.v1", "policy": policy},
-        ]);
-        let contracts = serde_json::json!({"kind":"contracts","facility":"sidecar","owner":owner,"entry":{"direction":"lifecycle","lifecycle":lifecycle}});
-        let restart = serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}});
-        let publications = serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]});
-        let observers = serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
-        let executable = format!(
-            "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-            prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
-        );
-        Bundle::build(
-            Identity {
-                name: "capture-fixture".into(),
-                version: "1.0.0".parse().unwrap(),
-                description: "A fixture.".into(),
-                package: Default::default(),
-            },
-            &[Source {
-                path: "bin/fixture",
-                bytes: executable.as_bytes(),
-                executable: Some(Executable {
-                    facility: Facility::Sidecar,
-                    target: crate::plugins::NATIVE_TARGET.into(),
-                    registrations: vec![registration],
-                }),
-            }],
-            Limits::default(),
-        )
-        .unwrap()
-        .bytes()
-        .to_vec()
-    }
-
-    #[tokio::test]
-    async fn saved_settings_reach_restarted_program() {
-        use dokime_domain::model::identity::Identifier;
-
-        let root = tempfile::tempdir().unwrap();
-        let config = || {
-            crate::RuntimeConfig::new(root.path(), crate::Metadata::new(Identifier::new("capture.fixture").unwrap(), "Capture", None))
-                .with_credential_store(keyring_core::mock::Store::new().unwrap())
-        };
-        let id = Identifier::new("capture_fixture").unwrap();
-        let mut first = crate::Runtime::start(config()).await.unwrap();
-        let handle = first.handle();
-        handle.install_plugin(capture_bundle(id.as_str()), |_| Ok(())).await.unwrap();
-        let mut values = handle.plugin_settings(&id).await.unwrap().values;
-        values.insert("enabled".into(), crate::Value::Bool(true));
-        handle.save_plugin_settings(&id, crate::domains::installed_plugins::PluginSettingsUpdate { values }).await.unwrap();
-        drop(handle);
-        first.shutdown().await.unwrap();
-
-        // The Restarted Program Opens With What The Operator Saved.
-        let mut restarted = crate::Runtime::start(config()).await.unwrap();
-        let host = restarted.host.lock().await;
-        let program = host
-            .plugins
-            .values()
-            .map(|active| &active.package)
-            .chain(&host.pending_plugins.0)
-            .flat_map(|package| &package.programs)
-            .find(|program| program.executable.id() == id.as_str())
-            .expect("the installed program is prepared at boot");
-        let configuration: crate::plugin::Configuration = serde_json::from_slice(&program.definition.configuration).unwrap();
-        assert!(configuration.settings::<CaptureSettings>().unwrap().capture.enabled);
-        assert!(configuration.is_saved("enabled"));
-        drop(host);
-        assert_eq!(restarted.handle().plugin_settings(&id).await.unwrap().values["enabled"], crate::Value::Bool(true));
-        restarted.shutdown().await.unwrap();
     }
 
     #[test]

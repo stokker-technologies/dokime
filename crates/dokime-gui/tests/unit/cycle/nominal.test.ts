@@ -17,7 +17,9 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
-import { executionControlState, inputNeededLabel } from "@/features/cycle/control-model";
+import { progressCount } from "@/features/cycle/ControlCard";
+import { executionControlState, inputNeededLabel, rerunNoticeLines } from "@/features/cycle/control-model";
+import { stepLabel } from "@/features/cycle/ExecutionControl";
 // Local Imports
 import {
   archiveRefusal,
@@ -63,6 +65,7 @@ import { defaultCycleLabel } from "@/lib/time-format";
 import type { HubRecord } from "@/lib/types";
 import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/use-row-window";
 import { reportFixturePayload } from "@/report/report-fixture";
+import { cycleSnapshotSource } from "@/report/report-snapshot";
 import { focusPresentation } from "@/shell/focus-mode";
 
 /* === Re-Exports === */
@@ -220,7 +223,7 @@ test("Node Menus", () => {
   // Cycle Menu Opens Its Report and Archives, with No Bundle, Folder or Clearing
   const items: string[] = nodeMenuGroups("cycle", false).flat();
   assert.deepEqual(nodeMenuGroups("cycle", false), [
-    ["Copy Cycle", "Add Cases", "Follow Active"],
+    ["Rerun Cycle", "Add Cases", "Follow Active"],
     ["Open Report", "Settings"],
     ["Archive"],
   ]);
@@ -234,6 +237,27 @@ test("Node Menus", () => {
   // An Archived Node Offers Unarchive in Place of Archive
   assert.deepEqual(nodeMenuGroups("cycle", true).at(-1), ["Unarchive"]);
   assert.deepEqual(nodeMenuGroups("execution", true).at(-1), ["Unarchive"]);
+
+  // Rerun Cycle Stays Offered Once a Cycle Is Sealed or Archived
+  assert.ok(nodeMenuGroups("cycle", true).flat().includes("Rerun Cycle"));
+
+  // A Rerun's Control Card States the Cases It Skipped, by Reason, and the Parameters It Dropped
+  assert.deepEqual(
+    rerunNoticeLines({
+      droppedParameters: [{ caseId: "obc.steady", reason: "no longer declares ramp", suiteId: "provider:obc:checks" }],
+      skipped: [
+        { caseId: "obc.pulse", reason: "its suite no longer declares this case", suiteId: "provider:obc:checks" },
+        { caseId: "obc.sweep", reason: "its suite no longer declares this case", suiteId: "provider:obc:checks" },
+        { caseId: "obc.idle", reason: "its suite is no longer installed", suiteId: "provider:obc:idle" },
+      ],
+    }),
+    [
+      "2 cases skipped: obc.pulse, obc.sweep, its suite no longer declares this case",
+      "1 case skipped: obc.idle, its suite is no longer installed",
+      "Parameters dropped from obc.steady: no longer declares ramp",
+    ],
+  );
+  assert.deepEqual(rerunNoticeLines({ droppedParameters: [], skipped: [] }), []);
 
   // Archiving Waits for a Sealed Cycle or an Ended Run and Says So
   assert.equal(archiveRefusal(true, "cycle"), undefined);
@@ -285,6 +309,19 @@ test("Execution Controls", () => {
     stopRequested: false,
   } as unknown as NonNullable<RunControl>;
 
+  for (const reportState of ["ready", "failed"] as const) {
+    const settled = executionControlState(
+      input({
+        controls: running,
+        status: "passed",
+        report: { state: reportState, failure: reportState === "failed" ? "fixture failure" : null },
+      }),
+    );
+    assert.equal(settled.phase, "ended");
+    assert.deepEqual(settled.actions, ["Re-Run"]);
+    assert.equal(settled.detail, reportState === "failed" ? "fixture failure" : null);
+  }
+
   // An Unstarted Attempt Offers Start and Cancel, Never Stop
   for (const status of ["planned", "created"] as const) {
     const state = executionControlState(input({ status }));
@@ -304,12 +341,11 @@ test("Execution Controls", () => {
   });
   assert.deepEqual(executionControlState(input({})).actions, []);
 
-  // The Running Step Reads by Its Label, Its Id Muted After It, Its Count Beside the Bar
-  const step = executionControlState(
-    input({ controls: running, progress: { completed: 2, id: "publish", label: "Publish Evidence", total: 5 } }),
-  );
+  // The Running Step Reads by Its Label Alone, Never Its Id
+  const step = executionControlState(input({ controls: running, progress: { completed: 2, label: "Publish Evidence", total: 5 } }));
   assert.equal(step.line, "Publish Evidence");
-  assert.equal(step.detail, "publish");
+  assert.equal(step.detail, null);
+  assert.equal(executionControlState(input({ controls: running, progress: { completed: 0, label: "", total: 5 } })).line, "Running");
 
   // A Waiting Prompt Is Named, Not Shown, in Control
   assert.equal(executionControlState(input({ controls: running, promptWaiting: true })).line, "Waits on the prompt below");
@@ -317,14 +353,11 @@ test("Execution Controls", () => {
   // Runtime Finalization Offers Nothing; A Completed Step Counter Does Not End The Run.
   const settled = executionControlState(input({ controls: { ...running, canPause: true }, status: "finalizing" }));
   assert.deepEqual(settled, { actions: [], detail: null, line: "Finalizing · saving evidence", phase: "finalizing" });
-  assert.equal(
-    executionControlState(input({ controls: running, progress: { completed: 5, id: "s", label: "S", total: 5 } })).phase,
-    "running",
-  );
+  assert.equal(executionControlState(input({ controls: running, progress: { completed: 5, label: "S", total: 5 } })).phase, "running");
   assert.equal(executionControlState(input({ controls: running, status: "finalizing" })).phase, "finalizing");
   assert.equal(executionControlState(input({ controls: running, status: "passed" })).phase, "finalizing");
   const waiting = executionControlState(
-    input({ controls: running, progress: { completed: 5, id: "s", label: "S", total: 5 }, promptWaiting: true }),
+    input({ controls: running, progress: { completed: 5, label: "S", total: 5 }, promptWaiting: true }),
   );
   assert.equal(waiting.phase, "waiting");
   assert.deepEqual(waiting.actions, ["Stop"]);
@@ -336,9 +369,30 @@ test("Execution Controls", () => {
   assert.deepEqual(executionControlState(input({ status: "passed" })).actions, ["Re-Run"]);
   assert.equal(executionControlState(input({ status: "failed" })).line, "Ended · Failed");
 
-  // The Cycle Names the Executions Waiting on Input
+  // Missing Plugins Preserve The Terminal State And Offer No New Attempt
+  for (const status of ["passed", "failed", "interrupted", "stopped"] as const) {
+    const unavailable = executionControlState(input({ pluginAvailable: false, status }));
+    assert.equal(unavailable.phase, "ended");
+    assert.deepEqual(unavailable.actions, []);
+    assert.ok(unavailable.detail);
+  }
+
+  // A Pending Catalog Does Not Assert Absence; Running Controls Remain Available
+  assert.deepEqual(executionControlState(input({ pluginAvailable: undefined, status: "passed" })).actions, ["Re-Run"]);
+  assert.deepEqual(executionControlState(input({ controls: running, pluginAvailable: false })).actions, ["Stop"]);
+
+  // The Cycle Names The Executions Waiting On Input
   assert.equal(inputNeededLabel([1, 3]), "Input needed on #1, #3");
   assert.equal(inputNeededLabel([]), null);
+
+  // The Running Step Takes Its Plugin's Label, Else Its Humanized Id; The Bar Shows Phase and Count
+  const steps = (records: Record<string, unknown>[]) => ({ steps: records }) as unknown as Parameters<typeof stepLabel>[0];
+  const record = { metadata: { label: "Sample Loop" }, method_name: "sample_loop", record_type: "step", step_id: "sample_loop" };
+  assert.equal(stepLabel(steps([record]), "sample_loop"), "Sample Loop");
+  assert.equal(stepLabel(steps([{ ...record, metadata: {} }]), "sample_loop"), "sample loop");
+  assert.equal(stepLabel(steps([]), "sample_loop"), "sample loop");
+  assert.equal(progressCount({ completed: 38, phase: "Samples", total: 100 }), "Samples 38/100");
+  assert.equal(progressCount({ completed: 38, phase: "", total: 100 }), "38/100");
 });
 
 test("Label Editing", () => {
@@ -629,4 +683,12 @@ test("New Cycle Form", () => {
     description: "Night run",
     label: "Bench B",
   });
+});
+
+test("Combined Report Notices Reach the Frozen Surface", () => {
+  const payload = reportFixturePayload();
+  const notice = "revision.reading.value";
+  payload.warnings.push(`report.stream_column_type_changed: ${notice}`);
+  const source = cycleSnapshotSource(payload);
+  assert.deepEqual(source.warnings, [notice]);
 });

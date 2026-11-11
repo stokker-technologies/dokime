@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -26,6 +28,7 @@ use dokime_runtime::prelude::{OptionsResponse, Refusal, StatusResponse, Supervis
 use dokime_runtime::settings::{SettingValues, SettingsEntry};
 
 /* === Constants === */
+
 const POLICY: OperationPolicy = crate::service_support::budgets::settings::FIXTURE_POLICY;
 
 /* === Macros === */
@@ -33,6 +36,7 @@ const POLICY: OperationPolicy = crate::service_support::budgets::settings::FIXTU
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Bench;
 
 #[dokime_runtime::settings]
@@ -40,6 +44,7 @@ pub struct BenchSettings {
     pub workspace: Workspace,
     pub secrets: Secrets,
 }
+
 #[dokime_runtime::section(label = "Workspace",
     status = GetStatus,
     description = "The section the card shows first, with the probe it reads beside it.")]
@@ -58,6 +63,7 @@ pub struct Workspace {
 
     #[setting(label = "Port", discovered = DetectPort)]
     pub port: Option<String>,
+
     #[setting(label = "Stream",
         discovered = DetectStream,
         description = "A discovered number, which is what says absence is a fact the host reports rather than one a value can be \
@@ -74,28 +80,48 @@ pub struct Secrets {
     #[setting(label = "Bearer Token")]
     pub token: Option<Secret>,
 }
+
 #[dokime_runtime::message]
 #[derive(Clone, PartialEq)]
 pub struct GetVoltageResponse {
     pub volts: f64,
 }
 
+#[dokime_runtime::operation(id = "bench.get_status", description = "Reports.", policy = POLICY, response = StatusResponse)]
+#[derive(Clone, PartialEq)]
+struct GetStatus {}
+
+#[dokime_runtime::operation(id = "bench.list_environments",
+    description = "Offers.",
+    policy = POLICY,
+    response = OptionsResponse)]
+#[derive(Clone, PartialEq)]
+struct ListEnvironments {}
+
+#[dokime_runtime::operation(id = "bench.detect_port", description = "Finds.", policy = POLICY, response = Discovered)]
+#[derive(Clone, PartialEq)]
+struct DetectPort {}
+
+#[dokime_runtime::operation(id = "bench.detect_stream", description = "Finds.", policy = POLICY, response = Discovered)]
+#[derive(Clone, PartialEq)]
+struct DetectStream {}
+
+#[dokime_runtime::operation(id = "bench.get_voltage", description = "Reads.", policy = POLICY, response = GetVoltageResponse)]
+#[derive(Clone, PartialEq)]
+struct GetVoltage {
+    pub stream: u32,
+}
+
 /* === Enums === */
+
 #[dokime_runtime::choice]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Environment {
     #[default]
     Development,
+
     Test,
     Production,
-}
-
-/* === Traits === */
-
-/* === Implementations === */
-impl dokime_runtime::harmos::builtins::lifecycle::Policy for Bench {
-    const INITIALIZATION_POLICY: OperationPolicy = POLICY;
-    const SHUTDOWN_POLICY: OperationPolicy = POLICY;
 }
 
 #[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
@@ -105,6 +131,15 @@ enum Operations {
     DetectPort(DetectPort),
     DetectStream(DetectStream),
     GetVoltage(GetVoltage),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+
+impl dokime_runtime::harmos::builtins::lifecycle::Policy for Bench {
+    const INITIALIZATION_POLICY: OperationPolicy = POLICY;
+    const SHUTDOWN_POLICY: OperationPolicy = POLICY;
 }
 
 #[dokime_runtime::plugin(
@@ -138,9 +173,7 @@ impl Bench {
         Arc::new(())
     }
 }
-#[dokime_runtime::operation(id = "bench.get_status", description = "Reports.", policy = POLICY, response = StatusResponse)]
-#[derive(Clone, PartialEq)]
-struct GetStatus {}
+
 impl dokime_runtime::Operation for GetStatus {
     type Error = Refusal;
 
@@ -149,12 +182,7 @@ impl dokime_runtime::Operation for GetStatus {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "bench.list_environments",
-    description = "Offers.",
-    policy = POLICY,
-    response = OptionsResponse)]
-#[derive(Clone, PartialEq)]
-struct ListEnvironments {}
+
 impl dokime_runtime::Operation for ListEnvironments {
     type Error = Refusal;
 
@@ -172,9 +200,7 @@ impl dokime_runtime::Operation for ListEnvironments {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "bench.detect_port", description = "Finds.", policy = POLICY, response = Discovered)]
-#[derive(Clone, PartialEq)]
-struct DetectPort {}
+
 impl dokime_runtime::Operation for DetectPort {
     type Error = Refusal;
 
@@ -183,9 +209,7 @@ impl dokime_runtime::Operation for DetectPort {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "bench.detect_stream", description = "Finds.", policy = POLICY, response = Discovered)]
-#[derive(Clone, PartialEq)]
-struct DetectStream {}
+
 impl dokime_runtime::Operation for DetectStream {
     type Error = Refusal;
 
@@ -194,11 +218,7 @@ impl dokime_runtime::Operation for DetectStream {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "bench.get_voltage", description = "Reads.", policy = POLICY, response = GetVoltageResponse)]
-#[derive(Clone, PartialEq)]
-struct GetVoltage {
-    pub stream: u32,
-}
+
 impl dokime_runtime::Operation for GetVoltage {
     type Error = Refusal;
 
@@ -214,8 +234,47 @@ impl dokime_runtime::Operation for GetVoltage {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn defaults() -> SettingValues {
     BenchSettings::catalog().resolve(&SettingValues::new()).expect("the declared catalog resolves its own defaults")
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn saved_values_empty() {
+    // Nobody saved a port, so the field is absent: discovery is the host's to
+    // run and a discovered value is a suggestion, never a setting the plugin
+    // opens with.
+    let opened = <Bench as dokime_runtime::harmos::Lifecycle>::prepare(
+        Configuration::declared::<BenchSettings>(),
+        &mut dokime_runtime::harmos::Setup::<Bench>::new(
+            harmos_sdk::__private::WireTable::new(<Bench as dokime_runtime::harmos::plugin::Declared>::ID).unwrap(),
+        ),
+    )
+    .await
+    .map(|_| ());
+    assert!(opened.is_ok(), "the bench opens on its declared defaults");
+    let declared = Configuration::declared::<BenchSettings>().settings::<BenchSettings>().expect("the declared defaults decode");
+    assert_eq!(declared.workspace.port, None);
+    assert_eq!(declared.workspace.stream, Some(0));
+
+    // A value an operator saved is theirs: it decodes as saved, and the
+    // configuration says it was filled in, which is what the host reads to
+    // decide that discovery must not overrule it.
+    let mut saved = defaults();
+    saved.insert("port".to_owned(), Value::from("/dev/saved"));
+    saved.insert("stream".to_owned(), Value::from(3_u32));
+    let mut configuration = Configuration {
+        settings: saved,
+        ..Configuration::default()
+    };
+    configuration.saved.insert("port".to_owned());
+    configuration.saved.insert("stream".to_owned());
+    let settings = configuration.settings::<BenchSettings>().expect("the saved values decode");
+    assert_eq!(settings.workspace.port.as_deref(), Some("/dev/saved"));
+    assert_eq!(settings.workspace.stream, Some(3));
+    assert!(configuration.is_saved("port") && configuration.is_saved("stream"));
+    assert!(!Configuration::declared::<BenchSettings>().is_saved("port"));
 }
 
 /* === Tests === */
@@ -318,42 +377,4 @@ fn settings_links_ids() {
         BenchSettings::option_providers().iter().map(|offered| offered.metadata.identifier.to_string()).collect::<Vec<_>>(),
         vec!["bench.list_environments".to_owned()]
     );
-}
-
-#[dokime_tracing::trace_test]
-#[tokio::test]
-async fn saved_values_empty() {
-    // Nobody saved a port, so the field is absent: discovery is the host's to
-    // run and a discovered value is a suggestion, never a setting the plugin
-    // opens with.
-    let opened = <Bench as dokime_runtime::harmos::Lifecycle>::prepare(
-        Configuration::declared::<BenchSettings>(),
-        &mut dokime_runtime::harmos::Setup::<Bench>::new(
-            harmos_sdk::__private::WireTable::new(<Bench as dokime_runtime::harmos::plugin::Declared>::ID).unwrap(),
-        ),
-    )
-    .await
-    .map(|_| ());
-    assert!(opened.is_ok(), "the bench opens on its declared defaults");
-    let declared = Configuration::declared::<BenchSettings>().settings::<BenchSettings>().expect("the declared defaults decode");
-    assert_eq!(declared.workspace.port, None);
-    assert_eq!(declared.workspace.stream, Some(0));
-
-    // A value an operator saved is theirs: it decodes as saved, and the
-    // configuration says it was filled in, which is what the host reads to
-    // decide that discovery must not overrule it.
-    let mut saved = defaults();
-    saved.insert("port".to_owned(), Value::from("/dev/saved"));
-    saved.insert("stream".to_owned(), Value::from(3_u32));
-    let mut configuration = Configuration {
-        settings: saved,
-        ..Configuration::default()
-    };
-    configuration.saved.insert("port".to_owned());
-    configuration.saved.insert("stream".to_owned());
-    let settings = configuration.settings::<BenchSettings>().expect("the saved values decode");
-    assert_eq!(settings.workspace.port.as_deref(), Some("/dev/saved"));
-    assert_eq!(settings.workspace.stream, Some(3));
-    assert!(configuration.is_saved("port") && configuration.is_saved("stream"));
-    assert!(!Configuration::declared::<BenchSettings>().is_saved("port"));
 }

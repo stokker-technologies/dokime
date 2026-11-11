@@ -49,6 +49,8 @@ pub(super) struct Scope<O, I> {
     pub token: String,
     pub source: String,
     pub caller: super::Caller,
+    pub identity: super::ExecutionIdentity,
+    pub callbacks: super::Callbacks,
     pub binding: Option<Arc<dyn std::any::Any + Send + Sync>>,
     pub own: Arc<O>,
     pub parameters: Arc<I>,
@@ -125,7 +127,7 @@ pub(super) fn start<T: SidecarTemplate>(
         // The declared record set, as its schema versions: an observer's stage
         // reaches this backend directly, so the admission a plugin publisher
         // performs against its `Declarations` is performed here instead.
-        schemas: records.iter().map(|contract| (contract.record_type.to_string(), contract.schema_version)).collect(),
+        schemas: records.iter().map(|contract| (contract.record_type.to_string(), contract.schema_version())).collect(),
         closed: Mutex::new(false),
     });
     let (stop, listener) = watch::channel(false);
@@ -194,6 +196,8 @@ async fn watching<T: SidecarTemplate>(
             scope.streams.clone(),
             scope.deliveries.clone(),
         )
+        .identified(scope.identity.clone())
+        .with_callbacks(scope.callbacks.clone())
         .calling(scope.caller.clone())
         .declaring(Arc::clone(&scope.document))
         .holding(Arc::clone(&scope.own));

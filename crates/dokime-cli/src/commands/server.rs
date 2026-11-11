@@ -86,7 +86,7 @@ async fn run_server(args: host::Args, config: dokime::config::Config) -> host::R
     let _guards = host::install_logging(&paths, terminal.color_enabled())?;
     let network = network.with_trace_journal(_guards.journal());
 
-    let start = host::Session::start(&args, config, network, |name| emit_phase(args.dev_control, name));
+    let start = host::Session::start(&args, config, network, Vec::new(), |name| emit_phase(args.dev_control, name));
     let starting: Pin<Box<dyn Future<Output = host::Result<host::Session>> + '_>> = Box::pin(start);
     let mut session = starting.await?;
     let endpoint = session.endpoint();
@@ -246,42 +246,50 @@ async fn force_quit(signal: impl std::future::Future<Output = std::io::Result<()
     exit(130);
 }
 
-#[cfg(test)]
-#[tokio::test]
-async fn force_quit_error() {
-    let exit = std::cell::Cell::new(None);
-    let record_exit = |code| {
-        let status = Some(code);
-        exit.set(status);
-    };
-    let error = std::io::Error::other("signal listener unavailable");
-    let unavailable = std::future::ready(Err(error));
-    force_quit(unavailable, record_exit).await;
-    assert_eq!(exit.get(), None, "a listener error must preserve orderly shutdown");
-
-    let interrupt = std::future::ready(Ok(()));
-    force_quit(interrupt, record_exit).await;
-    assert_eq!(exit.get(), Some(130), "a second interrupt must still force exit");
-}
-
 /* === Tests === */
 
 #[cfg(all(test, unix))]
-#[test]
-fn force_quit_shutdown() {
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-    let handle = runtime.handle().clone();
-    drop(runtime);
+mod unix_tests {
+    use super::*;
 
-    let _entered = handle.enter();
-    let exit = std::cell::Cell::new(None);
-    let record_exit = |code| {
-        let status = Some(code);
-        exit.set(status);
-    };
-    let interrupt = tokio::signal::ctrl_c();
-    let quit = force_quit(interrupt, record_exit);
-    let outcome = futures_util::FutureExt::now_or_never(quit);
-    assert_eq!(outcome, Some(()));
-    assert_eq!(exit.get(), None, "runtime teardown is not another Ctrl-C");
+    #[test]
+    fn force_quit_shutdown() {
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let handle = runtime.handle().clone();
+        drop(runtime);
+
+        let _entered = handle.enter();
+        let exit = std::cell::Cell::new(None);
+        let record_exit = |code| {
+            let status = Some(code);
+            exit.set(status);
+        };
+        let interrupt = tokio::signal::ctrl_c();
+        let quit = force_quit(interrupt, record_exit);
+        let outcome = futures_util::FutureExt::now_or_never(quit);
+        assert_eq!(outcome, Some(()));
+        assert_eq!(exit.get(), None, "runtime teardown is not another Ctrl-C");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn force_quit_error() {
+        let exit = std::cell::Cell::new(None);
+        let record_exit = |code| {
+            let status = Some(code);
+            exit.set(status);
+        };
+        let error = std::io::Error::other("signal listener unavailable");
+        let unavailable = std::future::ready(Err(error));
+        force_quit(unavailable, record_exit).await;
+        assert_eq!(exit.get(), None, "a listener error must preserve orderly shutdown");
+
+        let interrupt = std::future::ready(Ok(()));
+        force_quit(interrupt, record_exit).await;
+        assert_eq!(exit.get(), Some(130), "a second interrupt must still force exit");
+    }
 }

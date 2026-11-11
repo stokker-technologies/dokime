@@ -75,13 +75,13 @@ pub struct Collected {
 impl dokime::StreamSpec for WifiLink {
     type Row = crate::WifiLink;
     const ID: &'static str = "host.wifi.link";
-    const VERSION: u32 = 1;
+
     const WINDOW: usize = <crate::WifiLink as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for WifiLink {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::WifiLink).typed::<crate::WifiLink>()
+        crate::host_telemetry_contract(HostTelemetryStream::WifiLink)
     }
 }
 

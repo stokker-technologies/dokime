@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 // Local Imports
-use crate::document::{AxisScale, DocumentFilter, FftOptions, HistogramOptions, PlotType, SigmaIntervalOptions};
+use crate::document::{AxisScale, DocumentFilter, FftOptions, HistogramOptions, PlotStyle, PlotType, SigmaIntervalOptions};
 use crate::expressions::DataExpression;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::values::Value;
@@ -48,6 +48,9 @@ pub struct PlotPayloadRequest {
 
     #[serde(default)]
     pub plot_type: Option<PlotType>,
+
+    #[serde(default)]
+    pub style: PlotStyle,
 
     #[serde(default)]
     pub x_scale: AxisScale,

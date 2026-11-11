@@ -52,7 +52,7 @@ impl<'a> TraceabilityHandle<'a> {
         Self { index, transport }
     }
 
-    /// Add Or Replace A Complete Section By Identifier.
+    // Add Or Replace A Complete Section By Identifier.
     pub fn section(&mut self, section: TraceabilitySection) {
         if let Err(reason) = validate_section(&section) {
             self.refuse(reason);
@@ -63,7 +63,7 @@ impl<'a> TraceabilityHandle<'a> {
         self.transport.traceability(vec![section]);
     }
 
-    /// Add Or Replace A Row In An Existing Section By Identifier.
+    // Add Or Replace A Row In An Existing Section By Identifier.
     pub fn row(&mut self, section_id: &str, row: TraceabilityRow) {
         let mut index = self.index.lock().unwrap_or_else(PoisonError::into_inner);
         let Some(section) = index.sections.iter_mut().find(|section| section.identifier.as_str() == section_id) else {
@@ -99,17 +99,21 @@ mod tests {
         let index = Mutex::default();
         let transport = RecordingTransport::default();
         let mut handle = TraceabilityHandle::new(&index, &transport);
-        handle.section(TraceabilitySection::new("dut", "Device Under Test"));
-        handle.row("dut", TraceabilityRow::text("serial", "Serial", "SN-7"));
-        handle.row("dut", TraceabilityRow::text("firmware", "Firmware", "v1"));
-        handle.section(TraceabilitySection::new("bench", "Bench"));
-        handle.row("dut", TraceabilityRow::text("serial", "Serial", "SN-8"));
+        let mut section = TraceabilitySection::new("Device Under Test");
+        section.id("dut");
+        handle.section(section);
+        handle.row("dut", TraceabilityRow::text("Serial", "SN-7"));
+        handle.row("dut", TraceabilityRow::text("Firmware", "v1"));
+        handle.section(TraceabilitySection::new("Bench"));
+        handle.row("dut", TraceabilityRow::text("Serial", "SN-8"));
         let captured = transport.traceability();
         assert_eq!(captured.len(), 2);
         assert_eq!(captured[0].rows.len(), 2);
         assert_eq!(captured[0].rows[0].value, Value::from("SN-8"));
         assert_eq!(captured[0].rows[1].value, Value::from("v1"));
-        handle.section(TraceabilitySection::new("dut", "Replacement Device"));
+        let mut section = TraceabilitySection::new("Replacement Device");
+        section.id("dut");
+        handle.section(section);
         let captured = transport.traceability();
         assert_eq!(captured.len(), 2);
         assert!(captured[0].rows.is_empty());
@@ -122,12 +126,15 @@ mod tests {
         let index = Mutex::default();
         let transport = RecordingTransport::default();
         let mut handle = TraceabilityHandle::new(&index, &transport);
-        handle.section(TraceabilitySection::new("dut", "Device Under Test"));
-        handle.row("missing", TraceabilityRow::text("serial", "Serial", "SN-7"));
-        handle.section(TraceabilitySection::new("host", "Host"));
-        let mut duplicate = TraceabilitySection::new("dut", "Duplicate");
-        duplicate.row(TraceabilityRow::text("serial", "Serial", "SN-7"));
-        duplicate.row(TraceabilityRow::text("serial", "Serial", "SN-8"));
+        let mut section = TraceabilitySection::new("Device Under Test");
+        section.id("dut");
+        handle.section(section);
+        handle.row("missing", TraceabilityRow::text("Serial", "SN-7"));
+        handle.section(TraceabilitySection::new("Host"));
+        let mut duplicate = TraceabilitySection::new("Duplicate");
+        duplicate.id("dut");
+        duplicate.row(TraceabilityRow::text("Serial", "SN-7"));
+        duplicate.row(TraceabilityRow::text("Serial", "SN-8"));
         handle.section(duplicate);
         let captured = transport.traceability();
         assert_eq!(captured.len(), 1);

@@ -1,0 +1,105 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# Upstream-Blocked Exceptions Approved on 2026-11-09 Expire on 2026-11-23 UTC; RSA and GLib Retain 2026-11-22.
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2026-0387"
+package = "crypto-bigint"
+version = "0.5.5"
+fixed = ">=0.7.6"
+reason = "no released fix in the dependent; dokime-packaging -> tauri-bundler 2.10.4 -> rpm 0.30.2 -> pgp 0.20.0 -> cx448 0.1.1 -> crypto-bigint 0.5.5; latest stable bundler and RPM retain this incompatible crypto line."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2025-0144"
+package = "ml-dsa"
+version = "0.0.4"
+fixed = ">=0.1.0-rc.3"
+reason = "no released fix in the dependent; dokime-packaging -> tauri-bundler 2.10.4 -> rpm 0.30.2 -> pgp 0.20.0 -> ml-dsa 0.0.4; RPM requires pgp 0.20 with draft-pqc, so the fixed ML-DSA line cannot resolve."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2023-0071"
+package = "rsa"
+version = "0.9.10"
+fixed = "none available"
+reason = "No compatible fix: dokime-packaging -> tauri-bundler 2.10.4 -> rpm 0.30.2 -> pgp 0.20.0 -> rsa 0.9.10; also tauri-bundler -> tauri-macos-sign 2.4.3 -> rsa. Removing these paths would remove supported installer/signing behavior."
+owner = "orchestrator"
+expires = 2026-11-22
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2024-0436"
+package = "paste"
+version = "1.0.15"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "no released fix in the dependent; dokime-packaging -> tauri-bundler 2.10.4 -> image 0.25.10 -> exr 1.74.2 -> pulp 0.22.3 -> paste 1.0.15; dokime-packaging -> tauri-bundler 2.10.4 -> image 0.25.10 -> ravif 0.13.0 -> rav1e 0.8.1 -> paste 1.0.15 also remains. Latest published image, pulp and rav1e retain paste."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2024-0370"
+package = "proc-macro-error"
+version = "1.0.4"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "no released fix in the dependent; dokime-gui -> tauri 2.12.5 -> gtk 0.18.2 -> glib 0.18.5 -> glib-macros 0.18.5 -> proc-macro-error; the stable Linux GTK3 desktop stack has no compatible maintained replacement."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2026-0371"
+package = "zbus_names"
+version = "4.3.4"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zbus_names 4.3.4; dokime-runtime -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zbus_names 4.3.4 also remains. Latest stable owners still require zbus 5."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2026-0370"
+package = "zvariant"
+version = "5.15.0"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zvariant 5.15.0; dokime-runtime -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zvariant 5.15.0 also remains. Latest stable owners still require zbus 5."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2026-0372"
+package = "zvariant_derive"
+version = "5.15.0"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "no released fix in the dependent; dokime-gui -> tauri-plugin-opener 2.7.1 -> zbus 5.19.0 -> zvariant 5.15.0 -> zvariant_derive 5.15.0; dokime-runtime -> keyring 4.2.0 -> zbus-secret-service-keyring-store 1.0.1 -> zbus 5.19.0 -> zvariant 5.15.0 -> zvariant_derive 5.15.0 also remains. Latest stable owners still require zbus 5."
+owner = "orchestrator"
+expires = 2026-11-23
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2024-0429"
+package = "glib"
+version = "0.18.5"
+fixed = "none reported by Cargo Audit"
+category = "unsound"
+reason = "dokime-gui -> tauri 2.12.5 -> gtk 0.18.2 -> glib 0.18.5, also through webkit2gtk; the stable Linux GTK3 desktop stack requires glib 0.18 and cannot use glib 0.20 without a desktop platform migration."
+owner = "orchestrator"
+expires = 2026-11-22

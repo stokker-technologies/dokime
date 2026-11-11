@@ -22,23 +22,23 @@ use std::{ffi::OsStr, path::Path};
 
 /* === Constants === */
 
-/// Dokime's Own License, Always Installed As `LICENSE`.
+// Dokime's Own License, Always Installed As `LICENSE`.
 pub const DOKIME: &str = "Apache-2.0";
 
-/// Dokime's Copyright Holder, Named In Package Metadata And The Debian Copyright File.
+// Dokime's Copyright Holder, Named In Package Metadata And The Debian Copyright File.
 pub const DOKIME_HOLDER: &str = "Stokker Technologies";
 
-/// Installed File Stem Of An Organization Pack's Additional Terms.
+// Installed File Stem Of An Organization Pack's Additional Terms.
 const TERMS_STEM: &str = "EULA";
 
-/// Debian Machine-Readable Copyright Format Revision The Generated File Declares.
+// Debian Machine-Readable Copyright Format Revision The Generated File Declares.
 const DEP5_FORMAT: &str = "https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/";
 
-/// Dokime's Upstream Name And Source Repository.
+// Dokime's Upstream Name And Source Repository.
 const UPSTREAM_NAME: &str = "Dokime";
 const UPSTREAM_SOURCE: &str = env!("CARGO_PKG_REPOSITORY");
 
-/// Debian's Shared Copy Of Dokime's License Text.
+// Debian's Shared Copy Of Dokime's License Text.
 const COMMON_LICENSE: &str = "/usr/share/common-licenses/Apache-2.0";
 
 /* === Macros === */
@@ -47,7 +47,7 @@ const COMMON_LICENSE: &str = "/usr/share/common-licenses/Apache-2.0";
 
 /* === Structs === */
 
-/// Expression Grammar State: Open Groups And The Kind Of Token Expected Next.
+// Expression Grammar State: Open Groups And The Kind Of Token Expected Next.
 struct Parser {
     depth: usize,
     operand: bool,
@@ -91,9 +91,9 @@ impl Parser {
 
 /* === Public Functions === */
 
-/// Checks An SPDX License Expression Against The SPDX Expression Grammar.
-///
-/// Identifiers Are Syntax-Checked Only, Not Matched Against The SPDX License List.
+// Checks An SPDX License Expression Against The SPDX Expression Grammar.
+//
+// Identifiers Are Syntax-Checked Only, Not Matched Against The SPDX License List.
 pub fn validate(expression: &str) -> Result<(), String> {
     let spaced = expression.replace('(', " ( ").replace(')', " ) ");
     let mut parser = Parser {
@@ -111,7 +111,7 @@ pub fn validate(expression: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Returns The Native Package License: The Pack's Terms Added To Dokime's Apache-2.0.
+// Returns The Native Package License: The Pack's Terms Added To Dokime's Apache-2.0.
 pub fn combined(expression: Option<&str>) -> String {
     let Some(expression) = expression.map(str::trim) else {
         return DOKIME.into();
@@ -121,7 +121,7 @@ pub fn combined(expression: Option<&str>) -> String {
     if compound { format!("({expression}) AND {DOKIME}") } else { format!("{expression} AND {DOKIME}") }
 }
 
-/// Returns The Installed Name Of The Pack's Terms: `EULA` Plus The Source File's Extension.
+// Returns The Installed Name Of The Pack's Terms: `EULA` Plus The Source File's Extension.
 pub fn installed_name(file: &Path) -> String {
     let extension = file.extension().and_then(OsStr::to_str);
     match extension {
@@ -130,9 +130,9 @@ pub fn installed_name(file: &Path) -> String {
     }
 }
 
-/// Renders A DEP-5 Debian Copyright File For Dokime And Any Pack Terms.
-///
-/// `terms` Holds The Pack's SPDX Expression And Its Text; Holders Are Listed In Order.
+// Renders A DEP-5 Debian Copyright File For Dokime And Any Pack Terms.
+//
+// `terms` Holds The Pack's SPDX Expression And Its Text; Holders Are Listed In Order.
 pub fn debian_copyright(holders: &[&str], apache: &str, terms: Option<(&str, &str)>) -> String {
     let header = format!("Format: {DEP5_FORMAT}\nUpstream-Name: {UPSTREAM_NAME}\nSource: {UPSTREAM_SOURCE}\n");
     let mut files = String::from("Files: *\nCopyright:");
@@ -161,13 +161,13 @@ pub fn debian_copyright(holders: &[&str], apache: &str, terms: Option<(&str, &st
 
 /* === Private Functions === */
 
-/// Collapses A Field Value Onto One Line So It Cannot Open Another Field.
+// Collapses A Field Value Onto One Line So It Cannot Open Another Field.
 fn single_line(value: &str) -> String {
     let words: Vec<&str> = value.split_whitespace().collect();
     words.join(" ")
 }
 
-/// Formats License Text As DEP-5 Continuation Lines Without Surrounding Blank Lines.
+// Formats License Text As DEP-5 Continuation Lines Without Surrounding Blank Lines.
 fn license_text(text: &str) -> String {
     // Drop Surrounding Blank Lines But Keep The First Line's Indentation.
     let text = text.trim_start_matches('\u{feff}');
@@ -182,7 +182,7 @@ fn license_text(text: &str) -> String {
     lines
 }
 
-/// Returns One Continuation Line Indented One Space; A Blank Line Becomes ` .`.
+// Returns One Continuation Line Indented One Space; A Blank Line Becomes ` .`.
 fn continuation(line: &str) -> String {
     let line = line.trim_end();
     if line.is_empty() {
@@ -266,13 +266,13 @@ mod tests {
         assert_eq!(combined(Some("MIT OR LicenseRef-Acme")), "(MIT OR LicenseRef-Acme) AND Apache-2.0");
     }
 
-    /// Splits A Rendered Copyright File Into Its Blank-Line-Separated Paragraphs.
+    // Splits A Rendered Copyright File Into Its Blank-Line-Separated Paragraphs.
     fn paragraphs(file: &str) -> Vec<Vec<&str>> {
         let paragraphs = file.split("\n\n");
         paragraphs.map(|paragraph| paragraph.lines().collect()).collect()
     }
 
-    /// Asserts Every Line After A Paragraph's First Field Is A Nonblank DEP-5 Continuation Line.
+    // Asserts Every Line After A Paragraph's First Field Is A Nonblank DEP-5 Continuation Line.
     fn assert_continuations(paragraph: &[&str]) {
         for line in &paragraph[1..] {
             assert!(line.starts_with(' ') && !line.trim().is_empty(), "{line:?}");

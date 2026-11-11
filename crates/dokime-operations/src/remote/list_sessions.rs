@@ -31,7 +31,7 @@ use super::*;
 
 /* === Structs === */
 
-/// Recent remote sessions on this host, newest first; `cursor` continues a previous page.
+// Recent remote sessions on this host, newest first; `cursor` continues a previous page.
 #[harmos::operation(resources = [crate::hosting::Host<ListSessions>], response = RemoteSessionPage, id = "dokime.remote.list_sessions",
     policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Remote", method = "ListSessions"))]

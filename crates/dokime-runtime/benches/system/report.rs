@@ -44,6 +44,8 @@ const STEADY_SUITE: &str = "obc.charger.steady";
 const STEADY_DURATION_S: f64 = 0.5;
 const SETTLE: Duration = <MaterializeReport as harmos::OperationDeclaration>::POLICY.timeout;
 const LARGE_CYCLE_COPIES: usize = 32;
+// The Saved Fixture Keeps Few Executions So It Seals Well Inside Its Settle Deadline.
+const SEALED_EXECUTIONS: usize = 3;
 const POLL: Duration = Duration::from_millis(20);
 
 /* === Macros === */
@@ -69,7 +71,7 @@ struct MaterializationFixture {
 impl MaterializationFixture {
     async fn new(concurrency: usize, duration: f64, copies: usize) -> Self {
         let root = tempfile::tempdir().unwrap();
-        let (owner, runtime, cycle, _) = started_cycle(root.path(), concurrency, duration, copies).await;
+        let (owner, runtime, cycle, _) = started_cycle(root.path(), concurrency, duration, copies, None).await;
         let execution =
             tokio::time::timeout(SETTLE, inspected_execution(&runtime, &cycle)).await.expect("steady execution reaches inspection");
         let at = runtime.storage().flush().await.unwrap();
@@ -272,13 +274,15 @@ fn plot_payload_count(value: &serde_json::Value) -> usize {
 }
 
 async fn sealed_cycle(root: &Path) -> (Runtime, RuntimeHandle, Vec<TestExecutionId>) {
-    let (owner, runtime, cycle, request) = started_cycle(root, 4, STEADY_DURATION_S, 1).await;
+    let (owner, runtime, cycle, request) = started_cycle(root, 4, STEADY_DURATION_S, 1, Some(SEALED_EXECUTIONS)).await;
     let settled = settle(&runtime, &cycle, &request).boxed_local();
     let executions = tokio::time::timeout(SETTLE, settled).await.expect("the steady cycle seals");
     (owner, runtime, executions)
 }
 
-async fn started_cycle(root: &Path, concurrency: usize, duration: f64, copies: usize) -> (Runtime, RuntimeHandle, TestCycleId, CommandId) {
+async fn started_cycle(
+    root: &Path, concurrency: usize, duration: f64, copies: usize, executions: Option<usize>,
+) -> (Runtime, RuntimeHandle, TestCycleId, CommandId) {
     let bundle = root.join("plugin-obc.dokime");
     std::fs::copy(super::plugin_bundle("plugin-obc.dokime"), &bundle).unwrap();
     let host = super::plugin_bundle("plugin-host.dokime");
@@ -313,6 +317,9 @@ async fn started_cycle(root: &Path, concurrency: usize, duration: f64, copies: u
             case.parameters.insert("duration_s".into(), Value::from(duration));
             cases.push(case);
         }
+    }
+    if let Some(executions) = executions {
+        cases.truncate(executions);
     }
     let originals = cases.clone();
     for _ in 1..copies {

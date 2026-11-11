@@ -25,6 +25,7 @@ use dokime_runtime::domains::ExecutionProviderTarget;
 use dokime_runtime::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
+
 const VALUES: [f64; 8] = [3.0, -7.0, 11.0, 0.0, 3.0, 99.0, 0.0, -7.0];
 
 /* === Macros === */
@@ -32,6 +33,7 @@ const VALUES: [f64; 8] = [3.0, -7.0, 11.0, 0.0, 3.0, 99.0, 0.0, -7.0];
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 struct NumericFixture {
     storage: std::sync::Mutex<Option<dokime_runtime::storage::Manager>>,
@@ -173,8 +175,6 @@ impl ExecutionFixture for NumericFixture {
 
 /* === Private Functions === */
 
-/* === Tests === */
-
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn exact_numeric_outputs() {
@@ -189,13 +189,14 @@ async fn exact_numeric_outputs() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), fixture.clone()).await;
     *fixture.storage.lock().unwrap() = Some(runtime.storage().clone());
     let mut suite = custom_suite();
-    let mut document = dokime_runtime::document::Document::new("default", "Numeric Evidence");
+    let mut document = dokime_runtime::document::Document::new("Numeric Evidence");
     let mut section = dokime_runtime::document::DocumentSection::new("Measurements");
     let mut plot = dokime_runtime::document::Plot::time_series("Distance");
     plot.id("fixture.numeric");
     plot.y(dokime_runtime::expressions::telemetry("tracking", "distance_m"));
     section.plot(plot);
-    let mut scatter = dokime_runtime::document::Plot::xy_scatter("Easting / Northing");
+    let mut scatter = dokime_runtime::document::Plot::xy("Easting / Northing");
+    scatter.style(dokime_runtime::document::PlotStyle::Points);
     scatter.id("fixture.scatter");
     scatter.x(dokime_runtime::expressions::telemetry("tracking", "distance_m"));
     scatter.y(dokime_runtime::expressions::telemetry("tracking", "distance_m"));
@@ -318,3 +319,5 @@ async fn exact_numeric_outputs() {
     assert_eq!(&view.execution().output_parameters, outputs, "exact outputs survive storage recovery");
     owner.shutdown().await.unwrap();
 }
+
+/* === Tests === */

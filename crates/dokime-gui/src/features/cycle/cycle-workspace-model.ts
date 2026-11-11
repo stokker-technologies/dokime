@@ -136,7 +136,7 @@ export type FollowState = {
 };
 
 /** One entry of a node's "…" menu. */
-export type NodeMenuItem = "Copy Cycle" | "Add Cases" | "Settings" | "Follow Active" | "Open Report" | "Archive" | "Unarchive" | "Re-Run";
+export type NodeMenuItem = "Rerun Cycle" | "Add Cases" | "Settings" | "Follow Active" | "Open Report" | "Archive" | "Unarchive" | "Re-Run";
 
 /** The page bar's Download Report button as it stands. */
 export type ReportDownloadState = {
@@ -327,11 +327,13 @@ export function finishedCaseCount(cases: readonly CycleCase[]): number {
  * there and always enabled: the runtime answers with the sealed report, the
  * one regenerated from sealed evidence, or one rendered from the run so far.
  * The last group archives the node, or unarchives one already archived.
+ * Rerun Cycle is offered in every phase, sealed and archived alike: it plans
+ * a new cycle and leaves this one untouched.
  */
 export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): NodeMenuItem[][] {
   const archive: NodeMenuItem = archived ? "Unarchive" : "Archive";
   return kind === "cycle"
-    ? [["Copy Cycle", "Add Cases", "Follow Active"], ["Open Report", "Settings"], [archive]]
+    ? [["Rerun Cycle", "Add Cases", "Follow Active"], ["Open Report", "Settings"], [archive]]
     : [["Re-Run"], ["Open Report", "Settings"], [archive]];
 }
 
@@ -522,16 +524,7 @@ export function caseStatusVariant(status: CaseState): "default" | "secondary" | 
   }
 }
 
-/**
- * The step an operator reads in the header.
- *
- * Step identifiers are frequently opaque (a UUID or a hash), and an opaque
- * token says less than the phase the runtime is in, so fall back to the phase.
- */
-export function progressStepLabel(stepId: string, phase: string): string {
-  const trimmed = stepId.trim();
-  if (!trimmed || /^[0-9a-f]{8,}$/i.test(trimmed) || /^[0-9a-f-]{32,}$/i.test(trimmed)) {
-    return phase;
-  }
-  return trimmed.replaceAll(/[._-]+/g, " ");
+/** A running step's label when no step record names it yet: its id, humanized. */
+export function progressStepLabel(stepId: string): string {
+  return stepId.trim().replaceAll(/[._-]+/g, " ");
 }
