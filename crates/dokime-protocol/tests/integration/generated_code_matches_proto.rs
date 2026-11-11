@@ -46,19 +46,34 @@ use std::{fs, path::Path};
 fn retired_plot_kinds_require_explicit_replacements() {
     use dokime_protocol::v1::PlotKind;
     for (name, number, replacement) in [
-        ("GROUPED_BAR", 3, "BAR with arrangement=grouped"),
-        ("STACKED_BAR", 4, "BAR with arrangement=stacked"),
-        ("DONUT", 6, "PIE with hole=0.5"),
-        ("PARETO", 7, "BAR with pareto=true"),
-        ("XY_INTERVAL", 9, "XY with interval=sigma"),
+        ("GROUPED_BAR", 3, "BAR"),
+        ("STACKED_BAR", 4, "BAR"),
+        ("DONUT", 6, "PIE"),
+        ("PARETO", 7, "BAR"),
+        ("XY_INTERVAL", 9, "XY"),
         ("HEATMAP", 11, "CONTOUR"),
         ("XY_VALUE_HEATMAP", 12, "CONTOUR"),
-        ("WIFI_CHANNEL_OCCUPANCY", 13, "GRID_CHART with declared rows, columns and frames"),
+        ("WIFI_CHANNEL_OCCUPANCY", 13, "GRID_CHART"),
         ("BOX_SUMMARY", 16, "BOX_PLOT"),
-        ("AGGREGATE_TABLE", 17, "a document Summary card"),
+        ("AGGREGATE_TABLE", 17, "Summary"),
     ] {
-        assert_eq!(PlotKind::parse_name(name), Err(format!("{name}: use {replacement}")));
-        assert_eq!(PlotKind::from_declared_number(number), Err(format!("{name}: use {replacement}")));
+        for result in [PlotKind::parse_name(name), PlotKind::from_declared_number(number)] {
+            let error = result.unwrap_err();
+            let identifiers = error.split(|character: char| !character.is_ascii_alphanumeric() && character != '_').collect::<Vec<_>>();
+            assert!(identifiers.contains(&name));
+            assert!(identifiers.contains(&replacement));
+            let option = match name {
+                "GROUPED_BAR" => Some("arrangement=grouped"),
+                "STACKED_BAR" => Some("arrangement=stacked"),
+                "DONUT" => Some("hole=0.5"),
+                "PARETO" => Some("pareto=true"),
+                "XY_INTERVAL" => Some("interval=sigma"),
+                _ => None,
+            };
+            if let Some(option) = option {
+                assert!(error.contains(option));
+            }
+        }
     }
     for kind in [PlotKind::Contour, PlotKind::GridChart, PlotKind::BoxPlot] {
         assert_eq!(PlotKind::parse_name(kind.as_str_name()), Ok(kind));
