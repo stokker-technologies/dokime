@@ -3635,7 +3635,7 @@ async function settingsJourney(session, notes) {
   await session.clickNamed("menuitem", "Delete");
   await session.clickNamed("button", "Cancel");
   assert.ok(await rowAction("native-stale", "Select"));
-  await session.click(await rowAction("native-recovery", "Select"));
+  await session.clickCss(`[data-row-id="${original.connection.backend.backendId}"] button[aria-label="Connect"]`);
   await until("saved selection connected", async () => {
     const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
     return status.connection.phase === "connected";
@@ -3643,7 +3643,7 @@ async function settingsJourney(session, notes) {
   await session.connected();
   await session.goto("/settings/backends");
   await until("registry after selection", () => rowAction("native-stale", "Select"));
-  await session.click(await rowAction("native-stale", "Select"));
+  await session.clickCss('[data-row-id="deliberately-wrong-native-identity"] button[aria-label="Connect"]');
   await until("failed selection displays the registry", async () => {
     const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
     if (status.connection.phase !== "failed") return false;
@@ -3651,7 +3651,7 @@ async function settingsJourney(session, notes) {
   });
   const afterFailure = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_backends_list')");
   assert.ok(afterFailure.profiles.some((profile) => profile.label === "native-recovery"));
-  await session.click(await rowAction("native-recovery", "Select"));
+  await session.clickCss(`[data-row-id="${original.connection.backend.backendId}"] button[aria-label="Connect"]`);
   await until("explicit profile recovery", async () => {
     const status = await session.execute("return window.__TAURI_INTERNALS__.invoke('desktop_session_status')");
     return status.connection.phase === "connected";
@@ -3697,7 +3697,7 @@ async function settingsJourney(session, notes) {
   ).catch((failure) => {
     throw new Error(`${failure.message}. The application said: ${announcement || "nothing at all"}`);
   });
-  assert.match(basename(bundle), /^dokime-diagnostics-.*\.zip$/);
+  assert.match(basename(bundle), /^com-stokker-dokime-diagnostics-.*\.zip$/);
   const retained = join(session.downloads, basename(bundle));
   if (resolve(bundle) !== resolve(retained)) await copyFile(bundle, retained);
 }
@@ -4260,7 +4260,7 @@ async function emptyCycleHistory(session, cycleId, title, ownership) {
     pairing,
     JSON.stringify({
       version: 1,
-      endpoints: [endpoint],
+      endpoints: [new URL(endpoint).origin],
       backend_identifier: current.connection.backend.backendId,
       label: "Fixture",
       certificate_pem: null,
@@ -4772,7 +4772,7 @@ host = "https://127.0.0.1:1"
   );
   const restart = async () => {
     await closeSession();
-    session = await startSession(work, backend.endpoint, evidence, { shell });
+    session = await startSession(work, backend.endpoint, evidence, { shell, identifier: "com.stokker.dokime" });
     await sizeViewport(session, densities.desktop);
     await session.connected();
   };
@@ -4789,32 +4789,32 @@ host = "https://127.0.0.1:1"
 
   await session.goto("/settings/about");
   await session.clickCss('[data-testid="desktop-updates-open"]');
-  const selection = (label) => session.execute(`return document.querySelector('select[aria-label="${label}"]')?.value;`);
-  await until("disabled organization update policy", async () => (await selection("Update Checks")) === "disabled");
+  const selection = (label) =>
+    session.execute(`return document.querySelector('[role=combobox][aria-label="${label}"]')?.textContent.trim();`);
+  await until("disabled organization update policy", async () => (await selection("Update Checks")) === "Disabled");
   const checkDisabled = () => session.execute("return document.querySelector('[data-testid=\"desktop-updates-check\"]')?.disabled;");
   assert.equal(await checkDisabled(), true);
   const select = async (label, value) => {
-    await session.execute(
-      `const select = document.querySelector('select[aria-label="${label}"]'); select.value = ${JSON.stringify(value)}; select.dispatchEvent(new Event('change', {bubbles: true}));`,
-    );
+    await session.clickNamed("combobox", label);
+    await session.clickNamed("option", value);
     await until(
       `saved ${label}`,
       async () =>
         (await selection(label)) === value &&
-        (await session.execute(`return !document.querySelector('select[aria-label="${label}"]').disabled;`)),
+        (await session.execute(`return !document.querySelector('[role=combobox][aria-label="${label}"]').disabled;`)),
     );
   };
   await select("Release Source", "private");
   await until("selected public GitLab source", async () => (await selection("Release Source")) === "private");
   assert.equal(await checkDisabled(), true);
   await select("Release Source", "public");
-  await select("Update Checks", "manual");
+  await select("Update Checks", "Manual");
   await session.clickCss('[data-testid="desktop-updates-check"]');
   await until("update check failure notification", async () =>
     hasText(await toastText(session), "The update manifest could not be checked"),
   );
   assert.equal(await session.execute("return document.querySelector('[data-testid=\"desktop-updates-install\"]')?.disabled;"), true);
-  await select("Update Checks", "disabled");
+  await select("Update Checks", "Disabled");
   await select("Release Source", "private");
   await session.screenshot("organization-update-policy");
   await session.key("Escape");
@@ -4828,7 +4828,7 @@ host = "https://127.0.0.1:1"
   await session.goto("/settings/about");
   await session.clickCss('[data-testid="desktop-updates-open"]');
   await until("saved release source survives restart", async () => (await selection("Release Source")) === "private");
-  assert.equal(await selection("Update Checks"), "disabled");
+  assert.equal(await selection("Update Checks"), "Disabled");
   await session.key("Escape");
   await session.waitForDom("update policy dialog closed", `return !document.querySelector('[role=dialog][data-state=open]');`);
   assert.equal(await session.execute("return window.__DOKIME_ORGANIZATION_PACK__.pack.label;"), "Test Console");

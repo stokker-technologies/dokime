@@ -135,7 +135,8 @@ try {
   cleanup = await prepareNativeFixture(work, evidence);
   const dataRoot = join(work, "tampered", "shell", "application", "data");
   const backend = await startBackend(work, evidence, undefined, "backend", true, { dataRoot });
-  const a = await desktop("a");
+  const a = await desktop("a", backend.endpoint);
+  await a.connected();
   await invoke(a, "desktop_session_select", {
     selection: { kind: "attach", request: { target: { kind: "local", endpoint: backend.endpoint }, expectedBackendId: null } },
   });
@@ -208,7 +209,13 @@ try {
   assert.equal(plan.cases.length, 1, "One selection materializes one deterministic case");
   const executionId = randomUUID();
   await call(a, "Execution", "AppendExecutions", { cycleId: cycle.cycleId, executions: [{ executionId, caseId: plan.cases[0].caseId }] });
-  for (const gui of [a, b]) await gui.goto(`/cycles/${cycle.cycleId}?executionId=${executionId}`);
+  for (const gui of [a, b]) {
+    await gui.goto("/cycles");
+    await gui.clickNamed("button", title);
+    await until("shared cycle selected", async () => (await gui.location()).pathname === `/cycles/${cycle.cycleId}`);
+    await gui.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-select]`);
+    assert.equal((await invoke(gui, "desktop_session_status")).connection.remote, true);
+  }
   await call(a, "Execution", "StartExecution", { executionId, mode: { Automatic: {} } });
   await until("GUI B watches execution reach its deterministic operator checkpoint", async () =>
     b.execute(`const panel = document.querySelector('[aria-labelledby="active-prompt-title"]');
