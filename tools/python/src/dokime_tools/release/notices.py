@@ -73,6 +73,7 @@ SHELL_LICENSE_SOURCES = {
 
 # === Public Functions === #
 
+
 def download(
     url: str | urllib.request.Request,
     *,
@@ -99,6 +100,7 @@ def download(
             if before_retry is not None:
                 before_retry()
     raise AssertionError("unreachable download attempt")
+
 
 def python_notices(lock: dict) -> tuple[str, int]:
     """Read License Metadata and Text from Hash-Verified Wheels Named by uv.lock."""
@@ -162,6 +164,7 @@ def python_notices(lock: dict) -> tuple[str, int]:
     print(f"Python wheels: {cache_hits} cache hits, {downloads} downloads", file=sys.stderr)
     return "\n\n".join(sections), count
 
+
 def shell_notices(document: dict) -> tuple[str, int]:
     """Include Installed License Text for Every Production pnpm Dependency."""
     sections = ["Shell Production Dependency Notices"]
@@ -198,6 +201,7 @@ def shell_notices(document: dict) -> tuple[str, int]:
             sections.extend(sorted(texts))
     return "\n\n".join(sections), len(inventory)
 
+
 def packaged(sources: list[Path]) -> dict[str, bytes]:
     """Read Matching Product Notices From Every Packaged Distribution."""
     result = {}
@@ -216,6 +220,7 @@ def packaged(sources: list[Path]) -> dict[str, bytes]:
         raise policy.ToolError("packaged notices require at least one target distribution")
     return result
 
+
 def stage(directory: Path, destination: Path) -> None:
     """Ship Notices in the Installer's Installed LICENSE and Portable Layout."""
     manifest = destination / "distribution.json"
@@ -229,6 +234,7 @@ def stage(directory: Path, destination: Path) -> None:
     (destination / "LICENSE").write_text(text, encoding="utf-8", newline="\n")
     document["files"]["LICENSE"] = hashlib.sha256((destination / "LICENSE").read_bytes()).hexdigest()
     manifest.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+
 
 def archive(directory: Path, source: Path) -> None:
     """Add Notices Before Release Hashing, Preserving Executable Modes and Wheel RECORD."""
@@ -270,6 +276,7 @@ def archive(directory: Path, source: Path) -> None:
         else:
             raise policy.ToolError(f"unsupported notice archive: {source}")
         shutil.copyfile(result, source)
+
 
 def generate(directory: Path, *, python: bool = False) -> dict:
     """Resolve Approved Licenses, Then Collect Actual Copyright and License Text."""
@@ -346,6 +353,7 @@ def generate(directory: Path, *, python: bool = False) -> dict:
     print(json.dumps(counts))
     return counts
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", type=Path)
@@ -372,6 +380,7 @@ def main() -> int:
         for source in wheels:
             archive(directory / "target/notices/python" if options.python else directory, source)
     return 0
+
 
 # === Private Functions === #
 

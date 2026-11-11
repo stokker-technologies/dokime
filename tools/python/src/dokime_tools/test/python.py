@@ -34,6 +34,7 @@ from dokime_tools.test import run
 
 # === Public Functions === #
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
@@ -48,6 +49,7 @@ def main() -> int:
             arguments.append("--")
         arguments.append(f"--basetemp={Path(scratch) / 'fixtures'}")
         return run.main(["test", "--profile", options.profile, "--language", "python", "--project", "sdk/python", *arguments])
+
 
 # === Private Functions === #
 

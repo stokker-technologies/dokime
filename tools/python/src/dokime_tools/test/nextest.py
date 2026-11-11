@@ -45,6 +45,7 @@ TIMEOUT = 'slow-timeout = { period = "%ds", terminate-after = 1 }'
 
 # === Public Functions === #
 
+
 def layer(category: str, binaries: Sequence[str]) -> str:
     """The filterset of one test layer; nextest rejects matchers that name no binary, so only names that exist appear."""
     if category == "unit":
@@ -52,6 +53,7 @@ def layer(category: str, binaries: Sequence[str]) -> str:
     if category in ("acceptance", "system"):
         return f"kind(test) & ({_named(category, binaries)})"
     return f"kind(test) & !({_named('acceptance', binaries)}) & !({_named('system', binaries)})"
+
 
 def selection(category: str | None, arguments: Sequence[str], binaries: Sequence[str]) -> tuple[str | None, list[str]]:
     """One filterset joining the layer with the lane's `-p` and `-E` arguments, plus the rest.
@@ -66,6 +68,7 @@ def selection(category: str | None, arguments: Sequence[str], binaries: Sequence
     if not parts:
         return None, rest
     return " & ".join(f"({part})" for part in parts), rest
+
 
 def config(
     store: str,
@@ -95,6 +98,7 @@ def config(
         ]
     return "\n".join(lines) + "\n"
 
+
 def overrides(
     rules: policy.Policy,
     category: str | None,
@@ -109,6 +113,7 @@ def overrides(
         names = sorted(set(binaries.values()))
         return selected + [(layer(name, names), rules.deadline(name, coverage)) for name in categories]
     return selected
+
 
 def run(
     directory: Path,
@@ -142,6 +147,7 @@ def run(
         command += ["-E", expression]
     return command + list(rest)
 
+
 def coverage(
     profile: str,
     configuration: Path,
@@ -169,6 +175,7 @@ def coverage(
         command += ["-E", expression]
     return command + list(rest)
 
+
 def report(profile: str, output: Path) -> list[str]:
     return [
         "cargo",
@@ -183,11 +190,14 @@ def report(profile: str, output: Path) -> list[str]:
         str(output),
     ]
 
+
 # === Private Functions === #
+
 
 def _named(category: str, binaries: Sequence[str]) -> str:
     names = [name for name in binaries if name == category or name.startswith(f"{category}-")]
     return " | ".join(f"binary(={name})" for name in names) or "none()"
+
 
 def _split(arguments: Sequence[str]) -> tuple[list[str], list[str], list[str]]:
     packages: list[str] = []
@@ -206,5 +216,6 @@ def _split(arguments: Sequence[str]) -> tuple[list[str], list[str], list[str]]:
         else:
             rest.append(argument)
     return packages, filters, rest
+
 
 # === Entry Point === #

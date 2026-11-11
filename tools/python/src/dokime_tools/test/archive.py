@@ -45,6 +45,7 @@ UNIT_KINDS = ("lib", "bin", "proc-macro")
 
 # === Public Functions === #
 
+
 def revision(directory: Path) -> str | None:
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -56,8 +57,10 @@ def revision(directory: Path) -> str | None:
     )
     return result.stdout.strip() if result.returncode == 0 else None
 
+
 def location(directory: Path, profile: str) -> Path:
     return paths.output(directory, "build", profile) / "tests" / ARCHIVE
+
 
 def prune(directory: Path, keep: set[str], *, archives: bool = False) -> None:
     """Discard Superseded Roots Without Following Links Or Touching Flat Reports."""
@@ -71,6 +74,7 @@ def prune(directory: Path, keep: set[str], *, archives: bool = False) -> None:
         elif archives and path.name.endswith(".tar.zst"):
             path.unlink()
 
+
 def binaries(directory: Path, profile: str, extracted: Path | None = None) -> dict[str, str]:
     """Map Archive Binary IDs To Names, Retaining Package Identity For Measured Overrides."""
     if extracted is not None:
@@ -79,6 +83,7 @@ def binaries(directory: Path, profile: str, extracted: Path | None = None) -> di
     with temporary.directory() as listing:
         extract(directory, profile, listing)
         return binaries(directory, profile, listing)
+
 
 def extract(directory: Path, profile: str, destination: Path, *, category: str | None = None) -> None:
     """Extract Once For Read-Only Reuse By Listing And Independent Test Lanes."""
@@ -115,11 +120,13 @@ def extract(directory: Path, profile: str, destination: Path, *, category: str |
         host["libdir"]["path"] = str(libdir)
     metadata.write_text(json.dumps(document), encoding="utf-8")
 
+
 def require(directory: Path, profile: str) -> Path:
     path = location(directory, profile)
     if not path.is_file() or path.stat().st_size == 0:
         raise policy.TestError(f"missing {profile} nextest archive; run the build task first")
     return path
+
 
 def install_wheels(directory: Path, profile: str, native: str | None = None) -> None:
     targets = [native or paths.target()]
@@ -150,6 +157,7 @@ def install_wheels(directory: Path, profile: str, native: str | None = None) -> 
             check=True,
         )
 
+
 def stamp(directory: Path, profile: str, files: Sequence[str], metadata: Mapping | None = None) -> None:
     """Name And Hash The Built Fixtures, Without Binding Source Or Revision."""
     record = {
@@ -161,6 +169,7 @@ def stamp(directory: Path, profile: str, files: Sequence[str], metadata: Mapping
     target = paths.output(directory, "build", profile) / "fixtures/stamp.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+
 
 def fixtures(
     directory: Path,
@@ -194,6 +203,7 @@ def fixtures(
         if name not in files or not _inside(directory, name).is_file():
             raise policy.TestError(f"missing stamped fixture: {name}")
 
+
 def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate Existing Test Inputs")
     parser.add_argument("--profile", choices=policy.PROFILES, default="dev")
@@ -210,7 +220,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
         print(f"archive: {error}", file=sys.stderr)
         return 1
 
+
 # === Private Functions === #
+
 
 def _extract_layer(path: Path, destination: Path, category: str) -> None:
     """Keep One Layer's Binaries And All Runtime Inputs Without Unpacking Other Test Layers."""
@@ -241,6 +253,7 @@ def _extract_layer(path: Path, destination: Path, category: str) -> None:
             source.extract(member, destination, filter="data")
     (destination / metadata_name).write_text(json.dumps(document), encoding="utf-8")
 
+
 def _in_layer(category: str, entry: Mapping) -> bool:
     """The Archive Counterpart Of `nextest.layer`, Selecting By Target Kind And Binary Name."""
     if category == "unit":
@@ -251,15 +264,18 @@ def _in_layer(category: str, entry: Mapping) -> bool:
     named = {layer: name == layer or name.startswith(f"{layer}-") for layer in ("acceptance", "system")}
     return named[category] if category in named else not any(named.values())
 
+
 def _inside(directory: Path, name: str) -> Path:
     path = directory / name
     if Path(name).is_absolute() or not path.resolve().is_relative_to(directory.resolve()):
         raise policy.TestError(f"fixture path escapes the workspace: {name}")
     return path
 
+
 def _digest(path: Path) -> str:
     with path.open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()
+
 
 def _toolchain(directory: Path) -> str:
     return subprocess.check_output(
@@ -268,6 +284,7 @@ def _toolchain(directory: Path) -> str:
         cwd=directory,
         text=True,
     ).strip()
+
 
 # === Entry Point === #
 

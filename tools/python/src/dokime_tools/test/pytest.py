@@ -41,6 +41,7 @@ STRICT = ["--strict-config", "--strict-markers", "--import-mode=importlib"]
 
 # === Public Functions === #
 
+
 def environment(directory: Path) -> dict[str, str]:
     """The shared root environment with no ambient selection that could narrow a lane."""
     variables = dict(os.environ)
@@ -48,6 +49,7 @@ def environment(directory: Path) -> dict[str, str]:
     variables.pop("PYTEST_ADDOPTS", None)
     variables.pop("COVERAGE_PROCESS_START", None)
     return variables
+
 
 def run(
     project: Path,
@@ -78,6 +80,7 @@ def run(
         *arguments,
     ]
 
+
 def coverage(project: Path, cobertura: Path) -> list[str]:
     """Coverage arguments whose measured sources the project's own coverage configuration declares.
 
@@ -94,6 +97,7 @@ def coverage(project: Path, cobertura: Path) -> list[str]:
         f"--cov-report=xml:{cobertura}",
     ]
 
+
 def bench(project: Path, category: str, output: Path, arguments: Sequence[str]) -> list[str]:
     suite = f"benchmarks/{category}"
     if not (project / suite).is_dir():
@@ -109,6 +113,8 @@ def bench(project: Path, category: str, output: Path, arguments: Sequence[str]) 
         *arguments,
     ]
 
+
 # === Private Functions === #
+
 
 # === Entry Point === #

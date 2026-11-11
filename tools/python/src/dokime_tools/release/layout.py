@@ -37,6 +37,7 @@ from harmos_tools.release import policy
 
 # === Public Functions === #
 
+
 def triple(directory: Path, settings: dict, target: str) -> str:
     """Resolve A Product's Actual ABI From Its Declarations, Never From Its Name."""
     candidates = {
@@ -52,6 +53,7 @@ def triple(directory: Path, settings: dict, target: str) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+){2,}", value):
         raise policy.ToolError("invalid release Rust target triple")
     return value
+
 
 def asset_name(directory: Path, settings: dict, definition: dict, selected: str, tag: str, source: Path) -> str | None:
     """Accept Only The Locked Download Kinds; Product Examples And Registry Artifacts Stay Out."""
@@ -80,6 +82,7 @@ def asset_name(directory: Path, settings: dict, definition: dict, selected: str,
         raise policy.ToolError(f"unsupported release asset; declare distribution ZIPs with kind = 'distribution': {source.name}")
     suffix = "-setup.exe" if source.name.endswith("-setup.exe") else source.suffix
     return f"{settings['product']}-{tag[1:]}-{triple(directory, settings, selected)}{suffix}"
+
 
 def plugins(directory: Path, settings: dict, tag: str, targets: list[str], profile: str) -> list[dict]:
     """Resolve Explicit Shipped Bundles Into Shared Archives And Version-Less Members."""
@@ -140,6 +143,7 @@ def plugins(directory: Path, settings: dict, tag: str, targets: list[str], profi
             )
     return result
 
+
 def plugin_feed(settings: dict, tag: str, bundles: list[dict]) -> dict:
     entries = {}
     for bundle in bundles:
@@ -155,6 +159,7 @@ def plugin_feed(settings: dict, tag: str, bundles: list[dict]) -> dict:
         )
         entry["targets"][bundle["triple"]] = {key: bundle[key] for key in ("archive", "member", "sha256")}
     return {"format_version": 2, "plugins": [entries[name] for name in sorted(entries)]}
+
 
 def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Path]:
     """Archive Bundle Bytes Once Per Kind And Target, Hashing The Exact Member Bytes."""
@@ -189,6 +194,7 @@ def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Pa
         outputs.append(destination)
     return outputs
 
+
 def download_url(settings: dict, tag: str, name: str) -> str:
     """The Public Download Of One Release Asset Under Its Tag, From The Declared Provider."""
     quoted = f"{urllib.parse.quote(tag, safe='')}/{urllib.parse.quote(name, safe='')}"
@@ -196,6 +202,7 @@ def download_url(settings: dict, tag: str, name: str) -> str:
         return f"https://github.com/{settings['repository']}/releases/download/{quoted}"
     base = settings.get("api_url", "https://gitlab.com/api/v4").removesuffix("/api/v4")
     return f"{base}/{settings['project_id']}/-/releases/{quoted.replace('/', '/downloads/', 1)}"
+
 
 def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
     """Read Kind, OS, Architecture And Format Back From The Asset Names This Tooling Produces."""
@@ -229,6 +236,7 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
             return {"kind": kind, "os": os_name, "arch": arch, "format": format_}
     return {"kind": "other", "os": os_name, "arch": arch, "format": format_ or Path(name).suffix[1:].lower() or "txt"}
 
+
 def downloads(
     settings: dict, executables: dict[str, str], *, version: str, channel: str, tag: str, published: str, files: list[dict], sums: str
 ) -> dict:
@@ -256,9 +264,11 @@ def downloads(
         )
     return {"version": version, "channel": channel, "tag": tag, "pub_date": published, "artifacts": artifacts}
 
+
 def upload_manifest(directory: Path, root: Path, files: list[dict]) -> None:
     entries = [{**item, "path": (root / item["path"]).relative_to(directory).as_posix()} for item in files]
     policy.write_json(root / "upload.json", {"format_version": 1, "assets": entries})
+
 
 def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
     """Read The Exact Publication Inventory, Refusing Unsafe Names, Paths And Changed Bytes."""
@@ -293,7 +303,9 @@ def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
         raise policy.ToolError("release upload manifest has no SHA256SUMS")
     return manifest["assets"]
 
+
 # === Private Functions === #
+
 
 def _platform(name: str) -> tuple[str, str]:
     """OS And Architecture From A Rust Target Triple Or Wheel Platform Tag In The Name; Neither Means Any."""
@@ -321,5 +333,6 @@ def _platform(name: str) -> tuple[str, str]:
     if lowered.endswith(".rpm"):
         return "linux", lowered.removesuffix(".rpm").rsplit(".", 1)[-1]
     return "any", "any"
+
 
 # === Entry Point === #

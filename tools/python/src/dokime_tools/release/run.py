@@ -80,9 +80,11 @@ VERBS = [
 
 # === Public Functions === #
 
+
 def continuous_integration() -> bool:
     """Whether A CI Runner Executes This Process."""
     return any(os.environ.get(name, "").lower() in {"1", "true"} for name in ("CI", "GITHUB_ACTIONS", "GITLAB_CI"))
+
 
 def release_tag(directory: Path) -> str:
     """The Stable Tag Of The Prepared Version: `v` Plus `[version] value`."""
@@ -91,6 +93,7 @@ def release_tag(directory: Path) -> str:
         raise policy.ToolError("version.value must declare a stable MAJOR.MINOR.PATCH version")
     return "v" + value
 
+
 def native_target(settings: dict) -> str:
     system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}.get(platform.system())
     architecture = {"amd64": "x86_64", "arm64": "aarch64"}.get(platform.machine().lower(), platform.machine().lower())
@@ -98,6 +101,7 @@ def native_target(settings: dict) -> str:
     if selected not in settings.get("targets", []):
         raise policy.ToolError(f"native target {selected} is not one of release.targets")
     return selected
+
 
 def assets(directory: Path, settings: dict, selected: str, tag: str, profile: str | None = None, *, signed: bool = False) -> list[dict]:
     """The Declared Release Downloads Of One Target, From Its Existing Package Of The Profile."""
@@ -139,6 +143,7 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
         raise policy.ToolError(f"expected one native abi3 wheel for {selected}")
     result.append({"name": wheels[0].name, "path": wheels[0].relative_to(directory).as_posix(), "target": selected})
     return result
+
 
 def stage(
     directory: Path,
@@ -244,6 +249,7 @@ def stage(
     layout.upload_manifest(directory, root, files)
     return files
 
+
 def planned_version(directory: Path, current: str) -> str:
     """The Current Version Before Its First Tag, Else git-cliff's Configured Automatic Version."""
     if not policy.execute(directory, ["git", "tag", "--list", "v" + current], capture=True).strip():
@@ -256,6 +262,7 @@ def planned_version(directory: Path, current: str) -> str:
         listing = "\n".join("  " + line for line in since.splitlines()) or "  (no commits)"
         raise policy.ToolError(f"v{current} is released and no Conventional Commit since warrants a new version; commits since:\n{listing}")
     return planned
+
 
 def prepare(directory: Path, settings: dict) -> None:
     """Bump Every Version Carrier And Regenerate Release Inputs In The Working Tree."""
@@ -285,6 +292,7 @@ def prepare(directory: Path, settings: dict) -> None:
     if policy.policy(directory, "screenshots").get("scenes"):
         screenshots.capture(directory)
     print(f"Prepared v{planned}; review the changes, or let Release / Prepare open the release review")
+
 
 def review(directory: Path, settings: dict) -> None:
     """Commit The Prepared Tree To release/v<version> And Open Its Review Into dev With The Release Token."""
@@ -339,6 +347,7 @@ def review(directory: Path, settings: dict) -> None:
         raise policy.ToolError(f"opening the release review failed; {branch} is pushed and can be reviewed by hand")
     registry.arm_auto_merge(settings, branch, title)
 
+
 def dry(
     directory: Path,
     settings: dict,
@@ -374,6 +383,7 @@ def dry(
         f"staged {len(files) - 2} download(s), {SUMS} and {DOWNLOADS} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}"
     )
 
+
 def publish(directory: Path, settings: dict) -> None:
     """Stage And Publish Exactly The Manifest's Downloads From The Protected Release Tag."""
     tag = release_tag(directory)
@@ -407,6 +417,7 @@ def publish(directory: Path, settings: dict) -> None:
             }
             policy.write_json(root / SHARED / STATE, state)
     policy.write_json(root / SHARED / STATE, state)
+
 
 def finalize(directory: Path, settings: dict) -> None:
     """Verify Every Manifest Download And Signature Before Making The Release Visible."""
@@ -455,6 +466,7 @@ def finalize(directory: Path, settings: dict) -> None:
     if {link.get("name") for link in (remote.get("assets") or {}).get("links", [])} != set(inventory):
         raise policy.ToolError("release links differ from upload.json")
 
+
 def verify(directory: Path, settings: dict) -> None:
     """After Publication: Download Every Published Asset, Match SHA256SUMS And Signatures, Install On This Platform."""
     tag = release_tag(directory)
@@ -486,9 +498,11 @@ def verify(directory: Path, settings: dict) -> None:
         packages.installed(directory, {**settings, "tag": tag}, root, native)
     policy.write_json(directory / "target/state/release-publication.json", {"sha": sha, "tag": tag, "verified": True})
 
+
 def crates(directory: Path, settings: dict) -> None:
     """Publish Crates From The Protected Tag Job."""
     registry.publish_crates(directory)
+
 
 def tag(directory: Path, settings: dict) -> None:
     """Tag An Exactly Rehearsed Merged Release Review, Then Fast-Forward main."""
@@ -540,6 +554,7 @@ def tag(directory: Path, settings: dict) -> None:
     if registry.delete_branch(settings, branch):
         print(f"{branch}: deleted after its squash")
 
+
 def rehearse(directory: Path, settings: dict, *, target: str | None = None, profile: str = "release", stage_only: bool = False) -> None:
     """Verify Selected Local Packages Or Every Hosted Target Without Publishing Credentials."""
     hosted = continuous_integration()
@@ -564,6 +579,7 @@ def rehearse(directory: Path, settings: dict, *, target: str | None = None, prof
             registry.python(directory, settings, dry_run=True)
     print(f"release {'staging' if stage_only else 'rehearsal'} passed using staged {profile}-profile packages")
 
+
 def identity(directory: Path, settings: dict) -> None:
     """Print The OIDC Identity Registries See And The Trusted Publisher Values That Match It."""
     url = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL")
@@ -587,6 +603,7 @@ def identity(directory: Path, settings: dict) -> None:
         if actual != expected:
             print(f"warning: {registry_name} sees workflow {actual}, but the rendered guidance names {expected}")
 
+
 def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("verb", choices=VERBS)
@@ -600,6 +617,7 @@ def main(arguments: list[str] | None = None) -> int:
         print(f"release: {error}", file=sys.stderr)
         return 1
     return 0
+
 
 def run(directory: Path, verb: str, *, target: str | None = None, profile: str | None = None, stage_only: bool = False) -> None:
     if verb != "rehearse" and (target is not None or profile is not None or stage_only):
@@ -628,7 +646,9 @@ def run(directory: Path, verb: str, *, target: str | None = None, profile: str |
     }
     operations[verb](directory, settings)
 
+
 # === Private Functions === #
+
 
 def _checksums(path: Path, inventory: dict) -> None:
     expected = {name: item["sha256"] for name, item in inventory.items() if name not in {SUMS, DOWNLOADS}}
@@ -640,6 +660,7 @@ def _checksums(path: Path, inventory: dict) -> None:
         actual[name] = digest
     if actual != expected:
         raise policy.ToolError("SHA256SUMS differs from upload.json")
+
 
 def _tag_event(directory: Path, settings: dict, sha: str) -> dict | None:
     if settings["provider"] == "gitlab":
@@ -672,6 +693,7 @@ def _tag_event(directory: Path, settings: dict, sha: str) -> dict | None:
     ):
         raise policy.ToolError("GitHub review is not the merged release review for this version and revision")
     return review
+
 
 def _commit_review(directory: Path, settings: dict, branch: str, title: str) -> None:
     """Create The Preparation Commit Through The Provider API, Signed By The Provider."""
@@ -732,25 +754,30 @@ def _commit_review(directory: Path, settings: dict, branch: str, title: str) -> 
     if not verified:
         raise policy.ToolError("preparation API commit is not verified; GitLab requires web-based commit signing enabled")
 
+
 def _bytes(root: Path, item: dict) -> bytes:
     data = policy.inside(root, item["path"]).read_bytes()
     if hashlib.sha256(data).hexdigest() != item["sha256"]:
         raise policy.ToolError(f"staged release bytes changed: {item['name']}")
     return data
 
+
 def _describe(root: Path, path: Path) -> dict:
     data = path.read_bytes()
     return {"name": path.name, "path": path.relative_to(root).as_posix(), "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
+
 
 def _native() -> str:
     system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}.get(platform.system(), "")
     architecture = {"amd64": "x86_64", "arm64": "aarch64"}.get(platform.machine().lower(), platform.machine().lower())
     return f"{system}-{architecture}"
 
+
 def _online(settings: dict) -> bool:
     """Whether Provider Credentials Allow Reading Remote Tags."""
     names = ("GH_TOKEN", "GITHUB_TOKEN") if settings.get("provider") == "github" else ("RELEASE_TOKEN", "GITLAB_TOKEN")
     return any(os.environ.get(name) for name in names)
+
 
 def _policy_version(directory: Path, value: str) -> None:
     """Write `[version] value` In The Project Policy, Keeping Every Other Line."""
@@ -762,9 +789,11 @@ def _policy_version(directory: Path, value: str) -> None:
     body = re.sub(r"(?m)^value\s*=.*$", f'value = "{value}"', match.group(2), count=1)
     path.write_text(text[: match.start()] + match.group(1) + body + text[match.end() :], encoding="utf-8")
 
+
 def _package(settings: dict) -> str:
     """The GitLab Generic Package That Carries The Release Downloads."""
     return settings.get("package", settings["product"])
+
 
 def _push_remote(settings: dict, token: str) -> str:
     """An Authenticated Push URL For The Release Identity, Which The main Ruleset Admits."""
@@ -773,9 +802,11 @@ def _push_remote(settings: dict, token: str) -> str:
         return f"https://x-access-token:{token}@github.com/{repository}.git"
     return f"https://oauth2:{token}@{os.environ['CI_SERVER_HOST']}/{os.environ['CI_PROJECT_PATH']}.git"
 
+
 def _quote(value: str) -> str:
     """A Single Path Segment Of A Provider Endpoint."""
     return urllib.parse.quote(value, safe="")
+
 
 def _refuse_overrides(directory: Path) -> None:
     """Published Bytes Never Come From Unpublished Local Dependency Checkouts."""
@@ -789,6 +820,7 @@ def _refuse_overrides(directory: Path) -> None:
     ]
     if outside:
         raise policy.ToolError(f"unpublished local dependency override: {', '.join(sorted(outside))}")
+
 
 def _require_publication(directory: Path, settings: dict) -> None:
     """Refuse A Release Whose Crates Cannot Publish: A First Publication Needs The Bootstrap Token."""
@@ -804,14 +836,17 @@ def _require_publication(directory: Path, settings: dict) -> None:
     if not available:
         print("warning: " + message)
 
+
 def _revision(directory: Path) -> str:
     sha = archive.revision(directory)
     if not sha:
         raise policy.ToolError("release operations require a committed HEAD")
     return sha
 
+
 def _root(directory: Path) -> Path:
     return policy.inside(directory, ASSETS)
+
 
 def _run(directory: Path, command: list[str], secret: str) -> str:
     """Run A Command That Carries A Credential, Never Echoing It; Returns Its Scrubbed Standard Output."""
@@ -830,15 +865,18 @@ def _run(directory: Path, command: list[str], secret: str) -> str:
         raise policy.ToolError(f"{command[0]} {command[1]} failed with exit code {result.returncode}")
     return scrub(result.stdout or "")
 
+
 @cache
 def _tracked(directory: Path, *patterns: str) -> list[str]:
     """Tracked paths matching Git pathspec patterns, where `*` also crosses directories."""
     listed = policy.execute(directory, ["git", "ls-files", "-z", "--", *patterns], capture=True)
     return sorted(filter(None, listed.split("\0")))
 
+
 def _task_defined(directory: Path, name: str) -> bool:
     with (directory / "mise.toml").open("rb") as file:
         return name in tomllib.load(file).get("tasks", {})
+
 
 # === Entry Point === #
 

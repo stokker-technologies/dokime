@@ -26,6 +26,7 @@ from . import layout, registry, run
 
 # Type Checking Imports
 
+
 # === Public Exports === #
 
 # === Constants === #
@@ -48,6 +49,7 @@ IMMUTABLE = (
 # === Classes === #
 
 # === Public Functions === #
+
 
 def publish(directory: Path) -> None:
     settings = policy.policy(directory, "release")
@@ -76,7 +78,9 @@ def publish(directory: Path) -> None:
     else:
         _gitlab(settings, files, sha, identifier, notes)
 
+
 # === Private Functions === #
+
 
 def _source(github: bool) -> tuple[str, str, str]:
     """The Commit, Run Identifier And Run URL Of A Scheduled Or Manual Run On `dev`."""
@@ -88,6 +92,7 @@ def _source(github: bool) -> tuple[str, str, str]:
         raise policy.ToolError("GitLab nightly publishes only scheduled or manual pipelines on default dev")
     return os.environ["CI_COMMIT_SHA"], os.environ["CI_PIPELINE_ID"], os.environ["CI_PIPELINE_URL"]
 
+
 def _github_source() -> tuple[str, str, str]:
     event = os.environ.get("GITHUB_EVENT_NAME")
     if event not in ("schedule", "workflow_dispatch") or os.environ.get("GITHUB_REF") != "refs/heads/dev":
@@ -97,9 +102,11 @@ def _github_source() -> tuple[str, str, str]:
     url = f"{server}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{identifier}"
     return os.environ["GITHUB_SHA"], identifier, url
 
+
 def _superseded(release: dict | None, identifier: str, field: str) -> bool:
     previous = re.search(r"(?m)^\| CI Run \| \[([0-9]+)\]", (release or {}).get(field, ""))
     return previous is not None and int(previous[1]) > int(identifier)
+
 
 def _notes(directory: Path, settings: dict, sha: str, source_run: str, previous: str) -> str:
     github = settings["provider"] == "github"
@@ -183,6 +190,7 @@ def _notes(directory: Path, settings: dict, sha: str, source_run: str, previous:
     lines.append("The tag and source archives identify this build; use the commit link for its permanent revision.")
     return "\n".join(lines) + "\n"
 
+
 def _github(
     directory: Path,
     settings: dict,
@@ -265,14 +273,17 @@ def _github(
         if release.get("id") != staged["id"] and (release.get("draft") is True and release.get("name") == TITLE):
             registry.request(settings, f"releases/{release['id']}", "DELETE", channel=True)
 
+
 def _workflows_moved(settings: dict, sha: str) -> bool:
     """Whether Dev's Head Now Carries Different Workflow Files Than The Build Commit."""
     head = registry.document(settings, "git/ref/heads/dev", channel=True)["object"]["sha"]
     return head != sha and _workflows(settings, head) != _workflows(settings, sha)
 
+
 def _workflows(settings: dict, revision: str) -> str | None:
     entries = registry.document(settings, f"contents/.github?ref={revision}", channel=True) or []
     return next((entry["sha"] for entry in entries if entry["name"] == "workflows" and entry["type"] == "dir"), None)
+
 
 def _upload(directory: Path, settings: dict, endpoint: str, item: dict) -> None:
     """Upload One Download, Replacing A Partial Asset Of The Same Name Left By A Failed Attempt."""
@@ -287,6 +298,7 @@ def _upload(directory: Path, settings: dict, endpoint: str, item: dict) -> None:
         upload=True,
         channel=True,
     )
+
 
 def _verify_assets(settings: dict, endpoint: str, files: list[dict], failure: str) -> None:
     assets = registry.pages(settings, f"{endpoint}/assets", channel=True)
@@ -303,6 +315,7 @@ def _verify_assets(settings: dict, endpoint: str, files: list[dict], failure: st
     if any(asset.get("digest") not in (None, digests[asset["name"]]) for asset in assets):
         raise policy.ToolError(f"{TAG} upload digest differs")
 
+
 def _point_tag(settings: dict, current: str | None, sha: str) -> None:
     if current == sha:
         return
@@ -310,11 +323,13 @@ def _point_tag(settings: dict, current: str | None, sha: str) -> None:
         registry.request(settings, f"git/refs/tags/{TAG}", "DELETE", channel=True)
     registry.document(settings, "git/refs", "POST", {"ref": f"refs/tags/{TAG}", "sha": sha}, channel=True)
 
+
 def _discard(settings: dict, release: int) -> None:
     try:
         registry.request(settings, f"releases/{release}", "DELETE", channel=True)
     except policy.ToolError as error:
         print(f"nightly: the staged draft remains for the next run to retire: {error}", file=sys.stderr)
+
 
 def _restore(settings: dict, staged: int, previous: dict | None, original: str | None) -> None:
     """Return The Channel To The Previous Release After A Failed Swap; Report What Could Not Be Undone."""
@@ -338,9 +353,11 @@ def _restore(settings: dict, staged: int, previous: dict | None, original: str |
         except policy.ToolError as error:
             print(f"nightly: restoring the previous channel failed: {error}", file=sys.stderr)
 
+
 def _tag(settings: dict) -> str | None:
     reference = registry.document(settings, f"git/ref/tags/{TAG}", channel=True)
     return (reference or {}).get("object", {}).get("sha")
+
 
 def _gitlab(settings: dict, files: list[dict], sha: str, identifier: str, notes: str) -> None:
     endpoint = f"releases/{TAG}"
@@ -381,6 +398,7 @@ def _gitlab(settings: dict, files: list[dict], sha: str, identifier: str, notes:
         {"name": TITLE, "description": notes},
         channel=True,
     )
+
 
 # === Entry Point === #
 

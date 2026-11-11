@@ -53,9 +53,11 @@ GITLAB_REHEARSAL_JOB = "Release / Rehearsal"
 # Large Assets Get One Second per MB Beyond JSON's Minute, Bounded at Thirty Minutes.
 UPLOAD_MAX_TIMEOUT_S = 1800
 
+
 # === Types === #
 
 # === Classes === #
+
 
 class ProviderRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -69,7 +71,9 @@ class ProviderRedirect(urllib.request.HTTPRedirectHandler):
                 redirected.remove_header(name)
         return redirected
 
+
 # === Public Functions === #
+
 
 def publish_crates(directory: Path, *, sleep=time.sleep, clock=time.monotonic) -> None:
     """Publish Workspace Crates One At A Time In Dependency Order, Resuming Past Published Versions."""
@@ -81,6 +85,7 @@ def publish_crates(directory: Path, *, sleep=time.sleep, clock=time.monotonic) -
     deadline = clock() + RATE_BUDGET
     with changelog.staged(directory, packages):
         _publish_crates(directory, packages, deadline, sleep=sleep, clock=clock)
+
 
 def rehearse_crates(directory: Path, *, skip_published: bool = True) -> None:
     """Dry-Run Crates In Publication Order Without Publishing Credentials."""
@@ -98,10 +103,12 @@ def rehearse_crates(directory: Path, *, skip_published: bool = True) -> None:
         with changelog.staged(directory, packages):
             _rehearse_crates(directory, packages, target, lock, original, staged, skip_published=skip_published)
 
+
 def publishable(directory: Path) -> dict:
     """Publishable Workspace Members By Name."""
     metadata = json.loads(policy.execute(directory, ["cargo", "metadata", "--format-version", "1", "--no-deps", "--locked"], capture=True))
     return policy.publishable(directory, metadata)
+
 
 def crate_published(name: str, version: str | None = None) -> bool:
     """Whether The Sparse Index Lists This Crate, Or This Exact Crate Version."""
@@ -118,6 +125,7 @@ def crate_published(name: str, version: str | None = None) -> bool:
         raise
     entries = [json.loads(line) for line in lines if line.strip()]
     return bool(entries) if version is None else any(entry.get("vers") == version for entry in entries)
+
 
 def python(directory: Path, settings: dict, *, dry_run: bool) -> None:
     """Upload The Release Python Packages: PyPI For GitHub Products, The Project Registry On GitLab."""
@@ -138,6 +146,7 @@ def python(directory: Path, settings: dict, *, dry_run: bool) -> None:
         policy.execute(directory, ["uv", "publish", "--dry-run", "--trusted-publishing", "never", *selected])
         return
     raise policy.ToolError("native Python publication requires the owner to settle the PyPI and import name")
+
 
 def request(
     settings: dict,
@@ -266,9 +275,11 @@ def request(
             raise policy.ToolError(f"release provider {method} verification failed: {url}: asset size or sha256 differs")
     return result
 
+
 def document(settings: dict, endpoint: str, method: str = "GET", body: dict | None = None, *, channel: bool = False) -> Any:
     value = request(settings, endpoint, method, json.dumps(body).encode() if body is not None else None, channel=channel)
     return json.loads(value) if value else None
+
 
 def pages(settings: dict, endpoint: str, key: str | None = None, *, channel: bool = False) -> list:
     result = []
@@ -283,6 +294,7 @@ def pages(settings: dict, endpoint: str, key: str | None = None, *, channel: boo
         if len(values) < 100:
             return result
         page += 1
+
 
 def arm_auto_merge(settings: dict, branch: str, title: str, *, sleep=time.sleep) -> None:
     """Arm Native Squash Auto-Merge After Opening The Release Review, Waiting Briefly For GitLab's Pipeline."""
@@ -343,6 +355,7 @@ def arm_auto_merge(settings: dict, branch: str, title: str, *, sleep=time.sleep)
             sleep(5)
     raise policy.ToolError(f"GitLab release review for {branch} was not ready for auto-merge after 12 attempts; the review remains open")
 
+
 def verify_duplicate_policy(settings: dict) -> None:
     """Read Back The Group's Generic Package Duplicate Protection; Publication Never Changes It."""
     project = document(settings, "")
@@ -373,6 +386,7 @@ def verify_duplicate_policy(settings: dict) -> None:
     ):
         raise policy.ToolError("GitLab generic package duplicate protection must be verified for the project's group")
 
+
 def require_tag(directory: Path, tag: str) -> None:
     """The Protected Push Of Exactly This Stable Tag, Checked Out At Its Commit."""
     if re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag) is None:
@@ -398,6 +412,7 @@ def require_tag(directory: Path, tag: str) -> None:
     if actual != sha or tagged != actual:
         raise policy.ToolError("release tag SHA differs from checkout")
 
+
 def draft(settings: dict, tag: str, sha: str, body: str) -> dict:
     """The GitHub Draft For This Tag: Reused While Still A Draft, Never Replacing A Published Release."""
     releases = [item for item in pages(settings, "releases") if item["tag_name"] == tag]
@@ -417,6 +432,7 @@ def draft(settings: dict, tag: str, sha: str, body: str) -> dict:
         raise policy.ToolError("release draft was not created as a draft")
     return created
 
+
 def upload(settings: dict, release: int, item: dict, data: bytes) -> str:
     """Upload One Asset To A Draft Unless Present, Then Verify Its Remote Bytes."""
     available = [value for value in pages(settings, f"releases/{release}/assets") if value["name"] == item["name"]]
@@ -431,6 +447,7 @@ def upload(settings: dict, release: int, item: dict, data: bytes) -> str:
     verify_download(settings, endpoint, item)
     return endpoint
 
+
 def upload_generic(settings: dict, package: str, tag: str, item: dict, data: bytes) -> dict:
     """Upload One Asset To The Duplicate-Protected GitLab Generic Package Version."""
     endpoint = f"packages/generic/{urllib.parse.quote(package, safe='')}/{urllib.parse.quote(tag, safe='')}/{urllib.parse.quote(item['name'], safe='')}"
@@ -444,11 +461,13 @@ def upload_generic(settings: dict, package: str, tag: str, item: dict, data: byt
     project = urllib.parse.quote(str(settings.get("project_id", os.environ.get("CI_PROJECT_ID"))), safe="")
     return {"endpoint": endpoint, "link": {"name": item["name"], "url": f"{base}/projects/{project}/{endpoint}"}}
 
+
 def verify_download(settings: dict, endpoint: str, item: dict) -> bytes:
     data = request(settings, endpoint, binary=True)
     if data is None or len(data) != item["size"] or hashlib.sha256(data).hexdigest() != item["sha256"]:
         raise policy.ToolError(f"remote release download differs: {item['name']}")
     return data
+
 
 def verify_signatures(directory: Path, settings: dict, root: Path, names: list[str]) -> None:
     """Run Product-Owned Signature Checks Over Hash-Verified Bytes With RELEASE_ASSET_ROOT Pointing At Them."""
@@ -465,6 +484,7 @@ def verify_signatures(directory: Path, settings: dict, root: Path, names: list[s
             os.environ.pop("RELEASE_ASSET_ROOT", None)
         else:
             os.environ["RELEASE_ASSET_ROOT"] = previous
+
 
 def release_review(settings: dict, sha: str, branch: str) -> dict | None:
     """The Merged Release Review Whose Merge Commit Is This Revision, If Any."""
@@ -491,6 +511,7 @@ def release_review(settings: dict, sha: str, branch: str) -> dict | None:
     if len(matches) > 1:
         raise policy.ToolError("the revision identifies several merged release merge requests")
     return {"head": matches[0]["sha"], "number": matches[0]["iid"]} if matches else None
+
 
 def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
     """The Release Review Head Passed Its Rehearsal And Its Tree Is Exactly The Merged Tree."""
@@ -537,6 +558,7 @@ def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
         raise policy.ToolError(f"release MR !{review['number']} pipeline {pipeline['id']} has no successful {GITLAB_REHEARSAL_JOB} job")
     _same_tree(directory, head, sha)
 
+
 def oidc_claims(url: str, token: str) -> dict:
     """The Claims Of A GitHub OIDC Token Requested For Diagnosis Only; The Token Itself Is Never Printed."""
     separator = "&" if "?" in url else "?"
@@ -545,10 +567,12 @@ def oidc_claims(url: str, token: str) -> dict:
     payload = value.split(".")[1]
     return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
 
+
 def workflow_filename(reference: str) -> str:
     """The Workflow File Name Of A `owner/repo/.github/workflows/<file>@<ref>` Reference."""
     match = re.search(r"([^/]+\.ya?ml)(?=@)", reference)
     return match.group(1) if match else "(unknown)"
+
 
 def delete_branch(settings: dict, branch: str) -> bool:
     """Delete A Remote Branch If It Still Exists, Since Native Source-Branch Removal Usually Got There First."""
@@ -564,12 +588,14 @@ def delete_branch(settings: dict, branch: str) -> bool:
         request(settings, endpoint, "DELETE")
     return True
 
+
 def create_tag(settings: dict, tag: str, sha: str) -> None:
     """Create The Lightweight Release Tag Through The Provider With The Release Token."""
     if settings["provider"] == "github":
         document(settings, "git/refs", "POST", {"ref": "refs/tags/" + tag, "sha": sha})
     else:
         document(settings, "repository/tags", "POST", {"tag_name": tag, "ref": sha})
+
 
 def remote_tag(settings: dict, tag: str) -> str | None:
     """The Commit A Remote Tag Identifies, Peeling Annotated Tags."""
@@ -585,7 +611,9 @@ def remote_tag(settings: dict, tag: str) -> str | None:
     existing = document(settings, "repository/tags/" + name)
     return existing.get("commit", {}).get("id") if existing else None
 
+
 # === Private Functions === #
+
 
 def _publish_crates(directory: Path, packages: dict, deadline: float, *, sleep, clock) -> None:
     for name in _publication_order(packages):
@@ -618,6 +646,7 @@ def _publish_crates(directory: Path, packages: dict, deadline: float, *, sleep, 
             print(f"{name} {version}: rate limited; retrying in {wait}s")
             sleep(wait)
 
+
 def _rehearse_crates(
     directory: Path, packages: dict, target: Path, lock: Path, original: bytes | None, staged: list, *, skip_published: bool
 ) -> None:
@@ -638,6 +667,7 @@ def _rehearse_crates(
         # The patches record themselves in the lock file; the rehearsal leaves the committed lock untouched.
         if original is not None:
             lock.write_bytes(original)
+
 
 def _same_tree(directory: Path, head: str, merged: str) -> None:
     revisions = (head, merged)
@@ -668,6 +698,7 @@ def _same_tree(directory: Path, head: str, merged: str) -> None:
         raise policy.ToolError("rehearsal tree verification returned no valid tree object IDs")
     if trees[0] != trees[1]:
         raise policy.ToolError("the merged tree differs from the rehearsed release review head; update the review and merge again")
+
 
 def _publication_order(packages: dict) -> list[str]:
     """Publishable Crates After Every Publishable Crate Their Published Manifest Requires, Ties By Name.
@@ -709,6 +740,7 @@ def _publication_order(packages: dict) -> list[str]:
         visit(name)
     return order
 
+
 def _retry_after(output: str) -> int:
     """Seconds Until The Registry-Indicated Retry Time, Or The Published Interval."""
     match = re.search(r"try again after ([A-Z][a-z]{2}, \d{1,2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT)", output)
@@ -716,5 +748,6 @@ def _retry_after(output: str) -> int:
         return RATE_INTERVAL
     retry = email.utils.parsedate_to_datetime(match.group(1)).timestamp()
     return max(1, min(RATE_INTERVAL * 2, int(retry - time.time()) + 1))
+
 
 # === Entry Point === #

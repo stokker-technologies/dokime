@@ -39,10 +39,12 @@ MAX_BYTES = 4 * 1024 * 1024
 
 # === Public Functions === #
 
+
 def dimensions(data: bytes) -> tuple[int, int]:
     if len(data) < 33 or data[:8] != PNG or data[12:16] != b"IHDR":
         raise policy.ToolError("screenshot must contain a PNG IHDR")
     return struct.unpack(">II", data[16:24])
+
 
 def check(directory: Path, _: str = "check") -> None:
     settings = policy.policy(directory, "screenshots")
@@ -115,6 +117,7 @@ def check(directory: Path, _: str = "check") -> None:
     if images != set(entries):
         raise policy.ToolError("screenshot manifest contains missing images")
 
+
 def capture(directory: Path, _: str = "capture") -> None:
     settings = policy.policy(directory, "screenshots")
     scenes = settings.get("scenes", [])
@@ -149,11 +152,13 @@ def capture(directory: Path, _: str = "capture") -> None:
     policy.write_json(folder / "manifest.json", entries)
     check(directory)
 
+
 def run(directory: Path, verb: str) -> None:
     if verb == "capture":
         capture(directory)
     else:
         check(directory)
+
 
 # === Private Functions === #
 

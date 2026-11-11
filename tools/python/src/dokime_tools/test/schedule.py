@@ -33,6 +33,7 @@ from . import archive, report
 
 # Type Checking Imports
 
+
 # === Public Exports === #
 
 # === Constants === #
@@ -42,6 +43,7 @@ from . import archive, report
 # === Classes === #
 
 # === Public Functions === #
+
 
 def command(category: str, language: str, profile: str, workers: int, archive_directory: Path | None = None) -> list[str]:
     """Use The Same Native Lane Runner Without Concurrent Input Reinstallation."""
@@ -93,6 +95,7 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
         raise policy.TestError(f"no native command for {category}-{language}")
     return arguments + (["--", *extra] if extra else [])
 
+
 def prepare(directory: Path, profile: str) -> None:
     """Prepare One Shared Read-Only Input Set Before Mise Starts Any Leaf."""
     started = time.perf_counter()
@@ -129,6 +132,7 @@ def prepare(directory: Path, profile: str) -> None:
         },
     )
 
+
 def lane(directory: Path, profile: str, category: str, language: str, project: str) -> None:
     """Record The Real Exit Status; The Final Aggregate Fails After All Leaves Finish."""
     destination = directory / "target/test-reports" / f"run-{profile}-{paths.target()}"
@@ -147,6 +151,7 @@ def lane(directory: Path, profile: str, category: str, language: str, project: s
     print(f"{'PASS' if row['exit_code'] == 0 else 'FAIL'}  {key}: {row['seconds']:.3f} s (exit {row['exit_code']})", flush=True)
     if row["exit_code"]:
         print((directory / row["log"]).read_text(encoding="utf-8", errors="replace"), flush=True)
+
 
 def finish(directory: Path, profile: str) -> int:
     """Missing Results And Failed Leaves Both Fail The Aggregate."""
@@ -177,6 +182,7 @@ def finish(directory: Path, profile: str) -> int:
     print(f"Logs And Summary: {destination.relative_to(directory).as_posix()}", flush=True)
     return int(any(row["exit_code"] != 0 for row in rows))
 
+
 def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=policy.PROFILES, default="dev")
@@ -203,7 +209,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
         print(f"test: {error}", file=sys.stderr)
         return 1
 
+
 # === Private Functions === #
+
 
 def _lane(directory: Path, key: str, arguments: Sequence[str], destination: Path, environment: dict[str, str]) -> dict:
     started = time.perf_counter()
@@ -222,6 +230,7 @@ def _lane(directory: Path, key: str, arguments: Sequence[str], destination: Path
         "seconds": round(time.perf_counter() - started, 3),
         "log": log.relative_to(directory).as_posix(),
     }
+
 
 # === Entry Point === #
 

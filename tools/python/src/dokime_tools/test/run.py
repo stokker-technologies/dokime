@@ -52,6 +52,7 @@ SCRIPTS = ("typescript", "javascript")
 
 # === Public Functions === #
 
+
 def test(
     directory: Path,
     category: str,
@@ -135,6 +136,7 @@ def test(
         lane["arguments"] = list(extra)
         return 0 if lane["outcome"] == "passed" else 1
 
+
 def coverage(
     directory: Path,
     language: str,
@@ -204,6 +206,7 @@ def coverage(
         )
         return 0 if lane["outcome"] == "passed" else 1
 
+
 def bench(
     directory: Path,
     category: str,
@@ -260,6 +263,7 @@ def bench(
             print(f"benchmark regression: {name}: {change:.1f}%")
     print(f"bench {category}-{language}: {len(rows)} native results; see {report.BENCHMARKS}")
     return 0 if status == 0 else 1
+
 
 def main(arguments: Sequence[str] | None = None) -> int:
     values = list(sys.argv[1:] if arguments is None else arguments)
@@ -339,7 +343,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
         print(f"test: {error}", file=sys.stderr)
         return 1
 
+
 # === Private Functions === #
+
 
 def _preflight(
     directory: Path,
@@ -352,6 +358,7 @@ def _preflight(
         output = paths.output(directory, "build", profile).relative_to(directory)
         archive.fixtures(directory, profile, roots=[(output / part).as_posix() for part in ("tests", "fixtures")])
 
+
 @contextmanager
 def _scratch(directory: Path, key: str, profile: str) -> Generator[Path]:
     if not key.startswith("bench-"):
@@ -361,6 +368,7 @@ def _scratch(directory: Path, key: str, profile: str) -> Generator[Path]:
         shutil.rmtree(output, ignore_errors=True)
     with temporary.directory() as scratch:
         yield scratch
+
 
 def _lane(
     directory: Path,
@@ -437,6 +445,7 @@ def _lane(
         "durations": [(case.suite, case.name, case.package, case.seconds) for case in found if case.outcome == "passed"],
     }
 
+
 def _console() -> dict:
     """Keep Native Console Signaling Available Without A Visible Window."""
     if os.name != "nt":
@@ -451,6 +460,7 @@ def _console() -> dict:
         "stdout": sys.stdout,
         "stderr": sys.stderr,
     }
+
 
 def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | None, *, timeout_s: float | None = None) -> int:
     try:
@@ -480,6 +490,7 @@ def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | No
     except OSError as error:
         raise policy.TestError(f"{command[0]} is unavailable: {error}") from error
 
+
 def _measured(command: Sequence[str], cwd: Path, environment: dict[str, str]) -> tuple[int, int | None]:
     """Exit status and peak resident bytes of one process and the children it waited for."""
     try:
@@ -492,6 +503,7 @@ def _measured(command: Sequence[str], cwd: Path, environment: dict[str, str]) ->
     process.returncode = os.waitstatus_to_exitcode(status)
     scale = 1 if sys.platform == "darwin" else 1024
     return process.returncode, usage.ru_maxrss * scale
+
 
 def _bench_rust(
     directory: Path,
@@ -555,6 +567,7 @@ def _bench_rust(
         raise policy.TestError("no native benchmark executable matched the selection")
     return rows, status
 
+
 def _criterion_baselines(home: Path) -> dict[Path, float]:
     medians = {}
     for path in home.rglob(f"{BASELINE}/estimates.json") if home.is_dir() else []:
@@ -565,6 +578,7 @@ def _criterion_baselines(home: Path) -> dict[Path, float]:
         if not isinstance(median, bool) and isinstance(median, (int, float)) and math.isfinite(median) and median > 0:
             medians[path.parent.parent] = median
     return medians
+
 
 def _bench_python(
     directory: Path,
@@ -610,6 +624,7 @@ def _bench_python(
     if measure and peak is not None:
         print(f"benchmark peak memory: {project}/{category}: {peak} bytes")
     return rows, status
+
 
 # === Entry Point === #
 

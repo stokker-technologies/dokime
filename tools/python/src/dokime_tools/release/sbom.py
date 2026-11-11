@@ -43,6 +43,7 @@ from harmos_tools.release import policy
 
 # === Public Functions === #
 
+
 def exceptions(directory: Path, *, today: date | None = None) -> dict:
     """Reject Expired or Incomplete Exceptions Before Any Tool Can Apply Them."""
     document = tomllib.loads((directory / "supply-chain-exceptions.toml").read_text(encoding="utf-8"))
@@ -64,12 +65,14 @@ def exceptions(directory: Path, *, today: date | None = None) -> dict:
                 raise policy.ToolError(f"expired exception: {entry['package']} {entry.get('id', entry.get('license'))}")
     return document
 
+
 def accepted(document: dict, category: str, package: str, version: str, identifier: str) -> dict | None:
     """Scope Every Exception to One Finding and Exact Dependency Version."""
     for entry in document.get(category, []):
         if entry["package"] == package and entry["version"] == version and entry.get("id", entry.get("license")) == identifier:
             return entry
     return None
+
 
 def check(directory: Path) -> int:
     """Keep Native Checks Strict; Accept Only Reviewed, Unexpired Findings."""
@@ -143,6 +146,7 @@ def check(directory: Path) -> int:
     print("Supply-chain checks passed with documented exceptions")
     return 0
 
+
 def auditable(profile: str, command: list[str]) -> int:
     """Apply the Pinned Cargo-Auditable Compiler Wrapper to Existing Build Tasks."""
     environment = dict(os.environ)
@@ -162,6 +166,7 @@ def auditable(profile: str, command: list[str]) -> int:
     if not command:
         raise policy.ToolError("pass an existing build entry point")
     return subprocess.run(command, env=environment, check=False, creationflags=spawn_flags()).returncode
+
 
 def workspace(directory: Path, target: str, output: Path) -> list[Path]:
     """Run Cargo CycloneDX in an Isolated Source Snapshot, Preserving the Checkout."""
@@ -192,6 +197,7 @@ def workspace(directory: Path, target: str, output: Path) -> list[Path]:
             raise policy.ToolError("Cargo CycloneDX produced no inventories")
         return result
 
+
 def shell(directory: Path, output: Path) -> Path:
     """Scan the Locked Shell Dependency Inventory with Syft."""
     with tempfile.TemporaryDirectory(prefix="dokime-shell-sbom-") as temporary:
@@ -205,6 +211,7 @@ def shell(directory: Path, output: Path) -> Path:
     destination = output / "dokime-shell.cdx.json"
     destination.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     return destination
+
 
 def unpack(archive: Path, destination: Path) -> None:
     """Reject Traversal and Links Before Extracting a Distribution."""
@@ -224,6 +231,7 @@ def unpack(archive: Path, destination: Path) -> None:
             bundle.extractall(destination, filter="data")
         return
     shutil.copyfile(archive, destination / archive.name)
+
 
 def artifact(directory: Path, source: Path, output: Path, rust: list[Path]) -> Path:
     """Scan Unpacked Bytes and Include the Target's Conservative Rust Source Inventory."""
@@ -259,6 +267,7 @@ def artifact(directory: Path, source: Path, output: Path, rust: list[Path]) -> P
     destination.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     return destination
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target")
@@ -291,6 +300,7 @@ def main() -> int:
             artifact(directory, source, options.output, source_inventories)
     print(f"Generated {len(inventories)} Rust inventories for {options.target}")
     return 0
+
 
 # === Private Functions === #
 

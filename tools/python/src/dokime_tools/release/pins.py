@@ -31,6 +31,7 @@ from harmos_tools.release import policy
 
 # === Public Functions === #
 
+
 def check(directory: Path, *, warn: bool = False) -> bool:
     """Check The Resolved Graph, Including Transitive Git Sources."""
     metadata = policy.execute(directory, ["cargo", "metadata", "--locked", "--format-version", "1"], capture=True)
@@ -50,6 +51,7 @@ def check(directory: Path, *, warn: bool = False) -> bool:
         with Path(summary).open("a", encoding="utf-8") as stream:
             stream.write("\n### Release Pin Warning\n\n" + message + "\n")
     return False
+
 
 # === Private Functions === #
 

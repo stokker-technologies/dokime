@@ -30,11 +30,13 @@ from harmos_tools import temporary
 
 # === Public Functions === #
 
+
 def main() -> None:
     """Keep The Canonical Owner Alive Until Its Native Consumer Closes Stdin."""
     with temporary.directory() as directory:
         print(directory, flush=True)
         sys.stdin.buffer.read()
+
 
 # === Private Functions === #
 
