@@ -1,4 +1,4 @@
 {
   "extends": "../../tsconfig.json",
-  "include": ["surface.tsx"]
+  "include": ["surface.tsx", "../../src/types/**/*.d.ts"]
 }

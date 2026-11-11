@@ -160,8 +160,8 @@ resident memory. Resource sampling includes the fixture host and shell descendan
 Absent resource readings remain absent. Stage totals and individual-call p50/p95
 are exported through `target/benchmarks/benchmarks-rust-desktop.json`, which the
 existing Nightly collector includes in `benchmarks.json`. Counts and bytes keep
-their actual units. Only Criterion's existing median regression policy controls
-regression findings; observations never become wall-clock/resource tests.
+their actual units. The existing benchmark/report regression thresholds remain;
+observations never become wall-clock/resource tests.
 
 `firstVisibleMs` and `allVisibleMs` observe populated cards intersecting the
 viewport at animation opportunities. They do not infer drawing from snapshot

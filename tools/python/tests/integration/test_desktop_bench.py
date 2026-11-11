@@ -20,6 +20,7 @@ from unittest.mock import patch
 # Third Party Imports
 # Local Imports
 from dokime_tools.test import desktop_bench
+from dokime_tools.release import reports
 
 # Type Checking Imports
 
@@ -88,6 +89,15 @@ class DesktopBench(unittest.TestCase):
             self.assertEqual(rows["desktop/100/warm/refusals"]["value"], 1)
             self.assertEqual(rows["desktop/100/warm/refusals"]["failures"], ["limit_exceeded"])
             self.assertNotIn("desktop/30/warm/cpuSeconds/p50", rows)
+            self.assertIn("cpuSeconds", rows["desktop/30/warm/refusals"]["missing_measurements"])
+            nightly = root / "target/nightly-reports/desktop"
+            nightly.mkdir(parents=True)
+            (nightly / "benchmarks-rust-desktop.json").write_text(json.dumps(summary))
+            published, _files = reports.collect(root)
+            painted = next(row for row in published["benchmarks"] if row["name"] == "desktop/30/warm/canvas_draw/p50")
+            self.assertEqual((painted["unit"], painted["value"]), ("ms", 20))
+            refusal = next(row for row in published["benchmarks"] if row["name"] == "desktop/100/warm/refusals")
+            self.assertIn("physical_display_presentation", refusal["unavailable"])
             self.assertEqual((home / "dev.json").read_bytes(), (home / "new.json").read_bytes())
             previous = (home / "dev.json").read_bytes()
             with patch.object(desktop_bench.policy, "execute", return_value="candidate"):

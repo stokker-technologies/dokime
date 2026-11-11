@@ -46,15 +46,20 @@ def build(binary: str | None = None) -> None:
         output = paths.output(ROOT, "build", "bench")
         # Prepare Authoritative Bindings Before The Bench Frontend On Fresh Checkouts.
         prepared = bench.build(
-            ROOT, selection=("--package", "cargo-dokime", "--package", "dokime-server", "--bins"), require_benchmark=False
+            ROOT, selection=("--package", "cargo-dokime", "--package", "dokime-server", "--bins", "--lib"), require_benchmark=False
         )
         generated.generate(prepared, check=True)
-        subprocess.run(
+        checked = subprocess.run(
             ["node", "node_modules/typescript/bin/tsc", "--noEmit", "--project", "benches/system/tsconfig.json"],
             cwd=ROOT / "crates/dokime-gui",
-            check=True,
+            check=False,
+            capture_output=True,
+            text=True,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
+        print(checked.stdout, end="")
+        if checked.returncode:
+            raise ValueError(f"desktop benchmark type check exited {checked.returncode}: {checked.stderr}")
         result = subprocess.run(
             ["node", "benches/system/build.mjs", str(output / "desktop-web")],
             cwd=ROOT / "crates/dokime-gui",

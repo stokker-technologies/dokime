@@ -25,6 +25,7 @@ let cleanup;
 let host;
 let sampler;
 let finished = false;
+let failure;
 
 async function command(line) {
   const pending = hostLines.next();
@@ -77,13 +78,21 @@ try {
   const waitDrawing = async (count, condition) => {
     const deadline = performance.now() + 600000;
     while (true) {
-      const observation = await desktop.execute("return desktopResult()");
-      if (observation.errors.length || observation.allVisibleMs !== null) return observation;
+      const observation = await desktop.execute("return desktopResult(true)");
+      if (observation.errors.length || observation.allVisibleMs !== null) return desktop.execute("return desktopResult()");
       if (performance.now() > deadline) throw new Error(`${count}/${condition}: no completed drawing or explicit refusal`);
       await delay(25);
     }
   };
   await waitReady();
+  await desktop.executeAsync(`const done = arguments[arguments.length - 1];
+    const invoke = globalThis.__TAURI_INTERNALS__.invoke;
+    invoke('plugin:window|is_maximized', {label: 'main'}).then(async maximized => {
+      if (maximized) await invoke('plugin:window|internal_toggle_maximize', {label: 'main'});
+      done({maximized});
+    }).catch(error => done({error: String(error)}));`);
+  await desktop.resize(1920, 1000);
+  fixture.viewport = await desktop.execute("return {width: innerWidth, height: innerHeight, deviceScale: devicePixelRatio}");
   if (samplerCode) {
     sampler = spawn("pwsh", ["-NoProfile", "-Command", samplerCode], {
       env: { ...process.env, DOKIME_BENCH_HOST_PID: String(host.pid), DOKIME_BENCH_DRIVER_PID: String(desktop.process.pid) },
@@ -161,22 +170,37 @@ try {
     process.stdout.write(`${elapsed}\n`);
   }
   finished = true;
+} catch (error) {
+  failure = error;
 } finally {
-  await terminate(sampler);
-  if (desktop) {
+  const errors = [];
+  for (const close of [
+    () => terminate(sampler),
+    async () => {
+      if (!desktop) return;
+      try {
+        await desktop.close();
+      } finally {
+        await terminate(desktop.process);
+      }
+    },
+    async () => {
+      if (!host) return;
+      host.stdin.end();
+      if (host.exitCode === null) await Promise.race([once(host, "exit"), delay(10000)]);
+      if (host.exitCode === null) await terminate(host);
+    },
+    async () => cleanup?.(),
+  ]) {
     try {
-      await desktop.close();
-    } finally {
-      await terminate(desktop.process);
+      await close();
+    } catch (error) {
+      errors.push(String(error));
     }
   }
-  if (host) {
-    host.stdin.end();
-    if (host.exitCode === null) await Promise.race([once(host, "exit"), delay(10000)]);
-    if (host.exitCode === null) await terminate(host);
-  }
-  await cleanup?.();
-  await writeFile(join(output, "completion.json"), JSON.stringify({ finished, results: results.length }));
+  await writeFile(join(output, "completion.json"), JSON.stringify({ finished, results: results.length, errors }));
   // Heavy Fixtures Are Owned, Disposable And Kept Under Target Until Processes Close.
-  await rm(work, { recursive: true, force: true });
+  if (!errors.length) await rm(work, { recursive: true, force: true });
+  if (errors.length) failure ??= new Error(`Native benchmark cleanup failed: ${errors.join("; ")}`);
 }
+if (failure) throw failure;

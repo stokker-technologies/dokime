@@ -34,7 +34,7 @@ declare global {
   var desktopCase: (count: number, condition: string, execution: string, cycle: string, from: number, to: number) => void;
   var desktopBegin: (condition: string) => void;
   var desktopAction: (condition: string, from: number, to: number) => void;
-  var desktopResult: () => object;
+  var desktopResult: (statusOnly?: boolean) => object;
 }
 
 const observation: Observation = {
@@ -219,11 +219,20 @@ function Surface({ session }: { session: ConnectedSession }) {
       }, 0);
     }
   };
-  globalThis.desktopResult = () => ({
-    ...observation,
-    previous: undefined,
-    painted: [...observation.painted],
-    elapsedMs: performance.now() - observation.started,
+  globalThis.desktopResult = (statusOnly = false) => ({
+    errors: observation.errors,
+    firstVisibleMs: observation.firstVisibleMs,
+    allVisibleMs: observation.allVisibleMs,
+    ...(statusOnly
+      ? {}
+      : {
+          stages: observation.stages,
+          bytes: observation.bytes,
+          queueDepth: observation.queueDepth,
+          frameMisses: observation.frameMisses,
+          painted: [...observation.painted],
+          elapsedMs: performance.now() - observation.started,
+        }),
   });
   return (
     <Connection.Provider value={session}>
