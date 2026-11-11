@@ -536,7 +536,7 @@ jobs:
           runner: windows-latest
           minutes: 120
           inputs: ''
-    if: (startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release == 'true')
+    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref, 'refs/tags/v') && needs.validated.outputs.stable_release == 'true')
     permissions:
       contents: read
       actions: read

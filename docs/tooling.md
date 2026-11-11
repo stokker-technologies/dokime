@@ -254,9 +254,11 @@ untagged release, or prepares the next release otherwise. Merging a release revi
 keeps its validation running. Review artifact lookup requires green review validation;
 tagging and publication also require exact-commit green dev CI. Windows signing prepares
 product bytes in a task, retains Azure's provider action, then packages verified
-signed bytes before installer, updater and archive checksums. The signing job
-uses an explicit status condition on tag pushes so the skipped dev-only mode job
-does not suppress signing; failed or cancelled prerequisites still block it.
+signed bytes before installer, updater and archive checksums. Both signing jobs
+use explicit status conditions on tag pushes so the skipped dev-only mode job
+does not suppress signing; failed or cancelled prerequisites still block them.
+Provider scheduling stays in the workflow; `ci:sign-product` and
+`ci:sign-windows` retain the signing and packaging logic.
 
 Packaging waits for its builds. Tests and generated checks consume their build
 artifacts; benchmarks wait only for their benchmark build. Release rehearsal and
