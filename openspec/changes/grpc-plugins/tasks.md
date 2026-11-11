@@ -80,6 +80,22 @@
 - Start `storage-interface` only after wave 5: benchmark before/after with multi-day data, extend Harmos storage first, then extract `dokime-storage`; no storage extension or extraction in the gRPC waves.
 - Run only focused tasks until combined source closure; final native proof remains separate.
 
+## Combined Tree Integration
+
+Source inventory: specification merge and validation under `openspec/`, Python
+SDK export lists in `sdk/python/python/dokime/{plot.py,v1/__init__.py}`, shared
+`.github/workflows/{publish,verify}.yml`, `docs/tooling.md`, and the existing
+`integration-plots` benchmark and its notes in `../plot-pipeline/tasks.md`.
+
+- [x] Merge `feat/gp-organization-pack`, retaining both sides' specification evidence and completed implementation tasks.
+- [x] Repair strict OpenSpec validation and pass all 80 specifications and changes.
+- [x] Run whole-tree formatting; repair Python export ordering and pass Python checking (107 tooling tests).
+- [x] Pass TypeScript and repository checking, and protocol drift checking (three focused protocol tests).
+- [x] Pass focused release tooling (35 tests) and workflow routing (12 tests); honor `build-run` for Windows Rust downloads and refresh Harmos alignment guidance.
+- [x] Repeat release staging from clean output with both platforms' existing dev packages (17 upload entries); preserve the earlier output. Current-source packaging and release-profile/hosted proof remain separate.
+- [x] Pass the combined Rust check: dev/test, desktop and bench-profile Clippy selections and cargo-machete. The unreachable `tokio::process::Command::new` configuration warning remains nonfatal.
+- [x] Complete one bounded time-series profiling pass and record its findings under plot-pipeline benchmark notes without changing budgets or thresholds. All four native comparisons pass; the live increase remains measured, and no plain cause was established.
+
 ## Repository Root and Workflow Repairs
 
 - [x] Move explicit tool configuration to `tools/config/`, remove unused root About and Typos configuration, and reconcile managed ownership.
@@ -88,7 +104,7 @@
 - [x] Repair compiler cache save inputs and preserve job-level Setup cache settings.
 - [x] Run repository/Python checks and formatting; exercise notices generation/staging through focused tooling tests.
 - [x] Rerun the combined repository/Python entry points after the concurrent organization edits are formatted.
-- [ ] Complete an artifact release rehearsal; local `--profile dev --stage-only` is blocked by missing Windows package artifacts.
+- [x] Complete a local artifact release staging rehearsal: clean-output `--profile dev --target all --stage-only` passed with both platforms' existing packages and 17 upload entries. Native executables identify `ca2fc48d`; full release-profile and current-source packaging proof remain separate.
 
 ## Desktop and Repository Integration
 

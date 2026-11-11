@@ -49,19 +49,28 @@ Cargo's semantic-version installer remains stable-only. The four-hour UTC trigge
 and noncancelling concurrency are unchanged. Duplicate revision detection admits
 the oldest run; API lookup errors fail closed. Named input archives fail when
 missing, and draft/public download bytes are hashed against the upload manifest.
-`docs/tooling.md#harmos-alignment` records the read-only Harmos comparison and its
-remaining reciprocal changes; its tooling remains separately owned.
+`docs/tooling.md#harmos-alignment` records the present shared contracts from the
+read-only Harmos comparison; its tooling remains separately owned. Every package
+download honors `build-run || github.run_id`, including Windows Rust inputs.
 
 Focused workflow proof: repository check (including actionlint), full formatting,
 37 CI tooling tests and 33 release tooling tests passed. Tooling-only Ruff and ty
-checks passed. The required Python check stopped on SDK `RUF022` findings in
-`sdk/python/python/dokime/{plot.py,v1/__init__.py}`, outside this worker's ownership.
+checks passed. Combined-tree integration repaired both SDK `RUF022` findings in
+`sdk/python/python/dokime/{plot.py,v1/__init__.py}`; Python checking now passes
+including 107 tooling tests. The focused release selection passes 35 tests and
+the focused workflow selection passes 12 tests.
 A clean `release:rehearse -- --profile dev --target all --stage-only` passed with
 both platforms' staged packages and 17 upload entries. Previous release outputs
 were preserved at `target/release-assets-before-workflow-rehearsal`.
+The combined-tree clean-output repeat also passed for both platforms with 17
+upload entries, using the existing dev packages (native executables identify
+revision `ca2fc48d`). This proves staging and native Windows package verification;
+it does not prove current-source product packaging or native Linux execution.
 
-Validation still required: native consumer tests and GUI Rust check (the earlier
-compilation stopped when the session disk watcher crossed 50 GiB), full native
+The combined-tree Rust check now passes its dev/test, desktop and bench-profile
+Clippy selections and cargo-machete; the prior disk-space interruption no longer
+blocks that check. The nonfatal unreachable-method configuration warning remains.
+Validation still required: native consumer tests, full native
 release-profile rehearsal, Linux execution proof and an authorized hosted Nightly
 with published inventory comparison. The local dev-package dry run does not close
 3.1. Fixture-based rehearsal and
