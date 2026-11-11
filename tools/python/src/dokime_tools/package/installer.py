@@ -105,7 +105,13 @@ def bundle(root: Path = ROOT, *, profile: str = "release") -> None:
 
 
 def check_package(
-    root: Path = ROOT, *, dist: Path | None = None, profile: str = "release", expected: str | None = None, require_signed: bool = False
+    root: Path = ROOT,
+    *,
+    dist: Path | None = None,
+    profile: str = "release",
+    expected: str | None = None,
+    require_signed: bool = False,
+    published: bool = False,
 ) -> None:
     """Verify Published Windows Update Bytes Independently Of Private Credentials."""
     check(root)
@@ -120,9 +126,10 @@ def check_package(
 
     signature_file = installer.with_suffix(".exe.sig")
     final_release = profile == "release" and _release_requested()
-    metadata_present = signature_file.exists() or (directory / "latest.json").exists()
+    manifest_name = "release.json" if published else "latest.json"
+    metadata_present = signature_file.exists() or (directory / manifest_name).exists()
     if require_signed or final_release or metadata_present:
-        _verify_update(root, directory, installer, signature_file, expected)
+        _verify_update(root, directory, installer, signature_file, expected, manifest_name=manifest_name)
 
 
 def verify_signature(root: Path, installer: Path, encoded_signature: str) -> None:
@@ -183,7 +190,13 @@ def _invoke(args: argparse.Namespace) -> None:
     elif args.command == "bundle":
         bundle(profile=args.profile)
     else:
-        check_package(dist=args.dist_dir, profile=args.profile, expected=args.expected_version, require_signed=args.require_signed)
+        check_package(
+            dist=args.dist_dir,
+            profile=args.profile,
+            expected=args.expected_version,
+            require_signed=args.require_signed,
+            published=args.release_assets,
+        )
 
 
 def _manifest(root: Path, metadata: dict, signed: bool) -> str:
@@ -233,8 +246,8 @@ def _run(command: list[str], root: Path, *, stdout=None) -> None:
     )
 
 
-def _verify_update(root: Path, directory: Path, installer: Path, signature_file: Path, expected: str) -> None:
-    manifest = json.loads((directory / "latest.json").read_text(encoding="utf-8"))
+def _verify_update(root: Path, directory: Path, installer: Path, signature_file: Path, expected: str, *, manifest_name: str) -> None:
+    manifest = json.loads((directory / manifest_name).read_text(encoding="utf-8"))
     platform = manifest.get("platforms", {}).get(UPDATER_TARGET, {})
     signature = platform.get("signature")
     if not isinstance(signature, str) or not signature.strip():

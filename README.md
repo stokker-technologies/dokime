@@ -234,10 +234,12 @@ public APIs and development storage formats may change. See the
 CLI and authoring-tool releases use target-specific ZIP (Windows) or tar.gz
 (Unix) archives. See [Install Tools With Mise](docs/product-guide.md#install-tools-with-mise)
 for archive selection and the release download inventory; each release and the
-nightly prerelease publish `downloads.json`, which classifies every download by
+nightly prerelease publish `release.json`; its `downloads` section classifies payloads by
 kind, OS, architecture and format. Distributors use
 `dokime-distribution-<version>-<target>.zip`; shipping plugins share native
-`dokime-sidecars` archives described by `plugins.json` format 2.
+`dokime-plugins` archives described by the index’s `plugins` section (format 2).
+Protocol definitions and compliance notices have separate ZIPs; the changelog is
+the release body. Nightly also includes benchmark and coverage reports.
 Custom installers select plugins through top-level `[[plugin]]` entries: set
 either `name` for a release plugin or `path` for a bundle relative to the
 organization pack. Its `plugins/` folder is storage only; files ship only when

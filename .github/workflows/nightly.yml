@@ -1227,6 +1227,8 @@ jobs:
     timeout-minutes: 120
     needs:
     - package
+    - bench
+    - coverage
     permissions:
       actions: read
       contents: write
@@ -1262,6 +1264,10 @@ jobs:
         name: package-${{ env.PROFILE }}-rust-unix
         path: target/ci
         github-token: ${{ github.token }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: results-*
+        path: target/nightly-reports
     - run: mise run ci:nightly-publish --
       env:
         GH_TOKEN: ${{ github.token }}
@@ -1307,7 +1313,7 @@ jobs:
       COMPILER_CACHE_MODE: ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
       RELEASE_PROFILE: release
       CI_TRANSPORT: 'true'
-    if: github.ref == 'refs/heads/dev'
+    if: always() && github.ref == 'refs/heads/dev' && needs.package.result == 'success'
   report:
     name: Nightly / Report
     runs-on: ubuntu-latest
@@ -1327,6 +1333,7 @@ jobs:
     - release_dry
     - publish
     permissions:
+      actions: read
       contents: write
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -1336,6 +1343,10 @@ jobs:
       with:
         platform: unix
       id: setup
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: results-*
+        path: target/nightly-reports
     - id: report
       run: mise run ci:nightly-report --
       env:

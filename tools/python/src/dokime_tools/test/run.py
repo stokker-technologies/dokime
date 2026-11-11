@@ -246,6 +246,14 @@ def bench(
     if "--test" in extra:
         print("Benchmark Diagnostic Mode: No Criterion Regression Estimates")
 
+    from .. import policy as project_policy
+    from ..release import reports
+
+    revision = os.environ.get("GITHUB_SHA") or project_policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()
+    summary = reports.measurements(rows, f"{language}/{category}", revision, rules.bench_regression_percent)
+    output = directory / report.BENCHMARKS / f"benchmarks-{language}-{category}.json"
+    project_policy.write_json(output, summary)
+
     for name, median, baseline in rows:
         if baseline is None:
             if refresh and status == 0:

@@ -13,6 +13,7 @@
 # Standard Library Imports
 import io
 import json
+import os
 import runpy
 import socket
 import sys
@@ -82,6 +83,7 @@ class RunTests(unittest.TestCase):
                 return 0, None
 
             with (
+                patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}),
                 patch.object(run, "_preflight"),
                 patch.object(run.archive, "_toolchain", return_value="fixture"),
                 patch.object(run.archive, "fixtures"),
@@ -114,6 +116,10 @@ class RunTests(unittest.TestCase):
                     self.assertEqual(status, 0)
                     self.assertIn("benchmark regression: sidecar_ingest/scalar/0: 900.0%", output.getvalue())
                     self.assertNotIn("::notice::", output.getvalue())
+                    published = json.loads((directory / "target/benchmarks/benchmarks-rust-system.json").read_text())
+                    self.assertEqual(published["benchmarks"][0]["value"], 1000.0)
+                    self.assertEqual(published["benchmarks"][0]["baseline_value"], 100.0)
+                    self.assertEqual(published["benchmarks"][0]["revision"], "a" * 40)
                     expected = 1000.0 if refresh else 100.0
                     self.assertEqual(json.loads(stored.read_text())["median"]["point_estimate"], expected)
 

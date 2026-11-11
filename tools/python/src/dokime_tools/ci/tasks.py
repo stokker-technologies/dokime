@@ -84,6 +84,17 @@ def main(arguments: list[str] | None = None) -> int:
         parser.error("build --check requires --package")
     if args.features and not args.package:
         parser.error("--features requires --package")
+    if args.package and args.operation == "check":
+        if args.language != "rust":
+            parser.error("check --package requires --language rust")
+        for command in (
+            ["mise", "run", "format:rust", "--", "--check"],
+            ["mise", "run", "lint:rust", "--", "--package", args.package],
+        ):
+            status = subprocess.run(command, check=False, creationflags=spawn_flags()).returncode
+            if status:
+                return status
+        return 0
     if args.package:
         if args.operation not in ("build", "test"):
             parser.error("--package requires build or test")

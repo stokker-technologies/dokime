@@ -72,14 +72,14 @@ pub async fn desktop_plugin_release_check(
 ) -> Result<Vec<Release>, String> {
     let lease = plugins::admit(&window, &connection, &generation)?;
     let (policy, policy_generation) = state.snapshot()?;
-    let source = sources::release_source(&policy, "plugins.json").await?;
+    let source = sources::release_source(&policy, "release.json").await?;
     let bytes = sources::fetch(&source.feed, sources::DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
     let sums_url = source.asset("SHA256SUMS")?;
     let sums_bytes = sources::fetch(&sums_url, sources::DESKTOP_UPDATE_MANIFEST_BYTES as usize).await?;
     let sums = distribution::checksums(&sums_bytes)?;
-    let feed_hash = sums.get("plugins.json").ok_or("SHA256SUMS has no plugins.json entry")?;
+    let feed_hash = sums.get("release.json").ok_or("SHA256SUMS has no release.json entry")?;
     distribution::verify(&bytes, feed_hash)?;
-    let feed = Feed::parse(&bytes)?;
+    let feed = release_feed(&bytes)?;
 
     let client = lease.client();
     let backend = client.backend();
@@ -163,6 +163,12 @@ pub async fn desktop_plugin_release_install(
 
 /* === Private Functions === */
 
+fn release_feed(bytes: &[u8]) -> Result<Feed, String> {
+    let release: serde_json::Value = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+    let section = release.get("plugins").ok_or("Release index has no plugins section")?;
+    Feed::parse(&serde_json::to_vec(section).map_err(|error| error.to_string())?)
+}
+
 fn validate_release_archive(bytes: &[u8], selected: &Candidate) -> Result<Vec<u8>, String> {
     distribution::verify(bytes, &selected.archive_sha256)?;
     distribution::plugin(bytes, &selected.member, &selected.plugin)
@@ -175,6 +181,19 @@ mod tests {
     use super::*;
     use harmos_packaging::bundle::{Bundle, Identity, Limits, Source};
     use std::io::{Cursor, Write};
+
+    #[test]
+    fn unified_release_sections() {
+        let value = serde_json::json!({"version":"1.2.3", "platforms":{}, "downloads":{"artifacts":[]},
+            "plugins":{"format_version":2,"plugins":[]}});
+        assert!(release_feed(&serde_json::to_vec(&value).unwrap()).unwrap().plugins.is_empty());
+        assert!(release_feed(br#"{"format_version":2,"plugins":[]}"#).is_err());
+        #[cfg(feature = "updater")]
+        {
+            let update: tauri_plugin_updater::RemoteRelease = serde_json::from_value(value).unwrap();
+            assert_eq!(update.version.to_string(), "1.2.3");
+        }
+    }
 
     #[test]
     fn release_archive_integrity() {

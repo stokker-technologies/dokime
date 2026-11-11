@@ -160,10 +160,11 @@ run = [
 [tasks."lint:rust"]
 hide = true
 description = "Lint Rust"
+usage = 'flag "--package <package>" help="Limit Clippy to One Consumer Package"'
 run = [
-  "{{vars.tools}} dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}},dokime-runtime/testing",
-  "{{vars.tools}} dokime_tools.build.lint -- --locked --workspace --profile dev --features {{vars.rust_plugin_features}},{{vars.rust_desktop_features}}",
-  "{{vars.tools}} dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --bins --benches --profile bench --features plugin-obc/benchmarks,{{vars.rust_plugin_features}}",
+  "{% if usage.package %}{{vars.tools}} dokime_tools.build.lint -- --locked --package {{usage.package}} --all-targets --profile dev{% else %}{{vars.tools}} dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --all-targets --profile dev --features {{vars.rust_plugin_features}},dokime-runtime/testing{% endif %}",
+  "{% if not usage.package %}{{vars.tools}} dokime_tools.build.lint -- --locked --workspace --profile dev --features {{vars.rust_plugin_features}},{{vars.rust_desktop_features}}{% endif %}",
+  "{% if not usage.package %}{{vars.tools}} dokime_tools.build.cargo focused clippy --locked --workspace --exclude dokime-gui --bins --benches --profile bench --features plugin-obc/benchmarks,{{vars.rust_plugin_features}}{% endif %}",
 ]
 env = { CARGO_BUILD_WARNINGS = "deny" }
 

@@ -127,7 +127,8 @@ def plugins(directory: Path, settings: dict, tag: str, targets: list[str], profi
             if source.suffix != f".{extension}" or not source.is_file() or source.is_symlink():
                 raise policy.ToolError(f"missing regular shipped plugin bundle: {relative}")
             suffix = ".zip" if target == "any" or target.startswith("windows-") else ".tar.gz"
-            name = f"{settings['product']}-{kind}s-{tag[1:]}" + ("" if target == "any" else f"-{abi}") + suffix
+            family = "plugins" if kind == "sidecar" else "guests"
+            name = f"{settings['product']}-{family}-{tag[1:]}" + ("" if target == "any" else f"-{abi}") + suffix
             result.append(
                 {
                     "package": package,
@@ -208,6 +209,9 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
     product = settings["product"]
     lowered = name.lower()
     format_ = next((suffix for suffix in ("tar.gz", "exe", "zip", "deb", "rpm", "whl", "md", "json") if lowered.endswith("." + suffix)), "")
+    for family in ("compliance", "proto", "reports"):
+        if name.startswith(f"{product}-{family}-") and format_ == "zip":
+            return {"kind": family, "os": "any", "arch": "any", "format": "zip"}
     if name.endswith(".cdx.json"):
         os_name, arch = _platform(name.removesuffix(".cdx.json"))
         return {"kind": "sbom", "os": os_name, "arch": arch, "format": "json"}
@@ -228,7 +232,7 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
         return {"kind": "installer", "os": os_name, "arch": arch, "format": "exe"}
     if name.startswith(f"{product}-distribution-") and format_ == "zip":
         return {"kind": "payload", "os": os_name, "arch": arch, "format": "zip"}
-    if re.match(rf"{re.escape(product)}-(?:sidecars|guests)-", name) and format_ in {"zip", "tar.gz"}:
+    if re.match(rf"{re.escape(product)}-(?:plugins|guests)-", name) and format_ in {"zip", "tar.gz"}:
         return {"kind": "plugin", "os": os_name, "arch": arch, "format": format_}
     for executable, kind in sorted(executables.items(), key=lambda item: -len(item[0])):
         if name.startswith(f"{executable}-") and format_ in {"zip", "tar.gz"}:

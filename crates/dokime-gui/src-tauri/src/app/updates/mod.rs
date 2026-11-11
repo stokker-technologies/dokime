@@ -165,7 +165,7 @@ impl UpdateState {
                 candidate: None,
             });
         }
-        let manifest = sources::resolve(&policy, "latest.json").await?;
+        let manifest = sources::resolve(&policy, "release.json").await?;
         let updater = app
             .updater_builder()
             .endpoints(vec![manifest])

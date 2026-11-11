@@ -127,8 +127,10 @@ impl Release {
         if names.is_empty() {
             return Ok(Vec::new());
         }
-        let bytes = self.download("plugins.json", METADATA_MAX_BYTES).await?;
-        let feed = Feed::parse(&bytes).map_err(Error::Invalid)?;
+        let bytes = self.download("release.json", METADATA_MAX_BYTES).await?;
+        let release: serde_json::Value = serde_json::from_slice(&bytes)?;
+        let section = release.get("plugins").ok_or_else(|| Error::Invalid("Release index has no plugins section".into()))?;
+        let feed = Feed::parse(&serde_json::to_vec(section)?).map_err(Error::Invalid)?;
         let mut selected = BTreeSet::new();
         let mut members = BTreeSet::new();
         let mut paths = Vec::new();

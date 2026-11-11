@@ -10,6 +10,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import json
 import os
 import re
 import sys
@@ -22,7 +23,7 @@ from .. import policy
 
 # Third Party Imports
 # Local Imports
-from . import layout, registry, run
+from . import layout, registry, reports, run
 
 # Type Checking Imports
 
@@ -73,6 +74,8 @@ def publish(directory: Path) -> None:
 
     files = layout.uploads(directory, staged=True)
     notes = (directory / run.ASSETS / run.SHARED / "CHANGELOG.md").read_text(encoding="utf-8")
+    summary = json.loads((directory / run.ASSETS / run.SHARED / "reports.json").read_text(encoding="utf-8"))
+    notes += "\n<!-- nightly-results -->\n" + reports.table(summary, {}, url) + "\n<!-- /nightly-results -->\n"
     if github:
         _github(directory, settings, files, sha, identifier, notes)
     else:

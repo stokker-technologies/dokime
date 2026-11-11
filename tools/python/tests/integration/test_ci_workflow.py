@@ -51,6 +51,37 @@ class WorkflowTests(unittest.TestCase):
                     self.assertEqual(workflow.main(["release-mode"]), 0)
                     self.assertEqual(output.read_text(encoding="utf-8"), f"mode={mode}\nsha={sha}\n")
 
+    def test_nightly_report_replaces_only_its_publication_results(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            release = {"body": "| CI Run | [7](https://example.test/run) |\n"}
+            environment = {
+                "GITHUB_RUN_ID": "7",
+                "GITHUB_REPOSITORY": "example/dokime",
+                "RUN_URL": "https://example.test/run",
+                "NEEDS": json.dumps({"bench": {"result": "failure"}}),
+            }
+
+            def edit(command, **_):
+                release["body"] = Path(command[-1]).read_text(encoding="utf-8")
+
+            with (
+                patch.dict(os.environ, environment, clear=True),
+                patch.object(workflow.policy, "root", return_value=root),
+                patch.object(workflow.transport, "receive"),
+                patch.object(workflow.transport, "send"),
+                patch("dokime_tools.ci.review.request", return_value=release),
+                patch.object(workflow.subprocess, "run", side_effect=edit) as publish,
+            ):
+                workflow.main(["nightly-report"])
+                workflow.main(["nightly-report"])
+                self.assertEqual(release["body"].count("<!-- nightly-results -->"), 1)
+                self.assertEqual(publish.call_count, 2)
+                release["body"] = "| CI Run | [8](https://example.test/later) |\n"
+                with self.assertRaises(ValueError):
+                    workflow.main(["nightly-report"])
+                self.assertEqual(publish.call_count, 2)
+
     def test_required_rejects_failed_cancelled_and_unexpected_skips(self):
         for result in ("failure", "cancelled", "skipped"):
             environment = {"RESULTS": json.dumps({"test": {"result": result}})}

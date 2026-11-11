@@ -312,7 +312,7 @@ Release staging reads `NOTICE` and `THIRD-PARTY-NOTICES` from each target's
 Package jobs already include these ZIPs in their Rust artifacts. Staging requires
 byte-identical notices across targets and fails with the artifact path if a copy
 is missing or differs. Both Nightly and stable publication reuse these bytes for
-the shared notice downloads and CLI and sidecar archives; publication does not
+the shared notice downloads and CLI and plugin archives; publication does not
 regenerate notices or require GUI `node_modules` for them.
 
 Release tooling shares the notice download helper for all HTTP requests, including
@@ -339,3 +339,26 @@ No generated notices are tracked in the source root.
 Git-cliff reads `tools/config/cliff.toml` for version selection and per-release
 notes. Release rehearsal consumes staged build/package artifacts; inspect its
 credential-free options with `mise run release:rehearse -- --help`.
+
+Release staging publishes `release.json` (root updater fields, `downloads` and
+`plugins`), `dokime-proto-<version>.zip` from the packaged CLI’s protocol export,
+and `dokime-compliance-<version>.zip` with notices and all bills of materials.
+The changelog is staged for the release body and omitted from upload.json.
+`SHA256SUMS` includes the index; the download section omits the index and checksums
+to prevent a digest cycle. Signed packaging’s internal `latest.json` is consumed
+only as a staging input and never attached to the release.
+
+Nightly downloads `results-*` artifacts into separate folders under
+`target/nightly-reports/`. Benchmark tasks preserve normalized measurements and
+pre-refresh baselines in `target/benchmarks/benchmarks-<language>-<layer>.json`.
+The integration layer includes every matching binary, including
+`integration-plots`. Publication waits for benchmark and coverage jobs to settle,
+but requires success only from package jobs. Staging bundles available raw reports
+and summaries, and publishes fixed-name `benchmarks.json`; missing reports remain
+visible through suite failures. The final report replaces its marked notes section
+idempotently and refuses to update notes belonging to another run.
+
+For focused consumer lint use
+`mise run check -- --language rust --package dokime-packaging` (or `dokime-gui`).
+Clippy remains owned by the lint task. Full Linux/Windows release rehearsal and
+live Nightly validation require hosted artifacts and publication authorization.

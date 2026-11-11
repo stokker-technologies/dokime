@@ -77,7 +77,7 @@ async fn verified_release_cache() {
     archive.start_file("unrequested.dokime", zip::write::SimpleFileOptions::default()).unwrap();
     archive.write_all(b"must not be extracted").unwrap();
     let archive = archive.finish().unwrap().into_inner();
-    let archive_name = format!("dokime-sidecars-1.2.3-{target}.zip");
+    let archive_name = format!("dokime-plugins-1.2.3-{target}.zip");
     let feed = serde_json::to_vec(&serde_json::json!({"format_version":2,"plugins":[{
         "name":"plugin-host", "kind":"sidecar", "version":"1.2.3", "requires_dokime":"^0.1",
         "targets":{target:{"archive":archive_name,"member":"plugin-host.dokime","sha256":distribution::digest(bundle.bytes())}}
@@ -88,9 +88,15 @@ async fn verified_release_cache() {
     distribution_zip.write_all(b"distribution metadata").unwrap();
     let distribution_zip = distribution_zip.finish().unwrap().into_inner();
     let distribution_name = format!("dokime-distribution-1.2.3-{target}.zip");
-    let mut contents: BTreeMap<String, Vec<u8>> =
-        [("plugins.json".into(), feed.clone()), (archive_name.clone(), archive.clone()), (distribution_name.clone(), distribution_zip)]
-            .into();
+    let mut contents: BTreeMap<String, Vec<u8>> = [
+        (
+            "release.json".into(),
+            serde_json::to_vec(&serde_json::json!({"plugins": serde_json::from_slice::<serde_json::Value>(&feed).unwrap()})).unwrap(),
+        ),
+        (archive_name.clone(), archive.clone()),
+        (distribution_name.clone(), distribution_zip),
+    ]
+    .into();
     let sums = contents.iter().map(|(name, bytes)| format!("{}  {name}\n", distribution::digest(bytes))).collect::<String>();
     contents.insert("SHA256SUMS".into(), sums.into_bytes());
 

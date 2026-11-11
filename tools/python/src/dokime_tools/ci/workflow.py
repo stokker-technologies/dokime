@@ -122,17 +122,18 @@ def main(arguments: list[str] | None = None) -> int:
         from .review import request
 
         results = json.loads(os.environ["NEEDS"])
-        failed = [name for name, job in results.items() if name != "publish" and job["result"] != "success"]
-        status = "failed: " + ", ".join(failed) if failed else "passed"
-        line = f"**Suite:** {status} ([run]({os.environ['RUN_URL']}))"
+        from ..release import reports
+
+        summary, _ = reports.collect(policy.root())
+        line = reports.table(summary, results, os.environ["RUN_URL"])
         release = request("releases/tags/nightly")
         # A Later Publication Must Never Receive This Run's Result.
         if f"[{os.environ['GITHUB_RUN_ID']}]" not in release["body"]:
             raise ValueError("nightly notes belong to another run")
-        notes = "\n".join(row for row in release["body"].splitlines() if not row.startswith("**Suite:**"))
+        notes = re.sub(r"\n<!-- nightly-results -->.*?<!-- /nightly-results -->\n?", "", release["body"], flags=re.DOTALL)
         with tempfile.TemporaryDirectory(prefix="dokime-nightly-notes-") as temporary:
             path = Path(temporary) / "notes.md"
-            path.write_text(notes + "\n\n" + line + "\n", encoding="utf-8")
+            path.write_text(notes + "\n<!-- nightly-results -->\n" + line + "\n<!-- /nightly-results -->\n", encoding="utf-8")
             subprocess.run(
                 ["gh", "release", "edit", "nightly", "--repo", os.environ["GITHUB_REPOSITORY"], "--notes-file", str(path)],
                 check=True,

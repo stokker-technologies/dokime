@@ -35,52 +35,63 @@ although this Cargo subcommand is distributed through release assets and mise.
 
 Release downloads include native installers, CLI and authoring-tool archives,
 `dokime-distribution-<version>-<Rust-target>.zip` distributor inputs and
-`dokime-sidecars-<version>-<Rust-target>.zip` (Windows) or `.tar.gz` (Unix).
-Each sidecars archive contains every shipping native plugin as an unversioned
-`.dokime` member. `plugins.json` format 2 maps plugin names and targets to archives,
-members and member SHA-256 hashes. Future target-independent guests use
-`dokime-guests-<version>.zip`; guest execution is not currently admitted.
-`latest.json` is the signed desktop updater feed. CHANGELOG and SHA256SUMS also
-ship; archive and feed digests are in SHA256SUMS. Standalone `.sig` files are not
-downloads. The `nightly` prerelease uses the same asset names and workspace version,
-omits unsigned `latest.json`, and identifies its source commit in release notes.
+`dokime-plugins-<version>-<Rust-target>.zip` (Windows) or `.tar.gz` (Unix).
+Each plugins archive contains shipping native plugins as unversioned `.dokime`
+members. Native Python wheels and `cargo-dokime` archives remain downloads until
+replaced by their owning SDK and CLI changes.
 
-`downloads.json` describes every other asset of the same release for download
-pages and scripts; `latest.json` stays the updater's own feed and lists only
-updatable installers. The release tooling generates it from the staged upload
-inventory and SHA256SUMS, and every release and the `nightly` prerelease publish
-it beside `latest.json`, at `/releases/latest/download/downloads.json` for the
-latest release. `channel` is `stable` or `nightly` and `tag` is the release tag
-(`v0.1.2` or `nightly`) under which each `url` downloads. Each artifact has a
-`kind` (`installer`, `payload`, `cli`, `cargo-dokime`, `sdk-python`, `plugin`,
-`checksums`, `changelog` or `other`), `os` (`windows`, `linux` or `any`), `arch`
-(`x86_64` or `any`) and `format` (`exe`, `zip`, `deb`, `rpm`, `tar.gz`, `whl`,
-`txt`, `md` or the extension of an `other` asset). `sha256` repeats the
-SHA256SUMS digest; SHA256SUMS remains the integrity source and does not list
-`downloads.json` itself. Select assets by these fields, never by name patterns:
+`dokime-proto-<version>.zip` contains the `dokime/v1/` and `harmos/v1/` definitions
+written by `dokime proto export`. `dokime-compliance-<version>.zip` contains
+`NOTICE` and `THIRD-PARTY-NOTICES` at its root, artifact bills of materials under
+`artifacts/`, and source inventories under `crates/<platform>/` (`any` for the
+frontend inventory). No bills of materials or notices are attached individually.
+The changelog is the release body. Standalone `.sig` files are not downloads.
+
+`release.json` is the single release index, available at
+`/releases/latest/download/release.json` for stable releases and
+`/releases/download/nightly/release.json` for Nightly. The desktop updater reads
+its root `version`, `notes`, `pub_date` and `platforms` fields using Tauri’s native
+manifest parser; unsigned Nightlies have an empty `platforms` map. The `plugins`
+section is a format 2 feed mapping plugin names and targets to archive names,
+members and member SHA-256 hashes. The `downloads` section classifies every
+payload by `kind`, `os`, `arch` and `format` and includes its URL, size and digest.
+Select downloads by these fields rather than matching asset names.
 
 ```json
 {
-  "version": "0.1.2",
-  "channel": "stable",
-  "tag": "v0.1.2",
+  "version": "0.1.3",
+  "notes": "Release notes",
   "pub_date": "2026-11-08T12:00:00Z",
-  "artifacts": [
-    {
-      "kind": "installer",
-      "os": "linux",
-      "arch": "x86_64",
-      "format": "deb",
-      "name": "dokime_0.1.2_amd64.deb",
-      "url": "https://github.com/stokker-technologies/dokime/releases/download/v0.1.2/dokime_0.1.2_amd64.deb",
-      "size": 48213504,
-      "sha256": "<digest>"
-    }
-  ]
+  "platforms": {},
+  "plugins": {"format_version": 2, "plugins": []},
+  "downloads": {
+    "version": "0.1.3",
+    "channel": "nightly",
+    "tag": "nightly",
+    "pub_date": "2026-11-08T12:00:00Z",
+    "artifacts": [{
+      "kind": "installer", "os": "linux", "arch": "x86_64", "format": "deb",
+      "name": "dokime_0.1.3_amd64.deb",
+      "url": "https://github.com/stokker-technologies/dokime/releases/download/nightly/dokime_0.1.3_amd64.deb",
+      "size": 48213504, "sha256": "<digest>"
+    }]
+  }
 }
 ```
 
-Releases up to v0.1.2 predate `downloads.json` and used older asset names.
+`SHA256SUMS` covers payloads and `release.json`. To avoid a digest cycle, neither
+`SHA256SUMS` nor the index itself appears in `downloads.artifacts`. The old three
+index files are no longer published or read. Older releases retain their original
+layout and need their matching application versions.
+
+Nightly uses the same staging and asset inventory as stable releases, adding
+`dokime-reports-<version>.zip` and fixed-name `benchmarks.json`. Reports contain raw
+benchmark and coverage output plus a summary. Each benchmark records `name`,
+`suite`, `unit`, `value`, `baseline_value` (null when first seeded), `revision` and
+`threshold_percent`. Baselines are captured before refresh. Notes summarize
+coverage per language, benchmark regressions beyond their threshold, suite
+results and the run link. Failed jobs do not block publication; unavailable
+measurements are represented by the failed suite and retained partial reports.
 
 Every build also carries its source commit and, for published builds, its
 channel. `dokime --version` and `cargo dokime --version` print, for example,
@@ -1736,7 +1747,7 @@ Set a non-empty `GITHUB_TOKEN` (or `GH_TOKEN` as a fallback) to authenticate
 GitHub API lookups and raise the unauthenticated rate limit. Credentials are sent
 only to `api.github.com`, never to release asset hosts or other redirect destinations.
 
-The tool downloads `SHA256SUMS`, the matching distribution ZIP, `plugins.json`
+The tool downloads `SHA256SUMS`, the matching distribution ZIP, `release.json`
 and the archives needed by the selected plugin names. It verifies archive and
 feed hashes against SHA256SUMS, then each requested member against the feed and
 its bundle identity before validating distribution files and plugin compatibility.
@@ -2071,8 +2082,7 @@ mode = "manual"
 source = "company"
 [updates.sources.company]
 kind = "direct"
-manifest = "https://updates.example.com/latest.json"
-plugins = "https://updates.example.com/plugins.json"
+manifest = "https://updates.example.com/release.json"
 ```
 
 GitHub sources use `kind = "github"` and `repository = "owner/repository"`.
@@ -2082,9 +2092,9 @@ release-account management or provider credential store. Changing a source
 invalidates reviewed candidates. Desktop signatures use the compiled
 verification key, which packs cannot replace.
 
-Provider sources discover `latest.json` and `plugins.json` in their latest
-release. A direct source can omit `plugins` when it offers no plugin releases.
-The plugin feed has this shape (the digest below is illustrative):
+Provider sources discover `release.json` in their latest
+release. Direct sources use the same manifest URL for desktop and plugin updates.
+The index’s `plugins` section has this shape (the digest below is illustrative):
 
 ```json
 {
@@ -2096,7 +2106,7 @@ The plugin feed has this shape (the digest below is illustrative):
     "requires_dokime": ">=0.1.3, <0.2.0",
     "targets": {
       "x86_64-pc-windows-msvc": {
-        "archive": "dokime-sidecars-0.1.3-x86_64-pc-windows-msvc.zip",
+        "archive": "dokime-plugins-0.1.3-x86_64-pc-windows-msvc.zip",
         "member": "instruments.dokime",
         "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       }
@@ -2106,8 +2116,8 @@ The plugin feed has this shape (the digest below is illustrative):
 ```
 
 Release staging generates this feed from the shipping declarations and inspected
-bundles. Publish the feed, archives and SHA256SUMS together. A direct source
-serves the archives and SHA256SUMS beside its plugins.json URL. Provider sources
+bundles. Publish the index, archives and SHA256SUMS together. A direct source
+serves the archives and SHA256SUMS beside its release.json URL. Provider sources
 resolve asset URLs from one release snapshot. Settings → Plugins lists all
 compatible plugins, verifies archive and member hashes and inspected identity,
 and installs only the explicitly selected member; the running host starts it.

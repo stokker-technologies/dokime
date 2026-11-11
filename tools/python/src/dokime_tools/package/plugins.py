@@ -99,7 +99,7 @@ def archive(root: Path, build: Path, output: Path, version: str, target: str) ->
         return None
 
     extension = ".zip" if "windows" in target else ".tar.gz"
-    destination = output / f"dokime-sidecars-{version}-{target}{extension}"
+    destination = output / f"dokime-plugins-{version}-{target}{extension}"
     output.mkdir(parents=True, exist_ok=True)
     if extension == ".zip":
         with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
