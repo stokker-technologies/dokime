@@ -10,9 +10,11 @@
 # === Imports === #
 
 # Standard Library Imports
+import io
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -237,8 +239,15 @@ class TaskSelectionTests(unittest.TestCase):
     def test_features_require_a_focused_package(self):
         # Reject Features Before Dispatching An Unfocused Task
         for operation in ("build", "test"):
-            with self.subTest(operation=operation), patch.object(tasks.cargo, "focused") as focused, self.assertRaises(SystemExit):
+            diagnostic = io.StringIO()
+            with (
+                self.subTest(operation=operation),
+                patch.object(tasks.cargo, "focused") as focused,
+                redirect_stderr(diagnostic),
+                self.assertRaises(SystemExit) as rejected,
+            ):
                 tasks.main([operation, "--features", "testing"])
+            self.assertEqual(rejected.exception.code, 2)
             focused.assert_not_called()
 
     def test_language_layer_and_tooling_selections_use_existing_leaves(self):

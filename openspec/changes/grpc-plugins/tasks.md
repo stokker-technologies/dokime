@@ -100,3 +100,10 @@
 - [x] Trim company policy while retaining project-owned tooling configuration.
 - [x] Pass formatting, repository/Python/Rust checks, Tests Build and the focused repaired tests.
 - [ ] Validate affected packaged system stories in hosted CI; no local focused packaged runner is documented. Linux proof remains hosted; no push is authorized.
+
+## PR 411 Python Integration Repair
+
+- [x] Reproduce the hosted JSON decode failure with the workflow environment and transferred Windows wheel; identify the expected `--features` rejection diagnostic.
+- [x] Supply Cargo metadata and native compiler fixtures in the archive test; verify both platform selections and transferred files without removing collector coverage.
+- [x] Capture and assert the expected unfocused `--features` rejection in the dispatcher test.
+- [x] Pass the repaired Windows Python integration lane (94 tooling and 275 SDK tests), formatting, Python check and repository check; retain the repair in a local commit without pushing. Native Linux proof remains hosted.

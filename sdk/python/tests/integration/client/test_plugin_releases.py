@@ -176,7 +176,10 @@ def test_plugin_exports_select_shipping_or_fixture_packages(tmp_path: Path, monk
     assert all(path.read_bytes() == b"packaged executable" for path in staged)
 
 
-def test_test_archive_packages_fixtures_with_its_own_compiled_collector(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("native, platform", [("linux-x86_64", "linux-x86_64"), ("windows-x86_64", "win32")])
+def test_test_archive_packages_fixtures_with_its_own_compiled_collector(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, native: str, platform: str
+) -> None:
     built = tmp_path / "tests/archive.tar.zst"
     built.parent.mkdir()
     collector = tmp_path / "target/debug/cargo-dokime"
@@ -184,8 +187,20 @@ def test_test_archive_packages_fixtures_with_its_own_compiled_collector(tmp_path
     record = json.dumps(artifact | {"executable": str(collector)})
     built.with_name("compiler.json").write_text(record, encoding="utf-8")
     prepared = []
+    stamped = []
+    packages = []
+    for name in ("protoc-bin-vendored-linux-x86_64", "protoc-bin-vendored-win32"):
+        source = tmp_path / "vendor" / name
+        (source / "bin").mkdir(parents=True)
+        (source / "include/google/protobuf").mkdir(parents=True)
+        (source / "Cargo.toml").write_text("[package]\n", encoding="utf-8")
+        (source / "bin/protoc").write_bytes(name.encode())
+        (source / "include/google/protobuf/descriptor.proto").write_bytes(b"descriptor fixture")
+        packages.append({"name": name, "version": "1.0.0", "manifest_path": str(source / "Cargo.toml")})
 
     def run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        assert command[:2] == ["cargo", "metadata"]
+        kwargs["stdout"].write(json.dumps({"packages": packages}))
         return SimpleNamespace()
 
     def prepare(root: Path, messages: Path, profile: str, *, tool: Path, output: Path, packages: tuple[str, ...]) -> list[Path]:
@@ -195,12 +210,21 @@ def test_test_archive_packages_fixtures_with_its_own_compiled_collector(tmp_path
     monkeypatch.setattr(tests, "ROOT", tmp_path)
     monkeypatch.setattr(tests.configuration, "ROOT", tmp_path)
     monkeypatch.setattr(tests.configuration, "features", lambda profile, **kwargs: [])
+    monkeypatch.setattr(tests.paths, "target", lambda: native)
     monkeypatch.setattr(tests.cargo, "archive", lambda root, profile, extra: built)
     monkeypatch.setattr(tests.subprocess, "run", run)
     monkeypatch.setattr(tests.plugins, "prepare", prepare)
-    monkeypatch.setattr(tests.archive, "stamp", lambda root, profile, names: None)
-    tests.build("dev")
+    monkeypatch.setattr(tests.archive, "stamp", lambda root, profile, names: stamped.extend(names))
+    names = tests.build("dev")
     assert prepared == [(built.with_name("compiler.json"), "dev", collector, plugins.FIXTURES)]
+    vendor = tmp_path / f"target/build/dev/{native}/fixtures/inputs/vendor"
+    copied = vendor / f"protoc-bin-vendored-{platform}-1.0.0"
+    assert sorted(path.name for path in vendor.iterdir()) == [copied.name]
+    assert (copied / "bin/protoc").read_bytes() == f"protoc-bin-vendored-{platform}".encode()
+    assert (copied / "include/google/protobuf/descriptor.proto").read_bytes() == b"descriptor fixture"
+    transferred = {path.relative_to(tmp_path).as_posix() for path in copied.rglob("*") if path.is_file()}
+    assert transferred <= set(names)
+    assert stamped == names
 
 
 # === Entry Point === #
