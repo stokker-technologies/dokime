@@ -36,14 +36,20 @@ export const useSummaryWindowStore = create<SummaryWindowStore>()((set) => ({
   windows: {},
   widths: {},
   heights: {},
-  setPanelSize: (plotId, size) => set((state) => {
-    if (state.widths[plotId] === size?.width && state.heights[plotId] === size?.height) return state;
-    const widths = { ...state.widths };
-    const heights = { ...state.heights };
-    if (size) { widths[plotId] = size.width; heights[plotId] = size.height; }
-    else { delete widths[plotId]; delete heights[plotId]; }
-    return { widths, heights };
-  }),
+  setPanelSize: (plotId, size) =>
+    set((state) => {
+      if (state.widths[plotId] === size?.width && state.heights[plotId] === size?.height) return state;
+      const widths = { ...state.widths };
+      const heights = { ...state.heights };
+      if (size) {
+        widths[plotId] = size.width;
+        heights[plotId] = size.height;
+      } else {
+        delete widths[plotId];
+        delete heights[plotId];
+      }
+      return { widths, heights };
+    }),
   setPanelWidth: (plotId, width) =>
     set((state) => {
       if (state.widths[plotId] === width || (width === null && state.widths[plotId] === undefined)) return state;

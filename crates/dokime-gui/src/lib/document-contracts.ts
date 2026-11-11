@@ -169,6 +169,10 @@ export type Metadata = {
 export type PlotAxisKind = { kind: "wall_time" } | { kind: "elapsed"; unit: string };
 
 export type PlotDefinition = {
+  arrangement?: "grouped" | "stacked" | null;
+  pareto?: boolean;
+  hole?: number | null;
+  xy_interval?: "sigma" | null;
   reduction?: "mean" | "min" | "max" | null;
   render?: "cells" | "bands";
   grid?: import("./types/plot").GridDefinition | null;
@@ -213,6 +217,10 @@ export type PlotDescriptor = {
 };
 
 export type PlotInput = {
+  arrangement?: "grouped" | "stacked" | null;
+  pareto?: boolean;
+  hole?: number | null;
+  xy_interval?: "sigma" | null;
   reduction?: "mean" | "min" | "max" | null;
   render?: "cells" | "bands";
   grid?: import("./types/plot").GridDefinition | null;
@@ -255,23 +263,7 @@ export type PlotStyle = "line" | "points" | "line_points" | "step";
 
 export type DownsampleTechnique = "lttb" | "min_max" | "raw";
 
-export type PlotType =
-  | "time_series"
-  | "bar"
-  | "grouped_bar"
-  | "stacked_bar"
-  | "pie"
-  | "donut"
-  | "pareto"
-  | "xy"
-  | "xy_interval"
-  | "trajectory"
-  | "contour"
-  | "grid_chart"
-  | "frequency_series"
-  | "histogram"
-  | "box_summary"
-  | "aggregate_table";
+export type PlotType = import("./types/plot").DocumentPlotType;
 
 export type RecordScope = {
   session_id?: SessionId | null;

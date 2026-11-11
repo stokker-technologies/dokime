@@ -32,9 +32,9 @@ type BoxSummaryBucket = {
 
 /* === Components === */
 
-export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
+export function BoxPlot({ plot }: { plot: PlotCardSpec }) {
   const buckets = plotBoxSummaryBuckets(plot);
-  const totalSamples = plot.analysis?.kind === "box_summary" ? plot.analysis.total : 0;
+  const totalSamples = plot.analysis?.kind === "box_plot" ? plot.analysis.total : 0;
   const values = buckets
     .flatMap((bucket) => [bucket.minimum, bucket.q1, bucket.median, bucket.q3, bucket.maximum, ...bucket.outliers])
     .filter(isNumber);
@@ -124,7 +124,7 @@ function formatValue(value: number | null | undefined, unit: string): string {
 }
 
 function plotBoxSummaryBuckets(plot: PlotCardSpec): BoxSummaryBucket[] {
-  if (plot.analysis?.kind !== "box_summary") return [];
+  if (plot.analysis?.kind !== "box_plot") return [];
 
   return plot.analysis.series
     .map((summary) => ({

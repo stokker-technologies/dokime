@@ -101,6 +101,10 @@ export type PlotPayloadRequestInput = {
   filters?: DocumentViewPlot["filters"];
   xKey?: string | null;
   plotType?: DocumentPlotType | null;
+  arrangement?: "grouped" | "stacked" | null;
+  pareto?: boolean;
+  hole?: number | null;
+  xyInterval?: "sigma" | null;
   reduction?: "mean" | "min" | "max" | null;
   render?: "cells" | "bands";
   grid?: DocumentViewPlot["grid"];
@@ -168,27 +172,41 @@ export type NativePlotWatchOptions = NativePlotReadOptions;
 export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest {
   const nativeScope = nativeEvidenceScope(input.scope);
   return create(PlotRequestSchema, {
+    arrangement: input.arrangement
+      ? { HarmosVariant: { case: input.arrangement === "grouped" ? "Grouped" : "Stacked", value: {} } }
+      : undefined,
+    pareto: input.pareto ?? false,
+    hole: input.hole ?? undefined,
+    xyInterval: input.xyInterval ? { HarmosVariant: { case: "Sigma", value: {} } } : undefined,
     render: { HarmosVariant: { case: input.render === "bands" ? "Bands" : "Cells", value: {} } },
-    reduction: input.reduction ? { HarmosVariant: { case: ({mean: "Mean", min: "Min", max: "Max"} as const)[input.reduction], value: {} } } : undefined,
-    grid: input.grid ? {
-      row: input.grid.row ? dataExpression(input.grid.row) : undefined,
-      column: input.grid.column ? dataExpression(input.grid.column) : undefined,
-      frame: input.grid.frame ? dataExpression(input.grid.frame) : undefined,
-      rows: input.grid.rows.map((entry) => ({ ...entry, group: entry.group ?? undefined })),
-      columns: input.grid.columns.map((entry) => ({ ...entry, group: entry.group ?? undefined })),
-      highlights: input.grid.highlights.map((highlight) => ({ row: dataExpression(highlight.row), column: dataExpression(highlight.column), label: highlight.label })),
-      summaryLabel: input.grid.summary_label,
-    } : undefined,
+    reduction: input.reduction
+      ? { HarmosVariant: { case: ({ mean: "Mean", min: "Min", max: "Max" } as const)[input.reduction], value: {} } }
+      : undefined,
+    grid: input.grid
+      ? {
+          row: input.grid.row ? dataExpression(input.grid.row) : undefined,
+          column: input.grid.column ? dataExpression(input.grid.column) : undefined,
+          frame: input.grid.frame ? dataExpression(input.grid.frame) : undefined,
+          rows: input.grid.rows.map((entry) => ({ ...entry, group: entry.group ?? undefined })),
+          columns: input.grid.columns.map((entry) => ({ ...entry, group: entry.group ?? undefined })),
+          highlights: input.grid.highlights.map((highlight) => ({
+            row: dataExpression(highlight.row),
+            column: dataExpression(highlight.column),
+            label: highlight.label,
+          })),
+          summaryLabel: input.grid.summary_label,
+        }
+      : undefined,
     panelHeight: input.panelHeight,
     yViewport: input.yViewport,
 
     ...(input.plotId == null ? {} : { plotId: input.plotId }),
     analysis: input.analysis
-      ? ( {
+      ? {
           id: input.analysis.id,
           version: input.analysis.version,
           parameters: jsonToNativeValue(input.analysis.parameters),
-        })
+        }
       : undefined,
     plotType: plotType(input.plotType),
     style: {
@@ -203,7 +221,7 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     ...(input.fft == null
       ? {}
       : {
-          fft: ( {
+          fft: {
             sampleRateHz: input.fft.sample_rate_hz ?? undefined,
             window:
               input.fft.window === "rectangular"
@@ -222,24 +240,24 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
             includeDc: input.fft.include_dc,
             minFrequencyHz: input.fft.min_frequency_hz ?? undefined,
             maxFrequencyHz: input.fft.max_frequency_hz ?? undefined,
-          }),
+          },
         }),
     ...(input.interval == null
       ? {}
       : {
-          interval: ( {
+          interval: {
             binWidth: input.interval.bin_width,
             sigma: input.interval.sigma,
             clipToObserved: input.interval.clip_to_observed,
-          }),
+          },
         }),
     ...(input.histogram == null
       ? {}
       : {
-          histogram: ( {
+          histogram: {
             bins: boundedUint64(input.histogram.bins, "histogram bins"),
             unit: input.histogram.unit ?? undefined,
-          }),
+          },
         }),
     stream: requiredText(input.stream, "plot stream"),
     yKeys: input.yKeys,
@@ -255,8 +273,8 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     ...(input.unit == null ? {} : { unit: input.unit }),
     ...(input.maxPoints == null ? {} : { maxPoints: boundedPlotPoints(input.maxPoints) }),
     ...(input.windowS == null ? {} : { windowS: boundedWindow(input.windowS) }),
-    ...(input.summaryWindow == null ? {} : { summaryWindow: ( summaryWindow(input.summaryWindow)) }),
-    ...(input.viewport == null ? {} : { viewport: ( summaryWindow(input.viewport)) }),
+    ...(input.summaryWindow == null ? {} : { summaryWindow: summaryWindow(input.summaryWindow) }),
+    ...(input.viewport == null ? {} : { viewport: summaryWindow(input.viewport) }),
     ...(input.panelWidth == null ? {} : { panelWidth: boundedPanelWidth(input.panelWidth) }),
     ...(nativeScope ? { scope: nativeScope } : {}),
     technique: downsampleTechnique(input.technique),
@@ -485,7 +503,7 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
   if (transforms.length > MAX_PLOT_TRANSFORMS) {
     throw new NativeApiLimitError("Plots expression", `more than ${MAX_PLOT_TRANSFORMS} transforms`);
   }
-  return ( { source: { HarmosVariant: wireSource }, transforms });
+  return { source: { HarmosVariant: wireSource }, transforms };
 }
 
 function dataTransform(value: unknown): DataTransform {
@@ -493,7 +511,7 @@ function dataTransform(value: unknown): DataTransform {
   const kind = requiredText(input.type, "data transform type");
   switch (kind) {
     case "aggregate":
-      return ( {
+      return {
         kind: {
           HarmosVariant: {
             case: "Aggregate",
@@ -502,9 +520,9 @@ function dataTransform(value: unknown): DataTransform {
             },
           },
         },
-      });
+      };
     case "time_between":
-      return ( {
+      return {
         kind: {
           HarmosVariant: {
             case: "TimeBetween",
@@ -515,18 +533,18 @@ function dataTransform(value: unknown): DataTransform {
             },
           },
         },
-      });
+      };
     default:
       throw new Error(`Unsupported data transform: ${kind}`);
   }
 }
 
 function plotFilter(value: NonNullable<DocumentViewPlot["filters"]>[number]): PlotRequest["filters"][number] {
-  return ( {
+  return {
     expression: dataExpression(value.expression),
     operator: filterOperator(value.operator),
     ...(value.value === undefined ? {} : { value: jsonToNativeValue(value.value) }),
-  });
+  };
 }
 
 function plotType(value?: DocumentPlotType | null): PlotType {
@@ -540,18 +558,20 @@ function plotType(value?: DocumentPlotType | null): PlotType {
       return { HarmosVariant: { case: "Bar" as const, value: {} } };
     case "xy":
       return { HarmosVariant: { case: "Xy" as const, value: {} } };
-    case "xy_interval":
-      return { HarmosVariant: { case: "XyInterval" as const, value: {} } };
     case "trajectory":
       return { HarmosVariant: { case: "Trajectory" as const, value: {} } };
-    case "contour": return { HarmosVariant: { case: "Contour", value: {} } };
-    case "grid_chart": return { HarmosVariant: { case: "GridChart", value: {} } };
+    case "contour":
+      return { HarmosVariant: { case: "Contour", value: {} } };
+    case "grid_chart":
+      return { HarmosVariant: { case: "GridChart", value: {} } };
     case "frequency_series":
       return { HarmosVariant: { case: "FrequencySeries" as const, value: {} } };
     case "histogram":
       return { HarmosVariant: { case: "Histogram" as const, value: {} } };
-    case "box_summary":
-      return { HarmosVariant: { case: "BoxSummary" as const, value: {} } };
+    case "box_plot":
+      return { HarmosVariant: { case: "BoxPlot" as const, value: {} } };
+    case "pie":
+      return { HarmosVariant: { case: "Pie" as const, value: {} } };
     default:
       throw new Error(`Unsupported document plot type: ${String(value)}`);
   }
@@ -690,10 +710,10 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
           })),
         })),
       };
-    case "BoxSummary":
+    case "BoxPlot":
       if (!result.value.field0) throw new Error("Native plot analysis is missing its result.");
       return {
-        kind: "box_summary",
+        kind: "box_plot",
         series: result.value.field0.series.map((series) => ({
           key: series.key,
           label: series.label,
@@ -727,14 +747,34 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
       };
     case "Contour": {
       const grid = result.value.field0;
-      return { kind: "contour", grid: { columns: grid.columns, rows: grid.rows, x_edges: grid.xEdges, y_edges: grid.yEdges, values: grid.values, valid: grid.valid } };
+      return {
+        kind: "contour",
+        grid: {
+          columns: grid.columns,
+          rows: grid.rows,
+          x_edges: grid.xEdges,
+          y_edges: grid.yEdges,
+          values: grid.values,
+          valid: grid.valid,
+        },
+      };
     }
     case "GridChart": {
       const data = result.value.field0;
-      return { kind: "grid_chart", data: {
-        rows: data.rows.map((entry) => ({...entry})), columns: data.columns.map((entry) => ({...entry})), summary_label: data.summaryLabel,
-        frames: data.frames.map((frame) => ({instant: frame.instant, values: frame.values, valid: frame.valid, highlights: frame.highlights.map((cell) => ({...cell}))})),
-      } };
+      return {
+        kind: "grid_chart",
+        data: {
+          rows: data.rows.map((entry) => ({ ...entry })),
+          columns: data.columns.map((entry) => ({ ...entry })),
+          summary_label: data.summaryLabel,
+          frames: data.frames.map((frame) => ({
+            instant: frame.instant,
+            values: frame.values,
+            valid: frame.valid,
+            highlights: frame.highlights.map((cell) => ({ ...cell })),
+          })),
+        },
+      };
     }
   }
 }

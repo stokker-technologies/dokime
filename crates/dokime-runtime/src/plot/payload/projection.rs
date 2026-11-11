@@ -88,7 +88,8 @@ fn plain_series(samples: &[&TelemetrySample], telemetry: &[TelemetrySample], req
     }
 
     for expression in expressions {
-        let selected = samples.iter().filter(|sample| super::expression_numeric_value(sample, expression).is_some());
+        let strict = request.plot_type == Some(crate::document::PlotType::Pie) || request.pareto;
+        let selected = samples.iter().filter(|sample| strict || super::expression_numeric_value(sample, expression).is_some());
         let mut points = vector(selected.clone().count())?;
         for sample in selected {
             let x = super::expression_x_input(sample, request.x_expression.as_ref(), x_key);

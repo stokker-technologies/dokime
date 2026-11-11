@@ -328,6 +328,14 @@ pub struct Filter {
 #[serde(deny_unknown_fields)]
 pub(super) struct Plot {
     #[serde(default)]
+    arrangement: Option<crate::document::BarArrangement>,
+    #[serde(default)]
+    pareto: bool,
+    #[serde(default)]
+    hole: Option<f64>,
+    #[serde(default)]
+    xy_interval: Option<crate::document::XyInterval>,
+    #[serde(default)]
     grid: Option<Grid>,
 
     #[serde(default)]
@@ -954,7 +962,7 @@ impl Plot {
 
     fn projection_memory(&self) -> Result<usize> {
         use harmos::MemorySize;
-        parse::<crate::document::PlotType>(&self.plot_type, "invalid plot type")?;
+        parse_plot_type(&self.plot_type)?;
         parse::<crate::document::PlotStyle>(&self.style, "invalid plot style")?;
         parse::<crate::document::AxisScale>(&self.x_scale, "invalid axis scale")?;
         parse::<crate::document::AxisScale>(&self.y_scale, "invalid axis scale")?;
@@ -1097,6 +1105,7 @@ impl TryFrom<&crate::document::PlotDefinition> for Plot {
             metadata: Some(metadata::Row::try_from(&value.metadata)?),
             plot_type: name(&value.plot_type),
             grid: value.grid.as_ref().map(Grid::try_from).transpose()?,
+            arrangement: value.arrangement, pareto: value.pareto, hole: value.hole, xy_interval: value.xy_interval,
             reduction: value.reduction,
             render: value.render,
             stream: value.stream.as_deref().map(str::to_owned),
@@ -1165,10 +1174,11 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
         Ok(Self {
             automatic_id: false,
             grid: row.grid.map(TryInto::try_into).transpose()?,
+            arrangement: row.arrangement, pareto: row.pareto, hole: row.hole, xy_interval: row.xy_interval,
             reduction: row.reduction,
             render: row.render,
             metadata: row.metadata.ok_or(Error::Invalid("plot metadata is missing"))?.try_into()?,
-            plot_type: parse(&row.plot_type, "invalid plot type")?,
+            plot_type: parse_plot_type(&row.plot_type)?,
             stream: row.stream,
             x: row.x,
             y: row.y,
@@ -2508,6 +2518,10 @@ fn name<T: serde::Serialize>(value: &T) -> String {
         Ok(serde_json::Value::String(name)) => name,
         _ => unreachable!("document enums serialize as plain strings"),
     }
+}
+
+fn parse_plot_type(value: &str) -> Result<crate::document::PlotType> {
+    crate::document::PlotType::try_from(value.to_owned()).map_err(|message| Error::Json(<serde_json::Error as serde::de::Error>::custom(message)))
 }
 
 fn parse<T: serde::de::DeserializeOwned>(value: &str, invalid: &'static str) -> Result<T> {

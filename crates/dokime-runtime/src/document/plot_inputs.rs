@@ -54,6 +54,11 @@ pub fn plot_input_for_definition(
     let stream = plot.stream.as_ref().map(|stream| resolved_plot_stream(stream, &available_streams));
 
     PlotInput {
+        arrangement: plot.arrangement,
+        pareto: plot.pareto,
+        hole: plot.hole,
+        xy_interval: plot.xy_interval,
+
         grid: plot.grid.clone(),
         reduction: plot.reduction,
         render: plot.render,

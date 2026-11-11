@@ -265,6 +265,11 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime::domain::mod
     let y_keys = request.y_keys.to_vec();
     let marker_record_types = request.marker_record_types.to_vec();
     Ok(dokime::domain::model::plots::wire::PlotRequest {
+        arrangement: request.arrangement,
+        pareto: request.pareto,
+        hole: request.hole,
+        xy_interval: request.xy_interval,
+
         grid: request.grid.as_ref().map(grid_definition_wire).transpose()?,
         reduction: request.reduction,
         render: request.render,
@@ -542,7 +547,7 @@ fn plot_analysis(value: dokime::runtime::query::PlotAnalysis) -> Result<dokime::
                 })
             })?,
         }),
-        PlotAnalysis::BoxSummary { series, total } => Analysis::BoxSummary(wire::PlotBoxSummaryAnalysis {
+        PlotAnalysis::BoxPlot { series, total } => Analysis::BoxPlot(wire::PlotBoxSummaryAnalysis {
             total: count(total)?,
             series: mapped(series, |series| {
                 Ok(wire::PlotBoxSummary {

@@ -122,6 +122,10 @@ function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBin
             parameters: serializedValueObjectToJson(input.analysis.parameters),
           }
         : null,
+      arrangement: input.arrangement,
+      pareto: input.pareto,
+      hole: input.hole,
+      xy_interval: input.xy_interval,
       reduction: input.reduction,
       render: input.render,
       grid: input.grid,
@@ -186,20 +190,21 @@ function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBin
 }
 
 function mapPlotType(value: string): DocumentPlotType {
-  if (value === "frequency") return "frequency_series";
   if (
-    value === "time_series" ||
-    value === "bar" ||
-    value === "xy" ||
-    value === "xy_interval" ||
-    value === "trajectory" ||
-    value === "contour" ||
-    value === "grid_chart" ||
-    value === "frequency_series" ||
-    value === "histogram" ||
-    value === "box_summary"
-  ) {
-    return value;
-  }
-  throw new Error(`Unsupported document plot type: ${value}`);
+    ["time_series", "frequency_series", "xy", "trajectory", "contour", "grid_chart", "bar", "pie", "histogram", "box_plot"].includes(value)
+  )
+    return value as DocumentPlotType;
+  const replacement: Record<string, string> = {
+    grouped_bar: "BAR with arrangement=grouped",
+    stacked_bar: "BAR with arrangement=stacked",
+    pareto: "BAR with pareto=true",
+    donut: "PIE with hole=0.5",
+    xy_interval: "XY with interval=sigma",
+    heatmap: "CONTOUR",
+    xy_value_heatmap: "CONTOUR",
+    wifi_channel_occupancy: "GRID_CHART",
+    box_summary: "BOX_PLOT",
+    aggregate_table: "a document Summary card",
+  };
+  throw new Error(replacement[value] ? `${value.toUpperCase()}: use ${replacement[value]}` : `Unsupported document plot type: ${value}`);
 }

@@ -14,7 +14,7 @@ pub(crate) mod builtins;
 mod cartesian;
 mod contour;
 #[cfg(feature = "storage")]
-mod grid;
+pub(super) mod grid;
 mod groups;
 
 #[cfg(feature = "storage")]
@@ -29,6 +29,7 @@ mod retained;
 #[cfg(feature = "storage")]
 pub(crate) mod spilled;
 mod types;
+mod totals;
 
 /* === Re-Exports === */
 
@@ -251,6 +252,11 @@ pub fn declared_plot_request(
     descriptor: &PlotDescriptor, scope: Option<RecordScope>, max_points: Option<usize>, window_s: Option<f64>,
 ) -> PlotPayloadRequest {
     PlotPayloadRequest {
+        arrangement: descriptor.input.arrangement,
+        pareto: descriptor.input.pareto,
+        hole: descriptor.input.hole,
+        xy_interval: descriptor.input.xy_interval,
+
         grid: descriptor.input.grid.clone(),
         reduction: descriptor.input.reduction,
         render: descriptor.input.render,

@@ -106,7 +106,9 @@ export function useLivePlotPayloads({
     () => JSON.stringify(Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, summaryWindows[plot.plot_id]]))),
     [requestPlots, summaryWindows],
   );
-  const widthKey = JSON.stringify(Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, [panelWidths[plot.plot_id], panelHeights[plot.plot_id]]])));
+  const widthKey = JSON.stringify(
+    Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, [panelWidths[plot.plot_id], panelHeights[plot.plot_id]]])),
+  );
   const requestedWidths = useMemo(() => JSON.parse(widthKey) as Record<string, [number | null, number | null] | undefined>, [widthKey]);
   const requestedSummaryWindows = useMemo(() => JSON.parse(summaryKey) as Record<string, SummaryWindow | undefined>, [summaryKey]);
   const requestDataKey = automatic ? dataKey : `${requestPlots.map(documentPlotRequestKey).join(";")}|${scopeWindowKey}`;
@@ -450,6 +452,10 @@ export function plotRequestForDocumentPlot(
     filters: plot.filters ?? [],
     xKey: plot.x ?? undefined,
     plotType: plot.plot_type,
+    arrangement: plot.arrangement,
+    pareto: plot.pareto,
+    hole: plot.hole,
+    xyInterval: plot.xy_interval,
     reduction: plot.reduction,
     render: plot.render,
     grid: plot.grid,

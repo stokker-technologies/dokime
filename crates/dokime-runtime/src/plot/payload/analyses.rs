@@ -102,7 +102,7 @@ pub enum PlotAnalysis {
     Contour { grid: dokime_domain::model::plots::wire::ContourGrid },
     Error { message: String },
     Histogram { series: Vec<HistogramSeries> },
-    BoxSummary { series: Vec<BoxSummary>, total: usize },
+    BoxPlot { series: Vec<BoxSummary>, total: usize },
     SigmaInterval { series: Vec<SigmaSeries> },
 }
 
@@ -142,12 +142,12 @@ pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -
                 series: series.iter().map(|entry| histogram(entry, request.histogram.bins)).collect(),
             })
         }
-        PlotType::BoxSummary => {
+        PlotType::BoxPlot => {
             let boxes: Vec<BoxSummary> = series.iter().flat_map(|entry| grouped_boxes(entry, request)).collect();
             let total = boxes.iter().map(|summary| summary.count).sum();
-            Some(PlotAnalysis::BoxSummary { series: boxes, total })
+            Some(PlotAnalysis::BoxPlot { series: boxes, total })
         }
-        PlotType::XyInterval => Some(match interval_analysis(series, request) {
+        PlotType::Xy if request.xy_interval.is_some() => Some(match interval_analysis(series, request) {
             Ok(analysis) => analysis,
             Err(message) => PlotAnalysis::Error { message: message.into() },
         }),
@@ -663,7 +663,8 @@ mod interval_tests {
     #[test]
     fn interval_rejects_transformed_z() {
         let request = PlotPayloadRequest {
-            plot_type: Some(PlotType::XyInterval),
+            plot_type: Some(PlotType::Xy),
+            xy_interval: Some(crate::document::XyInterval::Sigma),
             z_expression: Some(crate::expressions::DataExpression {
                 label: None,
                 source: crate::expressions::DataSource::Dimension { name: "dimension".into() },

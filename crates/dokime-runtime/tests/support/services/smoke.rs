@@ -186,7 +186,7 @@ impl Check {
         plot.downsample = dokime_runtime::document::DownsampleTechnique::MinMax;
         let mut section = dokime_runtime::prelude::Section::new("Pulse");
         section.plot(plot);
-        let mut spectrum = dokime_runtime::prelude::Plot::fft("Spectrum");
+        let mut spectrum = dokime_runtime::prelude::Plot::frequency_series("Spectrum");
         spectrum.id("fixture.checks.smoke.spectrum");
         spectrum.y(dokime_runtime::expressions::telemetry("fixture_suites.spectrum", "value"));
         spectrum.fft.sample_rate_hz = Some(SPECTRUM_SAMPLE_RATE_HZ);

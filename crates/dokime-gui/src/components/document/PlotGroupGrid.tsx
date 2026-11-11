@@ -18,8 +18,9 @@ import { type ComponentProps, memo, type ReactNode, useEffect, useId, useMemo, u
 import { documentPlotGroupDescription, documentPlotSpec, type PlotCardSpec } from "@/lib/document-plots";
 import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "@/lib/types";
 import { AnalysisResult } from "@/plots/AnalysisResult";
+import { PiePlot } from "@/plots/catalog/PiePlot";
 import { BarPlot } from "@/plots/catalog/BarPlot";
-import { BoxSummarySeriesPlot } from "@/plots/catalog/BoxSummaryPlot";
+import { BoxPlot } from "@/plots/catalog/BoxPlot";
 import { FrequencySeriesPlot } from "@/plots/catalog/FrequencySeriesPlot";
 import { ContourPlot } from "@/plots/catalog/ContourPlot";
 import { HistogramSeriesPlot } from "@/plots/catalog/HistogramPlot";
@@ -265,6 +266,7 @@ function plotCardClassName(plot: PlotCardSpec): string {
   if (plot.plotType === "grid_chart") {
     return `${baseClassName} min-h-0`;
   }
+  if (plot.plotType === "pie") return <PiePlot plot={plot} />;
   if (plot.plotType === "bar") {
     return `${baseClassName} min-h-0`;
   }
@@ -301,13 +303,14 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   if (plot.plotType === "contour") {
     return <ContourPlot plot={plot} />;
   }
+  if (plot.plotType === "pie") return <PiePlot plot={plot} />;
   if (plot.plotType === "bar") {
     return <BarPlot plot={plot} />;
   }
-  if (plot.plotType === "xy") {
+  if (plot.plotType === "xy" && !plot.xyInterval) {
     return <XyPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
-  if (plot.plotType === "xy_interval") {
+  if (plot.plotType === "xy" && plot.xyInterval === "sigma") {
     return <XyIntervalPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "trajectory") {
@@ -319,8 +322,8 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   if (plot.plotType === "histogram") {
     return <HistogramSeriesPlot plot={plot} />;
   }
-  if (plot.plotType === "box_summary") {
-    return <BoxSummarySeriesPlot plot={plot} />;
+  if (plot.plotType === "box_plot") {
+    return <BoxPlot plot={plot} />;
   }
   if (plot.plotType === "time_series")
     return <TimeSeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
@@ -405,10 +408,9 @@ function isChartLikePlot(plot: PlotCardSpec): boolean {
   return (
     plot.plotType === "time_series" ||
     plot.plotType === "xy" ||
-    plot.plotType === "xy_interval" ||
     plot.plotType === "trajectory" ||
     plot.plotType === "frequency_series" ||
-    plot.plotType === "box_summary" ||
+    plot.plotType === "box_plot" ||
     plot.plotType === "contour" ||
     plot.plotType === "grid_chart"
   );

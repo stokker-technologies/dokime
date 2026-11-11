@@ -159,11 +159,11 @@ impl<'a> Projection<'a> {
         let z = z_value(read, sample, self.request)?;
         let x_key = self.request.x_key.as_deref().unwrap_or("timestamp");
         let time_order = self.request.analysis.is_some()
-            || matches!(self.request.plot_type, Some(crate::document::PlotType::Trajectory | crate::document::PlotType::FrequencySeries));
+            || matches!(self.request.plot_type, Some(crate::document::PlotType::Trajectory | crate::document::PlotType::FrequencySeries | crate::document::PlotType::Bar | crate::document::PlotType::Pie));
         let sort = if time_order || x_key == "timestamp" { 0.0 } else { payload::x_sort_value(sample, x_key) };
         for (index, input) in self.inputs.iter().copied().enumerate() {
             let y = input.value(sample);
-            if !self.aggregate && matches!(input, Input::Expression(_)) && y.is_none() {
+            if !self.aggregate && matches!(input, Input::Expression(_)) && y.is_none() && self.request.plot_type != Some(crate::document::PlotType::Pie) && !self.request.pareto {
                 continue;
             }
             let x = match input {

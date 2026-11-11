@@ -47,9 +47,9 @@ pub(crate) fn project(
         let selected = crate::plot::record_samples::PlotSamples::new(telemetry, request).collect();
         let mut payload = super::payload_from_series(&selected, records, request, generated_at, context, Vec::new());
         let result = (|| {
-            let mut frames = super::grid::Frames::new(request)?;
+            let mut frames = super::grid::Frames::new(request, payload.max_points)?;
             for sample in selected { frames.push(sample)?; }
-            Ok::<_, String>(frames.finish(payload.max_points))
+            Ok::<_, String>(frames.finish())
         })();
         payload.analysis = Some(match result {
             Ok(data) => super::PlotAnalysis::GridChart { data },
@@ -68,7 +68,7 @@ pub(crate) fn project(
 
 pub(crate) fn finish(payload: ReadBatch<PlotPayload>, request: &PlotPayloadRequest) -> Result<ReadBatch<PlotPayload>> {
     let spectrum = matches!(request.plot_type, Some(PlotType::FrequencySeries));
-    let interval = matches!(request.plot_type, Some(PlotType::XyInterval));
+    let interval = request.plot_type == Some(PlotType::Xy) && request.xy_interval.is_some();
     // Other Non-FFT Analysis And Summary Intermediates Remain Separate Producer Gaps.
     // They Run Before Native Construction, Not Under A False FFT-Only Peak.
     let payload = payload.try_map(|mut payload| {
@@ -96,6 +96,21 @@ pub(crate) fn frame(payload: ReadBatch<PlotPayload>, request: &PlotPayloadReques
 }
 
 pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest) -> Result<PlotPayload> {
+    if let Err(message) = super::totals::validate(&payload.series, request) {
+        payload.analysis = Some(super::PlotAnalysis::Error { message });
+        payload.series.clear(); payload.cartesian = None;
+        return Ok(payload);
+    }
+    if request.plot_type == Some(PlotType::Pie) || request.pareto {
+        let count = payload.series.iter().map(|series| series.points.len()).sum::<usize>();
+        if payload.max_points > 0 && count > payload.max_points {
+            payload.analysis = Some(super::PlotAnalysis::Error { message: "Category totals exceed the display budget; aggregate samples explicitly".into() });
+            payload.series.clear();
+        }
+        payload.cartesian = None;
+        return Ok(payload);
+    }
+
     if payload.max_points > 0 && payload.markers.len() > payload.max_points {
         let mut selected = super::marker_indices(payload.markers.len(), payload.max_points).into_iter().peekable();
         let mut index = 0;

@@ -204,14 +204,7 @@ async fn exact_numeric_outputs() {
     let mut reconnect = dokime_runtime::document::Plot::time_series("Time to Reconnect Tool");
     reconnect.y(dokime_runtime::expressions::record("tool.connection.acquired").time_between("tool.connection.lost"));
     section.plot(reconnect);
-    let mut occupancy = dokime_runtime::document::PlotDefinition::with_type(
-        "Wi-Fi Channel Occupancy",
-        dokime_runtime::document::PlotType::WifiChannelOccupancy,
-    );
-    occupancy.stream = Some("host.wifi.scan".into());
-    occupancy.x = Some("timestamp".into());
-    occupancy.y = vec!["network_count".into()];
-    occupancy.series_by = Some("wifi_channel".into());
+    let occupancy = plugin_host::domain::document::wifi_channel_occupancy("Wi-Fi Channel Occupancy");
     section.plot(occupancy);
     let mut rssi = dokime_runtime::document::Plot::time_series("Wi-Fi RSSI");
     rssi.y(dokime_runtime::expressions::telemetry("host.wifi.link", "wifi_rssi_dbm").label("fixture.signal"));

@@ -48,7 +48,7 @@ pub(super) fn canonical_plot_request(mut request: PlotPayloadRequest, telemetry_
         request.stream = stream.as_str().to_owned();
     }
 
-    if let Some(width) = request.panel_width {
+    if let Some(width) = request.panel_width.filter(|_| !matches!(request.plot_type, Some(crate::document::PlotType::Contour | crate::document::PlotType::GridChart))) {
         request.max_points = Some((width as usize).saturating_mul(4).min(request.max_points.unwrap_or(usize::MAX)));
     }
     crate::plot::canonical_plot_query(request)

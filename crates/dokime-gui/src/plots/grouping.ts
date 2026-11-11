@@ -72,6 +72,10 @@ export function documentPlotSpec({
     computed: payload?.computed ?? null,
     markers: payload?.markers ?? [],
     plotType: plot.plot_type,
+    arrangement: plot.arrangement,
+    pareto: plot.pareto,
+    hole: plot.hole,
+    xyInterval: plot.xy_interval,
     render: plot.render ?? "cells",
     style: plot.style ?? "line",
     xScale: plot.x_scale ?? "linear",
@@ -103,7 +107,6 @@ export function documentPlotSpec({
     contextSummary: plotContextSummary({ stream: plot.stream, telemetry, context: payload?.context }),
     context: {
       ...(payload?.context ?? {}),
-
     },
     windowS: payload?.window_s ?? null,
     xFormat,

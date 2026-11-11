@@ -73,7 +73,7 @@ impl<'a> PlotSamples<'a> {
         let mut samples = Vec::with_capacity(self.len());
         samples.extend(self.iter());
         let time_order = self.request.analysis.is_some()
-            || matches!(self.request.plot_type, Some(crate::document::PlotType::Trajectory | crate::document::PlotType::FrequencySeries));
+            || matches!(self.request.plot_type, Some(crate::document::PlotType::Trajectory | crate::document::PlotType::FrequencySeries | crate::document::PlotType::Bar | crate::document::PlotType::Pie));
         let x_key = if time_order { "timestamp" } else { self.request.x_key.as_deref().unwrap_or("timestamp") };
         super::payload::sort_plot_samples(&mut samples, x_key);
         samples

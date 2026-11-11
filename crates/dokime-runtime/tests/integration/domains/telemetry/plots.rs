@@ -268,7 +268,8 @@ async fn interval_raw_points() {
     runtime.publish_telemetry_batch(samples("host.wifi.scan", 10, None)).await.unwrap();
     runtime.storage().flush().await.unwrap();
     let mut request = wifi_request(None, Some(0));
-    request.plot_type = Some(dokime_runtime::document::PlotType::XyInterval);
+    request.plot_type = Some(dokime_runtime::document::PlotType::Xy);
+    request.xy_interval = Some(dokime_runtime::document::XyInterval::Sigma);
     request.interval.bin_width = 4.0;
     request.interval.sigma = 1.0;
 

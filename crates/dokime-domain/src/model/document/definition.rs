@@ -228,6 +228,15 @@ pub struct TelemetrySummaryCondition {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlotDefinition {
     #[serde(default)]
+    pub arrangement: Option<BarArrangement>,
+    #[serde(default)]
+    pub pareto: bool,
+    #[serde(default)]
+    pub hole: Option<f64>,
+    #[serde(default)]
+    pub xy_interval: Option<XyInterval>,
+
+    #[serde(default)]
     pub grid: Option<super::grid::GridDefinition>,
 
     #[serde(default)]
@@ -424,6 +433,15 @@ pub struct PlotDescriptor {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlotInput {
     #[serde(default)]
+    pub arrangement: Option<BarArrangement>,
+    #[serde(default)]
+    pub pareto: bool,
+    #[serde(default)]
+    pub hole: Option<f64>,
+    #[serde(default)]
+    pub xy_interval: Option<XyInterval>,
+
+    #[serde(default)]
     pub grid: Option<super::grid::GridDefinition>,
 
     #[serde(default)]
@@ -606,29 +624,29 @@ pub enum DocumentCardRail {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", try_from = "String")]
 pub enum PlotType {
     TimeSeries,
-    Bar,
-    GroupedBar,
-    StackedBar,
-    Pie,
-    Donut,
-    Pareto,
-    Xy,
-    XyInterval,
-    Trajectory,
-    Heatmap,
-    XyValueHeatmap,
-    WifiChannelOccupancy,
     FrequencySeries,
-    Histogram,
-    BoxSummary,
-    AggregateTable,
+    Xy,
+    Trajectory,
     Contour,
     GridChart,
+    Bar,
+    Pie,
+    Histogram,
     BoxPlot,
 }
+
+#[harmos::message]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BarArrangement { Grouped, Stacked }
+
+#[harmos::message]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum XyInterval { Sigma }
 
 #[harmos::message]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1656,6 +1674,7 @@ impl PlotAxisKind {
 impl PartialEq for PlotDefinition {
     fn eq(&self, other: &Self) -> bool {
         let Self {
+            arrangement, pareto, hole, xy_interval,
             grid,
             reduction,
             render,
@@ -1691,7 +1710,8 @@ impl PartialEq for PlotDefinition {
             display_points,
             downsample,
         } = self;
-        grid == &other.grid
+        arrangement == &other.arrangement && pareto == &other.pareto && hole == &other.hole && xy_interval == &other.xy_interval
+            && grid == &other.grid
             && reduction == &other.reduction
             && render == &other.render
             && metadata == &other.metadata
@@ -1733,6 +1753,7 @@ impl PlotDefinition {
         let identifier = identifier_from_label(&label);
 
         Self {
+            arrangement: None, pareto: false, hole: None, xy_interval: None,
             grid: None,
             reduction: None,
             render: ContourRender::Cells,
@@ -1945,8 +1966,8 @@ impl PlotDefinition {
 }
 
 impl Plot {
-    pub fn xy_value_heatmap(label: impl Into<String>) -> PlotDefinition {
-        PlotDefinition::with_type(label, PlotType::XyValueHeatmap)
+    pub fn contour(label: impl Into<String>) -> PlotDefinition {
+        PlotDefinition::with_type(label, PlotType::Contour)
     }
 
     pub fn time_series(label: impl Into<String>) -> PlotDefinition {
@@ -1961,11 +1982,7 @@ impl Plot {
         PlotDefinition::with_type(label, PlotType::Xy)
     }
 
-    pub fn sigma_interval(label: impl Into<String>) -> PlotDefinition {
-        PlotDefinition::with_type(label, PlotType::XyInterval)
-    }
-
-    pub fn fft(label: impl Into<String>) -> PlotDefinition {
+    pub fn frequency_series(label: impl Into<String>) -> PlotDefinition {
         PlotDefinition::with_type(label, PlotType::FrequencySeries)
     }
 
@@ -1973,8 +1990,8 @@ impl Plot {
         PlotDefinition::with_type(label, PlotType::Histogram)
     }
 
-    pub fn box_summary(label: impl Into<String>) -> PlotDefinition {
-        PlotDefinition::with_type(label, PlotType::BoxSummary)
+    pub fn box_plot(label: impl Into<String>) -> PlotDefinition {
+        PlotDefinition::with_type(label, PlotType::BoxPlot)
     }
 }
 
@@ -2055,6 +2072,20 @@ pub fn resolve_document_plot_axes(document: &mut DocumentDefinition, contracts: 
     }
 }
 
+pub fn validate_plot_options(
+    kind: &PlotType, arrangement: Option<BarArrangement>, pareto: bool, hole: Option<f64>,
+    xy_interval: Option<XyInterval>, has_series: bool,
+) -> Result<(), &'static str> {
+    if arrangement.is_some() && *kind != PlotType::Bar { return Err("arrangement is a BAR option"); }
+    if pareto && *kind != PlotType::Bar { return Err("pareto is a BAR option"); }
+    if hole.is_some() && *kind != PlotType::Pie { return Err("hole is a PIE option"); }
+    if xy_interval.is_some() && *kind != PlotType::Xy { return Err("interval=sigma is an XY option"); }
+    if arrangement.is_some() && !has_series { return Err("grouped and stacked BAR require a series binding"); }
+    if pareto && (arrangement.is_some() || has_series) { return Err("Pareto cannot have an arrangement or series binding"); }
+    if hole.is_some_and(|hole| !hole.is_finite() || !(0.0..1.0).contains(&hole)) { return Err("PIE hole must be finite and in [0, 1)"); }
+    Ok(())
+}
+
 pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
     validate_plot_definition_with(plot, &crate::model::validation::diagnostic::text)
 }
@@ -2065,32 +2096,45 @@ pub(crate) fn plot_validation_issue_bytes(plot: &PlotDefinition) -> Option<usize
 
 pub(crate) fn plot_type_label(plot_type: &PlotType) -> &'static str {
     match plot_type {
-        PlotType::TimeSeries => "time_series",
-        PlotType::Bar => "bar",
-        PlotType::GroupedBar => "grouped_bar",
-        PlotType::StackedBar => "stacked_bar",
-        PlotType::Pie => "pie",
-        PlotType::Donut => "donut",
-        PlotType::Pareto => "pareto",
-        PlotType::Xy => "xy",
-        PlotType::XyInterval => "xy_interval",
-        PlotType::Trajectory => "trajectory",
-        PlotType::Heatmap => "heatmap",
-        PlotType::XyValueHeatmap => "xy_value_heatmap",
-        PlotType::WifiChannelOccupancy => "wifi_channel_occupancy",
-        PlotType::FrequencySeries => "frequency_series",
-        PlotType::Histogram => "histogram",
-        PlotType::BoxSummary => "box_summary",
-        PlotType::AggregateTable => "aggregate_table",
-        PlotType::Contour => "contour",
-        PlotType::GridChart => "grid_chart",
-        PlotType::BoxPlot => "box_plot",
+        PlotType::TimeSeries => "time_series", PlotType::FrequencySeries => "frequency_series",
+        PlotType::Xy => "xy", PlotType::Trajectory => "trajectory", PlotType::Contour => "contour",
+        PlotType::GridChart => "grid_chart", PlotType::Bar => "bar", PlotType::Pie => "pie",
+        PlotType::Histogram => "histogram", PlotType::BoxPlot => "box_plot",
+    }
+}
+
+impl TryFrom<String> for PlotType {
+    type Error = String;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(match value.as_str() {
+            "time_series" => Self::TimeSeries, "frequency_series" => Self::FrequencySeries,
+            "xy" => Self::Xy, "trajectory" => Self::Trajectory, "contour" => Self::Contour,
+            "grid_chart" => Self::GridChart, "bar" => Self::Bar, "pie" => Self::Pie,
+            "histogram" => Self::Histogram, "box_plot" => Self::BoxPlot,
+            "grouped_bar" => return Err("GROUPED_BAR: use BAR with arrangement=grouped".into()),
+            "stacked_bar" => return Err("STACKED_BAR: use BAR with arrangement=stacked".into()),
+            "pareto" => return Err("PARETO: use BAR with pareto=true".into()),
+            "donut" => return Err("DONUT: use PIE with hole=0.5".into()),
+            "xy_interval" => return Err("XY_INTERVAL: use XY with interval=sigma".into()),
+            "heatmap" | "xy_value_heatmap" => return Err(format!("{}: use CONTOUR", value.to_uppercase())),
+            "wifi_channel_occupancy" => return Err("WIFI_CHANNEL_OCCUPANCY: use GRID_CHART with declared rows, columns and frames".into()),
+            "box_summary" => return Err("BOX_SUMMARY: use BOX_PLOT".into()),
+            "aggregate_table" => return Err("AGGREGATE_TABLE: use a document Summary card".into()),
+            _ => return Err(format!("unknown plot kind {value}")),
+        })
     }
 }
 
 /* === Private Functions === */
 
 fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
+    if let Err(message) = validate_plot_options(&plot.plot_type, plot.arrangement, plot.pareto, plot.hole, plot.xy_interval, plot.series_by.is_some() || plot.series_by_expression.is_some()) {
+        return Err(error(format_args!("plot {}: {message}", plot.metadata.label)));
+    }
+    if (plot.plot_type == PlotType::Pie || plot.pareto) && plot.y.len() + plot.y_expressions.len() != 1 {
+        return Err(error(format_args!("PIE and Pareto require one numeric total per category")));
+    }
+
     if let Some(scale) = plot.scale {
         if !scale.is_finite() || scale <= 0.0 {
             return Err(error(format_args!("plot {}: scale must be a positive finite constant", plot.metadata.label)));
@@ -2105,13 +2149,6 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
                 plot_type_label(&plot.plot_type)
             )));
         }
-    }
-
-    if matches!(
-        plot.plot_type,
-        PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pie | PlotType::Donut | PlotType::Pareto | PlotType::AggregateTable
-    ) {
-        return Err(error(format_args!("unsupported document plot type {}", plot_type_label(&plot.plot_type))));
     }
 
     if plot.plot_type == PlotType::TimeSeries
@@ -2158,7 +2195,7 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
     }
 
     match plot.plot_type {
-        PlotType::Bar => {
+        PlotType::Bar | PlotType::Pie => {
             if plot.x.is_none() && plot.x_expression.is_none() {
                 return Err(error(format_args!("bar plots must declare an x field or x expression")));
             }
@@ -2166,17 +2203,16 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
                 return Err(error(format_args!("bar plots must declare at least one y field or y expression")));
             }
         }
-        PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pareto | PlotType::Xy | PlotType::XyInterval => {
+        PlotType::Xy => {
             validate_xy_axes(plot, error)?
         }
         PlotType::Trajectory => validate_xy_axes(plot, error)?,
-        PlotType::Contour | PlotType::Heatmap | PlotType::XyValueHeatmap => {
+        PlotType::Contour => {
             validate_xy_axes(plot, error)?;
             if plot.z_field.as_ref().is_none_or(|field| field.is_empty()) && plot.z_expression.is_none() {
                 return Err(error(format_args!("{} plots must declare a z field or z expression", plot_type_label(&plot.plot_type))));
             }
         }
-        PlotType::WifiChannelOccupancy => validate_wifi_channel_occupancy(plot, error)?,
         PlotType::GridChart => {
             if plot.reduction.is_none() { return Err(error(format_args!("GRID_CHART requires an explicit reducer"))); }
             let Some(grid) = &plot.grid else { return Err(error(format_args!("GRID_CHART requires a grid definition"))) };
@@ -2184,7 +2220,7 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
             if plot.y.len() + plot.y_expressions.len() != 1 { return Err(error(format_args!("GRID_CHART requires exactly one numeric value expression"))); }
         },
         PlotType::Histogram => validate_histogram_axes(plot, error)?,
-        PlotType::BoxPlot | PlotType::BoxSummary | PlotType::Pie | PlotType::Donut => {
+        PlotType::BoxPlot => {
             if plot.y.len() != 1 && plot.y_expressions.len() != 1 {
                 return Err(error(format_args!(
                     "{} plots must declare exactly one y field or y expression",
@@ -2200,7 +2236,6 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
                 )));
             }
         }
-        PlotType::AggregateTable => {}
     }
     if plot.histogram.bins < 2 {
         return Err(error(format_args!("histograms must declare at least two bins")));
@@ -2307,14 +2342,9 @@ fn plot_has_number_x_axis(plot_type: &PlotType) -> bool {
         plot_type,
         PlotType::Bar
             | PlotType::Histogram
-            | PlotType::GroupedBar
-            | PlotType::StackedBar
-            | PlotType::Pareto
             | PlotType::Xy
-            | PlotType::XyInterval
             | PlotType::Trajectory
-            | PlotType::Heatmap
-            | PlotType::XyValueHeatmap
+            | PlotType::Contour
             | PlotType::FrequencySeries
     )
 }
@@ -2463,24 +2493,6 @@ fn validate_histogram_axes<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::A
     let x_field = plot.x.as_deref().filter(|field| *field != "timestamp");
     if usize::from(x_field.is_some()) + usize::from(plot.x_expression.is_some()) != 1 {
         return Err(error(format_args!("histogram plots must declare exactly one x field or x expression: the value they bin")));
-    }
-
-    Ok(())
-}
-
-fn validate_wifi_channel_occupancy<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
-    if plot.x_expression.is_some() || !plot.y_expressions.is_empty() || plot.z_expression.is_some() || plot.series_by_expression.is_some() {
-        return Err(error(format_args!("wifi_channel_occupancy uses fixed occupancy columns; remove axis and grouping expressions")));
-    }
-
-    if plot.x.as_deref() != Some("timestamp") {
-        return Err(error(format_args!("wifi_channel_occupancy plots must use timestamp as x field")));
-    }
-    if plot.y.len() != 1 || plot.y[0] != "network_count" {
-        return Err(error(format_args!("wifi_channel_occupancy plots must use network_count as y field")));
-    }
-    if plot.series_by.as_deref() != Some("wifi_channel") {
-        return Err(error(format_args!("wifi_channel_occupancy plots must group by wifi_channel")));
     }
 
     Ok(())

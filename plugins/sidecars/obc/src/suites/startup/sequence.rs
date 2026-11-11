@@ -602,7 +602,7 @@ impl Template {
         plot.unit("A");
         plot.x(telemetry(STARTUP_STREAM, "current_a"));
         distributions.plot(plot);
-        let mut plot = Plot::box_summary("Voltage by Phase");
+        let mut plot = Plot::box_plot("Voltage by Phase");
         plot.id("obc.charger.startup.sequence.voltage_by_phase");
         plot.unit("V");
         plot.series_by(telemetry(STARTUP_STREAM, "phase"));

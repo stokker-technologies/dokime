@@ -1147,6 +1147,7 @@ fn fixture_test_execution(
 
 fn fixture_plot_input(plot_id: Identifier, scope: RecordScope, plot_type: PlotType) -> PlotInput {
     PlotInput {
+        arrangement: None, pareto: false, hole: None, xy_interval: None,
         grid: None,
         reduction: None,
         render: Default::default(),
@@ -1298,13 +1299,13 @@ fn fixture_wifi_document(test_cycle_id: dokime_runtime::TestCycleId) -> Document
         PlotDescriptor {
             plot_id: plot_id.clone(),
             metadata: metadata("wifi.channel_occupancy", "WiFi Channel Occupancy"),
-            plot_type: PlotType::WifiChannelOccupancy,
+            plot_type: PlotType::GridChart,
             input: PlotInput {
                 series_fields: vec!["network_count".to_owned()],
                 stream: Some("host.wifi.scan".to_owned()),
                 series_by: Some("wifi_channel".to_owned()),
                 available_streams: vec![Identifier::new("host.wifi.scan").unwrap()],
-                ..fixture_plot_input(plot_id, scope.clone(), PlotType::WifiChannelOccupancy)
+                ..fixture_plot_input(plot_id, scope.clone(), PlotType::GridChart)
             },
         },
         scope,

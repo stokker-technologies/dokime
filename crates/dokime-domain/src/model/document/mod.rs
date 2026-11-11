@@ -52,7 +52,7 @@ pub use definition::FrequencyLevelUnit;
 pub use definition::HistogramOptions;
 pub use definition::Plot;
 pub use grid::{GridAxisEntry, GridDefinition, GridHighlight};
-pub use definition::{Reduction, ContourRender};
+pub use definition::{Reduction, ContourRender, BarArrangement, XyInterval};
 pub use definition::PlotAxisKind;
 pub use definition::PlotDefinition;
 pub use definition::PlotDescriptor;
@@ -75,6 +75,7 @@ pub use definition::TelemetrySummaryState;
 pub use definition::TelemetrySummaryTileDefinition;
 pub use definition::resolve_document_plot_axes;
 pub use definition::validate_plot_definition;
+pub use definition::validate_plot_options;
 pub use validation::validate_document_definition;
 
 /* === Imports === */

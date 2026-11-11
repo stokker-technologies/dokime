@@ -24,8 +24,9 @@ import type { DocumentPlotStyle, PlotCartesianFrame, PlotSeries } from "@/lib/ty
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import { HistogramChart } from "@/components/HistogramChart";
+import { PiePlot } from "@/plots/catalog/PiePlot";
 import { BarPlot } from "@/plots/catalog/BarPlot";
-import { BoxSummarySeriesPlot } from "@/plots/catalog/BoxSummaryPlot";
+import { BoxPlot } from "@/plots/catalog/BoxPlot";
 import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
 import type { PlotCardSpec } from "@/plots/types";
 import "@/styles.css";
@@ -111,7 +112,7 @@ function startCanvasFixture() {
           },
         ],
         analysis: {
-          kind: "box_summary",
+          kind: "box_plot",
           total: 12,
           series: [{ key: "A", label: "A", lower_whisker: 0, q1: 1, median: 2, q3: 3, upper_whisker: 4, outliers: [5] }],
         },
@@ -137,7 +138,7 @@ function startCanvasFixture() {
             }),
           ),
           createElement("div", { "data-plot-kind": "bar" }, createElement(BarPlot, { plot })),
-          createElement("div", { "data-plot-kind": "box" }, createElement(BoxSummarySeriesPlot, { plot })),
+          createElement("div", { "data-plot-kind": "box" }, createElement(BoxPlot, { plot })),
           createElement(
             "div",
             { "data-plot-kind": "grid" },
@@ -147,14 +148,44 @@ function startCanvasFixture() {
                 analysis: {
                   kind: "grid_chart",
                   data: {
-                    rows: [{key: "sensor", label: "Sensor", order: 0}],
-                    columns: [{key: "left", label: "Left", order: 0}, {key: "right", label: "Right", order: 1}],
-                    frames: [{instant: "2026-01-01T00:00:00Z", values: [2, 3], valid: [true, true], highlights: []}],
+                    rows: [{ key: "sensor", label: "Sensor", order: 0 }],
+                    columns: [
+                      { key: "left", label: "Left", order: 0 },
+                      { key: "right", label: "Right", order: 1 },
+                    ],
+                    frames: [{ instant: "2026-01-01T00:00:00Z", values: [2, 3], valid: [true, true], highlights: [] }],
                     summary_label: "Readings",
                   },
                 },
               },
             }),
+          ),
+          ...[0, 0.5].map((hole) =>
+            createElement(
+              "div",
+              { "data-pie-hole": hole },
+              createElement(PiePlot, {
+                plot: {
+                  ...plot,
+                  plotType: "pie",
+                  hole,
+                  analysis: null,
+                  series: [
+                    {
+                      key: "total",
+                      label: "Total",
+                      raw_points: 3,
+                      downsampled: false,
+                      points: [
+                        { x: "a", y: 2 },
+                        { x: "b", y: 3 },
+                        { x: "c", y: 3 },
+                      ],
+                    },
+                  ],
+                },
+              }),
+            ),
           ),
         ),
       );

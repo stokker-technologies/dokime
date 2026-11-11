@@ -262,6 +262,13 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     for (const dark of [false, true]) {
       for (const touch of [false, true]) {
         await evaluate(`window.canvasFixture.summaries(${dark}, ${touch})`);
+        const interiors = await evaluate(`(() => [...document.querySelectorAll('[data-pie-hole]')].map(chart => {
+          const svg = chart.querySelector('svg');
+          const box = svg.viewBox.baseVal;
+          const point = new DOMPoint(box.width * 0.51, box.height * 0.513);
+          return [...svg.querySelectorAll('path')].some(path => path.isPointInFill(point));
+        }))()`);
+        assert.deepEqual(interiors, [true, false]);
         const marks = await evaluate(`(() => {
           const selectors = {
             histogram: 'button > span',

@@ -41,6 +41,14 @@ use dokime_domain::model::values::ValueFormat;
 #[serde(rename_all = "snake_case")]
 pub struct PlotPayloadRequest {
     #[serde(default)]
+    pub arrangement: Option<crate::document::BarArrangement>,
+    #[serde(default)]
+    pub pareto: bool,
+    #[serde(default)]
+    pub hole: Option<f64>,
+    #[serde(default)]
+    pub xy_interval: Option<crate::document::XyInterval>,
+    #[serde(default)]
     pub grid: Option<crate::document::GridDefinition>,
 
     #[serde(default)]

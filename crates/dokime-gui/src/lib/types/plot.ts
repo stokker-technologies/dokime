@@ -67,15 +67,15 @@ export type PlotMarker = Omit<NativePlotMarker, "x"> & { x: unknown };
 
 export type DocumentPlotType =
   | "time_series"
-  | "bar"
+  | "frequency_series"
   | "xy"
-  | "xy_interval"
   | "trajectory"
   | "contour"
   | "grid_chart"
-  | "frequency_series"
+  | "bar"
+  | "pie"
   | "histogram"
-  | "box_summary";
+  | "box_plot";
 
 export type DocumentPlotStyle = "line" | "points" | "line_points" | "step";
 
@@ -136,7 +136,7 @@ export type PlotAnalysis =
       }[];
     }
   | {
-      kind: "box_summary";
+      kind: "box_plot";
       series: {
         key: string;
         label: string;
@@ -175,7 +175,11 @@ export type ContourGrid = {
 };
 
 export type GridAxisEntry = { key: string; label: string; order: number; group?: string | null };
-export type GridHighlight = { row: import("./document").DocumentDataExpression; column: import("./document").DocumentDataExpression; label: string };
+export type GridHighlight = {
+  row: import("./document").DocumentDataExpression;
+  column: import("./document").DocumentDataExpression;
+  label: string;
+};
 export type GridDefinition = {
   row?: import("./document").DocumentDataExpression | null;
   column?: import("./document").DocumentDataExpression | null;
@@ -185,7 +189,12 @@ export type GridDefinition = {
   highlights: GridHighlight[];
   summary_label: string;
 };
-export type GridFrame = { instant: string; values: number[]; valid: boolean[]; highlights: { row: number; column: number; label: string }[] };
+export type GridFrame = {
+  instant: string;
+  values: number[];
+  valid: boolean[];
+  highlights: { row: number; column: number; label: string }[];
+};
 export type GridFrames = { rows: GridAxisEntry[]; columns: GridAxisEntry[]; frames: GridFrame[]; summary_label: string };
 
 // Renderer payloads also represent locally materialized, partial plot data.

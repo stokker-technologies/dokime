@@ -15,6 +15,7 @@
 
 // Standard Library Imports
 use std::collections::BTreeMap;
+use serde::{Serialize, Deserialize};
 
 // Third Party Imports
 
@@ -32,12 +33,17 @@ use dokime_domain::model::plots::wire::{GridCell, GridFrame, GridFrames};
 
 /* === Structs === */
 
-pub(super) struct Frames<'a> {
-    definition: &'a GridDefinition,
-    request: &'a PlotPayloadRequest,
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct Frames {
+    definition: GridDefinition,
+    request: PlotPayloadRequest,
+    maximum: usize,
+    stride: u64,
+    first: Option<i128>,
+    last: Option<i128>,
     rows: BTreeMap<String, usize>,
     columns: BTreeMap<String, usize>,
-    frames: BTreeMap<time::OffsetDateTime, (GridFrame, Vec<u64>)>,
+    frames: BTreeMap<i128, (GridFrame, Vec<u64>)>,
 }
 
 /* === Enums === */
@@ -46,8 +52,8 @@ pub(super) struct Frames<'a> {
 
 /* === Implementations === */
 
-impl<'a> Frames<'a> {
-    pub(super) fn new(request: &'a PlotPayloadRequest) -> Result<Self, String> {
+impl Frames {
+    pub(crate) fn new(request: &PlotPayloadRequest, maximum: usize) -> Result<Self, String> {
         let definition = request.grid.as_ref().ok_or("GRID_CHART requires a grid definition")?;
         definition.validate()?;
         if request.reduction.is_none() {
@@ -57,66 +63,95 @@ impl<'a> Frames<'a> {
         let mut columns = definition.columns.iter().collect::<Vec<_>>();
         rows.sort_by_key(|entry| entry.order);
         columns.sort_by_key(|entry| entry.order);
+        let cells = rows.len().checked_mul(columns.len()).ok_or("GRID_CHART dimensions overflow")?;
+        if maximum > 0 && cells > maximum { return Err("GRID_CHART declared cells exceed the display budget".into()); }
         Ok(Self {
-            definition, request,
+            definition: definition.clone(), request: request.clone(),
+            maximum: if maximum == 0 { 0 } else { (maximum / cells.max(1)).max(1) },
+            stride: 1, first: None, last: None,
             rows: rows.into_iter().enumerate().map(|(index, entry)| (entry.key.clone(), index)).collect(),
             columns: columns.into_iter().enumerate().map(|(index, entry)| (entry.key.clone(), index)).collect(),
             frames: BTreeMap::new(),
         })
     }
 
-    pub(super) fn push(&mut self, sample: &TelemetrySample) -> Result<(), String> {
-        let row_key = key(sample, self.definition.row.as_ref().expect("validated row"))?;
-        let column_key = key(sample, self.definition.column.as_ref().expect("validated column"))?;
-        let row = *self.rows.get(&row_key).ok_or_else(|| format!("GRID_CHART unknown row key {row_key}"))?;
-        let column = *self.columns.get(&column_key).ok_or_else(|| format!("GRID_CHART unknown column key {column_key}"))?;
+    pub(crate) fn push(&mut self, sample: &TelemetrySample) -> Result<(), String> {
         let instant = key(sample, self.definition.frame.as_ref().expect("validated frame"))?;
-        let time = super::parse_timestamp(&instant).ok_or("GRID_CHART frame must be a timestamp")?;
-        let value = self.request.y_expressions.first().and_then(|expression| expression_numeric_value(sample, expression))
-            .or_else(|| self.request.y_keys.first().and_then(|field| sample.values.get(field)).and_then(super::numeric_value));
-        let cells = self.rows.len().checked_mul(self.columns.len()).ok_or("GRID_CHART dimensions overflow")?;
-        let (frame, counts) = self.frames.entry(time).or_insert_with(|| (GridFrame {
-            instant, values: vec![0.0; cells], valid: vec![false; cells], highlights: Vec::new(),
-        }, vec![0; cells]));
+        let time = super::parse_timestamp(&instant).ok_or("GRID_CHART frame must be a timestamp")?.unix_timestamp_nanos();
+        let row = key(sample, self.definition.row.as_ref().expect("validated row")).ok()
+            .map(|key| self.rows.get(&key).copied().ok_or_else(|| format!("GRID_CHART unknown row key {key}"))).transpose()?;
+        let column = key(sample, self.definition.column.as_ref().expect("validated column")).ok()
+            .map(|key| self.columns.get(&key).copied().ok_or_else(|| format!("GRID_CHART unknown column key {key}"))).transpose()?;
+        let mut highlights = Vec::new();
         for highlight in &self.definition.highlights {
             let Ok(row) = key(sample, &highlight.row) else { continue };
             let Ok(column) = key(sample, &highlight.column) else { continue };
             let row = *self.rows.get(&row).ok_or_else(|| format!("GRID_CHART unknown highlight row {row}"))? as u32;
             let column = *self.columns.get(&column).ok_or_else(|| format!("GRID_CHART unknown highlight column {column}"))? as u32;
-            if !frame.highlights.iter().any(|cell| cell.row == row && cell.column == column && cell.label == highlight.label) {
-                frame.highlights.push(GridCell { row, column, label: highlight.label.clone() });
+            highlights.push(GridCell { row, column, label: highlight.label.clone() });
+        }
+        self.first = Some(self.first.map_or(time, |first| first.min(time)));
+        self.last = Some(self.last.map_or(time, |last| last.max(time)));
+        let endpoint = Some(time) == self.last || (self.maximum != 1 && Some(time) == self.first);
+        let selected = self.maximum == 0 || endpoint || self.frames.contains_key(&time) || (self.maximum > 1 && self.stride > 0 && frame_hash(time).is_multiple_of(self.stride));
+        if !selected { return Ok(()); }
+        let cells = self.rows.len() * self.columns.len();
+        let (frame, counts) = self.frames.entry(time).or_insert_with(|| (GridFrame {
+            instant, values: vec![0.0; cells], valid: vec![false; cells], highlights: Vec::new(),
+        }, vec![0; cells]));
+        for highlight in highlights {
+            if !frame.highlights.iter().any(|cell| cell.row == highlight.row && cell.column == highlight.column && cell.label == highlight.label) {
+                frame.highlights.push(highlight);
             }
         }
-        let Some(value) = value.filter(|value| value.is_finite()) else { return Ok(()) };
-        let cell = row * self.columns.len() + column;
-        frame.values[cell] = match (self.request.reduction.expect("validated reducer"), counts[cell]) {
-            (_, 0) => value,
-            (Reduction::Mean, n) => frame.values[cell] * (n as f64 / (n + 1) as f64) + value / (n + 1) as f64,
-            (Reduction::Min, _) => frame.values[cell].min(value),
-            (Reduction::Max, _) => frame.values[cell].max(value),
-        };
-        counts[cell] += 1;
-        frame.valid[cell] = true;
+        let value = self.request.y_expressions.first().and_then(|expression| expression_numeric_value(sample, expression))
+            .or_else(|| self.request.y_keys.first().and_then(|field| sample.values.get(field)).and_then(super::numeric_value));
+        if let (Some(row), Some(column), Some(value)) = (row, column, value.filter(|value| value.is_finite())) {
+            let cell = row * self.columns.len() + column;
+            frame.values[cell] = match (self.request.reduction.expect("validated reducer"), counts[cell]) {
+                (_, 0) => value,
+                (Reduction::Mean, n) => frame.values[cell] * (n as f64 / (n + 1) as f64) + value / (n + 1) as f64,
+                (Reduction::Min, _) => frame.values[cell].min(value),
+                (Reduction::Max, _) => frame.values[cell].max(value),
+            };
+            counts[cell] += 1;
+            frame.valid[cell] = true;
+        }
+        self.bound();
         Ok(())
     }
 
-    pub(super) fn finish(self, maximum: usize) -> GridFrames {
+    fn bound(&mut self) {
+        while self.maximum > 0 && self.frames.len() > self.maximum {
+            self.stride = self.stride.checked_mul(2).unwrap_or(0);
+            self.frames.retain(|time, _| {
+                Some(*time) == self.last || (self.maximum > 1 && (Some(*time) == self.first || (self.stride > 0 && frame_hash(*time).is_multiple_of(self.stride))))
+            });
+        }
+    }
+
+    pub(crate) fn finish(&self) -> GridFrames {
         let mut rows = self.definition.rows.clone();
         let mut columns = self.definition.columns.clone();
         rows.sort_by_key(|entry| entry.order);
         columns.sort_by_key(|entry| entry.order);
-        let cells = rows.len().saturating_mul(columns.len()).max(1);
-        let maximum = if maximum == 0 { 0 } else { (maximum / cells).max(1) };
-        let selected = super::marker_indices(self.frames.len(), maximum);
-        let frames = self.frames.into_values().enumerate()
-            .filter_map(|(index, (frame, _))| selected.binary_search(&index).is_ok().then_some(frame)).collect();
-        GridFrames { rows, columns, frames, summary_label: self.definition.summary_label.clone() }
+        GridFrames { rows, columns, frames: self.frames.values().map(|(frame, _)| frame.clone()).collect(), summary_label: self.definition.summary_label.clone() }
     }
+
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+// A Fixed Hash Makes Thinning Monotone: A Dropped Frame Never Reappears With Partial Cells.
+fn frame_hash(time: i128) -> u64 {
+    let mut value = (time as u64) ^ ((time >> 64) as u64);
+    value = value.wrapping_add(0x9e3779b97f4a7c15);
+    value = (value ^ (value >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94d049bb133111eb);
+    (value ^ (value >> 31)).max(1)
+}
 
 fn key(sample: &TelemetrySample, expression: &crate::expressions::DataExpression) -> Result<String, String> {
     match expression_x_input(sample, Some(expression), "") {
@@ -154,7 +189,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let mut frames = Frames::new(&request).unwrap();
+        let mut frames = Frames::new(&request, 100).unwrap();
         let mut sample = TelemetrySample::new(new_id(), Identifier::new("readings").unwrap(), 0, Timestamp::new("2026-10-01T00:00:01Z"), "fixture");
         sample.values.insert("row".into(), crate::Value::Text("a".into()));
         sample.values.insert("column".into(), crate::Value::Text("left".into()));
@@ -167,11 +202,38 @@ mod tests {
         frames.push(&sample).unwrap();
         sample.values.insert("row".into(), crate::Value::Text("unknown".into()));
         assert!(frames.push(&sample).is_err());
-        let result = frames.finish(100);
+        let result = frames.finish();
         assert_eq!(result.rows[0].key, "a");
         assert_eq!(result.frames[0].values, vec![6.0, 0.0, 0.0, 0.0]);
         assert_eq!(result.frames[0].valid, vec![true, true, false, false]);
+        sample.values.insert("row".into(), crate::Value::Text("a".into()));
+        sample.values.insert("column".into(), crate::Value::Text("left".into()));
+        for (reduction, expected) in [(Reduction::Mean, 4.0), (Reduction::Min, 2.0), (Reduction::Max, 6.0)] {
+            let mut reduced_request = request.clone(); reduced_request.reduction = Some(reduction);
+            let mut reduced = Frames::new(&reduced_request, 100).unwrap();
+            for value in [2.0, 6.0] { sample.values.insert("value".into(), crate::Value::Number(value)); reduced.push(&sample).unwrap(); }
+            assert_eq!(reduced.finish().frames[0].values[0], expected);
+        }
+        let mut bounded = Frames::new(&request, 12).unwrap();
+        for second in 0..20 {
+            sample.timestamp = Timestamp::new(format!("2026-10-01T00:00:{second:02}Z"));
+            for value in [2.0, 6.0] {
+                sample.values.insert("value".into(), crate::Value::Number(value));
+                bounded.push(&sample).unwrap();
+                assert!(bounded.frames.len() <= 3);
+            }
+            bounded = serde_json::from_slice(&serde_json::to_vec(&bounded).unwrap()).unwrap();
+        }
+        for second in (0..20).rev() {
+            sample.timestamp = Timestamp::new(format!("2026-10-01T00:00:{second:02}Z"));
+            sample.values.insert("value".into(), crate::Value::Number(8.0));
+            bounded.push(&sample).unwrap();
+        }
+        let selected = bounded.finish();
+        assert!(selected.frames.first().unwrap().instant.ends_with("00Z"));
+        assert!(selected.frames.last().unwrap().instant.ends_with("19Z"));
+        assert!(selected.frames.iter().all(|frame| frame.valid[0] && frame.values[0] == 8.0));
         request.reduction = None;
-        assert!(Frames::new(&request).is_err());
+        assert!(Frames::new(&request, 100).is_err());
     }
 }

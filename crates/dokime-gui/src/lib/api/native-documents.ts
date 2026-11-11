@@ -506,16 +506,27 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
       sigma: interval?.sigma,
       clip_to_observed: interval?.clipToObserved,
     },
+    arrangement: request.arrangement ? (request.arrangement.HarmosVariant.case === "Grouped" ? "grouped" : "stacked") : null,
+    pareto: request.pareto,
+    hole: request.hole ?? null,
+    xy_interval: request.xyInterval ? "sigma" : null,
     reduction: request.reduction ? (request.reduction.HarmosVariant.case?.toLowerCase() as "mean" | "min" | "max") : null,
     render: request.render?.HarmosVariant.case === "Bands" ? "bands" : "cells",
-    grid: request.grid ? {
-      row: mapNativeExpression(request.grid.row), column: mapNativeExpression(request.grid.column), frame: mapNativeExpression(request.grid.frame),
-      rows: request.grid.rows.map((entry) => ({ ...entry })), columns: request.grid.columns.map((entry) => ({ ...entry })),
-      highlights: request.grid.highlights.map((highlight) => ({
-        row: mapNativeExpression(highlight.row) ?? invalid("grid highlight row is missing"),
-        column: mapNativeExpression(highlight.column) ?? invalid("grid highlight column is missing"), label: highlight.label,
-      })), summary_label: request.grid.summaryLabel,
-    } : null,
+    grid: request.grid
+      ? {
+          row: mapNativeExpression(request.grid.row),
+          column: mapNativeExpression(request.grid.column),
+          frame: mapNativeExpression(request.grid.frame),
+          rows: request.grid.rows.map((entry) => ({ ...entry })),
+          columns: request.grid.columns.map((entry) => ({ ...entry })),
+          highlights: request.grid.highlights.map((highlight) => ({
+            row: mapNativeExpression(highlight.row) ?? invalid("grid highlight row is missing"),
+            column: mapNativeExpression(highlight.column) ?? invalid("grid highlight column is missing"),
+            label: highlight.label,
+          })),
+          summary_label: request.grid.summaryLabel,
+        }
+      : null,
     histogram: {
       bins: histogram?.bins === undefined ? undefined : Number(histogram.bins),
       ...(histogram?.unit === undefined ? {} : { unit: histogram.unit }),
@@ -592,38 +603,30 @@ function mapNativePlotAxis(kind: NativePlotAxisKind | undefined, unit: string | 
   }
 }
 
-function mapNativePlotType(value: PlotType | undefined): DocumentViewCard["plots"][number]["plot_type"] {
+function mapNativePlotType(value?: PlotType): DocumentViewCard["plots"][number]["plot_type"] {
   switch (value?.HarmosVariant.case) {
-    case "Bar":
-      return "bar";
-    case "GroupedBar":
-    case "StackedBar":
-    case "Pie":
-    case "Donut":
-    case "Pareto":
-    case "AggregateTable":
-      throw new Error(`Unsupported document plot type: ${value?.HarmosVariant.case}`);
-    case "Xy":
-      return "xy";
-    case "XyInterval":
-      return "xy_interval";
-    case "Trajectory":
-      return "trajectory";
-    case "Contour": return "contour";
-    case "GridChart": return "grid_chart";
-    case "Heatmap":
-    case "XyValueHeatmap": throw new Error("Retired heatmap kind: use CONTOUR");
-    case "WifiChannelOccupancy": throw new Error("WIFI_CHANNEL_OCCUPANCY: use GRID_CHART");
-    case "FrequencySeries":
-      return "frequency_series";
-    case "Histogram":
-      return "histogram";
-    case "BoxSummary":
-      return "box_summary";
     case "TimeSeries":
       return "time_series";
+    case "FrequencySeries":
+      return "frequency_series";
+    case "Xy":
+      return "xy";
+    case "Trajectory":
+      return "trajectory";
+    case "Contour":
+      return "contour";
+    case "GridChart":
+      return "grid_chart";
+    case "Bar":
+      return "bar";
+    case "Pie":
+      return "pie";
+    case "Histogram":
+      return "histogram";
+    case "BoxPlot":
+      return "box_plot";
     default:
-      throw new Error(`Unsupported document plot type: ${value}`);
+      throw new Error(`Unsupported document plot type: ${value?.HarmosVariant.case}`);
   }
 }
 

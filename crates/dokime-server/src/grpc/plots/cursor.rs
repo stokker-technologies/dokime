@@ -156,7 +156,16 @@ fn plot_request(request: dokime::domain::model::plots::wire::PlotRequest) -> Res
     if plot_type == Some(dokime::document::PlotType::GridChart) && request.reduction.is_none() {
         return Err(Status::invalid_argument("GRID_CHART requires an explicit reducer"));
     }
+    if let Some(kind) = &plot_type {
+        dokime::document::validate_plot_options(kind, request.arrangement, request.pareto, request.hole, request.xy_interval, request.series_by.is_some() || request.series_by_expression.is_some())
+            .map_err(Status::invalid_argument)?;
+    }
     Ok(PlotPayloadRequest {
+        arrangement: request.arrangement,
+        pareto: request.pareto,
+        hole: request.hole,
+        xy_interval: request.xy_interval,
+
         grid: request.grid.map(grid_definition).transpose()?,
         reduction: request.reduction,
         render: request.render,

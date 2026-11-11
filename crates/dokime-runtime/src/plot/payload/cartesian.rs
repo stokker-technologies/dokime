@@ -152,7 +152,7 @@ fn cartesian_frame_from_series(mode: PlotCartesianMode, series: Vec<PlotCartesia
 fn cartesian_mode(plot_type: &PlotType) -> Option<PlotCartesianMode> {
     match plot_type {
         PlotType::TimeSeries | PlotType::FrequencySeries => Some(PlotCartesianMode::Aligned),
-        PlotType::Xy | PlotType::XyInterval => Some(PlotCartesianMode::Faceted),
+        PlotType::Xy => Some(PlotCartesianMode::Faceted),
         _ => None,
     }
 }

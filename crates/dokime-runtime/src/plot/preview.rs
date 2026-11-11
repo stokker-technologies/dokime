@@ -672,10 +672,10 @@ impl Preview {
         if let Some(reason) = &self.reason {
             payload.analysis = Some(super::PlotAnalysis::Error { message: reason.clone() });
         } else if self.reduced
-            && matches!(
+            && (matches!(
                 request.plot_type,
-                Some(PlotType::FrequencySeries | PlotType::Histogram | PlotType::BoxSummary | PlotType::XyInterval)
-            )
+                Some(PlotType::FrequencySeries | PlotType::Histogram | PlotType::BoxPlot)
+            ) || (request.plot_type == Some(PlotType::Xy) && request.xy_interval.is_some()))
         {
             payload.analysis = Some(super::PlotAnalysis::Error {
                 message: "This analysis needs more exact samples than the configured preview limit.".into(),
@@ -876,8 +876,7 @@ fn aggregate_for(request: &PlotPayloadRequest, key: &str) -> Option<harmos::Aggr
 }
 
 fn uses_density_grid(request: &PlotPayloadRequest) -> bool {
-    matches!(request.plot_type, Some(PlotType::XyValueHeatmap))
-        || (request.plot_type == Some(PlotType::Xy) && request.style == PlotStyle::Points)
+    request.plot_type == Some(PlotType::Xy) && request.style == PlotStyle::Points
 }
 
 fn record_plot(request: &PlotPayloadRequest) -> bool {
@@ -958,7 +957,7 @@ mod tests {
 
     #[test]
     fn exact_analysis() {
-        for plot_type in [PlotType::Histogram, PlotType::BoxSummary] {
+        for plot_type in [PlotType::Histogram, PlotType::BoxPlot] {
             let request = PlotPayloadRequest {
                 stream: "tracking".into(),
                 plot_type: Some(plot_type),

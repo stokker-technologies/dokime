@@ -60,7 +60,7 @@ pub(crate) fn project(
             payload.analysis = analyses::analyze(&mut [], request);
         }
         if request.plot_type == Some(PlotType::GridChart) {
-            let mut frames = match super::grid::Frames::new(request) {
+            let mut frames = match super::grid::Frames::new(request, payload.max_points) {
                 Ok(frames) => frames,
                 Err(message) => {
                     payload.analysis = Some(PlotAnalysis::Error { message });
@@ -83,7 +83,7 @@ pub(crate) fn project(
             })?;
             payload.analysis = Some(match error {
                 Some(message) => PlotAnalysis::Error { message },
-                None => PlotAnalysis::GridChart { data: frames.finish(payload.max_points) },
+                None => PlotAnalysis::GridChart { data: frames.finish() },
             });
             return Ok(ReadBatch::new(payload));
         }
@@ -176,17 +176,17 @@ fn analyze(read: &Read<'_>, payload: &mut PlotPayload, series: &mut Series, requ
                 series.push(result);
             }
         }
-        Some(PlotType::BoxSummary) => {
+        Some(PlotType::BoxPlot) => {
             let boxes = analysis::boxes(read, series, request)?;
-            let analysis = payload.analysis.get_or_insert_with(|| PlotAnalysis::BoxSummary { series: Vec::new(), total: 0 });
-            if let PlotAnalysis::BoxSummary { series, total } = analysis {
+            let analysis = payload.analysis.get_or_insert_with(|| PlotAnalysis::BoxPlot { series: Vec::new(), total: 0 });
+            if let PlotAnalysis::BoxPlot { series, total } = analysis {
                 for summary in &boxes {
                     *total += summary.count;
                 }
                 series.extend(boxes);
             }
         }
-        Some(PlotType::XyInterval) => {
+        Some(PlotType::Xy) if request.xy_interval.is_some() => {
             let interval = analysis::interval(read, series, request)?;
             let analysis = payload.analysis.get_or_insert_with(|| PlotAnalysis::SigmaInterval { series: Vec::new() });
             if let PlotAnalysis::SigmaInterval { series } = analysis {
@@ -389,14 +389,10 @@ mod tests {
             run_started_at: None,
             cycle_started_at: None,
         };
-        for plot_type in [
-            PlotType::TimeSeries,
-            PlotType::Xy,
-            PlotType::Trajectory,
-            PlotType::Histogram,
-            PlotType::BoxSummary,
-            PlotType::XyInterval,
-            PlotType::FrequencySeries,
+        for (plot_type, xy_interval) in [
+            (PlotType::TimeSeries, None), (PlotType::Xy, None), (PlotType::Trajectory, None),
+            (PlotType::Histogram, None), (PlotType::BoxPlot, None),
+            (PlotType::Xy, Some(crate::document::XyInterval::Sigma)), (PlotType::FrequencySeries, None),
         ] {
             for grouped in [false, true] {
                 for technique in [
@@ -410,6 +406,7 @@ mod tests {
                         y_keys: vec!["y".into()],
                         series_by: grouped.then(|| "group".into()),
                         plot_type: Some(plot_type.clone()),
+                        xy_interval,
                         technique,
                         max_points: Some(31),
                         ..Default::default()

@@ -50,6 +50,8 @@ import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
 import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
+import { BarPlot } from "@/plots/catalog/BarPlot";
+import { PiePlot } from "@/plots/catalog/PiePlot";
 import { ContourPlot } from "@/plots/catalog/ContourPlot";
 import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
@@ -2011,37 +2013,55 @@ test("Generated Plot Series Labels Respect Word Positions", () => {
   );
 });
 
-
 test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", () => {
   const declaration = {
-    plot_id: "surface", title: "Sensor Values", stream: "readings", plot_type: "contour", y: ["value"],
+    plot_id: "surface",
+    title: "Sensor Values",
+    stream: "readings",
+    plot_type: "contour",
+    y: ["value"],
   } as DocumentViewPlot;
   const payload: PlotPayload = {
-    stream: "readings", x_key: "x", series: [], max_points: 4, generated_at: "2026-01-01T00:00:00Z",
-    analysis: {kind: "contour", grid: {columns: 2, rows: 2, x_edges: [0, 1, 2], y_edges: [0, 1, 2], values: [0, 0, 0, 4], valid: [true, false, false, true]}},
+    stream: "readings",
+    x_key: "x",
+    series: [],
+    max_points: 4,
+    generated_at: "2026-01-01T00:00:00Z",
+    analysis: {
+      kind: "contour",
+      grid: { columns: 2, rows: 2, x_edges: [0, 1, 2], y_edges: [0, 1, 2], values: [0, 0, 0, 4], valid: [true, false, false, true] },
+    },
   };
-  const plot = documentPlotSpec({plot: declaration, payload});
+  const plot = documentPlotSpec({ plot: declaration, payload });
   const host = document.createElement("div");
-  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, {plot}));
+  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, { plot }));
   assert.equal(host.querySelectorAll("rect[data-bin]").length, 2);
   assert.ok(host.querySelector('rect[data-bin="0"]')?.getAttribute("fill"));
   assert.equal(host.querySelector('rect[data-bin="1"]'), null);
-  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, {plot: {...plot, render: "bands"}}));
+  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, { plot: { ...plot, render: "bands" } }));
   assert.ok(host.querySelectorAll("[data-contour-mask] path").length > 0);
   assert.equal(host.querySelectorAll("clipPath rect").length, 2);
   assert.equal(host.querySelector('clipPath rect[data-valid-bin="1"]'), null);
 
   const grid: PlotPayload = {
     ...payload,
-    analysis: {kind: "grid_chart", data: {
-      rows: [{key: "sensor", label: "Sensor", order: 0, group: "North"}],
-      columns: [{key: "left", label: "Left", order: 0}, {key: "right", label: "Right", order: 1}],
-      frames: [{instant: "2026-01-01T00:00:00Z", values: [0, 0], valid: [true, false], highlights: [{row: 0, column: 0, label: "Selected"}]}],
-      summary_label: "Readings",
-    }},
+    analysis: {
+      kind: "grid_chart",
+      data: {
+        rows: [{ key: "sensor", label: "Sensor", order: 0, group: "North" }],
+        columns: [
+          { key: "left", label: "Left", order: 0 },
+          { key: "right", label: "Right", order: 1 },
+        ],
+        frames: [
+          { instant: "2026-01-01T00:00:00Z", values: [0, 0], valid: [true, false], highlights: [{ row: 0, column: 0, label: "Selected" }] },
+        ],
+        summary_label: "Readings",
+      },
+    },
   };
-  const cellPlot = documentPlotSpec({plot: {...declaration, plot_type: "grid_chart"}, payload: grid});
-  host.innerHTML = renderToStaticMarkup(createElement(GridChartPlot, {plot: cellPlot}));
+  const cellPlot = documentPlotSpec({ plot: { ...declaration, plot_type: "grid_chart" }, payload: grid });
+  host.innerHTML = renderToStaticMarkup(createElement(GridChartPlot, { plot: cellPlot }));
   const populated = host.querySelector('[data-cell="sensor/left"]');
   const absent = host.querySelector('[data-cell="sensor/right"]');
   assert.equal(populated?.textContent, "0");
@@ -2050,12 +2070,96 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
   assert.equal(absent?.textContent, "");
   assert.equal(absent?.getAttribute("data-valid"), "false");
   assert.equal(absent?.getAttribute("style"), null);
-  const field = (name: string) => ({source: {type: "telemetry", stream: "readings", field: name}, transforms: []});
+  const field = (name: string) => ({ source: { type: "telemetry", stream: "readings", field: name }, transforms: [] });
   const request = toNativePlotRequest({
-    stream: "readings", yKeys: ["value"], plotType: "grid_chart", reduction: "max",
-    grid: {row: field("row"), column: field("column"), frame: field("timestamp"), rows: grid.analysis.kind === "grid_chart" ? grid.analysis.data.rows : [], columns: grid.analysis.kind === "grid_chart" ? grid.analysis.data.columns : [], highlights: [], summary_label: "Readings"},
+    stream: "readings",
+    yKeys: ["value"],
+    plotType: "grid_chart",
+    reduction: "max",
+    grid: {
+      row: field("row"),
+      column: field("column"),
+      frame: field("timestamp"),
+      rows: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.rows : [],
+      columns: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.columns : [],
+      highlights: [],
+      summary_label: "Readings",
+    },
   });
   assert.equal(request.reduction?.HarmosVariant.case, "Max");
   assert.equal(request.grid?.frame?.source?.HarmosVariant.case, "Telemetry");
   assert.equal(request.grid?.rows[0].key, "sensor");
+});
+
+test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
+  const declaration = { plot_id: "totals", title: "Totals", stream: "values", plot_type: "bar", y: ["value"] } as DocumentViewPlot;
+  const payload: PlotPayload = {
+    stream: "values",
+    x_key: "category",
+    max_points: 10,
+    generated_at: "2026-01-01T00:00:00Z",
+    series: [
+      {
+        key: "total",
+        label: "Total",
+        raw_points: 3,
+        downsampled: false,
+        points: [
+          { x: "a", y: 2 },
+          { x: "b", y: 3 },
+          { x: "c", y: 3 },
+        ],
+      },
+    ],
+  };
+  const plot = documentPlotSpec({ plot: declaration, payload });
+  const host = document.createElement("div");
+  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...plot, pareto: true } }));
+  assert.deepEqual(
+    [...host.querySelectorAll("rect[data-category]")].map((node) => node.getAttribute("data-category")),
+    ["b", "c", "a"],
+  );
+  assert.deepEqual(
+    [...host.querySelectorAll("circle[data-percent]")].map((node) => Number(node.getAttribute("data-percent"))),
+    [37.5, 75, 100],
+  );
+  const zero = {
+    ...plot,
+    series: plot.series.map((series) => ({ ...series, points: series.points.map((point) => ({ ...point, y: 0 })) })),
+  };
+  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...zero, pareto: true } }));
+  assert.equal(host.querySelectorAll("rect[data-category]").length, 3);
+  assert.equal(host.querySelector("[data-cumulative]"), null);
+  host.innerHTML = renderToStaticMarkup(createElement(PiePlot, { plot: { ...zero, plotType: "pie" } }));
+  assert.equal(host.querySelectorAll("path").length, 0);
+  assert.ok(host.querySelector('[data-testid="plot-placeholder"]'));
+  host.innerHTML = renderToStaticMarkup(createElement(PiePlot, { plot: { ...plot, plotType: "pie", hole: 0.5 } }));
+  assert.equal(host.querySelectorAll("path[data-category]").length, 3);
+  const grouped = {
+    ...plot,
+    series: [
+      plot.series[0],
+      {
+        ...plot.series[0],
+        key: "second",
+        label: "Second",
+        points: [
+          { x: "a", y: 4 },
+          { x: "b", y: 1 },
+        ],
+      },
+    ],
+  };
+  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...grouped, arrangement: "grouped" } }));
+  let bars = [...host.querySelectorAll('rect[data-category="a"]')];
+  assert.equal(bars.length, 2);
+  assert.notEqual(bars[0].getAttribute("y"), bars[1].getAttribute("y"));
+  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...grouped, arrangement: "stacked" } }));
+  bars = [...host.querySelectorAll('rect[data-category="a"]')];
+  assert.equal(bars[0].getAttribute("y"), bars[1].getAttribute("y"));
+  assert.ok(Number(bars[1].getAttribute("x")) >= Number(bars[0].getAttribute("x")) + Number(bars[0].getAttribute("width")) - 1e-9);
+  const request = toNativePlotRequest({ stream: "values", yKeys: ["value"], plotType: "xy", xyInterval: "sigma" });
+  assert.equal(request.plotType?.HarmosVariant.case, "Xy");
+  assert.equal(request.xyInterval?.HarmosVariant.case, "Sigma");
+  assert.equal(toNativePlotRequest({ stream: "values", yKeys: ["value"], plotType: "pie", hole: 0.5 }).hole, 0.5);
 });

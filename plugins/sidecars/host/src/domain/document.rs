@@ -64,14 +64,29 @@ struct HostPlotSpec<'a> {
 /* === Public Functions === */
 
 pub fn wifi_channel_occupancy(label: impl Into<String>) -> PlotDefinition {
-    let mut plot = PlotDefinition::with_type(label, PlotType::WifiChannelOccupancy);
+    use dokime_domain::model::document::{GridAxisEntry, GridDefinition, GridHighlight, Reduction};
+    use dokime_domain::model::expressions::telemetry;
+    let mut plot = PlotDefinition::with_type(label, PlotType::GridChart);
     plot.stream = Some(HOST_WIFI_SCAN.to_owned());
-    plot.x = Some("timestamp".to_owned());
     plot.y = vec!["network_count".to_owned()];
-    plot.series_by = Some("wifi_channel".to_owned());
-    plot.z_field = Some("wifi_network_congestion_score".to_owned());
-    plot.style = PlotStyle::Points;
-
+    plot.unit = Some("networks".to_owned());
+    plot.reduction = Some(Reduction::Max);
+    let bands = [("2.4GHz", "2.4 GHz"), ("5GHz", "5 GHz"), ("6GHz", "6 GHz")];
+    let rows = bands.into_iter().enumerate().map(|(order, (key, label))| GridAxisEntry {
+        key: key.into(), label: label.into(), order: order as i32, group: None,
+    }).collect();
+    let channels = (1..=14).map(|key| (key, key, "2.4 GHz"))
+        .chain([32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 96, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165, 169, 173, 177].into_iter().map(|key| (key, key, "5 GHz")))
+        .chain((0..59).map(|index| (1001 + index * 4, 1 + index * 4, "6 GHz")));
+    let columns = channels.enumerate().map(|(order, (key, channel, group))| GridAxisEntry {
+        key: key.to_string(), label: channel.to_string(), order: order as i32, group: Some(group.into()),
+    }).collect();
+    plot.grid = Some(GridDefinition {
+        row: Some(telemetry(HOST_WIFI_SCAN, "wifi_band")), column: Some(telemetry(HOST_WIFI_SCAN, "wifi_channel")),
+        frame: Some(telemetry(HOST_WIFI_SCAN, "timestamp")), rows, columns,
+        highlights: vec![GridHighlight { row: telemetry(HOST_WIFI_SCAN, "active_wifi_band"), column: telemetry(HOST_WIFI_SCAN, "active_wifi_channel"), label: "Active Channel".into() }],
+        summary_label: "Networks".into(),
+    });
     plot
 }
 
@@ -191,7 +206,7 @@ fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -
             identifier: "hub.host.wifi.congestion_map",
             label: "WiFi Network Congestion Map",
             description: "Tracking XY positions joined with the latest available WiFi Congestion Index at each observation so congestion can be reviewed spatially.",
-            plot_type: PlotType::XyValueHeatmap,
+            plot_type: PlotType::Contour,
             stream: "tracking",
             x: Some("position_x_m"),
             y: &["position_y_m"],
@@ -274,6 +289,7 @@ fn plot_card(plot: PlotDefinition) -> DocumentCard {
 
 fn plot(spec: HostPlotSpec<'_>) -> PlotDefinition {
     PlotDefinition {
+        arrangement: None, pareto: false, hole: None, xy_interval: None,
         grid: None,
         reduction: None,
         render: Default::default(),
@@ -347,7 +363,7 @@ mod tests {
             sections(false)
                 .iter()
                 .flat_map(|section| &section.cards)
-                .any(|card| matches!(&card.body, DocumentCardBody::Plot { plot } if plot.plot_type == PlotType::WifiChannelOccupancy))
+                .any(|card| matches!(&card.body, DocumentCardBody::Plot { plot } if plot.plot_type == PlotType::GridChart))
         );
     }
 }

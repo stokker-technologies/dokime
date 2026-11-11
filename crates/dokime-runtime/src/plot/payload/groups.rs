@@ -340,8 +340,9 @@ fn point_input<'a>(sample: &'a TelemetrySample, input: Input<'_>, request: &Plot
 }
 
 fn build_series(plan: &GroupRows<'_>, telemetry: &[TelemetrySample], request: &PlotPayloadRequest) -> Result<Vec<PlotSeries>> {
+    let strict = request.plot_type == Some(crate::document::PlotType::Pie) || request.pareto;
     let count = inputs(request).try_fold(0usize, |count, input| {
-        let groups = plan.groups.iter().filter(|group| plan.count(group, input) != 0).count();
+        let groups = plan.groups.iter().filter(|group| strict || plan.count(group, input) != 0).count();
         count.checked_add(groups).ok_or_else(memory)
     })?;
     let mut series = vector(count)?;
@@ -349,14 +350,14 @@ fn build_series(plan: &GroupRows<'_>, telemetry: &[TelemetrySample], request: &P
     let input_count = inputs(request).count();
     for input in inputs(request) {
         for group in &plan.groups {
-            let count = plan.count(group, input);
+            let count = if strict { group.len() } else { plan.count(group, input) };
             if count == 0 {
                 continue;
             }
             let mut points = vector(count)?;
             for row in &plan.rows[group.clone()] {
                 let y = input.value(row.sample);
-                if matches!(input, Input::Expression(_)) && y.is_none() {
+                if matches!(input, Input::Expression(_)) && y.is_none() && !strict {
                     continue;
                 }
                 points.push(PlotPoint { instant: super::point_instant(row.sample, request),
