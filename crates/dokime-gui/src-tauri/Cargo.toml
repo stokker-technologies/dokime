@@ -143,6 +143,7 @@ tauri-build = { workspace = true, features = [] }
 # === Dev Dependencies === #
 
 [dev-dependencies]
+criterion = { workspace = true }
 # Local
 dokime = { path = "../../dokime", features = ["native", "fft", "plugin-sidecar"] }
 dokime-tracing = { workspace = true }
@@ -218,6 +219,11 @@ windows = { workspace = true, features = ["Win32_Foundation", "Win32_System_Com"
 # === Test Targets === #
 
 # === Bench Targets === #
+
+[[bench]]
+name = "system-desktop"
+path = "../benches/system/main.rs"
+harness = false
 
 # === Example Targets === #
 

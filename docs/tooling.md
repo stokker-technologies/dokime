@@ -120,6 +120,61 @@ and emits a `::notice::` naming each benchmark. Without refresh, a missing
 baseline fails and names the refresh command. Existing baselines retain their
 regression comparison and threshold; failed benchmark executions still fail.
 
+## Desktop Plot Round-Trip Benchmark
+
+```sh
+mise run build -- --artifact bench --binary system-desktop
+mise run bench -- --language rust --layer system --binary system-desktop --refresh-baseline
+```
+
+The desktop owns `crates/dokime-gui/benches/system/`. Its bench-profile shell embeds
+a bench-only entry point using the production native session, plot watch,
+retained-frame owner and `LivePlotGroupGrid`. Vite adds observation around the
+existing decoder, retained updates and native frame adapter only in this bundle;
+shipping source has no instrumentation hook. The native launch/cleanup helpers
+come from `e2e/native-desktop.mjs`. The fixture host is the same task-built bench
+executable with an explicit private `--fixture-host` entry point.
+
+The deterministic fixture contains 2,073,600 sample rows at 8 Hz over three days,
+with three numeric fields. Each document has 30 or 100 plots: respectively 21 or
+91 time series, and one of each of the other nine kinds. Each case opens one
+workspace at the product's existing limit. The 100-plot case therefore records
+the actual refusal; it never splits or raises the limit. Histories and disposable
+native profiles live under `target/desktop-bench-fixtures/` and close before
+removal. Fixture admission and initial persistence precede measurement.
+
+Criterion measures cold/warm, live ingest, late samples, zoom, resize, navigation
+and stalled-consumer cases. Cold restarts the WebView and JavaScript state; it
+does not claim an empty OS disk cache. Warm retains the host and storage caches.
+Live and late cases publish through the real runtime and saved telemetry path.
+The receive queue is stalled for 1.5 seconds while ingestion continues. Native
+Windows needs the same interactive account, WebView2 and matching prepared Edge
+driver as desktop system stories; Linux needs WebKitWebDriver and an X11 session.
+
+Native Criterion files retain their normal `new`/`dev` comparison and success-only
+baseline refresh. `desktop/observations.json` beside those files retains each
+case's stage samples, native query/framing/send spans, bytes, WebView receive queue
+depth, missed 60 Hz animation opportunities, sampled process-tree CPU and peak
+resident memory. Resource sampling includes the fixture host and shell descendants
+(including WebView workers), at approximately 200 ms; it can miss shorter peaks.
+Absent resource readings remain absent. Stage totals and individual-call p50/p95
+are exported through `target/benchmarks/benchmarks-rust-desktop.json`, which the
+existing Nightly collector includes in `benchmarks.json`. Counts and bytes keep
+their actual units. Only Criterion's existing median regression policy controls
+regression findings; observations never become wall-clock/resource tests.
+
+`firstVisibleMs` and `allVisibleMs` observe populated cards intersecting the
+viewport at animation opportunities. They do not infer drawing from snapshot
+arrival. `presentation_opportunity` is two animation frames after a retained-model
+commit, not physical display presentation. `canvas_draw` measures real canvas API
+calls; DOM/SVG kinds still participate in visible-card observation. Backend query,
+framing and send spans are inclusive of their existing owners. Native transport
+wait includes server work and idle waiting, so these overlapping observations must
+not be added to claim exclusive stage attribution. Physical presentation,
+exclusive bridge/encoding time, OS-cache-cold reads and server/native queue depth
+are explicitly unavailable in the report. The `integration-plots` benchmark and
+its historical baseline obligations remain unchanged.
+
 ## Native Python SDK Builds
 
 `sdk/python` contains native Rust client, backend and callback wrappers, Python authoring declarations, contexts and readers. The `dokime-python` distribution and `dokime` import names are provisional; registry publication is refused until naming is settled.

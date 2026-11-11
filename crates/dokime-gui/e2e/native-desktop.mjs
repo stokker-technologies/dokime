@@ -115,7 +115,7 @@ const { values: options } = parseArgs({
   },
 });
 const profile = options.profile ?? (options.release ? "release" : "dev");
-assert.ok(["dev", "release"].includes(profile), "native desktop profile must be dev or release");
+assert.ok(["dev", "release", "bench"].includes(profile), "native desktop profile must be dev, release or bench");
 const architecture = { x64: "x86_64", arm64: "aarch64" }[process.arch] ?? process.arch;
 const nativeTarget = `${process.platform === "win32" ? "windows" : "linux"}-${architecture}`;
 const reportsRoot = join(workspace, "target/tests", profile, nativeTarget, "system-typescript");

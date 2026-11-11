@@ -44,6 +44,8 @@ def build(
     directory: Path,
     extra: Sequence[str] = (),
     selection: Sequence[str] = ("--workspace", "--exclude", "dokime-python", "--bins", "--benches"),
+    *,
+    require_benchmark: bool = True,
 ) -> Path:
     output = paths.output(directory, "build", "bench")
     messages = output / "bench/compiler.json"
@@ -93,7 +95,7 @@ def build(
                 files.append(event["executable"])
             events.append(json.dumps(event))
 
-        if not benchmarks:
+        if require_benchmark and not benchmarks:
             raise ValueError("no benchmark target was built")
         for kind in ("bin", "bench"):
             paths.replace(directory, staging / kind, output / kind, origin=staging)

@@ -30,7 +30,7 @@ from pathlib import Path
 from .. import temporary
 from ..build import paths
 from ..process import spawn_flags
-from . import archive, nextest, policy, pytest, report, traces, vitest
+from . import archive, desktop_bench, nextest, policy, pytest, report, traces, vitest
 
 # Type Checking Imports
 
@@ -550,14 +550,19 @@ def _bench_rust(
         since = time.time()
         environment = dict(os.environ, CRITERION_HOME=str(home.resolve()))
         environment.pop("TEST_REPORT_DIR", None)
-        code, peak = _measured(
-            [str(directory / message["executable"]), "--bench", "--baseline-lenient", BASELINE, *extra],
-            directory / manifest.parent,
-            environment,
-        )
+        with desktop_bench.native(directory, environment) if name == "system-desktop" else nullcontext():
+            code, peak = _measured(
+                [str(directory / message["executable"]), "--bench", "--baseline-lenient", BASELINE, *extra],
+                directory / manifest.parent,
+                environment,
+            )
         status = status or code
         if any(path.is_symlink() or path.is_junction() for path in home.rglob("*")):
             raise policy.TestError("native benchmark files must not be linked")
+        if name == "system-desktop":
+            desktop_bench.collect(
+                directory, home / "desktop", identity, policy.load(directory).bench_regression_percent, refresh=refresh, success=code == 0
+            )
         for path in sorted(home.rglob("new/estimates.json")) if home.is_dir() else []:
             if path.stat().st_mtime < since:
                 continue

@@ -13,6 +13,7 @@
 # Standard Library Imports
 import argparse
 import json
+import os
 import subprocess
 import sys
 
@@ -41,8 +42,42 @@ ROOT = frontend.ROOT
 def build(binary: str | None = None) -> None:
     """Build Benchmarks and Their Matching Native Fixtures."""
     extra = ("--features", "plugin-obc/benchmarks,plugin-host/runtime")
+    if binary in (None, "system-desktop"):
+        output = paths.output(ROOT, "build", "bench")
+        # Prepare Authoritative Bindings Before The Bench Frontend On Fresh Checkouts.
+        prepared = bench.build(
+            ROOT, selection=("--package", "cargo-dokime", "--package", "dokime-server", "--bins"), require_benchmark=False
+        )
+        generated.generate(prepared, check=True)
+        subprocess.run(
+            ["node", "node_modules/typescript/bin/tsc", "--noEmit", "--project", "benches/system/tsconfig.json"],
+            cwd=ROOT / "crates/dokime-gui",
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        result = subprocess.run(
+            ["node", "benches/system/build.mjs", str(output / "desktop-web")],
+            cwd=ROOT / "crates/dokime-gui",
+            check=False,
+            capture_output=True,
+            text=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        print(result.stdout, end="")
+        if result.returncode:
+            raise ValueError(f"desktop benchmark frontend exited {result.returncode}: {result.stderr}")
+        # generate_context! Does Not Track Embedded Frontend Bytes.
+        subprocess.run(
+            ["cargo", "clean", "--locked", "--package", "dokime-gui", "--profile", "bench"],
+            cwd=ROOT,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        # Only This Bench Host Embeds The Instrumented Frontend.
+        os.environ["TAURI_CONFIG"] = json.dumps({"build": {"frontendDist": str(output / "desktop-web")}})
+        extra = (*extra, "--features", "tauri/custom-protocol")
     if binary is None:
-        messages = bench.build(ROOT, extra=("--exclude", "dokime-gui", *extra))
+        messages = bench.build(ROOT, extra=extra)
     else:
         metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], cwd=ROOT))
         owners = [
@@ -66,7 +101,7 @@ def build(binary: str | None = None) -> None:
         ROOT, messages, "bench", tool=tool, output=output / "fixtures/plugins", packages=("plugin-host", *plugins.FIXTURES)
     )
 
-    if binary in (None, "integration-plots"):
+    if binary in (None, "integration-plots", "system-desktop"):
         generated.generate(messages, check=True)
         modules = generated.stage("bench")
         staged += [path for path in modules.rglob("*") if path.is_file()]
