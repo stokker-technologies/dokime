@@ -279,7 +279,7 @@ function DocumentSectionBlock({
 }) {
   if (chrome === "card") {
     return (
-      <Card>
+      <Card data-section-id={section.metadata.identifier}>
         <CardHeader className="border-b px-4 py-3">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <CardTitle className="text-base">{section.metadata.label}</CardTitle>
@@ -315,7 +315,7 @@ function DocumentSectionBlock({
   }
 
   return (
-    <section className="grid min-w-0 gap-3">
+    <section className="grid min-w-0 gap-3" data-section-id={section.metadata.identifier}>
       <header className="grid min-w-0 gap-1">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
           <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>

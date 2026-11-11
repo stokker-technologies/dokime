@@ -33,7 +33,7 @@
 ## 7. Plugin Documents and Scenes
 
 - [x] 7.1 Migrate host documents to generic GRID_CHART declarations carrying channel lists/bands/wording/highlights; migrate other plugin and starter plot definitions without private identifiers in product code.
-- [ ] 7.2 Update bench plugin documents and screenshots task plots/report scenes to cover the cleaned catalog, sparse contour gaps and independent trajectory/grid playback; use the existing scene framework.
+- [x] 7.2 Update bench plugin documents and screenshots task plots/report scenes to cover the cleaned catalog, sparse contour gaps and independent trajectory/grid playback; use the existing scene framework.
 
 ## 8. Guides
 

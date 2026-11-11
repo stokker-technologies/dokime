@@ -63,7 +63,7 @@ struct HostPlotSpec<'a> {
 
 /* === Public Functions === */
 
-pub fn wifi_channel_occupancy(label: impl Into<String>) -> PlotDefinition {
+pub fn wifi_channel_grid(label: impl Into<String>) -> PlotDefinition {
     use dokime_domain::model::document::{GridAxisEntry, GridDefinition, GridHighlight, Reduction};
     use dokime_domain::model::expressions::telemetry;
     let mut plot = PlotDefinition::with_type(label, PlotType::GridChart);
@@ -268,7 +268,7 @@ fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -
         })));
     }
     if streams.contains(HOST_WIFI_SCAN) {
-        let mut occupancy = wifi_channel_occupancy("WiFi Channel Occupancy");
+        let mut occupancy = wifi_channel_grid("WiFi Channel Occupancy");
         occupancy.id("hub.host.wifi.channel_occupancy");
         occupancy.metadata.description = Some(
             "Full WLAN scans count nearby networks per stream across WiFi bands. This scan is intentionally slower than PHY, throughput, and latency sampling.".to_owned(),
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn occupancy_contract_binding() {
-        let plot = wifi_channel_occupancy("Occupancy");
+        let plot = wifi_channel_grid("Occupancy");
         assert_eq!(plot.stream.as_deref(), Some(HostTelemetryStream::WifiScan.as_str()));
         dokime_domain::model::document::validate_plot_definition(&plot).unwrap();
         let grid = plot.grid.as_ref().unwrap();

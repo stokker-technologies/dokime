@@ -27,7 +27,7 @@ use crate::domain::{Error, model::prompts::checkpoint};
 use crate::domain::{document as system, model::measurement};
 use crate::operations::charger::*;
 use crate::operations::wait::Wait;
-use dokime::document::{self, PlotStyle};
+use dokime::document::{self, ContourRender, PlotDefinition, PlotStyle, PlotType, Reduction, XyInterval};
 use dokime::domain::model::files::wire::FileSource;
 use dokime::domain::model::files::wire::LineMatcher;
 use dokime::domain::model::files::wire::StreamCapture;
@@ -591,6 +591,35 @@ impl Template {
         timeline.plot(voltage);
         document.section(timeline);
 
+        // Scattered Electrical Samples And The Independent Environment Scan
+        let mut maps = Section::new("Signal Maps");
+        maps.id("obc.charger.startup.sequence.maps");
+        let mut surface = Plot::contour("Input Power Map");
+        surface.id("obc.charger.startup.sequence.power_map");
+        surface.x(telemetry(STARTUP_STREAM, "voltage_v"));
+        surface.y(telemetry(STARTUP_STREAM, "current_a"));
+        surface.z(telemetry(STARTUP_STREAM, "input_power_w"));
+        surface.unit("W");
+        surface.reduction = Some(Reduction::Mean);
+        surface.render = ContourRender::Bands;
+        let mut card = Card::plot(surface);
+        card.layout.col_span.lg = Some(6);
+        maps.card(card);
+
+        let mut trajectory = PlotDefinition::with_type("Electrical Trajectory", PlotType::Trajectory);
+        trajectory.id("obc.charger.startup.sequence.trajectory");
+        trajectory.x(telemetry(STARTUP_STREAM, "voltage_v"));
+        trajectory.y(telemetry(STARTUP_STREAM, "current_a"));
+        trajectory.unit("A");
+        let mut card = Card::plot(trajectory);
+        card.layout.col_span.lg = Some(6);
+        maps.card(card);
+
+        let mut grid = plugin_host::domain::document::wifi_channel_grid("Channel Survey");
+        grid.id("obc.charger.startup.sequence.channel_survey");
+        maps.plot(grid);
+        document.section(maps);
+
         let mut distributions = Section::new("Signal Distributions");
         let mut plot = Plot::histogram("Voltage Distribution");
         plot.id("obc.charger.startup.sequence.voltage_distribution");
@@ -608,6 +637,12 @@ impl Template {
         plot.series_by(telemetry(STARTUP_STREAM, "phase"));
         plot.y(telemetry(STARTUP_STREAM, "voltage_v"));
         distributions.plot(plot);
+        let mut spectrum = Plot::frequency_series("Voltage Spectrum");
+        spectrum.id("obc.charger.startup.sequence.spectrum");
+        spectrum.unit("V");
+        spectrum.x(telemetry(STARTUP_STREAM, "elapsed_s"));
+        spectrum.y(telemetry(STARTUP_STREAM, "voltage_v"));
+        distributions.plot(spectrum);
         document.section(distributions);
 
         let mut phase_breakdown = Section::new("Phase Breakdown");
@@ -624,12 +659,25 @@ impl Template {
         plot.x(telemetry(STARTUP_STREAM, "phase"));
         plot.y(telemetry(STARTUP_STREAM, "sample_index").count());
         phase_breakdown.plot(plot);
+        let mut share = PlotDefinition::with_type("Samples by Phase", PlotType::Pie);
+        share.id("obc.charger.startup.sequence.phase_share");
+        share.x(telemetry(STARTUP_STREAM, "phase"));
+        share.y(telemetry(STARTUP_STREAM, "sample_index").count());
+        share.hole = Some(0.5);
+        phase_breakdown.plot(share);
+        let mut pareto = Plot::bar("Phase Sample Totals");
+        pareto.id("obc.charger.startup.sequence.phase_totals");
+        pareto.x(telemetry(STARTUP_STREAM, "phase"));
+        pareto.y(telemetry(STARTUP_STREAM, "sample_index").count());
+        pareto.pareto = true;
+        phase_breakdown.plot(pareto);
         let mut plot = Plot::xy("Signal Correlation");
         plot.id("obc.charger.startup.sequence.signal_correlation");
         plot.style(PlotStyle::Points);
         plot.x(telemetry(STARTUP_STREAM, "voltage_v"));
         plot.y(telemetry(STARTUP_STREAM, "current_a"));
         plot.series_by(telemetry(STARTUP_STREAM, "phase"));
+        plot.xy_interval = Some(XyInterval::Sigma);
         phase_breakdown.plot(plot);
         document.section(phase_breakdown);
 
@@ -665,3 +713,50 @@ fn sample_range(start: u64, end: u64) -> Result<std::ops::Range<usize>, Error> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime::document::{DocumentCardBody, validate_plot_definition};
+    use dokime::expressions::DataSource;
+
+    #[test]
+    fn catalog_and_bindings() {
+        let document = Template::document();
+        let (cards, _) = document.normalized_parts();
+        let plots = cards
+            .iter()
+            .filter_map(|card| match &card.body {
+                DocumentCardBody::Plot { plot } => Some(plot.as_ref()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for kind in [
+            PlotType::TimeSeries,
+            PlotType::FrequencySeries,
+            PlotType::Xy,
+            PlotType::Trajectory,
+            PlotType::Contour,
+            PlotType::GridChart,
+            PlotType::Bar,
+            PlotType::Pie,
+            PlotType::Histogram,
+            PlotType::BoxPlot,
+        ] {
+            assert!(plots.iter().any(|plot| plot.plot_type == kind), "{kind:?}");
+        }
+        let contract = Samples::contract();
+        for plot in plots {
+            validate_plot_definition(plot).unwrap();
+            for expression in
+                plot.x_expression.iter().chain(&plot.y_expressions).chain(&plot.z_expression).chain(&plot.series_by_expression)
+            {
+                if let DataSource::Telemetry { stream, field } = &expression.source
+                    && stream == STARTUP_STREAM
+                {
+                    assert!(contract.columns.iter().any(|column| column.metadata.identifier.as_str() == field), "{field}");
+                }
+            }
+        }
+    }
+}

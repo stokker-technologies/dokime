@@ -105,7 +105,7 @@ pub fn section(owner: &str) -> Section {
     );
     section.plot(plot);
     // The Scan Itself: Every Channel With Its Network Count And Strongest Signal
-    let mut occupancy = plugin_host::domain::document::wifi_channel_occupancy("Wi-Fi Channel Occupancy");
+    let mut occupancy = plugin_host::domain::document::wifi_channel_grid("Wi-Fi Channel Occupancy");
     occupancy.id(format!("{owner}.system.wifi_channel_occupancy"));
     section.plot(occupancy);
     let plot = series(owner, "wifi_latency", "Wi-Fi Latency", "ms", 1, [plugin_host::WifiLatency::wifi_latency_ms()]);

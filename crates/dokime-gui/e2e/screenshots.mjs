@@ -142,6 +142,119 @@ async function capture(scene, ready, prepare) {
     await until("transient notifications dismissed", () =>
       session.execute("return document.querySelectorAll('[data-sonner-toast]').length === 0"),
     );
+    if (["plots", "report"].includes(scene)) {
+      // Show The Same Loaded Signal Maps In The Interface And Saved HTML.
+      await until("loaded signal maps", () =>
+        session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        const maps = doc.querySelector('[data-section-id="obc.charger.startup.sequence.maps"]');
+        maps?.scrollIntoView({block:'start'});
+        return !!maps?.querySelector('[data-testid="contour-plot"]') &&
+          !!maps.querySelector('[data-testid="grid-chart-plot"]') &&
+          Number(maps.querySelector('[aria-label="Electrical Trajectory Instant"][role="slider"]')?.getAttribute('aria-valuemax')) > 0;
+      `),
+      );
+      const gridInstant = await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        return doc.querySelector('[aria-label="Channel Survey Instant"][role="slider"]').getAttribute('aria-valuenow');
+      `);
+      await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        const slider = doc.querySelector('[aria-label="Electrical Trajectory Instant"][role="slider"]');
+        slider.focus();
+        slider.dispatchEvent(new KeyboardEvent('keydown', {key:'Home',code:'Home',bubbles:true}));
+      `);
+      await until("trajectory selection", () =>
+        session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        return doc.querySelector('[aria-label="Electrical Trajectory Instant"][role="slider"]').getAttribute('aria-valuenow') === '0';
+      `),
+      );
+      assert.equal(
+        await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        return doc.querySelector('[aria-label="Channel Survey Instant"][role="slider"]').getAttribute('aria-valuenow');
+      `),
+        gridInstant,
+        "Trajectory selection leaves the grid unchanged",
+      );
+      await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        const controls = doc.querySelector('[aria-label="Electrical Trajectory Playback"]');
+        [...controls.querySelectorAll('button')].find(button => button.innerText === 'Replay').click();
+      `);
+      await until("trajectory replay", () =>
+        session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        const controls = doc.querySelector('[aria-label="Electrical Trajectory Playback"]');
+        return ![...controls.querySelectorAll('button')].find(button => button.innerText === 'Pause').disabled;
+      `),
+      );
+      await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        const controls = doc.querySelector('[aria-label="Electrical Trajectory Playback"]');
+        [...controls.querySelectorAll('button')].find(button => button.innerText === 'Pause').click();
+      `);
+      await until("trajectory pause", () =>
+        session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        const controls = doc.querySelector('[aria-label="Electrical Trajectory Playback"]');
+        return [...controls.querySelectorAll('button')].find(button => button.innerText === 'Pause').disabled;
+      `),
+      );
+      assert.equal(
+        await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        return doc.querySelector('[aria-label="Channel Survey Instant"][role="slider"]').getAttribute('aria-valuenow');
+      `),
+        gridInstant,
+        "Trajectory replay leaves the grid unchanged",
+      );
+      const trajectoryInstant = await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        return doc.querySelector('[aria-label="Electrical Trajectory Instant"][role="slider"]').getAttribute('aria-valuenow');
+      `);
+      await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        const slider = doc.querySelector('[aria-label="Channel Survey Instant"][role="slider"]');
+        if (slider.getAttribute('aria-disabled') !== 'true') {
+          slider.focus();
+          slider.dispatchEvent(new KeyboardEvent('keydown', {key:'Home',code:'Home',bubbles:true}));
+        }
+      `);
+      await until("grid selection", () =>
+        session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        return doc.querySelector('[aria-label="Channel Survey Instant"][role="slider"]').getAttribute('aria-valuenow') === '0';
+      `),
+      );
+      await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        const controls = doc.querySelector('[aria-label="Channel Survey Playback"]');
+        const replay = [...controls.querySelectorAll('button')].find(button => button.innerText === 'Replay');
+        if (!replay.disabled) replay.click();
+      `);
+      await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        const controls = doc.querySelector('[aria-label="Channel Survey Playback"]');
+        const pause = [...controls.querySelectorAll('button')].find(button => button.innerText === 'Pause');
+        if (!pause.disabled) pause.click();
+      `);
+      assert.equal(
+        await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        return doc.querySelector('[aria-label="Electrical Trajectory Instant"][role="slider"]').getAttribute('aria-valuenow');
+      `),
+        trajectoryInstant,
+        "Grid selection and replay leave the trajectory unchanged",
+      );
+      await session.execute(`
+        const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
+        const controls = doc.querySelector('[aria-label="Electrical Trajectory Playback"]');
+        [...controls.querySelectorAll('button')].find(button => button.innerText === 'Latest').click();
+        doc.querySelector('[data-section-id="obc.charger.startup.sequence.maps"]').scrollIntoView({block:'start'});
+      `);
+    }
     if (["cycle", "touch"].includes(scene)) {
       await session.execute("document.querySelector('[data-execution-section=Report]').scrollIntoView({block:'start'});");
       await session.executeAsync("const done = arguments[arguments.length - 1]; requestAnimationFrame(() => requestAnimationFrame(done));");
