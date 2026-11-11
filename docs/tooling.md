@@ -145,7 +145,10 @@ mise run test -- --package dokime-cli --target integration --exact proto_export:
 ```
 
 Generation and drift checks use the pinned vendored protobuf compiler; no
-installed `protoc` is needed. Builds consume the checked-in Rust under
+installed `protoc` is needed. Tests Build transfers the pinned native compiler and
+its includes under `fixtures/inputs/vendor/`; archived tests select these inputs
+with `TEST_PROFILE` and restore executable permission on Unix. Focused tests use
+the compiler in the local Cargo registry. Builds consume the checked-in Rust under
 `crates/dokime-protocol/src/`, exposed as `dokime_protocol::v1` and
 `dokime_protocol::harmos::v1`. `mise run generate -- --protocol --check` runs the
 same drift check without regenerating committed source. Existing GUI/client

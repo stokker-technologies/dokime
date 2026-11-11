@@ -12,8 +12,11 @@
 
 # Standard Library Imports
 import argparse
+import json
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 from time import perf_counter
 
 # Third Party Imports
@@ -71,6 +74,15 @@ def build(profile: str, *, extended: bool = False) -> list[str]:
     # Package Fixtures With The Archive's Own Collector, Never A Separately Staged Product Build.
     tool = outputs.executables(messages, ["cargo-dokime"])["cargo-dokime"]
     staged += plugins.prepare(ROOT, messages, profile, tool=tool, output=output / "fixtures/plugins", packages=plugins.FIXTURES)
+    # Transfer The Pinned Native Protobuf Compiler With The Archived Tests.
+    document = json.loads(metadata.read_text(encoding="utf-8"))
+    platform = {"linux-x86_64": "linux-x86_64", "windows-x86_64": "win32"}[paths.target()]
+    prefix = f"protoc-bin-vendored-{platform}"
+    package = next(package for package in document["packages"] if package["name"] == prefix)
+    source = Path(package["manifest_path"]).parent
+    destination = output / "fixtures/inputs/vendor" / f"{prefix}-{package['version']}"
+    shutil.copytree(source, destination, dirs_exist_ok=True)
+    staged += [path for path in destination.rglob("*") if path.is_file()]
     names = configuration.relative(staged)
     archive.stamp(ROOT, profile, names)
     return names

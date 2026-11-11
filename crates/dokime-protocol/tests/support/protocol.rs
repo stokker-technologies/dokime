@@ -43,7 +43,7 @@ use std::{
 
 pub fn compiler(root: &Path) -> Result<(PathBuf, PathBuf), Box<dyn std::error::Error>> {
     // Archived Tests Consume the Transferred Compiler, Not the Producer's Registry.
-    let (compiler, includes) = if let Ok(profile) = std::env::var("STKR_TEST_PROFILE") {
+    let (compiler, includes) = if let Ok(profile) = std::env::var("TEST_PROFILE") {
         let target = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
         let vendor = root.join("target/build").join(profile).join(target).join("fixtures/inputs/vendor");
         let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
