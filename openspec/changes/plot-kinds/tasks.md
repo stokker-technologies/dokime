@@ -28,7 +28,7 @@
 
 ## 6. SDK Builders
 
-- [ ] 6.1 Regenerate message builders for all SDK languages and implement thin expression-chain conveniences/options, matching Python and Rust examples; remove retired constructors and provide replacement diagnostics.
+- [x] 6.1 Regenerate message builders for all SDK languages and implement thin expression-chain conveniences/options, matching Python and Rust examples; remove retired constructors and provide replacement diagnostics.
 
 ## 7. Plugin Documents and Scenes
 

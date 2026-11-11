@@ -93,7 +93,10 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn std::error::Error>> {
         ("cpp/dokime/v1/documents.pb.cc", "sdk/cpp/src/dokime/v1/documents.pb.cc"),
         ("cpp/dokime/v1/values.pb.cc", "sdk/cpp/src/dokime/v1/values.pb.cc"),
     ] {
-        assert_eq!(fs::read(output.path().join(generated))?, fs::read(root.join(committed))?, "stale {committed}");
+        if fs::read(output.path().join(generated))? != fs::read(root.join(committed))? {
+            let output = output.keep();
+            panic!("generated SDK binding differs from {committed}; run mise run generate -- --protocol; evidence: {}", output.display());
+        }
     }
     Ok(())
 }

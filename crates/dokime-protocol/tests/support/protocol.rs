@@ -112,6 +112,7 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     config.protoc_executable(compiler);
     config.out_dir(document_messages);
     config.file_descriptor_set_path(python.join("documents.pb"));
+    config.skip_source_info();
     config.protoc_arg(format!("--csharp_out={}", csharp.display()));
     config.protoc_arg(format!("--cpp_out={}", cpp.display()));
     config.compile_protos(&[proto.join("dokime/v1/values.proto"), proto.join("dokime/v1/documents.proto")], &[proto, includes])?;

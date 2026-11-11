@@ -48,7 +48,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     protocol::generate(&root, output.path())?;
     for (generated, committed) in [("dokime.v1.rs", "src/v1.rs"), ("harmos.v1.rs", "src/harmos/v1.rs")] {
         let bytes = std::fs::read(output.path().join(generated))?;
-        std::fs::write(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(committed), bytes)?;
+        let destination = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(committed);
+        if std::fs::read(&destination).ok().as_deref() != Some(bytes.as_slice()) {
+            std::fs::write(destination, bytes)?;
+        }
     }
     for (generated, committed) in [
         ("python/documents.pb", "sdk/python/python/dokime/v1/documents.pb"),
@@ -61,7 +64,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ] {
         let destination = root.join(committed);
         std::fs::create_dir_all(destination.parent().expect("output parent"))?;
-        std::fs::write(destination, std::fs::read(output.path().join(generated))?)?;
+        let bytes = std::fs::read(output.path().join(generated))?;
+        if std::fs::read(&destination).ok().as_deref() != Some(bytes.as_slice()) {
+            std::fs::write(destination, bytes)?;
+        }
     }
     Ok(())
 }
