@@ -25,6 +25,8 @@ dokime-compliance-<version>.zip                       every SBOM, NOTICE, THIRD-
 release.json                                          one index: latest, downloads, plugins
 SHA256SUMS
 dokime-reports-<version>.zip                          Nightly only: benchmark and coverage results
+dokime-screenshots-<version>.zip                      the product screenshots captured from this build
+benchmarks.json                                       Nightly only: latest benchmark results, fixed name
 ```
 
 - `dokime-compliance-<version>.zip` holds the bills of materials in folders: `artifacts/` (one per
@@ -43,16 +45,35 @@ dokime-reports-<version>.zip                          Nightly only: benchmark an
   release notes gain a short table: coverage per language, benchmarks that moved beyond their
   threshold, and suite results, with the run link. Stable releases do not run or attach them.
 
+## Nightly and Release Share Jobs
+
+Nightly is the release run with `channel=nightly`: no version tag, no registry publication, and
+benchmarks and coverage added. The validation jobs of CI and the publish and verify jobs of
+Release are reusable workflows that Nightly calls; it adds only freshness, benchmarks, coverage
+and the report. Dokime and Harmos keep the same Nightly: triggers and timezone, a run that never
+cancels, one freshness contract (tag comparison, duplicate revision detection, lookup errors fail
+closed), stage and job names, one named artifact interface, one publish entry point, digest
+verification, and an idempotent result report guarded by the publication identity. Products,
+languages, matrices and asset inventories stay each project's own.
+
+## Published Numbers
+
+`benchmarks.json` is attached to every Nightly under that fixed name, so a site can read the
+latest results from the Nightly release without expiry. It carries, per benchmark: name, suite,
+unit, value, the baseline value and the revision. No history is kept in the repository.
+
+## Screenshots
+
+The committed product screenshots move to `docs/screenshots/`, where the README embeds
+them. A release and a Nightly attach `dokime-screenshots-<version>.zip` captured from that
+build by the `screenshots` task. A site that shows them reads the archive of the release it
+presents or the files under `docs/screenshots/`.
+
 ## What Stays
 
 Signing, checksums, the embedded installer signature, the asset names of installers and archives
 other than the ones listed, and the rule that Nightly publication depends only on build and package
 while tests, benchmarks and coverage may fail.
-
-## Open Points
-
-- Whether benchmark history across Nightly runs is kept anywhere beyond the last report and the
-  baseline cache. Not in this change unless the owner asks.
 
 ## Impact
 

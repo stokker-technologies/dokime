@@ -12,6 +12,10 @@
 - [ ] 2.4 Make Nightly publish the same layout from the same tasks as a stable release.
 - [ ] 2.5 Attach `dokime-reports-<version>.zip` to Nightly and add the results table to its notes.
 - [ ] 2.6 Update the rehearsal, the product guide and the README.
+- [ ] 2.7 Attach `benchmarks.json` to Nightly under its fixed name.
+- [ ] 2.8 Attach `dokime-screenshots-<version>.zip` from the `screenshots` task to releases and Nightly.
+- [ ] 2.9 Extract the shared validation, publish and verify jobs as reusable workflows and make Nightly call them with the nightly channel.
+- [ ] 2.10 Align the Nightly contract with Harmos: triggers, cancellation, freshness, names, artifact interface, publish entry point, verification and report.
 
 ## 3. Final Validation
 
