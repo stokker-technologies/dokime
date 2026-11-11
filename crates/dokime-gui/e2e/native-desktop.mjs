@@ -1960,6 +1960,7 @@ async function activeCycleJourney(session, otherTitle) {
   assert.match((await element()) ?? "", /Active · Idle/, "The element states the cycle's own state");
 
   /* The template dialog names the active cycle with Change, and the case joins it. */
+  await session.clickCss(`details:has(table[aria-label="${STARTUP_SUITE}"]) > summary`);
   await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), WAIT_MS);
   await session.clickNamed("button", STARTUP_TEMPLATE);
   const inline = () =>
@@ -2092,6 +2093,7 @@ async function libraryJourney(session) {
   assert.ok(await session.exists("button", "Open Cycle"), "With an active cycle the page bar action must become Open Cycle");
 
   /* The Library lists every template beside its suite; a template's row opens its dialog. */
+  await session.clickCss(`details:has(table[aria-label="${PROTECTION_SUITE}"]) > summary`);
   assert.ok(hasText(await session.text(), PROTECTION_TEMPLATE), "The Library must list the suite's templates");
   await session.clickNamed("button", PROTECTION_TEMPLATE);
   await until("template dialog", () => session.find("css selector", "[role=dialog]"), WAIT_MS);
@@ -2193,6 +2195,7 @@ async function libraryJourney(session) {
 
   /* A second template joins the same cycle, so the run has a prompt in it. */
   await settle(session);
+  await session.clickCss(`details:has(table[aria-label="${STARTUP_SUITE}"]) > summary`);
   await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), WAIT_MS);
   await session.clickNamed("button", STARTUP_TEMPLATE);
   await until("second dialog", () => session.find("css selector", "[role=dialog]"), WAIT_MS);
@@ -3864,6 +3867,7 @@ async function touchJourney(session, cycleId) {
 
   await session.goto("/library");
   await until("touch library", async () => hasText(await session.text(), PROTECTION_SUITE), WAIT_MS);
+  await session.clickCss(`details:has(table[aria-label="${PROTECTION_SUITE}"]) > summary`);
   await session.clickNamed("button", PROTECTION_TEMPLATE);
   const share = await until("touch dialog", () =>
     session.execute(`

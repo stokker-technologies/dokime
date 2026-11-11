@@ -63,6 +63,7 @@ const environment = {
   GIT_CONFIG_GLOBAL: join(work, "empty-gitconfig"),
   GIT_CONFIG_COUNT: "0",
   DOKIME_TEST_HUB_OPERATOR: "Bench Operator",
+  RUST_LOG: "info,dokime_runtime::domains::execution::run::session=debug",
 };
 let session;
 let backend;
@@ -129,6 +130,13 @@ async function capture(scene, ready, prepare) {
     await session.executeAsync(
       "const done = arguments[arguments.length - 1]; document.fonts.ready.then(() => requestAnimationFrame(() => requestAnimationFrame(done)));",
     );
+    await until("transient notifications dismissed", () =>
+      session.execute("return document.querySelectorAll('[data-sonner-toast]').length === 0"),
+    );
+    if (["cycle", "touch"].includes(scene)) {
+      await session.execute("document.querySelector('[data-execution-section=Report]').scrollIntoView({block:'start'});");
+      await session.executeAsync("const done = arguments[arguments.length - 1]; requestAnimationFrame(() => requestAnimationFrame(done));");
+    }
     const errors = await session.execute(`
       const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
       return [...doc.querySelectorAll('[role="alert"]')].filter(node => node.getClientRects().length).map(node => node.innerText);
@@ -142,7 +150,6 @@ async function capture(scene, ready, prepare) {
       }).length;
     `);
     assert.equal(emptyBars, 0, `${scene} has histogram samples with invisible bars`);
-
     // Capture Only The Webview And Verify Its Native Pixel Dimensions.
     const image = `${scene}-${theme}.png`;
     const path = await session.screenshot(image.slice(0, -4));
@@ -187,243 +194,268 @@ try {
   const definition = await call(session, "Catalog", "GetSuite", { suiteId: suite.suiteId });
   await writeFile(join(evidence, "suite.json"), JSON.stringify(definition, null, 2));
   const template = definition.templates.find((row) => row.metadata.label === "Start-Up Sequence");
-  const overrides = {
-    duration_s: ["Number", 1],
-    sample_interval_s: ["Number", 0.001],
-    realtime: ["Bool", true],
-    continuous: ["Bool", false],
-  };
-  const parameters = Object.entries(overrides).map(([name, [kind, value]]) => {
-    const parameter = template.parameters.find(
-      (row) => row.name === name || row.metadata?.identifier === name || row.parameterId?.endsWith(`.${name}`),
+
+  // The Library Has No Execution Prerequisite.
+  if (options.scene === "library") {
+    await capture(
+      "library",
+      () => session.execute("return document.querySelectorAll('[role=dialog] [aria-label=\"Procedure Steps\"] li').length > 0"),
+      async () => {
+        await session.goto("/library");
+        await session.clickCss('details:has(table[aria-label="Charger Start-Up"]) > summary');
+        await session.clickCss('table[aria-label="Charger Start-Up"] tbody tr');
+        await until("template parameters", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
+      },
     );
-    assert.ok(parameter, `The bench declares ${name}`);
-    return { key: name, value: { values: [{ nodes: [{ kind: { [kind]: { field0: value } } }] }] } };
-  });
-  const plan = await call(session, "Planning", "MaterializeTemplate", {
-    selection: { suiteId: suite.suiteId, templateId: template.templateId, parameters },
-  });
-  const cycle = await call(session, "Execution", "CreateCycle", {
-    metadata: { label: "AC Characterization" },
-    continueAutomatically: false,
-  });
-  const executionId = randomUUID();
-  await call(session, "Execution", "AppendExecutions", {
-    cycleId: cycle.cycleId,
-    executions: [{ executionId, caseId: plan.cases[0].caseId }],
-  });
-  const route = `/cycles/${cycle.cycleId}?executionId=${executionId}`;
-  await session.goto(route);
-  await session.clickNamed("button", "Start");
-  await until("live measurement plots", async () => {
-    await answerPendingPrompts(session);
-    await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
-    return session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)");
-  });
-
-  // Capture Running Evidence Before The Case Finishes.
-  await capture(
-    "cycle",
-    () => session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)"),
-    async () => {
-      await session.goto(route);
-      await until("live report plots", async () => {
-        await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
-        return session.find("css selector", ".uplot canvas");
-      });
-      await session.execute("document.querySelector('[data-execution-section=Report]').scrollIntoView({block:'start'});");
-    },
-  );
-
-  // Finish And Seal The Measured Execution Through The Real Backend.
-  await session.goto(route);
-  const finished = await until(
-    "finished measured execution",
-    async () => {
-      await answerPendingPrompts(session);
-      const result = await call(session, "Execution", "GetExecution", { executionId });
-      await writeFile(join(evidence, "execution.json"), JSON.stringify(result, null, 2));
-      return result.summary?.sealed ||
-        result.summary?.status?.Failed ||
-        result.summary?.status?.Cancelled ||
-        result.summary?.status?.Blocked
-        ? result
-        : null;
-    },
-    undefined,
-    500,
-  );
-  assert.ok(finished.summary.status.Passed, `Measured case did not pass: ${JSON.stringify(finished.summary.status)}`);
-  await call(session, "Execution", "SealCycle", { cycleId: cycle.cycleId });
-
-  // Show Finished Plots And Hold A Zoom On The First Trace.
-  await capture(
-    "plots",
-    () =>
-      session.execute(
-        "return document.querySelectorAll('.uplot canvas').length >= 1 && !!document.querySelector('table[aria-label=\"Trace Statistics\"]')",
-      ),
-    async () => {
-      await session.goto(route);
-      await until("finished report section", () => session.find("css selector", "[data-execution-section=Report]"));
-      await session.execute("document.querySelector('[data-execution-section=Report]').scrollIntoView({block:'start'});");
-      const window = await session.find("css selector", '[role="slider"][aria-label$="Window"]');
-      await session.execute("arguments[0].focus()", [window]);
-      await session.key("End");
-      await session.clickNamed("button", "Refresh");
-      await until("finished plot statistics", () => session.find("css selector", 'table[aria-label="Trace Statistics"]'));
-      await session.execute("document.querySelector('.uplot').scrollIntoView({block:'start'});");
-      const bounds = await session.execute(
-        "const r = document.querySelector('.u-over').getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}",
+  } else {
+    const overrides = {
+      duration_s: ["Number", 1],
+      sample_interval_s: ["Number", 0.001],
+      realtime: ["Bool", true],
+      continuous: ["Bool", false],
+    };
+    const parameters = Object.entries(overrides).map(([name, [kind, value]]) => {
+      const parameter = template.parameters.find(
+        (row) => row.name === name || row.metadata?.identifier === name || row.parameterId?.endsWith(`.${name}`),
       );
-      await session.request("POST", "/actions", {
-        actions: [
-          {
-            type: "pointer",
-            id: "zoom",
-            parameters: { pointerType: "mouse" },
+      assert.ok(parameter, `The bench declares ${name}`);
+      return { key: name, value: { values: [{ nodes: [{ kind: { [kind]: { field0: value } } }] }] } };
+    });
+    const plan = await call(session, "Planning", "MaterializeTemplate", {
+      selection: { suiteId: suite.suiteId, templateId: template.templateId, parameters },
+    });
+    const cycle = await call(session, "Execution", "CreateCycle", {
+      metadata: { label: "AC Characterization" },
+      continueAutomatically: false,
+    });
+    const executionId = randomUUID();
+    await call(session, "Execution", "AppendExecutions", {
+      cycleId: cycle.cycleId,
+      executions: [{ executionId, caseId: plan.cases[0].caseId }],
+    });
+    const route = `/cycles/${cycle.cycleId}?executionId=${executionId}`;
+    await session.goto(route);
+    await session.clickNamed("button", "Start");
+    await until("live measurement plots", async () => {
+      await answerPendingPrompts(session);
+      await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
+      return session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)");
+    });
+
+    // Capture Running Evidence Before The Case Finishes.
+    await capture(
+      "cycle",
+      () => session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)"),
+      async () => {
+        await session.goto(route);
+        await until("live report plots", async () => {
+          await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
+          return session.find("css selector", ".uplot canvas");
+        });
+        await session.execute("document.querySelector('[data-execution-section=Report]').scrollIntoView({block:'start'});");
+      },
+    );
+
+    // A Selected Running Scene Needs No Finished Execution.
+    if (options.scene === "touch") {
+      await capture(
+        "touch",
+        () => session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)"),
+        async () => {
+          await session.goto(route);
+          await until("touch live plots", async () => {
+            await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
+            return session.find("css selector", ".uplot canvas");
+          });
+        },
+      );
+    }
+    if (["cycle", "touch"].includes(options.scene)) {
+      await call(session, "Execution", "StopExecution", { executionId });
+    } else {
+      // Finish And Seal The Measured Execution Through The Real Backend.
+      await session.goto(route);
+      const finished = await until(
+        "finished measured execution",
+        async () => {
+          await answerPendingPrompts(session);
+          const result = await call(session, "Execution", "GetExecution", { executionId });
+          await writeFile(join(evidence, "execution.json"), JSON.stringify(result, null, 2));
+          return result.summary?.sealed ||
+            result.summary?.status?.Failed ||
+            result.summary?.status?.Cancelled ||
+            result.summary?.status?.Blocked
+            ? result
+            : null;
+        },
+        undefined,
+        500,
+      );
+      assert.ok(finished.summary.status.Passed, `Measured case did not pass: ${JSON.stringify(finished.summary.status)}`);
+      await call(session, "Execution", "SealCycle", { cycleId: cycle.cycleId });
+
+      // Show Finished Plots And Hold A Zoom On The First Trace.
+      await capture(
+        "plots",
+        () =>
+          session.execute(
+            "return document.querySelectorAll('.uplot canvas').length >= 1 && !!document.querySelector('table[aria-label=\"Trace Statistics\"]')",
+          ),
+        async () => {
+          await session.goto(route);
+          await until("finished report section", () => session.find("css selector", "[data-execution-section=Report]"));
+          await session.execute("document.querySelector('[data-execution-section=Report]').scrollIntoView({block:'start'});");
+          const window = await session.find("css selector", '[role="slider"][aria-label$="Window"]');
+          await session.execute("arguments[0].focus()", [window]);
+          await session.key("End");
+          await session.clickNamed("button", "Refresh");
+          await until("finished plot statistics", () => session.find("css selector", 'table[aria-label="Trace Statistics"]'));
+          await session.execute("document.querySelector('.uplot').scrollIntoView({block:'start'});");
+          const bounds = await session.execute(
+            "const r = document.querySelector('.u-over').getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}",
+          );
+          await session.request("POST", "/actions", {
             actions: [
               {
-                type: "pointerMove",
-                duration: 0,
-                x: Math.round(bounds.x + bounds.width * 0.2),
-                y: Math.round(bounds.y + bounds.height * 0.25),
+                type: "pointer",
+                id: "zoom",
+                parameters: { pointerType: "mouse" },
+                actions: [
+                  {
+                    type: "pointerMove",
+                    duration: 0,
+                    x: Math.round(bounds.x + bounds.width * 0.2),
+                    y: Math.round(bounds.y + bounds.height * 0.25),
+                  },
+                  { type: "pointerDown", button: 0 },
+                  {
+                    type: "pointerMove",
+                    duration: 350,
+                    x: Math.round(bounds.x + bounds.width * 0.65),
+                    y: Math.round(bounds.y + bounds.height * 0.8),
+                  },
+                  { type: "pointerUp", button: 0 },
+                ],
               },
-              { type: "pointerDown", button: 0 },
-              {
-                type: "pointerMove",
-                duration: 350,
-                x: Math.round(bounds.x + bounds.width * 0.65),
-                y: Math.round(bounds.y + bounds.height * 0.8),
-              },
-              { type: "pointerUp", button: 0 },
             ],
-          },
-        ],
-      });
-      await session.request("DELETE", "/actions");
-    },
-  );
-
-  // Generate The Saved Report And Open Its Actual HTML In The Webview.
-  const reportPath = join(work, "report.html");
-  let delivered = false;
-  const delivery = invoke(session, "desktop_artifact_deliver", {
-    generation: (await invoke(session, "desktop_session_status")).connection.generation,
-    request: { source: { kind: "execution_report", executionId }, kind: "html_report", filename: "report.html", action: "save" },
-  }).finally(() => {
-    delivered = true;
-  });
-  const picker = { window: null };
-  await until("report save picker", () => delivered || chooseNativeFile(picker, reportPath, "Save"), undefined, 25);
-  const saved = await delivery;
-  const html = await readFile(saved.path, "utf8");
-  assert.ok(html.includes('id="hub-report-data"'), "The real saved report contains its captured document");
-  await capture(
-    "report",
-    () =>
-      session.execute(
-        "const doc = document.querySelector('#screenshot-report')?.contentDocument; if (!doc) return false; const row = doc.querySelector('li[data-level=case] button[data-tree-select]'); if (!doc.querySelector('[data-execution-section=Report]')) row?.click(); doc.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'}); return doc.querySelectorAll('.uplot canvas').length > 0",
-      ),
-    async (theme) => {
-      await session.goto(route);
-      await session.execute(
-        `const frame = document.createElement('iframe'); frame.id = 'screenshot-report'; frame.style = 'position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:9999;background:var(--background)'; frame.style.colorScheme = arguments[1]; frame.srcdoc = arguments[0]; document.body.append(frame);`,
-        [html, theme],
+          });
+          await session.request("DELETE", "/actions");
+        },
       );
-    },
-  );
-  await session.execute("document.querySelector('#screenshot-report')?.remove()");
 
-  // Inspect The Recorded Execution Checkpoint.
-  await capture(
-    "history",
-    () =>
-      session.execute(
-        "return document.body.innerText.includes('Recorded Steps') && !!document.querySelector('table[aria-label=\"History Executions\"]')",
-      ),
-    async () => {
-      await session.goto(`/history/${cycle.cycleId}`);
-      await session.clickCss('table[aria-label="History Executions"] button[aria-label="Inspect"]');
-      await until("recorded checkpoint", () => session.execute("return document.body.innerText.includes('Recorded Steps')"));
-    },
-  );
+      // Generate The Saved Report And Open Its Actual HTML In The Webview.
+      const reportPath = join(work, "report.html");
+      let delivered = false;
+      const delivery = invoke(session, "desktop_artifact_deliver", {
+        generation: (await invoke(session, "desktop_session_status")).connection.generation,
+        request: { source: { kind: "execution_report", executionId }, kind: "html_report", filename: "report.html", action: "save" },
+      }).finally(() => {
+        delivered = true;
+      });
+      const picker = { window: null };
+      await until("report save picker", () => delivered || chooseNativeFile(picker, reportPath, "Save"), undefined, 25);
+      const saved = await delivery;
+      const html = await readFile(saved.path, "utf8");
+      assert.ok(html.includes('id="hub-report-data"'), "The real saved report contains its captured document");
+      await capture(
+        "report",
+        () =>
+          session.execute(
+            "const doc = document.querySelector('#screenshot-report')?.contentDocument; if (!doc) return false; const row = doc.querySelector('li[data-level=case] button[data-tree-select]'); if (!doc.querySelector('[data-execution-section=Report]')) row?.click(); doc.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'}); return doc.querySelectorAll('.uplot canvas').length > 0",
+          ),
+        async (theme) => {
+          await session.goto(route);
+          await session.execute(
+            `const frame = document.createElement('iframe'); frame.id = 'screenshot-report'; frame.style = 'position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:9999;background:var(--background)'; frame.style.colorScheme = arguments[1]; frame.srcdoc = arguments[0]; document.body.append(frame);`,
+            [html, theme],
+          );
+        },
+      );
+      await session.execute("document.querySelector('#screenshot-report')?.remove()");
 
-  // Show The Current Library Template Presentation.
-  await capture(
-    "library",
-    () => session.execute("return !!document.querySelector('[role=dialog] [data-testid=step-indicator]')"),
-    async () => {
-      await session.goto("/library");
-      await session.clickNamed("button", "Start-Up Sequence");
-      await until("template parameters", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
-    },
-  );
-  await session.key("Escape");
+      // Inspect The Recorded Execution Checkpoint.
+      await capture(
+        "history",
+        () =>
+          session.execute(
+            "return document.body.innerText.includes('Recorded Steps') && !!document.querySelector('table[aria-label=\"History Executions\"]')",
+          ),
+        async () => {
+          await session.goto(`/history/${cycle.cycleId}`);
+          await session.clickCss('table[aria-label="History Executions"] button[aria-label="Inspect"]');
+          await until("recorded checkpoint", () => session.execute("return document.body.innerText.includes('Recorded Steps')"));
+        },
+      );
 
-  // Retain An Active Cycle Beside The Completed One On The Home Surface.
-  const active = await call(session, "Execution", "CreateCycle", {
-    metadata: { label: "Continuous Observation" },
-    continueAutomatically: false,
-  });
-  const activeId = randomUUID();
-  await call(session, "Execution", "AppendExecutions", {
-    cycleId: active.cycleId,
-    executions: [{ executionId: activeId, caseId: plan.cases[0].caseId }],
-  });
-  await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
-  await session.clickNamed("button", "Start");
-  await until("active observation", async () => {
-    await answerPendingPrompts(session);
-    await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
-    return session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)");
-  });
-  await capture(
-    "cycles",
-    () =>
-      session.execute(
-        "return document.body.innerText.includes('AC Characterization') && document.body.innerText.includes('Continuous Observation') && !document.body.innerText.includes('Loading cycles')",
-      ),
-    () => session.goto("/cycles"),
-  );
-  await capture(
-    "touch",
-    () => session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)"),
-    async () => {
+      // Show The Current Library Template Presentation.
+      await capture(
+        "library",
+        () => session.execute("return document.querySelectorAll('[role=dialog] [aria-label=\"Procedure Steps\"] li').length > 0"),
+        async () => {
+          await session.goto("/library");
+          await session.clickCss('details:has(table[aria-label="Charger Start-Up"]) > summary');
+          await session.clickCss('table[aria-label="Charger Start-Up"] tbody tr');
+          await until("template parameters", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
+        },
+      );
+      await session.key("Escape");
+
+      // Retain An Active Cycle Beside The Completed One On The Home Surface.
+      const active = await call(session, "Execution", "CreateCycle", {
+        metadata: { label: "Continuous Observation" },
+        continueAutomatically: false,
+      });
+      const activeId = randomUUID();
+      await call(session, "Execution", "AppendExecutions", {
+        cycleId: active.cycleId,
+        executions: [{ executionId: activeId, caseId: plan.cases[0].caseId }],
+      });
       await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
-      await until("touch live plots", () => session.find("css selector", ".uplot canvas"));
-      await session.execute("document.querySelector('[data-execution-section=Report]').scrollIntoView({block:'start'});");
-    },
-  );
+      await session.clickNamed("button", "Start");
+      await until("active observation", async () => {
+        await answerPendingPrompts(session);
+        await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
+        return session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)");
+      });
+      await capture(
+        "cycles",
+        () =>
+          session.execute(
+            "return document.body.innerText.includes('AC Characterization') && document.body.innerText.includes('Continuous Observation') && !document.body.innerText.includes('Loading cycles')",
+          ),
+        () => session.goto("/cycles"),
+      );
+      await capture(
+        "touch",
+        () => session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)"),
+        async () => {
+          await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
+          await until("touch live plots", () => session.find("css selector", ".uplot canvas"));
+          await session.execute("document.querySelector('[data-execution-section=Report]').scrollIntoView({block:'start'});");
+        },
+      );
 
-  // Let The Active Case Finish Normally Before Shutting Down Its Backend.
-  await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
-  const observed = await until(
-    "active observation completed",
-    async () => {
-      await answerPendingPrompts(session);
-      const result = await call(session, "Execution", "GetExecution", { executionId: activeId });
-      return result.summary?.sealed ||
-        result.summary?.status?.Failed ||
-        result.summary?.status?.Cancelled ||
-        result.summary?.status?.Blocked
-        ? result
-        : null;
-    },
-    undefined,
-    500,
-  );
-  assert.ok(observed.summary.status.Passed, `Observation did not pass: ${JSON.stringify(observed.summary.status)}`);
-  await call(session, "Execution", "SealCycle", { cycleId: active.cycleId });
-
-  // Publish Metadata Only After The Selected Journey Captures Succeed.
-  const previous = options.scene ? JSON.parse(await readFile(join(folder, "manifest.json"), "utf8").catch(() => "[]")) : [];
-  const manifest = [...previous.filter((entry) => entry.scene !== options.scene), ...entries];
-  manifest.sort(
-    (a, b) => scenes.indexOf(a.scene) - scenes.indexOf(b.scene) || ["light", "dark"].indexOf(a.theme) - ["light", "dark"].indexOf(b.theme),
-  );
-  for (const entry of entries) await copyFile(join(evidence, entry.image), join(folder, entry.image));
-  await writeFile(join(folder, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+      // Let The Active Case Finish Normally Before Shutting Down Its Backend.
+      await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
+      const observed = await until(
+        "active observation completed",
+        async () => {
+          await answerPendingPrompts(session);
+          const result = await call(session, "Execution", "GetExecution", { executionId: activeId });
+          return result.summary?.sealed ||
+            result.summary?.status?.Failed ||
+            result.summary?.status?.Cancelled ||
+            result.summary?.status?.Blocked
+            ? result
+            : null;
+        },
+        undefined,
+        500,
+      );
+      assert.ok(observed.summary.status.Passed, `Observation did not pass: ${JSON.stringify(observed.summary.status)}`);
+      await call(session, "Execution", "SealCycle", { cycleId: active.cycleId });
+    }
+  }
   failed = false;
 } catch (error) {
   if (session) {
@@ -462,6 +494,17 @@ try {
   }
   if (!failed && !cleanupErrors.length) await rm(work, { recursive: true, force: true });
   process.stdout.write(`Screenshot diagnostics: ${evidence}\n`);
+}
+// Preserve Ready Scenes Even When A Later Product Operation Fails.
+if (entries.length) {
+  const previous = JSON.parse(await readFile(join(folder, "manifest.json"), "utf8").catch(() => "[]"));
+  const replaced = new Set(entries.map((entry) => entry.image));
+  const manifest = [...previous.filter((entry) => !replaced.has(entry.image)), ...entries];
+  manifest.sort(
+    (a, b) => scenes.indexOf(a.scene) - scenes.indexOf(b.scene) || ["light", "dark"].indexOf(a.theme) - ["light", "dark"].indexOf(b.theme),
+  );
+  for (const entry of entries) await copyFile(join(evidence, entry.image), join(folder, entry.image));
+  await writeFile(join(folder, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 if (failure || cleanupErrors.length)
   throw new AggregateError([...(failure ? [failure] : []), ...cleanupErrors], "Screenshot journey failed");

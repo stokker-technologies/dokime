@@ -1,0 +1,74 @@
+[
+  {
+    "image": "cycle-light.png",
+    "scene": "cycle",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
+    "captured_at": "2026-11-11T10:56:53.222Z"
+  },
+  {
+    "image": "cycle-dark.png",
+    "scene": "cycle",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
+    "captured_at": "2026-11-11T10:56:59.901Z"
+  },
+  {
+    "image": "library-light.png",
+    "scene": "library",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
+    "captured_at": "2026-11-11T10:45:43.299Z"
+  },
+  {
+    "image": "library-dark.png",
+    "scene": "library",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
+    "captured_at": "2026-11-11T10:45:45.433Z"
+  },
+  {
+    "image": "touch-light.png",
+    "scene": "touch",
+    "theme": "light",
+    "viewport": {
+      "width": 1920,
+      "height": 1200
+    },
+    "density": "touch",
+    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
+    "captured_at": "2026-11-11T11:01:53.079Z"
+  },
+  {
+    "image": "touch-dark.png",
+    "scene": "touch",
+    "theme": "dark",
+    "viewport": {
+      "width": 1920,
+      "height": 1200
+    },
+    "density": "touch",
+    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
+    "captured_at": "2026-11-11T11:01:58.821Z"
+  }
+]

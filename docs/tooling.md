@@ -50,7 +50,7 @@ Contributor and security guidance live in [Contributing](CONTRIBUTING.md) and
 
 `mise run screenshots` runs the fixed native desktop journey on fresh storage and
 captures all seven scenes in light and dark mode. `--scene cycle` limits output to
-one scene; `--check` validates all committed PNGs and their manifest without
+one scene and its prerequisites; `--check` validates the complete published set and its manifest without
 starting the application. Build development product artifacts and run
 `mise run prepare:desktop` first. Captures use real time until the host virtual
 clock is adopted; review the images and commit them as a chore. See the

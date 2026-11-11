@@ -11,6 +11,7 @@
 
 import type { ReferenceBand, ReferenceLine, ReferenceValue } from "@/lib/document-contracts";
 import { formatTitleWord } from "@/lib/format";
+import { numericValue } from "@/lib/utils";
 import type {
   DocumentReferenceBand,
   DocumentReferenceLine,
@@ -404,7 +405,8 @@ function latestSample(telemetry: Record<string, TelemetryStream> | null | undefi
 }
 
 function numberValue(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  const number = numericValue(value);
+  return number !== null && Number.isFinite(number) ? number : null;
 }
 
 function firstText(...values: unknown[]): string | undefined {

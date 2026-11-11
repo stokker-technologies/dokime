@@ -23,6 +23,11 @@ import { createRoot } from "react-dom/client";
 import type { DocumentPlotStyle, PlotCartesianFrame, PlotSeries } from "@/lib/types";
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import { PlotInteractionProvider } from "@/plots/interaction";
+import { HistogramChart } from "@/components/HistogramChart";
+import { BarPlot } from "@/plots/catalog/BarPlot";
+import { BoxSummarySeriesPlot } from "@/plots/catalog/BoxSummaryPlot";
+import { WifiChannelOccupancyPlot } from "@/plots/catalog/WifiChannelOccupancyPlot";
+import type { PlotCardSpec } from "@/plots/types";
 import "@/styles.css";
 
 /* === Re-Exports === */
@@ -37,6 +42,7 @@ declare global {
       mount: (style: DocumentPlotStyle, faceted: boolean, zoom: boolean, dark: boolean, withMarkers?: boolean) => Promise<void>;
       counts: () => number[];
       toggle: (index: number) => Promise<void>;
+      summaries: (dark: boolean, touch: boolean) => Promise<void>;
     };
   }
 }
@@ -87,6 +93,83 @@ function startCanvasFixture() {
   };
 
   window.canvasFixture = {
+    async summaries(dark, touch) {
+      document.documentElement.classList.toggle("dark", dark);
+      document.documentElement.dataset.density = touch ? "touch" : "comfortable";
+      const plot = {
+        title: "Distribution",
+        unit: "V",
+        colors: [],
+        series: [
+          {
+            key: "signal",
+            label: "Signal",
+            points: [
+              { x: "A", y: 5 },
+              { x: "B", y: -3 },
+            ],
+          },
+        ],
+        analysis: {
+          kind: "box_summary",
+          total: 12,
+          series: [{ key: "A", label: "A", lower_whisker: 0, q1: 1, median: 2, q3: 3, upper_whisker: 4, outliers: [5] }],
+        },
+      } as unknown as PlotCardSpec;
+      root.render(
+        createElement(
+          "div",
+          {},
+          createElement(
+            "div",
+            { "data-plot-kind": "histogram" },
+            createElement(HistogramChart, {
+              title: "Samples",
+              unit: "V",
+              distribution: {
+                count: 12,
+                bins: [
+                  { lower: 0, upper: 1, count: 3 },
+                  { lower: 1, upper: 2, count: 0 },
+                  { lower: 2, upper: 3, count: 9 },
+                ],
+              },
+            }),
+          ),
+          createElement("div", { "data-plot-kind": "bar" }, createElement(BarPlot, { plot })),
+          createElement("div", { "data-plot-kind": "box" }, createElement(BoxSummarySeriesPlot, { plot })),
+          createElement(
+            "div",
+            { "data-plot-kind": "wifi" },
+            createElement(WifiChannelOccupancyPlot, {
+              plot: {
+                ...plot,
+                analysis: {
+                  kind: "wifi_occupancy",
+                  channels: [1, 6],
+                  occupied_channels: [1, 6],
+                  bands: [{ band: "2.4 GHz", occupied_channels: 2 }],
+                  scans: [
+                    {
+                      time: "2026-01-01T00:00:00Z",
+                      channels: [
+                        { channel: 1, count: 2 },
+                        { channel: 6, count: 3 },
+                      ],
+                      bands: [{ band: "2.4 GHz", occupied_channels: 2, total_networks: 5, peak_count: 3 }],
+                      occupied_channels: 2,
+                      total_networks: 5,
+                      peak_count: 3,
+                    },
+                  ],
+                },
+              },
+            }),
+          ),
+        ),
+      );
+      await settled();
+    },
     async mount(style, faceted, zoom, dark, withMarkers = false) {
       document.documentElement.classList.toggle("dark", dark);
       const x = Array.from({ length: 20 }, (_, index) => 1_700_000_000 + index * 11);

@@ -258,6 +258,63 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
         }
       }
     }
+    // Summary Marks Must Have Painted Area In Both Themes And Densities.
+    for (const dark of [false, true]) {
+      for (const touch of [false, true]) {
+        await evaluate(`window.canvasFixture.summaries(${dark}, ${touch})`);
+        const marks = await evaluate(`(() => {
+          const selectors = {
+            histogram: 'button > span',
+            bar: 'div[style*="background-color"]',
+            box: 'span[style*="right"]',
+            wifi: '[role="img"]:has(span)',
+          };
+          return Object.entries(selectors).map(([kind, selector]) => {
+            const chart = document.querySelector('[data-plot-kind="' + kind + '"]');
+            return { kind, marks: [...chart.querySelectorAll(selector)].filter(node => node.style.height !== '0px').map(node => {
+              const bounds = node.getBoundingClientRect();
+              const color = getComputedStyle(node).backgroundColor;
+              const surface = getComputedStyle(chart.querySelector('section, article')).backgroundColor;
+              return { area: bounds.width > 0 && bounds.height > 0, filled: color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent' && color !== surface };
+            }) };
+          });
+        })()`);
+        assert.deepEqual(
+          marks,
+          [
+            {
+              kind: "histogram",
+              marks: [
+                { area: true, filled: true },
+                { area: true, filled: true },
+              ],
+            },
+            {
+              kind: "bar",
+              marks: [
+                { area: true, filled: true },
+                { area: true, filled: true },
+              ],
+            },
+            {
+              kind: "box",
+              marks: [
+                { area: true, filled: true },
+                { area: true, filled: true },
+              ],
+            },
+            {
+              kind: "wifi",
+              marks: [
+                { area: true, filled: true },
+                { area: true, filled: true },
+              ],
+            },
+          ],
+          `Summary geometry and fills: dark=${dark}, touch=${touch}`,
+        );
+      }
+    }
     assert.equal(await evaluate(`document.querySelectorAll('script[src],link[rel="stylesheet"][href]').length`), 0);
     await command("Browser.close", {});
     if (browser.exitCode === null) await once(browser, "exit", { signal: AbortSignal.timeout(30_000) });

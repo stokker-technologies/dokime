@@ -527,6 +527,8 @@ export const CartesianPlot = memo(function CartesianPlot({
           stroke: themeColors.mutedForeground,
           font: plotFont,
           labelFont: plotFont,
+          // Subsecond Clock Labels Must Fit At The Selected Density.
+          space: timeAxis && !xElapsedUnit ? measureTextWidth("00:00:00.000", plotFont) + 12 : undefined,
           grid: { stroke: themeColors.border, width: 1 },
           size: (_plot, values) => xAxisGutter(values, plotFont),
           values: xAxisValues,

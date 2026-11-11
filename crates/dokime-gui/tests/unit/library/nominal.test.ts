@@ -27,6 +27,8 @@ import { ActiveCycleInline, ActiveCyclePickerList, ActiveCycleSummary } from "@/
 import { openCycles, resolveActiveCycle } from "@/features/library/active-cycle-model";
 import { caseAppend, NO_ACTIVE_CYCLE, NO_CHOSEN_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
 import type { TestCycleSelection } from "@/lib/types";
+import type { SuiteTemplateEntry } from "@/lib/types";
+import { TemplateProcedure } from "@/features/library/TemplateDialog";
 
 /* === Re-Exports === */
 
@@ -81,6 +83,25 @@ function preview(...cases: Record<string, unknown>[]): Preview {
 }
 
 /* === Entry Point === */
+
+test("Procedure Preview Uses Registered Step Order Without Mutating the Catalog", () => {
+  const template = {
+    steps: [
+      { step_id: "second", method_name: "second", order: 2 },
+      { step_id: "first", method_name: "first", order: 1 },
+    ],
+  } as SuiteTemplateEntry;
+  const markup = renderToStaticMarkup(createElement(TemplateProcedure, { template }));
+  assert.deepEqual(
+    [...markup.matchAll(/data-step-id="([^"]+)"/g)].map((step) => step[1]),
+    ["first", "second"],
+  );
+  assert.deepEqual(
+    template.steps.map((step) => step.step_id),
+    ["second", "first"],
+  );
+  assert.equal(renderToStaticMarkup(createElement(TemplateProcedure, { template: { ...template, steps: [] } })), "");
+});
 
 test("Template Problems Keep Each Field and Its Validation Cause", () => {
   const definition = {

@@ -91,7 +91,7 @@ export function HistogramChart({
               variant="plain"
               size="inline"
               aria-label={`${formatHistogramValue(bin.min, unit, format)} to ${formatHistogramValue(bin.max, unit, format)}: ${bin.count}`}
-              className="grid h-full min-w-0 items-end text-left"
+              className="grid h-full min-w-0 grid-cols-1 items-end justify-stretch text-left"
               key={bin.slot}
               type="button"
               onBlur={() => setActiveBinIndex(null)}

@@ -284,6 +284,7 @@ export function TemplateDialog({
 
   const body = (
     <div className="-mx-4 grid min-h-0 content-start gap-3 overflow-y-auto">
+      <TemplateProcedure template={template} />
       {step === "parameters" ? (
         <div>
           {!parametersReady ? (
@@ -445,6 +446,30 @@ export function TemplateDialog({
 }
 
 /* === Subcomponents === */
+
+/** The Registered Procedure, Before Parameters Materialize Any Cases. */
+export function TemplateProcedure({ template }: { template: SuiteTemplateEntry }) {
+  if (!template.steps.length) return null;
+  return (
+    <section aria-label="Procedure Steps" className="mx-4 grid gap-2 rounded-lg bg-muted/20 p-3">
+      <h3 className="text-sm font-semibold">Procedure Steps</h3>
+      <ol className="grid gap-2 sm:grid-cols-2">
+        {[...template.steps]
+          .sort((a, b) => a.order - b.order)
+          .map((entry, index) => (
+            <li key={entry.step_id} data-step-id={entry.step_id} className="flex items-start gap-2 text-sm">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs tabular-nums text-primary">
+                {index + 1}
+              </span>
+              <span className="pt-0.5" title={entry.description ?? undefined}>
+                {entry.label ?? titleCaseIdentifier(entry.method_name)}
+              </span>
+            </li>
+          ))}
+      </ol>
+    </section>
+  );
+}
 
 /**
  * Two equal slots around a short connector.

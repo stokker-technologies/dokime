@@ -577,6 +577,7 @@ impl Template {
         voltage.style(PlotStyle::LinePoints);
         voltage.y(telemetry(STARTUP_STREAM, "voltage_v"));
         voltage.y(telemetry(STARTUP_STREAM, "voltage_rms_v"));
+        voltage.reference_tolerance("Nominal RMS ±23 V", Parameters::ac_voltage_v(), 23.0);
         // The prompt markers are the host's own records, so they are named by id;
         // this suite's are named by their type.
         voltage.marker_records([
@@ -639,6 +640,7 @@ impl Template {
         current.unit("A");
         current.y(telemetry(STARTUP_STREAM, "current_a"));
         current.y(telemetry(STARTUP_STREAM, "current_rms_a"));
+        current.reference_line("RMS Current Limit", Parameters::current_limit_a());
 
         let mut ac_current = Section::new("AC Current");
         ac_current.plot(current);

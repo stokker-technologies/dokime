@@ -111,8 +111,7 @@ Click either to inspect the full message, failure causes and available technical
 
 #### Examples
 
-![Test templates and cases in the Dokime library](docs/screenshots/library-light.png)
-![Saved test history in Dokime](docs/screenshots/history-light.png)
+![An expanded charger suite and its registered procedure steps in the Dokime library](docs/screenshots/library-light.png)
 
 ### CLI
 

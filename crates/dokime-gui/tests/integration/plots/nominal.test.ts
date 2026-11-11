@@ -1928,6 +1928,12 @@ test("Reference Values Resolve Constants Parameters and Tolerances Per Case in L
       ],
     );
     assert.deepEqual(frozen, live);
+    const nativeParameters = Object.fromEntries(
+      Object.entries(parameters).map(([name, value]) => [name, { __dokime_native_number__: true, decimal: String(value) }]),
+    );
+    const native = documentPlotSpec({ plot: descriptor, payload: null, parameters: nativeParameters });
+    assert.deepEqual(native.referenceLines, live.referenceLines);
+    assert.deepEqual(native.referenceBands, live.referenceBands);
   }
   assert.deepEqual(descriptor, original);
 });
