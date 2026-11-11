@@ -1949,8 +1949,17 @@ test("Generic Grid and Contour State Does Not Depend on Host Scan Fields", () =>
       plot,
       payload: null,
       telemetry: {
-        "host.wifi.scan": { samples: [{ scan_status: "error", scan_error: "unavailable" }] },
-      } as Record<string, TelemetryStream>,
+        "host.wifi.scan": {
+          stream: "host.wifi.scan",
+          spec: null,
+          summary: {},
+          samples: [{ scan_status: "error", scan_error: "unavailable" }],
+          max_samples: 1,
+          total_samples: 1,
+          dropped_samples: 0,
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      } satisfies Record<string, TelemetryStream>,
     });
     assert.equal(withHostFields.stateLabel, plain.stateLabel);
     assert.equal(withHostFields.stateDetail, plain.stateDetail);
@@ -2164,8 +2173,8 @@ test("Numeric Expression Maps Preserve Their Wire Order", () => {
   const offset = maps?.[1];
   assert.ok(scale?.case === "Scale");
   assert.ok(offset?.case === "Offset");
-  assert.equal(scale.value.field0.value, 2);
-  assert.equal(offset.value.field0.value, -1);
+  assert.equal(scale.value.field0?.value, 2);
+  assert.equal(offset.value.field0?.value, -1);
 });
 
 test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {

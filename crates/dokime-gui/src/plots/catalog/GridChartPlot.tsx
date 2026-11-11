@@ -76,7 +76,7 @@ export function GridChartPlot({ plot }: { plot: PlotCardSpec }) {
                 const index = rowIndex * shown.columns.length + columnIndex;
                 const present = frame.valid[index] && Number.isFinite(frame.values[index]);
                 const highlights = frame.highlights.filter((cell) => cell.row === rowIndex && cell.column === columnIndex);
-                const value = present ? formatUnitLabel(formatNumber(frame.values[index]), plot.unit) : "No Value";
+                const value = present ? formatUnitLabel(formatNumber(frame.values[index], plot.yFormat ?? null), plot.unit) : "No Value";
                 return (
                   <TableCell
                     key={column.key}
@@ -87,7 +87,7 @@ export function GridChartPlot({ plot }: { plot: PlotCardSpec }) {
                     className={`text-center tabular-nums ${present && max > min && (frame.values[index] - min) / (max - min) > 0.72 ? "text-white" : "text-zinc-950"} ${highlights.length ? "ring-2 ring-inset ring-primary" : ""}`}
                     style={present ? { backgroundColor: color(frame.values[index]) } : undefined}
                   >
-                    {present ? formatNumber(frame.values[index]) : null}
+                    {present ? formatNumber(frame.values[index], plot.yFormat ?? null) : null}
                   </TableCell>
                 );
               })}
@@ -97,7 +97,11 @@ export function GridChartPlot({ plot }: { plot: PlotCardSpec }) {
       </Table>
       {shown.summary_label ? (
         <output className="text-xs text-muted-foreground">
-          {formatUnitLabel(shown.summary_label, plot.unit)}: {formatNumber(values.reduce((sum, value) => sum + value, 0))}
+          {formatUnitLabel(shown.summary_label, plot.unit)}:{" "}
+          {formatNumber(
+            values.reduce((sum, value) => sum + value, 0),
+            plot.yFormat ?? null,
+          )}
         </output>
       ) : null}
       <PlotPlayback title={plot.title} playback={playback} />

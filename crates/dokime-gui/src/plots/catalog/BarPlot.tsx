@@ -13,14 +13,11 @@ import { scaleLinear } from "d3-scale";
 
 /* === Local Imports === */
 
-import { formatUnitLabel } from "@/lib/format";
-
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatUnitLabel } from "@/lib/format";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
-import { plotPlaceholderText } from "@/plots/plot-placeholder";
+import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import { categoryFractions, categoryTotals } from "@/plots/categories";
 import { plotColor } from "@/plots/colors";
-import { plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PlotCardSpec } from "@/plots/types";
 
 /* === Types === */
@@ -159,7 +156,7 @@ function ArrangedBarPlot({ plot }: { plot: PlotCardSpec }) {
                 height={20}
                 fill={plot.colors[bar.seriesIndex] ?? plotColor(bar.seriesIndex)}
               >
-                <title>{`${plot.series[bar.seriesIndex].label}: ${formatUnitLabel(formatNumber(bar.value), plot.unit)}`}</title>
+                <title>{`${plot.series[bar.seriesIndex].label}: ${formatUnitLabel(formatNumber(bar.value, plot.yFormat ?? null), plot.unit)}`}</title>
               </rect>
             ))}
           </g>
@@ -167,7 +164,7 @@ function ArrangedBarPlot({ plot }: { plot: PlotCardSpec }) {
         <line x1={x(0)} x2={x(0)} y1={14} y2={height - 30} stroke="currentColor" />
         {x.ticks(5).map((value) => (
           <text key={value} x={x(value)} y={height - 10} textAnchor="middle" fill="currentColor" className="text-xs">
-            {formatNumber(value)}
+            {formatNumber(value, plot.yFormat ?? null)}
           </text>
         ))}
       </svg>
@@ -217,20 +214,20 @@ function ParetoPlot({ plot }: { plot: PlotCardSpec }) {
               height={bar.height}
               fill={plot.colors[0] ?? plotColor(0)}
             >
-              <title>{`${bar.key}: ${formatUnitLabel(formatNumber(bar.value), plot.unit)}`}</title>
+              <title>{`${bar.key}: ${formatUnitLabel(formatNumber(bar.value, plot.yFormat ?? null), plot.unit)}`}</title>
             </rect>
             <text x={bar.x} y={300} textAnchor="middle" fill="currentColor" className="text-xs">
               {bar.key}
             </text>
             <text x={bar.x} y={Math.max(15, 274 - bar.height)} textAnchor="middle" fill="currentColor" className="text-xs">
-              {formatNumber(bar.value)}
+              {formatNumber(bar.value, plot.yFormat ?? null)}
             </text>
           </g>
         ))}
         <line x1={50} x2={50} y1={20} y2={280} stroke="currentColor" />
         {valueAxis.ticks(5).map((value) => (
           <text key={value} x={44} y={valueAxis(value)} textAnchor="end" dominantBaseline="middle" fill="currentColor" className="text-xs">
-            {formatNumber(value)}
+            {formatNumber(value, plot.yFormat ?? null)}
           </text>
         ))}
         {maximum > 0 ? (

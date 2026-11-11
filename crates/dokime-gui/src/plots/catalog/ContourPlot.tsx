@@ -109,7 +109,7 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
         <g transform={`translate(${MARGIN.left},${MARGIN.top + height}) scale(${width / grid.columns},${-height / grid.rows})`}>
           {cells.map((cell) => (
             <rect key={cell.index} data-bin={cell.index} x={cell.column} y={cell.row} width={1} height={1} fill={color(cell.value)}>
-              <title>{`${formatNumber(grid.x_edges[cell.column])}–${formatNumber(grid.x_edges[cell.column + 1])}, ${formatNumber(grid.y_edges[cell.row])}–${formatNumber(grid.y_edges[cell.row + 1])}: ${formatUnitLabel(formatNumber(cell.value), plot.unit)}`}</title>
+              <title>{`${formatNumber(grid.x_edges[cell.column], plot.xFormat ?? null)}–${formatNumber(grid.x_edges[cell.column + 1], plot.xFormat ?? null)}, ${formatNumber(grid.y_edges[cell.row], plot.yFormat ?? null)}–${formatNumber(grid.y_edges[cell.row + 1], plot.yFormat ?? null)}: ${formatUnitLabel(formatNumber(cell.value, null), plot.unit)}`}</title>
             </rect>
           ))}
           {plot.render === "bands" ? (
@@ -164,7 +164,7 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
         </g>
         {x.ticks(5).map((value) => (
           <text key={value} x={x(value)} y={MARGIN.top + height + 22} textAnchor="middle" fill="currentColor" className="text-xs">
-            {formatNumber(value)}
+            {formatNumber(value, plot.xFormat ?? null)}
           </text>
         ))}
         {y.ticks(5).map((value) => (
@@ -177,7 +177,7 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
             fill="currentColor"
             className="text-xs"
           >
-            {formatNumber(value)}
+            {formatNumber(value, plot.yFormat ?? null)}
           </text>
         ))}
       </svg>
