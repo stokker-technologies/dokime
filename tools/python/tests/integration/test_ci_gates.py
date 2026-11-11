@@ -83,13 +83,10 @@ class ReleaseTagTests(unittest.TestCase):
         for workflow in sorted((ROOT / ".github/workflows").glob("*.yml")):
             source = workflow.read_text(encoding="utf-8")
             commands = []
-            for match in re.finditer(r"""(?m)^ +command: ('(?:[^']|'')*'|"(?:[^"\\]|\\.)*")\s*$""", source):
-                scalar = match[1]
-                value = scalar[1:-1].replace("''", "'") if scalar.startswith("'") else json.loads(scalar)
-                value = re.sub(r"\$\{\{\s*env.PROFILE\s*\}\}", "release", value)
-                command = json.loads(value)
-                if "dokime_tools.ci.artifacts" in command:
-                    commands.append(command)
+            for match in re.finditer(r"(?m)^ +run: (.*dokime_tools\.ci\.artifacts.*)$", source):
+                value = re.sub(r"\$\{\{\s*env.PROFILE\s*\}\}", "release", match[1])
+                value = re.sub(r"\$\{\{\s*(.*?)\s*\}\}", lambda expression: "${{" + expression[1].replace(" ", "") + "}}", value)
+                commands.append(value.split())
             self.assertEqual(len(commands), source.count("dokime_tools.ci.artifacts"), workflow.name)
             for command in commands:
                 arguments = command[command.index("dokime_tools.ci.artifacts") :]
