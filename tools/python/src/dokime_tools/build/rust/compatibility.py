@@ -35,8 +35,8 @@ ROOT = configuration.ROOT
 def build(profile: str) -> list[str]:
     """Verify The Complete Feature Matrix For Explicit Local Extended Validation."""
     for selected in (
-        ["--workspace", "--all-targets", "--all-features"],
-        ["--workspace", "--lib", "--bins", "--no-default-features"],
+        ["--workspace", "--exclude", "dokime-python", "--all-targets", "--all-features"],
+        ["--workspace", "--exclude", "dokime-python", "--lib", "--bins", "--no-default-features"],
         ["--package", "dokime-domain", "--target", "wasm32-unknown-unknown"],
     ):
         status = cargo.focused(ROOT, "check", ["--locked", "--profile", "test", *selected])

@@ -50,6 +50,7 @@ pub struct ListSamples {
 
     #[serde(default)]
     pub r#where: Vec<Predicate>,
+
     pub between: Option<Window>,
     pub bucket: Option<BucketRequest>,
     pub page: PageRequest,

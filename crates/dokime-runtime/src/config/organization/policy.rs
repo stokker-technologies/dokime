@@ -32,15 +32,18 @@ const MAXIMUM_SOURCES: usize = 32;
 
 /* === Structs === */
 
-/// Organization Defaults Contain Source Locations, Never Authentication Values.
+// Organization Defaults Contain Source Locations, Never Authentication Values.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpdatePolicy {
     #[serde(default)]
     pub mode: Mode,
+
     pub source: Option<String>,
+
     #[serde(default)]
     pub sources: BTreeMap<String, Source>,
+
     #[serde(default)]
     pub connections: BTreeMap<String, Connection>,
 }
@@ -58,6 +61,7 @@ pub struct Connection {
 pub enum Mode {
     #[default]
     Disabled,
+
     Manual,
     AutomaticCheck,
 }

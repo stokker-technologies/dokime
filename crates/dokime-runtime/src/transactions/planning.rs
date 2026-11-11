@@ -10,12 +10,10 @@
 /* === Modules === */
 
 mod append;
-mod copy;
 
 /* === Re-Exports === */
 
 pub use append::AppendExecutions;
-pub use copy::CopyCycle;
 
 /* === Imports === */
 
@@ -50,13 +48,12 @@ use dokime_domain::state::records::set::TestRecordSet;
 
 /* === Structs === */
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct CycleDefinition {
     pub metadata: Metadata,
     pub continue_automatically: bool,
 }
 
-#[harmos::transaction(id = "dokime.suite.cases.register")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RegisterCases {
     pub registration_id: CommandId,
@@ -65,9 +62,11 @@ pub struct RegisterCases {
     pub definition_revisions: BTreeMap<dokime_domain::model::identity::CaseId, String>,
 }
 
+retained_transaction!(RegisterCases, "dokime.suite.cases.register");
+
 // A Cycle Opens Empty; Explicit Execution Identities Join Through AppendExecutions.
 #[harmos::transaction(id = "dokime.execution.cycle.create")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct CreateCycle {
     pub definition: CycleDefinition,
     pub test_cycle_id: TestCycleId,

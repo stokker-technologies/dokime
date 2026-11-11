@@ -40,7 +40,7 @@ export async function openHarness() {
   const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
   const generated = resolve(gui, "../../target/generated/typescript");
   assert.ok(existsSync(generated), `${generated} is missing; run \`mise run prepare:contracts\``);
-  const owner = spawn("uv", ["run", "--locked", "--project", "tools/python", "python", "-m", "dokime_tools.fixture"], {
+  const owner = spawn("uv", ["run", "--locked", "--project", "tools/python", "python", "-m", "dokime_tools.test.fixture"], {
     cwd: resolve(gui, "../.."),
     stdio: ["pipe", "pipe", "inherit"],
   });

@@ -147,6 +147,7 @@ struct SamplingBorrow<'a> {
 enum ProduceError {
     #[error("sampling preferences could not be read: {0}")]
     Preferences(#[from] crate::runtime::Error),
+
     #[error("sampling source `{producer_key}` failed to open: {message}")]
     SourceOpen { producer_key: String, message: String },
 
@@ -166,6 +167,7 @@ enum ProduceError {
         lease_id: String,
         expected: u64,
         receipt: harmos::storage::ReadBatch<crate::evidence_runtime::PublishReceipt>,
+
         #[source]
         source: Option<Box<crate::runtime::Error>>,
     },

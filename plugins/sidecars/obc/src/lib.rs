@@ -15,14 +15,12 @@ pub mod error;
 mod listeners;
 mod observers;
 pub mod operations;
-pub mod prompts;
-pub mod settings;
 pub mod suites;
 
 /* === Re-Exports === */
 
+pub use domain::model::settings::{BenchSettings, SAMPLE_INTERVAL_MS};
 pub use error::Error;
-pub use settings::{BenchSettings, SAMPLE_INTERVAL_MS};
 pub use suites::checks::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, ObcChecks, Pulse, PulseRow, pulse_value};
 
 /* === Imports === */
@@ -69,6 +67,8 @@ pub struct ObcPlugin {
     runtime: Option<app::Runtime>,
     resources: Arc<Resources>,
     observers: Option<Arc<Observing>>,
+    chargers: Arc<operations::charger::Chargers>,
+    system: Arc<operations::system::Collector>,
 }
 
 /* === Enums === */
@@ -133,6 +133,8 @@ impl dokime::harmos::Lifecycle for ObcPlugin {
         let settings = dokime::plugin::refusal(config.settings::<BenchSettings>())?;
         let plugin = Self {
             runtime: None,
+            chargers: Arc::default(),
+            system: Arc::default(),
             resources: Arc::new(Resources {
                 app: OnceLock::new(),
                 connections: Mutex::default(),
@@ -141,11 +143,15 @@ impl dokime::harmos::Lifecycle for ObcPlugin {
             observers: Some(ObserverAttachment::from_catalog::<observers::Observers>(<Self as Declared>::STREAMS)?),
         };
         setup.resource::<Resources>(plugin.resources.clone());
+        setup.resource::<operations::charger::Chargers>(plugin.chargers.clone());
+        setup.resource::<operations::system::Collector>(plugin.system.clone());
         dokime::execution::prepare::<Self, suites::Suites>(setup)?;
         Ok(plugin)
     }
 
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+        // Warm Native Counters Before Serving Deadline-Bound Collection.
+        self.system.refresh().await?;
         let runtime = dokime::plugin::refusal(app::launch(Testbench::default()).await)?;
         let _ = self.resources.app.set(obc_runtime::Client::new(runtime.handle()));
         self.runtime = Some(runtime);

@@ -12,18 +12,19 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Third Party Imports
 
 // Local Imports
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use dokime_runtime::document::DocumentNode;
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::*;
 
 /* === Constants === */
+
 const SUITE: &str = "documents.checks";
 const TEMPLATE: &str = "documents.checks.probe";
 
@@ -32,6 +33,7 @@ const TEMPLATE: &str = "documents.checks.probe";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Checks;
 
 struct Probe;
@@ -61,20 +63,18 @@ struct ProbeParameters {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime_runtime::Error),
 }
 
-/* === Traits === */
-
 #[dokime_runtime::catalog]
 enum ObserveStreams {
     SampleRow(SampleRow),
 }
 
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum OwnerSuites {
     Checks(Checks),
@@ -84,6 +84,10 @@ enum OwnerSuites {
 enum ChecksTemplates {
     Probe(Probe),
 }
+
+/* === Traits === */
+
+/* === Implementations === */
 
 #[dokime_runtime::suite(id = SUITE, label = "Documents", templates = ChecksTemplates)]
 impl Checks {}
@@ -103,7 +107,7 @@ impl Probe {
         declared.id("documents.checks.declared");
         declared.plot(voltage);
 
-        let mut document = Document::new("default", "Probe");
+        let mut document = Document::new("Probe");
         document.section(declared);
 
         document
@@ -182,6 +186,7 @@ impl Probe {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn sections(document: &dokime_runtime::document::DocumentDefinition) -> Vec<&str> {
     document
         .layout
@@ -193,8 +198,6 @@ fn sections(document: &dokime_runtime::document::DocumentDefinition) -> Vec<&str
         })
         .collect()
 }
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -295,3 +298,5 @@ async fn typed_columns_compare() {
     assert_eq!(plot.filters, [voltage.exists()]);
     assert_eq!(voltage.eq("CP-03").value, Some(dokime_runtime::Value::from("CP-03")));
 }
+
+/* === Tests === */

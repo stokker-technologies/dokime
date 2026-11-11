@@ -17,7 +17,7 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
-include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/dist-report/report.html", "/dist-brand/**"]
+include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/build/**", "/Cargo.toml", "/dist-report/report.html", "/dist-brand/**"]
 
 # === Package Targets === #
 
@@ -45,9 +45,7 @@ native = [
   "dep:keyring",
   "dep:image",
   "dep:keyring-core",
-  "dep:rustls-platform-verifier",
   "dep:sha2",
-  "dep:suppaftp",
   "dep:tokio-util",
   "dep:tonic",
   "dep:tonic-types",
@@ -71,8 +69,10 @@ storage = [
   "dep:tempfile",
   "dep:tokio",
 ]
+# FTP capture sources. Shipped hosts enable it; plugin sidecars never need it.
+ftp = ["native", "dep:rustls-platform-verifier", "dep:suppaftp"]
 # Canonical Tests Enable This Fixture Surface; Product Never Does.
-testing = ["native"]
+testing = ["native", "ftp"]
 fault-injection = ["native"]
 fft = ["native", "harmos/signal-fft"]
 media-native = ["native", "dep:ashpd", "dep:cpal", "dep:hound", "dep:image", "dep:nokhwa", "dep:url", "dep:xcap"]
@@ -82,14 +82,12 @@ simulation = ["native", "harmos/simulation"]
 
 [dependencies]
 # Local
-dokime-domain = { version = "0.1.2", path = "../dokime-domain", features = ["diagnostics"] }
-dokime-macros = { version = "0.1.2", path = "../dokime-macros", optional = true }
-dokime-operations = { version = "0.1.2", path = "../dokime-operations", features = ["runtime"] }
+dokime-domain = { version = "0.1.5", path = "../dokime-domain", features = ["diagnostics"] }
+dokime-macros = { version = "0.1.5", path = "../dokime-macros", optional = true }
+dokime-operations = { version = "0.1.5", path = "../dokime-operations", features = ["runtime"] }
 dokime-tracing = { workspace = true, optional = true }
 
 # Git
-harmos = { workspace = true, features = ["plugin", "signal"] }
-harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -101,6 +99,8 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # Utilities
+harmos = { workspace = true, features = ["plugin", "signal"] }
+harmos-packaging = { workspace = true }
 hmac = { workspace = true, optional = true }
 keyring = { workspace = true, optional = true }
 keyring-core = { workspace = true, optional = true }
@@ -117,12 +117,12 @@ arrow-buffer = { workspace = true }
 arrow-ipc = { workspace = true }
 arrow-schema = { workspace = true }
 base64 = { workspace = true, optional = true }
-flate2 = { workspace = true, optional = true }
 flatbuffers = { workspace = true }
+flate2 = { workspace = true, optional = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true, features = ["jpeg", "png"] }
-prost = { workspace = true }
 postcard = { workspace = true, optional = true }
+prost = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 toml = { workspace = true, optional = true }
@@ -167,12 +167,10 @@ nokhwa = { workspace = true, optional = true, features = ["input-native"] }
 
 [dev-dependencies]
 # Local
-dokime-tracing = { workspace = true }
+dokime-tracing = { path = "../dokime-tracing" }
 plugin-host = { workspace = true }
 
 # Git
-harmos = { workspace = true, features = ["sidecar"] }
-harmos-sdk = { workspace = true }
 
 # Error Handling
 
@@ -180,6 +178,8 @@ harmos-sdk = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Utilities
+harmos = { workspace = true, features = ["sidecar"] }
+harmos-sdk = { workspace = true }
 sysinfo = { workspace = true }
 
 # Serialization
@@ -191,6 +191,7 @@ serde_json = { workspace = true, features = ["float_roundtrip"] }
 tempfile = { workspace = true }
 
 # Parsing
+proc-macro2 = { workspace = true }
 
 # Concurrency
 
@@ -360,7 +361,7 @@ required-features = ["native"]
 
 [[test]]
 name = "invocation"
-path = "tests/invocation.rs"
+path = "tests/plugin/main.rs"
 required-features = ["native"]
 
 # === Bench Targets === #

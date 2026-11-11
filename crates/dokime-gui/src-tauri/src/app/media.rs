@@ -13,8 +13,6 @@
 
 /* === Imports === */
 
-use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
-
 // Standard Library Imports
 use std::path::{Path, PathBuf};
 
@@ -27,16 +25,17 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use super::content;
 use super::desktop::{ArtifactSource, ensure_generation_token, ensure_main_window, ensure_private_directory, set_private_file};
 use crate::connection::ConnectionSession;
+use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
 
 /* === Constants === */
 
 const DESKTOP_MEDIA_CACHE_BYTES: u64 = 4_294_967_296;
 const DESKTOP_MEDIA_RANGE_BYTES: u64 = 4_194_304;
+
 // Even An Incompressible RGBA PNG Fits Within One Native Range Response.
 const IMAGE_PREVIEW_EDGE: u32 = 960;
 const IMAGE_DECODE_BYTES: u64 = 128 * 1024 * 1024;
 const MEDIA_CACHE_HEADER: &str = "preview-v1\n";
-
 pub const MEDIA_SCHEME: &str = "dokime-media";
 
 /* === Macros === */
@@ -371,6 +370,11 @@ async fn try_respond(app: &AppHandle, request: &http::Request<Vec<u8>>) -> Resul
     }
 }
 
+#[cfg(feature = "testing")]
+pub fn prepare_image_preview(path: &Path) -> Result<bool, String> {
+    prepare_image(path)
+}
+
 /* === Tests === */
 
 #[cfg(test)]
@@ -389,24 +393,5 @@ mod tests {
         assert!(parse_cache_key(&parse_request_path("/12%2F..").unwrap().1).is_err());
         assert_eq!(cached_content_type("image/png"), None);
         assert_eq!(cached_content_type("preview-v1\nimage/png"), Some("image/png"));
-    }
-
-    #[test]
-    fn image_preview_is_bounded_and_decodable() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("preview");
-        image::RgbImage::new(2400, 1600).save_with_format(&path, image::ImageFormat::Png).unwrap();
-        assert!(prepare_image(&path).unwrap());
-        let image = image::ImageReader::open(&path).unwrap().with_guessed_format().unwrap().decode().unwrap();
-        assert_eq!((image.width(), image.height()), (960, 640));
-
-        // Oversized Header Refuses Decode Before Allocating Its Pixel Buffer.
-        let huge = image::RgbImage::new(1, 32_769);
-        huge.save_with_format(&path, image::ImageFormat::Png).unwrap();
-        assert!(prepare_image(&path).is_err());
-
-        std::fs::write(&path, b"RIFF\x04\x00\x00\x00WAVE").unwrap();
-        assert!(!prepare_image(&path).unwrap());
-        assert_eq!(std::fs::read(&path).unwrap(), b"RIFF\x04\x00\x00\x00WAVE");
     }
 }

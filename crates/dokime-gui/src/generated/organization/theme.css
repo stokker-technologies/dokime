@@ -135,14 +135,14 @@ html {
   --border: #d1c7b5;
   --input: #c3b8a6;
   --ring: #8b6a32;
-  --chart-1: #7a5a28;
-  --chart-2: #5f6842;
-  --chart-3: #6f596f;
-  --chart-4: #6b6557;
-  --chart-5: #927f55;
-  --chart-6: #475b4b;
-  --chart-7: #8c765d;
-  --chart-8: #53505f;
+  --chart-1: #b54a46;
+  --chart-2: #de9046;
+  --chart-3: #847514;
+  --chart-4: #67b36a;
+  --chart-5: #008574;
+  --chart-6: #619dda;
+  --chart-7: #6f4fa1;
+  --chart-8: #d887ae;
 }
 /* END authored theme/light.css */
 
@@ -175,13 +175,13 @@ html {
   --border: #413a2f;
   --input: #4a4235;
   --ring: #d0aa63;
-  --chart-1: #d0aa63;
-  --chart-2: #a7b178;
-  --chart-3: #b99ab4;
-  --chart-4: #b7ae9a;
-  --chart-5: #c5aa73;
-  --chart-6: #8faa91;
-  --chart-7: #c0a184;
-  --chart-8: #9b96a8;
+  --chart-1: #d67069;
+  --chart-2: #eeaf6e;
+  --chart-3: #a2933b;
+  --chart-4: #88cf8a;
+  --chart-5: #37a69a;
+  --chart-6: #85bcf5;
+  --chart-7: #987aca;
+  --chart-8: #eca0c4;
 }
 /* END authored theme/dark.css */

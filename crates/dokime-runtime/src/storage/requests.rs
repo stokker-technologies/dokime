@@ -16,10 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{
-    DefinitionId, Identified,
-    storage::{ObjectRetention, StoredObject},
-};
+use harmos::storage::{ObjectRetention, StoredObject};
 
 // Local Imports
 use super::{Error, Result};
@@ -104,11 +101,7 @@ pub struct Command {
 
 /* === Implementations === */
 
-impl Identified for Request {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("dokime.object.request"), 1)
-    }
-}
+crate::storage::object_identity!(Request, "dokime.object.request");
 
 impl StoredObject for Request {
     type Key = str;
@@ -168,11 +161,7 @@ impl Request {
     }
 }
 
-impl Identified for Command {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("dokime.object.command"), 1)
-    }
-}
+crate::storage::object_identity!(Command, "dokime.object.command");
 
 impl StoredObject for Command {
     type Key = str;

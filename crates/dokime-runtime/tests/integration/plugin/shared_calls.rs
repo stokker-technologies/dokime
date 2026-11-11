@@ -21,14 +21,14 @@ use std::sync::{
 };
 
 // Third Party Imports
-use dokime_runtime::harmos::catalog::Node;
-use dokime_runtime::harmos::operations::{OperationDeclaration, WireDeclaration};
-use dokime_runtime::harmos::plugin::Declared;
-use dokime_runtime::harmos::sidecar::{Attach, PluginNative};
 
 // Local Imports
 use dokime_runtime::catalog::required_by;
 use dokime_runtime::execution::{InitializationContext, Run, SidecarTemplate, Signal, StepContext};
+use dokime_runtime::harmos::catalog::Node;
+use dokime_runtime::harmos::operations::{OperationDeclaration, WireDeclaration};
+use dokime_runtime::harmos::plugin::Declared;
+use dokime_runtime::harmos::sidecar::{Attach, PluginNative};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::{Refusal, Supervisor};
 
@@ -40,7 +40,6 @@ const SUITE: &str = "public_calls.checks";
 const TEMPLATE: &str = "public_calls.checks.probe";
 const CONSUMER_SUITE: &str = "public_consumer.checks";
 const CONSUMER_TEMPLATE: &str = "public_consumer.checks.probe";
-
 static PROBES: LazyLock<Mutex<BTreeMap<String, Arc<Probed>>>> = LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
 // Woken whenever a probed operation starts, answers or is cancelled.
@@ -69,8 +68,10 @@ struct Reading {
 struct ProbeParameters {
     #[parameter(label = "Probe", default = "unregistered")]
     probe: String,
+
     #[parameter(label = "Call the Public Operation", default = true)]
     public: bool,
+
     #[parameter(label = "Wait for Cancellation", default = false)]
     wait: bool,
 }
@@ -92,6 +93,26 @@ struct InFlight {
     probed: Arc<Probed>,
     completed: bool,
 }
+
+#[dokime_runtime::operation(id = "public_owner.read_public", policy = super::native::POLICY, response = Reading, visibility = Public)]
+#[derive(Clone, PartialEq)]
+struct ReadPublic {
+    probe: String,
+    value: u64,
+    wait: bool,
+}
+
+#[dokime_runtime::operation(id = "public_owner.read_private", policy = super::native::POLICY, response = Reading)]
+#[derive(Clone, PartialEq)]
+struct ReadPrivate {
+    probe: String,
+    value: u64,
+    wait: bool,
+}
+
+#[dokime_runtime::operation(id = "public_owner.read_host", policy = super::native::POLICY, response = Reading, visibility = Host)]
+#[derive(Clone, PartialEq)]
+struct ReadHost {}
 
 /* === Enums === */
 
@@ -136,13 +157,6 @@ enum ConsumerRequired {
 
 /* === Implementations === */
 
-#[dokime_runtime::operation(id = "public_owner.read_public", policy = super::native::POLICY, response = Reading, visibility = Public)]
-#[derive(Clone, PartialEq)]
-struct ReadPublic {
-    probe: String,
-    value: u64,
-    wait: bool,
-}
 impl dokime_runtime::Operation for ReadPublic {
     type Error = Refusal;
 
@@ -151,13 +165,6 @@ impl dokime_runtime::Operation for ReadPublic {
     }
 }
 
-#[dokime_runtime::operation(id = "public_owner.read_private", policy = super::native::POLICY, response = Reading)]
-#[derive(Clone, PartialEq)]
-struct ReadPrivate {
-    probe: String,
-    value: u64,
-    wait: bool,
-}
 impl dokime_runtime::Operation for ReadPrivate {
     type Error = Refusal;
 
@@ -165,10 +172,6 @@ impl dokime_runtime::Operation for ReadPrivate {
         answer(&self.probe, self.value, self.wait).await.map(Into::into)
     }
 }
-
-#[dokime_runtime::operation(id = "public_owner.read_host", policy = super::native::POLICY, response = Reading, visibility = Host)]
-#[derive(Clone, PartialEq)]
-struct ReadHost {}
 
 impl dokime_runtime::harmos::builtins::lifecycle::Policy for Owner {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
@@ -360,8 +363,6 @@ fn definition<A: Attach>(attach: &A, version: &str) -> dokime_runtime::harmos::p
     }
 }
 
-/* === Tests === */
-
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn template_calls_own_public() {
@@ -399,7 +400,8 @@ async fn own_public_call_cancels() {
                 let cancelled = invocation.await;
                 assert!(matches!(
                     cancelled,
-                    Err(dokime_runtime::harmos::Error::OperationRefused(dokime_runtime::harmos::Refusal::Cancelled))
+                    Err(dokime_runtime::harmos::Error::OperationRefused(dokime_runtime::harmos::Refusal::Cancelled { ref operation, attempt: 1 }))
+                        if operation == <Run<Probe> as OperationDeclaration>::ID
                 ));
             } else {
                 super::native::call_wire::<Signal<Probe>>(
@@ -431,6 +433,8 @@ async fn own_public_call_cancels() {
     }
     native.shutdown().await;
 }
+
+/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[test]

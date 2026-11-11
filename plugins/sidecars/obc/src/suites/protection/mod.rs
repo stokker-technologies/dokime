@@ -13,7 +13,7 @@ mod overcurrent;
 
 /* === Re-Exports === */
 
-pub use overcurrent::{Overcurrent, Samples};
+pub use overcurrent::{Samples, Template as Overcurrent};
 
 /* === Imports === */
 
@@ -40,7 +40,7 @@ pub struct Suite;
 
 #[dokime::catalog]
 pub enum Templates {
-    Overcurrent(overcurrent::Overcurrent),
+    Overcurrent(overcurrent::Template),
 }
 
 /* === Traits === */

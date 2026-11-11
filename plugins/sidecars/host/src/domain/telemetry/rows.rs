@@ -95,7 +95,7 @@ macro_rules! host_rows {
             impl dokime::StreamSpec for $stream {
                 type Row = Self;
                 const ID: &'static str = $id;
-                const VERSION: u32 = 1;
+
                 const WINDOW: usize = crate::settings::STREAM_WINDOW;
             }
             impl TelemetryStream for $stream {
@@ -103,7 +103,7 @@ macro_rules! host_rows {
 
                 fn contract() -> TelemetryContract {
                     // Static Authoring Has No Runtime Instance; Boot Applies Effective Cadence.
-                    host_telemetry_contract(HostTelemetryStream::$stream).typed::<Self>()
+                    host_telemetry_contract(HostTelemetryStream::$stream)
                 }
             }
 
@@ -179,7 +179,6 @@ mod tests {
                 assert_eq!(column.unit.as_ref().unwrap().symbol, "GiB");
             }
         }
-        assert_eq!(contract.schema_version, 1);
     }
 
     #[test]

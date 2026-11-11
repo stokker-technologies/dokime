@@ -9,6 +9,8 @@
 
 /* === Modules === */
 
+mod charger;
+
 mod device;
 
 /* === Re-Exports === */

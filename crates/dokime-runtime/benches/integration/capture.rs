@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::{Duration, Instant};
 
@@ -32,6 +33,7 @@ use {
 };
 
 /* === Constants === */
+
 const COUNTS: [u64; 3] = [500, 1_000, 2_000];
 
 /* === Macros === */
@@ -39,6 +41,7 @@ const COUNTS: [u64; 3] = [500, 1_000, 2_000];
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Fixture {
     owner: Runtime,
     handle: RuntimeHandle,
@@ -50,6 +53,7 @@ struct Fixture {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Fixture {
     async fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
@@ -74,6 +78,7 @@ impl Fixture {
 }
 
 /* === Public Functions === */
+
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
 
@@ -140,6 +145,7 @@ pub fn benchmark(criterion: &mut Criterion) {
 }
 
 /* === Private Functions === */
+
 fn drafts(count: u64) -> Vec<ProductRecordDraft> {
     (0..count)
         .map(|_| {

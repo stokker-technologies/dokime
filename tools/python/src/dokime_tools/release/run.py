@@ -22,11 +22,13 @@ import subprocess
 import sys
 import tomllib
 import urllib.parse
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from ..build import paths
 from ..process import spawn_flags
 
 # isort: split
@@ -34,7 +36,7 @@ from .. import temporary
 from ..package import run as packages
 from ..package.changelog import notes
 from ..test import archive
-from . import layout, pins, policy, registry, screenshots, version
+from . import layout, notices, pins, policy, registry, sbom, screenshots, version
 
 # Type Checking Imports
 
@@ -44,6 +46,8 @@ from . import layout, pins, policy, registry, screenshots, version
 
 STABLE = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 SUMS = "SHA256SUMS"
+# Downloads.json Repeats SHA256SUMS Digests, So It Is Uploaded Beside, Never Inside, SHA256SUMS.
+DOWNLOADS = "downloads.json"
 STATE = "published.json"
 # Staged downloads live under <target>/; SHA256SUMS and the publication state span targets and live under any/.
 ASSETS = "target/release-assets"
@@ -126,12 +130,16 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
         name = layout.asset_name(directory, settings, definition, selected, tag, source)
         if name is None:
             continue
-        reserved = {SUMS, STATE, "CHANGELOG.md", "plugins.json", "upload.json", ".", ".."}
+        reserved = {SUMS, STATE, DOWNLOADS, "CHANGELOG.md", "plugins.json", "upload.json", ".", ".."}
         if Path(name).name != name or name in reserved or "\\" in name or any(ord(character) < 32 for character in name):
             raise policy.ToolError(f"invalid release asset name: {name}")
         if not source.is_file() or source.is_symlink():
             raise policy.ToolError(f"missing regular release asset: {source}")
         result.append({"name": name, "path": relative, "target": selected})
+    wheels = sorted((paths.output(directory, "package", profile, selected) / "python").glob("*.whl"))
+    if len(wheels) != 1 or "-cp313-abi3-" not in wheels[0].name:
+        raise policy.ToolError(f"expected one native abi3 wheel for {selected}")
+    result.append({"name": wheels[0].name, "path": wheels[0].relative_to(directory).as_posix(), "target": selected})
     return result
 
 
@@ -145,10 +153,18 @@ def stage(
     signed: bool = False,
     source_revision: str | None = None,
     release_notes: str | None = None,
+    channel: str = "stable",
 ) -> list[dict]:
     """Copy Each Target's Release Downloads Into Its target/release-assets/<target>/ And Their SHA256SUMS Into any/."""
     profile = policy.profile() if profile is None else profile
     root = _root(directory)
+    distributions = [
+        paths.output(directory, "package", profile, selected)
+        / "rust"
+        / f"{settings['product']}-distribution-{tag[1:]}-{layout.triple(directory, settings, selected)}.zip"
+        for selected in targets
+    ]
+    packaged_notices = notices.packaged(distributions)
     # Only the staged targets and the shared checksums are replaced; another target's staging stays untouched.
     for owned in [*targets, SHARED]:
         destination = policy.inside(root, owned)
@@ -156,6 +172,10 @@ def stage(
             raise policy.ToolError("unsafe release staging target")
         if destination.exists():
             shutil.rmtree(destination)
+    shared = root / SHARED
+    shared.mkdir(parents=True)
+    for name, content in packaged_notices.items():
+        (shared / name).write_bytes(content)
     files = []
     plugins = layout.plugins(directory, settings, tag, targets, profile)
     for selected in targets:
@@ -170,9 +190,11 @@ def stage(
                 raise policy.ToolError(f"release download names collide across targets: {asset['name']}")
             destination = policy.inside(root / selected, asset["name"])
             shutil.copyfile(policy.inside(directory, asset["path"]), destination)
+            if destination.name.startswith(("dokime-cli-", "cargo-dokime-")) and destination.name.endswith((".zip", ".tar.gz")):
+                notices.archive(shared, destination)
             files.append(_describe(root, destination))
-    (root / SHARED).mkdir(parents=True)
     for destination in layout.plugin_archives(directory, root, plugins):
+        notices.archive(shared, destination)
         if any(item["name"].casefold() == destination.name.casefold() for item in files):
             raise policy.ToolError(f"release download names collide across targets: {destination.name}")
         files.append(_describe(root, destination))
@@ -186,8 +208,42 @@ def stage(
         feed = root / SHARED / "plugins.json"
         policy.write_json(feed, layout.plugin_feed(settings, tag, plugins))
         files.append(_describe(root, feed))
+    for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+        destination = root / SHARED / name
+        files.append(_describe(root, destination))
+    shell_inventory = sbom.shell(directory, root / SHARED)
+    files.append(_describe(root, shell_inventory))
+    for selected in targets:
+        rust = sbom.workspace(directory, layout.triple(directory, settings, selected), root / selected)
+        originals = [item for item in files if Path(item["path"]).parts[0] == selected]
+        for source in rust:
+            files.append(_describe(root, source))
+        for item in originals:
+            source = root / item["path"]
+            if not source.name.endswith((".zip", ".tar.gz", ".whl", ".exe", ".deb", ".rpm")):
+                continue
+            desktop = source.name.startswith("dokime-distribution-") or source.name.endswith(("-setup.exe", ".deb", ".rpm"))
+            inventories = [*rust, shell_inventory] if desktop else rust
+            destination = sbom.artifact(directory, source, root / selected, inventories)
+            files.append(_describe(root, destination))
     (root / SHARED / SUMS).write_text("".join(f"{item['sha256']}  {item['name']}\n" for item in files), encoding="utf-8")
     files.append(_describe(root, root / SHARED / SUMS))
+    executables = {
+        item["name"]: "cli" if item["command"] == settings["product"] else item["command"]
+        for item in policy.config(directory).get("package", {}).get("executables", [])
+    }
+    manifest = layout.downloads(
+        settings,
+        executables,
+        version=tag[1:],
+        channel=channel,
+        tag=tag if channel == "stable" else channel,
+        published=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        files=files,
+        sums=(root / SHARED / SUMS).read_text(encoding="utf-8"),
+    )
+    policy.write_json(root / SHARED / DOWNLOADS, manifest)
+    files.append(_describe(root, root / SHARED / DOWNLOADS))
     layout.upload_manifest(directory, root, files)
     return files
 
@@ -299,6 +355,7 @@ def dry(
     source_revision: str | None = None,
     release_notes: str | None = None,
     targets: list[str] | None = None,
+    channel: str = "stable",
 ) -> None:
     """Stage The Active Profile's Packages Like A Release And Run The Native Downloads From Them, Offline."""
     tag = release_tag(directory)
@@ -313,14 +370,16 @@ def dry(
         raise policy.ToolError(f"{profile} packages are missing for release targets: {', '.join(missing)}")
     if missing:
         print(f"note: no local {profile} packages for {', '.join(missing)}; CI stages every release target")
-    stage(directory, settings, tag, present, profile=profile, source_revision=source_revision, release_notes=release_notes)
+    stage(directory, settings, tag, present, profile=profile, source_revision=source_revision, release_notes=release_notes, channel=channel)
     files = layout.uploads(directory, staged=True)
     _checksums(root / SHARED / SUMS, {item["name"]: item for item in files})
     native = _native()
     if native in present:
         # The staged bytes themselves run, from an isolated directory, exactly as a user's download would.
         packages.verify(directory, profile, native, root / native)
-    print(f"staged {len(files) - 1} download(s) and {SUMS} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}")
+    print(
+        f"staged {len(files) - 2} download(s), {SUMS} and {DOWNLOADS} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}"
+    )
 
 
 def publish(directory: Path, settings: dict) -> None:
@@ -590,7 +649,7 @@ def run(directory: Path, verb: str, *, target: str | None = None, profile: str |
 
 
 def _checksums(path: Path, inventory: dict) -> None:
-    expected = {name: item["sha256"] for name, item in inventory.items() if name != SUMS}
+    expected = {name: item["sha256"] for name, item in inventory.items() if name not in {SUMS, DOWNLOADS}}
     actual = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         digest, separator, name = line.partition("  ")
@@ -607,19 +666,22 @@ def _tag_event(directory: Path, settings: dict, sha: str) -> dict | None:
         if source != "web" or os.environ.get("CI_COMMIT_BRANCH") != "dev" or os.environ.get("CI_COMMIT_SHA") != sha:
             raise policy.ToolError("GitLab tagging requires a web-started dev release pipeline at the checkout revision")
         return None
-    if (
-        os.environ.get("GITHUB_EVENT_NAME") != "pull_request"
-        or os.environ.get("GITHUB_REF") != "refs/heads/dev"
-        or os.environ.get("GITHUB_SHA") != sha
-    ):
-        raise policy.ToolError("GitHub tagging requires a closed, merged release PR into dev at the checkout revision")
+    if os.environ.get("GITHUB_EVENT_NAME") not in {"workflow_run", "workflow_dispatch"} or os.environ.get("GITHUB_REF") != "refs/heads/dev":
+        raise policy.ToolError("GitHub tagging requires a dev validation completion or dispatch")
+    event_sha = os.environ.get("GITHUB_SHA", "")
+    if not event_sha:
+        raise policy.ToolError("GitHub tagging requires the dev event revision")
+    if sha != event_sha:
+        policy.execute(directory, ["git", "merge-base", "--is-ancestor", sha, event_sha])
     workflow = f"{settings['repository']}/.github/workflows/{RELEASE_WORKFLOW}@"
     if not os.environ.get("GITHUB_WORKFLOW_REF", "").startswith(workflow):
         raise policy.ToolError("GitHub tagging runs only in release.yml")
-    event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
-    review = event.get("pull_request", {})
+    merged = registry.release_review(settings, sha, registry.RELEASE_BRANCH + release_tag(directory))
+    if merged is None:
+        raise policy.ToolError("the revision has no merged release review")
+    review = registry.document(settings, f"pulls/{merged['number']}")
     if (
-        event.get("action") != "closed"
+        not isinstance(review, dict)
         or review.get("merged") is not True
         or review.get("merge_commit_sha") != sha
         or type(review.get("number")) is not int
@@ -627,7 +689,7 @@ def _tag_event(directory: Path, settings: dict, sha: str) -> dict | None:
         or review.get("head", {}).get("ref") != registry.RELEASE_BRANCH + release_tag(directory)
         or any(review.get(side, {}).get("repo", {}).get("full_name") != settings["repository"] for side in ("base", "head"))
     ):
-        raise policy.ToolError("GitHub event is not the merged release review for this version and revision")
+        raise policy.ToolError("GitHub review is not the merged release review for this version and revision")
     return review
 
 

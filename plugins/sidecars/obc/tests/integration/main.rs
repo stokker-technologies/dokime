@@ -15,12 +15,14 @@ mod operations;
 mod plugin;
 mod runs;
 
+#[path = "../support/mod.rs"]
+mod support;
+
 /* === Re-Exports === */
 
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 // Third Party Imports
@@ -31,8 +33,9 @@ use dokime::execution::{Answering, Caller};
 use dokime::harmos::operations::OperationDeclaration;
 use dokime::{ValidationMode, ValueType};
 use plugin_obc::domain::model::readiness::Readiness;
-use plugin_obc::domain::operations::AskReadiness;
+use plugin_obc::operations::AskReadiness;
 use plugin_obc::{ObcChecks, Pulse};
+use support::charger::charger_answers;
 
 /* === Constants === */
 
@@ -49,9 +52,16 @@ use plugin_obc::{ObcChecks, Pulse};
     description = "The host-side stream the pulse leases, declared by the plugin's system observer.\nThe observer's module is private to the crate, so the row the run leases is mirrored here under the same stream id and the same fields; the harness matches a measured stream by that id."
 )]
 struct SystemRow {
+    #[row(unit = "%")]
     process_cpu_percent: f64,
+
+    #[row(unit = "B")]
     process_memory_bytes: i64,
+
+    #[row(unit = "%")]
     system_cpu_percent: f64,
+
+    #[row(unit = "B")]
     system_memory_used_bytes: i64,
 }
 
@@ -95,7 +105,9 @@ fn materialization() -> dokime::definition::CaseMaterializationOptions {
 }
 
 fn road() -> Caller {
-    Caller::local(BTreeMap::from([answering::<AskReadiness, _>(|_| Readiness { stopped: false })]))
+    let mut answers = charger_answers();
+    answers.extend([answering::<AskReadiness, _>(|_| Readiness { stopped: false })]);
+    Caller::local(answers)
 }
 
 fn measured<C: dokime::telemetry::TelemetryStream>(rows: impl IntoIterator<Item = C::Row>) -> dokime::plugin::testing::Harness {
@@ -163,7 +175,7 @@ fn default_case_phases() {
     assert_eq!(template.test_case_template_id, Pulse::template_id());
     assert_eq!(
         template.parameters.iter().map(|parameter| parameter.metadata.identifier.as_str()).collect::<Vec<_>>(),
-        vec!["sample_count", "tolerance", "capture_system", "require_confirmation"]
+        vec!["sample_count", "tolerance_au", "capture_system", "require_confirmation"]
     );
     // The sidecar names one of these phase ids in every drain reply.
     assert_eq!(
@@ -260,6 +272,7 @@ async fn cpu_load_example_uses_public_hold_and_control_subscription() {
         .parameter("target_percent", 35.0)
         .parameter("duration_s", 1.0)
         .measuring::<LoadControl>([row])
+        .answering::<plugin_obc::operations::wait::Wait, _>(|_| ())
         .answering::<LoadHold, _>(move |request| {
             assert_eq!(request.target, LoadTarget::Percent(35.0));
             assert_eq!(request.threads, None);

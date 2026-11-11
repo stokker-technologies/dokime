@@ -75,10 +75,10 @@ fn validate_payload(
         return Err(RecordFailure::UnknownRecordType { record_type: record_type.to_string() });
     }
 
-    if contract.schema_version != schema_version {
+    if contract.schema_version() != schema_version {
         return Err(RecordFailure::SchemaVersionMismatch {
             record_type: record_type.to_string(),
-            expected: contract.schema_version,
+            expected: contract.schema_version(),
             actual: schema_version,
         });
     }

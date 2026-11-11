@@ -11,9 +11,8 @@
 
 /* === Modules === */
 
-#[cfg(test)]
-#[path = "snapshot_tests.rs"]
-mod tests;
+#[cfg(feature = "testing")]
+pub mod testing;
 
 /* === Re-Exports === */
 
@@ -452,3 +451,72 @@ fn unavailable(operation: &str) -> Box<Failure> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    fn expires() -> Timestamp {
+        Timestamp { seconds: 100, nanos: 0 }
+    }
+    fn signed(cut: &Cut) -> Token {
+        Token::Snapshot(cut.clone())
+    }
+    #[test]
+    fn tokens_are_bounded_authenticated_expiring_and_scoped() {
+        let cut = Cut {
+            source: "local".into(),
+            backend: "fixture".into(),
+            scope: Scope::History,
+            at: StorageCursor {
+                history: StoreHistory {
+                    store: Identifier::new("fixture").unwrap(),
+                    epoch: Identifier::new("epoch").unwrap(),
+                },
+                sequence: 0,
+            },
+            metadata: 0,
+            journal: None,
+            catalog: 0,
+            retention: 0,
+            expires: expires(),
+            contracts: "contracts".into(),
+        };
+        let tokens = Tokens { key: [7; 32], maximum: 4096 };
+        let token = tokens.encode(&signed(&cut), "dokime.query.list_records").unwrap();
+        let mut changed = token.as_bytes().to_vec();
+        changed[3] = if changed[3] == b'A' { b'B' } else { b'A' };
+        assert!(tokens.decode(std::str::from_utf8(&changed).unwrap(), "dokime.query.list_records").is_err());
+        let foreign = Tokens { key: [0; 32], maximum: 4096 };
+        assert!(foreign.decode(&token, "dokime.query.list_records").is_err());
+        assert!(
+            validate_cut(&cut, &Scope::Execution("a".into()), Timestamp { seconds: 99, nanos: 999_999_999 }, "dokime.query.list_records")
+                .is_ok()
+        );
+        assert!(validate_cut(&cut, &Scope::History, expires(), "dokime.query.list_records").unwrap_err().reason == Reason::SnapshotExpired);
+        let mut scoped = cut.clone();
+        scoped.scope = Scope::Execution("a".into());
+        assert!(validate_cut(&scoped, &Scope::Execution("b".into()), Timestamp::default(), "dokime.query.list_records").is_err());
+        scoped.source = "external".into();
+        assert!(
+            validate_cut(&scoped, &scoped.scope, Timestamp::default(), "dokime.query.list_records").unwrap_err().reason
+                == Reason::UnsupportedSource
+        );
+        let tiny = Tokens { key: tokens.key, maximum: 32 };
+        assert!(tiny.encode(&signed(&cut), "dokime.query.list_records").is_err());
+    }
+
+    #[test]
+    fn seek_binding_ignores_page_sizes_and_conjunction_order_but_preserves_projection_order() {
+        let first = json!({"scope":"a","where":[{"field":"value","operator":"gte","values":[1]},{"field":"status","operator":"eq","values":["failed"]}],"fields":["cpu.load","memory.used"],"page":{"rows":1},"at":null});
+        let mut reordered = first.clone();
+        reordered["where"].as_array_mut().unwrap().reverse();
+        reordered["page"] = json!({"rows":12,"bytes":8192,"after":"opaque"});
+        let operation = "dokime.query.list_samples";
+        let binding = tokens::binding(&first, 8192, operation).unwrap();
+        assert_eq!(binding, tokens::binding(&reordered, 8192, operation).unwrap());
+        reordered["fields"].as_array_mut().unwrap().reverse();
+        assert_ne!(binding, tokens::binding(&reordered, 8192, operation).unwrap());
+        assert_ne!(binding, tokens::binding(&first, 8192, "dokime.query.list_records").unwrap());
+    }
+}

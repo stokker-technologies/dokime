@@ -50,7 +50,6 @@ use dokime::telemetry::TelemetryConditionOperator;
 pub(super) fn identity(value: &prompts::PromptDefinition) -> dokime::domain::model::prompts::wire::PromptDefinitionIdentity {
     dokime::domain::model::prompts::wire::PromptDefinitionIdentity {
         prompt_type: value.prompt_type.as_str().to_owned(),
-        schema_version: value.schema_version,
         title: value.title.clone(),
     }
 }
@@ -95,7 +94,6 @@ fn definition_with_budget(
 ) -> Result<dokime::domain::model::prompts::wire::PromptDefinition, Status> {
     Ok(dokime::domain::model::prompts::wire::PromptDefinition {
         prompt_type: value.prompt_type.as_str().to_owned(),
-        schema_version: value.schema_version,
         archetype: match value.archetype {
             prompts::PromptArchetype::ConfirmationPrompt => dokime::domain::model::prompts::wire::PromptArchetype::Confirmation,
             prompts::PromptArchetype::FormPrompt => dokime::domain::model::prompts::wire::PromptArchetype::Form,

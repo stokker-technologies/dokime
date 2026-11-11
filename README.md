@@ -4,8 +4,10 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/ci.yml?branch=dev&label=CI)](https://github.com/stokker-technologies/dokime/actions/workflows/ci.yml)
 [![CI / Nightly](https://img.shields.io/github/actions/workflow/status/stokker-technologies/dokime/nightly.yml?branch=dev&label=Nightly)](https://github.com/stokker-technologies/dokime/actions/workflows/nightly.yml)
 [![crates.io](https://img.shields.io/crates/v/dokime)](https://crates.io/crates/dokime)
-[![PyPI](https://img.shields.io/pypi/v/dokime-client)](https://pypi.org/project/dokime-client/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
+<!-- OpenSSF Scorecard badge: pending verified URL from the supply-chain owner. -->
+<!-- OpenSSF Best Practices badge: pending enrolled project ID and verified status from the supply-chain owner. -->
 
 <p align="center">
   <picture>
@@ -29,9 +31,9 @@ operating conditions, and review the evidence behind each result.
 - **Reusable Procedures:** Define suites, typed parameters, ordered steps, acceptance criteria and explicit cleanup.
 - **Traceability:** Capture and edit device and bench identity from steps; retain it with the execution and reports.
 - **Parameter Sweeps:** Expand one template into operating points without copying the procedure.
-- **Measurements and Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts.
+- **Measurements and Reports:** Capture live data and retain plots and records in HTML reports, with links to execution artifacts. Stream row changes apply on plugin reload; saved measurements retain their original definitions.
 - **Operator Workflows:** Combine automation with confirmations and manual checkpoints; keep responses with the execution.
-- **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust authoring API.
+- **Equipment Plugins** [`plugin`]: Extend Dokime with equipment operations, test suites and settings through its Rust and embedded Python authoring APIs.
 - **Remote Control** [`client`]: Control an existing backend through the CLI or a programmatic client.
 - **Native Media Capture** [`media-native`]: Attach screenshots, camera photos and audio where the platform supports them.
 
@@ -45,36 +47,36 @@ Dokime keeps them together: publish your streams, and Dokime handles storage,
 live plots and the HTML report. Plugins are native processes with a clear
 structure, so you can use any instrument library.
 
-| Gate | Dokime | Manual Testing | Hand-Rolled Scripts | pytest Harness | OpenHTF | OpenTAP / PathWave | NI TestStand |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| **Getting Started** | | | | | | | |
-| Low Setup Effort | ✓ | ✓ | ✓ | ✓ | ◐ | ◐ | ✗ |
-| Open Source | ✓ | – | – | ✓ | ✓ | ◐ | ✗ |
-| Repeatable Procedures | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Pass/Fail Criteria | ✓ | ◐ | ◐ | ✓ | ✓ | ✓ | ✓ |
-| **Running It with People** | | | | | | | |
-| GUI & Operator Flow | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
-| Device & Bench Traceability | ✓ | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
-| HTML Report Generation | ✓ | ✗ | ✗ | ◐ | ◐ | ◐ | ✓ |
-| **Scaling the Test** | | | | | | | |
-| Parameter Sweeps | ✓ | ✗ | ◐ | ✓ | ◐ | ✓ | ✓ |
-| Storage Layer Abstraction | ✓ | ✗ | ✗ | ✗ | ◐ | ◐ | ◐ |
-| Live Measurements | ✓ | ✗ | ◐ | ✗ | ◐ | ◐ | ◐ |
-| Remote Control | ✓ | ✗ | ◐ | ✗ | ◐ | ✓ | ✓ |
-| Long-Run Reliability | ✓ \* | ◐ | ✗ | ✗ | ◐ | ◐ | ✓ |
-| **Extending and Pushing Limits** | | | | | | | |
-| Plugin Template | ✓ | ✗ | ✗ | ✗ | ◐ | ✓ | ✓ |
-| Sidecar Plugin System | ✓ | ✗ | ✗ | ✗ | ✗ | ◐ | ◐ |
-| Fast Stream Support | ✓ \* | ✗ | ◐ | ✗ | ✗ | ◐ | ◐ |
+| Feature | Dokime | pytest Harness | OpenHTF | OpenTAP / PathWave | NI TestStand |
+| --- | :-: | :-: | :-: | :-: | :-: |
+| **Getting Started** | | | | | |
+| Low Setup Effort | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Open Source | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Repeatable Procedures | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Pass/Fail Criteria | ✓ | ✗ | ✓ | ✗ | ✓ |
+| **Running It with People** | | | | | |
+| GUI & Operator Flow | ✓ | ✗ | ✓ | ✓ | ✓ |
+| Device & Bench Traceability | ✓ | ✗ | ✓ | ✓ | ✓ |
+| HTML Report Generation | ✓ | ✓ | ✗ | ✓ | ✓ |
+| **Scaling the Test** | | | | | |
+| Parameter Sweeps | ✓ | ✓ | ✗ | ✓ | ✓ |
+| Storage Layer Abstraction | ✓ | ✗ | ✓ | ✓ | ✓ |
+| Live Measurements | ✓ | ✗ | ✓ | ✓ | ✓ |
+| Remote Control | ✓ | ✗ | ✓ | ✓ | ✓ |
+| Long-Run Reliability | Planned | ✗ | ✗ | ✗ | ✗ |
+| End-Of-Line Readiness | Planned | ✗ | ✓ | ✓ | ✓ |
+| **Extending and Pushing Limits** | | | | | |
+| Plugin Template | ✓ | ✓ | ✗ | ✓ | ✗ |
+| Sidecar Plugin System | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Fast Stream Support | Planned | ✗ | ✗ | ✗ | ✗ |
+| Ready-Made Instrument Drivers | Not Planned | ✗ | ✗ | ✓ | ✓ |
 
-✓ Built In · ◐ Partial Or Add-On · ✗ Build It Yourself · – Not Applicable · \* Target, Not Yet Proven
+✓ Has It · Planned Will Be Implemented · Not Planned Not Planned by Us · ✗ Does Not Have It. A framework has a feature only when it or its vendor ships it; competitor cells were checked against their documentation on 2026-11-08.
 
 | | Dokime | OpenHTF | OpenTAP / PathWave | NI TestStand |
 | --- | --- | --- | --- | --- |
-| **Authoring Language** | Rust; Python and C++ planned | Python | C#, Python | Several |
+| **Authoring Language** | Rust and Python (embedded); C++ planned | Python | C#, Python | Several |
 | **Licence** | Apache-2.0 | Apache-2.0 | MPL-2.0, Keysight GUI bundle | Commercial |
-| **Ready-Made Instrument Drivers** | Plugin's choice | Some plugs | Vendor ecosystem | Extensive |
-| **End-Of-Line Readiness** | Planned | Yes | Yes | Yes |
 | **Maturity** | Young | Established | Established | Industry standard |
 
 Dokime is young. Choose an established test executive if you need mature
@@ -117,7 +119,7 @@ Click either to inspect the full message, failure causes and available technical
 Use `dokime` to run a server or control an existing backend. Use
 `cargo dokime sidecar` to create, build and inspect plugins, and
 `cargo dokime installer` to package prebuilt binaries with an organization pack.
-`cargo dokime bindings` exports protobuf contracts and Python clients. The [CLI reference](docs/product-guide.md#cli-reference)
+`cargo dokime bindings proto` exports protobuf contracts. The [CLI reference](docs/product-guide.md#cli-reference)
 contains the complete workflow, including
 [finite query paging](docs/query-api.md#transport-access-and-cli-paging).
 
@@ -131,23 +133,34 @@ dokime operation list --backend lab
 
 ### Python
 
+Python can start a native backend with `async with Backend(port=0)` and export a
+GUI pairing file with `backend.export_pairing(path, label="Bench")`. The backend
+loads installed plugins and releases its data root when the context exits.
+Pass `plugins=[Plugin(...)]` to contribute Python operations, observers, settings
+and templates; see [Python Authoring](sdk/python/README.md#author-an-embedded-plugin).
 The async Python client controls a running backend with owned cycle contexts,
 terminal evidence iterators and saved bundles with digest manifests. Lazy history
 and evidence queries read a fixed snapshot; optional Polars/Pandas helpers create
-bounded dataframes with captured types. The distribution is `dokime-client`; imports use `dokime_client`.
+bounded dataframes with captured types. The distribution is `dokime-python`; imports use `dokime`.
 Follow the [locked remote tutorial](docs/remote/python.md) for a complete example.
 
 #### Examples
 
-Install the wheel from the same candidate as your backend, selecting the optional
+Start an authoring project with `dokime new bench --lang python`; its `main.py`
+starts the backend and exports a desktop pairing file, while `plugin/` keeps
+instrument operations and suites together. [Install with uv](sdk/python/README.md#install)
+from this candidate's Git revision or a matching native wheel. The provisional
+distribution is `dokime-python`; registry publication awaits the naming decision.
+
+Install the native wheel matching your backend and platform, selecting the optional
 extra for this dataframe example:
 
 ```sh
-uv add ./dokime_client-0.1.2-py3-none-any.whl --extra polars
+uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra polars
 ```
 
 ```python
-from dokime_client import DokimeClient, ExecutionStatus
+from dokime import DokimeClient, ExecutionStatus
 
 async with DokimeClient.from_pairing("lab.dokime-remote") as client:
     async for execution in client.executions(template="example.measurement", status=ExecutionStatus.FAILED):
@@ -156,8 +169,8 @@ async with DokimeClient.from_pairing("lab.dokime-remote") as client:
             print(frame, samples.metadata, samples.complete)
 ```
 
-The [Python client guide](packages/dokime-client/README.md) covers authentication,
-backend profiles, [query limits and dataframe types](packages/dokime-client/README.md#optional-dataframes).
+The [Python client guide](sdk/python/README.md) covers authentication,
+backend profiles, [query limits and dataframe types](sdk/python/README.md#optional-dataframes).
 The example requires the corresponding installed template and stream; finite
 queries never follow or change execution state. The [remote guide](docs/remote/python.md)
 retains the complete setup and runnable lifecycle examples.
@@ -166,7 +179,7 @@ retains the complete setup and runnable lifecycle examples.
 
 The Rust SDK defines plugins, test templates, equipment operations and typed
 evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-(currently pinned to revision `eace84fca059f754441db8b86ea40d89938fcb69`)
+([workspace dependency pin](Cargo.toml))
 for contracts and managed plugin lifecycles.
 
 #### Examples
@@ -212,7 +225,7 @@ for packaging options.
 1. **Download An Installer.** Choose a matching [release](https://github.com/stokker-technologies/dokime/releases), the [nightly prerelease](https://github.com/stokker-technologies/dokime/releases/tag/nightly) or a successful [CI candidate](https://github.com/stokker-technologies/dokime/actions); the [download walkthrough](docs/remote/overview.md#obtain-one-matching-candidate) identifies the Windows and Linux packages.
 2. **Inspect Host Telemetry.** The installer includes `plugin-host.dokime`, selected explicitly by the Dokime packaging task. Host streams arrive through the supervised plugin boundary.
 3. **Try The Test Fixture.** In a source checkout, build the explicit [OBC fixture](docs/plugin-obc.md#build-and-validate), install its bundle, then run a charging template and inspect its measurements and report.
-4. **Write Your Plugin.** Start with the [plugin starter](crates/cargo-dokime/templates/) and [authoring commands](docs/product-guide.md#plugin-authoring).
+4. **Write Your Plugin.** Run `dokime new bench --lang python` for the [Python starter](sdk/python/examples/starter/), or use the [Rust plugin starter](crates/cargo-dokime/templates/) and [authoring commands](docs/product-guide.md#plugin-authoring).
 
 Dokime is pre-1.0. Pin matching application, client and plugin revisions;
 public APIs and development storage formats may change. See the
@@ -220,7 +233,9 @@ public APIs and development storage formats may change. See the
 
 CLI and authoring-tool releases use target-specific ZIP (Windows) or tar.gz
 (Unix) archives. See [Install Tools With Mise](docs/product-guide.md#install-tools-with-mise)
-for archive selection and the release download inventory. Distributors use
+for archive selection and the release download inventory; each release and the
+nightly prerelease publish `downloads.json`, which classifies every download by
+kind, OS, architecture and format. Distributors use
 `dokime-distribution-<version>-<target>.zip`; shipping plugins share native
 `dokime-sidecars` archives described by `plugins.json` format 2.
 Custom installers select plugins through top-level `[[plugin]]` entries: set
@@ -241,10 +256,11 @@ back to the compiled identifier when `distribution.json` is absent. Plain Dokime
 defaults to `%LOCALAPPDATA%/com.stokker.dokime` on Windows or `${XDG_DATA_HOME:-$HOME/.local/share}/com.stokker.dokime` on Linux.
 `dokime server --application-root <directory>` selects another application folder;
 storage paths are bootstrap options, not editable preferences. Dokime ignores legacy `config.toml` and `settings.json` files and preserves them; settings live in the database.
-Development roots without durable case registration revisions, or containing earlier telemetry layouts, plugin identities,
-or evidence indexes without incremental numeric summaries, shared field projections and plot bindings, report previews with bounded marker checkpoints, capture membership ranges, versioned history projections and query
-token identities, indexed record producer scopes, indexed telemetry sample identities, sealed case headers, sealed output descriptors, or document-selected distinct fields require a fresh storage root.
-Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Dokime reports incompatible data and never resets an existing root.
+Telemetry uses ZSTD-compressed Arrow IPC files with a SQLite catalog. Stream and
+record identities derive from their schemas; saved execution evidence retains
+its definitions across plugin changes. Only unreadable Dokime-owned persistent
+state requires a fresh storage root. Dokime reports what cannot be decoded and
+preserves the existing data.
 Scoped evidence reads isolate other cycles; see the
 [storage read policies](docs/product-guide.md#storage-read-isolation)
 for corruption reporting and whole-root failures.
@@ -295,6 +311,16 @@ Different labels with equal numeric values remain separate and sort alphabetical
 The live log, diagnostics bundle and remote sessions remain available; remote sessions refresh when opened or focused; remote sessions
 also provide Refresh. Cycle history shows absolute update times. Busy document
 reads continue retrying, while other document failures retry once.
+
+### Support and Security
+
+See the [support and end-of-life policy](docs/support.md),
+[vulnerability reporting policy](SECURITY.md), [privacy guidance](docs/privacy.md),
+[plugin security model](docs/plugin-security.md), [compliance assessment](docs/compliance.md)
+and [signed and managed deployment](docs/deployment.md).
+The security policy link is pending its owner's publication.
+Support targets are proposed until confirmed by the owner; OpenSSF badges are
+pending verified supply-chain evidence and do not imply product certification.
 
 ## Contributing
 

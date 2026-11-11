@@ -23,6 +23,7 @@ use std::process::{Child, Stdio};
 // Local Imports
 
 /* === Constants === */
+
 const READY: &str = "dokime-child-story-ready";
 
 /* === Macros === */
@@ -30,6 +31,7 @@ const READY: &str = "dokime-child-story-ready";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct ChildStory(Child);
 
 /* === Enums === */
@@ -37,6 +39,7 @@ pub struct ChildStory(Child);
 /* === Traits === */
 
 /* === Implementations === */
+
 impl ChildStory {
     pub fn spawn(story: &str, environment: &[(&str, &OsStr)]) -> Self {
         let child = dokime_domain::process::command(std::env::current_exe().expect("current test executable"))
@@ -83,11 +86,13 @@ impl Drop for ChildStory {
 }
 
 /* === Public Functions === */
+
 pub fn announce_ready() {
     let mut stdout = std::io::stdout().lock();
     writeln!(stdout, "{READY}").expect("the parent reads the child's stdout");
     stdout.flush().expect("the parent reads the child's stdout");
 }
+
 /* === Private Functions === */
 
 /* === Tests === */

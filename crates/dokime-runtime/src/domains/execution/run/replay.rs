@@ -7,7 +7,7 @@
  * ***
  */
 
-//! Replays Typed Arrow Samples With Retained Signal Staging.
+// Replays Typed Arrow Samples With Retained Signal Staging.
 
 /* === Modules === */
 

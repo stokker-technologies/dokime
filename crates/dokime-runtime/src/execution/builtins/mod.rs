@@ -10,14 +10,16 @@
 // Operations this process serves for its own steps through `ctx.operation(request)`.
 // `RunProcess` is always served here, so its child shares the execution's
 // artifact folder, log and records. Without a host, as under the harness,
-// `WatchFile` is served here too over a local file.
+// The file operations are served here too over local files.
 
 /* === Modules === */
 
+mod capture;
 mod process;
-mod watch;
 
 /* === Re-Exports === */
+
+pub(crate) use capture::LocalCaptures;
 
 /* === Imports === */
 
@@ -36,7 +38,9 @@ use super::instances::{ExecutionIdentity, Handles};
 use crate::artifacts::Artifacts;
 use crate::telemetry::Streams;
 use crate::transport::Journal;
-use dokime_operations::files::WatchFile;
+use dokime_operations::files::CopyFiles;
+use dokime_operations::files::StartCapture;
+use dokime_operations::files::StopCapture;
 use dokime_operations::process::RunProcess;
 
 /* === Constants === */
@@ -46,8 +50,7 @@ use dokime_operations::process::RunProcess;
 /* === Type Aliases === */
 
 pub(crate) type Served = Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + Send>>;
-pub(crate) type Ready = signal::Sender<Option<Result<dokime_domain::model::files::wire::FileWatchArmed, String>>>;
-pub(crate) type Serve = fn(Binding, Vec<u8>, signal::Receiver<bool>, Ready) -> Served;
+pub(crate) type Serve = fn(Binding, Vec<u8>, signal::Receiver<bool>) -> Served;
 
 /* === Structs === */
 
@@ -60,6 +63,7 @@ pub(crate) struct Binding {
     pub(crate) journal: Arc<dyn Journal>,
     pub(crate) identity: Arc<ExecutionIdentity>,
     pub(crate) handles: Handles,
+    pub(crate) captures: LocalCaptures,
 }
 
 /* === Enums === */
@@ -74,12 +78,19 @@ pub(crate) struct Binding {
 // whether a host is there to serve the rest.
 pub(crate) fn served(operation: &str, hosted: bool) -> Option<Serve> {
     if operation == RunProcess::ID {
-        return Some(|binding, request, cancel, _| Box::pin(typed(request, move |request| process::run(binding, request, cancel))));
+        return Some(|binding, request, cancel| Box::pin(typed(request, move |request| process::run(binding, request, cancel))));
     }
-    if operation == WatchFile::ID && !hosted {
-        return Some(|binding, request, cancel, ready| {
-            Box::pin(typed(request, move |request| watch::run(binding, request, cancel, ready)))
-        });
+    if hosted {
+        return None;
+    }
+    if operation == CopyFiles::ID {
+        return Some(|binding, request, cancel| Box::pin(typed(request, move |request| capture::copy(binding, request, cancel))));
+    }
+    if operation == StartCapture::ID {
+        return Some(|binding, request, cancel| Box::pin(typed(request, move |request| capture::start(binding, request, cancel))));
+    }
+    if operation == StopCapture::ID {
+        return Some(|binding, request, cancel| Box::pin(typed(request, move |request| capture::stop(binding, request, cancel))));
     }
     None
 }

@@ -132,7 +132,6 @@ function mapNativePrompt(prompt: PromptInstance, response?: NativePromptResponse
     correlation_id: prompt.promptId,
     template_id: definition.templateIdentifier ?? prompt.scope?.templateId ?? "",
     prompt_type: definition.promptType,
-    schema_version: definition.schemaVersion,
     kind: mapPromptKind(prompt.kind),
     level: mapNativeSeverity(definition.level),
     title: definition.title,

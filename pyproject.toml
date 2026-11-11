@@ -8,33 +8,40 @@
 
 [project]
 name = "dokime-rust-workspace"
-version = "0.1.2"
+version = "0.1.5"
 requires-python = ">=3.13,<3.16"
 dependencies = []
 
 [dependency-groups]
 test = [
+  "protobuf>=7.36.2,<8",
+  "python-dotenv==1.2.4",
+  "mypy==2.4.1",
+  "types-protobuf",
   "grpcio>=1.84.0,<2",
   "pandas>=3,<4",
+  "pyarrow>=22,<30",
   "polars==2.1.0",
   "pytest==9.1.1",
+  "pytest-benchmark==5.3.0",
   "pytest-cov==7.1.0",
   "pytest-timeout==2.4.0",
   "pytest-xdist==3.8.0",
 ]
-dev = ["dokime-client", "dokime-tools", "ruff==0.17.0", "ty==0.0.86"]
+dev = ["dokime-tools", "ruff==0.17.0", "ty==0.0.86", "maturin==1.14.0"]
 
 [tool.uv]
 package = false
 system-certs = true
 
 [tool.uv.workspace]
-members = ["packages/dokime-client", "tools/python"]
+members = ["tools/python"]
+# The Native Extension Is Built By build:python, Never By Environment Preparation.
+exclude = ["sdk/python"]
 
 [[tool.uv.index]]
 name = "pypi"
 url = "https://pypi.org/simple"
 
 [tool.uv.sources]
-dokime-client = { workspace = true }
 dokime-tools = { workspace = true }

@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub(super) mod analysis;
 mod conditions;
 pub(super) mod documents;
@@ -19,6 +20,7 @@ mod suite;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -35,6 +37,7 @@ use dokime_domain::model::values::UnitFamily;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(super) struct Definition {
@@ -50,26 +53,37 @@ pub(super) struct Definition {
 pub(super) struct Template {
     #[serde(default)]
     test_case_template_id: String,
+
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     tags: Vec<String>,
+
     #[serde(default)]
     parameter_groups: Vec<Group>,
+
     #[serde(default)]
     parameters: Vec<Parameter>,
+
     #[serde(default)]
     files: Vec<File>,
+
     #[serde(default)]
     document: Option<documents::Document>,
+
     #[serde(default)]
     phases: Vec<Phase>,
+
     #[serde(default)]
     criteria: Vec<Criterion>,
+
     #[serde(default)]
     prompt_definitions: Vec<prompts::Prompt>,
+
     #[serde(default)]
     subscriptions: Vec<Subscription>,
+
     #[serde(default)]
     attributes: Map,
 }
@@ -80,6 +94,7 @@ pub(super) struct Template {
 pub(super) struct Group {
     #[serde(default)]
     group_id: String,
+
     #[serde(default)]
     metadata: Option<metadata::Row>,
 }
@@ -90,30 +105,43 @@ pub(super) struct Group {
 pub(super) struct Parameter {
     #[serde(default)]
     expansion: Expansion,
+
     #[serde(default)]
     parameter_id: String,
+
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     group_id: Option<String>,
+
     #[serde(default)]
     value_type: String,
+
     #[serde(default)]
     unit: Option<Unit>,
+
     #[serde(default)]
     min: Option<f64>,
+
     #[serde(default)]
     max: Option<f64>,
+
     #[serde(default)]
     required: bool,
+
     #[serde(default)]
     expression: expressions::Parameter,
+
     #[serde(default)]
     runtime_writable: bool,
+
     #[serde(default)]
     selection: Option<Selection>,
+
     #[serde(default)]
     list: Option<List>,
+
     #[serde(default)]
     extensions: Map,
 }
@@ -124,6 +152,7 @@ pub(super) struct Parameter {
 pub(super) struct Expansion {
     #[serde(default)]
     kind: String,
+
     #[serde(default)]
     group: Option<String>,
 }
@@ -142,8 +171,10 @@ pub(super) struct Selection {
 pub(super) struct List {
     #[serde(default)]
     element_type: String,
+
     #[serde(default)]
     min_items: Option<u64>,
+
     #[serde(default)]
     max_items: Option<u64>,
 }
@@ -154,8 +185,10 @@ pub(super) struct List {
 pub struct Unit {
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     family: String,
+
     #[serde(default)]
     symbol: String,
 }
@@ -166,12 +199,16 @@ pub struct Unit {
 pub(super) struct File {
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     default: Option<String>,
+
     #[serde(default)]
     required: bool,
+
     #[serde(default)]
     media_types: Vec<String>,
+
     #[serde(default)]
     attributes: Map,
 }
@@ -182,8 +219,10 @@ pub(super) struct File {
 pub(super) struct Phase {
     #[serde(default)]
     repeatable: bool,
+
     #[serde(default)]
     step_id: String,
+
     #[serde(default)]
     metadata: Option<metadata::Row>,
 }
@@ -194,8 +233,10 @@ pub(super) struct Phase {
 pub(super) struct Criterion {
     #[serde(default)]
     criterion_id: String,
+
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     expected: Option<Value>,
 }
@@ -206,6 +247,7 @@ pub(super) struct Criterion {
 pub(super) struct Subscription {
     #[serde(default)]
     kind: String,
+
     #[serde(default)]
     identifier: String,
 }
@@ -227,6 +269,7 @@ pub struct Map {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Template {
     pub(super) fn encoding_memory(value: &crate::definition::TestCaseTemplate) -> Result<usize> {
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
@@ -1038,6 +1081,7 @@ impl TryFrom<Value> for dokime_domain::model::values::Value {
         values.remove("value").ok_or(Error::Invalid("scalar value is missing"))
     }
 }
+
 impl Value {
     pub fn encoding_memory(value: &dokime_domain::model::values::Value) -> Result<usize> {
         values::value_encoding_memory(value)
@@ -1084,17 +1128,20 @@ impl serde::Serialize for Value {
         value.serialize(serializer)
     }
 }
+
 impl<'de> serde::Deserialize<'de> for Value {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let value = <dokime_domain::model::values::Value as serde::Deserialize>::deserialize(deserializer)?;
         Self::try_from(&value).map_err(serde::de::Error::custom)
     }
 }
+
 impl serde::Serialize for Map {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         values::map::serialize(&self.cells, serializer)
     }
 }
+
 impl<'de> serde::Deserialize<'de> for Map {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let value =
@@ -1107,6 +1154,7 @@ impl<'de> serde::Deserialize<'de> for Map {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn value_type_name(value: &dokime_domain::model::values::ValueType) -> &'static str {
     use dokime_domain::model::values::ValueType;
     match value {

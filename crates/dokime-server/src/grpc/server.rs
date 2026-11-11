@@ -73,7 +73,6 @@ impl Service {
         history::prepare(setup, live, config.max_message_bytes())?;
         reports::prepare(setup, live, config.max_message_bytes())?;
         content::prepare(setup, live, config.max_message_bytes())?;
-        super::files::prepare(setup, live)?;
         super::media::prepare(setup, live, config.max_message_bytes())?;
         super::notes::prepare(setup, live, config.max_message_bytes())?;
         super::prompts::prepare(setup, live, config.max_message_bytes())?;
@@ -94,7 +93,6 @@ impl Service {
         setup.operations::<dokime::operations::documents::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::evidence::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::execution::Operations>(dokime::app::Lanes::Open);
-        setup.operations::<dokime::operations::files::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::history::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::media::Operations>(dokime::app::Lanes::Open);
         setup.operations::<dokime::operations::notes::Operations>(dokime::app::Lanes::Open);
@@ -189,6 +187,14 @@ impl Service {
 }
 
 impl Server {
+    pub async fn create_pairing(&self, label: String) -> Result<dokime::domain::model::remote::CreatedPairing, Error> {
+        if self.attachment.is_none() {
+            return Err(Error::Configuration("listener is not accepting calls"));
+        }
+        let controller = self.remote.as_ref().ok_or(Error::Configuration("remote controller is not active"))?;
+        controller.export_pairing(label).await
+    }
+
     pub(super) fn reload_certificate(&self, identity: &super::TlsIdentity) -> Result<(), Error> {
         let certificate = self.certificate.as_ref().ok_or(Error::Configuration("listener has no reloadable TLS certificate"))?;
         certificate.reload(&identity.certificate, &identity.private_key)?;

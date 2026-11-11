@@ -8,7 +8,9 @@
  */
 
 /* === Modules === */
+
 pub(crate) mod aliased_result;
+pub(crate) mod choices;
 pub(crate) mod identities;
 pub(crate) mod renamed_sdk;
 

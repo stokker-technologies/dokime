@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
+
 // Third Party Imports
 
 // Local Imports
@@ -39,6 +41,7 @@ use dokime_runtime::{Metadata, ParameterId, TemplateId, TestCycleId, Value, Valu
 /* === Enums === */
 
 /* === Traits === */
+
 pub(crate) trait ExecutionFixtureStart {
     async fn append_fixture_cases(
         &self, cycle: TestCycleId, cases: Vec<TestCase>, context: CommandContext,
@@ -50,6 +53,7 @@ pub(crate) trait ExecutionFixtureStart {
 }
 
 /* === Implementations === */
+
 impl ExecutionFixtureStart for RuntimeHandle {
     async fn append_fixture_cases(
         &self, cycle: TestCycleId, cases: Vec<TestCase>, context: CommandContext,
@@ -121,6 +125,7 @@ impl ExecutionFixtureStart for RuntimeHandle {
 }
 
 /* === Public Functions === */
+
 pub fn empty_suite() -> TestSuite {
     fixture_suite(&[])
 }
@@ -374,6 +379,7 @@ pub fn custom_suite() -> TestSuite {
 }
 
 /* === Private Functions === */
+
 fn python_registration(suite_id: &str, workflow: &str, suite: TestSuite) -> TestSuiteDefinition {
     TestSuiteDefinition {
         suite_id: suite_id.to_owned(),

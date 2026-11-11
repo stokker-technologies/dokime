@@ -22,9 +22,8 @@ use std::{fmt, sync::LazyLock};
 
 /* === Constants === */
 
-/// Product version of this build.
+// Product version of this build.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 const COMMIT_DIGITS: std::ops::RangeInclusive<usize> = 7..=64;
 const DIRTY: &str = "-dirty";
 const SHORT_DIGITS: usize = 8;
@@ -42,17 +41,19 @@ pub struct Args {
     json: bool,
 }
 
-/// The product version, source commit and publication channel one binary was built from.
+// The product version, source commit and publication channel one binary was built from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Build<'a> {
     pub version: &'a str,
-    /// `None` when the build had neither a CI commit nor a Git checkout.
+
+    // `None` when the build had neither a CI commit nor a Git checkout.
     pub revision: Option<Revision<'a>>,
-    /// `nightly` or `release` for the publishers' builds; `None` otherwise.
+
+    // `nightly` or `release` for the publishers' builds; `None` otherwise.
     pub channel: Option<&'a str>,
 }
 
-/// A source commit, marked dirty when the checkout had uncommitted tracked changes.
+// A source commit, marked dirty when the checkout had uncommitted tracked changes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Revision<'a> {
     pub commit: &'a str,
@@ -66,7 +67,7 @@ pub struct Revision<'a> {
 /* === Implementations === */
 
 impl<'a> Build<'a> {
-    /// Reads the embedded form: a revision of `<commit>[-dirty]` or `unknown`, and a possibly empty channel.
+    // Reads the embedded form: a revision of `<commit>[-dirty]` or `unknown`, and a possibly empty channel.
     pub fn parse(version: &'a str, revision: &'a str, channel: &'a str) -> Self {
         let channel = Some(channel).filter(|channel| !channel.is_empty());
         Self {
@@ -78,7 +79,7 @@ impl<'a> Build<'a> {
 }
 
 impl fmt::Display for Build<'_> {
-    /// `0.1.2 (766330b7 nightly)`, `0.1.2 (766330b7-dirty)` or `0.1.2 (unknown)`.
+    // `0.1.2 (766330b7 nightly)`, `0.1.2 (766330b7-dirty)` or `0.1.2 (unknown)`.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "{} (", self.version)?;
         match self.revision {
@@ -100,12 +101,12 @@ impl<'a> Revision<'a> {
         valid.then_some(Self { commit, dirty })
     }
 
-    /// The abbreviated commit, without the dirty mark.
+    // The abbreviated commit, without the dirty mark.
     pub fn short(&self) -> &'a str {
         &self.commit[..self.commit.len().min(SHORT_DIGITS)]
     }
 
-    /// The full commit with its dirty mark, as identity responses carry it.
+    // The full commit with its dirty mark, as identity responses carry it.
     pub fn full(&self) -> String {
         let mark = if self.dirty { DIRTY } else { "" };
         format!("{}{mark}", self.commit)
@@ -121,12 +122,12 @@ impl fmt::Display for Revision<'_> {
 
 /* === Public Functions === */
 
-/// The build this binary was compiled from.
+// The build this binary was compiled from.
 pub fn current() -> Build<'static> {
     Build::parse(VERSION, env!("DOKIME_SOURCE_REVISION"), env!("DOKIME_BUILD_CHANNEL"))
 }
 
-/// [`current`] as one line, for `--version` and terminal headers.
+// [`current`] as one line, for `--version` and terminal headers.
 pub fn label() -> &'static str {
     static LABEL: LazyLock<String> = LazyLock::new(|| current().to_string());
     LABEL.as_str()

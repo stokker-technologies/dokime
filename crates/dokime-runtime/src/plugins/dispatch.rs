@@ -208,7 +208,14 @@ pub(crate) fn validate_analyses(
 
 fn dispatch_error(error: harmos::Error) -> ActionDispatcherError {
     match error {
-        harmos::Error::OperationRefused(harmos::Refusal::TimedOut) => ActionDispatcherError::Deadline,
+        harmos::Error::OperationRefused(refusal @ harmos::Refusal::TimedOut { .. }) => ActionDispatcherError::Refused {
+            code: -32_607,
+            message: refusal.to_string(),
+        },
+        harmos::Error::OperationRefused(refusal @ harmos::Refusal::Cancelled { .. }) => ActionDispatcherError::Refused {
+            code: -32_606,
+            message: refusal.to_string(),
+        },
         harmos::Error::OperationRefused(_) | harmos::Error::Closing { .. } | harmos::Error::NotRegistered { domain: "operation", .. } => {
             ActionDispatcherError::Unavailable
         }
@@ -257,3 +264,33 @@ fn caller_error(error: harmos::plugin::DispatchError) -> ActionDispatcherError {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn contextual_refusals_retain_code_and_message() {
+        for (code, refusal) in [
+            (
+                -32_607,
+                harmos::Refusal::TimedOut {
+                    operation: "fixture.read".to_owned(),
+                    attempt: 2,
+                    timeout: std::time::Duration::from_secs(10),
+                    configured_by: "operation policy.attempt_timeout",
+                },
+            ),
+            (
+                -32_606,
+                harmos::Refusal::Cancelled {
+                    operation: "fixture.write".to_owned(),
+                    attempt: 3,
+                },
+            ),
+        ] {
+            let message = refusal.to_string();
+            assert_eq!(dispatch_error(harmos::Error::OperationRefused(refusal)), ActionDispatcherError::Refused { code, message });
+        }
+    }
+}

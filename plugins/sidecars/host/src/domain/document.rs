@@ -289,6 +289,7 @@ fn plot(spec: HostPlotSpec<'_>) -> PlotDefinition {
         series_by_expression: None,
         filters: Vec::new(),
         unit: spec.unit.map(ToOwned::to_owned),
+        scale: None,
         style: spec.style,
         x_scale: Default::default(),
         y_scale: Default::default(),

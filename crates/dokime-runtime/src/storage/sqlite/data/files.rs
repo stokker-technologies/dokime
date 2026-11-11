@@ -68,8 +68,8 @@ impl VerifiedPrefix {
 
 impl State {
     pub(crate) async fn data_create_file(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
-        let owner = self.0.clone();
-        self.call(move |connection| {
+        let owner = self.0.owner.clone();
+        self.grouped(1, entry::check_size(&metadata, usize::MAX)?, move |connection| {
             let result = (|| {
                 let staging = create_file(connection, &root, metadata, false)?;
                 if metadata_for(connection, &staging.id)?.is_some_and(|(_, finished)| finished.is_none()) {
@@ -88,8 +88,8 @@ impl State {
         if bytes.is_empty() {
             return Err(Error::Data("file batch must not be empty"));
         }
-        let owner = self.0.clone();
-        self.call(move |connection| {
+        let owner = self.0.owner.clone();
+        self.grouped(1, bytes.len(), move |connection| {
             Ok((|| {
                 let bytes = bytes.as_slice();
                 super::production::check_writable(connection, staging.id.as_str())?;
@@ -109,6 +109,10 @@ impl State {
                 };
                 regular(&path)?;
                 let mut files = owner.files.lock().unwrap();
+                if sealed.is_none() && !files.contains_key(&staging.id) {
+                    let file = OpenOptions::new().read(true).write(true).open(&path)?;
+                    files.insert(staging.id.clone(), file);
+                }
                 let mut opened;
                 let file = if let Some(file) = files.get_mut(&staging.id) {
                     file
@@ -144,73 +148,78 @@ impl State {
     pub(crate) async fn data_finish_file(
         &self, root: PathBuf, staging: StagedFile, position: StorageCursor, length: u64, sha256: [u8; 32],
     ) -> Result<FileReference, Error> {
-        let owner = self.0.clone();
-        self.call(move |connection| {
-            let result = (|| {
-                super::production::check_writable(connection, staging.id.as_str())?;
-                let head = saved(connection)?;
-                head.history.check(&staging.history)?;
-                head.history.check(&position.history)?;
-                if position.sequence == 0 {
-                    return Err(Error::Data("position zero cannot reference a file"));
-                }
-                let (metadata, finished) = metadata_for(connection, &staging.id)?.ok_or(Error::Data("unknown file staging"))?;
-                let reference = FileReference { metadata, position, length, sha256 };
-                if reference.metadata.expected_length.is_some_and(|value| value != length)
-                    || reference.metadata.expected_sha256.is_some_and(|value| value != sha256)
-                    || finished.as_ref().is_some_and(|value| value != &reference)
-                {
-                    return Err(Error::Conflict("file finish conflicts with metadata or prior finish"));
-                }
-                let encoded = entry::encode(&reference)?;
-                if finish_intent(connection, &staging.id)?.as_ref().is_some_and(|intent| intent != &reference) {
-                    return Err(Error::Conflict("file finish intent has different contents"));
-                }
-                let source = staging_path(connection, &root, &staging.id)?;
-                let destination = final_path(&root, &reference)?;
-                let present = regular(&destination)?;
-                let mut retained = owner.files.lock().unwrap();
-                if present {
-                    retained.remove(&staging.id);
-                    verify(&destination, &reference)?;
-                } else if let Some(file) = retained.get_mut(&staging.id) {
-                    let mut prefix = owner.verification_prefix.lock().unwrap();
-                    verify_opened(file, &reference, &mut prefix)?;
-                } else {
-                    verify(&source, &reference)?;
-                }
-                // Invalid length/hash claims do not bind a finish identity.
-                // Persist the verified intent before changing file visibility.
-                connection
-                    .execute("UPDATE storage_file_stages SET finish_intent=?1 WHERE id=?2", params![&encoded, staging.id.as_str()])?;
-                harmos::filesystem::publication::create_dir_all(destination.parent().expect("immutable file parent"))?;
-                if !present {
-                    if let Some(file) = retained.get(&staging.id) {
-                        harmos::filesystem::publication::install_opened(file, &source, &destination)?;
-                    } else {
-                        harmos::filesystem::publication::install(&source, &destination)?;
+        let owner = self.0.owner.clone();
+        self.grouped(
+            1,
+            entry::check_size(&staging, usize::MAX)?.saturating_add(entry::check_size(&position, usize::MAX)?).saturating_add(40),
+            move |connection| {
+                let result = (|| {
+                    super::production::check_writable(connection, staging.id.as_str())?;
+                    let head = saved(connection)?;
+                    head.history.check(&staging.history)?;
+                    head.history.check(&position.history)?;
+                    if position.sequence == 0 {
+                        return Err(Error::Data("position zero cannot reference a file"));
                     }
-                    super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                } else if finished.is_none() && !published_content(connection, &reference)? {
-                    // An Interrupted Install May Have Published Its Name Before Its Flush.
-                    confirm_durability(&destination)?;
-                }
-                // The Finished Row Is Committed Only After Durable Publication.
-                // Retries Still Verify Content And The Exact Finish Identity.
-                let transaction = connection.transaction()?;
-                transaction.execute("UPDATE storage_file_stages SET finished=?1 WHERE id=?2", params![encoded, staging.id.as_str()])?;
-                transaction.execute("UPDATE storage_productions SET phase=1 WHERE id=?1", [staging.id.as_str()])?;
-                super::super::commit(transaction)?;
-                remove(&source)?;
-                Ok(reference)
-            })();
-            Ok(result)
-        })
+                    let (metadata, finished) = metadata_for(connection, &staging.id)?.ok_or(Error::Data("unknown file staging"))?;
+                    let reference = FileReference { metadata, position, length, sha256 };
+                    if reference.metadata.expected_length.is_some_and(|value| value != length)
+                        || reference.metadata.expected_sha256.is_some_and(|value| value != sha256)
+                        || finished.as_ref().is_some_and(|value| value != &reference)
+                    {
+                        return Err(Error::Conflict("file finish conflicts with metadata or prior finish"));
+                    }
+                    let encoded = entry::encode(&reference)?;
+                    if finish_intent(connection, &staging.id)?.as_ref().is_some_and(|intent| intent != &reference) {
+                        return Err(Error::Conflict("file finish intent has different contents"));
+                    }
+                    let source = staging_path(connection, &root, &staging.id)?;
+                    let destination = final_path(&root, &reference)?;
+                    let present = regular(&destination)?;
+                    let mut retained = owner.files.lock().unwrap();
+                    if present {
+                        retained.remove(&staging.id);
+                        verify(&destination, &reference)?;
+                    } else if let Some(file) = retained.get_mut(&staging.id) {
+                        let mut prefix = owner.verification_prefix.lock().unwrap();
+                        verify_opened(file, &reference, &mut prefix)?;
+                    } else {
+                        verify(&source, &reference)?;
+                    }
+                    if finished.is_some() {
+                        return Ok(reference);
+                    }
+                    // Invalid length/hash claims do not bind a finish identity.
+                    // Keep The Source Until The Group Commits The Verified Intent And Finished Row.
+                    connection
+                        .execute("UPDATE storage_file_stages SET finish_intent=?1 WHERE id=?2", params![&encoded, staging.id.as_str()])?;
+                    let directory = destination.parent().expect("immutable file parent");
+                    if !directory.is_dir() {
+                        harmos::filesystem::publication::create_dir_all(directory)?;
+                    }
+                    if !present {
+                        owner.publication.lock().unwrap().install(&source, &destination, retained.get(&staging.id))?;
+                    } else if !published_content(connection, &reference)? {
+                        // An Interrupted Install May Have Published Its Name Before Its Flush.
+                        confirm_durability(&destination)?;
+                    }
+                    // The Finished Row Is Committed Only After Durable Publication.
+                    // Retries Still Verify Content And The Exact Finish Identity.
+                    let transaction = connection.savepoint()?;
+                    transaction.execute("UPDATE storage_file_stages SET finished=?1 WHERE id=?2", params![encoded, staging.id.as_str()])?;
+                    transaction.execute("UPDATE storage_productions SET phase=1 WHERE id=?1", [staging.id.as_str()])?;
+                    super::super::release(transaction)?;
+                    owner.publication.lock().unwrap().retire(source);
+                    Ok(reference)
+                })();
+                Ok(result)
+            },
+        )
         .await?
     }
 
     pub(crate) async fn data_abort_file(&self, root: PathBuf, staging: StagedFile) -> Result<(), Error> {
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.call(move |connection| {
             owner.files.lock().unwrap().remove(&staging.id);
             let result = (|| {
@@ -326,7 +335,7 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
         history: head.history,
         id: metadata.id.clone(),
     };
-    let transaction = connection.transaction()?;
+    let transaction = connection.savepoint()?;
     if let Some((existing, _)) = metadata_for(&transaction, &staging.id)? {
         if existing != metadata {
             return Err(Error::Conflict("file staging identity has different metadata"));
@@ -358,20 +367,24 @@ pub(super) fn create_file(connection: &mut Connection, root: &Path, metadata: Fi
     } else {
         None
     };
-    super::super::commit(transaction)?;
     if let Some(path) = path {
-        harmos::filesystem::publication::create_dir_all(path.parent().expect("staging parent"))?;
+        let directory = path.parent().expect("staging parent");
+        if !directory.is_dir() {
+            harmos::filesystem::publication::create_dir_all(directory)?;
+        }
         regular(&path)?;
         OpenOptions::new().create(true).truncate(false).write(true).open(&path)?;
-        if production {
-            confirm_durability(&path)?;
-        }
+        // The Durable Zero-Length Checkpoint Reconstructs A Missing Empty File.
+        // Nonempty Checkpoints And Publication Flush Their Actual File Contents.
     }
+    super::super::release(transaction)?;
     Ok(staging)
 }
 
 pub(super) fn confirm_durability(path: &Path) -> Result<(), Error> {
+    let started = std::time::Instant::now();
     harmos::filesystem::publication::confirm(path)?;
+    super::super::FILE_SYNC_NS.fetch_add(started.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
     super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     Ok(())
 }
@@ -519,11 +532,26 @@ pub(super) fn verify(path: &Path, reference: &FileReference) -> Result<(), Error
     verify_opened(&mut file, reference, &mut VerifiedPrefix::default())
 }
 
+pub(super) fn remove(path: &Path) -> Result<(), Error> {
+    regular(path)?;
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/* === Private Functions === */
+
 fn verify_opened(file: &mut File, reference: &FileReference, prefix: &mut VerifiedPrefix) -> Result<(), Error> {
     if file.metadata()?.len() != reference.length {
         return Err(Error::Data("file finish length differs"));
     }
     file.seek(SeekFrom::Start(0))?;
+    verify_bytes(file, reference, prefix)
+}
+
+fn verify_bytes(file: &mut impl std::io::Read, reference: &FileReference, prefix: &mut VerifiedPrefix) -> Result<(), Error> {
     let mut buffer = vec![0; CHUNK_BYTES];
     let mut count = file.read(&mut buffer)?;
     let mut digest = if count == CHUNK_BYTES { prefix.begin(&buffer) } else { Sha256::new_with_prefix(&buffer[..count]) };
@@ -537,20 +565,9 @@ fn verify_opened(file: &mut File, reference: &FileReference, prefix: &mut Verifi
     Ok(())
 }
 
-pub(super) fn remove(path: &Path) -> Result<(), Error> {
-    regular(path)?;
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.into()),
-    }
-}
-
-/* === Private Functions === */
-
 // A Finished Row Commits Only After Its Content Name Was Published Durably.
 // An Unfinished Intent Alone Does Not Establish That Proof.
-fn published_content(connection: &Connection, reference: &FileReference) -> Result<bool, Error> {
+pub(in crate::storage::sqlite) fn published_content(connection: &Connection, reference: &FileReference) -> Result<bool, Error> {
     let hash = serde_json::to_string(&reference.sha256)?;
     let id: Option<String> = connection
         .query_row(
@@ -581,56 +598,9 @@ fn hex(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn shared_content_requires_a_finished_live_owner() {
-        let root = tempfile::tempdir().unwrap();
-        let state = State::open_with(root.path(), crate::config::local_storage_defaults()).await.unwrap();
-        let head = state.data_open(None).await.unwrap();
-        let metadata = |id: &str| FileMetadata {
-            id: harmos::Identifier::new(id).unwrap(),
-            scope: None,
-            media_type: "application/octet-stream".into(),
-            expected_length: None,
-            expected_sha256: None,
-        };
-        let source = state.production_create(root.path().to_owned(), metadata("original")).await.unwrap();
-        state.production_create(root.path().to_owned(), metadata("reused")).await.unwrap();
-        let reference = FileReference {
-            metadata: metadata("reused"),
-            position: StorageCursor {
-                history: head.history.clone(),
-                sequence: 2,
-            },
-            length: 0,
-            sha256: Sha256::digest([]).into(),
-        };
-        let proven = async |reference: FileReference| {
-            state.call(move |connection| Ok(published_content(connection, &reference))).await.unwrap().unwrap()
-        };
-        assert!(!proven(reference.clone()).await);
-        state
-            .call(|connection| {
-                connection.execute_batch(
-                    "CREATE TEMP TRIGGER refuse_finish BEFORE UPDATE OF finished ON storage_file_stages
-                     BEGIN SELECT RAISE(ABORT,'injected publication failure'); END",
-                )
-            })
-            .await
-            .unwrap();
-        let at = StorageCursor { history: head.history, sequence: 1 };
-        assert!(state.data_finish_file(root.path().to_owned(), source.clone(), at.clone(), 0, reference.sha256).await.is_err());
-        assert!(!proven(reference.clone()).await);
-        state.call(|connection| connection.execute_batch("DROP TRIGGER refuse_finish")).await.unwrap();
-        state.data_finish_file(root.path().to_owned(), source.clone(), at, 0, reference.sha256).await.unwrap();
-        assert!(proven(reference.clone()).await);
-        state.production_delete(root.path().to_owned(), source).await.unwrap();
-        assert!(!proven(reference).await);
-        state.close().await.unwrap();
-    }
-
     #[test]
     fn cached_verification_rejects_changed_prefix_and_suffix() {
-        let mut file = tempfile::tempfile().unwrap();
+        let mut file = std::io::Cursor::new(Vec::new());
         let bytes = vec![0x5a; CHUNK_BYTES + 32];
         file.write_all(&bytes).unwrap();
 
@@ -654,21 +624,45 @@ mod tests {
         };
 
         let mut prefix = VerifiedPrefix::default();
-        verify_opened(&mut file, &reference, &mut prefix).unwrap();
-        verify_opened(&mut file, &reference, &mut prefix).unwrap();
+        {
+            file.set_position(0);
+            verify_bytes(&mut file, &reference, &mut prefix)
+        }
+        .unwrap();
+        {
+            file.set_position(0);
+            verify_bytes(&mut file, &reference, &mut prefix)
+        }
+        .unwrap();
 
         file.seek(SeekFrom::Start(0)).unwrap();
         file.write_all(&[0]).unwrap();
-        assert!(verify_opened(&mut file, &reference, &mut prefix).is_err());
+        assert!(
+            {
+                file.set_position(0);
+                verify_bytes(&mut file, &reference, &mut prefix)
+            }
+            .is_err()
+        );
 
         file.seek(SeekFrom::Start(0)).unwrap();
         file.write_all(&[0x5a]).unwrap();
         file.seek(SeekFrom::End(-1)).unwrap();
         file.write_all(&[0]).unwrap();
-        assert!(verify_opened(&mut file, &reference, &mut prefix).is_err());
+        assert!(
+            {
+                file.set_position(0);
+                verify_bytes(&mut file, &reference, &mut prefix)
+            }
+            .is_err()
+        );
 
         file.seek(SeekFrom::End(-1)).unwrap();
         file.write_all(&[0x5a]).unwrap();
-        verify_opened(&mut file, &reference, &mut prefix).unwrap();
+        {
+            file.set_position(0);
+            verify_bytes(&mut file, &reference, &mut prefix)
+        }
+        .unwrap();
     }
 }

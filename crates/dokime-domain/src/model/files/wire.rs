@@ -7,11 +7,10 @@
  * ***
  */
 
-// File sources watched during an execution: every matched file becomes one
-// execution artifact under the watch's output folder. `FileWatch` streams its
-// progress to a listener; `WatchFile` is the same watch over files for a
-// template, settling only when the watch stops, and may carry line matchers
-// that turn captured lines into rows and records.
+// File sources captured during an execution: every selected file becomes one
+// execution artifact. `CopyFiles` copies once; `StartCapture` and `StopCapture`
+// bound a capture that streams or mirrors, and line matchers turn streamed
+// lines into rows and records.
 
 /* === Modules === */
 
@@ -20,13 +19,13 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::path::Path;
 
 // Third Party Imports
 use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::content::wire::ArtifactMetadata;
 use crate::model::telemetry::TelemetryRow;
 use crate::model::telemetry::TelemetryStream;
 use crate::model::values::ValueType;
@@ -49,29 +48,33 @@ pub struct FileRule {
     pub action: FileRuleAction,
 }
 
-// A directory on the backend host.
+// A path on the backend host.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct LocalWatchSource {
-    #[row(description = "An absolute directory path on the backend host.")]
-    pub root: String,
+pub struct LocalLocation {
+    #[row(description = "An absolute path on the backend host.")]
+    pub path: String,
 }
 
-// A directory on an FTP server, listed and retrieved by polling.
+// A path on an FTP server, listed and retrieved by polling.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct FtpWatchSource {
-    #[row(description = "`ftps://[user@]host[:port]/root` (explicit TLS), or `ftp://` on a trusted bench; never a password.")]
+pub struct FtpLocation {
+    #[row(description = "`ftps://[user@]host[:port]/path` (explicit TLS), or `ftp://` on a trusted bench; never a password.")]
     pub url: String,
 
     #[row(description = "The host secret store entry holding the password; absent logs in anonymously.")]
     pub secret_id: Option<String>,
 }
 
+// A directory and the files it selects: the last rule matching a path decides,
+// and empty rules select every file at any depth. Depth follows the rules, so
+// `*.log` stays at the top level and `**/*.log` descends.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct FileWatchSource {
-    pub payload: Option<FileWatchSourcePayload>,
+pub struct FileSelection {
+    pub root: FileLocation,
+    pub rules: Vec<FileRule>,
 }
 
 // One captured named group read as a column of the matcher's stream.
@@ -104,71 +107,56 @@ pub struct LineMarker {
     pub record_type: String,
 }
 
+// Captures bytes written after the baseline: files present at the start from
+// their length, later files from byte zero. A truncated or replaced file seals
+// its segment and continues in a new one. Each captured line is offered to
+// every matcher and marker.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct WatchedArtifact {
+pub struct StreamCapture {
+    pub matchers: Vec<LineMatcher>,
+    pub markers: Vec<LineMarker>,
+}
+
+// Keeps each output equal to its source, checked once per interval.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct MirrorCapture {
+    #[row(description = "Seconds between change checks; absent takes the configured interval.")]
+    pub interval_s: Option<u32>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct CaptureStarted {
+    pub capture_id: u64,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct CapturedArtifact {
     pub artifact: String,
     pub size_bytes: u64,
-}
-
-// What a watch that settled on its own sealed, and where its output skips.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct WatchFileOutcome {
-    pub artifacts: Vec<WatchedArtifact>,
-    pub gaps: Vec<FileWatchGap>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct FileWatchProgress {
-    #[row(description = "The path relative to the source root.")]
-    pub path: String,
-
-    #[row(description = "Bytes captured into the output so far.")]
-    pub offset: u64,
-
-    pub phase: FileWatchPhase,
 }
 
 // Source bytes the output does not contain, or a change in what it mirrors.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct FileWatchGap {
+pub struct CaptureGap {
     pub path: String,
 
     #[row(description = "The output offset at which the gap sits.")]
     pub offset: u64,
 
-    pub reason: FileWatchGapReason,
+    pub reason: CaptureGapReason,
 }
 
+// What a copy or capture sealed, and where its output skips.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct FileWatchSealed {
-    pub path: String,
-    pub artifact: Option<ArtifactMetadata>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct FileWatchCompleted {
-    pub artifacts: Vec<ArtifactMetadata>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct FileWatchArmed {
-    pub baseline: Vec<String>,
-}
-
-// Progress, gap and seal frames while watching, then one Completed frame when
-// the bound elapses, the execution seals the watch or a start snapshot is taken.
-// A cancelled watch still seals what it captured, without a final frame.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct FileWatchFrame {
-    pub payload: Option<FileWatchFramePayload>,
+pub struct CapturedFiles {
+    pub artifacts: Vec<CapturedArtifact>,
+    pub gaps: Vec<CaptureGap>,
 }
 
 /* === Enums === */
@@ -176,7 +164,6 @@ pub struct FileWatchFrame {
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileRuleAction {
-    Unspecified,
     Include,
     Exclude,
 }
@@ -184,7 +171,6 @@ pub enum FileRuleAction {
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LineFieldKind {
-    Unspecified,
     Text,
     Integer,
     Number,
@@ -193,72 +179,143 @@ pub enum LineFieldKind {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub enum FileWatchSourcePayload {
-    Local(LocalWatchSource),
-    Ftp(FtpWatchSource),
-}
-
-// Stream captures bytes written after the watch starts: files present at the
-// start baseline at their length, files appearing later from their first byte;
-// a truncated file restarts from its first byte with a gap, and a replaced
-// (rotated) file seals its artifact with a gap and starts a new one.
-// Mirror keeps each output equal to its source, refetched when its size or
-// modification time changes. A snapshot copies each file once.
-#[harmos::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FileWatchPolicy {
-    Unspecified,
-    Stream,
-    Mirror,
-    SnapshotAtStart,
-    SnapshotAtStop,
-}
-
-#[harmos::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FileWatchSelection {
-    All,
-    Latest,
-    New,
-}
-
-#[harmos::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FileWatchPhase {
-    Unspecified,
-    // Discovered; capture starts from the baseline.
-    Baseline,
-    Capturing,
-    Synced,
-}
-
-#[harmos::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FileWatchGapReason {
-    Unspecified,
-    // The source shrank; its segment is sealed and capture restarts at its first byte.
-    Truncated,
-    // The path names a different (rotated) file; the output is sealed and a new one starts.
-    Replaced,
-    // The source disappeared; its output is sealed.
-    Vanished,
-    // The server refused a ranged retrieval; extraction fails, while artifact-only capture falls back to mirroring.
-    ResumeUnsupported,
+pub enum FileLocation {
+    Local(LocalLocation),
+    Ftp(FtpLocation),
 }
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub enum FileWatchFramePayload {
-    Progress(FileWatchProgress),
-    Gap(FileWatchGap),
-    Sealed(Box<FileWatchSealed>),
-    Completed(FileWatchCompleted),
-    Armed(FileWatchArmed),
+pub enum FileSource {
+    // One file, which must exist at the start.
+    File(FileLocation),
+
+    // A directory's selected files, including later arrivals.
+    Tree(FileSelection),
+
+    // The selection's newest file at the start, followed through rotation.
+    Newest(FileSelection),
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub enum CaptureMode {
+    Stream(StreamCapture),
+    Mirror(MirrorCapture),
+}
+
+#[harmos::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CaptureGapReason {
+    // The source shrank; its segment is sealed and capture restarts at its first byte.
+    Truncated,
+
+    // The path names a different (rotated) file; the output is sealed and a new one starts.
+    Replaced,
+
+    // The source disappeared; its output is sealed.
+    Vanished,
+
+    // The server refused a ranged retrieval; extraction fails, while artifact-only capture falls back to mirroring.
+    ResumeUnsupported,
 }
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl FileRule {
+    pub fn include(glob: impl Into<String>) -> Self {
+        Self {
+            glob: glob.into(),
+            action: FileRuleAction::Include,
+        }
+    }
+
+    pub fn exclude(glob: impl Into<String>) -> Self {
+        Self {
+            glob: glob.into(),
+            action: FileRuleAction::Exclude,
+        }
+    }
+}
+
+impl FileLocation {
+    pub fn ftp(url: impl Into<String>, secret_id: Option<String>) -> Self {
+        Self::Ftp(FtpLocation { url: url.into(), secret_id })
+    }
+}
+
+impl<P: AsRef<Path>> From<P> for FileLocation {
+    fn from(path: P) -> Self {
+        Self::Local(LocalLocation {
+            path: path.as_ref().to_string_lossy().into_owned(),
+        })
+    }
+}
+
+impl FileSource {
+    pub fn file(location: impl Into<FileLocation>) -> Self {
+        Self::File(location.into())
+    }
+
+    pub fn tree(root: impl Into<FileLocation>, rules: impl IntoIterator<Item = FileRule>) -> Self {
+        Self::Tree(FileSelection {
+            root: root.into(),
+            rules: rules.into_iter().collect(),
+        })
+    }
+
+    pub fn newest(root: impl Into<FileLocation>, rules: impl IntoIterator<Item = FileRule>) -> Self {
+        Self::Newest(FileSelection {
+            root: root.into(),
+            rules: rules.into_iter().collect(),
+        })
+    }
+}
+
+impl StreamCapture {
+    pub fn plain() -> Self {
+        Self {
+            matchers: Vec::new(),
+            markers: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn matcher(mut self, matcher: LineMatcher) -> Self {
+        self.matchers.push(matcher);
+        self
+    }
+
+    #[must_use]
+    pub fn marker(mut self, marker: LineMarker) -> Self {
+        self.markers.push(marker);
+        self
+    }
+}
+
+impl MirrorCapture {
+    pub fn configured() -> Self {
+        Self { interval_s: None }
+    }
+
+    pub fn every(interval_s: u32) -> Self {
+        Self { interval_s: Some(interval_s) }
+    }
+}
+
+impl From<StreamCapture> for CaptureMode {
+    fn from(capture: StreamCapture) -> Self {
+        Self::Stream(capture)
+    }
+}
+
+impl From<MirrorCapture> for CaptureMode {
+    fn from(capture: MirrorCapture) -> Self {
+        Self::Mirror(capture)
+    }
+}
 
 impl LineMatcher {
     // Publishes one row of `S` per matching line, each column read from the

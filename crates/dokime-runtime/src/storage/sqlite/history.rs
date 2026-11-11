@@ -13,10 +13,6 @@
 
 pub(crate) mod work;
 
-#[cfg(test)]
-#[path = "history_tests.rs"]
-mod tests;
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -24,7 +20,7 @@ mod tests;
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{MemorySize, Message, storage::ObjectEntry};
+use harmos::{Identified, MemorySize, Message, storage::ObjectEntry};
 use rusqlite::{Connection, OptionalExtension, params, types::Value};
 use serde::{Deserialize, Serialize};
 
@@ -94,12 +90,13 @@ pub struct Key {
 struct ExecutionProjection {
     #[serde(flatten)]
     summary: ExecutionSummary,
+
     suite_id: Option<SuiteId>,
     case: Option<crate::runtime::query::cases::CaseHeader>,
 }
 
 #[derive(Clone)]
-pub(crate) struct Read {
+pub struct Read {
     pub revision: i64,
     pub cut: Option<super::snapshots::Cut>,
     pub after: Option<Key>,
@@ -107,7 +104,7 @@ pub(crate) struct Read {
     pub bytes: u64,
 }
 
-pub(crate) struct Page<T> {
+pub struct Page<T> {
     pub rows: Vec<T>,
     pub next: Option<Key>,
 }
@@ -235,30 +232,7 @@ impl State {
     // The Journal Owns Archive Intent. Reconcile Before Serving After Recovery And
     // Before A Successful Archive Mutation Returns; One SQL Commit Publishes It.
     pub(crate) async fn history_archives(&self, cycles: Vec<String>, executions: Vec<String>) -> Result<(), Error> {
-        self.call(move |connection| Ok((|| {
-            let transaction = connection.transaction()?;
-            transaction.execute_batch("CREATE TEMP TABLE IF NOT EXISTS query_archive_input(kind TEXT,id TEXT,PRIMARY KEY(kind,id)) WITHOUT ROWID; DELETE FROM query_archive_input;")?;
-            for (kind, ids) in [("cycle", cycles), ("execution", executions)] {
-                for id in ids {
-                    transaction.execute("INSERT INTO query_archive_input VALUES(?1,?2)", params![kind,id])?;
-                }
-            }
-            let changed: bool = transaction.query_row("SELECT EXISTS(SELECT * FROM query_archive_input EXCEPT SELECT * FROM query_archives) OR EXISTS(SELECT * FROM query_archives EXCEPT SELECT * FROM query_archive_input)", [], |row|row.get(0))?;
-            if changed {
-                let revision = advance(&transaction)?;
-                transaction.execute_batch("DELETE FROM query_archives; INSERT INTO query_archives SELECT * FROM query_archive_input;")?;
-                transaction.execute(
-                    "INSERT INTO query_history SELECT h.kind,h.id,?1,h.position,h.cycle,h.template,h.status,
-                     EXISTS(SELECT 1 FROM query_archives a WHERE (a.kind=h.kind AND a.id=h.id) OR (a.kind='cycle' AND a.id=h.cycle)),
-                     h.missing,h.time,h.body FROM query_history h WHERE NOT EXISTS(
-                         SELECT 1 FROM query_history n WHERE n.kind=h.kind AND n.id=h.id AND n.revision>h.revision)
-                     AND h.archived!=EXISTS(SELECT 1 FROM query_archives a WHERE (a.kind=h.kind AND a.id=h.id) OR (a.kind='cycle' AND a.id=h.cycle))",
-                    [revision],
-                )?;
-            }
-            super::commit(transaction)?;
-            Ok(())
-        })())).await?
+        self.call(move |connection| Ok(archives(connection, cycles, executions))).await?
     }
 }
 
@@ -278,10 +252,13 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
 }
 
 pub(super) fn index(connection: &Connection, object: &ObjectEntry) -> Result<(), Error> {
-    if matches!(object.value.schema.id.as_str(), "dokime.object.execution" | "dokime.object.cycle")
-        && object.value.schema.version.get() != 1
-    {
-        return Err(Error::Incompatible("unsupported history object version".into()));
+    let expected = match object.value.schema.id.as_str() {
+        "dokime.object.execution" => Some(crate::storage::objects::execution::Execution::definition().1),
+        "dokime.object.cycle" => Some(crate::storage::objects::cycle::Cycle::definition().1),
+        _ => None,
+    };
+    if expected.is_some_and(|version| object.value.schema.version.get() != version) {
+        return Err(Error::Incompatible(format!("unsupported history object shape {}; use a fresh storage root", object.value.schema.id)));
     }
     let position = super::data::position(object.position.sequence);
     let mut members = Vec::new();
@@ -368,14 +345,16 @@ pub(super) fn index(connection: &Connection, object: &ObjectEntry) -> Result<(),
         _ => return Ok(()),
     };
     let revision = advance(connection)?;
+    let mut insert_member = connection.prepare_cached("INSERT INTO query_members VALUES(?1,?2,?3)")?;
     for member in members {
-        connection.execute("INSERT INTO query_members VALUES(?1,?2,?3)", params![id, position, member])?;
+        insert_member.execute(params![id, position, member])?;
     }
-    connection.execute(
-        "INSERT INTO query_history VALUES(?1,?2,?3,?4,?5,?6,?7,
+    connection
+        .prepare_cached(
+            "INSERT INTO query_history VALUES(?1,?2,?3,?4,?5,?6,?7,
         EXISTS(SELECT 1 FROM query_archives WHERE (kind=?1 AND id=?2) OR (kind='cycle' AND id=?5)),?8,?9,?10)",
-        params![kind, id, revision, position, cycle, template, status, time.is_none(), time_key(time), body],
-    )?;
+        )?
+        .execute(params![kind, id, revision, position, cycle, template, status, time.is_none(), time_key(time), body])?;
     Ok(())
 }
 
@@ -443,16 +422,6 @@ pub(super) fn execution_plan(selection: &ExecutionSelection, read: &Read) -> Res
     Ok(plan)
 }
 
-/* === Private Functions === */
-
-fn advance(connection: &Connection) -> Result<i64, Error> {
-    Ok(connection.query_row(
-        "UPDATE query_history_head SET revision=revision+1 WHERE revision<9223372036854775807 RETURNING revision",
-        [],
-        |row| row.get(0),
-    )?)
-}
-
 pub(crate) fn timestamp(time: &dokime_domain::model::time::Timestamp) -> Result<Timestamp, Error> {
     let time = time.to_datetime()?;
     Ok(Timestamp {
@@ -461,7 +430,40 @@ pub(crate) fn timestamp(time: &dokime_domain::model::time::Timestamp) -> Result<
     })
 }
 
-fn time_key(time: Option<Timestamp>) -> Vec<u8> {
+/* === Private Functions === */
+
+fn archives(connection: &mut Connection, cycles: Vec<String>, executions: Vec<String>) -> Result<(), Error> {
+    let transaction = connection.transaction()?;
+    transaction.execute_batch("CREATE TEMP TABLE IF NOT EXISTS query_archive_input(kind TEXT,id TEXT,PRIMARY KEY(kind,id)) WITHOUT ROWID; DELETE FROM query_archive_input;")?;
+    for (kind, ids) in [("cycle", cycles), ("execution", executions)] {
+        for id in ids {
+            transaction.execute("INSERT INTO query_archive_input VALUES(?1,?2)", params![kind, id])?;
+        }
+    }
+    let changed: bool = transaction.query_row("SELECT EXISTS(SELECT * FROM query_archive_input EXCEPT SELECT * FROM query_archives) OR EXISTS(SELECT * FROM query_archives EXCEPT SELECT * FROM query_archive_input)", [], |row|row.get(0))?;
+    if changed {
+        let revision = advance(&transaction)?;
+        transaction.execute_batch("DELETE FROM query_archives; INSERT INTO query_archives SELECT * FROM query_archive_input;")?;
+        transaction.execute(
+                    "INSERT INTO query_history SELECT h.kind,h.id,?1,h.position,h.cycle,h.template,h.status,
+                     EXISTS(SELECT 1 FROM query_archives a WHERE (a.kind=h.kind AND a.id=h.id) OR (a.kind='cycle' AND a.id=h.cycle)),
+                     h.missing,h.time,h.body FROM query_history h WHERE NOT EXISTS(
+                         SELECT 1 FROM query_history n WHERE n.kind=h.kind AND n.id=h.id AND n.revision>h.revision)
+                     AND h.archived!=EXISTS(SELECT 1 FROM query_archives a WHERE (a.kind=h.kind AND a.id=h.id) OR (a.kind='cycle' AND a.id=h.cycle))",
+                    [revision],
+                )?;
+    }
+    super::commit(transaction)?;
+    Ok(())
+}
+
+fn advance(connection: &Connection) -> Result<i64, Error> {
+    Ok(connection
+        .prepare_cached("UPDATE query_history_head SET revision=revision+1 WHERE revision<9223372036854775807 RETURNING revision")?
+        .query_row([], |row| row.get(0))?)
+}
+
+pub(super) fn time_key(time: Option<Timestamp>) -> Vec<u8> {
     time.map_or_else(
         || vec![0; 16],
         |time| ((i128::from(time.seconds) * 1_000_000_000 + i128::from(time.nanos)) ^ i128::MIN).to_be_bytes().to_vec(),
@@ -636,3 +638,170 @@ fn page<T>(connection: &Connection, plan: Plan, read: &Read, decode: impl Fn(&[u
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+    use super::*;
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    fn selection() -> ExecutionSelection {
+        ExecutionSelection {
+            template_ids: vec![],
+            cycle_ids: vec![],
+            statuses: vec![],
+            started_at: None,
+            archive: None,
+        }
+    }
+
+    fn read(revision: i64) -> Read {
+        Read {
+            revision,
+            cut: None,
+            after: None,
+            rows: 2,
+            bytes: 8192,
+        }
+    }
+
+    fn insert(connection: &Connection, id: &str, revision: i64, time: Option<i64>, status: wire::ExecutionStatus) {
+        let row = ExecutionSummary {
+            execution_id: id.into(),
+            cycle_id: Some("cycle".into()),
+            case_id: "case".into(),
+            template_id: Some("example.measurement".into()),
+            label: Some(id.into()),
+            status,
+            started_at: time.map(|seconds| Timestamp { seconds, nanos: 0 }),
+            finished_at: None,
+            result: None,
+            availability: ExecutionAvailability::Uncheckpointed,
+            checkpoint_available: false,
+            archived: false,
+        };
+        connection
+            .execute(
+                "INSERT INTO query_history VALUES('execution',?1,?2,?3,'cycle','example.measurement',?4,0,?5,?6,?7)",
+                params![
+                    id,
+                    revision,
+                    super::super::data::position(revision as u64),
+                    serde_json::to_string(&status).unwrap(),
+                    time.is_none(),
+                    time_key(row.started_at),
+                    serde_json::to_vec(&row).unwrap()
+                ],
+            )
+            .unwrap();
+        connection.execute("UPDATE query_history_head SET revision=MAX(revision,?1)", [revision]).unwrap();
+    }
+
+    #[test]
+    fn archive_changes_are_atomic_versioned_and_recoverable() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;").unwrap();
+        connection.execute_batch(SCHEMA).unwrap();
+        insert(&connection, "a", 1, Some(10), wire::ExecutionStatus::Failed);
+        archives(&mut connection, vec!["cycle".into()], vec![]).unwrap();
+        let old = executions(&connection, &selection(), &read(1)).unwrap();
+        assert_eq!(old.rows.len(), 1);
+        let current = connection.query_row("SELECT revision FROM query_history_head", [], |row| row.get::<_, i64>(0)).unwrap();
+        assert!(executions(&connection, &selection(), &read(current)).unwrap().rows.is_empty());
+        let mut archived = selection();
+        archived.archive = Some(ArchiveScope::Archived);
+        assert!(executions(&connection, &archived, &read(current)).unwrap().rows[0].archived);
+        archives(&mut connection, vec![], vec![]).unwrap();
+        assert_eq!(
+            executions(
+                &connection,
+                &selection(),
+                &read(connection.query_row("SELECT revision FROM query_history_head", [], |row| row.get::<_, i64>(0)).unwrap())
+            )
+            .unwrap()
+            .rows
+            .len(),
+            1
+        );
+    }
+
+    /* === Tests === */
+
+    #[test]
+    fn historical_pages_keep_values_membership_and_missing_times_last() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(SCHEMA).unwrap();
+        insert(&connection, "b", 1, Some(10), wire::ExecutionStatus::Running);
+        insert(&connection, "a", 2, Some(10), wire::ExecutionStatus::Failed);
+        insert(&connection, "c", 3, None, wire::ExecutionStatus::Pending);
+        let page = executions(&connection, &selection(), &read(3)).unwrap();
+        assert_eq!(page.rows.iter().map(|row| row.execution_id.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+        insert(&connection, "b", 4, Some(20), wire::ExecutionStatus::Passed);
+        insert(&connection, "d", 5, Some(30), wire::ExecutionStatus::Failed);
+        let next = Read { after: page.next, ..read(3) };
+        let page = executions(&connection, &selection(), &next).unwrap();
+        assert_eq!(page.rows.len(), 1);
+        assert_eq!(page.rows[0].execution_id, "c");
+        assert!(page.next.is_none());
+        let original = executions(&connection, &selection(), &read(3)).unwrap();
+        assert!(original.rows[1].status == wire::ExecutionStatus::Running);
+        let fresh = executions(&connection, &selection(), &Read { rows: 10, ..read(5) }).unwrap();
+        assert_eq!(fresh.rows.len(), 4);
+        assert!(fresh.rows[1].status == wire::ExecutionStatus::Passed);
+    }
+
+    #[test]
+    fn half_open_windows_and_exact_filters_use_covering_seeks() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(SCHEMA).unwrap();
+        for i in 1..=1000 {
+            insert(&connection, &format!("e{i:04}"), i, Some(i), wire::ExecutionStatus::Failed);
+        }
+        let mut selection = selection();
+        selection.template_ids = vec!["example.measurement".into()];
+        selection.statuses = vec![wire::ExecutionStatus::Failed];
+        selection.started_at = Some(Window {
+            start: Some(Timestamp { seconds: 998, nanos: 0 }),
+            end: Some(Timestamp { seconds: 1000, nanos: 0 }),
+        });
+        let page = executions(&connection, &selection, &read(1000)).unwrap();
+        assert_eq!(page.rows.iter().map(|row| row.execution_id.as_str()).collect::<Vec<_>>(), ["e0998", "e0999"]);
+        let plan = execution_plan(&selection, &read(1000)).unwrap();
+        let mut explain = connection.prepare(&format!("EXPLAIN QUERY PLAN {}", plan.sql)).unwrap();
+        let details = explain
+            .query_map(rusqlite::params_from_iter(plan.arguments), |row| row.get::<_, String>(3))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(details.iter().any(|line| line.contains("SEARCH h USING INDEX query_history_template")), "{details:?}");
+        selection.template_ids = vec!["example.measurement' OR 1=1 --".into()];
+        assert!(executions(&connection, &selection, &read(1000)).unwrap().rows.is_empty());
+    }
+}

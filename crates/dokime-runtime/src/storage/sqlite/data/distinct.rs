@@ -161,36 +161,7 @@ impl super::State {
         &self, at: harmos::storage::StorageCursor, query: Query, after: Option<[u8; 32]>, maximum: usize, mut work: super::super::QueryWork,
     ) -> Result<Page, Error> {
         let _cancel = work.cancellation();
-        self.read(move |connection| {
-            connection.create_scalar_function("document_alive", 0, rusqlite::functions::FunctionFlags::SQLITE_UTF8, move |_| {
-                work.check().map(|()| true).map_err(|error| rusqlite::Error::UserFunctionError(error))
-            })?;
-            connection.create_scalar_function(
-                "document_matches",
-                3,
-                rusqlite::functions::FunctionFlags::SQLITE_UTF8 | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-                |arguments| {
-                    let actual = arguments
-                        .get::<Option<Vec<u8>>>(0)?
-                        .map(|bytes| serde_json::from_slice::<Value>(&bytes))
-                        .transpose()
-                        .map_err(|error| rusqlite::Error::UserFunctionError(Box::new(error)))?;
-                    let operator: dokime_domain::model::document::FilterOperator = serde_json::from_str(&arguments.get::<String>(1)?)
-                        .map_err(|error| rusqlite::Error::UserFunctionError(Box::new(error)))?;
-                    let expected = arguments
-                        .get::<Option<Vec<u8>>>(2)?
-                        .map(|bytes| serde_json::from_slice::<Value>(&bytes))
-                        .transpose()
-                        .map_err(|error| rusqlite::Error::UserFunctionError(Box::new(error)))?;
-                    Ok(crate::document::resolve::value_matches_operator(actual.as_ref(), operator, expected.as_ref()))
-                },
-            )?;
-            let result = read_page(connection, at, query, after, maximum);
-            connection.remove_function("document_alive", 0)?;
-            connection.remove_function("document_matches", 3)?;
-            Ok(result)
-        })
-        .await?
+        self.read(move |connection| query_page(connection, at, query, after, maximum, work)).await?
     }
 }
 
@@ -259,8 +230,6 @@ pub(crate) fn value_key(value: &Value) -> Result<[u8; 32], Error> {
     Ok(Sha256::digest(encoded).into())
 }
 
-/* === Private Functions === */
-
 pub(crate) fn posted_value(bytes: &[u8], kind: u8) -> Result<Value, Error> {
     let original: Value = serde_json::from_slice(bytes)?;
     let value = match (kind, &original) {
@@ -281,6 +250,63 @@ pub(crate) fn posted_value(bytes: &[u8], kind: u8) -> Result<Value, Error> {
         return Err(Error::Corrupt("numeric posting type changes its value"));
     }
     Ok(value)
+}
+
+pub(crate) fn sort_key(value: &Value) -> Result<Vec<u8>, Error> {
+    if let Some(key) = numeric_key(value) {
+        return Ok(key);
+    }
+    let mut key = vec![match value {
+        Value::Bool(_) => 4,
+        Value::Datetime(_) => 5,
+        Value::Array(_) => 6,
+        Value::Object(_) => 7,
+        _ => 3,
+    }];
+    match value {
+        Value::Text(text) => key.extend_from_slice(text.as_bytes()),
+        Value::Null => (),
+        Value::Bool(value) => key.extend_from_slice(if *value { b"true" } else { b"false" }),
+        Value::Datetime(value) => key.extend_from_slice(&((value.unix_timestamp_nanos() as u128) ^ (1 << 127)).to_be_bytes()),
+        value => key.extend_from_slice(&serde_json::to_vec(value)?),
+    }
+    Ok(key)
+}
+
+/* === Private Functions === */
+
+#[cfg(feature = "native")]
+fn query_page(
+    connection: &Connection, at: harmos::storage::StorageCursor, query: Query, after: Option<[u8; 32]>, maximum: usize,
+    work: super::super::QueryWork,
+) -> rusqlite::Result<Result<Page, Error>> {
+    connection.create_scalar_function("document_alive", 0, rusqlite::functions::FunctionFlags::SQLITE_UTF8, move |_| {
+        work.check().map(|()| true).map_err(|error| rusqlite::Error::UserFunctionError(error))
+    })?;
+    connection.create_scalar_function(
+        "document_matches",
+        3,
+        rusqlite::functions::FunctionFlags::SQLITE_UTF8 | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+        |arguments| {
+            let actual = arguments
+                .get::<Option<Vec<u8>>>(0)?
+                .map(|bytes| serde_json::from_slice::<Value>(&bytes))
+                .transpose()
+                .map_err(|error| rusqlite::Error::UserFunctionError(Box::new(error)))?;
+            let operator: dokime_domain::model::document::FilterOperator =
+                serde_json::from_str(&arguments.get::<String>(1)?).map_err(|error| rusqlite::Error::UserFunctionError(Box::new(error)))?;
+            let expected = arguments
+                .get::<Option<Vec<u8>>>(2)?
+                .map(|bytes| serde_json::from_slice::<Value>(&bytes))
+                .transpose()
+                .map_err(|error| rusqlite::Error::UserFunctionError(Box::new(error)))?;
+            Ok(crate::document::resolve::value_matches_operator(actual.as_ref(), operator, expected.as_ref()))
+        },
+    )?;
+    let result = read_page(connection, at, query, after, maximum);
+    connection.remove_function("document_alive", 0)?;
+    connection.remove_function("document_matches", 3)?;
+    Ok(result)
 }
 
 #[cfg(feature = "native")]
@@ -493,27 +519,6 @@ fn schema_field(alias: &str, path: usize) -> String {
     )
 }
 
-pub(crate) fn sort_key(value: &Value) -> Result<Vec<u8>, Error> {
-    if let Some(key) = numeric_key(value) {
-        return Ok(key);
-    }
-    let mut key = vec![match value {
-        Value::Bool(_) => 4,
-        Value::Datetime(_) => 5,
-        Value::Array(_) => 6,
-        Value::Object(_) => 7,
-        _ => 3,
-    }];
-    match value {
-        Value::Text(text) => key.extend_from_slice(text.as_bytes()),
-        Value::Null => (),
-        Value::Bool(value) => key.extend_from_slice(if *value { b"true" } else { b"false" }),
-        Value::Datetime(value) => key.extend_from_slice(&((value.unix_timestamp_nanos() as u128) ^ (1 << 127)).to_be_bytes()),
-        value => key.extend_from_slice(&serde_json::to_vec(value)?),
-    }
-    Ok(key)
-}
-
 // Exact Binary Scientific Notation Gives Integers And Floats The Same Equality And Order.
 fn numeric_key(value: &Value) -> Option<Vec<u8>> {
     let (negative, magnitude, exponent) = match value {
@@ -552,49 +557,45 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
-    #[tokio::test]
-    async fn distinct_pages_match_filtered_rows_at_old_cut() {
+    #[test]
+    fn distinct_pages_match_filtered_rows_at_old_cut() {
         use dokime_domain::model::{document::FilterOperator, identity::TestExecutionId};
-        let root = tempfile::tempdir().unwrap();
-        let state = super::super::State::open(root.path()).await.unwrap();
-        let saved = state.data_open(None).await.unwrap();
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;").unwrap();
+        connection.execute_batch(crate::storage::sqlite::catalog::SCHEMA).unwrap();
+        let saved = super::super::open(&mut connection, None).unwrap();
         let execution = TestExecutionId::from_seed("distinct-page-owner");
         let scope = RecordScope::default().with_test_execution(execution.clone());
         let raw = (1..=247u64).map(|position| (position, ((position * 7) % 19) as i64, position % 3 != 0)).collect::<Vec<_>>();
         let admitted = raw.clone();
         let admitted_scope = scope.clone();
-        state
-            .call(move |connection| {
-                Ok((|| -> Result<(), Error> {
-                    let transaction = connection.transaction()?;
-                    transaction.execute("INSERT INTO files VALUES ('fixture','telemetry','fixture.arrow',0,zeroblob(32),'fixture')", [])?;
-                    for (position, value, included) in admitted {
-                        let fields: BTreeMap<String, Value> = BTreeMap::from([
-                            ("metric.name".into(), Value::Object(BTreeMap::from([("group".into(), Value::Integer(value))]))),
-                            ("include".into(), Value::Bool(included)),
-                            ("order".into(), Value::Unsigned(1000 - position)),
-                        ]);
-                        insert(
-                            &transaction,
-                            Row {
-                                kind: "telemetry",
-                                source: "fixture",
-                                position,
-                                file: Some("fixture"),
-                                record: false,
-                                scope: &admitted_scope,
-                            },
-                            fields.iter().map(|(name, value)| (name.as_str(), value)),
-                        )?;
-                    }
-                    transaction.execute("UPDATE storage_data_head SET saved=?1", [super::super::position(247)])?;
-                    transaction.commit()?;
-                    Ok(())
-                })())
-            })
-            .await
-            .unwrap()
-            .unwrap();
+        (|| -> Result<(), Error> {
+            let transaction = connection.transaction()?;
+            transaction.execute("INSERT INTO files VALUES ('fixture','telemetry','fixture.arrow',0,zeroblob(32),'fixture')", [])?;
+            for (position, value, included) in admitted {
+                let fields: BTreeMap<String, Value> = BTreeMap::from([
+                    ("metric.name".into(), Value::Object(BTreeMap::from([("group".into(), Value::Integer(value))]))),
+                    ("include".into(), Value::Bool(included)),
+                    ("order".into(), Value::Unsigned(1000 - position)),
+                ]);
+                insert(
+                    &transaction,
+                    Row {
+                        kind: "telemetry",
+                        source: "fixture",
+                        position,
+                        file: Some("fixture"),
+                        record: false,
+                        scope: &admitted_scope,
+                    },
+                    fields.iter().map(|(name, value)| (name.as_str(), value)),
+                )?;
+            }
+            transaction.execute("UPDATE storage_data_head SET saved=?1", [super::super::position(247)])?;
+            transaction.commit()?;
+            Ok(())
+        })()
+        .unwrap();
         let cut = harmos::storage::StorageCursor { history: saved.history, sequence: 123 };
         let settings = crate::config::query_defaults();
         let config = settings.compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
@@ -632,10 +633,10 @@ mod tests {
                 key: None,
                 journal: None,
             };
-            let page = state
-                .distinct_page(cut.clone(), query, after, 3, super::super::super::QueryWork::document(config.clone(), "fixture"))
-                .await
-                .unwrap();
+            let page =
+                query_page(&connection, cut.clone(), query, after, 3, super::super::super::QueryWork::document(config.clone(), "fixture"))
+                    .unwrap()
+                    .unwrap();
             let Some(last) = page.values.last() else { break };
             after = Some(last.key);
             let complete = last.last;
@@ -645,36 +646,26 @@ mod tests {
             }
         }
         assert_eq!(actual, expected);
-        state
-            .call(|connection| {
-                connection.execute("DELETE FROM files WHERE id='fixture'", [])?;
-                Ok(())
-            })
-            .await
-            .unwrap();
-        let retained: i64 = state
-            .read(|connection| connection.query_row("SELECT count(*) FROM storage_distinct_values", [], |row| row.get(0)))
-            .await
-            .unwrap();
+        connection.execute("DELETE FROM files WHERE id='fixture'", []).unwrap();
+        let retained: i64 = connection.query_row("SELECT count(*) FROM storage_distinct_values", [], |row| row.get(0)).unwrap();
         assert_eq!(retained, 0);
-        state.close().await.unwrap();
     }
 
-    #[tokio::test]
-    async fn nullable_aliases_use_the_saved_schema() {
+    #[test]
+    fn nullable_aliases_use_the_saved_schema() {
         use crate::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
         use dokime_domain::model::{
             document::FilterOperator,
             identity::{Identifier, Metadata, TestExecutionId},
         };
-        let root = tempfile::tempdir().unwrap();
-        let state = super::super::State::open(root.path()).await.unwrap();
-        let saved = state.data_open(None).await.unwrap();
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;").unwrap();
+        connection.execute_batch(crate::storage::sqlite::catalog::SCHEMA).unwrap();
+        let saved = super::super::open(&mut connection, None).unwrap();
         let execution = TestExecutionId::from_seed("nullable-alias-owner");
         let scope = RecordScope::default().with_test_execution(execution.clone());
         let owner = scope.clone();
-        state.call(move |connection| {
-            let result = (|| -> Result<(), Error> {
+        (|| -> Result<(), Error> {
                 let transaction = connection.transaction()?;
                 for (position, names) in [(1, vec!["group", "name", "metric.name", "detail"]), (2, vec!["group", "name", "detail"])] {
                     let file = format!("fixture.{position}");
@@ -729,9 +720,7 @@ mod tests {
                 transaction.execute("UPDATE storage_data_head SET saved=?1", [super::super::position(2)])?;
                 transaction.commit()?;
                 Ok(())
-            })();
-            Ok(result)
-        }).await.unwrap().unwrap();
+        })().unwrap();
         let cut = harmos::storage::StorageCursor { history: saved.history, sequence: 2 };
         let config =
             crate::config::query_defaults().compose(&crate::config::storage_defaults(), &crate::config::schema_defaults()).unwrap();
@@ -747,10 +736,16 @@ mod tests {
             key: None,
             journal: None,
         };
-        let page = state
-            .distinct_page(cut.clone(), query.clone(), None, 10, super::super::super::QueryWork::document(config.clone(), "fixture"))
-            .await
-            .unwrap();
+        let page = query_page(
+            &connection,
+            cut.clone(),
+            query.clone(),
+            None,
+            10,
+            super::super::super::QueryWork::document(config.clone(), "fixture"),
+        )
+        .unwrap()
+        .unwrap();
         assert_eq!(page.values.into_iter().map(|value| value.value).collect::<Vec<_>>(), vec![Value::Integer(7)]);
         for (path, fallback, operator, expected) in [
             (vec!["metric.name"], Some(vec!["name"]), FilterOperator::Eq, vec![Value::Unsigned(1)]),
@@ -771,13 +766,12 @@ mod tests {
                 }],
                 ..query.clone()
             };
-            let page = state
-                .distinct_page(cut.clone(), query, None, 10, super::super::super::QueryWork::document(config.clone(), "fixture"))
-                .await
-                .unwrap();
+            let page =
+                query_page(&connection, cut.clone(), query, None, 10, super::super::super::QueryWork::document(config.clone(), "fixture"))
+                    .unwrap()
+                    .unwrap();
             assert_eq!(page.values.into_iter().map(|value| value.value).collect::<Vec<_>>(), expected);
         }
-        state.close().await.unwrap();
     }
 
     #[test]

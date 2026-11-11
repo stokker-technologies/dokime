@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     collections::HashMap,
@@ -22,25 +23,29 @@ use std::{
         atomic::{AtomicU32, Ordering},
     },
 };
+
 // Third Party Imports
 use base64::Engine;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
+
 // Local Imports
 use dokime_gui::{
     connection::ConnectionSession,
     rpc::{Bridge, FILE_DESCRIPTOR_SET},
 };
-use sha2::{Digest, Sha256};
 
 /* === Constants === */
 
 /* === Macros === */
 
 /* === Type Aliases === */
+
 pub type Window = tauri::WebviewWindow<tauri::test::MockRuntime>;
 type ChannelFrames = HashMap<u32, Vec<Vec<u8>>>;
 
 /* === Structs === */
+
 pub struct Harness {
     pub app: tauri::App<tauri::test::MockRuntime>,
     pub window: Window,
@@ -56,6 +61,7 @@ struct Writer(Arc<Mutex<Option<ChildStdin>>>);
 struct Frames(Arc<(Mutex<ChannelFrames>, Condvar)>);
 
 /* === Enums === */
+
 pub enum Local {
     Dispatch,
     Reply(Value),
@@ -64,6 +70,7 @@ pub enum Local {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Writer {
     fn line(&self, value: &Value) {
         let mut guard = self.0.lock().expect("harness writer poisoned");
@@ -203,6 +210,7 @@ impl Harness {
 }
 
 /* === Public Functions === */
+
 pub fn invoke(window: &Window, cmd: &str, bytes: Vec<u8>, headers: &Value) -> Result<tauri::ipc::InvokeResponseBody, Value> {
     let headers = headers
         .as_object()
@@ -237,6 +245,7 @@ pub fn fenced(generation: u64, payload: &[u8]) -> Vec<u8> {
 }
 
 /* === Private Functions === */
+
 fn encode(bytes: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }

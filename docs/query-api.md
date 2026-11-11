@@ -5,8 +5,8 @@ shared messages are under `crates/dokime-domain/src/model/query/`.
 Indexed local history selection is implemented under runtime query/storage ownership.
 Record and telemetry query execution share that ownership.
 The five operations are callable through native and gRPC transports with generated
-low-level Python/TypeScript contracts. The [Python client](../packages/dokime-client/README.md#finite-evidence-queries)
-adds lazy readers, server statistics and [optional bounded dataframe conversion](../packages/dokime-client/README.md#optional-dataframes).
+low-level Python/TypeScript contracts. The [Python client](../sdk/python/README.md#finite-evidence-queries)
+adds lazy readers, server statistics and [optional bounded dataframe conversion](../sdk/python/README.md#optional-dataframes).
 The existing catalog aggregate, browse, replay and follow operations retain their behavior.
 
 | Operation | Request Selection | Response |
@@ -82,6 +82,14 @@ plus `required_fields`. Storage planning must select those versions and bind
 own closed enum. The pure matcher accepts borrowed values and occurrence time,
 so it applies no ingestion defaults or implicit object traversal. It opens no
 storage reader. Both record and sample execution use this planner.
+
+Stream row revisions derive automatically from their schemas. Queries still name
+an execution, stream id and columns; they use that execution's captured definitions.
+A column absent from a captured row contributes no value. Cycle reports compose
+execution results independently and retain recorded values in combined previews.
+Their column catalog includes fields from all members; conflicting types or units use text
+presentation in the combined preview and a warning names the stream and column.
+Read the execution's own values and plots for its original type and interpretation.
 
 ## Local History Storage
 

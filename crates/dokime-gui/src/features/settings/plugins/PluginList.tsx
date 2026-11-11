@@ -124,7 +124,7 @@ export function PluginList({
             title="Delete"
             size="icon-sm"
             variant="ghost"
-            disabled={removalPending || removingId === entry.install_id}
+            disabled={(removalPending && entry.active) || removingId === entry.install_id}
             onClick={() => onRemove(entry)}
           >
             <Trash2 />

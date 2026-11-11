@@ -213,6 +213,9 @@ impl SuiteRegistry {
     fn validate_templates(&self, definition: &TestSuiteDefinition) -> Result<(), String> {
         let mut incoming = BTreeSet::new();
         for template in &definition.suite.test_case_templates {
+            if let Some(document) = &template.document {
+                document.validate_identity()?;
+            }
             let template_id = template.test_case_template_id.to_string();
             if !incoming.insert(template_id.clone()) {
                 return Err(format!("test case template {template_id} is declared more than once in suite {}", definition.suite_id));

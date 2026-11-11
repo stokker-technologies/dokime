@@ -8,9 +8,67 @@
  */
 
 /* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
 #[allow(dead_code)]
 mod one_prelude {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
     use dokime_runtime::prelude::*;
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
 
     fn stream_adapters<S: Stream + StreamExt>() {}
 
@@ -22,17 +80,13 @@ mod one_prelude {
     ) {
     }
 
-    fn document_types(_: Document, _: Section, _: Plot, _: Line, _: Band) {}
+    fn document_types(_: Document, _: Section, _: Plot, _: ReferenceValue) {}
 
     fn traceability_types(_: TraceabilityRow, _: TraceabilitySection) {}
 
     fn plugin_trait<P: Plugin>() {}
 
     fn supervisor(_: &Supervisor) {}
-
-    fn refusal() -> Refusal {
-        Refusal::of("refused")
-    }
 
     fn configuration(config: Configuration) -> Result<NoSettings, Refusal> {
         config.settings::<NoSettings>().map_err(|error| Refusal::of(error.to_string()))
@@ -53,19 +107,41 @@ mod one_prelude {
     fn slot<T>(_: &Slot<T>) {}
 
     fn host_module(_: &host::ToolConnectionAcquired) {}
+
+    /* === Tests === */
 }
 
 #[allow(dead_code)]
 mod bare_attributes {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
     use dokime_runtime::prelude::*;
 
+    /* === Constants === */
+
     const POLICY: dokime_runtime::harmos::operations::OperationPolicy = crate::service_support::budgets::settings::FIXTURE_POLICY;
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
 
     #[message]
     #[derive(Clone, PartialEq)]
     pub(crate) struct GetReadingResponse {
         pub(crate) reads: u64,
     }
+
     #[settings]
     #[derive(Debug, Default, PartialEq)]
     struct BenchSettings {
@@ -81,14 +157,26 @@ mod bare_attributes {
 
     struct Bench;
 
+    #[operation(id = "prelude_bench.get_reading", description = "Reads.", policy = POLICY, response = GetReadingResponse)]
+    #[derive(Clone, PartialEq)]
+    struct GetReading {}
+
+    #[operation(id = "prelude_bench.get_status", description = "Reports.", policy = POLICY, response = StatusResponse)]
+    #[derive(Clone, PartialEq)]
+    struct GetStatus {}
+
+    /* === Enums === */
+
     #[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
     enum Operations {
         GetReading(GetReading),
         GetStatus(GetStatus),
     }
-    #[operation(id = "prelude_bench.get_reading", description = "Reads.", policy = POLICY, response = GetReadingResponse)]
-    #[derive(Clone, PartialEq)]
-    struct GetReading {}
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
     impl dokime_runtime::Operation for GetReading {
         type Error = Refusal;
 
@@ -99,9 +187,7 @@ mod bare_attributes {
             answered.map(Into::into)
         }
     }
-    #[operation(id = "prelude_bench.get_status", description = "Reports.", policy = POLICY, response = StatusResponse)]
-    #[derive(Clone, PartialEq)]
-    struct GetStatus {}
+
     impl dokime_runtime::Operation for GetStatus {
         type Error = Refusal;
 
@@ -146,33 +232,12 @@ mod bare_attributes {
             std::sync::Arc::new(())
         }
     }
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    /* === Tests === */
 }
-
-/* === Re-Exports === */
-
-/* === Imports === */
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
-/* === Constants === */
-
-/* === Macros === */
-
-/* === Type Aliases === */
-
-/* === Structs === */
-
-/* === Enums === */
-
-/* === Traits === */
-
-/* === Implementations === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
 
 /* === Tests === */

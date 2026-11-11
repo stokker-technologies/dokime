@@ -28,6 +28,28 @@ use super::{position, saved};
 
 /* === Constants === */
 
+const CANDIDATES: &str = "SELECT entries.position FROM storage_data_entries AS entries
+    INDEXED BY storage_data_live_object_key_covering WHERE entries.kind='object'
+    AND entries.schema_id=?1 AND entries.position<=?2 AND entries.retired_at IS NULL
+    AND (?6=0 OR EXISTS(SELECT 1 FROM storage_object_releases AS released
+        WHERE released.schema_id=entries.schema_id AND released.item=entries.item
+        AND entries.position<=released.through))
+    AND entries.item IN (SELECT changed_keys.item FROM (
+        SELECT changed.item FROM storage_data_entries AS changed
+        INDEXED BY storage_data_live_object_position_covering WHERE changed.kind='object'
+        AND changed.retired_at IS NULL AND changed.schema_id=?1
+        AND changed.position>?5 AND changed.position<=?2
+        UNION SELECT released.item FROM storage_object_releases AS released
+        WHERE released.schema_id=?1 AND released.generation>?7) AS changed_keys
+        WHERE ?6=0 OR EXISTS(SELECT 1 FROM storage_object_releases AS released
+            WHERE released.schema_id=?1 AND released.item=changed_keys.item))
+    AND (SELECT COUNT(*) FROM (SELECT 1 FROM storage_data_entries AS newer
+        INDEXED BY storage_data_live_object_key_covering
+        WHERE newer.kind='object' AND newer.schema_id=entries.schema_id
+        AND newer.item=entries.item AND newer.position>entries.position
+        AND newer.position<=?2 AND newer.retired_at IS NULL LIMIT ?3)) >= ?3
+    ORDER BY entries.item,entries.position LIMIT ?4";
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -83,6 +105,7 @@ impl State {
         C::definitions().try_for_each(|definition| {
             let schema = definition.schema()?;
             let (keep, released) = match retention(&schema)? {
+                ObjectRetention::All => return Ok(()),
                 ObjectRetention::UntilReleased => (1, true),
                 policy => (i64::try_from(policy.versions().get()).map_err(|_| Error::Data("retention count exceeds SQLite range"))?, false),
             };
@@ -112,26 +135,9 @@ impl State {
                 )?;
                 if !changed { continue; }
                 // Changed Keys Supply Bounded Candidate Lookups In Key And Position Order.
+                // Unreleased Keys Are Excluded Before Visiting Their Retained Revisions.
                 // The Newer-Key Index Stops At The Policy's Keep Count.
-                let mut statement = transaction.prepare(
-                    "SELECT entries.position FROM storage_data_entries AS entries
-                     INDEXED BY storage_data_live_object_key_covering WHERE entries.kind='object'
-                     AND entries.schema_id=?1 AND entries.position<=?2 AND entries.retired_at IS NULL
-                     AND (?6=0 OR EXISTS(SELECT 1 FROM storage_object_releases AS released
-                         WHERE released.schema_id=entries.schema_id AND released.item=entries.item
-                         AND entries.position<=released.through))
-                     AND entries.item IN (SELECT changed.item FROM storage_data_entries AS changed
-                         INDEXED BY storage_data_live_object_position_covering WHERE changed.kind='object'
-                         AND changed.retired_at IS NULL AND changed.schema_id=?1
-                         AND changed.position>?5 AND changed.position<=?2
-                         UNION SELECT released.item FROM storage_object_releases AS released
-                         WHERE released.schema_id=?1 AND released.generation>?7)
-                     AND (SELECT COUNT(*) FROM (SELECT 1 FROM storage_data_entries AS newer
-                         INDEXED BY storage_data_live_object_key_covering
-                         WHERE newer.kind='object' AND newer.schema_id=entries.schema_id
-                         AND newer.item=entries.item AND newer.position>entries.position
-                         AND newer.position<=?2 AND newer.retired_at IS NULL LIMIT ?3)) >= ?3
-                     ORDER BY entries.item,entries.position LIMIT ?4")?;
+                let mut statement = transaction.prepare(CANDIDATES)?;
                 let mut rows = statement.query(params![schema,position(through.sequence),keep,(maximum-retired.len()) as i64,position(after),released,position(released_after)])?;
                 while let Some(row)=rows.next()? { retired.push(row.get::<_,String>(0)?); }
                 drop(rows);
@@ -168,3 +174,35 @@ impl State {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unreleased_history_does_not_expand_candidate_work() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        connection.execute_batch(super::super::SCHEMA).unwrap();
+        let mut previous = None;
+        let mut inserted = 0;
+        for revisions in [10, 203, 1000] {
+            for revision in inserted + 1..=revisions {
+                connection.execute(
+                    "INSERT INTO storage_data_entries VALUES (?1,'object',?1,'subject','schema','unreleased',NULL,NULL,NULL,NULL,X'',zeroblob(32),NULL)",
+                    [position(revision)],
+                ).unwrap();
+            }
+            inserted = revisions;
+            let mut statement = connection.prepare(CANDIDATES).unwrap();
+            let mut rows =
+                statement.query(params!["subject", position(revisions), 1, 256, position(revisions - 1), true, position(0)]).unwrap();
+            assert!(rows.next().unwrap().is_none());
+            drop(rows);
+            let steps = statement.get_status(StatementStatus::VmStep);
+            if let Some(previous) = previous {
+                assert_eq!(steps, previous, "unchanged unreleased revisions must not add candidate work");
+            }
+            previous = Some(steps);
+        }
+    }
+}

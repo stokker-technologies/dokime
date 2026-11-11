@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -24,9 +25,11 @@ use crate::expressions::{BooleanExpression, Expression, ExpressionBinaryOp, Expr
 use crate::storage::{Error, Result};
 
 /* === Constants === */
+
 const MAX_DEPTH: usize = 64;
 
 /* === Macros === */
+
 macro_rules! serde_expression {
     ($row:ident, $domain:ty) => {
         impl Serialize for $row {
@@ -49,6 +52,7 @@ serde_expression!(Boolean, crate::expressions::BooleanExpression);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub(super) struct Parameter {
@@ -84,6 +88,7 @@ struct Node {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Boolean {
     pub(super) fn encoding_memory(value: &BooleanExpression) -> Result<usize> {
         let mut count = 0;
@@ -184,6 +189,7 @@ impl TryFrom<Parameter> for ParameterExpr {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn admit_node(depth: usize, count: &mut usize) -> Result<()> {
     if depth > MAX_DEPTH {
         return Err(Error::Invalid("expression exceeds depth limit"));

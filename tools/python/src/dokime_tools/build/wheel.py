@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Build Client Distributions With The Locked Repository Backend"""
+"""Build The Native SDK With The Locked Repository Backend"""
 
 # === Imports === #
 
@@ -18,8 +18,9 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import paths
+from dokime_tools.build import paths, storage
 from dokime_tools.package.staging import clear_output
+from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
 
@@ -35,53 +36,43 @@ from dokime_tools.package.staging import clear_output
 
 
 def build(root: Path, profile: str) -> list[Path]:
-    """Build And Retain The Client Wheel And Release Source Distribution With The Prepared Backend."""
+    """Build One Native abi3 Wheel In The Product Cargo Tree And Profile."""
     root = root.resolve()
-    environment = root / ".venv"
-    python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    if not python.is_file():
-        raise ValueError("prepare the locked repository-root Python environment before building the wheel")
-
-    output = paths.output(root, "build", profile, "any") / "python"
-    # The Pure Client Wheel Replaces The Former Native Product Output.
-    clear_output(paths.output(root, "build", profile) / "python")
+    output = paths.output(root, "build", profile) / "python"
     clear_output(output)
     output.mkdir(parents=True, exist_ok=True)
-
+    environment = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYO3_PYTHON=sys.executable)
+    environment.pop("UV_PROJECT_ENVIRONMENT", None)
+    selectors = ["--locked", "--manifest-path", "sdk/python/Cargo.toml", "--profile", profile]
+    features = ["--features", "media-native"] if profile == "release" else []
+    storage.preflight(root)
     command = [
-        "uv",
+        sys.executable,
+        "-m",
+        "maturin",
         "build",
-        "--no-build-isolation",
-        "--offline",
-        "--python",
-        str(python),
-        "--package",
-        "dokime-client",
-        "--out-dir",
+        *selectors,
+        *features,
+        "--interpreter",
+        sys.executable,
+        "--out",
         str(output),
     ]
-    if profile != "release":
-        command += ["--wheel"]
     subprocess.run(
         command,
         cwd=root,
         check=True,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        env=environment,
+        creationflags=spawn_flags(),
         stdin=sys.stdin,
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
-
-    wheels = sorted(output.glob("dokime_client-*.whl"))
-    if len(wheels) != 1:
-        raise ValueError(f"expected one dokime-client wheel in {output}, found {len(wheels)}")
-    if profile != "release":
-        return wheels
-    sources = sorted(output.glob("dokime_client-*.tar.gz"))
-    if len(sources) != 1:
-        raise ValueError(f"expected one dokime-client source distribution in {output}, found {len(sources)}")
-    return [*wheels, *sources]
+    wheels = sorted(output.glob("*.whl"))
+    if len(wheels) != 1 or "-cp313-abi3-" not in wheels[0].name:
+        raise ValueError(f"expected one Python 3.13+ abi3 wheel in {output}")
+    print(f"Native Wheel: {wheels[0].name} ({wheels[0].stat().st_size} bytes)", flush=True)
+    return wheels
 
 
 # === Private Functions === #

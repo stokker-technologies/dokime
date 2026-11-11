@@ -22,6 +22,8 @@ mod wifi;
 
 /* === Re-Exports === */
 
+pub use plugin_host::{Error, Result};
+
 /* === Imports === */
 
 // Standard Library Imports

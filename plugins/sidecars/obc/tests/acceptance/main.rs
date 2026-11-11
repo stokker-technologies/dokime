@@ -144,7 +144,7 @@ impl Hosting {
         for (publication, scope) in published {
             use dokime::telemetry::TelemetryRow;
             use harmos::Message;
-            let row = plugin_obc::suites::checks::pulse::PulseRow::decode(publication.payload()).unwrap();
+            let row = plugin_obc::suites::checks::pulse::Row::decode(publication.payload()).unwrap();
             let micros = u64::try_from(publication.published_unix_micros().unwrap()).unwrap();
             let instant = std::time::UNIX_EPOCH.checked_add(Duration::from_micros(micros)).unwrap();
             let mut sample = dokime::telemetry::TelemetrySample::new(
@@ -234,20 +234,28 @@ impl Serve<dokime::records::RecordPublication> for Hosting {
     }
 }
 
-// The step built-ins a suite plugin requires; this host watches no files.
-impl Serve<dokime::operations::files::WatchFile> for Hosting {
+// The step built-ins a suite plugin requires; this host captures no files.
+impl Serve<dokime::operations::files::CopyFiles> for Hosting {
     fn serve<'a>(
-        &'a self, _: dokime::operations::files::WatchFile, _: Context<'a, dokime::operations::files::WatchFile>,
-    ) -> Served<'a, dokime::domain::model::files::wire::WatchFileOutcome> {
-        Box::pin(std::future::ready(Err(refusal("the test host watches no files"))))
+        &'a self, _: dokime::operations::files::CopyFiles, _: Context<'a, dokime::operations::files::CopyFiles>,
+    ) -> Served<'a, dokime::domain::model::files::wire::CapturedFiles> {
+        Box::pin(std::future::ready(Err(refusal("the test host captures no files"))))
     }
 }
 
-impl Serve<dokime::operations::files::AwaitFileWatchArmed> for Hosting {
+impl Serve<dokime::operations::files::StartCapture> for Hosting {
     fn serve<'a>(
-        &'a self, _: dokime::operations::files::AwaitFileWatchArmed, _: Context<'a, dokime::operations::files::AwaitFileWatchArmed>,
-    ) -> Served<'a, dokime::domain::model::files::wire::FileWatchArmed> {
-        Box::pin(std::future::ready(Err(refusal("the test host watches no files"))))
+        &'a self, _: dokime::operations::files::StartCapture, _: Context<'a, dokime::operations::files::StartCapture>,
+    ) -> Served<'a, dokime::domain::model::files::wire::CaptureStarted> {
+        Box::pin(std::future::ready(Err(refusal("the test host captures no files"))))
+    }
+}
+
+impl Serve<dokime::operations::files::StopCapture> for Hosting {
+    fn serve<'a>(
+        &'a self, _: dokime::operations::files::StopCapture, _: Context<'a, dokime::operations::files::StopCapture>,
+    ) -> Served<'a, dokime::domain::model::files::wire::CapturedFiles> {
+        Box::pin(std::future::ready(Err(refusal("the test host captures no files"))))
     }
 }
 
@@ -267,7 +275,6 @@ impl PluginLifecycle for Host {
                     return;
                 }
                 assert_eq!(publication.owner(), "plugin_obc");
-                assert_eq!(publication.schema(), 1);
                 assert_eq!(publication.missed(), 0);
                 let token = publication.context().unwrap();
                 let mut captures = captures.lock().unwrap();
@@ -475,8 +482,9 @@ struct FixtureConfig {
 
 #[harmos::catalog(harmos_path = dokime::harmos)]
 enum HostOperations {
-    Operation0(dokime::operations::files::AwaitFileWatchArmed),
-    Operation1(dokime::operations::files::WatchFile),
+    Operation0(dokime::operations::files::CopyFiles),
+    Operation1(dokime::operations::files::StartCapture),
+    Operation7(dokime::operations::files::StopCapture),
     Operation2(dokime::records::RecordPublication),
     Operation3(EvidenceBatch),
     Operation4(OperatorQuestion),
@@ -495,11 +503,14 @@ impl harmos::Lifecycle for Fixture {
             ..Default::default()
         });
         let hosting = config.hosting.expect("fixture hosting resources");
-        setup.resource::<Hosted<dokime::operations::files::AwaitFileWatchArmed>>(
-            Hosted::<dokime::operations::files::AwaitFileWatchArmed>::new(hosting.clone()),
-        );
         setup
-            .resource::<Hosted<dokime::operations::files::WatchFile>>(Hosted::<dokime::operations::files::WatchFile>::new(hosting.clone()));
+            .resource::<Hosted<dokime::operations::files::CopyFiles>>(Hosted::<dokime::operations::files::CopyFiles>::new(hosting.clone()));
+        setup.resource::<Hosted<dokime::operations::files::StartCapture>>(Hosted::<dokime::operations::files::StartCapture>::new(
+            hosting.clone(),
+        ));
+        setup.resource::<Hosted<dokime::operations::files::StopCapture>>(Hosted::<dokime::operations::files::StopCapture>::new(
+            hosting.clone(),
+        ));
         setup.resource::<Hosted<dokime::records::RecordPublication>>(Hosted::<dokime::records::RecordPublication>::new(hosting.clone()));
         setup.resource::<Hosted<EvidenceBatch>>(Hosted::<EvidenceBatch>::new(hosting.clone()));
         setup.resource::<Hosted<OperatorQuestion>>(Hosted::<OperatorQuestion>::new(hosting.clone()));
@@ -573,8 +584,8 @@ async fn inventory_matches_dispatch() {
         served.push((run, <dokime::execution::Run<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
         served.push((signal, <dokime::execution::Signal<()> as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
     }
-    use plugin_obc::domain::operations::device::{ReadDevice, SetPower};
-    use plugin_obc::domain::operations::{AskReadiness, GetStatus, ListConnections};
+    use plugin_obc::operations::device::{ReadDevice, SetPower};
+    use plugin_obc::operations::{AskReadiness, GetStatus, ListConnections};
     for (operation, timeout) in [
         (<GetStatus as OperationDeclaration>::ID, <GetStatus as OperationDeclaration>::POLICY.timeout),
         (<AskReadiness as OperationDeclaration>::ID, <AskReadiness as OperationDeclaration>::POLICY.timeout),
@@ -588,9 +599,31 @@ async fn inventory_matches_dispatch() {
     runtime.operations.call_encoded(&owned(<SetPower as OperationDeclaration>::ID), SetPower { enabled: false }.encode()).await.unwrap();
     served.push((<SetPower as OperationDeclaration>::ID.to_owned(), <SetPower as OperationDeclaration>::POLICY.timeout.as_millis() as u64));
 
+    // Canonical Flows Expose Instrument Work As Operations Too.
+    use plugin_obc::operations::{charger::*, system::CollectSystem, wait::Wait};
+    for (operation, timeout) in [
+        (<CollectSystem as OperationDeclaration>::ID, <CollectSystem as OperationDeclaration>::POLICY.timeout),
+        (<Wait as OperationDeclaration>::ID, <Wait as OperationDeclaration>::POLICY.timeout),
+        (<InitializeCharger as OperationDeclaration>::ID, <InitializeCharger as OperationDeclaration>::POLICY.timeout),
+        (<StartCharger as OperationDeclaration>::ID, <StartCharger as OperationDeclaration>::POLICY.timeout),
+        (<ReadCharger as OperationDeclaration>::ID, <ReadCharger as OperationDeclaration>::POLICY.timeout),
+        (<SampleCharger as OperationDeclaration>::ID, <SampleCharger as OperationDeclaration>::POLICY.timeout),
+        (<SampleChargerBatch as OperationDeclaration>::ID, <SampleChargerBatch as OperationDeclaration>::POLICY.timeout),
+        (<SetChargerLoad as OperationDeclaration>::ID, <SetChargerLoad as OperationDeclaration>::POLICY.timeout),
+        (<InjectChargerFault as OperationDeclaration>::ID, <InjectChargerFault as OperationDeclaration>::POLICY.timeout),
+        (<ClearChargerFault as OperationDeclaration>::ID, <ClearChargerFault as OperationDeclaration>::POLICY.timeout),
+        (<ProbeChargerRestart as OperationDeclaration>::ID, <ProbeChargerRestart as OperationDeclaration>::POLICY.timeout),
+        (<StopCharger as OperationDeclaration>::ID, <StopCharger as OperationDeclaration>::POLICY.timeout),
+        (<ReleaseCharger as OperationDeclaration>::ID, <ReleaseCharger as OperationDeclaration>::POLICY.timeout),
+        (<EncodeChargerSummary as OperationDeclaration>::ID, <EncodeChargerSummary as OperationDeclaration>::POLICY.timeout),
+    ] {
+        dispatch(&runtime.operations, &owned(operation), Vec::new()).await;
+        served.push((operation.to_owned(), timeout.as_millis() as u64));
+    }
+
     // Demand drives the real host probe; two rows cover its retained reader
     // across ticks rather than testing sysinfo in an inline unit test.
-    let system = runtime.streams.publication("obc.system", 1).unwrap();
+    let system = runtime.streams.current_publication("obc.system").unwrap();
     // The watch holds demand and yields each published tick.
     let mut demand = system.watch();
     let mut rows = Vec::new();
@@ -600,8 +633,7 @@ async fn inventory_matches_dispatch() {
             rows.push(row);
         }
     }
-    let decoder =
-        harmos::schema::Validator::from_schema(system.definition().schema().unwrap(), &harmos::config::SchemaSettings::default()).unwrap();
+    let decoder = harmos::schema::Validator::from_schema(system.definition().schema(), &harmos::config::SchemaSettings::default()).unwrap();
     for row in rows {
         let mut used = None;
         decoder
@@ -651,7 +683,7 @@ async fn samples_keep_context() {
     let mut bench = Bench::new().await;
     let parameters = BTreeMap::from([
         ("sample_count", Value::Integer(3)),
-        ("tolerance", Value::from(plugin_obc::DEFAULT_TOLERANCE)),
+        ("tolerance_au", Value::from(plugin_obc::DEFAULT_TOLERANCE)),
         ("capture_system", Value::from(false)),
         ("require_confirmation", Value::from(false)),
     ]);
@@ -684,11 +716,11 @@ async fn samples_keep_context() {
     // Stop the actual plugin before reading its complete native stream.
     bench.plugins.shutdown(&mut bench.host).await.unwrap();
 
-    let stream = bench.runtime.streams.publication("obc.pulse", 1).unwrap();
+    let stream = bench.runtime.streams.current_publication("obc.pulse").unwrap();
     assert_eq!(
-        stream.definition().schema().unwrap(),
+        stream.definition().schema(),
         &harmos::schema::graph::Schema::from_declaration(
-            <plugin_obc::suites::checks::pulse::PulseRow as harmos::schema::Described>::DEFINITION,
+            <plugin_obc::suites::checks::pulse::Row as harmos::schema::Described>::DEFINITION,
             &harmos::config::SchemaSettings::default(),
         )
         .unwrap()
@@ -696,7 +728,7 @@ async fn samples_keep_context() {
     let mut samples: BTreeMap<String, Vec<i64>> = BTreeMap::new();
     for row in stream.query(..).await.unwrap() {
         assert!(row.value.published_unix_micros.is_some());
-        let decoded = plugin_obc::suites::checks::pulse::PulseRow::decode(&row.value.payload).unwrap();
+        let decoded = plugin_obc::suites::checks::pulse::Row::decode(&row.value.payload).unwrap();
         let index = decoded.sample_index;
         samples.entry(row.value.context.clone().expect("native template rows carry context")).or_default().push(index);
     }

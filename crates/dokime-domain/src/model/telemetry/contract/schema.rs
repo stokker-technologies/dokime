@@ -149,7 +149,7 @@ impl TelemetryContract {
         Self {
             metadata: Metadata::new(stream.clone(), label, None),
             stream,
-            schema_version: 1,
+            schema_version: 0,
             template_id: None,
             owner: None,
             columns: Vec::new(),
@@ -164,15 +164,16 @@ impl TelemetryContract {
         .normalized()
     }
 
-    pub fn with_storage_schema(mut self, schema: harmos::schema::graph::Schema) -> Self {
+    pub fn with_storage_schema(mut self, schema: harmos::schema::graph::Schema, window: usize) -> Self {
+        self.schema_version = harmos::domain::streams::revision(&schema, window).expect("a telemetry row has a finite schema");
         self.storage_schema = Some(schema);
         self
     }
 
-    pub fn typed<T: harmos::Message + harmos::schema::Described>(self) -> Self {
+    pub fn typed<T: harmos::Message + harmos::schema::Described>(self, window: usize) -> Self {
         let graph = harmos::schema::graph::Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default())
             .expect("a declared telemetry row has a valid finite schema");
-        self.with_storage_schema(graph)
+        self.with_storage_schema(graph, window)
     }
 
     pub fn described(mut self, description: impl Into<String>) -> Self {

@@ -41,7 +41,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.evidence.health.record")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecordHealth {
     pub scope: RecordScope,
     pub severity: HealthSeverity,
@@ -52,14 +52,14 @@ pub struct RecordHealth {
 }
 
 #[harmos::transaction(id = "dokime.evidence.record_subscriptions.close")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct CloseRecordSubscriptions {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub test_execution_id: dokime_domain::model::identity::TestExecutionId,
 }
 
 #[harmos::transaction(id = "dokime.evidence.event.publish")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct PublishRecord {
     pub request: RecordPublishRequest,
     pub occurred_at: Timestamp,
@@ -69,7 +69,7 @@ pub struct PublishRecord {
 
 /* === Enums === */
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum PublicationSource {
     Host,
@@ -210,7 +210,7 @@ fn prepare_record_with_source(
         return Err(detail);
     };
     let mut record =
-        publish.request.clone().into_record(state.next_record_id(), contract.schema_version, publish.occurred_at.clone(), source);
+        publish.request.clone().into_record(state.next_record_id(), contract.schema_version(), publish.occurred_at.clone(), source);
     record.received_at = publish.received_at.clone();
     if let Some(scope) = &record.scope {
         record.scope = Some(state.capture_scope(scope).map_err(|error| validation_rejection(error, "scope", None))?);
@@ -219,7 +219,7 @@ fn prepare_record_with_source(
         return Err(validation_rejection(
             error.to_string(),
             format!("records.{}", record.record_type.as_str()),
-            Some(format!("schema_version {}", contract.schema_version)),
+            Some(format!("schema_version {}", contract.schema_version())),
         ));
     }
     let mut records = crate::transactions::records::draft::Drafts::new(state);

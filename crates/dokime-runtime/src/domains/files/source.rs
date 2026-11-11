@@ -7,7 +7,7 @@
  * ***
  */
 
-// The sources a watch polls. Each lists its matched files with their size,
+// The sources a capture polls. Each lists its matched files with their size,
 // modification time and, where the platform has one, file identity, and copies
 // byte ranges of one file into a spool.
 
@@ -23,7 +23,9 @@ use std::{collections::BTreeMap, time::SystemTime};
 // Third Party Imports
 
 // Local Imports
-use super::{ftp::FtpSource, local::LocalSource};
+#[cfg(feature = "ftp")]
+use super::ftp::FtpSource;
+use super::local::LocalSource;
 use crate::files::FileMatcher;
 use crate::{runtime::Error, runtime::Result};
 
@@ -51,12 +53,16 @@ pub(crate) struct Entry {
 
 pub(super) enum Source {
     Local(LocalSource),
+
+    #[cfg(feature = "ftp")]
     Ftp(Box<FtpSource>),
 }
 
 pub(super) enum ReadFailure {
     // The source cannot start a retrieval at a nonzero offset.
+    #[cfg(feature = "ftp")]
     ResumeUnsupported,
+
     Failed(Error),
 }
 
@@ -65,17 +71,19 @@ pub(super) enum ReadFailure {
 /* === Implementations === */
 
 impl Source {
-    pub(super) async fn local(root: &str, wait: bool) -> Result<Self> {
-        Ok(Self::Local(LocalSource::open(root, wait).await?))
+    pub(super) async fn local(root: &str) -> Result<Self> {
+        Ok(Self::Local(LocalSource::open(root).await?))
     }
 
     pub(super) fn single_file(self) -> Self {
         match self {
             Self::Local(local) => Self::Local(local.top_level()),
+            #[cfg(feature = "ftp")]
             Self::Ftp(ftp) => Self::Ftp(Box::new(ftp.top_level())),
         }
     }
 
+    #[cfg(feature = "ftp")]
     pub(super) async fn ftp(url: &str, password: Option<String>, trusted: bool) -> Result<Self> {
         Ok(Self::Ftp(Box::new(FtpSource::open(url, password, trusted).await?)))
     }
@@ -83,6 +91,7 @@ impl Source {
     pub(super) async fn changes(&self, storage: &crate::storage::Manager) -> Option<harmos::storage::DirectoryWatcher> {
         match self {
             Self::Local(source) => source.changes(storage).await,
+            #[cfg(feature = "ftp")]
             Self::Ftp(_) => None,
         }
     }
@@ -90,6 +99,7 @@ impl Source {
     pub(super) async fn scan(&mut self, matcher: &FileMatcher) -> Result<Listing> {
         match self {
             Self::Local(source) => source.scan(matcher).await,
+            #[cfg(feature = "ftp")]
             Self::Ftp(source) => source.scan(matcher).await,
         }
     }
@@ -101,6 +111,7 @@ impl Source {
     ) -> std::result::Result<u64, ReadFailure> {
         match self {
             Self::Local(source) => source.read_range(relative, offset, length, sink).await.map_err(ReadFailure::Failed),
+            #[cfg(feature = "ftp")]
             Self::Ftp(source) => source.read_range(relative, offset, length, sink).await,
         }
     }

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -19,6 +20,7 @@
 // Local Imports
 
 /* === Constants === */
+
 const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations::OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
@@ -31,6 +33,7 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[sdk::operation(id = "undeclared.get_voltage", description = "Reads.", policy = POLICY, response = ())]
 #[derive(PartialEq)]
 struct GetVoltage {}
@@ -46,6 +49,7 @@ struct Checks;
 struct Plugin;
 
 /* === Enums === */
+
 #[sdk::catalog]
 enum ProbeRequired {
     GetVoltage(GetVoltage),
@@ -70,6 +74,7 @@ enum PluginSuites {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl sdk::Operation for GetVoltage {
     type Error = sdk::Refusal;
 
@@ -142,6 +147,7 @@ impl Plugin {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() -> std::io::Result<()> {
     sdk::plugin::run::<Plugin>()
 }

@@ -26,7 +26,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 // Local Imports
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { PluginSettingsSurface } from "@/features/settings/PluginSettingsSurface";
-import { statusPresentation } from "@/features/settings/plugins/PluginList";
+import { PluginList, statusPresentation } from "@/features/settings/plugins/PluginList";
+import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { bundleSettingsPage } from "@/features/settings/plugins/PluginPrograms";
 import { startNotification } from "@/features/settings/plugins/plugin-queries";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
@@ -49,6 +50,8 @@ const fixture = vi.hoisted(() => ({
   hash: "",
   navigate: vi.fn(),
   reload: vi.fn(),
+  actions: new Map<string, () => void>(),
+  rows: [] as PluginTableRow[],
 }));
 const session = { generation: "1", isCurrent: () => true };
 const entry: PluginEntry = {
@@ -111,7 +114,18 @@ vi.mock("react", async (original) => {
 vi.mock("@/components/ui/button", () => ({
   Button: ({ onClick, ...props }: ComponentProps<"button">) => {
     if (onClick && !props.disabled && props.children !== "Copy") fixture.buttons.push(() => onClick({} as never));
+    if (onClick && !props.disabled && props["aria-label"]) fixture.actions.set(props["aria-label"], () => onClick({} as never));
     return createElement("button", { type: "button", ...props });
+  },
+}));
+vi.mock("@/features/settings/plugins/PluginTable", () => ({
+  PluginTable: ({ rows }: { rows: PluginTableRow[] }) => {
+    fixture.rows = rows;
+    return createElement(
+      "div",
+      null,
+      rows.map((row) => createElement("div", { key: row.key }, row.trailing)),
+    );
   },
 }));
 vi.mock("@/lib/api/native-plugins", () => ({ listNativeAdmittedPlugins: fixture.admitted, listNativePlugins: fixture.installed }));
@@ -160,6 +174,7 @@ beforeEach(() => {
   fixture.capturedAdding = false;
   fixture.adding = null;
   fixture.buttons.length = 0;
+  fixture.actions.clear();
   fixture.hash = "";
   fixture.admitted.mockResolvedValue([]);
   fixture.installed.mockResolvedValue([entry]);
@@ -405,6 +420,49 @@ test("Refused Restart Notifies", () => {
   assert.notEqual(failed, refused);
   assert.equal(startNotification({ ...entry, boot_failed: false }), null);
   assert.equal(startNotification({ ...entry, last_boot: null }), null);
+});
+
+test("Failed and Refused Row Actions", () => {
+  const remove = vi.fn();
+  const enabled = vi.fn();
+  const render = (installation: PluginEntry, removingId: string | null = null) => {
+    fixture.actions.clear();
+    renderToStaticMarkup(
+      createElement(PluginList, {
+        entries: [installation],
+        onRemove: remove,
+        onOpenSettings: vi.fn(),
+        removingId,
+        onSetEnabled: enabled,
+        changingEnabled: false,
+        settingsSectionOf: () => null,
+      }),
+    );
+  };
+
+  // An Installed Failed Boot Can Be Removed, Retried Or Disabled.
+  render(entry);
+  fixture.actions.get("Delete equipment")?.();
+  assert.deepEqual(remove.mock.calls, [[entry]]);
+  fixture.actions.get("Reload equipment")?.();
+  assert.deepEqual(fixture.reload.mock.calls, [[{ installId: entry.install_id }]]);
+  fixture.rows[0].enabled?.onChange(false);
+  assert.deepEqual(enabled.mock.calls, [[entry, false]]);
+
+  // A Refused Replacement Can Be Deleted, But Cannot Replace The Kept Version Via A Row Toggle Or Reload.
+  const refused: PluginEntry = { ...entry, state: "removal_pending" };
+  remove.mockClear();
+  render(refused);
+  fixture.actions.get("Delete equipment")?.();
+  assert.deepEqual(remove.mock.calls, [[refused]]);
+  assert.equal(fixture.actions.has("Reload equipment"), false);
+  assert.equal(fixture.rows[0].enabled, undefined);
+
+  // Duplicate Removal Waits For The Current Request Or A Running Generation To Stop.
+  render(refused, refused.install_id);
+  assert.equal(fixture.actions.has("Delete equipment"), false);
+  render({ ...refused, active: true, boot_failed: false });
+  assert.equal(fixture.actions.has("Delete equipment"), false);
 });
 
 test("Reload Starts One Plugin", () => {

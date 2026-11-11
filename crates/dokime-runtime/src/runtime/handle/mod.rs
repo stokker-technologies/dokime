@@ -282,7 +282,6 @@ impl RuntimeHandle {
         let installed_plugins = check_boot_config(&config)?;
         config.storage.validate()?;
         let query = config.query.compose(&config.storage, &config.schema)?;
-        harmos::filesystem::publication::create_dir_all(&config.storage_root)?;
         let backend = Arc::new(crate::storage::Backend::primary_with(config.storage_root.clone(), config.local_storage).await?);
         let local_state = backend.local_state();
         launch.boot.lock().expect("startup owners are healthy").local = Some(local_state.clone());

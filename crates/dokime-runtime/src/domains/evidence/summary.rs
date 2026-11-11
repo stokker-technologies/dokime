@@ -76,7 +76,7 @@ impl harmos::MemorySize for RecordSummary {
 }
 
 impl EvidenceSummaries {
-    /// Groups Evidence In Stable Source Order.
+    // Groups Evidence In Stable Source Order.
     pub(crate) fn retained(
         records: &crate::storage::ReadRows<RecordEntry>, telemetry: &[TelemetrySample],
     ) -> crate::runtime::Result<harmos::storage::ReadBatch<Self>> {
@@ -173,6 +173,7 @@ impl EvidenceSummaries {
         entry.updated_at.clone_from(&sample.timestamp);
     }
 }
+
 /* === Public Functions === */
 
 /* === Private Functions === */

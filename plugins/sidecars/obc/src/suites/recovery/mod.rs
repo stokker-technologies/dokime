@@ -13,7 +13,7 @@ mod power;
 
 /* === Re-Exports === */
 
-pub use power::{PowerLoss, Samples};
+pub use power::{Samples, Template as PowerLoss};
 
 /* === Imports === */
 
@@ -40,7 +40,7 @@ pub struct Suite;
 
 #[dokime::catalog]
 pub enum Templates {
-    PowerLoss(power::PowerLoss),
+    PowerLoss(power::Template),
 }
 
 /* === Traits === */

@@ -47,6 +47,7 @@ pub struct ListRecords {
 
     #[serde(default)]
     pub r#where: Vec<Predicate>,
+
     pub between: Option<Window>,
     pub page: PageRequest,
     pub at: Option<SnapshotRef>,

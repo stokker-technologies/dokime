@@ -37,6 +37,7 @@ use dokime_runtime::{
 };
 
 /* === Constants === */
+
 const PAGE: u64 = 512;
 const START: u64 = 1_788_220_800;
 
@@ -45,6 +46,7 @@ const START: u64 = 1_788_220_800;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Fixture {
     owner: dokime_runtime::Runtime,
     runtime: RuntimeHandle,
@@ -304,7 +306,7 @@ fn values(contract: &TelemetryContract, index: u64) -> BTreeMap<String, Value> {
 }
 
 fn document() -> Document {
-    let mut document = Document::new("default", "Long Execution Evidence");
+    let mut document = Document::new("Long Execution Evidence");
     let mut section = DocumentSection::new("Measurements");
     for (stream, field) in [
         ("tracking", "distance_m"),

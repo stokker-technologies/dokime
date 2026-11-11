@@ -11,8 +11,6 @@
 
 /* === Modules === */
 
-pub(crate) mod policy;
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -32,18 +30,20 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 
 // Local Imports
+use dokime::config::organization::{ResolvedPack, policy};
 
 /* === Constants === */
 
 const DESKTOP_ORGANIZATION_ARCHIVE_BYTES: u64 = 20_971_520;
 const DESKTOP_ORGANIZATION_ENTRIES: u64 = 200;
-
 const MANIFEST: &str = "organization.toml";
 const ACTIVE: &str = "active";
 const PENDING: &str = "pending";
-/// Applied by the shell at runtime: identity, logos, theme CSS and fonts.
+
+// Applied by the shell at runtime: identity, logos, theme CSS and fonts.
 const RUNTIME_EXTENSIONS: [&str; 5] = ["toml", "css", "woff2", "svg", "png"];
-/// Licence and readme text beside fonts and logos; skipped, never applied.
+
+// Licence and readme text beside fonts and logos; skipped, never applied.
 const IGNORED_EXTENSIONS: [&str; 2] = ["txt", "md"];
 const THEME_FILES: [&str; 4] = ["theme/typography.css", "theme/base.css", "theme/light.css", "theme/dark.css"];
 const LOGO_VARIANTS: [(&str, &str, &str); 4] = [
@@ -59,7 +59,7 @@ const LOGO_VARIANTS: [(&str, &str, &str); 4] = [
 
 /* === Structs === */
 
-/// What the shell resolved at boot and what the operator changed since.
+// What the shell resolved at boot and what the operator changed since.
 pub(crate) struct OrganizationState {
     root: PathBuf,
     boot: Boot,
@@ -78,17 +78,20 @@ struct Boot {
     active: bool,
 }
 
-/// The pack as the frontend applies it before it renders.
+// The pack as the frontend applies it before it renders.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LoadedPack {
     label: String,
     title_template: String,
     organization: Option<Organization>,
-    /// Logo variant to `data:` URI.
+
+    // Logo variant to `data:` URI.
     logos: BTreeMap<String, String>,
+
     css: String,
     pub(crate) updates: Option<policy::UpdatePolicy>,
+
     #[serde(skip)]
     application_icon: Option<Vec<u8>>,
 
@@ -99,8 +102,10 @@ pub(crate) struct LoadedPack {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Organization {
     name: String,
+
     #[serde(default)]
     unit: Option<String>,
+
     #[serde(default)]
     website: Option<String>,
 }
@@ -115,13 +120,16 @@ pub(crate) struct PackSummary {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct OrganizationStatus {
-    /// The pack this process applied at boot, unless removed since.
+    // The pack this process applied at boot, unless removed since.
     active: Option<PackSummary>,
-    /// A validated pack that applies on the next start.
+
+    // A validated pack that applies on the next start.
     pending: Option<PackSummary>,
-    /// Packs were removed this session; the compiled brand applies on the next start.
+
+    // Packs were removed this session; the compiled brand applies on the next start.
     removed: bool,
-    /// Why the active pack could not be applied at boot.
+
+    // Why the active pack could not be applied at boot.
     error: Option<String>,
 }
 
@@ -135,8 +143,10 @@ struct BootScript<'a> {
 #[derive(Deserialize)]
 struct Manifest {
     app: AppSection,
+
     #[serde(default)]
     theme: Option<ThemeSection>,
+
     #[serde(default)]
     updates: Option<policy::UpdatePolicy>,
 }
@@ -144,10 +154,13 @@ struct Manifest {
 #[derive(Deserialize)]
 struct AppSection {
     label: String,
+
     #[serde(default)]
     title_template: Option<String>,
+
     #[serde(default)]
     organization: Option<Organization>,
+
     #[serde(default)]
     logos: BTreeMap<String, BTreeMap<String, String>>,
 }
@@ -196,7 +209,7 @@ impl OrganizationState {
         }
     }
 
-    /// The script every main window runs before the frontend loads.
+    // The script every main window runs before the frontend loads.
     pub(crate) fn initialization_script(&self) -> String {
         let boot = BootScript {
             pack: self.boot.pack.as_ref(),
@@ -218,7 +231,7 @@ impl LoadedPack {
 
 /* === Public Functions === */
 
-/// Promotes a pending pack and loads the active one before any window exists.
+// Promotes a pending pack and loads the active one before any window exists.
 pub(crate) fn setup(app: &tauri::App) -> tauri::Result<()> {
     let root = app.state::<dokime::paths::ApplicationPaths>().root.join("organization");
     let boot = boot(&root);
@@ -332,7 +345,11 @@ fn base_boot(error: Option<String>) -> Boot {
     match dokime::config::organization::resolve(None).and_then(loaded) {
         Ok(pack) => Boot { pack: Some(pack), error, active: false },
         Err(base) => {
-            let base = format!("the bundled organization could not be loaded: {base}");
+            let location = dokime::config::organization::installation_directory();
+            let location = location.as_deref().map_or_else(|| "embedded resources".to_owned(), |path| path.display().to_string());
+            let base = format!(
+                "the bundled organization could not be loaded from {location}; repair the organization files or reinstall the application: {base}"
+            );
             let error = error.map_or_else(|| base.clone(), |error| format!("{error}; {base}"));
             Boot {
                 pack: None,
@@ -345,23 +362,31 @@ fn base_boot(error: Option<String>) -> Boot {
 
 fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
     if !destination.exists() {
-        return std::fs::rename(source, destination).map_err(|error| error.to_string());
+        return std::fs::rename(source, destination).map_err(|error| {
+            format!("could not move {} to {}; check both folders and write permissions: {error}", source.display(), destination.display())
+        });
     }
 
     // Keep The Previous Pack On Disk Until Publication Succeeds.
-    let root = destination.parent().ok_or("the pack destination has no parent directory")?;
+    let root = destination
+        .parent()
+        .ok_or_else(|| format!("could not replace {}; choose a pack destination with a parent directory", destination.display()))?;
     let mut builder = tempfile::Builder::new();
     builder.prefix(".previous-");
-    let backup = builder.tempdir_in(root).map_err(|error| error.to_string())?;
+    let backup = builder.tempdir_in(root).map_err(|error| {
+        format!("could not create a pack backup in {}; check the folder and write permissions: {error}", root.display())
+    })?;
     let previous = backup.path().join(ACTIVE);
-    std::fs::rename(destination, &previous).map_err(|error| error.to_string())?;
+    std::fs::rename(destination, &previous).map_err(|error| {
+        format!("could not back up {} to {}; check write permissions: {error}", destination.display(), previous.display())
+    })?;
     let backup = backup.keep();
 
     let error = match std::fs::rename(source, destination) {
         Ok(()) => {
             let cleanup = std::fs::remove_dir_all(&backup);
             if let Err(error) = cleanup {
-                tracing::warn!(%error, path = %backup.display(), "the replaced organization pack remains on disk");
+                tracing::warn!(%error, path = %backup.display(), "could not remove the replaced organization pack; check write permissions and remove this backup manually");
             }
             return Ok(());
         }
@@ -369,28 +394,41 @@ fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
     };
     if let Err(restore) = std::fs::rename(&previous, destination) {
         let retained = previous.display();
-        return Err(format!("{error}; restoring the previous pack failed: {restore}; it remains at {retained}"));
+        return Err(format!(
+            "could not move {} to {}: {error}; restoring the previous pack failed: {restore}; restore {retained} manually after checking write permissions",
+            source.display(),
+            destination.display()
+        ));
     }
-    let _ = std::fs::remove_dir(&backup);
-    Err(error.to_string())
+    if let Err(cleanup) = remove_folder(&backup) {
+        tracing::warn!(%cleanup, "organization backup cleanup failed after restoring the previous pack");
+    }
+    Err(format!("could not move {} to {}; check both folders and write permissions: {error}", source.display(), destination.display()))
 }
 
-/// Validates an archive, extracts it beside the packs and replaces the pending pack only when it loads.
+// Validates an archive, extracts it beside the packs and replaces the pending pack only when it loads.
 fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
-    let metadata = std::fs::metadata(archive).map_err(|error| error.to_string())?;
+    let metadata = std::fs::metadata(archive)
+        .map_err(|error| format!("could not inspect {}; check the path and permissions: {error}", archive.display()))?;
     if metadata.len() > DESKTOP_ORGANIZATION_ARCHIVE_BYTES {
         return Err(format!("the organization pack exceeds {} MiB", DESKTOP_ORGANIZATION_ARCHIVE_BYTES / 1024 / 1024));
     }
-    let bytes = std::fs::read(archive).map_err(|error| error.to_string())?;
+    let bytes =
+        std::fs::read(archive).map_err(|error| format!("could not read {}; check the path and permissions: {error}", archive.display()))?;
     let files = validate_archive(&bytes)?;
-    std::fs::create_dir_all(root).map_err(|error| error.to_string())?;
-    let staging = tempfile::Builder::new().prefix(".staging-").tempdir_in(root).map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(root)
+        .map_err(|error| format!("could not create {}; check the path and permissions: {error}", root.display()))?;
+    let staging = tempfile::Builder::new().prefix(".staging-").tempdir_in(root).map_err(|error| {
+        format!("could not stage an organization pack in {}; check the folder and write permissions: {error}", root.display())
+    })?;
     for (relative, contents) in &files {
         let path = staging.path().join(relative);
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            std::fs::create_dir_all(parent)
+                .map_err(|error| format!("could not create {}; check the path and permissions: {error}", parent.display()))?;
         }
-        std::fs::write(&path, contents).map_err(|error| error.to_string())?;
+        std::fs::write(&path, contents)
+            .map_err(|error| format!("could not write {}; check the path and permissions: {error}", path.display()))?;
     }
     let summary = load(staging.path())?.summary();
     let pending = root.join(PENDING);
@@ -398,7 +436,7 @@ fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
     Ok(summary)
 }
 
-/// The runtime files of an organization folder zipped as is, keyed by their path inside the pack.
+// The runtime files of an organization folder zipped as is, keyed by their path inside the pack.
 fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
     if bytes.len() as u64 > DESKTOP_ORGANIZATION_ARCHIVE_BYTES {
         return Err(format!("the organization pack exceeds {} MiB", DESKTOP_ORGANIZATION_ARCHIVE_BYTES / 1024 / 1024));
@@ -480,16 +518,15 @@ fn manifest_location<'a>(mut names: impl Iterator<Item = &'a str> + Clone) -> Re
     Ok((prefix.clone(), *manifest))
 }
 
-/// Reads an extracted pack the way the frontend applies it; any missing or unsafe reference fails it whole.
+// Reads an extracted pack the way the frontend applies it; any missing or unsafe reference fails it whole.
 fn load(dir: &Path) -> Result<LoadedPack, String> {
-    let pack = dokime::config::organization::resolve(Some(dir))?;
+    let pack = dokime::config::organization::resolve(Some(dir))
+        .map_err(|error| format!("could not load organization pack at {}; check its files and read permissions: {error}", dir.display()))?;
     loaded(pack)
 }
 
-fn loaded(pack: dokime::config::organization::ResolvedPack) -> Result<LoadedPack, String> {
-    let staging = tempfile::tempdir().map_err(|error| error.to_string())?;
-    pack.write_to(staging.path())?;
-    let mut loaded = load_resolved(staging.path())?;
+fn loaded(pack: ResolvedPack) -> Result<LoadedPack, String> {
+    let mut loaded = load_resolved(&pack)?;
     loaded.application_icon = pack.asset("application").map(|(_, bytes)| bytes.to_vec());
     loaded.tray_icon = pack.asset("tray").map(|(_, bytes)| bytes.to_vec());
     for bytes in [&loaded.application_icon, &loaded.tray_icon].into_iter().flatten() {
@@ -498,12 +535,9 @@ fn loaded(pack: dokime::config::organization::ResolvedPack) -> Result<LoadedPack
     Ok(loaded)
 }
 
-fn load_resolved(dir: &Path) -> Result<LoadedPack, String> {
-    let text = std::fs::read_to_string(dir.join(MANIFEST)).map_err(|error| format!("organization.toml could not be read: {error}"))?;
-    let manifest: Manifest = toml::from_str(&text).map_err(|error: toml::de::Error| {
-        let position = error.span().map_or(0, |span| span.start);
-        format!("organization.toml does not parse near byte {position}")
-    })?;
+fn load_resolved(pack: &ResolvedPack) -> Result<LoadedPack, String> {
+    let manifest: Manifest =
+        pack.manifest.clone().try_into().map_err(|_| "organization.toml could not be decoded; correct the pack manifest")?;
     if let Some(updates) = &manifest.updates {
         updates.validate()?;
     }
@@ -514,7 +548,7 @@ fn load_resolved(dir: &Path) -> Result<LoadedPack, String> {
     let mut logos = BTreeMap::new();
     for (treatment, surface, variant) in LOGO_VARIANTS {
         let Some(file) = app.logos.get(treatment).and_then(|surfaces| surfaces.get(surface)) else { continue };
-        let bytes = read_inside(dir, file)?;
+        let bytes = read_inside(pack, file)?;
         let mime = match Path::new(file).extension().and_then(|extension| extension.to_str()) {
             Some("svg") => "image/svg+xml",
             Some("png") => "image/png",
@@ -527,11 +561,11 @@ fn load_resolved(dir: &Path) -> Result<LoadedPack, String> {
     }
     let mut css = String::new();
     for file in THEME_FILES {
-        if !dir.join(file).is_file() {
+        if !pack.files.contains_key(file) {
             continue;
         }
-        let source = String::from_utf8(read_inside(dir, file)?).map_err(|_| format!("{file} is not UTF-8"))?;
-        css.push_str(&format!("/* {file} */\n{}\n", inline_urls(dir, file, &source)?));
+        let source = std::str::from_utf8(read_inside(pack, file)?).map_err(|_| format!("{file} is not UTF-8"))?;
+        css.push_str(&format!("/* {file} */\n{}\n", inline_urls(pack, file, source)?));
         if file == "theme/base.css" {
             css.push_str(&corner_radii(manifest.theme.as_ref()));
         }
@@ -562,8 +596,8 @@ fn corner_radii(theme: Option<&ThemeSection>) -> String {
     css
 }
 
-/// Inlines local font and image references; the theme never reaches the network or leaves the pack.
-fn inline_urls(dir: &Path, file: &str, css: &str) -> Result<String, String> {
+// Inlines local font and image references; the theme never reaches the network or leaves the pack.
+fn inline_urls(pack: &ResolvedPack, file: &str, css: &str) -> Result<String, String> {
     let stripped = strip_comments(css)?;
     let css = stripped.as_str();
     if css.to_ascii_lowercase().contains("@import") {
@@ -585,7 +619,7 @@ fn inline_urls(dir: &Path, file: &str, css: &str) -> Result<String, String> {
                 Some("png") => "image/png",
                 _ => return Err(format!("{file} references an unsupported file: {raw}")),
             };
-            let bytes = read_inside(dir, raw)?;
+            let bytes = read_inside(pack, raw)?;
             output.push_str(&format!("url(\"data:{mime};base64,{}\")", BASE64.encode(bytes)));
         }
         rest = &after[end + 1..];
@@ -594,7 +628,7 @@ fn inline_urls(dir: &Path, file: &str, css: &str) -> Result<String, String> {
     Ok(output)
 }
 
-/// Comments may mention `url()` and `@import`; only declarations count.
+// Comments may mention `url()` and `@import`; only declarations count.
 fn strip_comments(css: &str) -> Result<String, String> {
     let mut output = String::with_capacity(css.len());
     let mut rest = css;
@@ -607,20 +641,97 @@ fn strip_comments(css: &str) -> Result<String, String> {
     Ok(output)
 }
 
-/// Reads a pack-relative path that cannot escape the pack folder.
-fn read_inside(dir: &Path, relative: &str) -> Result<Vec<u8>, String> {
+// Reads a pack-relative path that cannot escape the pack folder.
+fn read_inside<'a>(pack: &'a ResolvedPack, relative: &str) -> Result<&'a [u8], String> {
     let path = Path::new(relative);
     if relative.contains(':') || path.components().any(|component| !matches!(component, Component::Normal(_))) {
         return Err(format!("unsafe path in the organization pack: {relative}"));
     }
-    std::fs::read(dir.join(path)).map_err(|error| format!("{relative} could not be read: {error}"))
+    let relative = relative.replace('\\', "/");
+    pack.files
+        .get(&relative)
+        .map(Vec::as_slice)
+        .ok_or_else(|| format!("{relative} is missing from the organization pack; add the referenced file"))
 }
 
 fn remove_folder(path: &Path) -> Result<(), String> {
     match std::fs::remove_dir_all(path) {
-        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(format!("{} could not be removed: {error}", path.display())),
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+            Err(format!("could not remove {}; check write permissions and retry: {error}", path.display()))
+        }
         _ => Ok(()),
     }
+}
+
+#[cfg(feature = "testing")]
+#[allow(dead_code)]
+pub(crate) mod testing {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+
+    use super::*;
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    /* === Public Functions === */
+
+    pub(crate) fn inspect_boot(root: &Path) -> serde_json::Value {
+        let booted = boot(root);
+        serde_json::to_value(BootScript {
+            pack: booted.pack.as_ref(),
+            error: booted.error.as_deref(),
+        })
+        .unwrap()
+    }
+
+    pub(crate) fn inspect_resolved(pack: ResolvedPack) -> Result<serde_json::Value, String> {
+        serde_json::to_value(loaded(pack)?).map_err(|error| error.to_string())
+    }
+
+    pub(crate) fn inspect_css(pack: &ResolvedPack, css: &str) -> Result<String, String> {
+        inline_urls(pack, "theme/base.css", css)
+    }
+
+    pub(crate) fn inspect_pack(path: &Path) -> Result<serde_json::Value, String> {
+        serde_json::to_value(load(path)?).map_err(|error| error.to_string())
+    }
+
+    pub(crate) fn stage_pack(root: &Path, archive: &Path) -> Result<serde_json::Value, String> {
+        serde_json::to_value(stage(root, archive)?).map_err(|error| error.to_string())
+    }
+
+    pub(crate) fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
+        super::validate_archive(bytes)
+    }
+
+    pub(crate) fn replace_pack(source: &Path, destination: &Path) -> Result<(), String> {
+        super::replace_pack(source, destination)
+    }
+
+    /* === Private Functions === */
+
+    /* === Tests === */
 }
 
 /* === Tests === */
@@ -628,18 +739,6 @@ fn remove_folder(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn boot(root: &Path) -> Boot {
-        super::boot(root)
-    }
-    fn load(path: &Path) -> Result<LoadedPack, String> {
-        super::load(path)
-    }
-    fn stage(root: &Path, archive: &Path) -> Result<PackSummary, String> {
-        super::stage(root, archive)
-    }
-    fn validate_archive(bytes: &[u8]) -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
-        super::validate_archive(bytes)
-    }
     use std::io::Write;
     use zip::write::SimpleFileOptions;
 
@@ -653,50 +752,6 @@ mod tests {
             writer.write_all(contents).unwrap();
         }
         writer.finish().unwrap().into_inner()
-    }
-
-    fn organization_folder() -> PathBuf {
-        PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("nextest sets the manifest directory")).join("../../../organization")
-    }
-
-    fn zip_folder(root: &Path, prefix: &str) -> Vec<u8> {
-        fn walk(root: &Path, dir: &Path, prefix: &str, writer: &mut zip::ZipWriter<std::io::Cursor<Vec<u8>>>) {
-            for entry in std::fs::read_dir(dir).unwrap() {
-                let path = entry.unwrap().path();
-                let name = format!("{prefix}{}", path.strip_prefix(root).unwrap().to_str().unwrap().replace('\\', "/"));
-                if path.is_dir() {
-                    walk(root, &path, prefix, writer);
-                } else {
-                    writer.start_file(name, SimpleFileOptions::default()).unwrap();
-                    writer.write_all(&std::fs::read(&path).unwrap()).unwrap();
-                }
-            }
-        }
-        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-        walk(root, root, prefix, &mut writer);
-        writer.finish().unwrap().into_inner()
-    }
-
-    #[test]
-    fn the_repository_organization_folder_zipped_as_is_loads() {
-        for prefix in ["", "organization/"] {
-            let files = validate_archive(&zip_folder(&organization_folder(), prefix)).unwrap();
-            assert!(files.contains_key(Path::new("organization.toml")));
-            assert!(files.keys().all(|path| !path.starts_with("generated")));
-            assert!(!files.contains_key(Path::new("fonts/OFL.txt")));
-            let root = tempfile::tempdir().unwrap();
-            for (relative, contents) in &files {
-                let path = root.path().join(relative);
-                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-                std::fs::write(path, contents).unwrap();
-            }
-            let pack = load(root.path()).unwrap();
-            assert_eq!(pack.label, "Dokime");
-            assert_eq!(pack.logos.len(), 4);
-            assert!(pack.css.contains("data:font/woff2;base64,"));
-            assert!(pack.css.contains("--brand-radius-sm"));
-            assert!(!pack.css.contains("url(\"fonts/"));
-        }
     }
 
     #[test]
@@ -715,104 +770,5 @@ mod tests {
         assert!(
             validate_archive(&archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("run.sh", b"echo")])).unwrap_err().contains("unsupported")
         );
-    }
-
-    #[test]
-    fn partial_pack_inherits_assets() {
-        assert!(validate_archive(&archive(&[("logos/mark.svg", LOGO)])).unwrap_err().contains("organization.toml"));
-        let root = tempfile::tempdir().unwrap();
-        let pack = archive(&[(MANIFEST, b"[app]\nlabel = \"Stokker Technologies\"\n")]);
-        std::fs::write(root.path().join("pack.zip"), pack).unwrap();
-        assert_eq!(stage(&root.path().join("organization"), &root.path().join("pack.zip")).unwrap().label, "Stokker Technologies");
-        let escaping =
-            archive(&[(MANIFEST, b"[app]\nlabel = \"Stokker Technologies\"\n[app.logos.transparent]\non_light = \"../../secret.svg\"\n")]);
-        std::fs::write(root.path().join("escape.zip"), escaping).unwrap();
-        assert!(stage(&root.path().join("organization"), &root.path().join("escape.zip")).unwrap_err().contains("unsafe"));
-    }
-
-    #[test]
-    fn a_staged_pack_activates_on_the_next_boot_and_an_invalid_one_falls_back() {
-        let root = tempfile::tempdir().unwrap();
-        let organization = root.path().join("organization");
-        std::fs::write(root.path().join("pack.zip"), archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
-        let summary = stage(&organization, &root.path().join("pack.zip")).unwrap();
-        assert_eq!(summary.label, "Stokker Technologies");
-        let booted = boot(&organization);
-        assert_eq!(booted.pack.unwrap().label, "Stokker Technologies");
-        assert!(!organization.join(PENDING).exists() && organization.join(ACTIVE).is_dir());
-        std::fs::write(organization.join(ACTIVE).join(MANIFEST), "not toml [").unwrap();
-        let fallback = boot(&organization);
-        assert_eq!(fallback.pack.unwrap().label, "Dokime");
-        assert!(fallback.error.unwrap().contains("organization.toml"));
-        assert!(organization.join(ACTIVE).is_dir(), "an invalid pack stays on disk for diagnosis");
-    }
-
-    #[test]
-    fn invalid_pending_pack_preserves_the_last_valid_active_pack() {
-        let root = tempfile::tempdir().unwrap();
-        let organization = root.path().join("organization");
-        let archive_path = root.path().join("pack.zip");
-        std::fs::write(&archive_path, archive(&[(MANIFEST, MANIFEST_TEXT.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
-        stage(&organization, &archive_path).unwrap();
-        assert_eq!(boot(&organization).pack.unwrap().label, "Stokker Technologies");
-        stage(&organization, &archive_path).unwrap();
-        std::fs::write(organization.join(PENDING).join(MANIFEST), "invalid [").unwrap();
-
-        let retained = boot(&organization);
-
-        assert_eq!(retained.pack.unwrap().label, "Stokker Technologies");
-        assert!(retained.error.unwrap().contains("pending organization pack"));
-        assert_eq!(std::fs::read_to_string(organization.join(ACTIVE).join(MANIFEST)).unwrap(), MANIFEST_TEXT);
-        assert_eq!(std::fs::read_to_string(organization.join(PENDING).join(MANIFEST)).unwrap(), "invalid [");
-    }
-
-    #[test]
-    fn failed_promotion_restores_the_active_pack() {
-        let root = tempfile::tempdir().unwrap();
-        let active = root.path().join(ACTIVE);
-        std::fs::create_dir(&active).unwrap();
-        std::fs::write(active.join(MANIFEST), MANIFEST_TEXT).unwrap();
-
-        let pending = root.path().join(PENDING);
-        assert!(replace_pack(&pending, &active).is_err(), "a missing pending pack cannot replace the active pack");
-
-        assert_eq!(std::fs::read_to_string(active.join(MANIFEST)).unwrap(), MANIFEST_TEXT);
-        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1, "rollback removes only its empty backup directory");
-    }
-
-    #[test]
-    fn invalid_update_policy_preserves_the_previous_pending_pack() {
-        let root = tempfile::tempdir().unwrap();
-        let store = root.path().join("organization");
-        let archive_path = root.path().join("pack.zip");
-        let valid = format!("{MANIFEST_TEXT}\n[updates]\nmode = 'disabled'\n");
-        std::fs::write(&archive_path, archive(&[(MANIFEST, valid.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
-        stage(&store, &archive_path).unwrap();
-
-        let invalid = valid.replace("mode = 'disabled'", "mode = 'manual'\nsource = 'missing'");
-        std::fs::write(&archive_path, archive(&[(MANIFEST, invalid.as_bytes()), ("logos/mark.svg", LOGO)])).unwrap();
-        assert!(stage(&store, &archive_path).unwrap_err().contains("does not exist"));
-        let booted = boot(&store);
-        let script = serde_json::to_value(BootScript {
-            pack: booted.pack.as_ref(),
-            error: booted.error.as_deref(),
-        })
-        .unwrap();
-        assert_eq!(script["pack"]["updates"]["mode"], "disabled");
-        let updates = booted.pack.unwrap().updates.unwrap();
-        assert_eq!(updates.mode, policy::Mode::Disabled);
-        assert_eq!(std::fs::read_to_string(store.join(ACTIVE).join(MANIFEST)).unwrap(), valid);
-    }
-
-    #[test]
-    fn malformed_policy_diagnostics_do_not_echo_manifest_values() {
-        let root = tempfile::tempdir().unwrap();
-        let manifest = format!("{MANIFEST_TEXT}\n[updates]\nmode = 'private-value-42'\n");
-        std::fs::write(root.path().join(MANIFEST), manifest).unwrap();
-
-        let error = load(root.path()).unwrap_err();
-
-        assert!(error.contains("organization update policy is invalid"));
-        assert!(!error.contains("private-value-42"));
     }
 }

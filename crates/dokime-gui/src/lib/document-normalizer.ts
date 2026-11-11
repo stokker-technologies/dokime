@@ -145,6 +145,7 @@ function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBin
       })),
       reference_lines: input.reference_lines,
       reference_bands: input.reference_bands,
+      scale: input.scale,
       display_points: input.display_points,
       downsample: input.downsample,
     });
@@ -182,13 +183,11 @@ function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBin
 }
 
 function mapPlotType(value: string): DocumentPlotType {
-  if (value === "xy") return "xy_scatter";
   if (value === "frequency") return "frequency_series";
   if (
     value === "time_series" ||
     value === "bar" ||
-    value === "xy_scatter" ||
-    value === "xy_line" ||
+    value === "xy" ||
     value === "xy_interval" ||
     value === "trajectory" ||
     value === "heatmap" ||

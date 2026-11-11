@@ -41,7 +41,7 @@ use dokime_domain::{
 
 #[harmos::message]
 #[derive(Clone, PartialEq)]
-pub(crate) struct Row {
+pub struct Row {
     pub body: Vec<u8>,
 }
 
@@ -54,11 +54,8 @@ pub(crate) struct Row {
 /* === Public Functions === */
 
 pub(crate) fn schema() -> SchemaKey {
-    SchemaKey {
-        payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
-        id: harmos::Identifier::new("dokime.capture.work").unwrap(),
-        version: 1.try_into().unwrap(),
-    }
+    static KEY: std::sync::OnceLock<SchemaKey> = std::sync::OnceLock::new();
+    KEY.get_or_init(|| crate::storage::schema::<Work>("dokime.capture.work")).clone()
 }
 
 pub(super) fn execution(connection: &Connection, row: &mut ExecutionSummary) -> Result<(), Error> {

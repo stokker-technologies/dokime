@@ -33,12 +33,6 @@ macro_rules! host_contracts {
             $( $field:ident : $value_type:ident, $role:ident, $column_label:literal, $ty:ty $(, unit: $unit:literal)?; )*
         } } )*
     ) => {
-        $(
-            #[dokime::message]
-            #[derive(Clone, PartialEq)]
-            struct $stream { $( $field: $ty, )* }
-        )*
-
         pub fn host_telemetry_contract(
             stream: HostTelemetryStream,
         ) -> TelemetryContract {
@@ -46,7 +40,7 @@ macro_rules! host_contracts {
                 $(
                     HostTelemetryStream::$stream => TelemetryContract {
                         stream: identifier($id),
-                        schema_version: 1,
+                        schema_version: 0,
                         storage_schema: None,
                         metadata: Metadata::new(identifier($id), $label, None),
                         template_id: None,
@@ -68,7 +62,7 @@ macro_rules! host_contracts {
                         scalar: false,
                         validation_mode: None,
                         foreign: false,
-                    }.normalized().typed::<$stream>(),
+                    }.normalized().typed::<super::$stream>(<super::$stream as dokime::StreamSpec>::WINDOW),
                 )*
             }
         }
@@ -113,7 +107,6 @@ mod tests {
     #[test]
     fn native_row_schemas() {
         for contract in host_telemetry_contracts() {
-            assert_eq!(contract.schema_version, 1);
             assert_eq!(contract.columns.iter().filter(|column| column.metadata.identifier.as_str() == "timestamp").count(), 1);
             let graph = contract.storage_schema.as_ref().unwrap();
             assert!(graph.root().unwrap().fields().iter().all(|field| field.name != "timestamp"));

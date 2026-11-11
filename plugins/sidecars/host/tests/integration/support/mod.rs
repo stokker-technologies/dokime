@@ -51,6 +51,7 @@ pub fn collect_required_native_batch(stream: HostTelemetryStream) -> TelemetryBa
     use plugin_host::collectors::wifi::{WifiLatencyCollector, WifiLinkCollector, WifiScanCollector};
     use plugin_host::collectors::{network::NetworkCollector, system::SystemCollector};
     let options = HostOptions::default();
+    let contract = plugin_host::host_telemetry_contract(stream);
     let rows = match stream {
         HostTelemetryStream::System => vec![SystemCollector::new(options).unwrap().collect().unwrap()],
         HostTelemetryStream::Network => vec![NetworkCollector::new(options).unwrap().collect().unwrap()],
@@ -63,6 +64,7 @@ pub fn collect_required_native_batch(stream: HostTelemetryStream) -> TelemetryBa
         .into_iter()
         .map(|row| {
             let mut sample = TelemetrySample::new(dokime::model::identity::new_id(), stream.identifier(), 1, row.timestamp, "host");
+            sample.schema_version = contract.schema_version;
             sample.values = row.values;
             sample.values.insert("timestamp".into(), Value::from(sample.timestamp.clone()));
             sample

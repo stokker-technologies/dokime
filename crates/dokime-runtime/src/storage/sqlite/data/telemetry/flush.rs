@@ -58,6 +58,12 @@ struct Flush {
 
 /* === Implementations === */
 
+impl Flush {
+    fn due(&self, now: Instant) -> bool {
+        self.full || now >= self.deadline
+    }
+}
+
 impl Tail {
     pub(super) fn select(
         &self, after: u64, at: u64, mut matches: impl FnMut(&TelemetryEntry) -> Result<bool>,
@@ -93,7 +99,7 @@ impl Tail {
             .collect()
     }
 
-    pub(super) fn insert(&mut self, position: u64, entry: TelemetryEntry) {
+    pub(in crate::storage::sqlite) fn insert(&mut self, position: u64, entry: TelemetryEntry) {
         if self.entries.contains_key(&position) {
             return;
         }
@@ -150,6 +156,17 @@ impl Tail {
 }
 
 impl State {
+    #[cfg(any(test, feature = "testing"))]
+    pub(in crate::storage::sqlite) async fn flush_telemetry_at(&self, storage: &Manager, now: Instant) -> Result<bool> {
+        let cut = self.0.telemetry_tail.lock().unwrap().cut(storage.cursor_saved(), self.0.settings)?;
+        let Some(cut) = cut else { return Ok(false) };
+        if !cut.due(now) {
+            return Ok(false);
+        }
+        storage.flush_until(&cut.through).await?;
+        Ok(true)
+    }
+
     pub(crate) fn watch_telemetry(&self) -> tokio::sync::watch::Receiver<u64> {
         self.0.telemetry_tail.lock().unwrap().readable.subscribe()
     }
@@ -243,8 +260,10 @@ async fn run(state: &State, storage: &Manager, settings: super::super::super::Se
             let mut tail = state.0.telemetry_tail.lock().unwrap();
             tail.cut(saved.clone(), settings)?
         };
-        let Some(Flush { deadline, full, changed, through }) = cut else { return Ok(()) };
-        if !full && Instant::now() < deadline {
+        let Some(cut) = cut else { return Ok(()) };
+        let due = cut.due(Instant::now());
+        let Flush { deadline, changed, through, .. } = cut;
+        if !due {
             tokio::select! {
                 _ = tokio::time::sleep_until(deadline) => {},
                 _ = changed.notified() => continue,

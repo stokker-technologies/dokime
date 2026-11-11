@@ -33,6 +33,7 @@ storage = ["dokime-runtime/storage"]
 configuration = ["dokime-runtime/configuration"]
 fault-injection = ["dokime-runtime/fault-injection"]
 fft = ["dokime-runtime/fft"]
+ftp = ["dokime-runtime/ftp"]
 media-native = ["dokime-runtime/media-native"]
 simulation = ["dokime-runtime/simulation"]
 client = ["dep:dokime-client", "dep:tokio"]
@@ -47,7 +48,6 @@ dokime-domain = { workspace = true }
 dokime-runtime = { workspace = true }
 
 # Git
-harmos-packaging = { workspace = true, optional = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -56,6 +56,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+harmos-packaging = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 
 # Serialization

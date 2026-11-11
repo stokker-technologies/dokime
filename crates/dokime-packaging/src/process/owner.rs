@@ -7,7 +7,7 @@
  * ***
  */
 
-//! Own a native process tree through leader exit and descendant cleanup.
+// Own a native process tree through leader exit and descendant cleanup.
 
 /* === Modules === */
 
@@ -35,6 +35,7 @@ use tokio::process::{ChildStderr, ChildStdin, ChildStdout, Command};
 pub struct Child {
     child: Box<dyn ChildWrapper>,
     armed: bool,
+
     #[cfg(unix)]
     group: libc::pid_t,
 }
@@ -58,7 +59,7 @@ impl Child {
         self.child.stderr()
     }
 
-    /// Observe the leader without releasing its process-group or job owner.
+    // Observe the leader without releasing its process-group or job owner.
     pub fn wait_leader(&mut self) -> Pin<Box<dyn Future<Output = io::Result<ExitStatus>> + Send + '_>> {
         // spawn installs exactly one child wrapper; KillOnDrop only configures the command.
         self.child.inner_mut().wait()
