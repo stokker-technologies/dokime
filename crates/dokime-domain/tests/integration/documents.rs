@@ -144,7 +144,7 @@ fn display_scale_validation() {
 
 #[dokime_tracing::trace_test]
 #[test]
-fn display_scale_refuses_other_axes() {
+fn display_scale_refuses_non_time_series_and_custom_axes() {
     use model::document::{PlotAxisKind, PlotType};
 
     for plot_type in [
@@ -159,6 +159,9 @@ fn display_scale_refuses_other_axes() {
         PlotType::BoxPlot,
     ] {
         let mut plot = PlotDefinition::with_type("Unsupported Axis", plot_type);
+        if plot.plot_type == PlotType::Pie {
+            plot.y(reconnection("voltage_v"));
+        }
         plot.scale(1e3);
         let message = refusal(&plot);
         assert!(message.contains("Unsupported Axis"), "{message}");
@@ -250,16 +253,17 @@ fn histogram_requires_x() {
     assert!(message.contains("`x_format` on a histogram plot"), "{message}");
 }
 
-// A box summary keeps its value on y, and its refusal names the plot and the axis.
+// A box plot requires exactly one value on y.
 #[dokime_tracing::trace_test]
 #[test]
-fn box_keeps_y() {
+fn box_plot_requires_one_y_binding() {
     let mut plot = Plot::box_plot("Voltage by Phase");
     plot.y(reconnection("voltage_v"));
     validate_plot_definition(&plot).unwrap();
 
-    let message = refusal(&Plot::box_plot("Voltage by Phase"));
-    assert!(message.contains("box_summary plots must declare exactly one y field or y expression"), "{message}");
+    assert!(validate_plot_definition(&Plot::box_plot("Voltage by Phase")).is_err());
+    plot.y(reconnection("current_a"));
+    assert!(validate_plot_definition(&plot).is_err());
 }
 
 #[test]
