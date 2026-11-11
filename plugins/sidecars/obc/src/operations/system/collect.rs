@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 // Third Party Imports
-use sysinfo::{Pid, System};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
 // Local Imports
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
@@ -88,8 +88,12 @@ impl Collector {
             *state = Some(dokime::plugin::refusal(System::new())?);
         }
         let machine = state.as_mut().expect("the collector initialized its machine");
-        machine.refresh_all();
-        let process = machine.process(Pid::from_u32(std::process::id()));
+        // Collect Only The Counters This Operation Returns.
+        machine.refresh_cpu_usage();
+        machine.refresh_memory();
+        let pid = Pid::from_u32(std::process::id());
+        machine.refresh_processes_specifics(ProcessesToUpdate::Some(&[pid]), true, ProcessRefreshKind::nothing().with_cpu().with_memory());
+        let process = machine.process(pid);
         let row = SystemReading {
             process_cpu_percent: process.map(|process| f64::from(process.cpu_usage())).unwrap_or_default(),
             process_memory_bytes: process.map(|process| integer(process.memory())).unwrap_or_default(),
