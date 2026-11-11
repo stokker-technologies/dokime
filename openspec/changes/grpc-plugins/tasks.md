@@ -78,3 +78,14 @@
 - [x] Publish Product compiler records only after successful compilation, retaining failed output separately; prove replacement and failure behavior through tooling integration tests.
 - [x] Pass combined formatting, repository, Python, TypeScript and Rust checks and the Tests artifact build.
 - [x] Rerun plot and settings TypeScript unit/integration tests, shell organization tests and the focused runtime captured-head test.
+
+## Hosted Failure Repair and Policy Adoption
+
+- [x] Repair archived protocol compiler inputs and prove both protocol tests with `TEST_PROFILE` selecting transferred fixtures.
+- [x] Align remote-operation, plot-watch and terminal journeys with the agreed contracts; pass their focused tests.
+- [x] Repair native plugin counter collection and store transitions, and keep plot statistics progressing during redraws; pass the focused live-plot story.
+- [x] Replace the organization-generation radius constant with an authored fixture override and pass the focused Python test.
+- [x] Update the density system journey to drive the appearance combobox; pass the TypeScript checks.
+- [x] Trim company policy while retaining project-owned tooling configuration.
+- [x] Pass formatting, repository/Python/Rust checks, Tests Build and the focused repaired tests.
+- [ ] Validate affected packaged system stories in hosted CI; no local focused packaged runner is documented. Linux proof remains hosted; no push is authorized.
