@@ -49,9 +49,9 @@ class SupplyTests(unittest.TestCase):
         repository = Path(__file__).resolve().parents[4]
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            for name in ("deny.toml", "about.toml"):
-                (root / name).write_bytes((repository / name).read_bytes())
-            (root / "supply-chain-exceptions.toml").write_text(
+            (root / "tools/config").mkdir(parents=True)
+            (root / "tools/config/deny.toml").write_bytes((repository / "tools/config/deny.toml").read_bytes())
+            (root / "tools/config/supply-chain-exceptions.toml").write_text(
                 '[[license]]\npackage="dependency"\nversion="1"\nlicense="NCSA"\n'
                 'reason="reviewed"\nowner="maintainer"\nfixed="2"\nexpires=2030-01-02\n'
             )
@@ -64,7 +64,7 @@ class SupplyTests(unittest.TestCase):
             ):
                 notices.generate(root)
             config = tomllib.loads((root / "target/notices/about.toml").read_text(encoding="utf-8"))
-            license_policy = tomllib.loads((root / "deny.toml").read_text(encoding="utf-8"))
+            license_policy = tomllib.loads((root / "tools/config/deny.toml").read_text(encoding="utf-8"))
             self.assertEqual(config["accepted"], license_policy["licenses"]["allow"])
             self.assertEqual(config["dependency"]["accepted"], ["NCSA"])
 
@@ -74,11 +74,11 @@ class SupplyTests(unittest.TestCase):
                 root = Path(temporary)
                 output = root / "target/notices"
                 output.mkdir(parents=True)
-                (root / "deny.toml").write_text('[licenses]\nallow = ["MIT"]\n')
-                (root / "about.toml").write_text("")
+                (root / "tools/config").mkdir(parents=True)
+                (root / "tools/config/deny.toml").write_text('[licenses]\nallow = ["MIT"]\n')
                 (root / "uv.lock").write_text("package = []\n")
                 (root / "NOTICE").write_text("notice")
-                (root / "THIRD-PARTY-NOTICES").write_text("product")
+                (output / "THIRD-PARTY-NOTICES").write_text("product")
                 (output / "rust.json").write_text('{"licenses": []}')
                 (output / "rust.txt").write_text("rust")
                 if installed:
@@ -96,7 +96,7 @@ class SupplyTests(unittest.TestCase):
                     elif installed:
                         counts = notices.generate(root)
                         self.assertEqual(counts, {"rust": 0, "shell": 3, "python": 2})
-                        self.assertEqual((root / "THIRD-PARTY-NOTICES").read_text(), "rust\n\nshell\n\npython\n")
+                        self.assertEqual((output / "THIRD-PARTY-NOTICES").read_text(), "rust\n\nshell\n\npython\n")
                         shell.assert_called_once()
                         self.assertEqual(execute.call_args.args[1][0], "pnpm")
                     else:
@@ -105,8 +105,9 @@ class SupplyTests(unittest.TestCase):
                     if not installed:
                         shell.assert_not_called()
                         self.assertTrue(all(call.args[1][0] == "cargo" for call in execute.call_args_list))
+                self.assertFalse((root / "THIRD-PARTY-NOTICES").exists())
                 if python or not installed:
-                    self.assertEqual((root / "THIRD-PARTY-NOTICES").read_text(), "product")
+                    self.assertEqual((output / "THIRD-PARTY-NOTICES").read_text(), "product")
 
     def test_shell_notice_missing_package_is_tool_error(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -245,9 +246,12 @@ class SupplyTests(unittest.TestCase):
             destination.mkdir()
             (root / "LICENSE").write_text("fixture license")
             (destination / "distribution.json").write_text(json.dumps({"files": {"existing": "digest"}}))
+            generated = root / "target/notices"
+            generated.mkdir(parents=True)
             for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
-                (root / name).write_bytes(name.encode())
+                (generated / name).write_bytes(name.encode())
             notices.stage(root, destination)
+            self.assertEqual((destination / "LICENSE").read_text(), "fixture license\n\nNOTICE\n\nTHIRD-PARTY-NOTICES")
             files = json.loads((destination / "distribution.json").read_text())["files"]
             self.assertEqual(files["existing"], "digest")
             for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
@@ -256,7 +260,8 @@ class SupplyTests(unittest.TestCase):
     def test_expiry_refuses_the_expiry_date(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "supply-chain-exceptions.toml").write_text(
+            (root / "tools/config").mkdir(parents=True)
+            (root / "tools/config/supply-chain-exceptions.toml").write_text(
                 '[[advisory]]\npackage="dependency"\nversion="1"\nid="RUSTSEC-example"\n'
                 'reason="reviewed"\nowner="maintainer"\nfixed="2"\nexpires=2030-01-02\n'
             )

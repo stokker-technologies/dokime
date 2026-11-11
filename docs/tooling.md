@@ -30,6 +30,18 @@ own environment setup, synchronization, version metadata, binding generation,
 frontend preparation, native packaging, CI and
 test execution. The shared Python environment lives at repository-root `.venv/`.
 
+Explicit-path tool configuration lives in `tools/config/`: Cargo About uses
+`about.hbs`, git-cliff uses `cliff.toml`, Cargo Deny and the notices collector use
+`deny.toml`, Taplo uses `taplo.toml`, and supply-chain checks read
+`supply-chain-exceptions.toml`. Tasks pass these paths explicitly; direct tool or
+editor invocations must select the same configuration. Native Cargo, mise, uv,
+Clippy and rustfmt discovery files remain at the repository root.
+
+Contributor and security guidance live in [Contributing](CONTRIBUTING.md) and
+[Security](SECURITY.md). The environment example is
+[`docs/examples/.env.example`](examples/.env.example); published captures live in
+[`docs/screenshots/`](screenshots/README.md).
+
 After changing Python dependencies, `mise run prepare -- --refresh-lock` refreshes
 the workspace `uv.lock` before the ordinary locked synchronization. The test group
 includes both optional dataframe libraries; focused tabular tests also block their
@@ -74,7 +86,9 @@ ci-v6-sccache-<os>-<arch>-<dev|release|test|bench>-<Rust version>-<Cargo lock di
 Each cache restores its exact key, then the prefix before the Cargo lock digest.
 Changing an unrelated tool preserves compiler-cache compatibility. GitHub provider
 steps save successful dev and Nightly runs on an exact-key miss; PRs restore only.
-Tasks own compiler processes and timing summaries.
+Setup keeps job-level `COMPILER_CACHE_BACKEND` and `COMPILER_CACHE_MODE` unless
+its corresponding nonempty input overrides them. Cache save steps pass the
+resolved compiler cache `key` and `path`. Tasks own compiler processes and timing summaries.
 
 ## Benchmark Baselines
 
@@ -291,3 +305,16 @@ and deletes matching names, including partial uploads. Successful uploads must
 match the local size and, when the API supplies it, SHA-256 digest; staged asset
 hashes come from the same inventory as SHA256SUMS. Exhausted requests report the
 operation, URL, attempt count and last cause.
+
+## Legal Notices and Release Notes
+
+Packaging generates complete product notices at
+`target/notices/THIRD-PARTY-NOTICES` and copies the authored `NOTICE` beside them.
+Python-only notices live under `target/notices/python/`. Installer staging copies
+these generated inputs into the distribution and appends them to its installed
+`LICENSE`; archives and wheel license directories retain their existing notice names.
+No generated notices are tracked in the source root.
+
+Git-cliff reads `tools/config/cliff.toml` for version selection and per-release
+notes. Release rehearsal consumes staged build/package artifacts; inspect its
+credential-free options with `mise run release:rehearse -- --help`.

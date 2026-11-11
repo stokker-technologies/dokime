@@ -54,3 +54,13 @@
 - Tell private plugin owners the migration once a published Nightly carries the change.
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - SDK system tests run in Nightly only, not on pull requests.
+
+## Repository Root and Workflow Repairs
+
+- [x] Move explicit tool configuration to `tools/config/`, remove unused root About and Typos configuration, and reconcile managed ownership.
+- [x] Move contributor/security guides, environment example and screenshots under `docs/`; update readers, links, snippets and Markdown policy.
+- [x] Generate notices under `target/notices/` and preserve distribution, installer and wheel notice contents.
+- [x] Repair compiler cache save inputs and preserve job-level Setup cache settings.
+- [x] Run repository/Python checks and formatting; exercise notices generation/staging through focused tooling tests.
+- [ ] Rerun the combined repository/Python entry points after the concurrent organization edits are formatted; the latest entry-point rerun stops at `organization/organization.toml`.
+- [ ] Complete an artifact release rehearsal; local `--profile dev --stage-only` is blocked by missing Windows package artifacts.

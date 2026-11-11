@@ -46,7 +46,7 @@ from ..process import spawn_flags
 
 def exceptions(directory: Path, *, today: date | None = None) -> dict:
     """Reject Expired or Incomplete Exceptions Before Any Tool Can Apply Them."""
-    document = tomllib.loads((directory / "supply-chain-exceptions.toml").read_text(encoding="utf-8"))
+    document = tomllib.loads((directory / "tools/config/supply-chain-exceptions.toml").read_text(encoding="utf-8"))
     today = datetime.now(UTC).date() if today is None else today
     for kind, entries in document.items():
         if kind not in {"advisory", "license", "ban"}:
@@ -80,7 +80,23 @@ def check(directory: Path) -> int:
     output = directory / "target/supply"
     output.mkdir(parents=True, exist_ok=True)
     commands = [
-        ("deny", ["cargo", "deny", "--locked", "--format", "json", "check", "advisories", "bans", "licenses", "sources"]),
+        (
+            "deny",
+            [
+                "cargo",
+                "deny",
+                "--config",
+                "tools/config/deny.toml",
+                "--locked",
+                "--format",
+                "json",
+                "check",
+                "advisories",
+                "bans",
+                "licenses",
+                "sources",
+            ],
+        ),
         ("audit", ["cargo", "audit", "--json"]),
         ("pnpm", ["pnpm", "--dir", "crates/dokime-gui", "audit", "--prod", "--json"]),
         ("uv", ["uv", "audit", "--locked", "--output-format", "json"]),

@@ -254,7 +254,7 @@ def planned_version(directory: Path, current: str) -> str:
     if not policy.execute(directory, ["git", "tag", "--list", "v" + current], capture=True).strip():
         return current
     # Breaking changes bump the minor and everything else the patch while the version is 0.x, as the cliff.toml [bump] declares.
-    command = ["git-cliff", "--bumped-version"]
+    command = ["git-cliff", "--config", "tools/config/cliff.toml", "--bumped-version"]
     planned = policy.execute(directory, command, capture=True).strip().removeprefix("v")
     if planned == current:
         since = policy.execute(directory, ["git", "log", "--format=%h %s", f"v{current}..HEAD"], capture=True).strip()

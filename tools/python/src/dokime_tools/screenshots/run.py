@@ -47,9 +47,9 @@ def dimensions(data: bytes) -> tuple[int, int]:
 
 def check(directory: Path, _: str = "check") -> None:
     settings = policy.policy(directory, "screenshots")
-    folder = policy.inside(directory, "screenshots")
+    folder = policy.inside(directory, "docs/screenshots")
     if not folder.is_dir():
-        raise policy.ToolError("screenshots/ is missing")
+        raise policy.ToolError("docs/screenshots/ is missing")
     readme = (folder / "README.md").read_text(encoding="utf-8")
     manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
     if not isinstance(manifest, list):
@@ -122,7 +122,7 @@ def capture(directory: Path, _: str = "capture") -> None:
     scenes = settings.get("scenes", [])
     if not isinstance(scenes, list) or not scenes:
         raise policy.ToolError("screenshots.scenes must declare capture commands")
-    folder = policy.inside(directory, "screenshots")
+    folder = policy.inside(directory, "docs/screenshots")
     folder.mkdir(exist_ok=True)
     revision = archive.revision(directory)
     if revision is None:

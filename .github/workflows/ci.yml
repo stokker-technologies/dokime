@@ -310,9 +310,8 @@ jobs:
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true' && steps.setup.outputs.sccache-path
         != ''
       with:
-        compiler-key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
-        compiler-path: ${{ steps.setup.outputs.sccache-path }}
-        compiler-hit: ${{ steps.setup.outputs.sccache-cache-hit }}
+        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
+        path: ${{ steps.setup.outputs.sccache-path }}
     env:
       MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk

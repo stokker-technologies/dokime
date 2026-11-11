@@ -22,7 +22,7 @@
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution routes.
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for development setup and contribution routes.
 
 ## About
 

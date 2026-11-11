@@ -224,11 +224,11 @@ def stage(directory: Path, destination: Path) -> None:
     manifest = destination / "distribution.json"
     document = json.loads(manifest.read_text(encoding="utf-8"))
     for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
-        stage_file(directory / name, destination / name)
+        stage_file(directory / "target/notices" / name, destination / name)
         document["files"][name] = hashlib.sha256((destination / name).read_bytes()).hexdigest()
     text = (directory / "LICENSE").read_text(encoding="utf-8")
     for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
-        text += "\n\n" + (directory / name).read_text(encoding="utf-8")
+        text += "\n\n" + (directory / "target/notices" / name).read_text(encoding="utf-8")
     (destination / "LICENSE").write_text(text, encoding="utf-8", newline="\n")
     document["files"]["LICENSE"] = hashlib.sha256((destination / "LICENSE").read_bytes()).hexdigest()
     manifest.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
@@ -291,9 +291,8 @@ def generate(directory: Path, *, python: bool = False) -> dict:
         allowed = {item["version"] for item in document["license"] if item["package"] == name}
         if any(package == name and version not in allowed for package, version in packages):
             raise policy.ToolError(f"license exception does not cover every resolved {name} version")
-    license_policy = tomllib.loads((directory / "deny.toml").read_text(encoding="utf-8"))
+    license_policy = tomllib.loads((directory / "tools/config/deny.toml").read_text(encoding="utf-8"))
     config = f"accepted = {json.dumps(license_policy['licenses']['allow'])}\n"
-    config += (directory / "about.toml").read_text(encoding="utf-8")
     for name, accepted in sorted(licenses.items()):
         config += f"\n[{json.dumps(name)}]\naccepted = {json.dumps(sorted(accepted))}\n"
     configured = output / "about.toml"
@@ -324,7 +323,7 @@ def generate(directory: Path, *, python: bool = False) -> dict:
             "--workspace",
             "--config",
             str(configured),
-            "about.hbs",
+            "tools/config/about.hbs",
             "--output-file",
             str(output / "rust.txt"),
         ],
@@ -341,10 +340,9 @@ def generate(directory: Path, *, python: bool = False) -> dict:
         shell_text, shell_count = shell_notices(shell)
     python_text, python_count = python_notices(tomllib.loads((directory / "uv.lock").read_text(encoding="utf-8")))
     text = (output / "rust.txt").read_text(encoding="utf-8") + "\n\n" + shell_text + "\n\n" + python_text + "\n"
-    destination = output / "python" if python else directory
+    destination = output / "python" if python else output
     destination.mkdir(parents=True, exist_ok=True)
-    if python:
-        shutil.copyfile(directory / "NOTICE", destination / "NOTICE")
+    shutil.copyfile(directory / "NOTICE", destination / "NOTICE")
     (destination / "THIRD-PARTY-NOTICES").write_text(text, encoding="utf-8", newline="\n")
     counts = {"rust": len(crates), "shell": shell_count, "python": python_count}
     (output / "counts.json").write_text(json.dumps(counts, indent=2) + "\n", encoding="utf-8")
@@ -376,7 +374,7 @@ def main() -> int:
         if not wheels:
             raise policy.ToolError(f"no packaged wheels in {options.archives}")
         for source in wheels:
-            archive(directory / "target/notices/python" if options.python else directory, source)
+            archive(directory / "target/notices/python" if options.python else directory / "target/notices", source)
     return 0
 
 

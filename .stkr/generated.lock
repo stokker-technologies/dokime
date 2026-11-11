@@ -50,7 +50,7 @@
     "crates/cargo-dokime/templates/typos.toml.tmpl": "777d9c2e10702f205b4190714387ab2983434c934634ea809ed2d4dff8104829",
     "rustfmt.toml": "62a61be289564ff61eb7c2847eee6712deae7a94c918247e09f4755c88d46906",
     "sdk/python/ruff.toml": "ee5a97cf84a1912ce707b7b2d36e962ac1795440e006d1cbad2920c1f3373d2f",
-    "taplo.toml": "851ddd5002ac7af1a708ff9098afcc69c7d5c78f82130e6b253eff4795d155e7",
+    "tools/config/taplo.toml": "851ddd5002ac7af1a708ff9098afcc69c7d5c78f82130e6b253eff4795d155e7",
     "tools/python/ruff.toml": "ee5a97cf84a1912ce707b7b2d36e962ac1795440e006d1cbad2920c1f3373d2f",
     "tools/python/src/dokime_tools/build/__init__.py": "d5c4775bcd7fdded10e5f9de8e3643b2be3bbd35659f8eb6b345c5418727e30e",
     "tools/python/src/dokime_tools/build/bench.py": "3d0e62bf00058fdfec26c3ae0c639a1b19935168548e1ab6f07aa8ee6dbaf7ce",
@@ -75,7 +75,6 @@
     "tools/python/src/dokime_tools/test/pytest.py": "c3e5f4973a7cd39e350f8a7ffbff2f9721f7e9e7284571d1d26505e7526a7cdd",
     "tools/python/src/dokime_tools/test/report.py": "d1580e27b496cf4dc937033689b29775b1bd64e7e9482ed1fa69a84b34d3d1c5",
     "tools/python/src/dokime_tools/test/run.py": "3752a0b7e6874653e99e9ac61dd0d51795979c166f8cd81b6d20e423d1c3c7a9",
-    "tools/python/src/dokime_tools/test/vitest.py": "b1ef52e10208604acc1b21cab59faa6456dbb9b9062f1732301ee9953e8beaa8",
-    "typos.toml": "2325a5124fb1d2bd60b5f82dd8f47f74d66a937488a95e527223afe56cdcd87a"
+    "tools/python/src/dokime_tools/test/vitest.py": "b1ef52e10208604acc1b21cab59faa6456dbb9b9062f1732301ee9953e8beaa8"
   }
 }

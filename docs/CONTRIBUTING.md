@@ -26,7 +26,7 @@ Native media capture also needs platform libraries. On Debian/Ubuntu, install
 `alsa-lib-devel`, `kernel-headers` and `clang`.
 
 Local native tasks share a persistent 20 GB sccache store and use incremental
-compilation; see [Workstation Builds](docs/tooling.md#workstation-builds).
+compilation; see [Workstation Builds](tooling.md#workstation-builds).
 
 ## Development Workflow
 
@@ -44,7 +44,7 @@ Organization defaults generate JSON/theme under
 `crates/dokime-gui/src/generated/organization/`; keep authored pack inputs separate.
 Build exports the matching native installer payload. `mise run package -- --language rust`
 uses the built authoring tool to assemble and inspect it without recompiling;
-see [Native Installers](docs/product-guide.md#native-installers) for downstream
+see [Native Installers](product-guide.md#native-installers) for downstream
 organization distributions and signing prerequisites.
 
 For coupled library development, keep registry dependencies declared and place the
@@ -397,7 +397,7 @@ still count only 8/128 numeric bytes per row. Inclusive stage times overlap and
 must not be added; async spans sum active poll/thread time, while lock waits and
 `ingest.host.stage.elapsed` include suspension. Repeat on a
 busy workstation and retain each result, rather than interpreting contention as
-a product regression. See [Measured Stream Performance](docs/product-guide.md#measured-stream-performance).
+a product regression. See [Measured Stream Performance](product-guide.md#measured-stream-performance).
 
 ### Large-Cycle Report Saves
 
@@ -463,11 +463,11 @@ Target `dev`. Describe the user-visible change and its verification, and keep
 required native checks enabled. Do not include secrets or proprietary device
 data in source, fixtures, logs or screenshots.
 
-Contributions use the repository's [Apache-2.0 license](LICENSE). Release
+Contributions use the repository's [Apache-2.0 license](../LICENSE). Release
 publication is a separate authorized workflow; ordinary candidate validation
 does not publish packages or create tags.
 
-The [support policy](docs/support.md) describes stable, nightly and proposed
+The [support policy](support.md) describes stable, nightly and proposed
 end-of-life terms. Release notes should include a **Validation** paragraph naming
 the tag and exact commit, the validating CI run URL, and executed pass/fail/skipped
 counts by platform, language and test layer. Reuse Nightly report evidence only
@@ -479,7 +479,7 @@ run's executed test reports, not from its job-status list.
 
 CI runs every pull request through the check, build, test and package matrices.
 Each work job calls one project task; the setup action runs `prepare` first.
-See [Repository Tooling](docs/tooling.md#validation) for artifact reuse and hidden CI tasks.
+See [Repository Tooling](tooling.md#validation) for artifact reuse and hidden CI tasks.
 
 Release reviews squash into dev immediately and their validation keeps running.
 When it completes green, tagging targets the release squash, even after later dev
@@ -506,5 +506,5 @@ Include the operating system, revision, reproduction steps and relevant logs,
 with secrets and private test data removed.
 
 Send vulnerabilities through the private channel in [SECURITY.md](SECURITY.md)
-(pending publication). See [Support](docs/support.md) for proposed acknowledgement
+(pending publication). See [Support](support.md) for proposed acknowledgement
 targets and the commercial-contact placeholder; these are not resolution guarantees.

@@ -2,12 +2,12 @@
 
 These images are the product screenshots for Dokime. The public product page at
 [stokkertechnologies.ch](https://stokkertechnologies.ch) fetches them straight
-from this folder over GitLab's raw `main` URLs, and the repository README embeds
+from this folder over GitHub's raw `main` URLs, and the repository README embeds
 them by relative path, so treat them as published assets: the file names are the
 contract, and replacing a file republishes it everywhere at once.
 
 ```text
-https://github.com/stokker-technologies/dokime/raw/refs/heads/main/screenshots/<file>
+https://github.com/stokker-technologies/dokime/raw/refs/heads/main/docs/screenshots/<file>
 ```
 
 Every image is captured from the real desktop application driving a real backend

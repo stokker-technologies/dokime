@@ -24,7 +24,7 @@ Dokime turns hardware and software test procedures into operator workflows,
 live measurements and HTML reports. Define a procedure, run it across
 operating conditions, and review the evidence behind each result.
 
-![A charger test running in Dokime with live measurements and execution progress](screenshots/cycle.png)
+![A charger test running in Dokime with live measurements and execution progress](docs/screenshots/cycle.png)
 
 ## Features
 
@@ -111,8 +111,8 @@ Click either to inspect the full message, failure causes and available technical
 
 #### Examples
 
-![Test templates and cases in the Dokime library](screenshots/library.png)
-![Saved test history in Dokime](screenshots/history.png)
+![Test templates and cases in the Dokime library](docs/screenshots/library.png)
+![Saved test history in Dokime](docs/screenshots/history.png)
 
 ### CLI
 
@@ -316,7 +316,7 @@ reads continue retrying, while other document failures retry once.
 ### Support and Security
 
 See the [support and end-of-life policy](docs/support.md),
-[vulnerability reporting policy](SECURITY.md), [privacy guidance](docs/privacy.md),
+[vulnerability reporting policy](docs/SECURITY.md), [privacy guidance](docs/privacy.md),
 [plugin security model](docs/plugin-security.md), [compliance assessment](docs/compliance.md)
 and [signed and managed deployment](docs/deployment.md).
 The security policy link is pending its owner's publication.
@@ -326,11 +326,11 @@ pending verified supply-chain evidence and do not imply product certification.
 ## Contributing
 
 Bug reports, focused fixes, clearer examples and equipment integrations are
-welcome. Read [Contributing](CONTRIBUTING.md) for setup and the review workflow.
+welcome. Read [Contributing](docs/CONTRIBUTING.md) for setup and the review workflow.
 Frozen documents share the live card query path, retain complete authored tables
 and include every repeated-section page at the sealed evidence cut.
 
-The [storage benchmarks](CONTRIBUTING.md#storage-benchmarks) mirror Harmos's storage
+The [storage benchmarks](docs/CONTRIBUTING.md#storage-benchmarks) mirror Harmos's storage
 suite using Dokime's default settings and SQLite backend, including writes, reads,
 queries, filesystem operations and concurrent workloads.
 

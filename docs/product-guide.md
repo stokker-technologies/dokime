@@ -1920,11 +1920,13 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 - [Plugin Security](plugin-security.md) — the plugin trust boundary and native process authority.
 - [Support](support.md) — support and end-of-life policy.
 - [Compliance](compliance.md) — the compliance assessment and vulnerability reporting.
-- [Screenshots](../screenshots/README.md) — the published product images and how to regenerate them.
+- [Security](SECURITY.md) — vulnerability reporting and supply-chain policy.
+- [Environment Example](examples/.env.example) — optional environment overrides for a source checkout.
+- [Screenshots](screenshots/README.md) — the published product images and how to regenerate them.
 - [Plugin Starter](../crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Entry Library And Plugin SDK](../crates/dokime/src/lib.rs) — public entry point for authoring APIs.
 - [Client API](../crates/dokime-client/src/) — programmatic access to cycles and executions.
-- [Contributing](../CONTRIBUTING.md) — repository setup and development workflow.
+- [Contributing](CONTRIBUTING.md) — repository setup and development workflow.
 
 
 ## Organization
@@ -2417,7 +2419,7 @@ document setup and ingest checkpoints. Runtime startup and case registration are
 outside that interval. Numeric-payload MiB/s counts 8 or 128 bytes per row,
 excluding timestamps and framing. CPU seconds per 100,000 rows sum the benchmark
 and its live descendant processes; they can exceed elapsed seconds.
-See [Sidecar Stream Ingestion](../CONTRIBUTING.md#sidecar-stream-ingestion) for commands.
+See [Sidecar Stream Ingestion](CONTRIBUTING.md#sidecar-stream-ingestion) for commands.
 
 The repeated before runs used `48de17933` with Harmos `3f0a6c53`.
 All six ingestion cases completed; the old runner then timed out while eagerly

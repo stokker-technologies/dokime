@@ -1,6 +1,6 @@
 # Dependency Policy: Only Explicitly Allowed License Alternatives May Be Selected.
 [advisories]
-# Accepted advisories belong here with a reason, owner and expiry; see SECURITY.md.
+# Accepted advisories belong here with a reason, owner and expiry; see docs/SECURITY.md.
 ignore = []
 
 [licenses]

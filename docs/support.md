@@ -3,7 +3,7 @@
 ## Channels and Response Targets
 
 Report product defects and usage questions through [GitHub Issues](https://github.com/stokker-technologies/dokime/issues).
-Report vulnerabilities privately through the channel in [SECURITY.md](../SECURITY.md)
+Report vulnerabilities privately through the channel in [SECURITY.md](SECURITY.md)
 (pending publication). Do not post vulnerabilities or private evidence in public issues.
 Commercial support contact: **Pending owner confirmation**. A named primary contact,
 backup and staffed calendar remain to be confirmed; no commercial SLA is offered here.
@@ -50,7 +50,7 @@ backups before upgrading; qualify the new revision on a separate storage root.
 Development storage formats may break without a version bump, and no automatic
 migration is promised. Keep incompatible existing roots intact and use a fresh root.
 
-The [Apache-2.0 source](../LICENSE), [documented build](../CONTRIBUTING.md#development-setup)
+The [Apache-2.0 source](../LICENSE), [documented build](CONTRIBUTING.md#development-setup)
 and [exportable evidence](product-guide.md#cli-reference) allow customers to retain
 results and arrange independent maintenance. Archive the source revision, lockfiles,
 toolchain, build instructions and evidence format documentation alongside exports.
