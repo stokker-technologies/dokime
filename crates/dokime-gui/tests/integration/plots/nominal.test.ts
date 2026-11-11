@@ -57,6 +57,7 @@ import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyPlot } from "@/plots/catalog/XyPlot";
+import { instantTime, orderedInstants, PlotPlayback, usePlotPlayback } from "@/plots/playback";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
@@ -1318,6 +1319,7 @@ test("XY Styles Reach the Native Request", () => {
 test("Plot Statistics", () => {
   const payload = hostFrame([0, 1, 2], [[2, 5, 11]], { keys: ["distance"] });
   payload.summaries = [{ ...SUMMARIES[0], series_id: "distance" }];
+  payload.series[0].points = [0, 1, 2].map((x) => ({ x, y: [2, 5, 11][x], instant: `2026-01-01T00:00:0${x}Z` }));
   const descriptor = {
     plot_id: "distance",
     title: "Distance",
@@ -2162,4 +2164,108 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
   assert.equal(request.plotType?.HarmosVariant.case, "Xy");
   assert.equal(request.xyInterval?.HarmosVariant.case, "Sigma");
   assert.equal(toNativePlotRequest({ stream: "values", yKeys: ["value"], plotType: "pie", hole: 0.5 }).hole, 0.5);
+});
+
+test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const fetch = vi.fn(() => {
+    throw new Error("Playback attempted a request");
+  });
+  vi.stubGlobal("fetch", fetch);
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  let incoming = ["2026-01-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000002Z", "2026-01-01T00:00:04Z"];
+  let trajectory: ReturnType<typeof usePlotPlayback<string[]>>;
+  let grid: ReturnType<typeof usePlotPlayback<string[]>>;
+  const windows = useSummaryWindowStore.getState().windows;
+  function View() {
+    const available = orderedInstants(incoming);
+    trajectory = usePlotPlayback(incoming, available);
+    grid = usePlotPlayback(incoming, available);
+    return createElement(
+      "div",
+      null,
+      createElement(PlotPlayback, { title: "Trajectory", playback: trajectory }),
+      createElement(PlotPlayback, { title: "Grid", playback: grid }),
+    );
+  }
+  const render = () =>
+    act(async () => {
+      root.render(createElement(View));
+    });
+  try {
+    await render();
+    const first = incoming[0];
+    const last = incoming.at(-1);
+    assert.notEqual(instantTime(incoming[0]), instantTime(incoming[1]));
+    assert.equal(trajectory!.instant, last);
+    const slider = host.querySelector('[role="slider"]')!;
+    await act(async () => {
+      slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", code: "ArrowLeft", bubbles: true }));
+    });
+    assert.equal(trajectory!.instant, incoming[1]);
+    assert.equal(grid!.instant, last);
+    const held = trajectory!.data;
+    incoming = [...incoming, "2026-01-01T00:00:08Z"];
+    await render();
+    assert.equal(trajectory!.instant, incoming[1]);
+    assert.equal(trajectory!.data, held);
+    assert.equal(grid!.instant, incoming.at(-1));
+    await act(async () => {
+      trajectory!.replay();
+    });
+    assert.equal(trajectory!.instant, first);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    assert.equal(trajectory!.instant, held[1]);
+    await act(async () => {
+      trajectory!.pause();
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    assert.equal(trajectory!.instant, held[1]);
+    await act(async () => {
+      trajectory!.play();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    assert.equal(trajectory!.instant, last);
+    assert.equal(trajectory!.playing, false);
+    assert.equal(trajectory!.following, false);
+    await act(async () => {
+      trajectory!.seek(held.length - 1, true);
+    });
+    assert.equal(trajectory!.instant, incoming.at(-1));
+    assert.equal(trajectory!.following, true);
+    await act(async () => {
+      trajectory!.play();
+    });
+    assert.equal(trajectory!.following, false);
+    incoming = [...incoming, "2026-01-01T00:00:12Z"];
+    await render();
+    assert.equal(trajectory!.instant, "2026-01-01T00:00:08Z");
+    await act(async () => {
+      trajectory!.latest();
+    });
+    assert.equal(trajectory!.instant, incoming.at(-1));
+    incoming = [first];
+    await render();
+    assert.equal((host.querySelector("button") as HTMLButtonElement).disabled, true);
+    incoming = [];
+    await render();
+    assert.equal(trajectory!.instant, null);
+    assert.equal(host.querySelector('[data-slot="slider"]')?.getAttribute("aria-disabled"), "true");
+    assert.equal(useSummaryWindowStore.getState().windows, windows);
+    assert.equal(fetch.mock.calls.length, 0);
+  } finally {
+    await act(async () => {
+      root.unmount();
+    });
+    host.remove();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
 });

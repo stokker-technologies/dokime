@@ -111,6 +111,8 @@ type CartesianPlotProps = {
   xFormat?: ValueFormat | null;
   xLabel?: string;
   intervals?: boolean;
+  currentPosition?: boolean;
+  localViewport?: boolean;
   /**
    * The unit of an elapsed x axis, set when the plot's declared x column names
    * a duration. Its values are the duration itself, so the axis ticks as
@@ -228,6 +230,8 @@ export const CartesianPlot = memo(function CartesianPlot({
   viewportMode = "fit",
   legend = null,
   onViewportChange,
+  currentPosition = false,
+  localViewport = false,
 }: CartesianPlotProps) {
   const { zoom, syncKey } = usePlotInteraction();
   const [hiddenTraces, setHiddenTraces] = useState<ReadonlySet<string>>(EMPTY_TRACES);
@@ -238,11 +242,12 @@ export const CartesianPlot = memo(function CartesianPlot({
   hiddenTracesRef.current = hiddenTraces;
   const onViewportChangeRef = useRef(onViewportChange);
   const setSummaryWindow = useSummaryWindowStore((store) => store.setSummaryWindow);
-  onViewportChangeRef.current = onViewportChange ?? (!zoom && plotId ? (window) => setSummaryWindow(plotId, window) : undefined);
+  onViewportChangeRef.current =
+    onViewportChange ?? (!localViewport && !zoom && plotId ? (window) => setSummaryWindow(plotId, window) : undefined);
   useEffect(() => {
-    if (!plotId || zoom) return;
+    if (!plotId || zoom || localViewport) return;
     return () => setSummaryWindow(plotId, null);
-  }, [plotId, setSummaryWindow, zoom]);
+  }, [localViewport, plotId, setSummaryWindow, zoom]);
   const kinds = useMemo(() => markerKinds(markers, promptMarkers), [markers, promptMarkers]);
   const kindsRef = useRef(kinds);
   kindsRef.current = kinds;
@@ -500,13 +505,17 @@ export const CartesianPlot = memo(function CartesianPlot({
         /* `timeAxis` stays the windowing semantic — the live viewport follows
            it — while an elapsed axis only stops uPlot printing dates over
            values that were never epoch seconds. */
-        x: { time: timeAxis && !xElapsedUnit, distr: xScale === "log" ? 3 : 1 },
+        x: {
+          time: timeAxis && !xElapsedUnit,
+          distr: xScale === "log" ? 3 : 1,
+          range: currentPosition ? (_plot, min, max) => paddedYRange(min, max, [], xScale) : undefined,
+        },
         y: {
           auto: true,
           distr: yScale === "log" ? 3 : 1,
           range: booleanAxis
             ? () => [-0.1, 1.1]
-            : yReferenceValues.length || intervals
+            : yReferenceValues.length || intervals || currentPosition
               ? (_plot, dataMin, dataMax) =>
                   paddedYRange(
                     dataMin,
@@ -569,7 +578,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           width: lineWidth,
           points: faceted ? { show: false } : pointMarks[index],
           paths: faceted
-            ? facetedSeriesPaths(style, pointMarks[index], seriesColor(index))
+            ? facetedSeriesPaths(style, pointMarks[index], seriesColor(index), currentPosition)
             : style === "step"
               ? uPlotConstructor.paths.stepped?.({ align: 1 })
               : undefined,
@@ -691,6 +700,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     laidOut,
     zoom,
     densePoints,
+    currentPosition,
     style,
     timeAxis,
     booleanAxis,
@@ -1336,7 +1346,13 @@ export function cursorPointOptions(marks: readonly PointMarks[]): uPlot.Cursor.P
   };
 }
 
-export function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, color: string): uPlot.Series.PathBuilder {
+export function facetedSeriesPaths(
+  style: DocumentPlotStyle,
+  marks: PointMarks,
+  color: string,
+  currentPosition = false,
+  localViewport = false,
+): uPlot.Series.PathBuilder {
   return (plot, seriesIdx) => {
     const data = facetedSeriesData(plot, seriesIdx);
     if (!data) {
@@ -1352,6 +1368,7 @@ export function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, 
     const points = new Path2D();
     let lineStarted = false;
     let previousTop: number | null = null;
+    let position: [number, number] | null = null;
 
     ctx.save();
     ctx.beginPath();
@@ -1373,6 +1390,7 @@ export function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, 
         previousTop = null;
         continue;
       }
+      position = [left, top];
       if (line) {
         if (!lineStarted) {
           line.moveTo(left, top);
@@ -1403,6 +1421,13 @@ export function facetedSeriesPaths(style: DocumentPlotStyle, marks: PointMarks, 
     ctx.strokeStyle = marks.stroke;
     ctx.lineWidth = marks.width * pixelRatio;
     ctx.stroke(points);
+    if (currentPosition && position) {
+      ctx.beginPath();
+      ctx.arc(position[0], position[1], radius * 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.stroke();
+    }
     ctx.restore();
     return null;
   };

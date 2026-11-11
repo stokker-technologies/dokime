@@ -218,7 +218,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
         await command("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...from });
         await command("Input.dispatchMouseEvent", { type: "mouseMoved", buttons: 1, ...to });
         await command("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...to });
-        await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+        await evaluate(`(async () => { for(let i=0;i<8;i++) await new Promise(requestAnimationFrame); })()`);
         assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('tbody tr')).map(row => row.cells[3].textContent)`), [
           "10",
           "10",
@@ -236,7 +236,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
           for (const y of [area.y + 1, area.y + area.height - 1]) {
             await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: area.x + (area.width * index) / 19, y });
             const result = await evaluate(`(async () => {
-              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              await (async () => { for(let i=0;i<8;i++) await new Promise(requestAnimationFrame); })();
               const tooltip = document.querySelector('[role="tooltip"]');
               if (!tooltip) return null;
               const box = tooltip.getBoundingClientRect();
@@ -257,6 +257,44 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
           }
         }
       }
+    }
+    await command("Network.enable", {});
+    await command("Network.emulateNetworkConditions", { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
+    for (const frozen of [false, true]) {
+      await evaluate(`window.canvasFixture.playback(${frozen})`);
+      assert.deepEqual(
+        await evaluate(`(() => [...document.querySelectorAll('[role="slider"]')].map(node => node.getAttribute('aria-valuenow')))()`),
+        ["2", "2"],
+      );
+      await evaluate(
+        `(() => { const slider = document.querySelector('[aria-label="Trajectory Instant"][role="slider"]'); slider.dispatchEvent(new KeyboardEvent('keydown', {key:'Home',code:'Home',bubbles:true})); })()`,
+      );
+      await evaluate(`(async () => { for(let i=0;i<8;i++) await new Promise(requestAnimationFrame); })()`);
+      assert.deepEqual(
+        await evaluate(`(() => [...document.querySelectorAll('[role="slider"]')].map(node => node.getAttribute('aria-valuenow')))()`),
+        ["0", "2"],
+      );
+      assert.equal(
+        await evaluate(`document.querySelector('[data-trajectory-instant]').getAttribute('data-trajectory-instant')`),
+        "2026-01-01T00:00:00Z",
+      );
+      assert.equal(await evaluate(`document.querySelector('[data-cell]').textContent`), "2");
+      const track = await evaluate(
+        `(() => { const card = document.querySelector('[data-trajectory-instant]'); return {canvas:card.querySelectorAll('canvas').length, points:window.canvasFixture.counts()[0]}; })()`,
+      );
+      assert.deepEqual(track, { canvas: 1, points: 1 });
+      // A Real Pointer Drag Selects This Grid Without Moving The Trajectory.
+      const rect = (await evaluate(
+        `(() => {const slider=document.querySelector('[aria-label="Grid Instant"][data-slot="slider"]');slider.scrollIntoView({block:"center"});const box=slider.getBoundingClientRect();return {x:box.left+box.width*0.5,y:box.top+box.height*0.5};})()`,
+      )) as { x: number; y: number };
+      await command("Input.dispatchMouseEvent", { type: "mousePressed", x: rect.x, y: rect.y, button: "left", clickCount: 1 });
+      await command("Input.dispatchMouseEvent", { type: "mouseReleased", x: rect.x, y: rect.y, button: "left", clickCount: 1 });
+      await evaluate(`(async () => { for(let i=0;i<8;i++) await new Promise(requestAnimationFrame); })()`);
+      assert.deepEqual(
+        await evaluate(`(() => [...document.querySelectorAll('[role="slider"]')].map(node => node.getAttribute('aria-valuenow')))()`),
+        ["0", "1"],
+      );
+      assert.equal(await evaluate(`document.querySelector('[data-cell]').textContent`), "1");
     }
     // Summary Marks Must Have Painted Area In Both Themes And Densities.
     for (const dark of [false, true]) {

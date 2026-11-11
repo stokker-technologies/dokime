@@ -18,8 +18,8 @@
 
 ## 4. Shared Playback Control
 
-- [ ] 4.1 Extract the occupancy slider and follow-latest behavior into one shared control; add Play/Pause/Replay and plot-local selection for trajectory and grid with keyboard and pointer support.
-- [ ] 4.2 Prove seek/play/pause/replay issue no data requests, handle empty/single/multiple instants and live arrivals, and leave other plots' cursors and selections unchanged.
+- [x] 4.1 Extract the occupancy slider and follow-latest behavior into one shared control; add Play/Pause/Replay and plot-local selection for trajectory and grid with keyboard and pointer support.
+- [x] 4.2 Prove seek/play/pause/replay issue no data requests, handle empty/single/multiple instants and live arrivals, and leave other plots' cursors and selections unchanged.
 
 ## 5. Report
 

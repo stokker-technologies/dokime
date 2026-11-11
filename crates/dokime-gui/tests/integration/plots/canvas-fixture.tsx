@@ -27,6 +27,9 @@ import { HistogramChart } from "@/components/HistogramChart";
 import { PiePlot } from "@/plots/catalog/PiePlot";
 import { BarPlot } from "@/plots/catalog/BarPlot";
 import { BoxPlot } from "@/plots/catalog/BoxPlot";
+import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
+import { documentPlotSpec } from "@/plots/grouping";
+import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
 import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
 import type { PlotCardSpec } from "@/plots/types";
 import "@/styles.css";
@@ -44,6 +47,7 @@ declare global {
       counts: () => number[];
       toggle: (index: number) => Promise<void>;
       summaries: (dark: boolean, touch: boolean) => Promise<void>;
+      playback: (frozen: boolean) => Promise<void>;
     };
   }
 }
@@ -94,6 +98,62 @@ function startCanvasFixture() {
   };
 
   window.canvasFixture = {
+    async playback(frozen) {
+      const instants = ["2026-01-01T00:00:00Z", "2026-01-01T00:00:02Z", "2026-01-01T00:00:09Z"];
+      const declaration = {
+        plot_id: "track",
+        title: "Trajectory",
+        stream: "readings",
+        plot_type: "trajectory",
+        x: "x",
+        y: ["y"],
+      } as DocumentViewPlot;
+      const payload: PlotPayload = {
+        stream: "readings",
+        x_key: "x",
+        max_points: 100,
+        generated_at: instants[2],
+        series: [
+          {
+            key: "track",
+            label: "Track",
+            raw_points: 3,
+            downsampled: false,
+            points: instants.map((instant, i) => ({ x: i % 2, y: i, instant })),
+          },
+        ],
+      };
+      const trajectory = documentPlotSpec({ plot: declaration, payload });
+      const grid = documentPlotSpec({
+        plot: { ...declaration, plot_id: "grid", title: "Grid", plot_type: "grid_chart" },
+        payload: {
+          ...payload,
+          series: [],
+          analysis: {
+            kind: "grid_chart",
+            data: {
+              rows: [{ key: "sensor", label: "Sensor", order: 0 }],
+              columns: [{ key: "site", label: "Site", order: 0 }],
+              frames: instants.map((instant, i) => ({ instant, values: [i], valid: [true], highlights: [] })),
+              summary_label: "Readings",
+            },
+          },
+        },
+      });
+      root.render(
+        createElement(
+          PlotInteractionProvider,
+          { zoom: frozen },
+          createElement(
+            "div",
+            null,
+            createElement(TrajectoryPlot, { key: `trajectory:${frozen}`, plot: trajectory }),
+            createElement(GridChartPlot, { key: `grid:${frozen}`, plot: grid }),
+          ),
+        ),
+      );
+      await settled();
+    },
     async summaries(dark, touch) {
       document.documentElement.classList.toggle("dark", dark);
       document.documentElement.dataset.density = touch ? "touch" : "comfortable";

@@ -266,8 +266,7 @@ function plotCardClassName(plot: PlotCardSpec): string {
   if (plot.plotType === "grid_chart") {
     return `${baseClassName} min-h-0`;
   }
-  if (plot.plotType === "pie") return <PiePlot plot={plot} />;
-  if (plot.plotType === "bar") {
+  if (plot.plotType === "bar" || plot.plotType === "pie") {
     return `${baseClassName} min-h-0`;
   }
   return plotHasNumericSamples(plot) || isChartLikePlot(plot) ? `${baseClassName} min-h-72` : `${baseClassName} min-h-44`;
@@ -298,7 +297,7 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
     return <PlotPlaceholder title={plot.title} {...plotUnavailableText(plot.analysis.message)} />;
   }
   if (plot.plotType === "grid_chart") {
-    return <GridChartPlot plot={plot} />;
+    return <GridChartPlot key={plot.key} plot={plot} />;
   }
   if (plot.plotType === "contour") {
     return <ContourPlot plot={plot} />;
@@ -314,7 +313,7 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
     return <XyIntervalPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "trajectory") {
-    return <TrajectoryPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+    return <TrajectoryPlot key={plot.key} actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "frequency_series") {
     return <FrequencySeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
