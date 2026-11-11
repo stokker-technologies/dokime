@@ -1,0 +1,45 @@
+# Plot Refresh Scaling Tasks
+
+Implement after `plot-kinds` lands. Steps 1–7 run in order. Every step after 1
+records before/after desktop-harness results on native Windows and Linux with
+the same fixture and conditions; measurements belong in bench artifacts and
+Nightly `benchmarks.json`, not timing assertions or this task list.
+
+## 1. Desktop Round-Trip Benchmark First
+
+- [ ] 1.1 Confirm `plot-kinds` has landed and resolve the proposal's source inventory to the current operation/storage owners; lock implementation, protocol/bindings, GUI, benchmark, tests, removals and affected README/guidance paths without starting other changes.
+- [ ] 1.2 Add the desktop-owned system bench under `crates/dokime-gui/benches/system/`, reuse `e2e/native-desktop.mjs` and existing bench tasks/reporting, and retain `integration-plots`. Instrument backend query, encoding/transport/native bridge, protobuf decode, retained-frame update, canvas draw and presentation separately.
+- [ ] 1.3 Capture the baseline for 30/100 mixed plots over millions of sample rows and multi-day histories: cold/warm, live ingest, late samples, zoom, resize, navigation and stalled consumers on native Windows/Linux. Record stage p50/p95, first-visible/all-visible paint, CPU, peak memory, queue depth, bytes and frame misses into Nightly `benchmarks.json`; record refusals and missing stages explicitly, never infer paint from snapshot arrival.
+
+## 2. Plot-Local Changes and Visible Scheduling
+
+- [ ] 2.1 Implement plot-local viewport/width/settings updates and resize debounce; prove one plot never restarts or requeries unaffected peers. Record before/after restart/query counts, cancelled work, zoom/resize latency and bytes using step 1.
+- [ ] 2.2 Implement bounded visible-first work, cancellation of off-screen live interests and fresh snapshots on timed reentry. Support 100 plots and beyond without count-dependent density, replacing grouped message/paint barriers with cut-tagged independent frames. Preserve manual All batches/cuts and refresh progress. Record first/all-visible paint, density at equal width, queue depth, navigation cleanup, CPU/memory and 30/100-plot bytes before/after.
+
+## 3. One Scoped Change Source
+
+- [ ] 3.1 Consolidate plot/card invalidation on Harmos progress/follow facilities with scope, stream/schema or record dependencies, time range and readable frontier; separate accepted-live and durable progress, remove superseded broadcasters and broad state/stream wakeups, and recover gaps through frontier comparison. Prove out-of-scope, unselected-field and filter-excluded samples do not requery unaffected plots. Record wakeups, irrelevant queries, coalescing and CPU before/after.
+- [ ] 3.2 Refresh affected visible cards from saved telemetry without a state transition, preserving prior content and frozen report cuts. Prove late samples, schema/record changes, sealing, reconnect and another client's edit; record sample-to-card freshness, refetch counts and frontier recovery latency before/after.
+
+## 4. Coarser Preview Resolutions
+
+- [ ] 4.1 Extend the existing preview owner with coarser stored resolutions, snapshot-consistent coverage and late-update replacement; prove raw parity at fixed cuts, partial edges, uncovered ranges and older cuts after newer writes. Preserve explicit telemetry bucket intervals. Record six-hour/three-day p50/p95, buckets decoded, raw rows/bytes read, ingest throughput/cost and memory before/after.
+
+## 5. Measured Refresh Policy by Kind
+
+- [ ] 5.1 Compare invalidation/refetch with pushed updates for every landed kind plus aggregates/statistics. Default cheap bounded frequency/XY/trajectory/contour/grid/aggregate/statistics results to visible-window refetch; keep time-series bucket deltas only where measured bandwidth justifies them. Record each kind's decision, CPU, bytes, update p50/p95, retained state/queue depth and complexity before/after, including late samples and reconnect. Preserve loaded-data-only playback and exact failures; remove superseded paths and redundant tests.
+
+## 6. Shared Canonical Query Work
+
+- [ ] 6.1 Share in-flight and reusable results by canonical query and identical readable cut across watches/clients, with bounded eviction, independent cancellation and per-client backpressure. Prove two clients cause one computation, cut/scope differences remain isolated, and a stalled/cancelled client cannot delay another. Record query counts, hit/eviction rates, memory, CPU, bytes and fast-client p50/p95 for 1/5/20 clients before/after.
+
+## 7. Statistics and Bounded Fallback Reduction
+
+- [ ] 7.1 Coalesce statistics only for affected visible plots independently of drawing. Prove unchanged/off-screen plots issue no statistics work and drawing never awaits it. Record statistics query counts, exact-median cost, summary age and drawing interference before/after.
+- [ ] 7.2 Remove full-selection collection from spilled/stored fallback frame projections, using bounded streaming reducers and admitted exact spill where needed; migrate consumers and remove superseded collection paths. Prove exact raw parity, typed exhaustion and cancellation. Record peak memory versus increasing selected rows at fixed frame/buffer budgets, spill bytes, query p50/p95 and cancellation latency before/after.
+- [ ] 7.3 Update affected README, product/query/tooling guidance and benchmark documentation for landed behavior; reconcile protocol/generated consumers and removals. Use step 1's final per-kind stage measurements to verify documented performance claims rather than introducing prose assertions.
+
+## 8. Final Validation and Delivery
+
+- [ ] 8.1 After all source items and targeted proof close, strictly validate all affected OpenSpec changes and run configured focused plot/card/query/GUI checks through project tasks; keep deterministic correctness proof separate from measured timing/resource observations.
+- [ ] 8.2 After authorized delivery, obtain native Windows/Linux hosted and Nightly proof of the complete 30/100-plot matrix and `benchmarks.json`; compare every step with baseline, report regressions, failures and pending evidence, and repair affected source before claiming completion.
