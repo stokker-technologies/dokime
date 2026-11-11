@@ -50,6 +50,7 @@ pub use definition::FilterOperator;
 pub use definition::FrequencyLevelUnit;
 pub use definition::HistogramOptions;
 pub use definition::Plot;
+pub use definition::{Reduction, ContourRender};
 pub use definition::PlotAxisKind;
 pub use definition::PlotDefinition;
 pub use definition::PlotDescriptor;

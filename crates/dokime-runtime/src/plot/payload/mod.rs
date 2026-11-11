@@ -12,6 +12,7 @@
 pub(super) mod analyses;
 pub(crate) mod builtins;
 mod cartesian;
+mod contour;
 mod groups;
 
 #[cfg(feature = "storage")]
@@ -249,6 +250,11 @@ pub fn declared_plot_request(
     descriptor: &PlotDescriptor, scope: Option<RecordScope>, max_points: Option<usize>, window_s: Option<f64>,
 ) -> PlotPayloadRequest {
     PlotPayloadRequest {
+        reduction: descriptor.input.reduction,
+        render: descriptor.input.render,
+        y_viewport: None,
+        panel_height: None,
+
         analysis: descriptor.input.analysis.clone(),
         plot_id: Some(descriptor.plot_id.to_string()),
         plot_type: Some(descriptor.plot_type.clone()),

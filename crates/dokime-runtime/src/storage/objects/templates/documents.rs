@@ -328,6 +328,12 @@ pub struct Filter {
 #[serde(deny_unknown_fields)]
 pub(super) struct Plot {
     #[serde(default)]
+    reduction: Option<crate::document::Reduction>,
+
+    #[serde(default)]
+    render: crate::document::ContourRender,
+
+    #[serde(default)]
     metadata: Option<metadata::Row>,
 
     #[serde(default)]
@@ -1001,6 +1007,8 @@ impl TryFrom<&crate::document::PlotDefinition> for Plot {
         Ok(Self {
             metadata: Some(metadata::Row::try_from(&value.metadata)?),
             plot_type: name(&value.plot_type),
+            reduction: value.reduction,
+            render: value.render,
             stream: value.stream.as_deref().map(str::to_owned),
             x: value.x.as_deref().map(str::to_owned),
             y: super::copied_strings(&value.y)?,
@@ -1066,6 +1074,8 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
         }
         Ok(Self {
             automatic_id: false,
+            reduction: row.reduction,
+            render: row.render,
             metadata: row.metadata.ok_or(Error::Invalid("plot metadata is missing"))?.try_into()?,
             plot_type: parse(&row.plot_type, "invalid plot type")?,
             stream: row.stream,

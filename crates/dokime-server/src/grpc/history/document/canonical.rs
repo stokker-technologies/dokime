@@ -89,6 +89,11 @@ pub(in crate::grpc) fn historical_plot(
     value: &dokime::document::PlotDefinition, scope: &dokime::domain::model::execution::RecordScope,
 ) -> Result<dokime::domain::model::documents::wire::DocumentPlotDefinition, Status> {
     let request = dokime::domain::model::plots::wire::PlotRequest {
+        reduction: value.reduction,
+        render: value.render,
+        y_viewport: None,
+        panel_height: None,
+
         analysis: value.analysis.as_ref().map(analysis_selection).transpose()?,
         plot_id: Some(value.metadata.identifier.as_str().to_owned()),
         plot_type: enums::plot_type(&value.plot_type),

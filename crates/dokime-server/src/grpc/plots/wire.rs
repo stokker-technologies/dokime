@@ -252,6 +252,11 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime::domain::mod
     let y_keys = request.y_keys.to_vec();
     let marker_record_types = request.marker_record_types.to_vec();
     Ok(dokime::domain::model::plots::wire::PlotRequest {
+        reduction: request.reduction,
+        render: request.render,
+        y_viewport: request.y_viewport.map(|w| dokime::domain::model::plots::wire::PlotWindow { from: w.from, to: w.to }),
+        panel_height: request.panel_height,
+
         analysis: request.analysis.as_ref().map(super::analysis::selection_wire).transpose()?,
         plot_id: request.plot_id.clone(),
         plot_type: request.plot_type.as_ref().map_or(dokime::domain::model::plots::wire::PlotType::Unspecified, enums::plot_type),
@@ -492,6 +497,7 @@ fn plot_analysis(value: dokime::runtime::query::PlotAnalysis) -> Result<dokime::
     let count = |value| u64::try_from(value).map_err(|_| Status::internal("analysis count does not fit wire"));
     let number = |value| finite_number(value, "plot analysis number");
     let result = match value {
+        PlotAnalysis::Contour { grid } => Analysis::Contour(grid),
         PlotAnalysis::Error { message } => Analysis::Error(wire::PlotAnalysisError { message }),
         PlotAnalysis::Histogram { series } => Analysis::Histogram(wire::PlotHistogramAnalysis {
             series: mapped(series, |series| {

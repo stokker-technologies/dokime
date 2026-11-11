@@ -95,6 +95,15 @@ pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest
             keep
         });
     }
+    if request.plot_type == Some(PlotType::Contour) {
+        payload.analysis = Some(match super::contour::bin(&payload.series, request) {
+            Ok(grid) => super::PlotAnalysis::Contour { grid },
+            Err(message) => super::PlotAnalysis::Error { message },
+        });
+        payload.series.clear();
+        payload.cartesian = None;
+        return Ok(payload);
+    }
     let spectrum = matches!(request.plot_type, Some(PlotType::FrequencySeries));
     let timed = request.panel_width.filter(|_| {
         payload.max_points > 0

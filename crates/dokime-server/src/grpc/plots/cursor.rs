@@ -146,8 +146,19 @@ fn plot_request(request: dokime::domain::model::plots::wire::PlotRequest) -> Res
     if request.panel_width == Some(0) || request.panel_width.is_some_and(|width| u64::from(width) > SERVER_PLOT_POINTS / 4) {
         return Err(Status::invalid_argument("plot panel_width exceeds the display budget or is zero"));
     }
+    if request.panel_height == Some(0) || request.panel_height.is_some_and(|height| height > 512) {
+        return Err(Status::invalid_argument("contour panel_height must be between 1 and 512"));
+    }
+    if request.y_viewport.as_ref().is_some_and(|window| !window.from.is_finite() || !window.to.is_finite() || window.from >= window.to) {
+        return Err(Status::invalid_argument("contour y_viewport must be a finite range with from < to"));
+    }
 
     Ok(PlotPayloadRequest {
+        reduction: request.reduction,
+        render: request.render,
+        y_viewport: request.y_viewport.map(|w| PlotWindow { from: w.from, to: w.to }),
+        panel_height: request.panel_height,
+
         analysis: request.analysis.map(super::analysis::selection).transpose()?,
         plot_id: request.plot_id,
         plot_type,

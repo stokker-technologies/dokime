@@ -227,6 +227,12 @@ pub struct TelemetrySummaryCondition {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlotDefinition {
+    #[serde(default)]
+    pub reduction: Option<Reduction>,
+
+    #[serde(default)]
+    pub render: ContourRender,
+
     #[serde(skip)]
     pub automatic_id: bool,
 
@@ -414,6 +420,12 @@ pub struct PlotDescriptor {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlotInput {
+    #[serde(default)]
+    pub reduction: Option<Reduction>,
+
+    #[serde(default)]
+    pub render: ContourRender,
+
     pub plot_id: Identifier,
     pub scope: RecordScope,
     pub plot_type: PlotType,
@@ -607,6 +619,28 @@ pub enum PlotType {
     Histogram,
     BoxSummary,
     AggregateTable,
+    Contour,
+    GridChart,
+    BoxPlot,
+}
+
+#[harmos::message]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Reduction {
+    #[default]
+    Mean,
+    Min,
+    Max,
+}
+
+#[harmos::message]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContourRender {
+    #[default]
+    Cells,
+    Bands,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1614,6 +1648,8 @@ impl PlotAxisKind {
 impl PartialEq for PlotDefinition {
     fn eq(&self, other: &Self) -> bool {
         let Self {
+            reduction,
+            render,
             automatic_id: _,
             metadata,
             plot_type,
@@ -1646,7 +1682,9 @@ impl PartialEq for PlotDefinition {
             display_points,
             downsample,
         } = self;
-        metadata == &other.metadata
+        reduction == &other.reduction
+            && render == &other.render
+            && metadata == &other.metadata
             && plot_type == &other.plot_type
             && stream == &other.stream
             && x == &other.x
@@ -1685,6 +1723,8 @@ impl PlotDefinition {
         let identifier = identifier_from_label(&label);
 
         Self {
+            reduction: None,
+            render: ContourRender::Cells,
             automatic_id: true,
             metadata: Metadata::new(identifier, label, None),
             plot_type,
@@ -2031,6 +2071,9 @@ pub(crate) fn plot_type_label(plot_type: &PlotType) -> &'static str {
         PlotType::Histogram => "histogram",
         PlotType::BoxSummary => "box_summary",
         PlotType::AggregateTable => "aggregate_table",
+        PlotType::Contour => "contour",
+        PlotType::GridChart => "grid_chart",
+        PlotType::BoxPlot => "box_plot",
     }
 }
 
@@ -2116,15 +2159,16 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
             validate_xy_axes(plot, error)?
         }
         PlotType::Trajectory => validate_xy_axes(plot, error)?,
-        PlotType::Heatmap | PlotType::XyValueHeatmap => {
+        PlotType::Contour | PlotType::Heatmap | PlotType::XyValueHeatmap => {
             validate_xy_axes(plot, error)?;
             if plot.z_field.as_ref().is_none_or(|field| field.is_empty()) && plot.z_expression.is_none() {
                 return Err(error(format_args!("{} plots must declare a z field or z expression", plot_type_label(&plot.plot_type))));
             }
         }
         PlotType::WifiChannelOccupancy => validate_wifi_channel_occupancy(plot, error)?,
+        PlotType::GridChart => {},
         PlotType::Histogram => validate_histogram_axes(plot, error)?,
-        PlotType::BoxSummary | PlotType::Pie | PlotType::Donut => {
+        PlotType::BoxPlot | PlotType::BoxSummary | PlotType::Pie | PlotType::Donut => {
             if plot.y.len() != 1 && plot.y_expressions.len() != 1 {
                 return Err(error(format_args!(
                     "{} plots must declare exactly one y field or y expression",

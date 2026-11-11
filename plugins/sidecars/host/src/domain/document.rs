@@ -274,6 +274,8 @@ fn plot_card(plot: PlotDefinition) -> DocumentCard {
 
 fn plot(spec: HostPlotSpec<'_>) -> PlotDefinition {
     PlotDefinition {
+        reduction: None,
+        render: Default::default(),
         automatic_id: false,
         metadata: metadata(spec.identifier, spec.label, spec.description),
         plot_type: spec.plot_type,

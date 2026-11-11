@@ -54,6 +54,9 @@ pub fn plot_input_for_definition(
     let stream = plot.stream.as_ref().map(|stream| resolved_plot_stream(stream, &available_streams));
 
     PlotInput {
+        reduction: plot.reduction,
+        render: plot.render,
+
         plot_id: plot.metadata.identifier.clone(),
         scope: selection.scope.clone(),
         plot_type: plot.plot_type.clone(),

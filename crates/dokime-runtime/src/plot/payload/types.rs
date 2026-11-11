@@ -41,6 +41,18 @@ use dokime_domain::model::values::ValueFormat;
 #[serde(rename_all = "snake_case")]
 pub struct PlotPayloadRequest {
     #[serde(default)]
+    pub reduction: Option<crate::document::Reduction>,
+
+    #[serde(default)]
+    pub render: crate::document::ContourRender,
+
+    #[serde(default)]
+    pub y_viewport: Option<PlotWindow>,
+
+    #[serde(default)]
+    pub panel_height: Option<u32>,
+
+    #[serde(default)]
     pub analysis: Option<crate::analysis::Selection>,
 
     #[serde(default)]

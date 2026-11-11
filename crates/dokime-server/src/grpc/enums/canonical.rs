@@ -55,6 +55,9 @@ encode!(plot_type: PlotType -> dokime::domain::model::plots::wire::PlotType {
     Histogram,
     BoxSummary,
     AggregateTable,
+    Contour,
+    GridChart,
+    BoxPlot,
 });
 
 encode!(axis_scale: AxisScale -> dokime::domain::model::plots::wire::AxisScale {
@@ -151,6 +154,9 @@ pub(in crate::grpc) fn plot_type_from_wire(value: dokime::domain::model::plots::
         dokime::domain::model::plots::wire::PlotType::Histogram => Some(PlotType::Histogram),
         dokime::domain::model::plots::wire::PlotType::BoxSummary => Some(PlotType::BoxSummary),
         dokime::domain::model::plots::wire::PlotType::AggregateTable => Some(PlotType::AggregateTable),
+        dokime::domain::model::plots::wire::PlotType::Contour => Some(PlotType::Contour),
+        dokime::domain::model::plots::wire::PlotType::GridChart => Some(PlotType::GridChart),
+        dokime::domain::model::plots::wire::PlotType::BoxPlot => Some(PlotType::BoxPlot),
     })
 }
 

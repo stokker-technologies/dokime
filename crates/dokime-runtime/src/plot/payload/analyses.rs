@@ -128,6 +128,7 @@ pub struct WifiBandWindow {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PlotAnalysis {
+    Contour { grid: dokime_domain::model::plots::wire::ContourGrid },
     Error { message: String },
     Histogram { series: Vec<HistogramSeries> },
     BoxSummary { series: Vec<BoxSummary>, total: usize },

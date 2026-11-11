@@ -45,6 +45,10 @@ pub struct PlotSnapshotsReply {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotRequest {
+    pub reduction: Option<crate::model::document::Reduction>,
+    pub render: crate::model::document::ContourRender,
+    pub y_viewport: Option<PlotWindow>,
+    pub panel_height: Option<u32>,
     pub plot_id: Option<String>,
     pub plot_type: PlotType,
     pub style: crate::model::documents::wire::PlotStyle,
@@ -185,6 +189,17 @@ pub struct PlotStreamFrame {
 pub struct PlotStreamUpdate {
     pub kind: PlotStreamKind,
     pub envelope: Option<PlotEnvelope>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContourGrid {
+    pub columns: u32,
+    pub rows: u32,
+    pub x_edges: Vec<f64>,
+    pub y_edges: Vec<f64>,
+    pub values: Vec<f64>,
+    pub valid: Vec<bool>,
 }
 
 #[harmos::message]
@@ -600,6 +615,9 @@ pub enum PlotType {
     Histogram,
     BoxSummary,
     AggregateTable,
+    Contour,
+    GridChart,
+    BoxPlot,
 }
 
 #[harmos::message]
@@ -691,6 +709,7 @@ pub enum DataTransformKind {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlotAnalysisResult {
+    Contour(ContourGrid),
     Histogram(PlotHistogramAnalysis),
     BoxSummary(PlotBoxSummaryAnalysis),
     SigmaInterval(PlotSigmaIntervalAnalysis),
