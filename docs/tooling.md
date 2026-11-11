@@ -25,6 +25,12 @@ generated drift; `--language` limits language checks. `--repository`, `--binding
 compilation do not run Clippy or scan compiler output. For custom compiler
 arguments use `mise exec -- cargo <operation> <arguments>`.
 
+`.stkr/project.toml` contains only company source policy. Project recipes read
+`tools/project.toml` for release metadata, packaging, language roots and test policy.
+`mise.toml` and `mise.lock` pin tools, including Minisign and protoc;
+`rust-toolchain.toml` declares Rust components and the WebAssembly target.
+Starters and binding generation remain owned by the project tooling.
+
 Mise is the public entry point. Python modules in `tools/python/src/dokime_tools/`
 own environment setup, synchronization, version metadata, binding generation,
 frontend preparation, native packaging, CI and

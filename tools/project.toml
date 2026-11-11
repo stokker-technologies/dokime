@@ -16,7 +16,6 @@ roots = ["tools/python", "sdk/python"]
 [languages.rust]
 exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
 roots = ["crates", "plugins", "sdk/python"]
-targets = ["wasm32-unknown-unknown"]
 
 [languages.typescript]
 exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri", "crates/dokime-gui/src/routeTree.gen.ts"]
