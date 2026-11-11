@@ -38,6 +38,7 @@ use dokime_domain::model::{execution::RecordScope, identity::Identifier, time::T
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn records(count: u64) {
     let (cancel, _) = tokio::sync::watch::channel(false);
     let mut state = super::ExecutionState::new(Default::default(), cancel);
@@ -141,6 +142,7 @@ pub fn stream(count: u64) {
         assert_eq!(receipt.row.read().unwrap().sample_id.as_str(), receipt.sample_id);
     }
 }
+
 /* === Private Functions === */
 
 /* === Tests === */

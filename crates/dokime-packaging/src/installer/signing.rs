@@ -43,6 +43,19 @@ use crate::Error;
 
 /* === Public Functions === */
 
+pub(crate) fn authenticode(path: &Path) -> Result<bool, Error> {
+    let provider = std::env::var("DOKIME_AUTHENTICODE_PROVIDER").ok();
+    authenticode_with_provider(path, provider.as_deref())
+}
+
+pub(crate) fn authenticode_enabled(provider: Option<&str>) -> Result<bool, Error> {
+    match provider {
+        None | Some("" | "none") => Ok(false),
+        Some("azure" | "pfx") => Ok(true),
+        Some(_) => Err(Error::Invalid("DOKIME_AUTHENTICODE_PROVIDER must be azure, pfx or none".into())),
+    }
+}
+
 pub fn updater(manifest: &Manifest, distribution: &Distribution, package: &Path, output: &Path) -> Result<(), Error> {
     let Some(settings) = manifest.signing.as_ref().and_then(|s| s.updater.as_ref()) else {
         return Ok(());
@@ -172,4 +185,50 @@ pub(crate) fn verify_rpm_signature(package: &Path) -> Result<(), Error> {
 
 /* === Private Functions === */
 
+fn authenticode_with_provider(path: &Path, provider: Option<&str>) -> Result<bool, Error> {
+    if !authenticode_enabled(provider)? {
+        eprintln!("Authenticode skipped: no Windows signing provider configured.");
+        return Ok(false);
+    }
+    if !cfg!(windows) {
+        return Err(Error::Invalid("Authenticode requires native Windows".into()));
+    }
+    let scratch = tempfile::tempdir()?;
+    let script = scratch.path().join("authenticode.ps1");
+    std::fs::write(&script, include_str!("authenticode.ps1"))?;
+    let status = dokime::domain::process::command("pwsh")
+        .args(["-NoProfile", "-NonInteractive", "-File"])
+        .arg(&script)
+        .args(["-Operation", "Sign", "-Path"])
+        .arg(path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .status()?;
+    if !status.success() {
+        return Err(Error::Invalid(format!("Authenticode signing or verification failed: {status}")));
+    }
+    scratch.close()?;
+    Ok(true)
+}
+
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn skipped_authenticode_never_opens_the_input() {
+        for provider in [None, Some(""), Some("none")] {
+            assert!(!authenticode_with_provider(Path::new("absent-installer.exe"), provider).unwrap());
+        }
+        assert!(authenticode_with_provider(Path::new("absent-installer.exe"), Some("unknown")).is_err());
+    }
+
+    #[test]
+    fn authenticode_provider_selection() {
+        for provider in ["azure", "pfx"] {
+            assert!(authenticode_enabled(Some(provider)).unwrap());
+        }
+    }
+}

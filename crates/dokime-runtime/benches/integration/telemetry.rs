@@ -35,6 +35,7 @@ use dokime_runtime::runtime::{
 use dokime_runtime::{Runtime, RuntimeHandle};
 
 /* === Constants === */
+
 const QUERY_ROWS: usize = 1_000_000;
 const WRITE_ROWS: usize = 1_024;
 const CLOSE_ROWS: usize = 65_536;
@@ -45,6 +46,7 @@ const EXPORT_ROWS: u32 = 16_384;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Fixture {
     owner: Runtime,
     runtime: RuntimeHandle,
@@ -61,6 +63,7 @@ struct ExportFixture {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Fixture {
     async fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
@@ -168,6 +171,7 @@ impl ExportFixture {
 }
 
 /* === Public Functions === */
+
 pub fn benchmark(criterion: &mut Criterion) {
     let executor = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
     let mut group = criterion.benchmark_group("arrow_telemetry");

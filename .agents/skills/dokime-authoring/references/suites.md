@@ -47,26 +47,50 @@ Use the vocabulary in this order: initialize, steps, criteria, observers, cleanu
 
 Keep handles used only by steps in template state. Return observer-shared handles beside that state during initialize.
 
-## File Capture Readiness
+## File Capture
 
-After `ctx.operation(watch_request).start().await?` for `WatchFile`, await `watch.armed().await?` before starting the producer. Readiness means the baseline and capture were admitted; an accessible empty directory is a valid baseline for `All` and `New`. The streaming `FileWatch` API reports the same boundary through its `Armed` frame. Join or cancel the watcher within the owning step.
+Use `ctx.artifacts().import(path, name)` to keep one local file as it stands, and `CopyFiles` to copy a tree, the newest file of a folder or an FTP source once.
 
-Selection is independent of capture policy: `All` follows baseline files and arrivals, `Latest` selects the newest baseline file and follows its rotation, and `New` captures later discoveries from byte zero. Use `wait_for_source_seconds` only when an absent source is expected. Its deadline precedes the capture duration; cancellation, permission failures and invalid paths remain failures. An unavailable FTP root fails immediately because status 550 cannot distinguish absence from denied access.
+`StartCapture` returns once its baseline is taken, so start the producer after it. `StreamCapture` follows appended bytes and offers lines to matchers and markers; `MirrorCapture` keeps whole files, checked once per interval, with the interval from settings or parameters. `StopCapture` is an ordinary request that returns what sealed, and a repeat returns the same outcome. The execution owns the capture: another step may stop it, and one nothing stops seals when the execution ends.
+
+`FileSource::file` must exist at the start and `FileSource::newest` must match at the start; `FileSource::tree` over an accessible empty directory starts at once and captures later files from byte zero. Depth follows the rules. An unavailable FTP root fails immediately because status 550 cannot distinguish absence from denied access. Requests carry no limits: file and byte limits come from configuration.
 
 ## Layout
 
 Keep `suites/mod.rs` as the suite catalog and module declarations. Put each template in `suites/<suite>/<template>.rs`, with its suite declaration in `suites/<suite>/mod.rs`. Suite names carry no product prefix. Retain the repository skeleton and its section markers without an additional item-order rule.
+
+## Document Identity
+
+```rust
+let mut document = Document::new("Hold at Temperature");
+document.id("hold"); // Optional Stable Key Across Label Edits
+```
+
+Document identifiers derive from labels through the same normalization as
+traceability and sections. Validation refuses invalid or empty derived identifiers
+and colliding document keys in one registry, naming the labels and directing the
+author to set `.id(...)`. Each template declares one document; the runtime owns
+its internal `default` execution view and merges authored content into it.
+
+Python uses `document = dokime.Document("Hold at Temperature")` and the optional
+`document.id("hold")`, passed as `document=document` to `@dokime.template`.
 
 ## Step Traceability
 
 Traceability is dynamic execution content, contributed through the step context like documents. No template `traceability()` lifecycle method, `TraceabilityContext` or `TraceabilityFuture` exists.
 
 ```rust
-let mut section = TraceabilitySection::new("dut", "Device Under Test");
-let serial_number = TraceabilityRow::text("serial_number", "Serial Number", &identity.serial_number);
+let mut section = TraceabilitySection::new("Device Under Test");
+let serial_number = TraceabilityRow::text("Serial Number", &identity.serial_number);
 section.row(serial_number);
 ctx.traceability().section(section);
 ```
+
+Constructors derive IDs from labels with document normalization, for example
+`Serial Number` becomes `serial.number`. A variable and its response field share
+one name; the traceability ID is independent. Set `section.id("dut");` or
+`TraceabilityRow::text("Serial Number", value).id("serial_number")` when edits
+must keep their identity across label changes.
 
 A section identifier replaces the complete section; a row identifier replaces a row within an existing section. Replacing preserves order and unrelated sections/rows. Add a section before its rows. Missing sections, duplicate row identifiers and host-derived section names are refused and logged without changing captured content. Repeated edits in one delivery apply in order, with the last edit winning. The execution index, buffered evidence delivery, durable transactions and report projections follow the document path; do not introduce an alternate publisher or storage mechanism.
 

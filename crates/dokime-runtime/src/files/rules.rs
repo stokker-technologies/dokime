@@ -48,9 +48,6 @@ pub enum InvalidRule {
     #[error("a watch needs at least one include rule within its configured rule limit")]
     Count,
 
-    #[error("rule {index} must include or exclude")]
-    Action { index: usize },
-
     #[error("rule {index} glob must be nonempty, within its configured byte limit and without a leading '/'")]
     Shape { index: usize },
 
@@ -72,7 +69,6 @@ impl FileMatcher {
             let include = match rule.action {
                 FileRuleAction::Include => true,
                 FileRuleAction::Exclude => false,
-                FileRuleAction::Unspecified => return Err(InvalidRule::Action { index }),
             };
             if rule.glob.is_empty() || rule.glob.len() > MAX_GLOB_BYTES || rule.glob.starts_with('/') || rule.glob.contains('\\') {
                 return Err(InvalidRule::Shape { index });
@@ -168,17 +164,6 @@ mod tests {
     fn malformed_rules_refused() {
         assert_eq!(compile(&[]).unwrap_err(), InvalidRule::Count);
         assert_eq!(compile(&[exclude("**/*.log")]).unwrap_err(), InvalidRule::Count);
-        assert_eq!(
-            compile(&[
-                include("**"),
-                FileRule {
-                    glob: "*.log".into(),
-                    action: FileRuleAction::Unspecified
-                },
-            ])
-            .unwrap_err(),
-            InvalidRule::Action { index: 1 }
-        );
         for shape in ["", "/var/log/*.log", "logs\\*.log"] {
             assert_eq!(compile(&[include(shape)]).unwrap_err(), InvalidRule::Shape { index: 0 }, "{shape:?}");
         }

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Running captures (media recordings, file watches) per execution. Closing an
+// Running captures (media recordings, file captures) per execution. Closing an
 // execution's outputs first asks each of its captures to stop and seal, so a
 // capture becomes an artifact of that execution instead of outliving its
 // admission.

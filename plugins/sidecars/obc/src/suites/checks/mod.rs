@@ -14,7 +14,7 @@ pub mod pulse;
 
 /* === Re-Exports === */
 
-pub use pulse::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, Pulse, PulseRow, pulse_value};
+pub use pulse::{DEFAULT_SAMPLE_COUNT, DEFAULT_TOLERANCE, Row as PulseRow, Template as Pulse, pulse_value};
 
 /* === Imports === */
 
@@ -41,8 +41,8 @@ pub struct ObcChecks;
 
 #[dokime::catalog]
 pub enum Templates {
-    Pulse(pulse::Pulse),
-    CpuLoad(cpu_load::CpuLoad),
+    Pulse(pulse::Template),
+    CpuLoad(cpu_load::Template),
 }
 
 /* === Traits === */

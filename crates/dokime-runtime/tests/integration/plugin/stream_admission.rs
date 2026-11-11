@@ -12,7 +12,9 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+
 // Third Party Imports
 
 // Local Imports
@@ -22,6 +24,7 @@ use dokime_runtime::transport::{EvidenceBatch, RunExecution, StepAdmission};
 /* === Constants === */
 
 /* === Macros === */
+
 macro_rules! refused_template {
     ($template:ident, $id:literal, $handle:literal, $pending:literal) => {
         struct $template;
@@ -59,6 +62,7 @@ refused_template!(HandleReturn, "admission.handle_return", true, false);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::stream(id = "admission.reading", window = 4096, label = "Reading")]
 struct Reading {
     value: f64,
@@ -71,14 +75,15 @@ struct Declared;
 
 /* === Enums === */
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum DeclaredStreams {
     Reading(Reading),
     Secondary(Secondary),
 }
+
+/* === Traits === */
+
+/* === Implementations === */
 
 #[dokime_runtime::template(
     id = "admission.declared",
@@ -102,6 +107,7 @@ impl Declared {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 async fn run<T: SidecarTemplate + dokime_runtime::definition::DeclaredTemplate>()
 -> (Vec<EvidenceBatch>, Vec<dokime_runtime::telemetry::TelemetrySample>) {
     let engine = Workflow::<T>::new("admission.fixture", "admission_owner");

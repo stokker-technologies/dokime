@@ -34,7 +34,7 @@ media-native = ["dokime/media-native"]
 
 [dependencies]
 # Local
-dokime = { workspace = true, features = ["native", "fft", "diagnostics", "terminal", "client"] }
+dokime = { workspace = true, features = ["native", "fft", "ftp", "diagnostics", "terminal", "client"] }
 
 # Git
 
@@ -97,13 +97,13 @@ tonic-types = { workspace = true }
 dokime = { workspace = true }
 
 # Git
-harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Error Handling
 
 # Logging
 
 # Utilities
+harmos-packaging = { workspace = true, features = ["generate-proto"] }
 
 # Serialization
 serde_json = { workspace = true }
@@ -137,14 +137,14 @@ dokime-tracing = { workspace = true }
 plugin-host = { workspace = true }
 
 # Git
-harmos-packaging = { workspace = true }
-harmos-sdk = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 
 # Logging
 
 # Utilities
+harmos-packaging = { workspace = true }
+harmos-sdk = { workspace = true, features = ["grpc"] }
 keyring-core = { workspace = true }
 
 # Serialization

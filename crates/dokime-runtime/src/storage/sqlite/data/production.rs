@@ -68,9 +68,18 @@ impl Drop for RecoveryCancellation {
 }
 
 impl State {
-    pub(super) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
-        self.call(move |connection| {
-            let result = files::create_file(connection, &root, metadata, true);
+    pub(in crate::storage::sqlite) async fn production_create(&self, root: PathBuf, metadata: FileMetadata) -> Result<StagedFile, Error> {
+        let owner = self.0.owner.clone();
+        self.grouped(1, entry::check_size(&metadata, usize::MAX)?, move |connection| {
+            let result = (|| {
+                let staging = files::create_file(connection, &root, metadata, true)?;
+                if files::stored_metadata(connection, &staging.id)?.is_some_and(|(_, finished)| finished.is_none()) {
+                    let path = files::staging_path(connection, &root, &staging.id)?;
+                    let file = OpenOptions::new().read(true).write(true).open(path)?;
+                    owner.files.lock().unwrap().insert(staging.id.clone(), file);
+                }
+                Ok(staging)
+            })();
             Ok(result)
         })
         .await?
@@ -81,7 +90,7 @@ impl State {
             return Err(Error::Data("invalid producer generation transition"));
         }
 
-        self.call(move |connection| {
+        self.grouped(1, entry::check_size(&file, usize::MAX)?.saturating_add(16), move |connection| {
             let result = (|| {
                 let (generation, phase, _) = checkpoint(connection, &file)?.ok_or(Error::Data("unknown production"))?;
                 if phase != FilePhase::Producing || !matches!(generation, value if value == expected || value == next) {
@@ -97,16 +106,20 @@ impl State {
     }
 
     pub(super) async fn production_save(&self, root: PathBuf, requested: StorageBatch<FileCheckpoint>) -> Result<(), Error> {
-        self.call(move |connection| {
+        let owner = self.0.owner.clone();
+        let bytes = requested
+            .as_slice()
+            .iter()
+            .try_fold(0usize, |total, checkpoint| entry::check_size(checkpoint, usize::MAX).map(|bytes| total.saturating_add(bytes)))?;
+        self.grouped(requested.len(), bytes, move |connection| {
             Ok((|| {
-                for checkpoint in requested.as_slice() {
-                    entry::check_size(checkpoint, usize::MAX)?;
-                }
-                let transaction = connection.transaction()?;
+                let transaction = connection.savepoint()?;
+                let mut files = owner.files.lock().unwrap();
+                let mut publication = owner.publication.lock().unwrap();
                 for requested in requested.as_slice() {
-                    save_checkpoint(&transaction, &root, requested)?;
+                    save_checkpoint(&transaction, &root, requested, files.get_mut(&requested.session.id), &mut publication)?;
                 }
-                super::super::commit(transaction)?;
+                super::super::release(transaction)?;
                 Ok(())
             })())
         })
@@ -168,7 +181,10 @@ impl State {
                     let mut physical = OpenOptions::new().read(true).write(true).open(&path)?;
                     verify_prefix_cancellable(&mut physical, &value, None, Some(&cancelled))?;
                     physical.set_len(value.length)?;
+                    let started = std::time::Instant::now();
                     physical.sync_all()?;
+                    super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    super::super::FILE_SYNC_NS.fetch_add(started.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
                     drop(physical);
                     // Recovery Can Find a Creation Whose Caller Never Received Its
                     // Durable Name. Confirm That Name Before Returning Its Session.
@@ -223,6 +239,7 @@ impl State {
     }
 
     pub(super) async fn production_abandon(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
+        let owner = self.0.owner.clone();
         self.call(move |connection| {
             let result = (|| {
                 let current = progress(connection, &root, &file)?;
@@ -232,6 +249,7 @@ impl State {
                 let path = files::staging_path(connection, &root, &file.id)?;
                 files::confirm_durability(&path)?;
                 connection.execute("UPDATE storage_productions SET phase=2 WHERE id=?1", [file.id.as_str()])?;
+                owner.files.lock().unwrap().remove(&file.id);
                 Ok(())
             })();
             Ok(result)
@@ -240,7 +258,10 @@ impl State {
     }
 }
 
-fn save_checkpoint(connection: &Connection, root: &Path, requested: &FileCheckpoint) -> Result<(), Error> {
+fn save_checkpoint(
+    connection: &Connection, root: &Path, requested: &FileCheckpoint, retained: Option<&mut std::fs::File>,
+    publication: &mut super::super::publication::Publication,
+) -> Result<(), Error> {
     requested.sha256()?;
     let file = StagedFile {
         history: requested.session.history.clone(),
@@ -276,28 +297,42 @@ fn save_checkpoint(connection: &Connection, root: &Path, requested: &FileCheckpo
     }
     let path = files::staging_path(connection, root, &file.id)?;
     files::regular(&path)?;
-    let mut physical = OpenOptions::new().read(true).write(true).open(&path)?;
-    verify_prefix(&mut physical, requested, Some(&prior))?;
+    let mut opened;
+    let physical = if let Some(retained) = retained {
+        retained
+    } else {
+        opened = OpenOptions::new().read(true).write(true).open(&path)?;
+        &mut opened
+    };
+    verify_prefix_cancellable(physical, requested, Some(&prior), None)?;
     // The Identical Prefix Is Already Durable. Preserve Corruption Checks Without
     // Reflushing Every Other Active File On Each Checkpoint Batch.
     if requested == &prior {
         return Ok(());
     }
     let encoded = entry::encode(requested)?;
-    // Creation And Recovery Already Confirmed This Name. Flush The Appended
-    // Prefix Before Its Catalog Commit Without Republishing The Whole File.
+    // A First Nonempty Checkpoint Must Preserve The Name As Well As Its Bytes.
+    // The Group Confirms Each Touched Directory Once Before Catalog Commit.
+    if prior.length == 0 {
+        publication.touched(&path);
+    }
+    let started = std::time::Instant::now();
     physical.sync_all()?;
+    super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    super::super::FILE_SYNC_NS.fetch_add(started.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
     connection.execute("UPDATE storage_productions SET checkpoint=?1 WHERE id=?2", params![encoded, file.id.as_str()])?;
     Ok(())
 }
 
 impl State {
-    pub(super) async fn production_delete(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
+    pub(in crate::storage::sqlite) async fn production_delete(&self, root: PathBuf, file: StagedFile) -> Result<(), Error> {
+        let owner = self.0.owner.clone();
         self.call(move |connection| {
             let result = (|| {
             saved(connection)?.history.check(&file.history)?;
             let active: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_productions p JOIN storage_file_stages s ON p.id=s.id WHERE p.id=?1 AND p.phase=0 AND s.finished IS NULL)",[file.id.as_str()],|row|row.get(0))?;
             if active { return Err(Error::Conflict("active production cannot be deleted")); }
+            owner.files.lock().unwrap().remove(&file.id);
             let mut statement = connection.prepare("SELECT coalesce(finished,finish_intent) FROM storage_file_stages WHERE id=?1")?;
             let mut rows = statement.query([file.id.as_str()])?;
             let reference = if let Some(row) = rows.next()? {
@@ -311,7 +346,7 @@ impl State {
             };
             drop(rows);
             drop(statement);
-            let transaction = connection.transaction()?;
+            let transaction = connection.savepoint()?;
             transaction.execute("DELETE FROM artifacts WHERE file_id=?1", [file.id.as_str()])?;
             transaction.execute("DELETE FROM files WHERE id=?1 AND kind!='telemetry'", [file.id.as_str()])?;
             let added = transaction.execute("INSERT OR IGNORE INTO storage_deleted_files VALUES (?1)",[file.id.as_str()])?;
@@ -321,7 +356,7 @@ impl State {
                 head.retention_generation=head.retention_generation.checked_add(1).ok_or(Error::Data("retention generation exhausted"))?;
                 transaction.execute("UPDATE storage_data_head SET retention_generation=?1 WHERE singleton=1",params![position(head.retention_generation)])?;
             }
-            super::super::commit(transaction)?;
+            super::super::release(transaction)?;
             // Tombstones Fence New Reads Before Physical Reclamation. The
             // Serialized Owner Drains Every Previously Accepted Bounded Read.
             if let Some(reference)=reference
@@ -417,10 +452,6 @@ fn progress(connection: &Connection, root: &Path, file: &StagedFile) -> Result<F
     files::regular(&path)?;
     let length = std::fs::metadata(path)?.len();
     Ok(FileProgress { length, phase })
-}
-
-fn verify_prefix(file: &mut std::fs::File, checkpoint: &FileCheckpoint, previous: Option<&FileCheckpoint>) -> Result<(), Error> {
-    verify_prefix_cancellable(file, checkpoint, previous, None)
 }
 
 fn verify_prefix_cancellable(

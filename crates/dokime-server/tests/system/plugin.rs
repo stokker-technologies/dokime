@@ -902,13 +902,13 @@ async fn scene_steady_sweep(client: &Client, changes: &mut Changes) {
     let dut = traceability
         .snapshots
         .iter()
-        .find(|snapshot| snapshot.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "dut"))
+        .find(|snapshot| snapshot.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "device.under.test"))
         .expect("the steady template states the device it energized");
     assert_eq!(dut.metadata.as_ref().map(|metadata| metadata.label.as_str()), Some("Device Under Test"));
     let supply = dut
         .entries
         .iter()
-        .find(|entry| entry.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "nominal_voltage_rms_v"))
+        .find(|entry| entry.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "nominal.supply"))
         .expect("the stated section carries the DUT supply it read");
     assert_eq!(supply.unit.as_deref(), Some("V"));
     assert_eq!(supply.source.as_deref(), Some("traceability.template.device"));
@@ -1245,7 +1245,9 @@ async fn store() {
     assert!(!serves_startup(&client).await);
     let installation = install(&client, &bytes).await;
     let started = on_change(&mut changes, "the installed plugin starting", async || {
-        installations(&client).await.into_iter().find(|listed| listed.install_id == installation.install_id && listed.active)
+        installations(&client).await.into_iter().find(|listed| {
+            listed.install_id == installation.install_id && listed.active && listed.restart == model::settings::wire::PluginRestart::Idle
+        })
     })
     .await;
     assert_eq!(started.restart, model::settings::wire::PluginRestart::Idle);

@@ -22,7 +22,7 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use super::{LogPrefix, NativeOutput, error, open_file, validate_producer_path};
+use super::{LogPrefix, NativeOutput, error, validate_producer_path};
 use crate::{runtime::Result, runtime::storage::executions::ExecutionStorage};
 use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::identity::TestExecutionId;
@@ -192,8 +192,12 @@ impl ExecutionStorage {
             let Some(next) = next else {
                 return Err(error("native log prefix length overflows"));
             };
-            let file = open_file(output).await?.into_std().await;
+            // Append Through The Owner's Open Handle; Reopening Per Append Costs Milliseconds On Windows.
+            let file = output.file.as_file().try_clone().map_err(error)?;
+            let producer_path = output.file.path().to_path_buf();
             let write = move || -> Result<()> {
+                // The Producer-Facing Path Must Remain Present, As Freezing Reopens It.
+                std::fs::symlink_metadata(&producer_path).map_err(error)?;
                 for attempt in 0..3 {
                     let opened = file.try_clone().map_err(error)?;
                     #[cfg(any(test, feature = "fault-injection", feature = "testing"))]
@@ -320,30 +324,23 @@ fn active_log(output: &NativeOutput) -> Result<()> {
     }
 }
 
+#[cfg(feature = "testing")]
+impl crate::RuntimeHandle {
+    pub fn retry_log_append(file: std::fs::File, acknowledged: u64, bytes: Vec<u8>) -> std::io::Result<()> {
+        Append {
+            execution: TestExecutionId::from_seed("log.retry"),
+            path: "artifacts/execution.log".into(),
+            bytes,
+        }
+        .write(file, acknowledged)
+    }
+}
+
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Read;
-
-    #[test]
-    fn failed_append_retries_only_unacknowledged_bytes() {
-        let mut file = tempfile::tempfile().unwrap();
-        file.write_all(b"saved.partial").unwrap();
-        let append = Append {
-            execution: TestExecutionId::from_seed("log.retry"),
-            path: "artifacts/execution.log".into(),
-            bytes: b"complete".to_vec(),
-        };
-        append.write(file.try_clone().unwrap(), 6).unwrap();
-        append.write(file.try_clone().unwrap(), 6).unwrap();
-        file.seek(std::io::SeekFrom::Start(0)).unwrap();
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).unwrap();
-        assert_eq!(bytes, b"saved.complete");
-        assert!(append.write(file, 1024).is_err());
-    }
 
     #[test]
     fn permanent_log_failures_are_not_retried() {

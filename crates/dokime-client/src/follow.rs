@@ -9,27 +9,27 @@
 
 /* === Modules === */
 
+mod receipt;
+
 /* === Re-Exports === */
+
+pub use receipt::FileResume;
 
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    future::Future,
-    path::{Path, PathBuf},
-};
+use std::future::Future;
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 
 // Local Imports
 use super::{Client, DownloadError as Error, contracts::content};
+use receipt::{FOLLOW_BUFFER_BYTES, hash, open};
 
 /* === Constants === */
 
-const FOLLOW_BUFFER_BYTES: u64 = 65_536;
 const FOLLOW_COMMIT_BYTES: u64 = 1_048_576;
 const IDENTITY_BYTES: u64 = 4_096;
 
@@ -39,56 +39,11 @@ const IDENTITY_BYTES: u64 = 4_096;
 
 /* === Structs === */
 
-// A Caller-Owned Receipt For One Local Recording's Committed Prefix.
-//
-// Persist this receipt with the recording. Cancelled or failed readers retain
-// committed bytes; a resumed reader verifies them before removing an uncommitted
-// suffix. This receipt binds the original content identity, not a connection epoch.
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct FileResume {
-    path: PathBuf,
-    identity: Option<dokime_domain::model::content::wire::ExecutionFileIdentity>,
-    offset: u64,
-    sha256: String,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-
-impl FileResume {
-    pub fn new(path: PathBuf) -> Self {
-        Self {
-            path,
-            identity: None,
-            offset: 0,
-            sha256: hash(&Sha256::new()),
-        }
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-    pub fn identity(&self) -> Option<&dokime_domain::model::content::wire::ExecutionFileIdentity> {
-        self.identity.as_ref()
-    }
-    pub fn committed_offset(&self) -> u64 {
-        self.offset
-    }
-
-    pub fn request(&self, execution_id: String, relative_path: String) -> Result<content::FollowExecutionFile, Error> {
-        Ok(content::FollowExecutionFile {
-            execution_id,
-            relative_path,
-            identity: self.identity.clone(),
-            offset: self.offset,
-            max_bytes: FOLLOW_BUFFER_BYTES as u32,
-        })
-    }
-}
 
 impl Client {
     // Records An Original Execution File, Preserving A Verified Resume Receipt.
@@ -211,38 +166,6 @@ fn validate_identity(
     Ok(())
 }
 
-async fn open(resume: &FileResume) -> Result<(tokio::fs::File, Sha256), Error> {
-    let mut options = tokio::fs::OpenOptions::new();
-    options.read(true).write(true);
-    if resume.identity.is_none() {
-        options.create_new(true);
-    }
-    let mut file = options.open(&resume.path).await?;
-    let metadata = file.metadata().await?;
-    if !metadata.is_file() || metadata.len() < resume.offset {
-        return Err(Error::Invalid("local recording is missing its committed prefix"));
-    }
-    let mut digest = Sha256::new();
-    let mut remaining = resume.offset;
-    let maximum = FOLLOW_BUFFER_BYTES as usize;
-    let mut buffer = vec![0; remaining.min(maximum as u64) as usize];
-    while remaining != 0 {
-        let count = remaining.min(buffer.len() as u64) as usize;
-        file.read_exact(&mut buffer[..count]).await?;
-        digest.update(&buffer[..count]);
-        remaining -= count as u64;
-    }
-    if hash(&digest) != resume.sha256 {
-        return Err(Error::Invalid("local committed prefix digest differs"));
-    }
-    // Only The Uncommitted Suffix May Be Discarded After Prefix Verification.
-    if metadata.len() != resume.offset {
-        file.set_len(resume.offset).await?;
-    }
-    file.seek(std::io::SeekFrom::Start(resume.offset)).await?;
-    Ok((file, digest))
-}
-
 async fn commit(output: &mut tokio::fs::File, digest: &Sha256, position: u64, resume: &mut FileResume) -> Result<(), Error> {
     output.flush().await?;
     output.sync_data().await?;
@@ -276,46 +199,4 @@ fn validate_terminal(
     }
 }
 
-fn hash(digest: &Sha256) -> String {
-    digest.clone().finalize().iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn configured_follow_request() {
-        let resume = FileResume::new(PathBuf::from("recording.bin"));
-        let request = resume.request("execution".into(), "output.bin".into()).unwrap();
-        assert_eq!(request.max_bytes, FOLLOW_BUFFER_BYTES as u32);
-        assert_eq!(request.offset, 0);
-    }
-
-    #[tokio::test]
-    async fn configured_prefix_reads_preserve_receipt_authority() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("recording.bin");
-        tokio::fs::write(&path, b"prefixsuffix").await.unwrap();
-
-        let mut digest = Sha256::new();
-        digest.update(b"prefix");
-        let resume = FileResume {
-            path: path.clone(),
-            identity: Some(Default::default()),
-            offset: 6,
-            sha256: hash(&digest),
-        };
-
-        let (file, verified) = open(&resume).await.unwrap();
-        assert_eq!(hash(&verified), resume.sha256);
-        assert_eq!(file.metadata().await.unwrap().len(), resume.offset);
-        drop(file);
-
-        tokio::fs::write(&path, b"brokensuffix").await.unwrap();
-        assert!(open(&resume).await.is_err());
-        assert_eq!(tokio::fs::read(&path).await.unwrap(), b"brokensuffix");
-    }
-}

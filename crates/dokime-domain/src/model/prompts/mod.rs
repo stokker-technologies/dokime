@@ -58,7 +58,6 @@ use crate::model::values::ValueType;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PromptDefinition {
     pub prompt_type: Identifier,
-    pub schema_version: u32,
     pub archetype: PromptArchetype,
     pub title: String,
     pub message: Option<String>,
@@ -101,7 +100,7 @@ pub struct PromptField {
     pub validation: FieldValidation,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PromptRequest {
     pub prompt_id: PromptId,

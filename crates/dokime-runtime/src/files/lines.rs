@@ -85,9 +85,6 @@ pub enum InvalidLineMatcher {
     #[error("matcher {index} names no stream or no field")]
     Target { index: usize },
 
-    #[error("matcher {index} field {field:?} has no named capture group or no kind")]
-    Field { index: usize, field: String },
-
     #[error("marker {index} names no record type")]
     RecordType { index: usize },
 }
@@ -134,9 +131,6 @@ impl LineMatchers {
             }
             let mut fields = Vec::with_capacity(matcher.fields.len());
             for field in &matcher.fields {
-                if field.kind == LineFieldKind::Unspecified {
-                    return Err(InvalidLineMatcher::Field { index, field: field.name.clone() });
-                }
                 // A column the pattern does not capture is left to its default.
                 if named.contains(&field.name.as_str()) {
                     fields.push((field.name.clone(), field.kind));
@@ -276,7 +270,6 @@ fn read(text: &str, kind: LineFieldKind) -> Option<Value> {
             "false" | "0" | "no" | "off" => Some(Value::Bool(false)),
             _ => None,
         },
-        LineFieldKind::Unspecified => None,
     }
 }
 

@@ -1,21 +1,27 @@
 # Run the Remote Examples with Python
 
-Scripts: `packages/dokime-client/examples/remote/python/`. Commands below run from that folder.
+Scripts: `sdk/python/examples/remote/python/`. Commands below run from that folder.
 
 Use the three editable Python scripts to control the simulated OBC, run two
 attempts with record and sample readers, and answer a confirmation. Begin with the
 [shared walkthrough](overview.md) to obtain the matching candidate artifacts,
 install/configure the host plugin and transfer the public certificate and key.
 
-These source examples use a locally built wheel from the same revision as the
-backend. Tutorials and Python distributions are not release downloads. Prepare
-the wheel and refresh the tutorial lock before transferring the example tree.
+Use the same candidate revision for the SDK and backend. The [SDK install
+guide](../../sdk/python/README.md#install) supports `uv add` directly from Git
+with Rust supplied by mise, or a matching native wheel. Tutorials remain source
+examples; native wheels are packaged as release assets. For this unreleased
+candidate, prepare the wheel and tutorial lock before transferring the tree.
+
+To author a backend and plugin, run `dokime new bench --lang python` and follow
+the [starter guide](../../sdk/python/README.md#author-an-embedded-plugin). Its
+backend exports the same pairing format consumed by the scripts below.
 
 ## Prepare the Environment
 
 Use CPython `>=3.13,<3.16` on Windows or Linux x86-64. Python 3.13 is the
 baseline used below. On Windows, set `$INSTALL_DOKIME = $false` in
-`../cli/bootstrap.ps1`, then run [`../cli/bootstrap.bat`](../../packages/dokime-client/examples/remote/cli/bootstrap.bat)
+`../cli/bootstrap.ps1`, then run [`../cli/bootstrap.bat`](../../sdk/python/examples/remote/cli/bootstrap.bat)
 to install PowerShell 7.6.7, mise and uv for your user without the optional CLI;
 see the
 [Windows setup guidance](cli.md#bootstrap-windows-tools).
@@ -33,21 +39,19 @@ In the matching source checkout, build the client:
 mise run build:python
 ```
 
-Copy `packages/dokime-client/examples/remote/` to a standalone `remote-demo/`
+Copy `sdk/python/examples/remote/` to a standalone `remote-demo/`
 directory outside the checkout. Create `remote-demo/wheels/` and copy the single
-`dokime_client-<version>-py3-none-any.whl` from `target/build/dev/any/python/`
-into it. The version must match the tutorial's exact dependency and wheel path
-in `python/pyproject.toml`. From `remote-demo/python/`, refresh the
-lock for those wheel bytes, then prepare the environment:
+`dokime_python-<version>-cp313-abi3-<platform>.whl` from `target/build/dev/<native-target>/python/`
+into it. Select the matching platform filename in the command below (the Windows filename is shown). From `remote-demo/python/`, add that wheel to create the local source selection and lock, then prepare the environment:
 
 ```sh
-uv lock --upgrade-package dokime-client
+uv add ../wheels/dokime_python-0.1.2-cp313-abi3-win_amd64.whl
 uv python install 3.13
 uv sync --locked --python 3.13
-uv run --locked python -c "from dokime_client import DokimeClient, Execution; print('Dokime Candidate Imports Ready')"
+uv run --locked python -c "from dokime import DokimeClient, Execution; print('Dokime Candidate Imports Ready')"
 ```
 
-Transfer the complete `remote/` tree, including the refreshed `python/uv.lock`
+Transfer the complete prepared `remote-demo/` tree, including the created `python/uv.lock`
 and `wheels/`, to the remote PC as `remote-demo/`. Run `uv sync --locked --python 3.13`
 there before running the scripts. uv creates a local `.venv/`; activation is
 unnecessary. Setup needs internet access for Python and locked dependencies or
@@ -56,7 +60,7 @@ those inputs already in uv's cache. The remote PC needs no Rust compiler.
 ## Query Retained Evidence
 
 ```python
-from dokime_client import Aggregate, DokimeClient, ExecutionStatus, Predicate
+from dokime import Aggregate, DokimeClient, ExecutionStatus, Predicate
 
 async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
     async for execution in client.executions(status=ExecutionStatus.FAILED, since="2026-10-01"):
@@ -78,7 +82,7 @@ records and telemetry at the same compatible cut without waiting for a seal.
 Use `pages()` to inspect schema, effective limits and completeness, and
 `await reader.aclose()` when abandoning a reader. Existing `records()` and
 `samples()` still replay and follow through the execution seal. See the
-[client guide](../../packages/dokime-client/README.md#finite-evidence-queries)
+[client guide](../../sdk/python/README.md#finite-evidence-queries)
 for projection, version selection and cycle record queries.
 
 To materialize a finite result, close the reader through its async context:
@@ -99,7 +103,7 @@ schema, limits and snapshot after closing. No dataframe dependency is needed.
 Before starting your own work, inspect typed cycle statuses:
 
 ```python
-from dokime_client import CycleStatus, DokimeClient
+from dokime import CycleStatus, DokimeClient
 
 async with DokimeClient.from_pairing("../lab.dokime-remote") as client:
     busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
@@ -115,7 +119,7 @@ backend still controls Start admission. `cycle.status` and `execution.status`
 are exported string enums; `cycle.running_count` counts Running execution revisions
 at the fixed cut, including committed transitions before the next checkpoint.
 Use the cycle status for busy refusal.
-See the [client guide](../../packages/dokime-client/README.md#typed-status-and-record-schemas)
+See the [client guide](../../sdk/python/README.md#typed-status-and-record-schemas)
 for stable status values and declared field types, labels and units. Schema
 discovery fetches catalog pages lazily and retains declared field order for CSV
 headers, including fields absent from observed records.
@@ -126,9 +130,9 @@ To add conversion to the copied tutorial project, select an extra on its matchin
 wheel, then transfer the updated project and lock with that wheel:
 
 ```sh
-uv add ../wheels/dokime_client-0.1.2-py3-none-any.whl --extra polars
+uv add ../wheels/dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra polars
 # Choose this instead for Pandas:
-uv add ../wheels/dokime_client-0.1.2-py3-none-any.whl --extra pandas
+uv add ../wheels/dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra pandas
 uv sync --locked --python 3.13
 ```
 
@@ -151,7 +155,7 @@ Only the selected helper imports its library. Missing extras raise
 row/decoded-byte defaults as `collect`, preserve exact integers, nullable captured
 dtypes, literal field order and UTC nanoseconds, and fail atomically on limits or
 late page errors. Unsupported nested fields raise a field-specific
-`QueryConversionError`. See [dataframe types and metadata](../../packages/dokime-client/README.md#optional-dataframes).
+`QueryConversionError`. See [dataframe types and metadata](../../sdk/python/README.md#optional-dataframes).
 
 ### Server Statistics
 
@@ -167,7 +171,7 @@ print(stats.quality_counts, stats.schema, stats.snapshot)
 
 Omit `every`/`agg` for statistics. The facade uses existing `Aggregate` objects
 and computes on the server, preserving typed limit failures. Raw `client.call`
-continues to expose the generated request; the older catalog aggregate operation
+continues to expose the reflected request; the older catalog aggregate operation
 groups catalog rows and is separate from these telemetry statistics.
 
 ## Edit Connection Globals
@@ -219,7 +223,7 @@ CYCLE_LABEL = "Remote Pulse Demonstration"
 SAMPLE_COUNT = 8
 PARAMETERS = {"sample_count": SAMPLE_COUNT}
 EXECUTION_COUNT = 2
-WAIT_SECONDS = 60.0
+WAIT_S = 60.0
 
 RECORD_TYPES = ("obc.run.*",)
 STREAMS = ("obc.pulse",)
@@ -233,7 +237,7 @@ to `1` to study only the first attempt or leave it at `2`; add explicit calls
 and evidence destinations to teach additional attempts.
 `PARAMETERS` supplies the selected template's inputs; update it and the observation
 filters when choosing another template.
-`WAIT_SECONDS` is each execution's positive local deadline. Filters are case-sensitive
+`WAIT_S` is each execution's positive local deadline. Filters are case-sensitive
 whole-identifier globs: `*` matches any sequence, `?` one character, and
 alternatives in a tuple are OR. An empty tuple observes all records or streams
 for its supplied reader. Filters affect observation, not captured evidence.
@@ -272,7 +276,7 @@ only the selected attempt until the operator explicitly re-enables continuation.
 ## Answer One Confirmation
 
 In `control-prompt.py`, review `TEMPLATE`, `CYCLE_LABEL`, `ANSWER`,
-`WAIT_SECONDS`, `OUTPUT_DIRECTORY` and `OVERWRITE`. The default `ANSWER`
+`WAIT_S`, `OUTPUT_DIRECTORY` and `OVERWRITE`. The default `ANSWER`
 is `"yes"`; `"no"` records a truthful nonpassing result.
 
 ```sh
@@ -317,7 +321,7 @@ its saved evidence can also be retrieved after reconnecting or restarting it.
 | Symptom | Check |
 | --- | --- |
 | uv cannot find a supported Python | Run `uv python install 3.13`, then sync with `--python 3.13`. Supported versions are 3.13, 3.14 and 3.15, not an unrestricted future version. |
-| The local wheel path is missing | Extract the complete examples ZIP. `python/` and `wheels/` must remain siblings. |
+| The local wheel path is missing | Prepare the matching source wheel and copy the complete tutorial tree. `python/` and `wheels/` must remain siblings. |
 | Third-party package download fails | First setup needs registry/network access or cached locked dependencies. This bundle includes the Dokime wheel, not all dependency wheels. |
 | `lab.dokime-remote` is not found | Run inside `remote-demo/python/` and check the edited paths and actual transferred filenames. |
 | A secret/certificate is refused | Follow the shared [connection troubleshooting](overview.md#troubleshooting), including process-key precedence and certificate identity. |

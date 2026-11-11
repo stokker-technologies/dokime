@@ -15,14 +15,13 @@
 
 /* === Imports === */
 
-use crate::model::{document::DownsampleTechnique, remote::RemoteListenerSettings};
-use serde::{Deserialize, Serialize};
-
 // Standard Library Imports
 
 // Third Party Imports
+use serde::{Deserialize, Serialize};
 
 // Local Imports
+use crate::model::{document::DownsampleTechnique, remote::RemoteListenerSettings};
 
 /* === Constants === */
 
@@ -250,7 +249,7 @@ impl TelemetryPreferences {
 }
 
 impl PluginPreferences {
-    /// The Longest Budget Either Field Accepts: One Hour.
+    // The Longest Budget Either Field Accepts: One Hour.
     pub const MAXIMUM_SECONDS: u32 = 3_600;
 
     pub fn validate(&self) -> Result<(), String> {

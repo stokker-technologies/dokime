@@ -61,6 +61,16 @@ pub(crate) struct Plan {
 /* === Implementations === */
 
 impl Args {
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub(crate) fn owned_destination(cycle: String, directory: PathBuf) -> Self {
+        Self {
+            cancel_on_interrupt: true,
+            owned_cycle: Some(cycle),
+            recovery_directory: Some(directory),
+        }
+    }
+
     pub(crate) fn prepare(&self, execution: &TestExecutionId) -> crate::Result<Option<Plan>> {
         self.prepare_many(std::slice::from_ref(execution))
     }
@@ -108,6 +118,18 @@ impl Args {
 }
 
 impl Plan {
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub(crate) fn execution_destinations(&self) -> &[(TestExecutionId, PathBuf)] {
+        &self.executions
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub(crate) fn cycle_destination(&self) -> &std::path::Path {
+        &self.cycle_output
+    }
+
     pub(crate) async fn verify(&self, execution: &TestExecutionHandle) -> crate::Result<()> {
         let detail = execution.snapshot().await?;
         if detail.cycle_id != self.cycle.as_str() {
@@ -225,54 +247,3 @@ pub(crate) async fn interrupted(identity: &str, subject: &str, recovery: bool) -
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn conflicts_are_refused_before_connection_or_mutation() {
-        let directory = tempfile::tempdir().unwrap();
-        let execution = TestExecutionId::from_uuid("00000000-0000-0000-0000-000000000001").unwrap();
-        let cycle = "00000000-0000-0000-0000-000000000002";
-        let args = Args {
-            cancel_on_interrupt: true,
-            owned_cycle: Some(cycle.into()),
-            recovery_directory: Some(directory.path().to_owned()),
-        };
-        let prepared = args.prepare(&execution).unwrap().unwrap();
-        std::fs::write(&prepared.executions[0].1, b"previous execution").unwrap();
-        assert!(args.prepare(&execution).is_err());
-        assert_eq!(std::fs::read(&prepared.executions[0].1).unwrap(), b"previous execution");
-
-        std::fs::remove_file(&prepared.executions[0].1).unwrap();
-        std::fs::write(&prepared.cycle_output, b"previous cycle").unwrap();
-        assert!(args.prepare(&execution).is_err());
-        assert_eq!(std::fs::read(&prepared.cycle_output).unwrap(), b"previous cycle");
-        assert!(!prepared.executions[0].1.exists());
-    }
-
-    #[test]
-    fn append_recovery_checks_every_requested_destination_and_cycle_owner() {
-        let directory = tempfile::tempdir().unwrap();
-        let cycle = TestCycleId::from_seed("owned append");
-        let first = TestExecutionId::from_seed("first append");
-        let second = TestExecutionId::from_seed("second append");
-        let args = Args {
-            cancel_on_interrupt: true,
-            owned_cycle: Some(cycle.to_string()),
-            recovery_directory: Some(directory.path().to_owned()),
-        };
-        let executions = [first.clone(), second];
-        let plan = args.prepare_append(&cycle, &executions).unwrap().unwrap();
-        assert_eq!(plan.executions.len(), 2);
-        assert!(args.prepare_append(&TestCycleId::from_seed("foreign"), &executions).is_err());
-        assert!(args.prepare_append(&cycle, &[first.clone(), first]).is_err());
-
-        std::fs::write(&plan.executions[1].1, b"previous second execution").unwrap();
-        assert!(args.prepare_append(&cycle, &executions).is_err());
-        assert_eq!(std::fs::read(&plan.executions[1].1).unwrap(), b"previous second execution");
-        assert!(!plan.executions[0].1.exists());
-        assert!(!plan.cycle_output.exists());
-    }
-}

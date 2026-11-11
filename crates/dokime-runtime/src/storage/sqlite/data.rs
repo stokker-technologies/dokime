@@ -12,7 +12,7 @@
 mod backend;
 pub(crate) mod distinct;
 mod entry;
-mod files;
+pub(super) mod files;
 mod mutations;
 mod production;
 mod records;
@@ -44,6 +44,8 @@ use entry::{Borrowed, Encoded, key, timestamp_key};
 
 pub(super) const FORMAT: &str = "dokime.sqlite.storage.v1";
 pub(super) const HISTORY_BYTES: usize = 4096;
+// Rows Per Multi-Row Insert; Twelve Bound Columns Each Stay Well Below SQLite's Variable Limit.
+const INSERT_ROWS: usize = 128;
 const HEAD_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_data_head (
     singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
@@ -77,7 +79,7 @@ CREATE TABLE IF NOT EXISTS storage_file_stages (
     id TEXT PRIMARY KEY, metadata BLOB NOT NULL, finish_intent BLOB, finished BLOB
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS storage_data_kind_position ON storage_data_entries(kind, position);
-CREATE INDEX IF NOT EXISTS storage_data_object ON storage_data_entries(kind, schema_id, item, position);
+CREATE INDEX IF NOT EXISTS storage_data_object ON storage_data_entries(kind, schema_id, item, position) WHERE kind='object';
 CREATE INDEX IF NOT EXISTS storage_data_live_object_position_covering
     ON storage_data_entries(schema_id, position, item, kind, retired_at)
     WHERE kind='object' AND retired_at IS NULL;
@@ -89,13 +91,18 @@ CREATE INDEX IF NOT EXISTS storage_data_retired_object_position
     WHERE kind='object' AND retired_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS storage_object_releases_generation
     ON storage_object_releases(schema_id, generation, item);
-CREATE INDEX IF NOT EXISTS storage_data_scope ON storage_data_entries(kind, scope, position);
-CREATE INDEX IF NOT EXISTS storage_data_schema_scope ON storage_data_entries(kind, schema_key, scope, position);
+DROP INDEX IF EXISTS storage_data_scope;
+DROP INDEX IF EXISTS storage_data_schema_scope;
+DROP INDEX IF EXISTS storage_data_stream_owner;
+DROP INDEX IF EXISTS storage_data_stream_scope_time;
+CREATE INDEX IF NOT EXISTS storage_data_scoped ON storage_data_entries(kind, scope, position) WHERE scope IS NOT NULL;
+CREATE INDEX IF NOT EXISTS storage_data_schema_scoped ON storage_data_entries(kind, schema_key, scope, position) WHERE scope IS NOT NULL;
 CREATE INDEX IF NOT EXISTS storage_data_schema_position ON storage_data_entries(kind, schema_key, position);
-CREATE INDEX IF NOT EXISTS storage_data_stream_owner ON storage_data_entries(scope,stream,position) WHERE kind='stream';
+CREATE INDEX IF NOT EXISTS storage_data_stream_scoped_owner ON storage_data_entries(scope,stream,position)
+    WHERE kind='stream' AND scope IS NOT NULL;
 CREATE INDEX IF NOT EXISTS storage_data_stream_time ON storage_data_entries(schema_key, source_time, position) WHERE kind='stream';
-CREATE INDEX IF NOT EXISTS storage_data_stream_scope_time ON storage_data_entries(schema_key, scope, source_time, position)
-    WHERE kind='stream';
+CREATE INDEX IF NOT EXISTS storage_data_stream_scoped_time ON storage_data_entries(schema_key, scope, source_time, position)
+    WHERE kind='stream' AND scope IS NOT NULL;
 ";
 
 /* === Macros === */
@@ -105,7 +112,7 @@ CREATE INDEX IF NOT EXISTS storage_data_stream_scope_time ON storage_data_entrie
 /* === Structs === */
 
 #[derive(Clone)]
-pub(crate) struct SavedData {
+pub struct SavedData {
     pub history: StoreHistory,
     pub sequence: u64,
     pub retention_generation: u64,
@@ -233,7 +240,7 @@ impl State {
     }
 
     pub(crate) async fn data_open(&self, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.call(move |connection| {
             Ok((|| {
                 let head = open(connection, expected)?;
@@ -257,8 +264,11 @@ impl State {
         T: Send + Sync + 'static,
         for<'a> Borrowed<'a>: From<&'a T>,
     {
-        let owner = self.0.clone();
-        self.call(move |connection| {
+        let bytes = batch.as_slice().iter().try_fold(0usize, |total, value| {
+            entry::check_size(&Borrowed::from(value), usize::MAX).map(|bytes| total.saturating_add(bytes))
+        })?;
+        let owner = self.0.owner.clone();
+        self.grouped(batch.len(), bytes, move |connection| {
             let mut files = owner.files.lock().unwrap();
             let mut prefix = owner.verification_prefix.lock().unwrap();
             Ok(write(connection, &root, batch, &mut files, &mut prefix))
@@ -381,7 +391,8 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
 }
 
 pub(crate) fn saved(connection: &Connection) -> Result<SavedData, Error> {
-    let mut statement = connection.prepare("SELECT format,history,saved,retention_generation FROM storage_data_head WHERE singleton=1")?;
+    let mut statement =
+        connection.prepare_cached("SELECT format,history,saved,retention_generation FROM storage_data_head WHERE singleton=1")?;
     let mut rows = statement.query([])?;
     let row = rows.next()?.ok_or(Error::Corrupt("missing saved data head"))?;
     if text(row, 0)? != FORMAT {
@@ -429,7 +440,7 @@ pub(super) fn sequence(value: &str) -> Result<u64, Error> {
 // The Backend Must Own Its Durable Identity Before The Native Manager Exists.
 // Only This Bounded Identity Decode Runs Outside Manager-Admitted Scratch.
 fn bootstrap(connection: &mut Connection) -> Result<StoreHistory, Error> {
-    let transaction = connection.transaction()?;
+    let transaction = connection.savepoint()?;
     transaction.execute_batch(HEAD_SCHEMA)?;
     initialize_head(&transaction, None)?;
 
@@ -442,7 +453,7 @@ fn bootstrap(connection: &mut Connection) -> Result<StoreHistory, Error> {
         }
         decode_history(blob(row, 1)?)?
     };
-    super::commit(transaction)?;
+    super::release(transaction)?;
     Ok(history)
 }
 
@@ -479,7 +490,7 @@ fn initialize_head(connection: &Connection, expected: Option<&StoreHistory>) -> 
 }
 
 fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
-    let transaction = connection.transaction()?;
+    let transaction = connection.savepoint()?;
     transaction.execute_batch(HEAD_SCHEMA)?;
     transaction.execute_batch(SCHEMA)?;
     transaction.execute_batch(production::SCHEMA)?;
@@ -497,7 +508,7 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
     if let Some(expected) = expected {
         expected.check(&head.history)?;
     }
-    super::commit(transaction)?;
+    super::release(transaction)?;
     Ok(head)
 }
 
@@ -511,56 +522,53 @@ where
     let values = batch.as_slice();
     let first = Borrowed::from(values.first().ok_or(Error::Data("data batch must not be empty"))?);
     let history = &first.position().history;
+    let encoding = super::probe::Timing::start("encoding");
     // Encode And Validate The Bounded Batch Once Before Any File Confirmation.
     let mut encoded = Vec::new();
     encoded.try_reserve_exact(values.len()).map_err(std::io::Error::other)?;
+    let mut encoder = entry::Encoder::default();
     for value in values {
         let value = Borrowed::from(value);
         history.check(&value.position().history)?;
-        encoded.push(Encoded::new(value)?);
+        encoded.push(encoder.encode(value)?);
     }
 
-    let transaction = connection.transaction()?;
+    drop(encoding);
+    let _sqlite = super::probe::Timing::start("sqlite");
+    let transaction = connection.savepoint()?;
     let mut head = saved(&transaction)?;
     head.history.check(history)?;
     let mut plots = crate::plot::preview::index::Batch::default();
+    // Rows Without Secondary Indexes Accumulate For Multi-Row Inserts; Indexed Rows Insert In Order After Them.
+    let mut pending = Vec::new();
     for (value, entry) in values.iter().zip(encoded) {
         let value = Borrowed::from(value);
-        // Exact Retries Of Saved Positions Must Repeat The Same Bytes.
-        let retry = retried(&transaction, &entry, head.sequence)?;
-        if !retry {
-            if head.sequence.checked_add(1) != Some(entry.position) {
-                return Err(Error::Data("data write has a gap or pruned retry"));
-            }
-            let mut identity = transaction.prepare_cached("SELECT EXISTS(SELECT 1 FROM storage_data_entries WHERE identity=?1)")?;
-            if identity.query_row([&entry.identity], |row| row.get::<_, bool>(0))? {
-                return Err(Error::Conflict("data identity already belongs to another position"));
-            }
+        // Exact Retries Of Saved Positions Must Repeat The Same Bytes. A Row Above The Saved Frontier
+        // Is Refused By The Position Key On Insert, Exactly As The Former Lookup Refused It.
+        let retry = entry.position <= head.sequence && retried(&transaction, &entry, &encoder.bytes, head.sequence)?;
+        if !retry && head.sequence.checked_add(1) != Some(entry.position) {
+            return Err(Error::Data("data write has a gap or pruned retry"));
         }
         if let Borrowed::File(reference) = value {
+            // Only A File's Identity Is Independent Of Its Position.
+            if !retry {
+                let mut identity = transaction.prepare_cached("SELECT EXISTS(SELECT 1 FROM storage_data_entries WHERE identity=?1)")?;
+                if identity.query_row([entry.identity.as_str()], |row| row.get::<_, bool>(0))? {
+                    return Err(Error::Conflict("data identity already belongs to another position"));
+                }
+            }
             files::confirm(&transaction, root, reference, retained.get_mut(&reference.metadata.id), prefix)?;
         }
         if retry {
             continue;
         }
-        let mut insert =
-            transaction.prepare_cached("INSERT INTO storage_data_entries VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,NULL)")?;
-        insert.execute(params![
-            position(entry.position),
-            entry.kind,
-            entry.identity,
-            entry.schema_id,
-            entry.schema_key,
-            entry.item,
-            entry.scope,
-            entry.stream,
-            entry.source_time.as_ref().map(|time| time.as_slice()),
-            entry.object_version,
-            entry.body,
-            entry.digest.as_slice()
-        ])?;
-        // Release The Bound Row Before Decoding Its Secondary Index Metadata.
-        drop(insert);
+        head.sequence = entry.position;
+        if matches!(value, Borrowed::Schema(_) | Borrowed::Stream(_)) {
+            pending.push(entry);
+            continue;
+        }
+        insert_entries(&transaction, std::mem::take(&mut pending), &encoder.bytes)?;
+        insert_entries(&transaction, vec![entry], &encoder.bytes)?;
         if let Borrowed::Object(object) = value {
             super::history::index(&transaction, object)?;
         }
@@ -572,11 +580,11 @@ where
             records::index(&transaction, row)?;
             plots.record(&transaction, row)?;
         }
-        head.sequence = entry.position;
     }
+    insert_entries(&transaction, pending, &encoder.bytes)?;
     plots.save(&transaction)?;
-    transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
-    super::commit(transaction)?;
+    transaction.prepare_cached("UPDATE storage_data_head SET saved=?1 WHERE singleton=1")?.execute([position(head.sequence)])?;
+    super::release(transaction)?;
     super::DATA_BATCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     for value in values {
         if let Borrowed::File(reference) = Borrowed::from(value) {
@@ -586,7 +594,90 @@ where
     Ok(head)
 }
 
-fn retried(connection: &Connection, entry: &Encoded<'_>, saved: u64) -> Result<bool, Error> {
+// Inserts Entries In Position Order Through Cached Multi-Row Statements, Then Single Rows For The Remainder.
+fn insert_entries(transaction: &Connection, entries: Vec<Encoded<'_>>, bytes: &[u8]) -> Result<(), Error> {
+    const COLUMNS: &str = "(?,?,?,?,?,?,?,?,?,?,?,?,NULL)";
+    const SINGLE: &str = "INSERT INTO storage_data_entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL)";
+    static CHUNK: std::sync::LazyLock<String> =
+        std::sync::LazyLock::new(|| format!("INSERT INTO storage_data_entries VALUES {}", vec![COLUMNS; INSERT_ROWS].join(",")));
+    static SHARED: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        let rows = (0..INSERT_ROWS)
+            .map(|index| {
+                let first = 8 + index * 5;
+                format!("(?{first},?1,?{},?2,?3,?4,?5,?6,?{},?7,?{},?{},NULL)", first + 1, first + 2, first + 3, first + 4)
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("INSERT INTO storage_data_entries VALUES {rows}")
+    });
+    let (chunks, remainder) = entries.as_chunks::<INSERT_ROWS>();
+    for chunk in chunks {
+        let first = &chunk[0];
+        let shared = chunk.iter().all(|entry| {
+            entry.kind == first.kind
+                && entry.schema_id == first.schema_id
+                && entry.schema_key == first.schema_key
+                && entry.item == first.item
+                && entry.scope == first.scope
+                && entry.stream == first.stream
+                && entry.object_version == first.object_version
+        });
+        if shared {
+            let [_, kind, _, schema_id, schema_key, item, scope, stream, _, version, _, _] = entry_parameters(first, bytes);
+            let common = [kind, schema_id, schema_key, item, scope, stream, version];
+            let rows = chunk.iter().flat_map(|entry| {
+                let [position, _, identity, _, _, _, _, _, time, _, body, digest] = entry_parameters(entry, bytes);
+                [position, identity, time, body, digest]
+            });
+            let mut insert = transaction.prepare_cached(&SHARED)?;
+            insert.execute(rusqlite::params_from_iter(common.into_iter().chain(rows))).map_err(inserted)?;
+            continue;
+        }
+        let mut insert = transaction.prepare_cached(&CHUNK)?;
+        let parameters = chunk.iter().flat_map(|entry| entry_parameters(entry, bytes));
+        insert.execute(rusqlite::params_from_iter(parameters)).map_err(inserted)?;
+    }
+    if remainder.is_empty() {
+        return Ok(());
+    }
+    let mut insert = transaction.prepare_cached(SINGLE)?;
+    for entry in remainder {
+        insert.execute(rusqlite::params_from_iter(entry_parameters(entry, bytes))).map_err(inserted)?;
+    }
+    Ok(())
+}
+
+fn entry_parameters<'a>(entry: &'a Encoded<'_>, bytes: &'a [u8]) -> [rusqlite::types::ToSqlOutput<'a>; 12] {
+    use rusqlite::types::{ToSqlOutput, ValueRef};
+    let text = |value: Option<&'a str>| ToSqlOutput::Borrowed(value.map_or(ValueRef::Null, |value| ValueRef::Text(value.as_bytes())));
+    [
+        ToSqlOutput::Borrowed(ValueRef::Text(entry.identity.position())),
+        text(Some(entry.kind)),
+        text(Some(entry.identity.as_str())),
+        text(entry.schema_id),
+        text(entry.schema_key.as_deref()),
+        text(Some(entry.item)),
+        text(entry.scope),
+        text(entry.stream),
+        ToSqlOutput::Borrowed(entry.source_time.as_ref().map_or(ValueRef::Null, |time| ValueRef::Blob(time.as_slice()))),
+        text(entry.object_version.as_deref()),
+        ToSqlOutput::Borrowed(ValueRef::Blob(&bytes[entry.body.clone()])),
+        ToSqlOutput::Borrowed(ValueRef::Blob(entry.digest.as_slice())),
+    ]
+}
+
+// File Identities Are Checked Before Insert, So Every Other Identity Derives From Its Position:
+// Either Key Being Taken Means A Row Already Exists Above The Saved Frontier.
+fn inserted(error: rusqlite::Error) -> Error {
+    match error.sqlite_error().map(|error| error.extended_code) {
+        Some(rusqlite::ffi::SQLITE_CONSTRAINT_PRIMARYKEY | rusqlite::ffi::SQLITE_CONSTRAINT_UNIQUE) => {
+            Error::Corrupt("position retry exceeds saved frontier")
+        }
+        _ => error.into(),
+    }
+}
+
+fn retried(connection: &Connection, entry: &Encoded<'_>, bytes: &[u8], saved: u64) -> Result<bool, Error> {
     let mut statement = connection.prepare_cached("SELECT kind,body,digest,retired_at FROM storage_data_entries WHERE position=?1")?;
     let mut rows = statement.query([position(entry.position)])?;
     let Some(row) = rows.next()? else {
@@ -601,7 +692,7 @@ fn retried(connection: &Connection, entry: &Encoded<'_>, saved: u64) -> Result<b
     if digest != entry.digest.as_slice() {
         return Err(Error::Conflict("position retry has different bytes"));
     }
-    if row.get::<_, String>(0)? != entry.kind || body != entry.body.as_slice() {
+    if row.get::<_, String>(0)? != entry.kind || body != &bytes[entry.body.clone()] {
         return Err(Error::Corrupt("position retry content differs"));
     }
     if entry.position > saved {
@@ -686,18 +777,21 @@ fn scan_query(scan: &Scan) -> Result<(String, Vec<Value>), Error> {
     let stream = scan.filters.iter().any(|(column, _)| *column == "stream");
     let object_key =
         scan.filters.iter().any(|(column, _)| *column == "schema_id") && scan.filters.iter().any(|(column, _)| *column == "item");
+    // SQLite Must Prove The Partial Index Predicate During Preparation.
     if scan.kind == "stream" {
-        // SQLite Must Prove The Partial Index Predicate During Preparation.
         clauses.push("entries.kind='stream'".to_owned());
+    }
+    if scan.kind == "object" && object_key {
+        clauses.push("entries.kind='object'".to_owned());
     }
     let index = match (scan.kind, scan.source_window.is_some(), schema, scoped) {
         ("object", _, _, _) if object_key => "storage_data_object",
-        ("stream", false, false, true) if stream => "storage_data_stream_owner",
-        ("stream", true, true, true) => "storage_data_stream_scope_time",
+        ("stream", false, false, true) if stream => "storage_data_stream_scoped_owner",
+        ("stream", true, true, true) => "storage_data_stream_scoped_time",
         ("stream", true, true, false) => "storage_data_stream_time",
-        (_, _, true, true) => "storage_data_schema_scope",
+        (_, _, true, true) => "storage_data_schema_scoped",
         (_, _, true, false) => "storage_data_schema_position",
-        (_, _, false, true) => "storage_data_scope",
+        (_, _, false, true) => "storage_data_scoped",
         (_, _, false, false) => "storage_data_kind_position",
     };
     let sql = format!(
@@ -752,6 +846,121 @@ fn read_scan(connection: &Connection, scan: &Scan, metrics: &super::ReadMetrics)
 mod tests {
     use super::*;
     use std::num::NonZeroUsize;
+
+    fn stream_rows(history: &StoreHistory, after: u64, count: u64) -> Vec<StoredRow> {
+        let schema = SchemaKey {
+            id: harmos::Identifier::new("fixture.samples").unwrap(),
+            version: std::num::NonZeroU32::new(1).unwrap(),
+            payload_encoding: PayloadEncoding::PostcardV1,
+        };
+        (after + 1..=after + count)
+            .map(|sequence| StoredRow {
+                stream: harmos::Identifier::new("samples").unwrap(),
+                sequence,
+                record: StoredRecord {
+                    position: StorageCursor { history: history.clone(), sequence },
+                    schema: schema.clone(),
+                    scope: (sequence % 3 == 0).then(|| harmos::Identifier::new(format!("scope-{}", sequence % 2)).unwrap()),
+                    item: harmos::Identifier::new("fixture").unwrap(),
+                    source: None,
+                    source_time: (sequence % 5 != 0).then(|| std::time::UNIX_EPOCH + std::time::Duration::from_micros(sequence * 7)),
+                    payload: sequence.to_le_bytes().to_vec(),
+                },
+            })
+            .collect()
+    }
+
+    fn entries(connection: &Connection) -> Vec<Vec<Value>> {
+        let mut query = connection.prepare("SELECT * FROM storage_data_entries ORDER BY position").unwrap();
+        let columns = query.column_count();
+        query
+            .query_map([], |row| (0..columns).map(|column| row.get::<_, Value>(column)).collect())
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    fn consistent(connection: &Connection) -> bool {
+        connection.query_row("PRAGMA integrity_check", [], |row| row.get::<_, String>(0)).unwrap() == "ok"
+    }
+
+    #[test]
+    fn batched_inserts_store_the_rows_and_indexes_of_single_row_inserts() {
+        let root = std::path::Path::new("");
+        let mut batched = Connection::open_in_memory().unwrap();
+        let head = open(&mut batched, None).unwrap();
+        // Shared Metadata, Mixed Metadata And A Single-Row Remainder.
+        let mut rows = stream_rows(&head.history, 0, 2 * INSERT_ROWS as u64 + 7);
+        for row in &mut rows[..INSERT_ROWS] {
+            row.record.scope = None;
+        }
+        let saved = write(&mut batched, root, StorageBatch::new(rows.clone()), &mut Default::default(), &mut Default::default()).unwrap();
+        assert_eq!(saved.sequence, rows.len() as u64);
+
+        // The Former Path Inserted Each Encoded Row With One Statement.
+        let mut single = Connection::open_in_memory().unwrap();
+        open(&mut single, None).unwrap();
+        for row in &rows {
+            let mut encoder = entry::Encoder::default();
+            let entry = encoder.encode(Borrowed::from(row)).unwrap();
+            single
+                .execute(
+                    "INSERT INTO storage_data_entries VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,NULL)",
+                    params![
+                        position(entry.position),
+                        entry.kind,
+                        entry.identity.as_str(),
+                        entry.schema_id,
+                        entry.schema_key.as_deref(),
+                        entry.item,
+                        entry.scope,
+                        entry.stream,
+                        entry.source_time.as_ref().map(|time| time.as_slice()),
+                        entry.object_version,
+                        &encoder.bytes[entry.body],
+                        entry.digest.as_slice()
+                    ],
+                )
+                .unwrap();
+        }
+        assert_eq!(entries(&batched), entries(&single));
+        assert!(consistent(&batched) && consistent(&single));
+
+        // A Batch Interrupted Before Its Commit Leaves Nothing Of Itself Visible.
+        batched
+            .execute_batch(&format!(
+                "CREATE TRIGGER interrupt BEFORE INSERT ON storage_data_entries WHEN NEW.position='{}' BEGIN SELECT RAISE(ABORT,'interrupted'); END",
+                position(rows.len() as u64 + INSERT_ROWS as u64 + 3)
+            ))
+            .unwrap();
+        let later = stream_rows(&head.history, rows.len() as u64, 2 * INSERT_ROWS as u64);
+        assert!(write(&mut batched, root, StorageBatch::new(later), &mut Default::default(), &mut Default::default()).is_err());
+        assert!(batched.is_autocommit());
+        assert_eq!(entries(&batched), entries(&single));
+        assert_eq!(saved_position(&batched), rows.len() as u64);
+        assert!(consistent(&batched));
+    }
+
+    #[test]
+    fn rows_above_the_saved_frontier_are_refused_as_before() {
+        let root = std::path::Path::new("");
+        let mut connection = Connection::open_in_memory().unwrap();
+        let head = open(&mut connection, None).unwrap();
+        let rows = stream_rows(&head.history, 0, 2);
+        let entry = entry::Encoder::default().encode(Borrowed::from(&rows[0])).unwrap();
+        connection
+            .execute(
+                "INSERT INTO storage_data_entries(position,kind,identity,item,body,digest) VALUES (?1,'stream',?2,'fixture',x'00',?3)",
+                params![position(entry.position), entry.identity.as_str(), entry.digest.as_slice()],
+            )
+            .unwrap();
+        let refused = write(&mut connection, root, StorageBatch::new(rows), &mut Default::default(), &mut Default::default());
+        assert!(matches!(refused, Err(Error::Corrupt("position retry exceeds saved frontier"))));
+    }
+
+    fn saved_position(connection: &Connection) -> u64 {
+        saved(connection).unwrap().sequence
+    }
 
     #[test]
     fn selected_object_seeks_past_unrelated_history() {

@@ -33,6 +33,7 @@ use dokime_runtime::prelude::*;
 use {dokime_runtime::operations::process::RunProcess, model::process::wire::Output};
 
 /* === Constants === */
+
 const SUITE: &str = "process.checks";
 const RUN: &str = "process.checks.run";
 const CANCEL: &str = "process.checks.cancel";
@@ -46,6 +47,7 @@ const READY_POLL: Duration = Duration::from_millis(5);
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Checks;
 
 struct RunOnce;
@@ -59,12 +61,15 @@ struct CancelParameters {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime_runtime::Error),
+
     #[error("host: {0}")]
     Host(#[from] dokime_runtime::harmos::sidecar::CallError),
+
     #[error("{0}")]
     Unexpected(String),
 }
@@ -83,6 +88,7 @@ enum Templates {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[dokime_runtime::suite(id = SUITE, label = "Process Built-In", templates = Templates)]
 impl Checks {}
 
@@ -136,6 +142,7 @@ impl SpawnCancel {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn shell(script: &str) -> RunProcess {
     RunProcess::new("sh").args(["-c", script])
 }
@@ -144,7 +151,6 @@ fn logged(report: &dokime_runtime::plugin::testing::Report, level: Level) -> Vec
     report.log().iter().filter(|entry| entry.level == level as i32).map(|entry| entry.message.clone()).collect()
 }
 
-/* === Tests === */
 // One shot: stdout streams into the produced artifact, stderr reaches the log
 // at warning with the execution's identity, and the exit is recorded.
 #[dokime_tracing::trace_test]
@@ -179,3 +185,5 @@ async fn process_cancel_exit() {
     assert_eq!(exited[0].exit_code, None, "a signal ended it");
     assert!(report.records::<StepHandleCancelled>().is_empty());
 }
+
+/* === Tests === */

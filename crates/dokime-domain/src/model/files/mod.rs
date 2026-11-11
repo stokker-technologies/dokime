@@ -7,11 +7,10 @@
  * ***
  */
 
-// File sources watched during an execution: every matched file becomes one
-// execution artifact under the watch's output folder. `FileWatch` streams its
-// progress to a listener; `WatchFile` is the same watch over one file for a
-// template, settling only when the watch stops, and may carry line matchers
-// that turn captured lines into rows and records.
+// File sources captured during an execution: every selected file becomes one
+// execution artifact. `CopyFiles` copies once; `StartCapture` and `StopCapture`
+// bound a capture that streams or mirrors, and line matchers turn streamed
+// lines into rows and records.
 
 /* === Modules === */
 

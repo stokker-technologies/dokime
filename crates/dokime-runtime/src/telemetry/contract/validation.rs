@@ -38,9 +38,41 @@ use dokime_domain::model::values::value_matches_type;
 
 /* === Enums === */
 
+enum Rule<'a> {
+    Column(&'a TelemetryColumn),
+    Timestamp,
+}
+
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Rule<'_> {
+    fn default(&self) -> Option<&Value> {
+        match self {
+            Self::Column(column) => column.default.as_ref(),
+            Self::Timestamp => None,
+        }
+    }
+    fn required(&self) -> bool {
+        match self {
+            Self::Column(column) => column.required,
+            Self::Timestamp => true,
+        }
+    }
+    fn nullable(&self) -> bool {
+        match self {
+            Self::Column(column) => column.nullable,
+            Self::Timestamp => false,
+        }
+    }
+    fn value_type(&self) -> &dokime_domain::model::values::ValueType {
+        match self {
+            Self::Column(column) => &column.value_type,
+            Self::Timestamp => &dokime_domain::model::values::ValueType::Datetime,
+        }
+    }
+}
 
 /* === Public Functions === */
 
@@ -78,8 +110,8 @@ pub fn check_normalized_telemetry_sample(
     check_sample(contract, sample, default_mode, false)
 }
 
-/// The Borrowed Rule Index And Every Possible Direct Validation Diagnostic.
-/// This Excludes Caller Formatting And Native Typed-Payload Validation Workspaces.
+// The Borrowed Rule Index And Every Possible Direct Validation Diagnostic.
+// This Excludes Caller Formatting And Native Typed-Payload Validation Workspaces.
 pub fn telemetry_sample_check_memory(contract: Option<&TelemetryContract>, sample: &TelemetrySample) -> usize {
     let count = contract.map_or(0, |contract| contract.columns.len().saturating_add(1));
     let mut bytes = harmos::btree_map_memory::<&str, Rule<'_>>(count);
@@ -98,38 +130,6 @@ pub fn telemetry_sample_check_memory(contract: Option<&TelemetryContract>, sampl
 }
 
 /* === Private Functions === */
-
-enum Rule<'a> {
-    Column(&'a TelemetryColumn),
-    Timestamp,
-}
-
-impl Rule<'_> {
-    fn default(&self) -> Option<&Value> {
-        match self {
-            Self::Column(column) => column.default.as_ref(),
-            Self::Timestamp => None,
-        }
-    }
-    fn required(&self) -> bool {
-        match self {
-            Self::Column(column) => column.required,
-            Self::Timestamp => true,
-        }
-    }
-    fn nullable(&self) -> bool {
-        match self {
-            Self::Column(column) => column.nullable,
-            Self::Timestamp => false,
-        }
-    }
-    fn value_type(&self) -> &dokime_domain::model::values::ValueType {
-        match self {
-            Self::Column(column) => &column.value_type,
-            Self::Timestamp => &dokime_domain::model::values::ValueType::Datetime,
-        }
-    }
-}
 
 fn check_sample(
     contract: &TelemetryContract, sample: &TelemetrySample, default_mode: ValidationMode, implicit_timestamp: bool,

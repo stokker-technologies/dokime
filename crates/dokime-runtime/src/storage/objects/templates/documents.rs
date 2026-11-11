@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -30,18 +31,23 @@ use dokime_domain::model::values::ValueFormat;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Document {
     #[serde(default)]
     document_id: String,
+
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     cards: Vec<CardDefinition>,
+
     #[serde(default)]
     layout: layout::Layout,
+
     #[serde(default)]
     sections: Vec<Section>,
 }
@@ -52,11 +58,14 @@ pub struct Document {
 pub(super) struct CardDefinition {
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     filters: Vec<Filter>,
+
     #[serde(rename = "type")]
     #[serde(default)]
     kind: String,
+
     #[serde(default)]
     data: Option<CardData>,
 }
@@ -67,13 +76,17 @@ pub(super) struct CardDefinition {
 pub(super) struct Card {
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     layout: CardLayout,
+
     #[serde(default)]
     filters: Vec<Filter>,
+
     #[serde(rename = "type")]
     #[serde(default)]
     kind: String,
+
     #[serde(default)]
     data: Option<CardData>,
 }
@@ -84,10 +97,13 @@ pub(super) struct Card {
 pub(super) struct CardData {
     #[serde(default)]
     markdown: Option<String>,
+
     #[serde(default)]
     summary: Option<Summary>,
+
     #[serde(default)]
     plot: Option<Plot>,
+
     #[serde(default)]
     rows: Vec<Map>,
 }
@@ -98,8 +114,10 @@ pub(super) struct CardData {
 pub(super) struct Section {
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     cards: Vec<Card>,
+
     #[serde(default)]
     repeat: Option<Repeat>,
 }
@@ -109,12 +127,16 @@ pub(super) struct Section {
 #[serde(deny_unknown_fields)]
 pub(super) struct Repeat {
     value: Data,
+
     #[serde(default)]
     label_template: String,
+
     #[serde(default)]
     id_template: Option<String>,
+
     #[serde(default)]
     order_by: Option<Data>,
+
     #[serde(default)]
     filters: Vec<Filter>,
 }
@@ -125,6 +147,7 @@ pub(super) struct Repeat {
 pub(super) struct Placement {
     #[serde(default)]
     card_id: String,
+
     #[serde(default)]
     layout: CardLayout,
 }
@@ -135,12 +158,16 @@ pub(super) struct Placement {
 pub struct CardLayout {
     #[serde(default)]
     col_span: Span,
+
     #[serde(default)]
     row_span: u32,
+
     #[serde(default)]
     order: i32,
+
     #[serde(default)]
     density: String,
+
     #[serde(default)]
     rail: String,
 }
@@ -151,12 +178,16 @@ pub struct CardLayout {
 pub(super) struct Span {
     #[serde(default)]
     base: u32,
+
     #[serde(default)]
     sm: Option<u32>,
+
     #[serde(default)]
     md: Option<u32>,
+
     #[serde(default)]
     lg: Option<u32>,
+
     #[serde(default)]
     xl: Option<u32>,
 }
@@ -175,6 +206,7 @@ pub(super) struct Summary {
 pub(super) struct SummaryGroup {
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     tiles: Vec<Tile>,
 }
@@ -185,17 +217,24 @@ pub(super) struct SummaryGroup {
 pub(super) struct Tile {
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     value: Data,
+
     #[serde(default)]
     filters: Vec<Filter>,
+
     #[serde(default)]
     stat: String,
+
     #[serde(default)]
     format: String,
+
     #[serde(default)]
     presentation: String,
+
     #[serde(default)]
     unit: Option<String>,
+
     #[serde(default)]
     conditions: Vec<TileCondition>,
 }
@@ -206,8 +245,10 @@ pub(super) struct Tile {
 pub(super) struct TileCondition {
     #[serde(default)]
     operator: String,
+
     #[serde(default)]
     value: Value,
+
     #[serde(default)]
     state: String,
 }
@@ -218,8 +259,10 @@ pub(super) struct TileCondition {
 pub struct Data {
     #[serde(default)]
     label: Option<String>,
+
     #[serde(default)]
     source: DataSource,
+
     #[serde(default)]
     transforms: Vec<Transform>,
 }
@@ -231,14 +274,19 @@ pub(super) struct DataSource {
     #[serde(rename = "type")]
     #[serde(default)]
     kind: String,
+
     #[serde(default)]
     stream: Option<String>,
+
     #[serde(default)]
     field: Option<String>,
+
     #[serde(default)]
     name: Option<String>,
+
     #[serde(default)]
     record_type: Option<String>,
+
     #[serde(default)]
     artifact: Option<String>,
 }
@@ -250,10 +298,13 @@ pub(super) struct Transform {
     #[serde(rename = "type")]
     #[serde(default)]
     kind: String,
+
     #[serde(default)]
     previous_record_type: Option<String>,
+
     #[serde(default)]
     name: Option<String>,
+
     // The Harmos vocabulary's wire name (`mean`, `p95`) of an `aggregate`.
     #[serde(default)]
     aggregate: Option<String>,
@@ -264,8 +315,10 @@ pub(super) struct Transform {
 #[serde(deny_unknown_fields)]
 pub struct Filter {
     expression: Data,
+
     #[serde(default)]
     operator: String,
+
     #[serde(default)]
     value: Option<Value>,
 }
@@ -276,60 +329,91 @@ pub struct Filter {
 pub(super) struct Plot {
     #[serde(default)]
     metadata: Option<metadata::Row>,
+
     #[serde(default)]
     plot_type: String,
+
     #[serde(default)]
     stream: Option<String>,
+
     #[serde(default)]
     x: Option<String>,
+
     #[serde(default)]
     y: Vec<String>,
+
     #[serde(default)]
     z_stream: Option<String>,
+
     #[serde(default)]
     z_field: Option<String>,
+
     #[serde(default)]
     series_by: Option<String>,
+
     #[serde(default)]
     x_expression: Option<Data>,
+
     #[serde(default)]
     y_expressions: Vec<Data>,
+
     #[serde(default)]
     z_expression: Option<Data>,
+
     #[serde(default)]
     series_by_expression: Option<Data>,
+
     #[serde(default)]
     filters: Vec<Filter>,
+
     #[serde(default)]
     unit: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    scale: Option<f64>,
+
     #[serde(default)]
     style: String,
+
     #[serde(default)]
     x_scale: String,
+
     #[serde(default)]
     y_scale: String,
+
     #[serde(default)]
     fft: Fft,
+
     #[serde(default)]
     interval: Interval,
+
     #[serde(default)]
     histogram: Histogram,
+
     #[serde(default)]
     marker_record_types: Vec<String>,
+
     #[serde(default)]
     reference_lines: Vec<Line>,
+
     #[serde(default)]
     reference_bands: Vec<Band>,
+
     #[serde(default)]
     display_points: Option<u32>,
+
     #[serde(default)]
     downsample: crate::document::DownsampleTechnique,
+
     #[serde(default)]
     x_format: Option<Format>,
+
     #[serde(default)]
     y_format: Option<Format>,
+
     #[serde(default)]
     x_axis: Option<Axis>,
+
     #[serde(default)]
     analysis: Option<super::analysis::Selection>,
 }
@@ -340,16 +424,22 @@ pub(super) struct Plot {
 pub struct Fft {
     #[serde(default)]
     sample_rate_hz: Option<f64>,
+
     #[serde(default)]
     window: String,
+
     #[serde(default)]
     detrend: String,
+
     #[serde(default)]
     level_unit: String,
+
     #[serde(default)]
     include_dc: bool,
+
     #[serde(default)]
     min_frequency_hz: Option<f64>,
+
     #[serde(default)]
     max_frequency_hz: Option<f64>,
 }
@@ -360,8 +450,10 @@ pub struct Fft {
 pub struct Interval {
     #[serde(default)]
     bin_width: f64,
+
     #[serde(default)]
     sigma: f64,
+
     #[serde(default)]
     clip_to_observed: bool,
 }
@@ -372,6 +464,7 @@ pub struct Interval {
 pub struct Histogram {
     #[serde(default)]
     bins: u64,
+
     #[serde(default)]
     unit: Option<String>,
 }
@@ -380,16 +473,11 @@ pub struct Histogram {
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Line {
-    #[serde(default)]
-    axis: String,
-    #[serde(default)]
-    value: Option<f64>,
-    #[serde(default)]
-    source: Option<Data>,
-    #[serde(default)]
-    source_scale: f64,
+    value: Reference,
+
     #[serde(default)]
     label: Option<String>,
+
     #[serde(default)]
     color: String,
 }
@@ -399,19 +487,30 @@ pub struct Line {
 #[serde(deny_unknown_fields)]
 pub struct Band {
     #[serde(default)]
-    axis: String,
+    min: Option<Reference>,
+
     #[serde(default)]
-    min: Option<f64>,
+    max: Option<Reference>,
+
     #[serde(default)]
-    max: Option<f64>,
+    center: Option<Reference>,
+
     #[serde(default)]
-    center: Option<Data>,
-    #[serde(default)]
-    tolerance: Option<Data>,
+    tolerance: Option<Reference>,
+
     #[serde(default)]
     label: Option<String>,
+
     #[serde(default)]
     color: String,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Reference {
+    constant: Option<f64>,
+    expression: Option<Data>,
 }
 
 #[harmos::message]
@@ -420,14 +519,19 @@ pub struct Band {
 pub struct Format {
     #[serde(default)]
     kind: String,
+
     #[serde(default)]
     max_fraction_digits: Option<u32>,
+
     #[serde(default)]
     decimals: Option<u32>,
+
     #[serde(default)]
     significant_digits: Option<u32>,
+
     #[serde(default)]
     pattern: Option<String>,
+
     #[serde(default)]
     unit: Option<String>,
 }
@@ -438,6 +542,7 @@ pub struct Format {
 pub struct Axis {
     #[serde(default)]
     kind: String,
+
     #[serde(default)]
     unit: Option<String>,
 }
@@ -447,6 +552,7 @@ pub struct Axis {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Document {
     pub fn encoding_memory(value: &crate::document::DocumentDefinition) -> Result<usize> {
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
@@ -908,6 +1014,7 @@ impl TryFrom<&crate::document::PlotDefinition> for Plot {
             filters,
             unit: value.unit.as_deref().map(str::to_owned),
             style: name(&value.style),
+            scale: value.scale,
             x_scale: name(&value.x_scale),
             y_scale: name(&value.y_scale),
             fft: Fft::try_from(&value.fft)?,
@@ -974,6 +1081,7 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
             filters,
             unit: row.unit,
             style: parse(&row.style, "invalid plot style")?,
+            scale: row.scale,
             x_scale: parse(&row.x_scale, "invalid axis scale")?,
             y_scale: parse(&row.y_scale, "invalid axis scale")?,
             fft: row.fft.try_into()?,
@@ -1127,32 +1235,80 @@ impl TryFrom<Histogram> for crate::document::HistogramOptions {
     }
 }
 
+impl Reference {
+    pub fn encoding_memory(value: &crate::document::ReferenceValue) -> Result<usize> {
+        match value {
+            crate::document::ReferenceValue::Constant(value) => {
+                finite(*value)?;
+                Ok(std::mem::size_of::<Self>())
+            }
+            crate::document::ReferenceValue::Expression(value) => {
+                let memory = Data::encoding_memory(value)?;
+                if memory == usize::MAX {
+                    return Ok(usize::MAX);
+                }
+                Ok(std::mem::size_of::<Self>().saturating_add(memory.saturating_sub(std::mem::size_of::<Data>())))
+            }
+        }
+    }
+
+    pub fn projection_memory(&self) -> Result<usize> {
+        match (&self.constant, &self.expression) {
+            (Some(value), None) => {
+                finite(*value)?;
+                Ok(std::mem::size_of::<crate::document::ReferenceValue>())
+            }
+            (None, Some(value)) => Ok(std::mem::size_of::<crate::document::ReferenceValue>().saturating_add(value.projection_memory()?)),
+            _ => Err(Error::Invalid("reference value must have exactly one constant or expression")),
+        }
+    }
+}
+
+impl TryFrom<&crate::document::ReferenceValue> for Reference {
+    type Error = Error;
+
+    fn try_from(value: &crate::document::ReferenceValue) -> Result<Self> {
+        if Self::encoding_memory(value)? == usize::MAX {
+            return Err(Error::Invalid("reference encoding memory overflows"));
+        }
+        let (constant, expression) = match value {
+            crate::document::ReferenceValue::Constant(value) => (Some(*value), None),
+            crate::document::ReferenceValue::Expression(value) => (None, Some(Data::try_from(value)?)),
+        };
+        Ok(Self { constant, expression })
+    }
+}
+
+impl TryFrom<Reference> for crate::document::ReferenceValue {
+    type Error = Error;
+
+    fn try_from(value: Reference) -> Result<Self> {
+        if value.projection_memory()? == usize::MAX {
+            return Err(Error::Invalid("reference projection memory overflows"));
+        }
+        match (value.constant, value.expression) {
+            (Some(value), None) => Ok(Self::Constant(value)),
+            (None, Some(value)) => Ok(Self::Expression(value.try_into()?)),
+            _ => Err(Error::Invalid("reference value must have exactly one constant or expression")),
+        }
+    }
+}
+
 impl Line {
     pub fn encoding_memory(value: &crate::document::ReferenceLine) -> Result<usize> {
-        if let Some(number) = value.value {
-            finite(number)?;
-        }
-        finite(value.source_scale)?;
-        let source = value.source.as_ref().map(Data::encoding_memory).transpose()?.unwrap_or(0);
-        if source == usize::MAX {
+        let reference = Reference::encoding_memory(&value.value)?;
+        if reference == usize::MAX {
             return Ok(usize::MAX);
         }
         Ok(std::mem::size_of::<Self>()
-            .saturating_add(name(&value.axis).len())
-            .saturating_add(source.saturating_sub(std::mem::size_of::<Data>()))
+            .saturating_add(reference.saturating_sub(std::mem::size_of::<Reference>()))
             .saturating_add(value.label.as_deref().map_or(0, str::len))
             .saturating_add(value.color.len()))
     }
 
     pub fn projection_memory(&self) -> Result<usize> {
-        parse::<crate::document::ReferenceAxis>(&self.axis, "invalid reference axis")?;
-        if let Some(value) = self.value {
-            finite(value)?;
-        }
-        finite(self.source_scale)?;
-        let source = self.source.as_ref().map(Data::projection_memory).transpose()?.unwrap_or(0);
         Ok(std::mem::size_of::<crate::document::ReferenceLine>()
-            .saturating_add(source)
+            .saturating_add(self.value.projection_memory()?)
             .saturating_add(self.label.as_ref().map_or(0, String::capacity))
             .saturating_add(self.color.capacity()))
     }
@@ -1166,12 +1322,9 @@ impl TryFrom<&crate::document::ReferenceLine> for Line {
             return Err(Error::Invalid("reference line encoding memory overflows"));
         }
         Ok(Self {
-            axis: name(&value.axis),
-            value: value.value,
-            source: value.source.as_ref().map(Data::try_from).transpose()?,
-            source_scale: value.source_scale,
-            label: value.label.as_deref().map(str::to_owned),
-            color: value.color.as_str().to_owned(),
+            value: Reference::try_from(&value.value)?,
+            label: value.label.clone(),
+            color: value.color.clone(),
         })
     }
 }
@@ -1184,10 +1337,7 @@ impl TryFrom<Line> for crate::document::ReferenceLine {
             return Err(Error::Invalid("reference line projection memory overflows"));
         }
         Ok(Self {
-            axis: parse(&row.axis, "invalid reference axis")?,
-            value: row.value,
-            source: row.source.map(TryInto::try_into).transpose()?,
-            source_scale: row.source_scale,
+            value: row.value.try_into()?,
             label: row.label,
             color: row.color,
         })
@@ -1196,34 +1346,26 @@ impl TryFrom<Line> for crate::document::ReferenceLine {
 
 impl Band {
     pub fn encoding_memory(value: &crate::document::ReferenceBand) -> Result<usize> {
-        for number in [value.min, value.max].into_iter().flatten() {
-            finite(number)?;
+        let mut memory =
+            std::mem::size_of::<Self>().saturating_add(value.label.as_deref().map_or(0, str::len)).saturating_add(value.color.len());
+        for value in [&value.min, &value.max, &value.center, &value.tolerance].into_iter().flatten() {
+            let reference = Reference::encoding_memory(value)?;
+            if reference == usize::MAX {
+                return Ok(usize::MAX);
+            }
+            memory = memory.saturating_add(reference.saturating_sub(std::mem::size_of::<Reference>()));
         }
-        let center = value.center.as_ref().map(Data::encoding_memory).transpose()?.unwrap_or(0);
-        let tolerance = value.tolerance.as_ref().map(Data::encoding_memory).transpose()?.unwrap_or(0);
-        if [center, tolerance].contains(&usize::MAX) {
-            return Ok(usize::MAX);
-        }
-        Ok(std::mem::size_of::<Self>()
-            .saturating_add(name(&value.axis).len())
-            .saturating_add(center.saturating_sub(std::mem::size_of::<Data>()))
-            .saturating_add(tolerance.saturating_sub(std::mem::size_of::<Data>()))
-            .saturating_add(value.label.as_deref().map_or(0, str::len))
-            .saturating_add(value.color.len()))
+        Ok(memory)
     }
 
     pub fn projection_memory(&self) -> Result<usize> {
-        parse::<crate::document::ReferenceAxis>(&self.axis, "invalid reference axis")?;
-        for value in [self.min, self.max].into_iter().flatten() {
-            finite(value)?;
-        }
-        let center = self.center.as_ref().map(Data::projection_memory).transpose()?.unwrap_or(0);
-        let tolerance = self.tolerance.as_ref().map(Data::projection_memory).transpose()?.unwrap_or(0);
-        Ok(std::mem::size_of::<crate::document::ReferenceBand>()
-            .saturating_add(center)
-            .saturating_add(tolerance)
+        let mut memory = std::mem::size_of::<crate::document::ReferenceBand>()
             .saturating_add(self.label.as_ref().map_or(0, String::capacity))
-            .saturating_add(self.color.capacity()))
+            .saturating_add(self.color.capacity());
+        for value in [&self.min, &self.max, &self.center, &self.tolerance].into_iter().flatten() {
+            memory = memory.saturating_add(value.projection_memory()?);
+        }
+        Ok(memory)
     }
 }
 
@@ -1235,13 +1377,12 @@ impl TryFrom<&crate::document::ReferenceBand> for Band {
             return Err(Error::Invalid("reference band encoding memory overflows"));
         }
         Ok(Self {
-            axis: name(&value.axis),
-            min: value.min,
-            max: value.max,
-            center: value.center.as_ref().map(Data::try_from).transpose()?,
-            tolerance: value.tolerance.as_ref().map(Data::try_from).transpose()?,
-            label: value.label.as_deref().map(str::to_owned),
-            color: value.color.as_str().to_owned(),
+            min: value.min.as_ref().map(Reference::try_from).transpose()?,
+            max: value.max.as_ref().map(Reference::try_from).transpose()?,
+            center: value.center.as_ref().map(Reference::try_from).transpose()?,
+            tolerance: value.tolerance.as_ref().map(Reference::try_from).transpose()?,
+            label: value.label.clone(),
+            color: value.color.clone(),
         })
     }
 }
@@ -1254,9 +1395,8 @@ impl TryFrom<Band> for crate::document::ReferenceBand {
             return Err(Error::Invalid("reference band projection memory overflows"));
         }
         Ok(Self {
-            axis: parse(&row.axis, "invalid reference axis")?,
-            min: row.min,
-            max: row.max,
+            min: row.min.map(TryInto::try_into).transpose()?,
+            max: row.max.map(TryInto::try_into).transpose()?,
             center: row.center.map(TryInto::try_into).transpose()?,
             tolerance: row.tolerance.map(TryInto::try_into).transpose()?,
             label: row.label,
@@ -2160,6 +2300,7 @@ impl From<crate::document::DocumentCardLayout> for CardLayout {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn body_encoding_memory(value: &crate::document::DocumentCardBody) -> Result<usize> {
     use crate::document::DocumentCardBody;
     let mut bytes = body_name(value).len();

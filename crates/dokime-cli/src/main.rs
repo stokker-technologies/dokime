@@ -104,22 +104,26 @@ fn report_error(terminal: &dokime::terminal::Terminal, error: dokime_cli::Error)
 /* === Tests === */
 
 #[cfg(test)]
-#[test]
-fn abandoned_blocking_work_does_not_hold_shutdown() {
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let (release, released) = std::sync::mpsc::channel::<()>();
-    let (entered, started) = std::sync::mpsc::channel();
-    let blocked = runtime.spawn_blocking(move || {
-        entered.send(()).unwrap();
-        let _ = released.recv();
-    });
-    started.recv().unwrap();
+mod tests {
+    use super::*;
 
-    // Dropping The Runtime Would Wait For The Blocked Thread Until It Is Released.
-    let outcome = drive(runtime, async move {
-        drop(blocked);
-        7
-    });
-    assert_eq!(outcome, 7, "the command's own outcome is the process outcome");
-    release.send(()).unwrap();
+    #[test]
+    fn abandoned_blocking_work_does_not_hold_shutdown() {
+        let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let (entered, started) = std::sync::mpsc::channel();
+        let blocked = runtime.spawn_blocking(move || {
+            entered.send(()).unwrap();
+            let _ = released.recv();
+        });
+        started.recv().unwrap();
+
+        // Dropping The Runtime Would Wait For The Blocked Thread Until It Is Released.
+        let outcome = drive(runtime, async move {
+            drop(blocked);
+            7
+        });
+        assert_eq!(outcome, 7, "the command's own outcome is the process outcome");
+        release.send(()).unwrap();
+    }
 }

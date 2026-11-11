@@ -37,8 +37,10 @@ mod sidecar;
 pub enum Command {
     #[command(name = "__desktop-development", hide = true)]
     DesktopDevelopment(sidecar::dev::desktop::Args),
+
     #[command(about = "Generate Client Bindings from Operation Contracts")]
     Bindings(bindings::Args),
+
     #[command(about = "Package Native Installers")]
     Installer(installer::Args),
 

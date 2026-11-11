@@ -27,6 +27,7 @@ type Value = NonNullable<Wire<Awaited<ReturnType<typeof rpc.executionListExecuti
 type WirePluginIdentity = NonNullable<ExecutionDetail["admittedPlugin"]>;
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
+import type { RerunNotices } from "@/stores/rerun-notice-store";
 import type {
   ExecutionPluginIdentity,
   StartTestCycleResponse,
@@ -165,11 +166,21 @@ export async function renameNativeTestExecution(session: SessionIdentity, execut
   return (await rpc.executionRenameExecution(session, { executionId, label })).label;
 }
 
-export async function reopenNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<StartTestCycleResponse> {
-  const created = await rpc.executionCopyCycle(session, { sourceCycleId: cycleId });
-  const plan = await fetchNativeTestCyclePlan(session, created.cycleId);
-  if (!plan) throw new Error("Native CopyCycle did not produce a cycle.");
-  return { plan };
+/** The cycle's label as the backend holds it, for a lineage link to it. */
+export async function fetchNativeCycleLabel(session: SessionIdentity, cycleId: string): Promise<string> {
+  const summary = await rpc.executionGetCycle(session, { cycleId });
+  return summary.metadata?.label || cycleId;
+}
+
+/**
+ * Plans a new cycle with the source's cases against the installed plugin.
+ * Resolves to the new cycle's id and what the plugin no longer declares.
+ */
+export async function rerunNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<{ cycleId: string } & RerunNotices> {
+  const reply = await rpc.executionRerunCycle(session, { sourceCycleId: cycleId });
+  const notices = (items: typeof reply.skipped) =>
+    items.map((item) => ({ caseId: item.caseId, reason: item.reason, suiteId: item.suiteId }));
+  return { cycleId: reply.cycleId, droppedParameters: notices(reply.droppedParameters), skipped: notices(reply.skipped) };
 }
 
 export async function deleteNativeTestCycleCases(

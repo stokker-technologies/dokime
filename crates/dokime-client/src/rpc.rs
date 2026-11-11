@@ -16,13 +16,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-
-// Local Imports
-use super::{Client, RequestStream, ResponseStream, Result, contracts};
 use harmos::MemorySize;
 use harmos::domain::Portable;
 use harmos::operations::Direction;
 use harmos::operations::OperationDeclaration;
+
+// Local Imports
+use super::{Client, RequestStream, ResponseStream, Result, contracts};
 
 /* === Constants === */
 
@@ -39,7 +39,7 @@ use harmos::operations::OperationDeclaration;
 /* === Implementations === */
 
 impl Client {
-    /// Calls any unary endpoint; the request type selects the operation.
+    // Calls any unary endpoint; the request type selects the operation.
     pub async fn call<O>(&self, request: O) -> Result<O::Response>
     where
         O: OperationDeclaration<Request = O> + Sync,
@@ -48,7 +48,7 @@ impl Client {
         super::transport::value(self.unary::<O>(request).await?)
     }
 
-    /// Opens any server-streaming endpoint; the request type selects the operation.
+    // Opens any server-streaming endpoint; the request type selects the operation.
     pub async fn stream<O>(&self, request: O) -> Result<ResponseStream<<O::Output as Direction>::Item>>
     where
         O: OperationDeclaration<Request = O> + Sync,

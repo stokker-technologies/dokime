@@ -45,7 +45,6 @@ import { preferencesCommands } from "@/lib/desktop/settings";
 test("Backend Action Menus Survive Owner Renders", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.spyOn(preferencesCommands, "desktopBackendsList").mockResolvedValue({
-    version: 1,
     default: null,
     profiles: [
       {

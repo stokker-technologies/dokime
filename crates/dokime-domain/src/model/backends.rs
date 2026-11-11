@@ -44,10 +44,9 @@ pub struct Profile {
     pub secret: Secret,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Document {
-    pub version: u8,
     pub default: Option<String>,
     pub profiles: Vec<Profile>,
 }
@@ -64,16 +63,6 @@ pub enum Secret {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Default for Document {
-    fn default() -> Self {
-        Self {
-            version: 1,
-            default: None,
-            profiles: Vec::new(),
-        }
-    }
-}
 
 impl Profile {
     pub fn validate(&self) -> Result<(), &'static str> {

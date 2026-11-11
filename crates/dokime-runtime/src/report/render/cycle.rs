@@ -112,7 +112,6 @@ impl Report<'_> {
                 },
             )?;
             fields.field("plots", &self.header.plots.unwrap_or(&BTreeMap::new()))?;
-            fields.field("schema_version", &1u8)?;
             fields.raw("snapshot", |writer| self.write_snapshot(writer, rows))?;
             fields.field("test_cycle_plan", &PlanRows(self))?;
             fields.field("test_executions", &Rows(self, Section::Executions))?;
@@ -210,12 +209,19 @@ impl MemberRows {
     pub(in crate::report) fn new() -> Result<Self> {
         // A Private Temporary Database Creates Its Backing File Only When It Spills.
         let connection = rusqlite::Connection::open("").map_err(rows_error)?;
+        Self::with_connection(connection)
+    }
+
+    fn with_connection(connection: rusqlite::Connection) -> Result<Self> {
         connection
             .execute_batch(
                 "PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF; PRAGMA temp_store=FILE;
              PRAGMA cache_size=-8192; PRAGMA mmap_size=0;
              CREATE TABLE rows(section TEXT,member INTEGER,ordinal INTEGER,payload BLOB NOT NULL,
-             PRIMARY KEY(section,member,ordinal)) WITHOUT ROWID; BEGIN;",
+             PRIMARY KEY(section,member,ordinal)) WITHOUT ROWID;
+             CREATE TABLE stream_columns(stream TEXT,name TEXT,kind TEXT,payload BLOB NOT NULL,
+             PRIMARY KEY(stream,name,kind)) WITHOUT ROWID;
+             CREATE TABLE stream_conflicts(stream TEXT,name TEXT,PRIMARY KEY(stream,name)) WITHOUT ROWID; BEGIN;",
             )
             .map_err(rows_error)?;
         Ok(Self { connection })
@@ -242,6 +248,59 @@ impl MemberRows {
         for (stream, versions) in &captured.telemetry_contracts {
             for (version, contract) in versions {
                 self.append(&format!("spec:{stream}"), member, *version as usize, &telemetry::Spec::new(contract))?;
+                let spec =
+                    serde_json::to_value(telemetry::Spec::new(contract)).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+                for (column, declaration) in
+                    spec["columns"].as_array().expect("stream columns serialize as an array").iter().zip(&contract.columns)
+                {
+                    let name = column["name"].as_str().expect("column name is text");
+                    let value_type = match declaration.value_type {
+                        dokime_domain::model::values::ValueType::File => dokime_domain::model::values::ValueType::Text,
+                        _ => declaration.value_type.clone(),
+                    };
+                    let unit = declaration.unit.as_ref().map(|unit| (&unit.metadata.identifier, &unit.family, &unit.symbol));
+                    let kind = serde_json::to_string(&(value_type, unit)).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+                    let incompatible: bool = self
+                        .connection
+                        .query_row(
+                            "SELECT EXISTS(SELECT 1 FROM stream_columns WHERE stream=?1 AND name=?2 AND kind<>?3)",
+                            rusqlite::params![stream.as_str(), name, kind],
+                            |row| row.get(0),
+                        )
+                        .map_err(rows_error)?;
+                    if incompatible {
+                        let first = self
+                            .connection
+                            .execute("INSERT OR IGNORE INTO stream_conflicts VALUES (?1,?2)", rusqlite::params![stream.as_str(), name])
+                            .map_err(rows_error)?;
+                        if first != 0 {
+                            let ordinal: i64 = self
+                                .connection
+                                .query_row(
+                                    "SELECT COALESCE(MAX(ordinal)+1,0) FROM rows WHERE section='warnings' AND member=?1",
+                                    [member as i64],
+                                    |row| row.get(0),
+                                )
+                                .map_err(rows_error)?;
+                            let message = format!(
+                                "Stream `{stream}` column `{name}` has incompatible types or units across executions. Read each execution's values and plots separately; combined previews show the values as recorded."
+                            );
+                            self.append(
+                                "warnings",
+                                member,
+                                usize::try_from(ordinal).map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
+                                &DocumentWarningText("report.stream_column_type_changed", &message),
+                            )?;
+                        }
+                    }
+                    let payload = serde_json::to_vec(column).map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+                    self.connection
+                        .execute(
+                            "INSERT OR IGNORE INTO stream_columns VALUES (?1,?2,?3,?4)",
+                            rusqlite::params![stream.as_str(), name, kind, payload],
+                        )
+                        .map_err(rows_error)?;
+                }
             }
         }
         for ordinal in crate::report::previews::indices(captured.context.notes.len(), captured.report_defaults.table_rows as usize) {
@@ -323,7 +382,35 @@ impl MemberRows {
             .query_row(rusqlite::params![format!("spec:{}", sample.stream), member, i64::from(sample.schema_version)], |row| row.get(0))
             .optional()
             .map_err(io::Error::other)?;
-        writer.write_all(bytes.as_deref().unwrap_or(b"null"))
+        let Some(bytes) = bytes else { return writer.write_all(b"null") };
+        let mut spec: serde_json::Value = serde_json::from_slice(&bytes).map_err(io::Error::other)?;
+        let mut columns = BTreeMap::<String, serde_json::Value>::new();
+        let mut statement = self
+            .connection
+            .prepare_cached("SELECT name,payload FROM stream_columns WHERE stream=?1 ORDER BY name,kind")
+            .map_err(io::Error::other)?;
+        let mut rows = statement.query([sample.stream.as_str()]).map_err(io::Error::other)?;
+        while let Some(row) = rows.next().map_err(io::Error::other)? {
+            let name: String = row.get(0).map_err(io::Error::other)?;
+            let bytes: Vec<u8> = row.get(1).map_err(io::Error::other)?;
+            let column: serde_json::Value = serde_json::from_slice(&bytes).map_err(io::Error::other)?;
+            match columns.entry(name) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(column);
+                }
+                std::collections::btree_map::Entry::Occupied(mut entry) => {
+                    entry.get_mut()["value_type"] = "string".into();
+                }
+            }
+        }
+        let original = spec["columns"].as_array().expect("stream columns serialize as an array");
+        if original.len() == columns.len()
+            && original.iter().all(|column| columns.get(column["name"].as_str().expect("column name is text")) == Some(column))
+        {
+            return writer.write_all(&bytes);
+        }
+        spec["columns"] = columns.into_values().collect::<Vec<_>>().into();
+        output::write_json(writer, &spec)
     }
 
     fn row(&self, writer: &mut dyn Write, section: &str, member: usize, ordinal: usize) -> io::Result<()> {
@@ -357,7 +444,7 @@ impl Serialize for DocumentWarningText<'_> {
 
 impl Serialize for Report<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut fields = serializer.serialize_map(Some(12))?;
+        let mut fields = serializer.serialize_map(Some(11))?;
         fields.serialize_entry("appearance", self.appearance)?;
         fields.serialize_entry("report_defaults", self.report_defaults)?;
         fields.serialize_entry("case_runs", &Rows(self, Section::Cases))?;
@@ -372,7 +459,6 @@ impl Serialize for Report<'_> {
             },
         )?;
         fields.serialize_entry("plots", &self.header.plots.unwrap_or(&BTreeMap::new()))?;
-        fields.serialize_entry("schema_version", &1u8)?;
         fields.serialize_entry("snapshot", &SnapshotRows(self))?;
         fields.serialize_entry("test_cycle_plan", &PlanRows(self))?;
         fields.serialize_entry("test_executions", &Rows(self, Section::Executions))?;
@@ -723,80 +809,76 @@ fn selected_samples(samples: &[crate::report::cycle::Sample], maximum: usize) ->
 
 /* === Tests === */
 
-#[test]
-fn preview_selection_preserves_order_and_terminal_endpoint() {
-    for (length, maximum, expected) in [
-        (0, 0, vec![]),
-        (1, 0, vec![0]),
-        (5, 0, vec![4]),
-        (5, 1, vec![4]),
-        (5, 5, vec![0, 1, 2, 3, 4]),
-        (8, 4, vec![0, 3, 6, 7]),
-        (9, 4, vec![0, 3, 6, 8]),
-        (10, 4, vec![0, 4, 8, 9]),
-    ] {
-        let indices = selection(length, maximum);
-        assert_eq!(indices.clone().count(), expected.len());
-        assert_eq!(indices.collect::<Vec<_>>(), expected);
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn fixture_report_save_measurement() {
-    use crate::report::{CapturedExecutionReportInput, cycle::CycleMember};
-    use std::{
-        io::{BufWriter, Read},
-        sync::atomic::Ordering,
-        time::Instant,
-    };
-    let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("../fixtures/execution-report-input.json")).unwrap();
-    let input = harmos::storage::ReadBatch::new(captured);
-    let CycleMember::Captured(member) = CycleMember::capture(input.clone()).unwrap() else { unreachable!() };
-    let mut index = Index::new();
-    index.push_capture(&input).unwrap();
-    index.sort();
-    let read = |_| member.read().map(crate::report::html::Member::Captured);
-    let report = Report {
-        header: (&input.input).into(),
-        index: &index,
-        appearance: &input.context.appearance,
-        report_defaults: &input.report_defaults,
-        read: &read,
-    };
-    let mut baseline_file = None;
-    let started = Instant::now();
-    for _ in 0..20 {
-        let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
-        drop(member.read().unwrap());
-        report.write(&mut writer).unwrap();
-        writer.flush().unwrap();
-        baseline_file = Some(writer.into_inner().unwrap());
+    #[test]
+    fn preview_selection_preserves_order_and_terminal_endpoint() {
+        for (length, maximum, expected) in [
+            (0, 0, vec![]),
+            (1, 0, vec![0]),
+            (5, 0, vec![4]),
+            (5, 1, vec![4]),
+            (5, 5, vec![0, 1, 2, 3, 4]),
+            (8, 4, vec![0, 3, 6, 7]),
+            (9, 4, vec![0, 3, 6, 8]),
+            (10, 4, vec![0, 4, 8, 9]),
+        ] {
+            let indices = selection(length, maximum);
+            assert_eq!(indices.clone().count(), expected.len());
+            assert_eq!(indices.collect::<Vec<_>>(), expected);
+        }
     }
-    let before = started.elapsed() / 20;
-    let mut baseline_bytes = Vec::new();
-    let mut baseline_file = baseline_file.unwrap();
-    std::io::Seek::rewind(&mut baseline_file).unwrap();
-    baseline_file.read_to_end(&mut baseline_bytes).unwrap();
-    let baseline_decodes = member.decodes.load(Ordering::Relaxed);
-    let mut candidate_file = None;
-    let started = Instant::now();
-    for _ in 0..20 {
-        let mut writer = BufWriter::with_capacity(1024 * 1024, tempfile::tempfile().unwrap());
-        let captured = member.read().unwrap();
-        let rows = MemberRows::new().unwrap();
-        rows.capture(0, &captured, report.header).unwrap();
-        drop(captured);
-        report.write_prepared(&mut writer, &rows).unwrap();
-        writer.flush().unwrap();
-        candidate_file = Some(writer.into_inner().unwrap());
+
+    #[test]
+    fn fixture_report_save_preserves_bytes_and_decodes_once_per_member() {
+        use crate::report::CapturedExecutionReportInput;
+        use std::{io::BufWriter, sync::atomic::Ordering};
+        let captured: CapturedExecutionReportInput = serde_json::from_str(include_str!("../fixtures/execution-report-input.json")).unwrap();
+        let input = harmos::storage::ReadBatch::new(captured);
+        let encoded = serde_json::to_vec(&*input).unwrap();
+        let decodes = std::sync::atomic::AtomicUsize::new(0);
+        let read_member = || -> crate::runtime::Result<harmos::storage::ReadBatch<CapturedExecutionReportInput>> {
+            let captured = serde_json::from_slice(&encoded).map_err(crate::storage::Error::from)?;
+            decodes.fetch_add(1, Ordering::Relaxed);
+            Ok(harmos::storage::ReadBatch::new(captured))
+        };
+        let mut index = Index::new();
+        index.push_capture(&input).unwrap();
+        index.sort();
+        let read = |_| read_member().map(crate::report::html::Member::Captured);
+        let report = Report {
+            header: (&input.input).into(),
+            index: &index,
+            appearance: &input.context.appearance,
+            report_defaults: &input.report_defaults,
+            read: &read,
+        };
+        let mut baseline_file = None;
+        for _ in 0..20 {
+            let mut writer = BufWriter::with_capacity(1024 * 1024, Vec::new());
+            drop(read_member().unwrap());
+            report.write(&mut writer).unwrap();
+            writer.flush().unwrap();
+            baseline_file = Some(writer.into_inner().unwrap());
+        }
+        let baseline_bytes = baseline_file.unwrap();
+        let baseline_decodes = decodes.load(Ordering::Relaxed);
+        let mut candidate_file = None;
+        for _ in 0..20 {
+            let mut writer = BufWriter::with_capacity(1024 * 1024, Vec::new());
+            let captured = read_member().unwrap();
+            let rows = MemberRows::with_connection(rusqlite::Connection::open_in_memory().unwrap()).unwrap();
+            rows.capture(0, &captured, report.header).unwrap();
+            drop(captured);
+            report.write_prepared(&mut writer, &rows).unwrap();
+            writer.flush().unwrap();
+            candidate_file = Some(writer.into_inner().unwrap());
+        }
+        let candidate_bytes = candidate_file.unwrap();
+        assert_eq!(decodes.load(Ordering::Relaxed) - baseline_decodes, 20);
+        assert!(baseline_decodes > 20);
+        assert_eq!(candidate_bytes, baseline_bytes);
     }
-    let after = started.elapsed() / 20;
-    let mut candidate_bytes = Vec::new();
-    let mut candidate_file = candidate_file.unwrap();
-    std::io::Seek::rewind(&mut candidate_file).unwrap();
-    candidate_file.read_to_end(&mut candidate_bytes).unwrap();
-    assert_eq!(member.decodes.load(Ordering::Relaxed) - baseline_decodes, 20);
-    assert!(baseline_decodes > 20);
-    assert_eq!(candidate_bytes, baseline_bytes);
-    eprintln!("Fixture Report Save: before={before:?}, after={after:?}, bytes={}", candidate_bytes.len());
 }

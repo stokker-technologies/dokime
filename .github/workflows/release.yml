@@ -4,14 +4,9 @@ run-name: >-
   github.event_name == 'push' && 'Release / Publication' || 'Release / Tagging' }}
 "on":
   workflow_dispatch: {}
-  pull_request:
-    types:
-    - closed
-    branches:
-    - dev
-    # Only Release Reviews Change The Version Policy; Ordinary Merges Start No Release Run.
-    paths:
-    - tools/project.toml
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
   push:
     tags:
     - v*
@@ -29,6 +24,33 @@ env:
   pnpm_config_store_dir: ${{ github.workspace }}/.cache/pnpm
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 jobs:
+  mode:
+    name: Release / Mode
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+      sha: ${{ steps.mode.outputs.sha }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+        persist-credentials: false
+    - id: mode
+      shell: python
+      run: |-
+        import os, runpy
+        from pathlib import Path
+        action = runpy.run_path('.github/actions/review-release/run.py')
+        result = action['github_release_mode']()
+        with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as stream:
+            stream.write(''.join(f'{key}={value}\n' for key, value in result.items()))
+      env:
+        GH_TOKEN: ${{ github.token }}
+    permissions:
+      contents: read
+      pull-requests: read
   prepare:
     name: Release / Prepare
     runs-on: ubuntu-latest
@@ -95,11 +117,12 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       GH_TOKEN: ${{ github.token }}
       CRATES_BOOTSTRAP_AVAILABLE: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev'
+    needs: [mode]
+    if: needs.mode.outputs.mode == 'prepare'
     environment: release
     permissions:
       contents: read
@@ -114,7 +137,7 @@ jobs:
       with:
         fetch-depth: 0
         persist-credentials: false
-        ref: ${{ github.event.pull_request.merge_commit_sha }}
+        ref: ${{ needs.mode.outputs.sha }}
     - id: setup
       uses: ./.github/actions/setup
       with:
@@ -137,7 +160,7 @@ jobs:
         runpy.run_path('.github/actions/review-release/checks.py', run_name='__main__')
       env:
         GH_TOKEN: ${{ github.token }}
-        RELEASE_TARGET_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha || github.sha }}
+        RELEASE_TARGET_SHA: ${{ needs.mode.outputs.sha }}
     - run: mise run release:tag
       env:
         RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
@@ -182,7 +205,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       PROFILE: ${{ needs.validated.outputs.review_profile }}
       RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}
@@ -190,9 +213,7 @@ jobs:
       RELEASE_BUILD_VERSION: ${{ needs.validated.outputs.review_version }}
     if: >-
       always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
-      'cancelled') && (github.event_name == 'pull_request' && github.event.action ==
-      'closed' && github.event.pull_request.merged && github.event.pull_request.base.ref
-      == 'dev' && startsWith(github.event.pull_request.head.ref, 'release/v'))
+      'cancelled') && needs.mode.outputs.mode == 'tag'
     environment: release
     permissions:
       checks: read
@@ -203,6 +224,7 @@ jobs:
       group: release-tag
       cancel-in-progress: false
     needs:
+    - mode
     - validated
   publish:
     name: Release / Publish
@@ -226,12 +248,20 @@ jobs:
         bootstrap: "[]"
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: package-${{ env.PROFILE }}-python-any
+        name: package-${{ env.PROFILE }}-python-unix
+        path: target/ci
+        run-id: ${{ needs.validated.outputs.review_run }}
+        github-token: ${{ github.token }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ env.PROFILE }}-python-windows
         path: target/ci
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
     - name: Extract package:python / package
-      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-any.tar.zst --profile ${{ env.PROFILE }} --target any
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-unix.tar.zst --profile ${{ env.PROFILE }}
+    - name: Extract package:python / package
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-windows.tar.zst --profile ${{ env.PROFILE }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-rust-unix
@@ -255,7 +285,7 @@ jobs:
         runpy.run_path('.github/actions/review-release/checks.py', run_name='__main__')
       env:
         GH_TOKEN: ${{ github.token }}
-        RELEASE_TARGET_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha || github.sha }}
+        RELEASE_TARGET_SHA: ${{ github.sha }}
     - name: Show Trusted Publishing Identity
       run: >-
         mise exec -- uv run --locked --project tools/python python -m
@@ -266,6 +296,7 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         BUILD_SCRIPT: mise run release:publish
+      # Staging reads matching notices from both extracted Rust distribution ZIPs.
     - name: Share Release Manifest
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
@@ -273,7 +304,7 @@ jobs:
         path: target/release-assets/upload.json
         if-no-files-found: error
         retention-days: 7
-    - name: Attest Release Downloads
+    - name: Attest Installer, CLI, Sidecar and Wheel Digests
       uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
       with:
         subject-checksums: target/release-assets/any/SHA256SUMS
@@ -313,14 +344,12 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
-      MISE_TASK_SKIP: package:python,package:rust
+      MISE_ENABLE_TOOLS: git-cliff,go,minisign,node,pnpm,powershell,python,rust,sccache,uv,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: >-
-        ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' &&
-        github.ref == 'refs/heads/dev')) && 'READ_WRITE' || 'READ_ONLY' }}
+      COMPILER_CACHE_MODE: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) && 'READ_WRITE'
+        || 'READ_ONLY' }}
       PROFILE: ${{ needs.validated.outputs.review_profile }}
       RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}
       RELEASE_BUILD_SHA: ${{ needs.validated.outputs.review_sha }}
@@ -352,8 +381,7 @@ jobs:
       with:
         fetch-depth: 0
         ref: >-
-          ${{ github.event_name == 'pull_request' &&
-          github.event.pull_request.merge_commit_sha || github.sha }}
+          ${{ needs.mode.outputs.sha || github.sha }}
     - id: setup
       uses: ./.github/actions/setup
       with:
@@ -368,7 +396,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       with:
         release: "true"
-        packages: "[\"package-PROFILE-python-any\",\"package-PROFILE-rust-unix\",\"package-PROFILE-rust-windows\"]"
+        packages: "[\"package-PROFILE-python-unix\",\"package-PROFILE-python-windows\",\"package-PROFILE-rust-unix\",\"package-PROFILE-rust-windows\"]"
         builds: "[\"build-cli-PROFILE-windows\",\"build-generator-PROFILE-windows\",\"build-gui-PROFILE-windows\",\"build-packaging-PROFILE-windows\",\"build-plugins-PROFILE-windows\"]"
         required: "true"
     permissions:
@@ -376,7 +404,7 @@ jobs:
       pull-requests: read
       actions: read
     env:
-      MISE_ENABLE_TOOLS: python
+      MISE_ENABLE_TOOLS: python,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
     outputs:
       validated: ${{ steps.review.outputs.validated }}
       review_run: ${{ steps.review.outputs.review_run }}
@@ -384,11 +412,10 @@ jobs:
       review_sha: ${{ steps.review.outputs.review_sha }}
       review_version: ${{ steps.review.outputs.review_version }}
       stable_release: ${{ steps.review.outputs.stable_release }}
+    needs: [mode]
     if: >-
-      (github.event_name == 'pull_request' && github.event.action == 'closed' &&
-      github.event.pull_request.merged && github.event.pull_request.base.ref == 'dev' &&
-      startsWith(github.event.pull_request.head.ref, 'release/v')) ||
-      (startsWith(github.ref, 'refs/tags/v'))
+      always() && (needs.mode.outputs.mode == 'tag' ||
+      startsWith(github.ref, 'refs/tags/v'))
   package_signing_windows_rust:
     name: Package / Rust / Signing (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -496,14 +523,32 @@ jobs:
       if: >-
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
-    - run: |-
+    - name: Require Package Signing Secrets
+      run: |-
         if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) { throw 'Missing Required Package Signing Secret: TAURI_SIGNING_PRIVATE_KEY' }
         if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) { throw 'Missing Required Package Signing Secret: TAURI_SIGNING_PRIVATE_KEY_PASSWORD' }
-        mise run package:rust --profile ${{ env.PROFILE }}
       shell: pwsh
       env:
         TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      if: >-
+        matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
+        needs.validated.outputs.stable_release == 'true') && (true)
+    - name: Sign and Package Windows
+      uses: ./.github/actions/sign-windows
+      env:
+        TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      with:
+        profile: ${{ env.PROFILE }}
+        azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+        azure-endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+        azure-account: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+        azure-profile: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        pfx-base64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+        pfx-password: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
       if: >-
         matrix.platform == 'windows' && (startsWith(github.ref, 'refs/tags/v') &&
         needs.validated.outputs.stable_release == 'true') && (true)
@@ -568,13 +613,12 @@ jobs:
       with:
         summary-module: ""
     if: >-
-      (startsWith(github.ref, 'refs/tags/v') &&
+      always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result,
+      'cancelled') && (startsWith(github.ref, 'refs/tags/v') &&
       needs.validated.outputs.stable_release == 'true')
     environment: release
     env:
-      MISE_ENABLE_TOOLS: >-
-        aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv
-      MISE_TASK_SKIP: build
+      MISE_ENABLE_TOOLS: aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,go,go:github.com/rhysd/actionlint/cmd/actionlint,minisign,node,pnpm,powershell,python,rust,uv,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       PROFILE: release
     strategy:
       fail-fast: false
@@ -610,19 +654,27 @@ jobs:
         'refs/tags/v'))) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: package-${{ env.PROFILE }}-python-any
+        name: package-${{ env.PROFILE }}-python-unix
         path: target/ci
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
-      if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+      if: matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+        'refs/tags/v'))) && (true)
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ env.PROFILE }}-python-windows
+        path: target/ci
+        run-id: ${{ needs.validated.outputs.review_run }}
+        github-token: ${{ github.token }}
+      if: matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - name: Extract package:python / package
-      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-any.tar.zst --profile ${{ env.PROFILE }} --target any
-      if: >-
-        matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure')
-        && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-unix.tar.zst --profile ${{ env.PROFILE }}
+      if: matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+        'refs/tags/v'))) && (true)
+    - name: Extract package:python / package
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-windows.tar.zst --profile ${{ env.PROFILE }}
+      if: matrix.platform == 'unix' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -718,19 +770,27 @@ jobs:
         'refs/tags/v'))) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: package-${{ env.PROFILE }}-python-any
+        name: package-${{ env.PROFILE }}-python-unix
         path: target/ci
         run-id: ${{ needs.validated.outputs.review_run }}
         github-token: ${{ github.token }}
-      if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+      if: matrix.platform == 'windows' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+        'refs/tags/v'))) && (true)
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: package-${{ env.PROFILE }}-python-windows
+        path: target/ci
+        run-id: ${{ needs.validated.outputs.review_run }}
+        github-token: ${{ github.token }}
+      if: matrix.platform == 'windows' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - name: Extract package:python / package
-      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-any.tar.zst --profile ${{ env.PROFILE }} --target any
-      if: >-
-        matrix.platform == 'windows' && (always() && !contains(needs.*.result,
-        'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-unix.tar.zst --profile ${{ env.PROFILE }}
+      if: matrix.platform == 'windows' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
+        'refs/tags/v'))) && (true)
+    - name: Extract package:python / package
+      run: mise exec -- uv run --locked --project tools/python python -m dokime_tools.ci.artifacts extract --archive target/ci/package-${{ env.PROFILE }}-python-windows.tar.zst --profile ${{ env.PROFILE }}
+      if: matrix.platform == 'windows' && (always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && (startsWith(github.ref,
         'refs/tags/v'))) && (true)
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -814,8 +874,7 @@ jobs:
       with:
         summary-module: ""
     env:
-      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign
-      MISE_TASK_SKIP: package:python,package:rust
+      MISE_ENABLE_TOOLS: go,node,powershell,python,rust,pnpm,uv,git-cliff,minisign,github:rust-secure-code/cargo-auditable,github:EmbarkStudios/cargo-about,github:CycloneDX/cyclonedx-rust-cargo,aqua:anchore/syft
       PROFILE: ${{ needs.validated.outputs.review_profile }}
       RELEASE_BUILD_RUN_ID: ${{ needs.validated.outputs.review_run }}
       RELEASE_BUILD_SHA: ${{ needs.validated.outputs.review_sha }}

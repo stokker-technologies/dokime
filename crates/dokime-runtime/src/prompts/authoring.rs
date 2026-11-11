@@ -9,12 +9,6 @@
 
 /* === Modules === */
 
-mod private {
-    pub trait Number {}
-    impl Number for i64 {}
-    impl Number for f64 {}
-}
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -371,7 +365,6 @@ impl<T: Clone + Send> Prompt for MultipleChoicePrompt<T> {
 pub(super) fn definition(id: &str, label: String, archetype: PromptArchetype) -> PromptDefinition {
     PromptDefinition {
         prompt_type: Identifier::new(id).expect("a prompt identifier is valid"),
-        schema_version: 1,
         archetype,
         title: label,
         message: None,
@@ -432,6 +425,46 @@ pub(super) fn validate_response(definition: &PromptDefinition, response: &Prompt
 
 fn refused(error: impl std::fmt::Display) -> crate::Error {
     crate::Error::PromptRefused(error.to_string())
+}
+
+mod private {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    pub trait Number {}
+
+    /* === Implementations === */
+
+    impl Number for i64 {}
+
+    impl Number for f64 {}
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    /* === Tests === */
 }
 
 /* === Tests === */

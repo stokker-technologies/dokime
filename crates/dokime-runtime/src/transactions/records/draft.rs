@@ -146,12 +146,11 @@ impl Drafts {
             let captured = self.captured(record, index);
             if let Some(owner) = native_owner {
                 let payload = crate::persistence::to_vec(&captured).expect("Record contains only JSON-compatible fields");
-                let _ = out.push_system(harmos::state::SystemFact {
-                    source: harmos::state::FactSource::Sidecar(owner.clone()),
-                    name: record.record_type.to_string(),
-                    version: record.schema_version,
+                let _ = out.push_system(harmos::state::SystemFact::new(
+                    harmos::state::FactSource::Sidecar(owner.clone()),
+                    record.record_type.to_string(),
                     payload,
-                });
+                ));
             } else {
                 let _ = out.push(captured);
             }

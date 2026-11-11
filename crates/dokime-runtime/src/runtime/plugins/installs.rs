@@ -76,6 +76,10 @@ impl PluginHost {
                 return Outcome::Settled;
             }
         };
+        // A Removed Installation That Never Ran Has No Generation To Stop.
+        if let Some(install) = requested.filter(|install| Some(*install) != current) {
+            self.discard_stopped(&store, package, Replaced(Vec::new()), [install].into()).await;
+        }
         if desired == current && (desired.is_none() || (!explicit && self.package_ready(package))) {
             return Outcome::Settled;
         }
@@ -134,7 +138,8 @@ impl PluginHost {
         let applied = self.apply(reload).await;
         let Err(error) = applied else {
             self.settle_change(store, package, Some(&input), &replaced, &dropped).await;
-            Self::discard_stopped(store, package, replaced).await;
+            self.discard_stopped(store, package, replaced, BTreeSet::new()).await;
+            self.record_loaded(store, &input).await;
             progress.finish();
             return Outcome::Settled;
         };
@@ -197,7 +202,7 @@ impl PluginHost {
         let applied = self.apply(reload).await;
         self.settle_change(store, package, None, &replaced, &dropped).await;
         if applied.is_ok() {
-            Self::discard_stopped(store, package, replaced).await;
+            self.discard_stopped(store, package, replaced, BTreeSet::new()).await;
         }
         if let Err(error) = progress.track(applied) {
             tracing::error!(package, %error, "the plugin did not stop cleanly");
@@ -206,11 +211,12 @@ impl PluginHost {
     }
 
     // Successful Apply Released The Manager's Old Generations; Drop Our Preparation References Too.
-    async fn discard_stopped(store: &PluginStore, package: &str, replaced: Replaced) {
-        let stopped = replaced.0.iter().filter_map(|(_, active)| active.package.input.install_id()).collect();
+    async fn discard_stopped(&mut self, store: &PluginStore, package: &str, replaced: Replaced, mut stopped: BTreeSet<Uuid>) {
+        stopped.extend(replaced.0.iter().filter_map(|(_, active)| active.package.input.install_id()));
         drop(replaced);
-        if let Err(error) = store.discard_stopped(&stopped).await {
-            tracing::error!(package, %error, "stopped plugin installations could not be discarded");
+        match store.discard_stopped(&stopped).await {
+            Ok(removed) => self.handle.plugin_boot.write().expect("plugin boot lock poisoned").retain(|id, _| !removed.contains(id)),
+            Err(error) => tracing::error!(package, %error, "stopped plugin installations could not be discarded"),
         }
     }
 
@@ -304,9 +310,6 @@ impl PluginHost {
             if let Some(install) = started.and_then(PluginBundle::install_id) {
                 boot.insert(install, true);
             }
-        }
-        if let Some(input) = started {
-            record(store, input, None).await;
         }
         for (name, active) in &replaced.0 {
             if let Some(failure) = dropped.get(name) {

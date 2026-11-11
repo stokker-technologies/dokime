@@ -105,11 +105,15 @@ struct Spool {
 
 pub struct Rows<'a, T> {
     owner: &'a EvidenceRows<T>,
+
     #[cfg(feature = "native")]
     offset: u64,
+
     remaining: usize,
+
     #[cfg(feature = "native")]
     window: Vec<u8>,
+
     #[cfg(feature = "native")]
     window_start: u64,
 }

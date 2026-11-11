@@ -1,6 +1,6 @@
 # Remote CLI Workflows
 
-Scripts: `packages/dokime-client/examples/remote/cli/`. Commands below run from that folder.
+Scripts: `sdk/python/examples/remote/cli/`. Commands below run from that folder.
 
 Control the simulated OBC device, run independent attempts with live observations,
 and answer a confirmation using an installed Dokime CLI on another computer.
@@ -116,7 +116,7 @@ order and meanings match the [Python examples](python.md):
 | Group | Parameters |
 | --- | --- |
 | Connection Parameters | `BACKEND_IDENTIFIER` |
-| Case And Execution Parameters | `TEMPLATE`, `CYCLE_LABEL`, then `SAMPLE_COUNT`, `EXECUTION_COUNT`, `WAIT_SECONDS` for tests; `ANSWER`, `WAIT_SECONDS` for prompts |
+| Case And Execution Parameters | `TEMPLATE`, `CYCLE_LABEL`, then `SAMPLE_COUNT`, `EXECUTION_COUNT`, `WAIT_S` for tests; `ANSWER`, `WAIT_S` for prompts |
 | Observation Filters | `RECORD_TYPES`, `STREAMS` for tests |
 | Evidence Files | `OUTPUT_DIRECTORY`, `OVERWRITE` |
 
@@ -132,7 +132,7 @@ POSIX globals use `NAME="value"`; PowerShell uses `$NAME = 'value'`; batch uses
 one stream filter. Quote globs such as `obc.run.*`; add explicit
 `--record-type` or `--stream` arguments to teach additional selections.
 `EXECUTION_COUNT` selects one or both of the two explicitly written attempts;
-`SAMPLE_COUNT` controls samples per pulse. `WAIT_SECONDS` is the positive
+`SAMPLE_COUNT` controls samples per pulse. `WAIT_S` is the positive
 deadline for each blocking wait. `ANSWER` is `yes` or `no`.
 
 The scripts call literal `dokime` from `PATH`. Run them without arguments:

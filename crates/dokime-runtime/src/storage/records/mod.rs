@@ -477,11 +477,8 @@ pub fn decode(bytes: &[u8], max_bytes: usize) -> Result<RecordEntry> {
 }
 
 pub fn schema() -> SchemaKey {
-    SchemaKey {
-        payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
-        id: Identifier::new("dokime.capture.record").unwrap(),
-        version: 1.try_into().unwrap(),
-    }
+    static KEY: std::sync::OnceLock<SchemaKey> = std::sync::OnceLock::new();
+    KEY.get_or_init(|| crate::storage::schema::<RecordRow>("dokime.capture.record")).clone()
 }
 
 /* === Private Functions === */

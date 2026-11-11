@@ -7,23 +7,24 @@
 # ***
 
 
-"""Schedule Independent Test Lanes After Preparing Shared Read-Only Inputs."""
+"""Prepare Shared Inputs And Collect Results For The Native Mise Test Graph."""
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
+import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
-from collections.abc import Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections.abc import Sequence
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from .. import temporary
 from ..build import paths
 from ..prepare import generated
 from ..process import spawn_flags
@@ -66,7 +67,7 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
         if category == "integration":
             extra += ["-E", "not binary_id(dokime-macros::compile)"]
     elif language == "python":
-        arguments += ["--project", "packages/dokime-client"]
+        arguments += ["--project", "sdk/python"]
         if category == "integration":
             extra = ["-n", str(workers), "--dist=worksteal", "--max-worker-restart=0"]
         elif category == "acceptance":
@@ -94,98 +95,115 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
     return arguments + (["--", *extra] if extra else [])
 
 
-def execute(directory: Path, commands: Mapping[str, Sequence[str]], destination: Path) -> list[dict]:
-    """Keep Each Lane's Full Output And Finish Every Lane Despite Failures."""
-    environment = dict(os.environ)
+def prepare(directory: Path, profile: str) -> None:
+    """Prepare One Shared Read-Only Input Set Before Mise Starts Any Leaf."""
+    started = time.perf_counter()
+    lanes = policy.lanes(directory)
+    if not lanes:
+        raise policy.TestError("no declared test lanes")
+    worker_pools = sum(
+        language == "rust" or language == "typescript" and category != "system" or language == "python" and category == "integration"
+        for category, language in lanes
+    )
+    desktop = int(("system", "typescript") in lanes)
+    workers = max(1, ((os.process_cpu_count() or 1) - desktop) // max(1, worker_pools))
+    destination = report.native_directory(directory, Path("target/test-reports") / f"run-{profile}-{paths.target()}")
+    for name in ("time-summary.md", "time-summary.json", "prepared.json"):
+        (destination / name).unlink(missing_ok=True)
+    for category, language in lanes:
+        (destination / f"{category}-{language}.json").unlink(missing_ok=True)
+    (destination / "integration-python-tooling.json").unlink(missing_ok=True)
+
+    archive.install_wheels(directory, profile)
+    generated.restore(profile)
+    extracted = Path(tempfile.mkdtemp(prefix="inputs-", dir=destination))
+    if any(language == "rust" for _, language in lanes):
+        archive.extract(directory, profile, extracted)
+    report.dump(
+        destination / "prepared.json",
+        {
+            "profile": profile,
+            "worker_pools": worker_pools,
+            "workers_per_pool": workers,
+            "archive_directory": str(extracted),
+            "preparation_seconds": time.perf_counter() - started,
+            "execution_started": time.time(),
+        },
+    )
+
+
+def lane(directory: Path, profile: str, category: str, language: str, project: str) -> None:
+    """Record The Real Exit Status; The Final Aggregate Fails After All Leaves Finish."""
+    destination = directory / "target/test-reports" / f"run-{profile}-{paths.target()}"
+    context = json.loads((destination / "prepared.json").read_text(encoding="utf-8"))
+    extracted = Path(context["archive_directory"]) if language == "rust" else None
+    key = f"{category}-{language}"
+    if project == "tools/python":
+        key += "-tooling"
+        arguments = [sys.executable, "-m", "unittest", "discover", "-s", "tools/python/tests/integration"]
+    else:
+        arguments = command(category, language, profile, context["workers_per_pool"], extracted)
+    environment = dict(os.environ, PYTHONUNBUFFERED="1")
     environment.pop("UV_PROJECT_ENVIRONMENT", None)
-    # Children Use The Prepared Interpreter Without uv Sync Rewriting Shared Inputs.
-    environment["PYTHONUNBUFFERED"] = "1"
-    results = []
-    with ThreadPoolExecutor(max_workers=len(commands)) as executor:
-        pending = {}
-        for key, arguments in commands.items():
-            print(f"START {key}", flush=True)
-            future = executor.submit(_lane, directory, key, arguments, destination, environment)
-            pending[future] = key
-        for future in as_completed(pending):
-            row = future.result()
-            results.append(row)
-            print(
-                f"{'PASS' if row['exit_code'] == 0 else 'FAIL'}  {row['lane']}: {row['seconds']:.3f} s (exit {row['exit_code']})",
-                flush=True,
-            )
-            if row["exit_code"] != 0:
-                log = directory / row["log"]
-                print("\n".join(log.read_text(encoding="utf-8", errors="replace").splitlines()[-30:]), flush=True)
-    return sorted(results, key=lambda row: row["lane"])
+    row = _lane(directory, key, arguments, destination, environment)
+    report.dump(destination / f"{key}.json", row)
+    print(f"{'PASS' if row['exit_code'] == 0 else 'FAIL'}  {key}: {row['seconds']:.3f} s (exit {row['exit_code']})", flush=True)
+    if row["exit_code"]:
+        print((directory / row["log"]).read_text(encoding="utf-8", errors="replace"), flush=True)
+
+
+def finish(directory: Path, profile: str) -> int:
+    """Missing Results And Failed Leaves Both Fail The Aggregate."""
+    destination = directory / "target/test-reports" / f"run-{profile}-{paths.target()}"
+    context = json.loads((destination / "prepared.json").read_text(encoding="utf-8"))
+    keys = [f"{category}-{language}" for category, language in policy.lanes(directory)]
+    keys.append("integration-python-tooling")
+    rows = []
+    for key in keys:
+        result = destination / f"{key}.json"
+        if not result.is_file():
+            rows.append({"lane": key, "exit_code": 1, "seconds": 0, "log": ""})
+            print(f"FAIL  {key}: missing lane result", file=sys.stderr)
+            continue
+        rows.append(json.loads(result.read_text(encoding="utf-8")))
+    context["lanes"] = sorted(rows, key=lambda row: row["lane"])
+    context["execution_seconds"] = time.time() - context.pop("execution_started")
+    context["total_seconds"] = context["preparation_seconds"] + context["execution_seconds"]
+    extracted = Path(context.pop("archive_directory"))
+    if extracted.resolve().parent != destination.resolve() or not extracted.name.startswith("inputs-"):
+        raise policy.TestError("prepared archive escapes its owned report directory")
+    shutil.rmtree(extracted)
+    report.dump(destination / "time-summary.json", context)
+    lines = ["# Concurrent Test Execution", "", "| Lane | Exit | Seconds | Log |", "| --- | ---: | ---: | --- |"]
+    for row in context["lanes"]:
+        lines.append(f"| {row['lane']} | {row['exit_code']} | {row['seconds']:.3f} | [{row['lane']}.log]({row['lane']}.log) |")
+    report.write(destination / "time-summary.md", "\n".join(lines) + "\n")
+    print(f"Logs And Summary: {destination.relative_to(directory).as_posix()}", flush=True)
+    return int(any(row["exit_code"] != 0 for row in rows))
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=policy.PROFILES, default="dev")
+    actions = parser.add_mutually_exclusive_group(required=True)
+    actions.add_argument("--prepare", action="store_true")
+    actions.add_argument("--lane", action="store_true")
+    actions.add_argument("--finish", action="store_true")
+    parser.add_argument("--category", choices=policy.CATEGORIES)
+    parser.add_argument("--language", choices=policy.LANGUAGES)
+    parser.add_argument("--project", default="sdk/python")
     options = parser.parse_args(arguments)
-    started = time.perf_counter()
     try:
         directory = policy.root()
-        lanes = policy.lanes(directory)
-        if not lanes:
-            raise policy.TestError("no declared test lanes")
-        # Budget Every Worker Pool And Leave Headroom For The Interactive Desktop.
-        rust_lanes = sum(language == "rust" for _, language in lanes)
-        worker_pools = sum(
-            language == "rust" or language == "typescript" and category != "system" or language == "python" and category == "integration"
-            for category, language in lanes
-        )
-        desktop = int(("system", "typescript") in lanes)
-        workers = max(1, ((os.process_cpu_count() or 1) - desktop) // max(1, worker_pools))
-        destination = report.native_directory(directory, Path("target/test-reports") / f"run-{options.profile}-{paths.target()}")
-        for name in ("time-summary.md", "time-summary.json"):
-            (destination / name).unlink(missing_ok=True)
-
-        print("Preparing Shared Test Inputs", flush=True)
-        archive.install_wheels(directory, options.profile)
-        generated.restore(options.profile)
-        with temporary.directory() as extracted:
-            if rust_lanes:
-                archive.extract(directory, options.profile, extracted)
-            commands = {
-                f"{category}-{language}": command(category, language, options.profile, workers, extracted if language == "rust" else None)
-                for category, language in lanes
-            }
-            preparation = time.perf_counter() - started
-            print(
-                f"Running {len(lanes)} Lanes Concurrently ({workers} Workers Per Rust Lane / Python Integration / Vitest Lane)", flush=True
-            )
-            execution = time.perf_counter()
-            rows = execute(directory, commands, destination)
-            seconds = time.perf_counter() - execution
-        total = time.perf_counter() - started
-        result = {
-            "profile": options.profile,
-            "worker_pools": worker_pools,
-            "workers_per_pool": workers,
-            "preparation_seconds": preparation,
-            "execution_seconds": seconds,
-            "total_seconds": total,
-            "lanes": rows,
-        }
-        report.dump(destination / "time-summary.json", result)
-        lines = [
-            "# Concurrent Test Execution",
-            "",
-            f"Preparation: {preparation:.3f} s; execution: {seconds:.3f} s; total: {total:.3f} s.",
-            "",
-            "| Lane | Exit | Seconds | Log | Time Summary |",
-            "| --- | ---: | ---: | --- | --- |",
-        ]
-        for row in rows:
-            lines.append(
-                f"| {row['lane']} | {row['exit_code']} | {row['seconds']:.3f} | [{row['lane']}.log]({row['lane']}.log) | [Summary](../{row['lane']}/time-summary.md) |"
-            )
-        report.write(destination / "time-summary.md", "\n".join(lines) + "\n")
-        print(f"Execution: {seconds:.3f} s; With Shared Preparation: {total:.3f} s", flush=True)
-        print(f"Logs And Summary: {destination.relative_to(directory).as_posix()}", flush=True)
-        return int(any(row["exit_code"] != 0 for row in rows))
+        if options.prepare:
+            prepare(directory, options.profile)
+        elif options.finish:
+            return finish(directory, options.profile)
+        else:
+            if not options.category or not options.language:
+                parser.error("--lane requires --category and --language")
+            lane(directory, options.profile, options.category, options.language, options.project)
+        return 0
     except (policy.TestError, OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"test: {error}", file=sys.stderr)
         return 1

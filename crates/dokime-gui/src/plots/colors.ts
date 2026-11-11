@@ -15,6 +15,7 @@ export type ResolvedPlotThemeColors = {
   foreground: string;
   mutedForeground: string;
   palette: string[];
+  references: string[];
 };
 
 /* === Constants === */
@@ -24,13 +25,35 @@ const CSS_COLOR_FALLBACK = "currentColor";
 const CSS_VARIABLE_PATTERN = /^var\(\s*(--[a-zA-Z0-9_-]+)\s*\)$/;
 const PLOT_PALETTE_VARIABLES = Array.from({ length: PLOT_PALETTE_SIZE }, (_, index) => `--chart-${index + 1}`);
 const PLOT_PALETTE_REFERENCES = PLOT_PALETTE_VARIABLES.map((name) => `var(${name})`);
+const REFERENCE_PALETTE_SIZE = 4;
+const REFERENCE_PALETTE_VARIABLES = Array.from({ length: REFERENCE_PALETTE_SIZE }, (_, index) => `--plot-reference-${index + 1}`);
+// The document definition's default reference color (`default_reference_color` in
+// dokime-domain); a reference carrying it has no author color.
+const DEFAULT_REFERENCE_COLOR = "#60706a";
 
 /* === Public Functions === */
 
-export function plotColor(topic: string, index: number, palette?: readonly string[] | null): string {
+/** The plot palette entry of series `index`: every plot starts at the first entry. */
+export function plotColor(index: number, palette?: readonly string[] | null): string {
   const colors = normalizePlotPalette(palette) ?? PLOT_PALETTE_REFERENCES;
-  const offset = hashString(topic) % colors.length;
-  return colors[(offset + index) % colors.length] ?? colors[0] ?? CSS_COLOR_FALLBACK;
+  return colors[index % colors.length] ?? CSS_COLOR_FALLBACK;
+}
+
+/**
+ * The color of a plot's reference (bands first, then lines): an author color is
+ * kept, the definition default takes the reference palette at `index`.
+ */
+export function referenceColor(color: string | null | undefined, index: number): string {
+  const value = color?.trim();
+  if (value && value.toLowerCase() !== DEFAULT_REFERENCE_COLOR) {
+    return value;
+  }
+  return `var(${REFERENCE_PALETTE_VARIABLES[index % REFERENCE_PALETTE_SIZE]})`;
+}
+
+/** The reference palette entry for marker kind `index`, resolved for canvas drawing. */
+export function markerColor(references: readonly string[], index: number): string {
+  return references[index % references.length] ?? CSS_COLOR_FALLBACK;
 }
 
 export function normalizePlotPalette(palette: readonly string[] | null | undefined): string[] | null {
@@ -55,6 +78,9 @@ export function resolvePlotThemeColors(element?: Element | null): ResolvedPlotTh
     mutedForeground: resolvedVariable(styles, "--muted-foreground") ?? foreground,
     palette: normalizePlotPalette(
       PLOT_PALETTE_VARIABLES.map((name) => resolvedVariable(styles, name)).filter((color): color is string => color !== null),
+    ) ?? [foreground],
+    references: normalizePlotPalette(
+      REFERENCE_PALETTE_VARIABLES.map((name) => resolvedVariable(styles, name)).filter((color): color is string => color !== null),
     ) ?? [foreground],
   };
 }
@@ -85,8 +111,4 @@ function computedStyles(element?: Element | null): CSSStyleDeclaration | null {
 function resolvedVariable(styles: CSSStyleDeclaration | null, name: string): string | null {
   const value = styles?.getPropertyValue(name).trim() ?? "";
   return value || null;
-}
-
-function hashString(value: string): number {
-  return [...value].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 0);
 }

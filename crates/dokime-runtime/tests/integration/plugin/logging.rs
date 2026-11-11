@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -22,6 +23,7 @@ use dokime_runtime::execution::{CriterionContext, InitializationContext, StepCon
 use dokime_runtime::plugin::testing::Harness;
 
 /* === Constants === */
+
 const SUITE: &str = "logging.checks";
 const TEMPLATE: &str = "logging.checks.levels";
 
@@ -30,6 +32,7 @@ const TEMPLATE: &str = "logging.checks.levels";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Checks;
 
 struct Levels {
@@ -37,15 +40,13 @@ struct Levels {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime_runtime::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum PluginSuites {
     Checks(Checks),
@@ -55,6 +56,10 @@ enum PluginSuites {
 enum ChecksTemplates {
     Levels(Levels),
 }
+
+/* === Traits === */
+
+/* === Implementations === */
 
 #[dokime_runtime::suite(id = SUITE, label = "Logging", templates = ChecksTemplates)]
 impl Checks {}

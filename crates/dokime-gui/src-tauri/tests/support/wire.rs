@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -29,11 +30,14 @@
 /* === Enums === */
 
 /* === Traits === */
+
 pub trait WireMessage: Sized {
     fn wire_bytes(&self) -> Vec<u8>;
 
     fn from_wire(bytes: &[u8]) -> Result<(dokime::harmos::operations::StreamItem<Self>, usize), tonic::Status>;
 }
+
+/* === Implementations === */
 
 impl<T: dokime::harmos::domain::Portable> WireMessage for T {
     fn wire_bytes(&self) -> Vec<u8> {
@@ -71,8 +75,6 @@ impl<T: dokime::harmos::domain::Portable> WireMessage for T {
         Ok((item, admitted_memory))
     }
 }
-
-/* === Implementations === */
 
 /* === Public Functions === */
 

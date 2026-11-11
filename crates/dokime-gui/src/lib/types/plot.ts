@@ -8,7 +8,7 @@
  */
 
 import type { SeriesSummary, StatsSummary } from "../statistics";
-import type { DocumentDataExpression, DocumentValueSource, JsonObject } from "../types";
+import type { JsonObject } from "../types";
 import type { ParameterDefinition } from "./test";
 import type {
   PlotCartesianFrame as NativePlotCartesianFrame,
@@ -67,8 +67,7 @@ export type PlotMarker = Omit<NativePlotMarker, "x"> & { x: unknown };
 export type DocumentPlotType =
   | "time_series"
   | "bar"
-  | "xy_scatter"
-  | "xy_line"
+  | "xy"
   | "xy_interval"
   | "trajectory"
   | "heatmap"
@@ -112,27 +111,17 @@ export type DocumentHistogramOptions = {
   unit?: string | null;
 };
 
-export type DocumentReferenceAxis = "x" | "y";
-
 export type DocumentReferenceLine = {
-  axis: DocumentReferenceAxis;
   value?: number | null;
-  source?: DocumentDataExpression | DocumentValueSource | null;
-  source_scale?: number | null;
   label?: string | null;
   color: string;
 };
 
 export type DocumentReferenceBand = {
-  axis: DocumentReferenceAxis;
   min?: number | null;
   max?: number | null;
-  min_source?: DocumentValueSource | null;
-  max_source?: DocumentValueSource | null;
   label?: string | null;
   color: string;
-  center?: DocumentDataExpression | null;
-  tolerance?: DocumentDataExpression | null;
 };
 
 export type PlotAnalysis =

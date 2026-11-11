@@ -57,6 +57,8 @@ pub(crate) struct Session {
     pub(super) prompts: tokio::sync::Mutex<PromptBridge>,
     pub(super) step_leases: StepLeaseBridge,
     pages: tokio::sync::Mutex<Pages>,
+    attempts: std::sync::Mutex<Vec<crate::execution::log::Entry>>,
+    cadence: std::sync::Mutex<ObserverCadence>,
     replayed: tokio::sync::Mutex<bool>,
     record_delivery: tokio::sync::Mutex<()>,
     cancelling: CancellationToken,
@@ -66,7 +68,15 @@ pub(crate) struct Session {
     effects_closed: std::sync::atomic::AtomicBool,
 }
 
+#[derive(Default)]
+struct ObserverCadence {
+    activations: std::collections::BTreeMap<(String, String, String), crate::execution::log::Cadence>,
+    pending: Vec<crate::execution::log::Entry>,
+    closed: bool,
+}
+
 struct Pages {
+    latencies: crate::execution::log::Latencies,
     cursor: u64,
     settled: bool,
     stream_log: StreamLog,
@@ -80,6 +90,30 @@ struct Pages {
 
 /* === Implementations === */
 
+impl ObserverCadence {
+    fn observe(&mut self, source: &str, report: &harmos::__private::sidecar::CadenceReport) -> bool {
+        if self.closed {
+            return false;
+        }
+        let key = (source.to_owned(), report.observer.clone(), report.activation.clone());
+        let entries = self.activations.entry(key).or_default().observe(source, report);
+        let ready = !entries.is_empty();
+        self.pending.extend(entries);
+        ready
+    }
+
+    fn entries(&mut self, close: bool) -> Vec<crate::execution::log::Entry> {
+        let mut entries = std::mem::take(&mut self.pending);
+        if close && !self.closed {
+            self.closed = true;
+            for ((source, observer, activation), summary) in std::mem::take(&mut self.activations) {
+                entries.push(summary.record(&source, &observer, &activation, "execution_end"));
+            }
+        }
+        entries
+    }
+}
+
 impl Session {
     pub(super) fn new(opened: Opened) -> Self {
         let spill = opened.context.runtime.config().storage_root.clone();
@@ -90,7 +124,10 @@ impl Session {
             target: opened.target,
             prompts: tokio::sync::Mutex::new(opened.prompts),
             step_leases: StepLeaseBridge::default(),
+            cadence: std::sync::Mutex::new(ObserverCadence::default()),
+            attempts: std::sync::Mutex::new(Vec::new()),
             pages: tokio::sync::Mutex::new(Pages {
+                latencies: crate::execution::log::Latencies::default(),
                 cursor: 0,
                 settled: false,
                 stream_log: StreamLog::default(),
@@ -258,7 +295,7 @@ impl Session {
         self.refusal.lock().await.take()
     }
 
-    pub(crate) async fn record_operation_attempt(
+    pub(crate) fn record_operation_attempt(
         &self, stage: &str, call: &harmos::operations::middleware::Invocation,
         observation: harmos::operations::middleware::AttemptObservation,
     ) {
@@ -277,13 +314,52 @@ impl Session {
             stage,
             observation.attempt,
             outcome,
+            crate::execution::log::AttemptTiming {
+                started_at: observation.started_at.timestamp,
+                elapsed: observation.elapsed,
+                attempt_timeout: call.operation().policy.attempt_timeout,
+            },
         );
+        // Persistence Must Not Consume the Completed Operation's Deadline.
+        self.attempts.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(entry);
+    }
+
+    pub(crate) async fn flush_attempts(&self) {
         let mut pages = self.pages.lock().await;
-        pages.stream_log.append(&self.context, &self.execution, &self.source, &[entry]).await;
+        self.persist_attempts(&mut pages).await;
+    }
+
+    async fn persist_attempts(&self, pages: &mut Pages) {
+        let entries = std::mem::take(&mut *self.attempts.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
+        for entry in &entries {
+            pages.latencies.observe(entry);
+        }
+        pages.stream_log.append(&self.context, &self.execution, &self.source, &entries).await;
+    }
+
+    pub(crate) fn observe_cadence(&self, source: &str, report: &harmos::__private::sidecar::CadenceReport) -> bool {
+        let mut cadence = self.cadence.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        cadence.observe(source, report)
+    }
+
+    pub(crate) async fn flush_cadence(&self) {
+        self.flush_attempts().await;
+        let mut pages = self.pages.lock().await;
+        let entries = self.cadence_entries(false);
+        pages.stream_log.append(&self.context, &self.execution, &self.source, &entries).await;
+    }
+
+    fn cadence_entries(&self, close: bool) -> Vec<crate::execution::log::Entry> {
+        let mut cadence = self.cadence.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        cadence.entries(close)
     }
 
     pub(super) async fn narrate_refusal(&self, refusal: &ProviderExecutionFailure) {
         let mut pages = self.pages.lock().await;
+        self.persist_attempts(&mut pages).await;
+        let mut entries = pages.latencies.finish();
+        entries.extend(self.cadence_entries(true));
+        pages.stream_log.append(&self.context, &self.execution, &self.source, &entries).await;
         let stage = pages.phase.current.as_ref().map(|(id, _)| id.to_string()).unwrap_or_else(|| "initialization".to_owned());
         pages
             .stream_log
@@ -304,6 +380,13 @@ impl Session {
     ) -> Result<CaseResult, ProviderExecutionFailure> {
         let mut pending = commands::Pending::default();
         let reconciled = commands::reconcile(&self.context, &self.target, &self.execution, &mut pending, true, cancelled).await;
+        {
+            let mut pages = self.pages.lock().await;
+            self.persist_attempts(&mut pages).await;
+            let mut entries = pages.latencies.finish();
+            entries.extend(self.cadence_entries(true));
+            pages.stream_log.append(&self.context, &self.execution, &self.source, &entries).await;
+        }
         match reconciled {
             Err(error) if !cancelled => return Err(error),
             Err(error) => tracing::warn!(detail = %error.message,
@@ -348,6 +431,7 @@ impl Session {
     }
 
     async fn admit(&self, pages: &mut Pages, mut batch: EvidenceBatch) -> Result<EvidenceReceipt, ProviderExecutionFailure> {
+        self.persist_attempts(pages).await;
         let context = &self.context;
         let execution = &self.execution;
         let cancelling = self.cancelling.is_cancelled();
@@ -359,6 +443,9 @@ impl Session {
         // one that produced it.
         if !batch.capture_phases.is_empty() || !batch.step_begins.is_empty() || !batch.step_attempts.is_empty() {
             context.runtime.flush_plugin_publications().await.map_err(|error| failure("sidecar_samples", error.to_string()))?;
+        }
+        for entry in &batch.diagnostics {
+            pages.latencies.observe(entry);
         }
         pages.stream_log.append(context, execution, &self.source, &batch.diagnostics).await;
         if let Some(message) = pages.stream_log.failure() {
@@ -378,6 +465,12 @@ impl Session {
             return Err(refusal);
         }
         let admitted = self.admit_steps(&batch).await?;
+        for encoded in &batch.step_attempts {
+            let attempt: dokime_domain::model::execution::result::TestStepAttempt =
+                serde_json::from_str(encoded).map_err(|error| failure("sidecar_step_attempt", error.to_string()))?;
+            let entries = pages.latencies.finish_stage(&format!("step/{}", attempt.step_id));
+            pages.stream_log.append(context, execution, &self.source, &entries).await;
+        }
         if !batch.step_attempts.is_empty() {
             // A Finished Attempt Is The Evidence An Open Command Waits On.
             self.signal_change();
@@ -549,8 +642,66 @@ impl Session {
     }
 }
 
+#[cfg(feature = "testing")]
+impl crate::RuntimeHandle {
+    pub async fn hold_retained_attempt_persistence(&self, token: &str) -> tokio::sync::oneshot::Sender<()> {
+        let session = self.execution_sessions.get(token).expect("fixture session is retained");
+        let (entered, waiting) = tokio::sync::oneshot::channel();
+        let (release, released) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            let _pages = session.pages.lock().await;
+            let _ = entered.send(());
+            let _ = released.await;
+        });
+        waiting.await.expect("persistence gate entered");
+        release
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::ObserverCadence;
+    use std::time::Duration;
+
+    #[test]
+    fn cadence_flush_retains_each_activation_and_closes_once() {
+        let mut cadence = ObserverCadence::default();
+        let mut report = harmos::__private::sidecar::CadenceReport {
+            observer: "meter.read".into(),
+            activation: "first".into(),
+            interval: Duration::from_secs(1),
+            scheduled_at: Duration::ZERO,
+            started_at: Some(Duration::ZERO),
+            callback_duration: Duration::from_millis(15),
+            skipped: false,
+            refused: false,
+        };
+        for tick in 0..61 {
+            report.scheduled_at = Duration::from_secs(tick);
+            report.started_at = Some(Duration::from_secs(tick));
+            assert_eq!(cadence.observe("meter", &report), tick == 59);
+        }
+        report.activation = "second".into();
+        report.started_at = Some(Duration::ZERO);
+        assert!(!cadence.observe("meter", &report));
+        let periodic = cadence.entries(false);
+        assert_eq!(periodic.len(), 1);
+        let record: serde_json::Value = serde_json::from_str(&periodic[0].message).unwrap();
+        assert_eq!(record["ticks"], 60);
+        let final_entries = cadence.entries(true);
+        assert_eq!(final_entries.len(), 2);
+        let first: serde_json::Value = serde_json::from_str(&final_entries[0].message).unwrap();
+        let second: serde_json::Value = serde_json::from_str(&final_entries[1].message).unwrap();
+        assert_eq!(first["ticks"], 61);
+        assert_eq!(second["ticks"], 1);
+        assert_eq!(second["maximum_gap_ms"], 0.0);
+        assert!(!cadence.observe("meter", &report));
+        assert!(cadence.entries(true).is_empty());
+    }
+}

@@ -9,21 +9,6 @@
 
 /* === Modules === */
 
-pub(crate) mod map {
-    use super::*;
-    use serde::{Deserialize, Serialize};
-
-    pub fn serialize<S: serde::Serializer>(cells: &[Cell], serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let value = decode(cells).map_err(serde::ser::Error::custom)?;
-        value.serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Vec<Cell>, D::Error> {
-        let value = BTreeMap::<String, Value>::deserialize(deserializer)?;
-        encode(&value).map_err(serde::de::Error::custom)
-    }
-}
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -182,6 +167,10 @@ pub(crate) fn decode_owned(cells: Vec<Cell>) -> Result<BTreeMap<String, Value>> 
     Ok(value)
 }
 
+pub(crate) fn validate_datetime(text: &str) -> Result<()> {
+    parse_datetime(text).map(|_| ())
+}
+
 /* === Private Functions === */
 
 fn encoding(details: &BTreeMap<String, Value>) -> Result<Encoding> {
@@ -335,10 +324,6 @@ fn consume(cells: &mut std::vec::IntoIter<Cell>) -> Result<Value> {
     })
 }
 
-pub(crate) fn validate_datetime(text: &str) -> Result<()> {
-    parse_datetime(text).map(|_| ())
-}
-
 fn parse_datetime(text: &str) -> Result<time::OffsetDateTime> {
     struct Compare<'a> {
         remaining: &'a [u8],
@@ -470,6 +455,52 @@ fn read(cells: &[Cell], at: &mut usize, depth: usize) -> Result<Value> {
         }
         _ => return Err(error("unknown stored value kind")),
     })
+}
+
+pub(crate) mod map {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+    use serde::{Deserialize, Serialize};
+
+    // Local Imports
+    use super::*;
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    /* === Public Functions === */
+
+    pub fn serialize<S: serde::Serializer>(cells: &[Cell], serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let value = decode(cells).map_err(serde::ser::Error::custom)?;
+        value.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Vec<Cell>, D::Error> {
+        let value = BTreeMap::<String, Value>::deserialize(deserializer)?;
+        encode(&value).map_err(serde::de::Error::custom)
+    }
+
+    /* === Private Functions === */
+
+    /* === Tests === */
 }
 
 /* === Tests === */

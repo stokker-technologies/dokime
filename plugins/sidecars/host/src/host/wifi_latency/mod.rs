@@ -75,13 +75,13 @@ pub struct Collected {
 impl dokime::StreamSpec for WifiLatency {
     type Row = crate::WifiLatency;
     const ID: &'static str = "host.wifi.latency";
-    const VERSION: u32 = 1;
+
     const WINDOW: usize = <crate::WifiLatency as dokime::StreamSpec>::WINDOW;
 }
 
 impl TelemetryStream for WifiLatency {
     fn contract() -> TelemetryContract {
-        crate::host_telemetry_contract(HostTelemetryStream::WifiLatency).typed::<crate::WifiLatency>()
+        crate::host_telemetry_contract(HostTelemetryStream::WifiLatency)
     }
 }
 

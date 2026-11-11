@@ -39,7 +39,7 @@ use dokime_domain::model::values::Value;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.label.rename")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RenameLabel {
     pub subject: LabelSubject,
     pub label: String,
@@ -48,7 +48,7 @@ pub struct RenameLabel {
 
 /* === Enums === */
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "id")]
 pub enum LabelSubject {
     Cycle(TestCycleId),

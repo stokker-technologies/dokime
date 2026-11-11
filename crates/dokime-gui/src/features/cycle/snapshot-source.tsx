@@ -60,7 +60,8 @@ export type CycleSnapshotSource = {
   document: (executionId: string | null) => DocumentViewPayload | null;
   plotPayloads: (executionId: string | null) => FrozenPlotPayloads;
   traceability: (executionId: string | null) => TraceabilitySnapshot | null;
-  /** What the report left out or cut to fit its budget, and why. */
+  /** Notices about evidence interpretation in the combined report. */
+  warnings?: string[];
 };
 
 /* === Constants === */

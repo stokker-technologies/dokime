@@ -151,7 +151,11 @@ pub trait Called<C, Proof = Declared> {}
 
 impl<T: Required, O> Called<T> for O where T::Operations: crate::catalog::Contains<O> {}
 
-impl<T> Called<T, BuiltIn> for dokime_operations::files::WatchFile {}
+impl<T> Called<T, BuiltIn> for dokime_operations::files::CopyFiles {}
+
+impl<T> Called<T, BuiltIn> for dokime_operations::files::StartCapture {}
+
+impl<T> Called<T, BuiltIn> for dokime_operations::files::StopCapture {}
 
 impl<T> Called<T, BuiltIn> for dokime_operations::process::RunProcess {}
 
@@ -186,6 +190,11 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
 
     pub fn raw_parameters(&self) -> &'a BTreeMap<String, Value> {
         self.environment.raw_parameters()
+    }
+
+    #[cfg(feature = "native")]
+    pub fn execution_scope(&self) -> crate::execution::ExecutionScope {
+        crate::execution::ExecutionScope::execution(self.environment.identity().execution_id.clone()).staged(&self.call_stage)
     }
 
     pub fn parameter<T: DeserializeOwned>(&self, id: &str) -> crate::Result<T> {
@@ -229,6 +238,7 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
             journal: self.transport.journal(),
             identity: self.environment.identity(),
             handles: self.environment.handles().clone(),
+            captures: self.environment.captures().clone(),
         };
         harmos::operations::Invocation::new(self.environment.caller().step_host(&self.call_stage, Some(binding)), request)
     }
@@ -332,6 +342,13 @@ impl<C, O, I> Context<'_, C, O, I, Cleanup> {
 }
 
 impl<'a, C, I> CriterionContext<'a, C, I> {
+    #[cfg(feature = "native")]
+    pub fn execution_scope(&self) -> Option<crate::execution::ExecutionScope> {
+        let execution = self.operation_binding.as_ref()?.identity.execution_id.clone();
+        let stage = self.log.map_or_else(String::new, |(_, criterion)| format!("criterion/{criterion}"));
+        Some(crate::execution::ExecutionScope::execution(execution).staged(stage))
+    }
+
     pub fn new(parameters: &'a I, raw: &'a BTreeMap<String, Value>, evidence: &'a ExecutionEvidence) -> Self {
         Self {
             calls: std::marker::PhantomData,

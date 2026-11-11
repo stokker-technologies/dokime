@@ -12,8 +12,10 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::time::Duration;
+
 // Third Party Imports
 
 // Local Imports
@@ -22,6 +24,7 @@ use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::prelude::StreamExt;
 
 /* === Constants === */
+
 const SUITE: &str = "sdk_error.checks";
 const TEMPLATE: &str = "sdk_error.checks.boundary";
 const PROMPT: &str = "sdk_error.checks.checkpoint";
@@ -31,6 +34,7 @@ const PROMPT: &str = "sdk_error.checks.checkpoint";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::prompt(id = PROMPT, label = "Continue?")]
 struct Checkpoint;
 
@@ -52,15 +56,13 @@ struct Boundary {
 }
 
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime_runtime::Error),
 }
 
-/* === Traits === */
-
-/* === Implementations === */
 #[dokime_runtime::catalog]
 enum PluginSuites {
     Checks(Checks),
@@ -71,9 +73,6 @@ enum ChecksTemplates {
     Boundary(Boundary),
 }
 
-#[dokime_runtime::suite(id = SUITE, label = "SDK Error", templates = ChecksTemplates)]
-impl Checks {}
-
 #[dokime_runtime::catalog]
 enum BoundaryPrompts {
     Checkpoint(Checkpoint),
@@ -83,6 +82,13 @@ enum BoundaryPrompts {
 enum BoundaryRecords {
     Observed(Observed),
 }
+
+/* === Traits === */
+
+/* === Implementations === */
+
+#[dokime_runtime::suite(id = SUITE, label = "SDK Error", templates = ChecksTemplates)]
+impl Checks {}
 
 #[dokime_runtime::template(
     id = TEMPLATE,

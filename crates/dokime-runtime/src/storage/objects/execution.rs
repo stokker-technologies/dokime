@@ -17,10 +17,7 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos::{
-    DefinitionId, Identified,
-    storage::{FileReference, ObjectRetention, ObjectRevision, ObjectVersion, ObjectVersionToken, StorageCursor, StoredObject},
-};
+use harmos::storage::{FileReference, ObjectRetention, ObjectRevision, ObjectVersion, ObjectVersionToken, StorageCursor, StoredObject};
 
 // Local Imports
 use super::{annotations, artifacts, case, cycle, metadata, templates};
@@ -1130,11 +1127,7 @@ impl TryFrom<Revision> for dokime_domain::model::execution::saved::ExecutionRevi
     }
 }
 
-impl Identified for Execution {
-    fn definition() -> (DefinitionId, u32) {
-        (DefinitionId::new("dokime.object.execution"), 1)
-    }
-}
+crate::storage::object_identity!(Execution, "dokime.object.execution");
 
 impl StoredObject for Execution {
     type Key = str;

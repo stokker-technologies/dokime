@@ -57,6 +57,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
   if (process.platform === "win32") assert.ok(existsSync(browserPath), "Chromium is available for canvas proof");
   const scratch = await mkdtemp(join(tmpdir(), "dokime-plot-canvas-"));
   let child: ReturnType<typeof spawn> | undefined;
+  let closed: Promise<void> | undefined;
   let socket: WebSocket | undefined;
   try {
     await build({
@@ -89,6 +90,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
       { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] },
     );
     const browser = child;
+    closed = new Promise((accept) => browser.once("close", () => accept()));
     let diagnostics = "";
     const endpoint = await new Promise<string>((accept, reject) => {
       const timeout = setTimeout(() => reject(new Error(`Canvas browser startup timed out: ${diagnostics}`)), 30_000);
@@ -173,29 +175,32 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     );
     for (const zoom of [false, true])
       for (const dark of [false, true]) {
+        await evaluate(`window.canvasFixture.mount("points", false, ${zoom}, ${dark})`);
+        await evaluate(`window.canvasFixture.toggle(0)`);
+        await evaluate(`window.canvasFixture.toggle(1)`);
+        assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [0]);
+        const unmarked = await evaluate(`document.querySelector('canvas').toDataURL()`);
         await evaluate(`window.canvasFixture.mount("points", false, ${zoom}, ${dark}, true)`);
-        assert.deepEqual(
-          await evaluate(`Array.from(document.querySelectorAll('tbody tr')).slice(2).map(row => row.cells[3].textContent)`),
-          ["2", "1", "1", "1"],
-        );
+        assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('tbody tr')).map(row => row.cells[3].textContent)`), [
+          "10",
+          "10",
+        ]);
         const image = await evaluate(`document.querySelector('canvas').toDataURL()`);
-        await evaluate(`window.canvasFixture.toggle(2)`);
+        await evaluate(`window.canvasFixture.toggle(0)`);
         assert.notEqual(await evaluate(`document.querySelector('canvas').toDataURL()`), image);
         assert.deepEqual(
           await evaluate(`Array.from(document.querySelectorAll('tbody tr')).map(row => !!row.querySelector('[data-trace-hidden]'))`),
-          [false, false, true, false, false, false],
+          [true, false],
         );
-        assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [20]);
-        await evaluate(`window.canvasFixture.toggle(2)`);
-        assert.equal(await evaluate(`document.querySelector('canvas').toDataURL()`), image);
-        await evaluate(`window.canvasFixture.toggle(4)`);
-        assert.notEqual(await evaluate(`document.querySelector('canvas').toDataURL()`), image);
-        await evaluate(`window.canvasFixture.toggle(4)`);
-        assert.equal(await evaluate(`document.querySelector('canvas').toDataURL()`), image);
+        assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [10]);
+        await evaluate(`window.canvasFixture.toggle(1)`);
+        assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [0]);
+        assert.notEqual(await evaluate(`document.querySelector('canvas').toDataURL()`), unmarked);
         await evaluate(`window.canvasFixture.toggle(0)`);
         assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [10]);
-        await evaluate(`window.canvasFixture.toggle(0)`);
+        await evaluate(`window.canvasFixture.toggle(1)`);
         assert.deepEqual(await evaluate(`window.canvasFixture.counts()`), [20]);
+        assert.equal(await evaluate(`document.querySelector('canvas').toDataURL()`), image);
         const screenshot = await command("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
         assert.ok(screenshot?.data);
         const evidence = resolve("../../target/tests/plots");
@@ -214,10 +219,10 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
         await command("Input.dispatchMouseEvent", { type: "mouseMoved", buttons: 1, ...to });
         await command("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...to });
         await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
-        assert.deepEqual(
-          await evaluate(`Array.from(document.querySelectorAll('tbody tr')).slice(2).map(row => row.cells[3].textContent)`),
-          ["0", "1", "1", "1"],
-        );
+        assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('tbody tr')).map(row => row.cells[3].textContent)`), [
+          "10",
+          "10",
+        ]);
       }
     for (const zoom of [false, true]) {
       for (const width of [200, 800]) {
@@ -258,11 +263,10 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     if (browser.exitCode === null) await once(browser, "exit", { signal: AbortSignal.timeout(30_000) });
   } finally {
     socket?.close();
-    if (child && child.exitCode === null) {
-      const exited = once(child, "exit");
+    if (child && child.exitCode === null && child.signalCode === null) {
       child.kill();
-      await exited;
     }
+    await closed;
     await rm(scratch, { recursive: true, force: true });
   }
 });

@@ -7,12 +7,12 @@
  * ***
  */
 
-
 /* === Modules === */
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -26,6 +26,7 @@
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[sdk::row]
 #[derive(Clone)]
 struct Shape {
@@ -52,6 +53,7 @@ struct Carried {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() {}
 
 /* === Tests === */

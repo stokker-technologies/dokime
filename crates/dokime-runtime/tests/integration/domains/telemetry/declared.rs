@@ -17,6 +17,8 @@
 
 // Third Party Imports
 use async_trait::async_trait;
+use harmos::sidecar::StreamDeclaration;
+
 // Local Imports
 use crate::service_support::prelude::*;
 use dokime_runtime::InstalledPlugin;
@@ -26,9 +28,9 @@ use dokime_runtime::harmos::operations::OperationPolicy;
 use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::runtime::EmbeddedProvider;
 use dokime_runtime::{Refusal, Supervisor};
-use harmos::sidecar::StreamDeclaration;
 
 /* === Constants === */
+
 const SOURCE: &str = "fixture_declaring";
 const SUITE: &str = "fixture.declaring.checks";
 const RECORD: &str = "fixture.declaring.measured";
@@ -40,6 +42,7 @@ const POLICY: OperationPolicy = crate::service_support::budgets::settings::FIXTU
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::stream(id = "fixture.declaring.samples", window = 32, label = "Samples")]
 struct Sample {
     value: f64,
@@ -75,6 +78,7 @@ struct DeclaringProvider {
 }
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 enum Streams {
     Sample(Sample),
@@ -104,6 +108,7 @@ enum Suites {
 /* === Traits === */
 
 /* === Implementations === */
+
 #[dokime_runtime::suite(id = "fixture.declaring.checks", label = "Checks", templates = Templates)]
 impl Checks {}
 
@@ -211,7 +216,6 @@ impl EmbeddedProvider for DeclaringProvider {
                 metadata: entry.metadata(),
                 row_metadata: entry.row_metadata(),
                 id: entry.id.into(),
-                schema: entry.schema,
                 window: entry.window,
                 row: harmos::schema::graph::Schema::from_declaration(entry.row, &harmos::config::SchemaSettings::default()).unwrap(),
             })
@@ -234,7 +238,6 @@ impl EmbeddedProvider for DeclaringProvider {
 
 /* === Private Functions === */
 
-/* === Tests === */
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn template_declarations_register() {
@@ -319,3 +322,5 @@ async fn conflicting_prompt_refused() {
     );
     runtime.shutdown().await.unwrap();
 }
+
+/* === Tests === */

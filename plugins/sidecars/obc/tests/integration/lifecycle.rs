@@ -156,7 +156,7 @@ async fn execution_streams_outcome() {
     }));
     assert!(samples.iter().all(|sample| { sample.stream.as_str() == <PulseRow as dokime::StreamSpec>::ID }));
     // The values are the sidecar's own deterministic function of the index,
-    // compared with a tolerance because they round-trip through JSON.
+    // compared with a tolerance_au because they round-trip through JSON.
     for (index, sample) in samples.iter().enumerate() {
         assert_eq!(sample.values.get("sample_index"), Some(&Value::from(index as i64)));
         let Some(Value::Number(value)) = sample.values.get("value") else {

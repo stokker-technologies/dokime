@@ -233,6 +233,9 @@ impl Adapter<'_> {
                 package.running.retain(|live| &live.source != source);
             }
             self.handle.remove_action_dispatcher(&crate::Identifier::new(source).map_err(operation)?);
+            if let Some(provider) = self.embedded.get_mut(source) {
+                provider.exposed = false;
+            }
         }
         Ok(())
     }
@@ -337,9 +340,16 @@ impl Sidecar {
         // Read At Each Attempt, So A Saved Budget Applies To The Next Start Or Restart.
         let budget = handle.read_application_settings().await?.settings.plugins.startup_timeout();
         let logged_by = source.clone();
+        let cadence = harmos::__private::sidecar::CadenceReporter::for_host(crate::domains::execution::run::host::ObserverEvidence::new(
+            handle.execution_sessions.clone(),
+            source.clone(),
+        ));
         let sidecar: InstalledSidecar = harmos::sidecar::Supervised::new(
             executable.clone(),
             Box::new(move |_context: &harmos::ServiceContext<crate::Dokime>, value| {
+                if let harmos::sidecar::Notice::ObserverCadence { report } = &value {
+                    cadence.report(report);
+                }
                 if let harmos::sidecar::Notice::Logged { line } = &value {
                     forward_plugin_line(&logged_by, line);
                 }

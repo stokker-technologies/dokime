@@ -116,7 +116,7 @@ pub async fn admission(size: Admission) {
         followed.envelope.as_ref().map(|envelope| &envelope.warnings)
     );
     drop(watch);
-    // The unary query reduces the same plot to the same budget.
+    // The Unary Query Retains Its Independent Message Budget.
     let unary = client
         .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![request(size.oversized)] })
         .await
@@ -124,7 +124,56 @@ pub async fn admission(size: Admission) {
         .into_inner();
     let envelope = &unary.envelopes[0];
     assert!(!envelope.warnings.is_empty());
-    assert_eq!(envelope.payload.as_ref().unwrap().max_points as usize, maximum);
+    assert!(envelope.payload.as_ref().unwrap().max_points as usize >= maximum);
+
+    // One Revision Shares Its Wire Budget And Deduplicates Identical Plot Reads.
+    let requests = (0..8)
+        .map(|index| model::plots::wire::PlotRequest {
+            plot_id: Some(format!("admission.{index}")),
+            ..request(size.oversized)
+        })
+        .collect();
+    let before = handle.storage_read_counters().data_scan_rows;
+    let mut grouped = client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests }).await.unwrap().into_inner();
+    let updates = data_frames(&mut grouped).await;
+    assert_eq!(updates.len(), 8);
+    let revision = updates[0].envelope.as_ref().unwrap().revision;
+    for (index, update) in updates.iter().enumerate() {
+        assert_eq!(update.kind, model::plots::wire::PlotStreamKind::Snapshot);
+        let envelope = update.envelope.as_ref().unwrap();
+        assert_eq!(envelope.plot_id, format!("admission.{index}"));
+        assert_eq!(envelope.revision, revision);
+        assert!(served_points(update) > 0);
+        assert!(served_points(update) <= maximum);
+    }
+    assert_eq!(handle.storage_read_counters().data_scan_rows - before, window_scan + 1);
+    drop(grouped);
+
+    // A Refused Query Stays Beside Its Healthy Peer In The Same Ordered Revision.
+    let requests = vec![
+        model::plots::wire::PlotRequest {
+            plot_id: Some("healthy".into()),
+            ..request(size.window)
+        },
+        model::plots::wire::PlotRequest {
+            plot_id: Some("refused".into()),
+            analysis: Some(model::plots::wire::AnalysisSelection {
+                id: "uninstalled.analysis".into(),
+                version: 1,
+                parameters: None,
+            }),
+            ..request(size.window)
+        },
+    ];
+    let mut mixed = client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests }).await.unwrap().into_inner();
+    let updates = data_frames(&mut mixed).await;
+    assert_eq!(updates.len(), 2);
+    assert_eq!(updates[0].envelope.as_ref().unwrap().plot_id, "healthy");
+    assert_eq!(updates[0].kind, model::plots::wire::PlotStreamKind::Snapshot);
+    assert!(served_points(&updates[0]) > 0);
+    assert_eq!(updates[1].envelope.as_ref().unwrap().plot_id, "refused");
+    assert_eq!(updates[1].kind, model::plots::wire::PlotStreamKind::Error);
+    drop(mixed);
 
     let beyond = client
         .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots {
@@ -143,6 +192,7 @@ pub fn request(max_points: u64) -> model::plots::wire::PlotRequest {
     model::plots::wire::PlotRequest {
         plot_id: Some("fixture.progress.plot".into()),
         plot_type: model::plots::wire::PlotType::TimeSeries,
+        style: model::documents::wire::PlotStyle::Unspecified,
         stream: "fixture.progress".into(),
         y_keys: vec!["progress".into()],
         max_points: Some(max_points),
@@ -170,25 +220,34 @@ pub fn request(max_points: u64) -> model::plots::wire::PlotRequest {
     }
 }
 
-pub async fn first_frame(client: &WireClient, max_points: u64) -> model::plots::wire::PlotStreamFrame {
+pub async fn first_frame(client: &WireClient, max_points: u64) -> model::plots::wire::PlotStreamUpdate {
     let mut stream = open_watch(client, max_points).await;
     data_frame(&mut stream).await
 }
 
 // The next frame that carries a plot's data or error, past the watch's acknowledgements and keepalives.
-pub async fn data_frame(watch: &mut WireStream<model::plots::wire::PlotStreamFrame>) -> model::plots::wire::PlotStreamFrame {
-    let mut frame = watch.message().await.unwrap().unwrap();
-    while frame.kind == model::plots::wire::PlotStreamKind::Unspecified {
-        frame = watch.message().await.unwrap().unwrap();
+pub async fn data_frame(watch: &mut WireStream<model::plots::wire::PlotStreamFrame>) -> model::plots::wire::PlotStreamUpdate {
+    let mut updates = data_frames(watch).await;
+    assert_eq!(updates.len(), 1, "the single-plot helper receives one update");
+    updates.pop().unwrap()
+}
+
+pub async fn data_frames(watch: &mut WireStream<model::plots::wire::PlotStreamFrame>) -> Vec<model::plots::wire::PlotStreamUpdate> {
+    loop {
+        let frame = watch.message().await.unwrap().unwrap();
+        assert!(!frame.updates.is_empty());
+        if frame.updates.iter().all(|update| update.kind == model::plots::wire::PlotStreamKind::Unspecified) {
+            continue;
+        }
+        return frame.updates;
     }
-    frame
 }
 
 pub async fn open_watch(client: &WireClient, max_points: u64) -> WireStream<model::plots::wire::PlotStreamFrame> {
     client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: vec![request(max_points)] }).await.unwrap().into_inner()
 }
 
-pub fn served_points(frame: &model::plots::wire::PlotStreamFrame) -> usize {
+pub fn served_points(frame: &model::plots::wire::PlotStreamUpdate) -> usize {
     let Some(payload) = frame.envelope.as_ref().and_then(|envelope| envelope.payload.as_ref()) else {
         return 0;
     };

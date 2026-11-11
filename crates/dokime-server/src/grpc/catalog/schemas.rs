@@ -63,7 +63,7 @@ pub(crate) fn record(contract: &RecordContract) -> Result<dokime::domain::model:
     }))?;
     Ok(dokime::domain::model::definition::wire::RecordSchema {
         record_type: contract.record_type.as_str().to_owned(),
-        schema_version: contract.schema_version,
+        schema_version: contract.schema_version(),
         metadata: Some(metadata(&contract.metadata)?),
         template_identifier: contract.template_id.as_ref().map(|id| id.as_str().to_owned()),
         owner_suite_id: contract.owner.as_ref().map(|id| id.as_str().to_owned()),

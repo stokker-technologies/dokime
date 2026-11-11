@@ -7,23 +7,21 @@
  * ***
  */
 
-// File sources watched during an execution: every matched file becomes one
-// execution artifact under the watch's output folder. `FileWatch` streams its
-// progress to a listener; `WatchFile` is the same watch over files for a
-// template, settling only when the watch stops, and may carry line matchers
-// that turn captured lines into rows and records.
+// File sources captured during an execution. `CopyFiles` copies once and
+// settles. `StartCapture` returns once its baseline is taken, and the execution
+// owns the capture until `StopCapture` seals it or the execution ends.
 
 /* === Modules === */
 
-mod await_file_watch_armed;
-mod file_watch;
-mod watch_file;
+mod copy_files;
+mod start_capture;
+mod stop_capture;
 
 /* === Re-Exports === */
 
-pub use await_file_watch_armed::AwaitFileWatchArmed;
-pub use file_watch::FileWatch;
-pub use watch_file::WatchFile;
+pub use copy_files::CopyFiles;
+pub use start_capture::StartCapture;
+pub use stop_capture::StopCapture;
 
 /* === Imports === */
 
@@ -40,18 +38,13 @@ use dokime_domain::model::files::wire::*;
 /* === Macros === */
 
 #[cfg(feature = "runtime")]
-crate::hosted!(FileWatch, WatchFile, AwaitFileWatchArmed);
+crate::hosted!(CopyFiles, StartCapture, StopCapture);
 
 /* === Type Aliases === */
 
 /* === Structs === */
 
 /* === Enums === */
-
-#[harmos::catalog]
-pub enum Operations {
-    FileWatch(FileWatch),
-}
 
 /* === Traits === */
 

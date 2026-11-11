@@ -38,7 +38,7 @@ use crate::model::identity::id::TestExecutionId;
 
 /* === Structs === */
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RecordScope {
     pub session_id: Option<SessionId>,
@@ -54,7 +54,7 @@ pub struct RecordScope {
 
 /* === Enums === */
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EvidenceOrigin {
     #[default]
@@ -67,7 +67,7 @@ pub enum EvidenceOrigin {
     Cleanup,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CapturePhase {
     #[default]

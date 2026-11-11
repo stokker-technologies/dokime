@@ -13,10 +13,10 @@
 
 /* === Imports === */
 
-extern crate plugin_host;
 // Standard Library Imports
 
 // Third Party Imports
+extern crate plugin_host;
 
 // Local Imports
 
@@ -27,6 +27,7 @@ extern crate plugin_host;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[sdk::stream(id = "other.gateway.rssi", window = 4096, foreign)]
 struct GatewayRssi {
     #[row(unit = "dBm")]
@@ -42,6 +43,7 @@ struct GatewayRssi {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn published<T: sdk::Publishable>() {}
 
 fn pushed<T: sdk::telemetry::OwnedStream>() {}

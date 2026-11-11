@@ -18,8 +18,6 @@ import type {
   DocumentPlotAxisKind,
   DocumentPlotStyle,
   DocumentPlotType,
-  DocumentReferenceBand,
-  DocumentReferenceLine,
   DocumentSigmaInterval,
 } from "./plot";
 
@@ -109,10 +107,11 @@ export type DocumentViewPlot = {
   series_by?: string | null;
   unit?: string | null;
   description?: string | null;
+  scale?: number | null;
   marker_record_types?: string[];
   filters?: DocumentFilter[];
-  reference_lines?: DocumentReferenceLine[];
-  reference_bands?: DocumentReferenceBand[];
+  reference_lines?: import("@/lib/document-contracts").ReferenceLine[];
+  reference_bands?: import("@/lib/document-contracts").ReferenceBand[];
   x_format?: ValueFormat | null;
   y_format?: ValueFormat | null;
   /** Absent for a payload written before the axis was declared on the wire. */
@@ -199,7 +198,6 @@ export type DocumentViewSection = {
 };
 
 export type DocumentViewPayload = {
-  schema_version: number;
   document_id: string;
   metadata: Metadata;
   title: string;

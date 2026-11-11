@@ -55,6 +55,7 @@ pub struct ExecutionSelection {
 
     #[serde(default)]
     pub statuses: Vec<ExecutionStatus>,
+
     pub started_at: Option<Window>,
 
     #[row(description = "Absent selects unarchived rows; alternatives are exact and conjunctive across fields.")]
@@ -70,6 +71,7 @@ pub struct CycleSelection {
 
     #[serde(default)]
     pub phases: Vec<CyclePhase>,
+
     pub created_at: Option<Window>,
     pub archive: Option<ArchiveScope>,
 

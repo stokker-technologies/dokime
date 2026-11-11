@@ -6,13 +6,24 @@ Embed the product runtime through the product entry library by default. Declare 
 
 When crash isolation or a native library requires a separate process, host that runtime as a sidecar on the same machine with the same operation contracts. The plugin requires those operations and consumes that product's portable contract crates, beside its Dokime authoring dependency. Dokime data contracts live in `dokime-domain`; its operation declarations live in `dokime-operations` without the `runtime` feature.
 
+Stream row revisions derive automatically from their schema. Changing fields needs
+only a rebuild and plugin Reload, with no author version bump or backend restart.
+Saved rows retain their definitions. Documents and queries select stream ids and
+columns; absent columns contribute no values and incompatible columns are named
+on affected bindings without discarding readable evidence. Record revisions also
+derive from their declared fields; never author a record schema version. Rebuild
+plugins against the matching Harmos SDK. Plugin-owned records, stored objects and
+system facts retain their stored definitions, including when the plugin is absent;
+unknown plugin objects use `ObjectRetention::All`. Only unreadable Dokime-owned
+persistent state can require a fresh root.
+
 Declare records, streams, prompts and settings once in their domain owner. Dokime declares each operation, its policy and family catalog in `dokime-operations`; its `runtime`-gated implementation dispatches through host-provided resources. Plugin-provided operations follow their own operation families and one definition per operation. Public visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
 
 A template lists its calls in its `requires` catalog. Its plugin's own `Private` or `Public` operations can answer without a plugin-level requirement. Calls to another plugin require a `Public` operation and a declared plugin requirement. `Host` operations cannot satisfy a template call.
 
 Use `ctx.operation(request).await?` on every authoring surface. Await returns
 `Response<T>`: read it through Deref, or call `into_owned()` to move the value.
-Use `.start().await?` to retain a scoped instance. Built-ins such as WatchFile and
+Use `.start().await?` to retain a scoped instance. Built-ins such as StartCapture and
 RunProcess use that method without a template `requires` entry. Redundant built-in requirements are compile errors.
 The operation macro owns default timeouts, delays and retries. A builder option overrides one
 call; retry choices come from settings, parameters or configuration and require
@@ -94,23 +105,23 @@ async fn traceability(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     let diagnostics = ctx.operation(operation).await?;
 
     // === Device Under Test === //
-    let mut section = TraceabilitySection::new("dut", "Device Under Test");
+    let mut section = TraceabilitySection::new("Device Under Test");
 
-    let serial_number = TraceabilityRow::text("serial_number", "Serial Number", &diagnostics.serial_number);
+    let serial_number = TraceabilityRow::text("Serial Number", &diagnostics.serial_number);
     section.row(serial_number);
 
-    let firmware_version = TraceabilityRow::text("firmware_version", "Firmware Version", &diagnostics.firmware_version);
+    let firmware_version = TraceabilityRow::text("Firmware Version", &diagnostics.firmware_version);
     section.row(firmware_version);
 
     ctx.traceability().section(section);
 
     // === Test Bench === //
-    let mut section = TraceabilitySection::new("bench", "Test Bench");
+    let mut section = TraceabilitySection::new("Test Bench");
 
-    let chamber_id = TraceabilityRow::text("chamber_id", "Chamber ID", &diagnostics.chamber_id);
+    let chamber_id = TraceabilityRow::text("Chamber ID", &diagnostics.chamber_id);
     section.row(chamber_id);
 
-    let controller_version = TraceabilityRow::text("controller_version", "Controller Version", &diagnostics.controller_version);
+    let controller_version = TraceabilityRow::text("Controller Version", &diagnostics.controller_version);
     section.row(controller_version);
 
     ctx.traceability().section(section);
@@ -118,6 +129,14 @@ async fn traceability(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     Ok(())
 }
 ```
+
+Traceability constructors take the label first, like documents. The ID derives
+from that label; `.id(...)` overrides it. Sections use a separate
+`section.id("dut");` statement; rows support `row.id("serial_number")`.
+Use explicit IDs for label-independent edit keys. The starter pins `bench` and
+`target_c` because a later step updates that row. GUI stated groups are scoped
+by snapshot identity, and reports retain captured identifiers; neither compares
+authored section IDs across executions.
 
 Fetch first, then use the result: call the operation once at the top, name the
 result after what it holds, and only read that result in the rest of the step.
@@ -127,7 +146,9 @@ Use `?` by default for operation failures in a step.
   `// === Title Case === //` opens a group of actions.
 - Name before use: build a value on one line and hand it over on the next;
   never nest construction in the call that consumes it.
-- Keep one name throughout: the variable, row ID and response field share a name.
+- A variable and its response field share one name. Traceability IDs derive from
+  labels using document normalization unless explicitly set with `.id(...)`.
+  Pin an ID when edits or external consumers require identity across label changes.
 - Make blocks read alike: create a section, add its rows, then publish it at the
   end of that group. Reuse the name `section` in each group.
 - Use standard style-guide Title Case for comments and every human-facing label:
@@ -135,7 +156,9 @@ Use `?` by default for operation failures in a step.
   coordinating conjunctions and short prepositions in between (`a`, `an`, `the`,
   `and`, `but`, `or`, `nor`, `for`, `of`, `in`, `on`, `at`, `to`, `by`). This includes
   steps, criteria, records, parameters, streams, sections and rows. For example,
-  `Number of Rows` and `Wait Until Chamber Is Ready`. IDs use `snake_case`.
+  `Number of Rows` and `Wait Until Chamber Is Ready`. Declaration IDs keep their
+  established syntax; label-derived traceability IDs use dot-separated lowercase
+  components, for example `Serial Number` becomes `serial.number`.
 - Use `Group / Action` naming in comments and labels, such as
   `// Check / Number of Rows` and `Setup / Bench`. Descriptions stay sentences.
 - A template is the orchestration unit: read top to bottom as one linear flow.
@@ -149,6 +172,17 @@ Use `?` by default for operation failures in a step.
   `Row`, `Required`, `Streams` and `Prompts`. Catalog variants match their
   operation names.
 - Cleanup attempts everything and logs a warning for each failure.
+
+Use `Plot::xy(label)` for explicit X and Y axes; style defaults to `Line`.
+Choose `PlotStyle::Points` for density-grid reduction, or `Line`, `LinePoints`
+or `Step` for the ordered envelope.
+
+Plot references are plot-owned Y-axis values in stored units. Use
+`plot.reference_band("Limits", lower, upper)`,
+`plot.reference_tolerance("Target ± Band", center, tolerance)` and
+`plot.reference_line("Limit", value)` with literals or expression handles.
+`plot.scale(...)` scales them with the data in live views and frozen reports.
+Do not associate references with a quantity or select an X reference axis.
 
 Canonical examples contain no placeholders.
 
@@ -169,6 +203,37 @@ fn measurements_ok(ctx: &CriterionContext<'_>) -> Result<bool> {
     Ok(number_ok && measurements_ok)
 }
 ```
+
+## Parameters and Choices
+
+Declare a closed set of parameter, prompt or setting values with
+`#[dokime::choice]` on an enum of unit variants; write no per-variant attributes
+in the normal form:
+
+```rust
+#[dokime::choice]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(u16)]
+pub enum Channel {
+    /// 2.4 GHz
+    Ch1 = 1,
+    /// 5 GHz, UNII-1
+    Ch36 = 36,
+}
+```
+
+- Id: the written discriminant as text (`"36"`), otherwise the variant name in
+  snake case (`ch36`). A discriminant that is not an integer literal needs an id.
+- Label: the variant name split on case and digit boundaries, acronyms kept
+  (`Ch 36`); a doc comment's first line follows a middle dot (`Ch 36 · 5 GHz, UNII-1`).
+- Value: an integer `#[repr]` with discriminants adds `const fn value(self)`
+  returning the discriminant. Read the number with `value()`, never an `as` cast:
+  the enum's codec tags variants by name.
+- `#[choice(id = "...", label = "...")]` on a variant overrides either.
+
+Ids are stable text: saved parameters and settings store them. Renaming a
+variant or changing its discriminant changes its id, so pin the old one with
+`#[choice(id = "...")]` instead.
 
 ## Layout
 
@@ -249,6 +314,11 @@ its row with the collected streams in one `Evidence` contribution; collection
 operations remain in their executable catalog.
 
 ## Shared Secrets
+
+Follow the [Plugin Security Contract](../../../../docs/plugin-security.md) for
+native process authority, identifier-based secrets, log redaction, private-plugin
+release review and API compatibility. Bundle integrity does not authenticate a
+publisher or sandbox native code; the signing and guest policies there are proposals.
 
 ```rust
 #[dokime::section(label = "Cloud")]

@@ -36,7 +36,7 @@ use crate::storage::{Error, Result};
 /* === Structs === */
 
 #[derive(Clone, Serialize)]
-pub(crate) struct StreamFile {
+pub struct StreamFile {
     pub id: String,
     pub stream: String,
     pub contract: dokime_domain::model::telemetry::TelemetryContract,
@@ -47,6 +47,7 @@ pub(crate) struct StreamFile {
     pub last_at: Option<i64>,
     pub batches: Vec<Batch>,
     pub summaries: Vec<Summary>,
+
     #[serde(skip)]
     pub path: PathBuf,
 
@@ -55,7 +56,7 @@ pub(crate) struct StreamFile {
 }
 
 #[derive(Clone, Serialize)]
-pub(crate) struct Batch {
+pub struct Batch {
     pub offset: u64,
     pub metadata_bytes: u32,
     pub body_bytes: u64,
@@ -67,7 +68,7 @@ pub(crate) struct Batch {
 }
 
 #[derive(Clone, Serialize)]
-pub(crate) struct Summary {
+pub struct Summary {
     pub signal: String,
     pub count: u64,
     pub minimum: f64,
@@ -192,6 +193,7 @@ pub(super) fn files(
     }
     Ok(files)
 }
+
 /* === Private Functions === */
 
 // A Complete Owned File Retains Its Original Bytes And Catalog Identity.

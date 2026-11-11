@@ -25,6 +25,6 @@ export function useApplicationTheme(): ApplicationTheme {
 }
 
 /* === Components === */
-export function ApplicationThemeProvider({ children, value }: { children: ReactNode; value: ApplicationTheme }) {
+export function ApplicationThemeProvider({ children, value }: { children?: ReactNode; value: ApplicationTheme }) {
   return <NativeTheme.Provider value={value}>{children}</NativeTheme.Provider>;
 }

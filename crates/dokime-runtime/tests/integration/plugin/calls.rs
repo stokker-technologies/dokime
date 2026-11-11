@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{
@@ -19,16 +20,19 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
+
 // Third Party Imports
-use dokime_runtime::harmos::plugin::Declared;
-use dokime_runtime::harmos::sidecar::{ActivationId, ObserverAttachment, ObserverContext};
+
 // Local Imports
 use dokime_runtime::execution::{CriterionContext, InitializationContext, StepContext};
+use dokime_runtime::harmos::plugin::Declared;
+use dokime_runtime::harmos::sidecar::{ActivationId, ObserverAttachment, ObserverContext};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::{Refusal, Supervisor};
 
 /* === Constants === */
+
 const SUITE: &str = "calls.checks";
 const TEMPLATE: &str = "calls.checks.probe";
 const LATE: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime::harmos::operations::OperationPolicy {
@@ -37,19 +41,20 @@ const LATE: dokime_runtime::harmos::operations::OperationPolicy = dokime_runtime
     cancellation_timeout: std::time::Duration::ZERO,
     retries: dokime_runtime::harmos::operations::RetryPolicy::Never,
 };
-
 static OBSERVER_PROBES: LazyLock<Mutex<BTreeMap<String, ObserverTicks>>> = LazyLock::new(|| Mutex::new(BTreeMap::new()));
-
 static WIRE_CANCELLATIONS: AtomicU64 = AtomicU64::new(0);
 
 // Woken whenever a fixture records a tick or a cancellation.
 static CHANGED: tokio::sync::Notify = tokio::sync::Notify::const_new();
 
 /* === Macros === */
+
 /* === Type Aliases === */
+
 type ObserverTicks = Arc<Mutex<Vec<(u64, ActivationId)>>>;
 
 /* === Structs === */
+
 #[dokime_runtime::message]
 #[derive(Clone, PartialEq)]
 struct GetReadingResponse {
@@ -82,6 +87,7 @@ struct Bench {
     shared: Arc<Shared>,
     observers: Option<Arc<ObserverAttachment>>,
 }
+
 #[allow(dead_code)]
 struct Watch(Option<ObserverTicks>);
 
@@ -93,7 +99,39 @@ struct WireCancellation {
     completed: bool,
 }
 
+#[dokime_runtime::operation(id = "call_fixture.get_reading", policy = super::native::POLICY, response = GetReadingResponse, resources = [Shared])]
+#[derive(Clone, PartialEq)]
+struct GetReading {}
+
+#[dokime_runtime::operation(id = "call_fixture.get_late_reading", policy = LATE, response = GetReadingResponse)]
+#[derive(Clone, PartialEq)]
+struct GetLateReading {}
+
+#[dokime_runtime::operation(id = "call_fixture.get_status",
+    policy = super::native::POLICY,
+    response = dokime_runtime::domains::StatusResponse)]
+#[derive(Clone, PartialEq)]
+struct GetStatus {}
+
+#[dokime_runtime::operation(id = "call_fixture.echo", policy = super::native::POLICY, response = SharedReading)]
+#[derive(Clone, PartialEq)]
+struct Echo {
+    value: u64,
+}
+
+#[dokime_runtime::operation(id = "call_fixture.double", policy = super::native::POLICY, response = SharedReading)]
+#[derive(Clone, PartialEq)]
+struct Double {
+    value: u64,
+}
+
+#[allow(dead_code)]
+#[dokime_runtime::operation(id = "call_fixture.hidden", policy = super::native::POLICY, response = ())]
+#[derive(Clone, PartialEq)]
+struct Hidden {}
+
 /* === Enums === */
+
 #[dokime_runtime::harmos::catalog(harmos_path = dokime_runtime::harmos)]
 enum Implemented {
     GetReading(GetReading),
@@ -127,9 +165,7 @@ enum ProbeRequired {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime_runtime::operation(id = "call_fixture.get_reading", policy = super::native::POLICY, response = GetReadingResponse, resources = [Shared])]
-#[derive(Clone, PartialEq)]
-struct GetReading {}
+
 impl dokime_runtime::Operation for GetReading {
     type Error = Refusal;
 
@@ -146,9 +182,7 @@ impl dokime_runtime::Operation for GetReading {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call_fixture.get_late_reading", policy = LATE, response = GetReadingResponse)]
-#[derive(Clone, PartialEq)]
-struct GetLateReading {}
+
 impl dokime_runtime::Operation for GetLateReading {
     type Error = Refusal;
 
@@ -166,11 +200,7 @@ impl dokime_runtime::Operation for GetLateReading {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call_fixture.get_status",
-    policy = super::native::POLICY,
-    response = dokime_runtime::domains::StatusResponse)]
-#[derive(Clone, PartialEq)]
-struct GetStatus {}
+
 impl dokime_runtime::Operation for GetStatus {
     type Error = Refusal;
 
@@ -182,11 +212,7 @@ impl dokime_runtime::Operation for GetStatus {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call_fixture.echo", policy = super::native::POLICY, response = SharedReading)]
-#[derive(Clone, PartialEq)]
-struct Echo {
-    value: u64,
-}
+
 impl dokime_runtime::Operation for Echo {
     type Error = Refusal;
 
@@ -196,11 +222,7 @@ impl dokime_runtime::Operation for Echo {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "call_fixture.double", policy = super::native::POLICY, response = SharedReading)]
-#[derive(Clone, PartialEq)]
-struct Double {
-    value: u64,
-}
+
 impl dokime_runtime::Operation for Double {
     type Error = Refusal;
 
@@ -211,10 +233,6 @@ impl dokime_runtime::Operation for Double {
     }
 }
 
-#[allow(dead_code)]
-#[dokime_runtime::operation(id = "call_fixture.hidden", policy = super::native::POLICY, response = ())]
-#[derive(Clone, PartialEq)]
-struct Hidden {}
 // Never dispatched: the story proves no catalog lists it.
 #[allow(dead_code)]
 impl dokime_runtime::Operation for Hidden {
@@ -348,6 +366,7 @@ impl Drop for WireCancellation {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // Resolves once `done` holds, re-checking after every recorded change.
 async fn until(done: impl Fn() -> bool) {
     loop {
@@ -364,8 +383,6 @@ async fn until(done: impl Fn() -> bool) {
 fn configured(settings: BTreeMap<String, dokime_runtime::Value>) -> Vec<u8> {
     serde_json::to_vec(&Configuration { settings, ..Configuration::default() }).unwrap()
 }
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -455,9 +472,16 @@ async fn catalog_operations_policy() {
 
     let before = WIRE_CANCELLATIONS.load(Ordering::SeqCst);
     let late = super::native::call_wire::<GetLateReading>(operations, "call_fixture", GetLateReading {}).await;
-    assert!(matches!(late, Err(harmos::Error::OperationRefused(harmos::Refusal::TimedOut))), "{late:?}");
+    assert!(
+        matches!(late, Err(harmos::Error::OperationRefused(harmos::Refusal::TimedOut {
+            ref operation, attempt: 1, timeout, configured_by: "operation policy.timeout",
+        })) if operation == "call_fixture.get_late_reading" && timeout == LATE.timeout),
+        "{late:?}"
+    );
     // The deadline cancels the operation it timed out.
     until(|| WIRE_CANCELLATIONS.load(Ordering::SeqCst) != before).await;
 
     native.shutdown().await;
 }
+
+/* === Tests === */

@@ -1,5 +1,51 @@
 # Dokime Plugins
 
+Python processes can contribute embedded operations, observers, settings and
+execution templates through `dokime.Plugin` and `Backend(plugins=[...])`. They use
+the same managed generation and publication boundaries as native providers. See
+[Python Authoring](../sdk/python/README.md#author-an-embedded-plugin) for declarations,
+callback ownership and batch publication. These providers live with their Python
+backend; distributable Python plugin bundles remain outside the current SDK.
+
+## Security
+
+Read [Plugin Security](plugin-security.md) before installing or distributing a
+plugin. It defines bundle verification, native process authority, secret handling,
+the threat model, private-plugin approval and current API compatibility limits.
+Publisher signing, organization allowlists and WebAssembly isolation remain proposals.
+
+## Python Projects
+
+Create a project with `dokime new bench --lang python`, install the matching SDK
+with [uv](../sdk/python/README.md#install), and run `uv run python main.py`.
+The [runnable source](../sdk/python/examples/starter/) owns the generated files:
+`main.py` composes the backend; `plugin/__init__.py` assembles its catalog;
+`plugin/operations/read.py` owns the instrument request, policy and handler;
+`plugin/suites/capture.py` owns parameters, prompt, stream, steps and criterion.
+Python operation handlers are the driver boundary, just as Rust operations are.
+
+```python
+# Read Voltage
+operation = Read(index)
+voltage_v = await ctx.operation(operation)
+
+# Publish the Reading
+row = Row(index, voltage_v)
+await writer.push(row)
+```
+
+Async callbacks stay on the starting event loop; synchronous operations run on
+workers. Resources are plugin-owned shared objects, while serialized requests
+and replies are independent values. Native deadlines and cancellation still
+apply. A retained callback context refuses calls after its owner ends. Completed
+evidence and sealed reports can be reopened without registering the Python
+plugin again; the GUI shows its unavailable template without offering a new run.
+Installed plugins always load and reserve their IDs, including when disabled.
+Changing the Python plugin means restarting its backend; no Python sidecar bundle
+or hot-reload lifecycle is provided.
+
+## Native Plugin Runtime
+
 Startup failures appear in a desktop notification and in Settings › Plugins,
 with the bundle's display name and the underlying cause. The verified ordinary
 settings remain editable even when the plugin could not start. Secret declarations
@@ -181,7 +227,7 @@ cannot leave generation running or persistent native state changed.
 intervals, including the final partial interval. Cancellation during publication
 also settles the workers and returns the final summary. The OBC Checks template
 `obc.checks.cpu_load` demonstrates the complete consumer sequence using the
-step host’s scoped `submit::<LoadHold>(request)` API to start its handle.
+step’s `ctx.operation(operation).start().await?` builder to start its handle.
 
 The runtime decodes these rows through the same codec as other plugins.
 `host.system` also exposes `memory_used_gib` (Memory Used [GiB]) and
@@ -294,15 +340,22 @@ Sidecar stderr groups continuation lines into bounded records and preserves
 severity, including `error:` diagnostics. Operator cancellation logs at INFO;
 step and cleanup failures remain ERROR. Routine file producer completion is DEBUG.
 
-The unresolved-symbol backtrace hint means the matching debug information is
-absent. Release builds can retain symbols separately: matching PDBs on Windows
-and split debug information on Linux can be optional diagnostic downloads, keeping
-normal installers small. In-process Windows symbol resolution needs the matching
+The unresolved-symbol backtrace hint means symbol resolution could not find
+matching debug information. `cargo dokime sidecar build` includes Cargo-emitted
+PDBs on Windows and split `.dwp`, `.dwo` and `.debug` files on Linux beside the
+executable, preserving their filenames. Embedded Linux debug information stays
+in the executable. Selection uses the actual artifact's debug setting: dev builds
+and release builds with `debug` enabled retain emitted symbols; release builds
+without debug information add none, even if a linker produces a minimal PDB.
+
+`[package.metadata.dokime] debuginfo = false` opts out of bundled symbols, as the
+OBC example does. Symbols increase both download and extracted bundle size by
+their stored bytes; a symbol file exceeding the existing bundle budget is omitted
+with a build warning. In-process Windows symbol resolution needs the matching
 PDB beside the executable; offline symbolization needs the exact binary and its
-symbols. Current bundles do not promise these symbol artifacts. See the
+symbols. See the
 [Cargo profile reference](https://doc.rust-lang.org/cargo/reference/profiles.html#debug)
-for debug information and splitting controls; adding symbol publication is a
-separate packaging change.
+for debug information and splitting controls.
 
 
 Cargo supplies package identity, version and description. Suite declarations
@@ -371,7 +424,7 @@ or changed bundle bytes remain visible by UUID and error, without displaying
 unverified author metadata.
 
 Installation checks configured and installed owner collisions before publication. Replacing an installed
-package marks its previous version for next-boot removal; package names identify
+package marks its previous version for removal after successful activation; package names identify
 installations, while executable IDs identify dependencies. Boot selects native
 files for the current platform, verifies frozen and live registrations before
 initialization, and admits catalogs only after every surviving package initializes.
@@ -390,7 +443,7 @@ Await returns Harmos `Response<T>`, which dereferences to the value; use
 The operation macro owns default timeouts, delays and retries. `.retry(settings.retry)`
 overrides one call, using settings, parameters or configuration. Enabled overrides
 require declared replay safety, preserve attempt deadlines and record every attempt.
-Template built-ins such as WatchFile and RunProcess use the same method without a
+Template built-ins such as StartCapture and RunProcess use the same method without a
 `requires` entry; listing an unconditional built-in there is a compile error.
 Import `OperationHost` for carrier hosts. Rebuild sidecars and guests together for child-call envelope v2.
 
@@ -462,23 +515,23 @@ async fn traceability(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     let diagnostics = ctx.operation(operation).await?;
 
     // === Device Under Test === //
-    let mut section = TraceabilitySection::new("dut", "Device Under Test");
+    let mut section = TraceabilitySection::new("Device Under Test");
 
-    let serial_number = TraceabilityRow::text("serial_number", "Serial Number", &diagnostics.serial_number);
+    let serial_number = TraceabilityRow::text("Serial Number", &diagnostics.serial_number);
     section.row(serial_number);
 
-    let firmware_version = TraceabilityRow::text("firmware_version", "Firmware Version", &diagnostics.firmware_version);
+    let firmware_version = TraceabilityRow::text("Firmware Version", &diagnostics.firmware_version);
     section.row(firmware_version);
 
     ctx.traceability().section(section);
 
     // === Test Bench === //
-    let mut section = TraceabilitySection::new("bench", "Test Bench");
+    let mut section = TraceabilitySection::new("Test Bench");
 
-    let chamber_id = TraceabilityRow::text("chamber_id", "Chamber ID", &diagnostics.chamber_id);
+    let chamber_id = TraceabilityRow::text("Chamber ID", &diagnostics.chamber_id);
     section.row(chamber_id);
 
-    let controller_version = TraceabilityRow::text("controller_version", "Controller Version", &diagnostics.controller_version);
+    let controller_version = TraceabilityRow::text("Controller Version", &diagnostics.controller_version);
     section.row(controller_version);
 
     ctx.traceability().section(section);
@@ -486,6 +539,14 @@ async fn traceability(&mut self, ctx: &mut StepContext<'_>) -> Result<()> {
     Ok(())
 }
 ```
+
+Traceability constructors take the label first, like documents. The ID derives
+from that label; `.id(...)` overrides it. Sections use a separate
+`section.id("dut");` statement; rows support `row.id("serial_number")`.
+Use explicit IDs for label-independent edit keys. The starter pins `bench` and
+`target_c` because a later step updates that row. GUI stated groups are scoped
+by snapshot identity, and reports retain captured identifiers; neither compares
+authored section IDs across executions.
 
 Fetch first, then use the result: call the operation once at the top, name the
 result after what it holds, and only read that result in the rest of the step.
@@ -495,7 +556,9 @@ Use `?` by default for operation failures in a step.
   `// === Title Case === //` opens a group of actions.
 - Name before use: build a value on one line and hand it over on the next;
   never nest construction in the call that consumes it.
-- Keep one name throughout: the variable, row ID and response field share a name.
+- A variable and its response field share one name. Traceability IDs derive from
+  labels using document normalization unless explicitly set with `.id(...)`.
+  Pin an ID when edits or external consumers require identity across label changes.
 - Make blocks read alike: create a section, add its rows, then publish it at the
   end of that group. Reuse the name `section` in each group.
 - Use standard style-guide Title Case for comments and every human-facing label:
@@ -503,14 +566,20 @@ Use `?` by default for operation failures in a step.
   coordinating conjunctions and short prepositions in between (`a`, `an`, `the`,
   `and`, `but`, `or`, `nor`, `for`, `of`, `in`, `on`, `at`, `to`, `by`). This includes
   steps, criteria, records, parameters, streams, sections and rows. For example,
-  `Number of Rows` and `Wait Until Chamber Is Ready`. IDs use `snake_case`.
+  `Number of Rows` and `Wait Until Chamber Is Ready`. Declaration IDs keep their
+  established syntax; label-derived traceability IDs use dot-separated lowercase
+  components, for example `Serial Number` becomes `serial.number`.
 - Use `Group / Action` naming in comments and labels, such as
   `// Check / Number of Rows` and `Setup / Bench`. Descriptions stay sentences.
 - A template is the orchestration unit: read top to bottom as one linear flow.
   Repeat steps rather than extract a helper. Keep indentation shallow and loop
   bodies a plain sequence of steps.
 - Build documents one statement at a time: create a plot, configure it, then
-  attach it.
+  attach it. `Document::new("Hold at Temperature")` derives `hold.at.temperature`;
+  set `document.id("hold");` when label edits must keep the key. Validation
+  refuses invalid or empty derived keys and collisions in one registry, naming
+  the labels and directing authors to `.id(...)`. The runtime owns the internal
+  `default` view and merges template content into it.
 - Suffix field names with their unit (`duration_s`, `distance_m`); separate
   attributed fields with a blank line.
 - Use the same type names in every template file: `Template`, `Parameters`,
@@ -635,11 +704,15 @@ generation running untouched. Harmos stops a generation before starting its
 replacement, so a replacement whose new program then fails to start brings the
 previous bundle back as a fresh generation. Either way the previous installation
 stays installed with its saved values, and the refused one is listed as
-**Refused** with its failure, reported like a failed startup, until the next start
-deletes its file. A first installation that fails stays installed with its
-failure; **Reload** starts it again once the cause is fixed. Removal stops the
+**Refused** with its failure, reported like a failed startup, until it is deleted,
+a later replacement succeeds, or the next start deletes its file. A first installation
+that fails stays installed with its failure; **Reload** starts it again once the cause
+is fixed. Failed and refused installations always offer **Delete**; a refused
+replacement offers neither **Reload** nor an enable switch. Removal stops the
 plugin live once no work can reach a plugin, then discards its row and managed file.
-Successful replacements discard the old installation in the same way. If deletion
-fails, the row and its error stay visible until startup retries. Unreferenced
+Successful replacements discard every earlier installation of the same package,
+including failed boots, along with their boot failures and startup notifications.
+If deletion fails, the row and its error stay visible and **Delete** can retry;
+startup retries too. Unreferenced
 files are swept only at startup, so live cleanup cannot race an installation
 publishing its bundle before its settings commit.

@@ -28,6 +28,8 @@ use crate::model::expressions::RecordMarker;
 use crate::model::identity::DocumentId;
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
+use crate::model::identity::identifier_from_label;
+use crate::model::identity::normalized_identifier;
 use crate::model::telemetry::TelemetryColumn;
 use crate::model::telemetry::TelemetryContract;
 use crate::model::values::Value;
@@ -267,6 +269,9 @@ pub struct PlotDefinition {
     #[serde(default)]
     pub unit: Option<String>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
+
     #[serde(default)]
     pub style: PlotStyle,
 
@@ -369,16 +374,7 @@ pub struct HistogramOptions {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReferenceLine {
-    pub axis: ReferenceAxis,
-
-    #[serde(default)]
-    pub value: Option<f64>,
-
-    #[serde(default)]
-    pub source: Option<DataExpression>,
-
-    #[serde(default = "default_reference_source_scale")]
-    pub source_scale: f64,
+    pub value: ReferenceValue,
 
     #[serde(default)]
     pub label: Option<String>,
@@ -389,40 +385,23 @@ pub struct ReferenceLine {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReferenceBand {
-    pub axis: ReferenceAxis,
-
-    #[serde(default)]
-    pub min: Option<f64>,
-
-    #[serde(default)]
-    pub max: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<ReferenceValue>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub center: Option<DataExpression>,
+    pub max: Option<ReferenceValue>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tolerance: Option<DataExpression>,
+    pub center: Option<ReferenceValue>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tolerance: Option<ReferenceValue>,
 
     #[serde(default)]
     pub label: Option<String>,
 
     #[serde(default = "default_reference_color")]
     pub color: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Band {
-    min: Option<f64>,
-    max: Option<f64>,
-    center: Option<DataExpression>,
-    tolerance: Option<DataExpression>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Line {
-    value: Option<f64>,
-    source: Option<DataExpression>,
-    scale: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -461,6 +440,10 @@ pub struct PlotInput {
     pub filters: Vec<DocumentFilter>,
 
     pub unit: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
+
     pub style: PlotStyle,
     pub x_scale: AxisScale,
     pub y_scale: AxisScale,
@@ -519,6 +502,13 @@ pub struct DocumentDatasetWarning {
 pub struct Plot;
 
 /* === Enums === */
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReferenceValue {
+    Constant(f64),
+    Expression(DataExpression),
+}
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -607,8 +597,7 @@ pub enum PlotType {
     Pie,
     Donut,
     Pareto,
-    XyScatter,
-    XyLine,
+    Xy,
     XyInterval,
     Trajectory,
     Heatmap,
@@ -746,13 +735,6 @@ pub enum FftWindow {
     Hann,
 
     Rectangular,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ReferenceAxis {
-    X,
-    Y,
 }
 
 /* === Traits === */
@@ -950,7 +932,7 @@ impl harmos::MemorySize for HistogramOptions {
 impl harmos::MemorySize for ReferenceLine {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
             (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
             (harmos::MemorySize::memory_size(&self.color), std::mem::size_of_val(&self.color)),
         ];
@@ -963,6 +945,8 @@ impl harmos::MemorySize for ReferenceLine {
 impl harmos::MemorySize for ReferenceBand {
     fn memory_size(&self) -> usize {
         let fields = [
+            (harmos::MemorySize::memory_size(&self.min), std::mem::size_of_val(&self.min)),
+            (harmos::MemorySize::memory_size(&self.max), std::mem::size_of_val(&self.max)),
             (harmos::MemorySize::memory_size(&self.center), std::mem::size_of_val(&self.center)),
             (harmos::MemorySize::memory_size(&self.tolerance), std::mem::size_of_val(&self.tolerance)),
             (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
@@ -1143,15 +1127,31 @@ impl Default for HistogramOptions {
 }
 
 impl DocumentDefinition {
-    pub fn new(identifier: impl AsRef<str>, label: impl Into<String>) -> Self {
-        let identifier = identifier.as_ref();
+    pub fn new(label: impl Into<String>) -> Self {
+        let label = label.into();
+        let identifier = normalized_identifier(&label);
         Self {
-            document_id: DocumentId::from_identifier(identifier).unwrap_or_else(|_| DocumentId::from_seed(identifier)),
-            metadata: metadata(identifier, label.into(), None),
+            document_id: DocumentId::from_identifier(&identifier).unwrap_or_else(|_| DocumentId::from_seed(&identifier)),
+            metadata: metadata(&identifier, label, None),
             cards: Vec::new(),
             layout: DocumentLayout::default(),
             sections: Vec::new(),
         }
+    }
+
+    pub fn id(&mut self, identifier: impl AsRef<str>) {
+        self.metadata.identifier = Identifier::new(identifier.as_ref()).unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
+        self.document_id = DocumentId::from_identifier(self.metadata.identifier.as_str()).expect("document identifier is valid");
+    }
+
+    pub fn validate_identity(&self) -> Result<(), String> {
+        if self.document_id.as_str() != self.metadata.identifier.as_str() {
+            return Err(format!(
+                "document {:?} has an invalid or empty derived identifier; set .id(...) to a valid identifier",
+                self.metadata.label
+            ));
+        }
+        Ok(())
     }
 
     pub fn section(&mut self, section: DocumentSection) {
@@ -1629,6 +1629,7 @@ impl PartialEq for PlotDefinition {
             series_by_expression,
             filters,
             unit,
+            scale,
             style,
             x_scale,
             y_scale,
@@ -1659,6 +1660,7 @@ impl PartialEq for PlotDefinition {
             && series_by_expression == &other.series_by_expression
             && filters == &other.filters
             && unit == &other.unit
+            && scale == &other.scale
             && style == &other.style
             && x_scale == &other.x_scale
             && y_scale == &other.y_scale
@@ -1698,6 +1700,7 @@ impl PlotDefinition {
             series_by_expression: None,
             filters: Vec::new(),
             unit: None,
+            scale: None,
             style: PlotStyle::Line,
             x_scale: AxisScale::Linear,
             y_scale: AxisScale::Linear,
@@ -1745,8 +1748,19 @@ impl PlotDefinition {
         self.metadata.identifier = Identifier::new(identifier.as_ref()).unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
     }
 
+    // Set the display unit label only; this does not convert values.
     pub fn unit(&mut self, unit: impl Into<String>) {
         self.unit = Some(unit.into());
+    }
+
+    // Multiply returned time-series y values, statistics and y references for display only.
+    //
+    // Defaults to 1.0. Document validation requires a positive finite constant and
+    // refuses other plot kinds, custom analyses and x axes. Filters such as `.only(column.gt(...))`
+    // and section repeats still use stored units. Evidence, exports, criteria,
+    // query plans and expressions are unchanged; `unit` is only a label.
+    pub fn scale(&mut self, scale: f64) {
+        self.scale = Some(scale);
     }
 
     pub fn stream(&mut self, stream: impl Into<String>) {
@@ -1843,36 +1857,39 @@ impl PlotDefinition {
         self.marker_record_types.extend(records.into_iter().map(|record| record.into().into_record_type()));
     }
 
-    pub fn reference_line(&mut self, label: impl Into<String>, quantity: impl Into<DataExpression>, line: Line) {
-        let axis = self.axis_of(quantity.into());
+    // Add a Y-axis reference in stored units. `scale` converts it with the plot data.
+    pub fn reference_line(&mut self, label: impl Into<String>, value: impl Into<ReferenceValue>) {
         self.reference_lines.push(ReferenceLine {
-            axis,
-            value: line.value,
-            source: line.source,
-            source_scale: line.scale,
+            value: value.into(),
             label: Some(label.into()),
             color: default_reference_color(),
         });
     }
 
-    pub fn reference_band(&mut self, label: impl Into<String>, quantity: impl Into<DataExpression>, band: Band) {
-        let axis = self.axis_of(quantity.into());
+    // Add Y-axis bounds in stored units. `scale` converts them with the plot data.
+    pub fn reference_band(&mut self, label: impl Into<String>, min: impl Into<ReferenceValue>, max: impl Into<ReferenceValue>) {
         self.reference_bands.push(ReferenceBand {
-            axis,
-            min: band.min,
-            max: band.max,
-            center: band.center,
-            tolerance: band.tolerance,
+            min: Some(min.into()),
+            max: Some(max.into()),
+            center: None,
+            tolerance: None,
             label: Some(label.into()),
             color: default_reference_color(),
         });
     }
 
-    fn axis_of(&self, quantity: DataExpression) -> ReferenceAxis {
-        match self.x_expression.as_ref().is_some_and(|x| x.source == quantity.source && x.transforms == quantity.transforms) {
-            true => ReferenceAxis::X,
-            false => ReferenceAxis::Y,
-        }
+    // Add a Y-axis center ± tolerance in stored units. `scale` converts both with the plot data.
+    pub fn reference_tolerance(
+        &mut self, label: impl Into<String>, center: impl Into<ReferenceValue>, tolerance: impl Into<ReferenceValue>,
+    ) {
+        self.reference_bands.push(ReferenceBand {
+            min: None,
+            max: None,
+            center: Some(center.into()),
+            tolerance: Some(tolerance.into()),
+            label: Some(label.into()),
+            color: default_reference_color(),
+        });
     }
 }
 
@@ -1889,12 +1906,8 @@ impl Plot {
         PlotDefinition::with_type(label, PlotType::Bar)
     }
 
-    pub fn xy_scatter(label: impl Into<String>) -> PlotDefinition {
-        PlotDefinition::with_type(label, PlotType::XyScatter)
-    }
-
-    pub fn xy_line(label: impl Into<String>) -> PlotDefinition {
-        PlotDefinition::with_type(label, PlotType::XyLine)
+    pub fn xy(label: impl Into<String>) -> PlotDefinition {
+        PlotDefinition::with_type(label, PlotType::Xy)
     }
 
     pub fn sigma_interval(label: impl Into<String>) -> PlotDefinition {
@@ -1914,48 +1927,42 @@ impl Plot {
     }
 }
 
-impl Band {
-    pub fn between(min: f64, max: f64) -> Self {
-        Self {
-            min: Some(min),
-            max: Some(max),
-            center: None,
-            tolerance: None,
-        }
-    }
-
-    pub fn parameters(center: impl Into<String>, tolerance: impl Into<String>) -> Self {
-        Self::around(crate::model::expressions::parameter(center), crate::model::expressions::parameter(tolerance))
-    }
-
-    pub fn around(center: impl Into<DataExpression>, tolerance: impl Into<DataExpression>) -> Self {
-        Self {
-            min: None,
-            max: None,
-            center: Some(center.into()),
-            tolerance: Some(tolerance.into()),
-        }
+impl From<f64> for ReferenceValue {
+    fn from(value: f64) -> Self {
+        Self::Constant(value)
     }
 }
 
-impl Line {
-    pub fn at(value: f64) -> Self {
-        Self {
-            value: Some(value),
-            source: None,
-            scale: default_reference_source_scale(),
-        }
+impl From<DataExpression> for ReferenceValue {
+    fn from(value: DataExpression) -> Self {
+        Self::Expression(value)
     }
+}
 
-    pub fn parameter(name: impl Into<String>) -> Self {
-        Self::expression(crate::model::expressions::parameter(name))
+impl<R: crate::model::telemetry::TelemetryStream> From<super::column::Column<R>> for ReferenceValue {
+    fn from(value: super::column::Column<R>) -> Self {
+        Self::Expression(value.into())
     }
+}
 
-    pub fn expression(source: impl Into<DataExpression>) -> Self {
-        Self {
-            value: None,
-            source: Some(source.into()),
-            scale: default_reference_source_scale(),
+impl From<crate::model::expressions::RecordField> for ReferenceValue {
+    fn from(value: crate::model::expressions::RecordField) -> Self {
+        Self::Expression(value.into())
+    }
+}
+
+impl From<&crate::model::expressions::RecordField> for ReferenceValue {
+    fn from(value: &crate::model::expressions::RecordField) -> Self {
+        Self::Expression(value.into())
+    }
+}
+
+impl harmos::MemorySize for ReferenceValue {
+    fn memory_size(&self) -> usize {
+        match self {
+            Self::Constant(_) => std::mem::size_of::<Self>(),
+            Self::Expression(value) => std::mem::size_of::<Self>()
+                .saturating_add(harmos::MemorySize::memory_size(value).saturating_sub(std::mem::size_of::<DataExpression>())),
         }
     }
 }
@@ -2005,7 +2012,47 @@ pub(crate) fn plot_validation_issue_bytes(plot: &PlotDefinition) -> Option<usize
     validate_plot_definition_with(plot, &crate::model::validation::diagnostic::size).err()
 }
 
+pub(crate) fn plot_type_label(plot_type: &PlotType) -> &'static str {
+    match plot_type {
+        PlotType::TimeSeries => "time_series",
+        PlotType::Bar => "bar",
+        PlotType::GroupedBar => "grouped_bar",
+        PlotType::StackedBar => "stacked_bar",
+        PlotType::Pie => "pie",
+        PlotType::Donut => "donut",
+        PlotType::Pareto => "pareto",
+        PlotType::Xy => "xy",
+        PlotType::XyInterval => "xy_interval",
+        PlotType::Trajectory => "trajectory",
+        PlotType::Heatmap => "heatmap",
+        PlotType::XyValueHeatmap => "xy_value_heatmap",
+        PlotType::WifiChannelOccupancy => "wifi_channel_occupancy",
+        PlotType::FrequencySeries => "frequency_series",
+        PlotType::Histogram => "histogram",
+        PlotType::BoxSummary => "box_summary",
+        PlotType::AggregateTable => "aggregate_table",
+    }
+}
+
+/* === Private Functions === */
+
 fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
+    if let Some(scale) = plot.scale {
+        if !scale.is_finite() || scale <= 0.0 {
+            return Err(error(format_args!("plot {}: scale must be a positive finite constant", plot.metadata.label)));
+        }
+        let timestamp_axis = plot.x_expression.is_none()
+            && plot.x.as_deref().is_none_or(|field| field == "timestamp")
+            && !matches!(plot.x_axis, Some(PlotAxisKind::Elapsed { .. }));
+        if plot.plot_type != PlotType::TimeSeries || !timestamp_axis || plot.analysis.is_some() {
+            return Err(error(format_args!(
+                "plot {}: scale supports only time_series y values against the row timestamp; {} with custom analyses or other x axes is unsupported",
+                plot.metadata.label,
+                plot_type_label(&plot.plot_type)
+            )));
+        }
+    }
+
     if matches!(
         plot.plot_type,
         PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pie | PlotType::Donut | PlotType::Pareto | PlotType::AggregateTable
@@ -2018,7 +2065,7 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
     {
         return Err(error(format_args!(
             "`time_series` plots draw against the row timestamp; remove `.x(…)`, or use \
-             `Plot::xy_line` to choose both axes"
+             `Plot::xy` to choose both axes"
         )));
     }
 
@@ -2065,7 +2112,7 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
                 return Err(error(format_args!("bar plots must declare at least one y field or y expression")));
             }
         }
-        PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pareto | PlotType::XyScatter | PlotType::XyLine | PlotType::XyInterval => {
+        PlotType::GroupedBar | PlotType::StackedBar | PlotType::Pareto | PlotType::Xy | PlotType::XyInterval => {
             validate_xy_axes(plot, error)?
         }
         PlotType::Trajectory => validate_xy_axes(plot, error)?,
@@ -2117,41 +2164,29 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
     {
         return Err(error(format_args!("FFT min_frequency_hz must be less than or equal to max_frequency_hz")));
     }
+    for line in &plot.reference_lines {
+        if matches!(line.value, ReferenceValue::Constant(value) if !value.is_finite()) {
+            return Err(error(format_args!("plot {}: reference line value must be finite", plot.metadata.label)));
+        }
+    }
     for band in &plot.reference_bands {
-        if let (Some(min), Some(max)) = (band.min, band.max)
+        for value in [&band.min, &band.max, &band.center, &band.tolerance].into_iter().flatten() {
+            if matches!(value, ReferenceValue::Constant(value) if !value.is_finite()) {
+                return Err(error(format_args!("plot {}: reference band values must be finite", plot.metadata.label)));
+            }
+        }
+        if matches!(band.tolerance, Some(ReferenceValue::Constant(value)) if value < 0.0) {
+            return Err(error(format_args!("plot {}: reference tolerance must be greater than or equal to zero", plot.metadata.label)));
+        }
+        if let (Some(ReferenceValue::Constant(min)), Some(ReferenceValue::Constant(max))) = (&band.min, &band.max)
             && min > max
         {
-            return Err(error(format_args!("reference band min must be less than or equal to max")));
+            return Err(error(format_args!("plot {}: reference band min must be less than or equal to max", plot.metadata.label)));
         }
     }
 
     Ok(())
 }
-
-pub(crate) fn plot_type_label(plot_type: &PlotType) -> &'static str {
-    match plot_type {
-        PlotType::TimeSeries => "time_series",
-        PlotType::Bar => "bar",
-        PlotType::GroupedBar => "grouped_bar",
-        PlotType::StackedBar => "stacked_bar",
-        PlotType::Pie => "pie",
-        PlotType::Donut => "donut",
-        PlotType::Pareto => "pareto",
-        PlotType::XyScatter => "xy_scatter",
-        PlotType::XyLine => "xy_line",
-        PlotType::XyInterval => "xy_interval",
-        PlotType::Trajectory => "trajectory",
-        PlotType::Heatmap => "heatmap",
-        PlotType::XyValueHeatmap => "xy_value_heatmap",
-        PlotType::WifiChannelOccupancy => "wifi_channel_occupancy",
-        PlotType::FrequencySeries => "frequency_series",
-        PlotType::Histogram => "histogram",
-        PlotType::BoxSummary => "box_summary",
-        PlotType::AggregateTable => "aggregate_table",
-    }
-}
-
-/* === Private Functions === */
 
 fn document_nodes_memory(nodes: &Vec<DocumentNode>, depth: usize) -> usize {
     if depth > 64 {
@@ -2215,8 +2250,7 @@ fn plot_has_number_x_axis(plot_type: &PlotType) -> bool {
             | PlotType::GroupedBar
             | PlotType::StackedBar
             | PlotType::Pareto
-            | PlotType::XyScatter
-            | PlotType::XyLine
+            | PlotType::Xy
             | PlotType::XyInterval
             | PlotType::Trajectory
             | PlotType::Heatmap
@@ -2320,24 +2354,6 @@ fn nodes_section_count(nodes: &[DocumentNode]) -> usize {
         .sum()
 }
 
-fn identifier_from_label(value: &str) -> Identifier {
-    let mut normalized = String::with_capacity(value.len());
-    let mut last_was_separator = false;
-    for character in value.chars().flat_map(char::to_lowercase) {
-        if character.is_ascii_alphanumeric() {
-            normalized.push(character);
-            last_was_separator = false;
-        } else if !last_was_separator {
-            normalized.push('.');
-            last_was_separator = true;
-        }
-    }
-    let normalized = normalized.trim_matches('.');
-    let identifier = if normalized.is_empty() { "document.item" } else { normalized };
-
-    Identifier::new(identifier).expect("normalized document identifier is valid")
-}
-
 fn default_base_span() -> u8 {
     12
 }
@@ -2360,10 +2376,6 @@ fn default_histogram_bins() -> usize {
 
 fn default_reference_color() -> String {
     "#60706a".to_owned()
-}
-
-fn default_reference_source_scale() -> f64 {
-    1.0
 }
 
 fn default_true() -> bool {

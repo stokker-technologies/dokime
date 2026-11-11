@@ -32,9 +32,9 @@ import type {
 } from "@/lib/types";
 import { isNumber } from "@/lib/utils";
 import { formatBooleanState, formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
-import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
+import { markerColor, resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
-import { drawMarkerKinds, type MarkerRange, type MarkerTooltip, markerKinds, markerLegendRows, markerTooltip } from "@/plots/markers";
+import { drawMarkerKinds, type MarkerTooltip, markerKinds, markerTooltip } from "@/plots/markers";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PromptMarker } from "@/plots/prompt-markers";
@@ -67,13 +67,18 @@ const TOUCH_PLOT_FONT_SCALE = 1.3;
 const POINT_MARK_RENDER_LIMIT = GUI_POINT_MARK_THRESHOLD;
 /* Point mark diameters in CSS pixels: a lone sample must read at 1x DPR on
    either theme, and dense captures keep smaller marks. */
-const DENSE_POINT_MARK_SIZE = 4;
-const DEFAULT_POINT_MARK_SIZE = 6;
-const SOLID_POINT_OUTLINE_WIDTH = 1.5;
+const DENSE_POINT_MARK_SIZE = 5;
+const DEFAULT_POINT_MARK_SIZE = 8;
+const POINT_BACKGROUND_OUTLINE_WIDTH = 1;
 const SERIES_LINE_WIDTH = 2;
+// Y padding as a share of the spanned values: a range widened by references or
+// interval bounds gets more room, so a band containing every sample keeps both
+// edges clear of the plot frame.
+const DATA_RANGE_PADDING = 0.08;
+const REFERENCE_RANGE_PADDING = 0.15;
+const REFERENCE_BAND_FILL_ALPHA = 0.2;
 /* The hover mark grows by this many CSS pixels over the drawn mark. */
 const CURSOR_POINT_GROWTH = 2;
-const CURSOR_POINT_FALLBACK_COLOR = "currentColor";
 const EMPTY_TRACES: ReadonlySet<string> = new Set();
 const NO_MARKERS: PlotMarker[] = [];
 const NO_PROMPTS: PromptMarker[] = [];
@@ -231,14 +236,8 @@ export const CartesianPlot = memo(function CartesianPlot({
   const kinds = useMemo(() => markerKinds(markers, promptMarkers), [markers, promptMarkers]);
   const kindsRef = useRef(kinds);
   kindsRef.current = kinds;
-  const [hiddenMarkers, setHiddenMarkers] = useState<ReadonlySet<string>>(EMPTY_TRACES);
-  const hiddenMarkersRef = useRef(hiddenMarkers);
-  hiddenMarkersRef.current = hiddenMarkers;
-  const [markerColors, setMarkerColors] = useState<string[]>([]);
-  const markerColorsRef = useRef(markerColors);
-  markerColorsRef.current = markerColors;
-  const [markerRange, setMarkerRange] = useState<MarkerRange>(null);
-  const tableLegend = legend !== null || kinds.length > 0;
+  const markerColorsRef = useRef<string[]>([]);
+  const tableLegend = legend !== null;
   const [following, setFollowing] = useState(true);
   const heldRangeRef = useRef<HeldViewport | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -347,15 +346,11 @@ export const CartesianPlot = memo(function CartesianPlot({
     }
     const root = rootRef.current;
     const themeColors = resolvePlotThemeColors(root);
-    const resolvedMarkerColors = kindsRef.current.map((_, index) => themeColors.palette[index % themeColors.palette.length]);
+    const resolvedMarkerColors = kindsRef.current.map((_, index) => markerColor(themeColors.references, index));
     markerColorsRef.current = resolvedMarkerColors;
-    setMarkerColors((current) => (current.join("|") === resolvedMarkerColors.join("|") ? current : resolvedMarkerColors));
     const plotFont = resolvePlotFont(root);
-    const fallbackSeriesColor = themeColors.palette[0] ?? themeColors.foreground;
-    const resolvedSeriesColors = renderedSeries.map((item) => {
-      const index = series.indexOf(item);
-      return resolvePlotCssColor(colors[index] ?? themeColors.palette[index % themeColors.palette.length], root, fallbackSeriesColor);
-    });
+    const resolvedSeriesColors = renderedSeries.map((item) => seriesPaletteColor(colors, themeColors.palette, series.indexOf(item), root));
+    const fallbackSeriesColor = seriesPaletteColor([], themeColors.palette, 0, root);
     const faceted = chartFrame.mode === "faceted";
     const chartHeight = 230;
     const chartSize = () => ({
@@ -405,7 +400,6 @@ export const CartesianPlot = memo(function CartesianPlot({
             const { min, max } = plot.scales.x;
             if (min == null || max == null) return;
             const range = { min, max };
-            setMarkerRange((current) => (current?.min === min && current.max === max ? current : range));
             if (windowServes(drawnRef.current, range)) return;
             queueMicrotask(() => {
               if (plotRef.current !== plot) return;
@@ -432,7 +426,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         setCursor: [
           (plot) => {
             const left = plot.cursor.left;
-            const nextTooltip = markerTooltip(plot, kindsRef.current, hiddenMarkersRef.current, root.getBoundingClientRect());
+            const nextTooltip = markerTooltip(plot, kindsRef.current, root.getBoundingClientRect());
             setHoveredMarker((current) => {
               if (!nextTooltip) return current ? null : current;
               return current?.key === nextTooltip.key &&
@@ -465,7 +459,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         draw: [
           (plot) => {
             drawIntervalRanges(plot, intervalRangesRef.current, resolvedSeriesColors[0] ?? fallbackSeriesColor);
-            drawMarkerKinds(plot, kindsRef.current, hiddenMarkersRef.current, markerColorsRef.current);
+            drawMarkerKinds(plot, kindsRef.current, markerColorsRef.current);
             drawReferenceLines(plot, referenceLinesRef.current, root, themeColors.foreground);
           },
         ],
@@ -754,23 +748,14 @@ export const CartesianPlot = memo(function CartesianPlot({
     xElapsedUnit,
     xFormat,
   ]);
-  const legendColumns = useMemo(() => {
-    const columns = seriesLegendColumns(unit);
-    return legend ? columns : columns.filter(({ id }) => id === "trace" || id === "count");
-  }, [unit, legend]);
-  const markerRows = useMemo(
-    () => markerLegendRows(kinds, hiddenMarkers, markerRange, markerColors),
-    [kinds, hiddenMarkers, markerRange, markerColors],
-  );
+  const legendColumns = useMemo(() => seriesLegendColumns(unit), [unit]);
 
   useEffect(() => {
-    hiddenMarkersRef.current = hiddenMarkers;
     const root = rootRef.current;
     if (root) {
       const theme = resolvePlotThemeColors(root);
-      const colors = kinds.map((_, index) => theme.palette[index % theme.palette.length]);
+      const colors = kinds.map((_, index) => markerColor(theme.references, index));
       markerColorsRef.current = colors;
-      setMarkerColors((current) => (current.join("|") === colors.join("|") ? current : colors));
     }
     referenceLinesRef.current = referenceLines;
     referenceBandsRef.current = referenceBands;
@@ -785,7 +770,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         plot.redraw(true, true);
       }
     });
-  }, [intervalRanges, kinds, hiddenMarkers, referenceBands, referenceLines]);
+  }, [intervalRanges, kinds, referenceBands, referenceLines]);
 
   useEffect(() => {
     const plot = plotRef.current;
@@ -909,14 +894,9 @@ export const CartesianPlot = memo(function CartesianPlot({
         <StatsSummaryTable
           legend={{
             columns: legendColumns,
-            rows: [...legendRows, ...markerRows],
+            rows: legendRows,
             pending: legend?.pending ?? false,
-            onToggle: (key) => {
-              if (kinds.some((kind) => kind.key === key)) {
-                setHiddenMarkers((current) => toggleTrace(current, key));
-                setHoveredMarker(null);
-              } else setHiddenTraces((current) => toggleTrace(current, key));
-            },
+            onToggle: (key) => setHiddenTraces((current) => toggleTrace(current, key)),
           }}
         />
       ) : null}
@@ -1285,20 +1265,27 @@ function plotPixelRatio(): number {
   return window.devicePixelRatio || 1;
 }
 
-/** Points are solid series-colour marks; line points are hollow rings over the plot background. */
+/**
+ * The one colour of rendered series `index` for its line, point marks and legend swatch: its
+ * declared colour, else the plot palette at the series index, resolved for canvas drawing.
+ */
+export function seriesPaletteColor(colors: readonly string[], palette: readonly string[], index: number, element?: Element | null): string {
+  const paletteColor = palette.length ? palette[index % palette.length] : undefined;
+  return resolvePlotCssColor(colors[index] ?? paletteColor, element, palette[0]);
+}
+
+/** Every point mark is a disc in the series colour with a plot-background outline for contrast. */
 export function seriesPointMarks(style: DocumentPlotStyle, densePoints: boolean, color: string, background: string): PointMarks {
-  const size = densePoints ? DENSE_POINT_MARK_SIZE : DEFAULT_POINT_MARK_SIZE;
-  if (style === "points") {
-    return { show: true, size, width: SOLID_POINT_OUTLINE_WIDTH, stroke: color, fill: color };
-  }
-  return {
-    show: style === "line_points" && !densePoints,
-    filter: isolatedAlignedPoints,
-    size,
-    width: SERIES_LINE_WIDTH,
-    stroke: color,
-    fill: background,
+  const marks = {
+    size: densePoints ? DENSE_POINT_MARK_SIZE : DEFAULT_POINT_MARK_SIZE,
+    width: POINT_BACKGROUND_OUTLINE_WIDTH,
+    stroke: background,
+    fill: color,
   };
+  if (style === "points") {
+    return { show: true, ...marks };
+  }
+  return { show: style === "line_points" && !densePoints, filter: isolatedAlignedPoints, ...marks };
 }
 
 /** A gap leaves a lone sample without a segment, even when ordinary line marks are off. */
@@ -1324,15 +1311,15 @@ function isolatedAlignedPoints(plot: uPlot, seriesIdx: number, show: boolean): n
   return isolated.length ? isolated : null;
 }
 
-/** The hover mark is a solid disc in the series colour, a little larger than its drawn marks. */
+/** The hover mark is the series' point mark, a little larger. */
 export function cursorPointOptions(marks: readonly PointMarks[]): uPlot.Cursor.Points {
   // uPlot numbers data series from 1; marks follow the rendered series from 0.
-  const color = (_plot: uPlot, seriesIdx: number) => marks[seriesIdx - 1]?.stroke ?? CURSOR_POINT_FALLBACK_COLOR;
+  const mark = (seriesIdx: number) => marks[seriesIdx - 1] ?? marks[0];
   return {
-    size: (_plot, seriesIdx) => (marks[seriesIdx - 1]?.size ?? DEFAULT_POINT_MARK_SIZE) + CURSOR_POINT_GROWTH,
-    width: 0,
-    stroke: color,
-    fill: color,
+    size: (_plot, seriesIdx) => (mark(seriesIdx)?.size ?? DEFAULT_POINT_MARK_SIZE) + CURSOR_POINT_GROWTH,
+    width: POINT_BACKGROUND_OUTLINE_WIDTH,
+    stroke: (_plot, seriesIdx) => mark(seriesIdx)?.stroke ?? "",
+    fill: (_plot, seriesIdx) => mark(seriesIdx)?.fill ?? "",
   };
 }
 
@@ -1462,65 +1449,54 @@ function drawReferenceLines(plot: uPlot, lines: DocumentReferenceLine[], element
     ctx.strokeStyle = resolvePlotCssColor(line.color, element, fallbackColor);
     ctx.setLineDash([5, 3]);
     ctx.beginPath();
-    if (line.axis === "x") {
-      const left = Math.round(plot.valToPos(line.value, "x", true)) + 0.5;
-      if (left < bbox.left || left > right) {
-        return;
-      }
-      ctx.moveTo(left, bbox.top);
-      ctx.lineTo(left, bottom);
-    } else {
-      const top = Math.round(plot.valToPos(line.value, "y", true)) + 0.5;
-      if (top < bbox.top || top > bottom) {
-        return;
-      }
-      ctx.moveTo(bbox.left, top);
-      ctx.lineTo(right, top);
+    const top = Math.round(plot.valToPos(line.value, "y", true)) + 0.5;
+    if (top < bbox.top || top > bottom) return;
+    ctx.moveTo(bbox.left, top);
+    ctx.lineTo(right, top);
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+export function drawReferenceBands(plot: uPlot, bands: DocumentReferenceBand[], element: Element, fallbackColor: string) {
+  const { ctx, bbox } = plot;
+  const bottomEdge = bbox.top + bbox.height;
+  ctx.save();
+  bands.forEach((band) => {
+    if (!isNumber(band.min) || !isNumber(band.max)) {
+      return;
+    }
+    const color = resolvePlotCssColor(band.color, element, fallbackColor);
+    const top = plot.valToPos(band.max, "y", true);
+    const bottom = plot.valToPos(band.min, "y", true);
+    const clampedTop = clamp(top, bbox.top, bottomEdge);
+    const clampedBottom = clamp(bottom, bbox.top, bottomEdge);
+    const alpha = ctx.globalAlpha;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha * REFERENCE_BAND_FILL_ALPHA;
+    ctx.fillRect(bbox.left, clampedTop, bbox.width, clampedBottom - clampedTop);
+    ctx.globalAlpha = alpha;
+    // Solid edges keep a band legible when it spans most of the plot.
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const edge of [top, bottom]) {
+      if (edge < bbox.top || edge > bottomEdge) continue;
+      const y = Math.round(edge) + 0.5;
+      ctx.moveTo(bbox.left, y);
+      ctx.lineTo(bbox.left + bbox.width, y);
     }
     ctx.stroke();
   });
   ctx.restore();
 }
 
-function drawReferenceBands(plot: uPlot, bands: DocumentReferenceBand[], element: Element, fallbackColor: string) {
-  const { ctx, bbox } = plot;
-  const bottomEdge = bbox.top + bbox.height;
-  const rightEdge = bbox.left + bbox.width;
-  ctx.save();
-  bands.forEach((band) => {
-    if (!isNumber(band.min) || !isNumber(band.max)) {
-      return;
-    }
-    ctx.fillStyle = resolvePlotCssColor(band.color, element, fallbackColor);
-    const alpha = ctx.globalAlpha;
-    ctx.globalAlpha = alpha * 0.15;
-    if (band.axis === "x") {
-      const left = plot.valToPos(band.min, "x", true);
-      const right = plot.valToPos(band.max, "x", true);
-      const clampedLeft = clamp(left, bbox.left, rightEdge);
-      const clampedRight = clamp(right, bbox.left, rightEdge);
-      ctx.fillRect(clampedLeft, bbox.top, clampedRight - clampedLeft, bbox.height);
-    } else {
-      const top = plot.valToPos(band.max, "y", true);
-      const bottom = plot.valToPos(band.min, "y", true);
-      const clampedTop = clamp(top, bbox.top, bottomEdge);
-      const clampedBottom = clamp(bottom, bbox.top, bottomEdge);
-      ctx.fillRect(bbox.left, clampedTop, bbox.width, clampedBottom - clampedTop);
-    }
-    ctx.globalAlpha = alpha;
-  });
-  ctx.restore();
-}
-
-function referenceYValues(lines: DocumentReferenceLine[], bands: DocumentReferenceBand[], yScale: DocumentAxisScale): number[] {
-  const values = [
-    ...lines.filter((line) => line.axis === "y").map((line) => line.value),
-    ...bands.filter((band) => band.axis === "y").flatMap((band) => [band.min, band.max]),
-  ].filter(isNumber);
+export function referenceYValues(lines: DocumentReferenceLine[], bands: DocumentReferenceBand[], yScale: DocumentAxisScale): number[] {
+  const values = [...lines.map((line) => line.value), ...bands.flatMap((band) => [band.min, band.max])].filter(isNumber);
   return yScale === "log" ? values.filter((value) => value > 0) : values;
 }
 
-function paddedYRange(
+export function paddedYRange(
   dataMin: number,
   dataMax: number,
   referenceValues: number[],
@@ -1548,7 +1524,7 @@ function paddedYRange(
   if (yScale === "log") {
     return finiteRange(min, max);
   }
-  const pad = (max - min) * 0.08;
+  const pad = (max - min) * (referenceValues.length ? REFERENCE_RANGE_PADDING : DATA_RANGE_PADDING);
   min -= pad;
   max += pad;
   return finiteRange(min, max);

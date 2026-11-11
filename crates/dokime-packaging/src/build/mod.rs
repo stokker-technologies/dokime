@@ -28,8 +28,6 @@ use std::{
 
 // Third Party Imports
 use cargo_metadata::{Message, MetadataCommand, Package};
-use dokime::harmos::plugin::inventory::Declaration;
-use dokime::harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
 use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, PackageMetadata, Source};
 
 // Local Imports
@@ -38,6 +36,8 @@ use crate::{
     bundle::{COMPATIBILITY_FILE, Compatibility, files},
     process,
 };
+use dokime::harmos::plugin::inventory::Declaration;
+use dokime::harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
 
 /* === Constants === */
 
@@ -51,7 +51,7 @@ const CATALOG_STDERR_BYTES: u64 = 262_144;
 
 /* === Type Aliases === */
 
-type Executables = BTreeMap<String, Vec<(PathBuf, Option<PathBuf>)>>;
+type Executables = BTreeMap<String, Vec<(PathBuf, Vec<PathBuf>)>>;
 
 /* === Structs === */
 
@@ -60,7 +60,7 @@ type Executables = BTreeMap<String, Vec<(PathBuf, Option<PathBuf>)>>;
 pub struct Collected {
     pub package: Package,
     pub target: String,
-    pub executables: BTreeMap<String, (PathBuf, Option<PathBuf>)>,
+    pub executables: BTreeMap<String, (PathBuf, Vec<PathBuf>)>,
     // The package opted out of debug info, so packaging strips the shared build's DWARF.
     pub strip: bool,
 }
@@ -91,18 +91,20 @@ impl DebugInfo {
         "Cargo defaults; include emitted debug symbols"
     }
 
-    // Cargo reports every emitted output for the unit, debug info included: on
-    // Windows MSVC that is the `.pdb` beside the hash-named executable in
-    // `deps/`, not beside the copy `executable` names. Disabled debug info
-    // ships no symbols even when the linker still writes one.
-    fn symbols(self, filenames: &[cargo_metadata::camino::Utf8PathBuf]) -> Option<PathBuf> {
-        if !self.enabled {
-            return None;
+    // Use This Artifact's Profile, Not the Requested Profile Name or Stale Adjacent Files.
+    fn symbols(self, artifact: &cargo_metadata::Artifact) -> Vec<PathBuf> {
+        if !self.enabled || artifact.profile.debuginfo == cargo_metadata::ArtifactDebuginfo::None {
+            return Vec::new();
         }
-        filenames
+        artifact
+            .filenames
             .iter()
-            .find(|path| path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("pdb")))
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| ["pdb", "dwp", "dwo", "debug"].iter().any(|suffix| extension.eq_ignore_ascii_case(suffix)))
+            })
             .map(|path| path.clone().into_std_path_buf())
+            .collect()
     }
 }
 
@@ -136,11 +138,11 @@ pub async fn collect(args: &Options) -> Result<Collected, Error> {
             && selected.contains(&artifact.target.name)
             && artifact.target.kind.contains(&cargo_metadata::TargetKind::Bin)
         {
-            let pdb = debuginfo.symbols(&artifact.filenames);
+            let symbols = debuginfo.symbols(&artifact);
             executables
                 .entry(artifact.target.name)
                 .or_default()
-                .extend(artifact.executable.into_iter().map(|path| (path.into_std_path_buf(), pdb.clone())));
+                .extend(artifact.executable.into_iter().map(|path| (path.into_std_path_buf(), symbols.clone())));
         }
     }
     let executables = single(executables, selected.len())?;
@@ -235,7 +237,7 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
     terminal.status(format!("Building {} ({}) for {target}", package.name, selected.join(", ")));
     terminal.field("Debug info", debuginfo.summary());
     let output = process::cargo(command, "Cargo compilation", cargo_timeout, true).await?;
-    let mut executables = std::collections::BTreeMap::<_, Vec<(PathBuf, Option<PathBuf>)>>::new();
+    let mut executables = std::collections::BTreeMap::<_, Vec<(PathBuf, Vec<PathBuf>)>>::new();
     let mut finished = false;
     for message in Message::parse_stream(output.stdout.as_slice()) {
         match message? {
@@ -244,11 +246,11 @@ async fn build_resolved(args: Options, metadata: cargo_metadata::Metadata) -> Re
                     && requested.contains(&artifact.target.name)
                     && artifact.target.kind.contains(&cargo_metadata::TargetKind::Bin) =>
             {
-                let pdb = debuginfo.symbols(&artifact.filenames);
+                let symbols = debuginfo.symbols(&artifact);
                 executables
                     .entry(artifact.target.name)
                     .or_default()
-                    .extend(artifact.executable.into_iter().map(|path| (path.into_std_path_buf(), pdb.clone())));
+                    .extend(artifact.executable.into_iter().map(|path| (path.into_std_path_buf(), symbols.clone())));
             }
             Message::BuildFinished(result) => finished = result.success,
             _ => {}
@@ -367,7 +369,7 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
     inputs.push((COMPATIBILITY_FILE.to_owned(), bytes, None));
 
     for paths in executables.values() {
-        let (path, pdb) = &paths[0];
+        let (path, debug_files) = &paths[0];
         let path = if strip_debug { strip(path, stripped.path(), target).await? } else { path.clone() };
         let (name, binary, executable) = collect_executable(
             &path,
@@ -379,20 +381,16 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
         .await?;
         total += binary.len();
         inputs.push((name, binary, Some(executable)));
-        let pdb = match pdb {
-            Some(pdb) => symbols(pdb, target, limits.file_bytes.min(limits.total_file_bytes.saturating_sub(total)), &terminal)?,
-            None => None,
-        };
-        // Placed at `bin/<target>/<pdb name>`, the same directory `extract`
-        // writes the executable to: dbghelp and the equivalent Unix loaders
-        // search a module's own directory for its debug info first. Two
-        // selected binaries reporting the identical pdb path is not expected
-        // — Cargo hash-suffixes each unit's `deps/` output — but a collision
-        // would fail `Bundle::build` outright, so the second copy is skipped
-        // rather than turning a coincidence into a build failure.
-        if let Some((name, bytes)) = pdb
-            && !inputs.iter().any(|(existing, ..)| *existing == name)
-        {
+        // Preserve Emitted Names Beside the Executable for Native Symbol Lookup.
+        for path in debug_files {
+            let Some((name, bytes)) =
+                symbols(path, target, limits.file_bytes.min(limits.total_file_bytes.saturating_sub(total)), &terminal)?
+            else {
+                continue;
+            };
+            if inputs.iter().any(|(existing, ..)| *existing == name) {
+                continue;
+            }
             total += bytes.len();
             inputs.push((name, bytes, None));
         }
@@ -430,18 +428,18 @@ async fn bundle(package: &Package, target: &str, executables: Executables, outpu
 
 // Debug info is optional: a symbols file over the remaining budget is left out
 // with a warning, and the bundle ships without symbols for that executable.
-fn symbols(
-    pdb: &std::path::Path, target: &str, limit: usize, terminal: &dokime::terminal::Terminal,
+pub(crate) fn symbols(
+    path: &std::path::Path, target: &str, limit: usize, terminal: &dokime::terminal::Terminal,
 ) -> Result<Option<(String, Vec<u8>)>, Error> {
-    let pdb_name =
-        pdb.file_name().and_then(|name| name.to_str()).ok_or_else(|| Error::Invalid("pdb filename must be UTF-8".into()))?.to_owned();
-    match files::read(pdb, limit) {
-        Ok(bytes) => Ok(Some((format!("bin/{target}/{pdb_name}"), bytes))),
+    let filename =
+        path.file_name().and_then(|name| name.to_str()).ok_or_else(|| Error::Invalid("debug filename must be UTF-8".into()))?.to_owned();
+    match files::read(path, limit) {
+        Ok(bytes) => Ok(Some((format!("bin/{target}/{filename}"), bytes))),
         Err(Error::Output(..)) => {
-            let size = std::fs::metadata(pdb)?.len();
+            let size = std::fs::metadata(path)?.len();
             terminal.warn(format!(
                 "{} is {}, over the {} limit; the bundle ships without its debug symbols",
-                pdb.display(),
+                path.display(),
                 dokime::terminal::size_label(size),
                 dokime::terminal::size_label(limit as u64)
             ));
@@ -539,71 +537,34 @@ fn package_identity(package: &Package) -> Identity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dokime::harmos::plugin::inventory::contracts;
 
-    #[test]
-    fn opt_out_ships_no_symbols() {
-        let disabled = DebugInfo { enabled: false };
-        let outputs = vec![cargo_metadata::camino::Utf8PathBuf::from("deps/plugin.pdb")];
-
-        assert_eq!(disabled.symbols(&outputs), None);
-        assert_eq!(DebugInfo { enabled: true }.symbols(&outputs), Some(PathBuf::from("deps/plugin.pdb")));
+    fn artifact(debug: serde_json::Value, filenames: &[&str]) -> cargo_metadata::Artifact {
+        serde_json::from_value(serde_json::json!({
+            "package_id": "path+file:///plugin#0.1.0", "manifest_path": "/plugin/Cargo.toml",
+            "target": {"kind": ["bin"], "crate_types": ["bin"], "name": "plugin", "src_path": "/plugin/src/main.rs", "edition": "2024", "doc": true, "doctest": false, "test": false},
+            "profile": {"opt_level": "0", "debuginfo": debug, "debug_assertions": true, "overflow_checks": true, "test": false},
+            "features": [], "filenames": filenames, "executable": "plugin.exe", "fresh": false
+        })).unwrap()
     }
 
     #[test]
-    fn oversized_symbols_are_skipped() {
-        let root = tempfile::tempdir().unwrap();
-        let pdb = root.path().join("plugin.pdb");
-        std::fs::write(&pdb, vec![0xAB; 2048]).unwrap();
-        let terminal = dokime::terminal::Terminal::default();
-        let target = "x86_64-pc-windows-msvc";
-
-        // Over The Limit The Symbols Are Left Out; Within It They Ship
-        assert_eq!(symbols(&pdb, target, 1024, &terminal).unwrap(), None);
-        let kept = symbols(&pdb, target, 4096, &terminal).unwrap().unwrap();
-        assert_eq!(kept.0, format!("bin/{target}/plugin.pdb"));
-
-        // The Bundle Still Builds from the Executable Alone
-        let executable = inert_executable();
-        let sources = [Source {
-            path: "bin/x86_64-pc-windows-msvc/fixture.exe",
-            bytes: executable.as_bytes(),
-            executable: Some(Executable {
-                facility: Facility::Sidecar,
-                target: target.into(),
-                registrations: vec![],
-            }),
-        }];
-        let identity = Identity {
-            name: "fixture".into(),
-            version: "1.0.0".parse().unwrap(),
-            description: "A fixture.".into(),
-            package: PackageMetadata::default(),
-        };
-        assert!(Bundle::build(identity, &sources, Limits::default()).is_ok());
+    fn symbols_follow_emitted_profile_and_package_opt_out() {
+        let outputs = ["plugin.exe", "plugin.pdb"];
+        let enabled = DebugInfo { enabled: true };
+        assert!(DebugInfo { enabled: false }.symbols(&artifact(2.into(), &outputs)).is_empty());
+        assert!(enabled.symbols(&artifact(0.into(), &outputs)).is_empty());
+        for debug in [1.into(), 2.into(), "line-tables-only".into()] {
+            assert_eq!(enabled.symbols(&artifact(debug, &outputs)), vec![PathBuf::from("plugin.pdb")]);
+        }
     }
 
-    // A non-running executable carrying the minimal native declaration.
-    fn inert_executable() -> String {
-        const OWNER: &str = "fixture";
-        const POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::operations::OperationPolicy {
-            timeout: Duration::from_secs(5),
-            attempt_timeout: Duration::from_secs(5),
-            cancellation_timeout: std::time::Duration::ZERO,
-            retries: dokime::harmos::operations::RetryPolicy::Never,
-        };
-        const SIZE: usize = contracts::encoded_fragments_len("sidecar", OWNER, &[], &[], &[POLICY; 2]);
-        const CONTRACTS: [u8; SIZE] = contracts::encode_fragments("sidecar", OWNER, &[], &[], &[POLICY; 2]);
-        let owner = OWNER;
-        let sections = [
-            serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"}),
-            serde_json::json!({"kind":"restart","facility":"sidecar","owner":owner,"policy":{"credit":3,"sustained_health_ms":30000,"backoff_base_ms":250,"backoff_cap_ms":10000}}),
-            serde_json::json!({"kind":"publications","facility":"sidecar","owner":owner,"streams":[]}),
-            serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]}),
-        ];
-        let prefix = std::str::from_utf8(dokime::harmos::artifacts::PREFIX).unwrap();
-
-        let executable = String::from_utf8(CONTRACTS.to_vec()).unwrap();
-        sections.iter().fold(executable, |executable, section| format!("{executable}{prefix}{section}\0"))
+    #[test]
+    fn symbols_include_emitted_linux_split_files() {
+        let outputs = ["plugin", "plugin.dwp", "unit.dwo", "plugin.debug", "unrelated.rlib"];
+        assert_eq!(
+            DebugInfo { enabled: true }.symbols(&artifact(2.into(), &outputs)),
+            vec![PathBuf::from("plugin.dwp"), PathBuf::from("unit.dwo"), PathBuf::from("plugin.debug")]
+        );
+        assert!(DebugInfo { enabled: true }.symbols(&artifact(2.into(), &["plugin"])).is_empty());
     }
 }

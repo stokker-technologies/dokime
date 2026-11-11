@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod all_plots;
 pub mod backend;
 pub mod budgets;
@@ -24,62 +25,19 @@ pub mod reports;
 pub mod sampling;
 pub mod smoke;
 pub mod suites;
+
 #[path = "../system_reports.rs"]
 pub mod system_reports;
 pub mod waits;
 
-// Each Story Imports The Shared Prelude And Uses Its Own Subset.
-#[allow(unused_imports)]
-pub mod prelude {
-    pub use std::collections::BTreeMap;
-    pub use std::path::{Path, PathBuf};
-    pub use std::sync::Arc;
-    pub use std::time::Duration;
-
-    pub use dokime_runtime::definition::{ParameterExpr, TestSuite};
-    pub use dokime_runtime::domains::TestSuiteDefinition;
-    pub use dokime_runtime::records::RecordSeverity;
-    pub use dokime_runtime::telemetry::{TelemetryBatch, TelemetrySample};
-    pub use dokime_runtime::{
-        CorrelationId, Identifier, Metadata, RecordScope, TemplateId, TestCycleId, TestExecutionId, Timestamp, Value,
-    };
-    pub use {
-        dokime_domain::model::execution::result::ExecutionStatus, dokime_domain::model::execution::result::ResultStatus,
-        dokime_domain::model::execution::result::StepStatus,
-    };
-
-    pub use dokime_runtime::document::DocumentCardBodyPayload;
-
-    pub use dokime_runtime::domains::evidence::{
-        OperatorNoteRequest, PublishStatus, RecordPublishRequest, ScopeSelection, TelemetrySelection,
-    };
-    pub use dokime_runtime::domains::execution::provider::ExecutionFixture;
-    pub use {dokime_domain::model::execution::result::CycleStatus, dokime_runtime::transactions::CycleDefinition};
-
-    pub use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
-    pub use dokime_runtime::runtime::query::{
-        RuntimeCursor, RuntimeResolution, RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow,
-    };
-    pub use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
-    pub use tempfile::tempdir;
-
-    pub use super::contracts::*;
-    pub use super::evidence::*;
-    pub use super::executors::*;
-    pub use super::suites::*;
-    pub use super::waits::*;
-    pub use super::{
-        assert_wall_clock, blocked_cycle, blocked_cycle_with, booted, booted_with_fixture, config, identifier, metadata, started,
-        started_with_fixture, started_with_fixtures, wifi_config,
-    };
-}
-
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
 // Third Party Imports
 
 // Local Imports
@@ -103,6 +61,7 @@ use system_reports::Runtime as StoryRuntime;
 /* === Implementations === */
 
 /* === Public Functions === */
+
 pub fn config(root: impl Into<PathBuf>) -> RuntimeConfig {
     budgets::runtime_config(root, metadata("runtime.hub", "Runtime Hub"))
 }
@@ -190,5 +149,78 @@ pub fn value(value: serde_json::Value) -> Value {
 }
 
 /* === Private Functions === */
+
+// Each Story Imports The Shared Prelude And Uses Its Own Subset.
+#[allow(unused_imports)]
+pub mod prelude {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    pub use super::contracts::*;
+    pub use super::evidence::*;
+    pub use super::executors::*;
+    pub use super::suites::*;
+    pub use super::waits::*;
+    pub use super::{
+        assert_wall_clock, blocked_cycle, blocked_cycle_with, booted, booted_with_fixture, config, identifier, metadata, started,
+        started_with_fixture, started_with_fixtures, wifi_config,
+    };
+    pub use dokime_runtime::definition::{ParameterExpr, TestSuite};
+    pub use dokime_runtime::document::DocumentCardBodyPayload;
+    pub use dokime_runtime::domains::TestSuiteDefinition;
+    pub use dokime_runtime::domains::evidence::{
+        OperatorNoteRequest, PublishStatus, RecordPublishRequest, ScopeSelection, TelemetrySelection,
+    };
+    pub use dokime_runtime::domains::execution::provider::ExecutionFixture;
+    pub use dokime_runtime::records::RecordSeverity;
+    pub use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
+    pub use dokime_runtime::runtime::query::{
+        RuntimeCursor, RuntimeResolution, RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow,
+    };
+    pub use dokime_runtime::telemetry::{TelemetryBatch, TelemetrySample};
+    pub use dokime_runtime::{
+        CorrelationId, Identifier, Metadata, RecordScope, TemplateId, TestCycleId, TestExecutionId, Timestamp, Value,
+    };
+    pub use dokime_runtime::{Runtime, RuntimeConfig, RuntimeHandle};
+    pub use std::collections::BTreeMap;
+    pub use std::path::{Path, PathBuf};
+    pub use std::sync::Arc;
+    pub use std::time::Duration;
+    pub use tempfile::tempdir;
+    pub use {dokime_domain::model::execution::result::CycleStatus, dokime_runtime::transactions::CycleDefinition};
+    pub use {
+        dokime_domain::model::execution::result::ExecutionStatus, dokime_domain::model::execution::result::ResultStatus,
+        dokime_domain::model::execution::result::StepStatus,
+    };
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
+
+    /* === Tests === */
+}
 
 /* === Tests === */

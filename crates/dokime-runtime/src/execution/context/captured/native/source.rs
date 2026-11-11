@@ -31,8 +31,6 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
-const SCHEMA_VERSION: u32 = EXECUTION_CONTEXT_SCHEMA_VERSION;
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -83,7 +81,7 @@ impl Source {
                 return Err(invalid("duplicate frozen report plot"));
             }
         }
-        if self.schema_version != SCHEMA_VERSION {
+        if self.schema_version != EXECUTION_CONTEXT_SCHEMA_VERSION {
             return Err(invalid("unsupported native captured report schema"));
         }
         if self.owner_node_id.bytes().any(|byte| byte.is_ascii_uppercase()) {
@@ -124,7 +122,7 @@ impl TryFrom<&CapturedSource> for Source {
             .collect::<Result<Vec<_>>>()?;
         Ok(Self {
             frozen_plots,
-            schema_version: SCHEMA_VERSION,
+            schema_version: EXECUTION_CONTEXT_SCHEMA_VERSION,
             report_defaults: value.report_defaults,
             owner_node_id: text(value.owner_node_id.as_str())?,
             execution: value.execution.as_ref().map(native::ExecutionRevision::try_from).transpose()?,

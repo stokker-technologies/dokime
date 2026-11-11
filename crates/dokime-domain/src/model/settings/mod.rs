@@ -24,7 +24,6 @@ pub use application::{
     Appearance, ApplicationSettings, ClientPreferences, Density, PluginPreferences, ReportDefaults, SettingsConflict, SettingsScope,
     SettingsSnapshot, TelemetryPreferences, ThemeMode, UpdateSettings,
 };
-
 pub use boolean::Boolean;
 pub use multiple_choice::Choice;
 pub use multiple_choice::MultipleChoice;
@@ -48,7 +47,7 @@ use crate::model::values::Value;
 
 /* === Constants === */
 
-/// Rust Sources Declaring The Application Settings Models, For Binding Generators That Parse Them.
+// Rust Sources Declaring The Application Settings Models, For Binding Generators That Parse Them.
 pub const APPLICATION_SETTINGS_SOURCES: [&str; 4] = [
     include_str!("application.rs"),
     include_str!("../remote.rs"),

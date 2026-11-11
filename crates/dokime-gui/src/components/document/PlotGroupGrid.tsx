@@ -27,8 +27,7 @@ import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { WifiChannelOccupancyPlot } from "@/plots/catalog/WifiChannelOccupancyPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
-import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
-import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
+import { XyPlot } from "@/plots/catalog/XyPlot";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
 import { PlotInteractionProvider, usePlotInteraction } from "@/plots/interaction";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
@@ -54,7 +53,7 @@ type LivePlotGroupGridProps = {
   telemetry?: Record<string, TelemetryStream> | null;
   resetKey?: string;
   showGroupHeaders?: boolean;
-  /** The enclosing section's label: the card's group title and colour seed. */
+  /** The enclosing section's label: the card's group title. */
   title: string;
   viewportMode?: PlotViewportMode;
 };
@@ -105,20 +104,18 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
     );
   }
 
-  const cards = documentPlots.map((descriptor, position) => (
+  const cards = documentPlots.map((descriptor) => (
     <VisiblePlotCard
       descriptor={descriptor}
       key={descriptor.plot_id}
       onPlotSettingsChange={onPlotSettingsChange}
       parameters={parameters}
       plotPalette={plotPalette}
-      position={position}
       prompts={prompts}
       resetKey={resetKey}
       titleRepeated={titleRepeated}
       state={liveStates[descriptor.plot_id] ?? EMPTY_LIVE_PLOT_STATE}
       telemetry={telemetry}
-      title={title}
       viewportMode={viewportMode}
     />
   ));
@@ -198,26 +195,22 @@ const LivePlotCard = memo(function LivePlotCard({
   onPlotSettingsChange,
   parameters,
   plotPalette,
-  position,
   prompts,
   resetKey,
   titleRepeated,
   state,
   telemetry,
-  title,
   viewportMode,
 }: {
   descriptor: DocumentViewPlot;
   onPlotSettingsChange?: PlotSettingsChange;
   parameters?: JsonObject | null;
   plotPalette: readonly string[];
-  position: number;
   prompts: PromptMarker[];
   resetKey?: string;
   titleRepeated: boolean;
   state: LivePlotState;
   telemetry?: Record<string, TelemetryStream> | null;
-  title: string;
   viewportMode: PlotViewportMode;
 }) {
   const plot = useMemo(() => {
@@ -225,15 +218,13 @@ const LivePlotCard = memo(function LivePlotCard({
       descriptor,
       parameters,
       plotPalette,
-      position,
       state,
       telemetry,
-      title,
     });
     // Prompt times are wall-clock instants: only a wall-time axis can place them.
     const marked = spec.timeAxis && !spec.xElapsedUnit ? { ...spec, promptMarkers: prompts } : spec;
     return titleRepeated ? { ...marked, titleRepeated } : marked;
-  }, [descriptor, parameters, plotPalette, position, prompts, state, telemetry, title, titleRepeated]);
+  }, [descriptor, parameters, plotPalette, prompts, state, telemetry, titleRepeated]);
   const PlotSettingsButton = usePlotSettingsEditor();
   return (
     <div className={plotCardClassName(plot)} data-live-mounted="true" data-plot-id={descriptor.plot_id}>
@@ -292,11 +283,8 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   if (plot.plotType === "bar") {
     return <BarPlot plot={plot} />;
   }
-  if (plot.plotType === "xy_scatter") {
-    return <XyScatterPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
-  }
-  if (plot.plotType === "xy_line") {
-    return <XyLinePlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+  if (plot.plotType === "xy") {
+    return <XyPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "xy_interval") {
     return <XyIntervalPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
@@ -330,27 +318,21 @@ function livePlotSpec({
   descriptor,
   parameters,
   plotPalette,
-  position,
   state,
   telemetry,
-  title,
 }: {
   descriptor: DocumentViewPlot;
   parameters?: JsonObject | null;
   plotPalette: readonly string[];
-  position: number;
   state: LivePlotState;
   telemetry?: Record<string, TelemetryStream> | null;
-  title: string;
 }): PlotCardSpec {
   const spec = documentPlotSpec({
     parameters,
     payload: state.payload,
     plot: descriptor,
     plotPalette,
-    position,
     telemetry,
-    title,
   });
 
   const label =
@@ -401,8 +383,7 @@ function plotHasNumericSamples(plot: PlotCardSpec): boolean {
 function isChartLikePlot(plot: PlotCardSpec): boolean {
   return (
     plot.plotType === "time_series" ||
-    plot.plotType === "xy_scatter" ||
-    plot.plotType === "xy_line" ||
+    plot.plotType === "xy" ||
     plot.plotType === "xy_interval" ||
     plot.plotType === "trajectory" ||
     plot.plotType === "frequency_series" ||

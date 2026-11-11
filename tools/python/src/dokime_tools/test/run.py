@@ -65,7 +65,7 @@ def test(
     rules = policy.load(directory)
     key = f"{category}-{language}"
     _preflight(directory, category, language, profile)
-    if language == "python" and not prepared and not (category in ("unit", "integration") and "-k" in extra):
+    if language == "python" and not prepared:
         archive.install_wheels(directory, profile)
     with _scratch(directory, key, profile) as scratch, temporary.directory() if language == "python" else nullcontext(scratch) as fixtures:
         deadline = rules.deadline(category)
@@ -96,8 +96,6 @@ def test(
             arguments += ["-o", f"cache_dir={fixtures / 'pytest-cache'}"]
             command = pytest.run(cwd, f"tests/{category}", deadline, junit, arguments)
             environment = pytest.environment(directory)
-            if category in ("unit", "integration") and "-k" in extra:
-                environment["PYTHONPATH"] = str(cwd / "src")
         else:
             junit = scratch / "junit.xml"
             command = vitest.run(extra, junit, deadline)
@@ -251,7 +249,11 @@ def bench(
 
     for name, median, baseline in rows:
         if baseline is None:
-            print(f"benchmark baseline missing: {name}")
+            if refresh and status == 0:
+                print(f"::notice::benchmark baseline seeded: {name}")
+            else:
+                print(f"benchmark baseline missing: {name}; run mise run bench:{language}:{category} --refresh-baseline")
+                status = status or 1
             continue
         change = (median - baseline) / baseline * 100
         if math.isfinite(change) and change > rules.bench_regression_percent:
@@ -554,7 +556,7 @@ def _bench_rust(
             estimates = json.loads(path.read_text(encoding="utf-8"))
             key = path.parent.parent
             rows.append((benchmark.get("full_id", key.name), estimates["median"]["point_estimate"], baselines.get(key)))
-            if code == 0 and (refresh or key not in baselines):
+            if code == 0 and refresh:
                 shutil.copytree(path.parent, key / BASELINE, dirs_exist_ok=True)
         if measure and peak is not None:
             print(f"benchmark peak memory: {owner.as_posix()}: {peak} bytes")
@@ -614,7 +616,7 @@ def _bench_python(
     for entry in json.loads(output.read_text(encoding="utf-8"))["benchmarks"]:
         name = entry.get("fullname", entry["name"])
         rows.append((name, entry["stats"]["median"] * 1e9, baselines.get(name)))
-    if status == 0 and (refresh or not baselines):
+    if status == 0 and refresh:
         shutil.copyfile(output, stored)
     if measure and peak is not None:
         print(f"benchmark peak memory: {project}/{category}: {peak} bytes")

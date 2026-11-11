@@ -41,7 +41,7 @@ use crate::model::values::Value;
 
 /* === Structs === */
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RecordPublishRequest {
     pub record_type: Identifier,

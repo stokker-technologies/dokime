@@ -30,8 +30,6 @@ use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
-const PRODUCT_SCHEMA_VERSION: u32 = dokime_domain::model::records::product::PRODUCT_RECORD_SCHEMA_VERSION;
-
 /* === Macros === */
 
 macro_rules! host_record {
@@ -44,7 +42,6 @@ macro_rules! host_record {
     ) => {
         impl DeclaredRecord for $record {
             const RECORD_TYPE: &'static str = $identifier;
-            const SCHEMA_VERSION: u32 = PRODUCT_SCHEMA_VERSION;
             const SEVERITY: RecordSeverity = $severity;
 
             fn contract() -> RecordContract {
@@ -148,7 +145,7 @@ pub struct ProcessExited {
 }
 
 // Something a step left running that the step-end sweep cancelled: a
-// `process`, a `watch` or another submitted `operation`.
+// `process` or another submitted `operation`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StepHandleCancelled {
     pub step: String,
@@ -194,7 +191,6 @@ pub struct TargetLost {
 
 impl DeclaredRecord for TestCycleCompleted {
     const RECORD_TYPE: &'static str = "test.cycle.completed";
-    const SCHEMA_VERSION: u32 = 1;
     const SEVERITY: RecordSeverity = RecordSeverity::Info;
 
     fn contract() -> RecordContract {

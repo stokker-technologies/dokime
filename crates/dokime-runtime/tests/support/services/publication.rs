@@ -12,29 +12,36 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
+use std::num::NonZeroUsize;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
-// Third Party Imports
-use std::num::NonZeroUsize;
 
+// Third Party Imports
 use harmos::storage::{
     BackendSnapshot, FileCheckpoint, FileChunk, FileMetadata, FileProgress, FileReference, MutationReceipt, ObjectEntry, ObjectKey,
     ObjectPoint, ObjectRetention, ReadLimits, ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor, StorageFuture,
     StorageSchema, StoreHistory, StoredRecord, StoredRow,
     query::{FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection},
 };
+
 // Local Imports
 
 /* === Constants === */
 
 /* === Macros === */
 
+thread_local! {
+    static STORAGE_NOW: std::cell::Cell<tokio::time::Instant> = std::cell::Cell::new(tokio::time::Instant::now());
+}
+
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct PublicationFault {
     suffix: &'static str,
     exit: Option<i32>,
@@ -46,6 +53,7 @@ pub struct PublicationFault {
     pub created: AtomicUsize,
     pub append_boundary: Mutex<Option<Arc<AppendBoundary>>>,
 }
+
 pub struct PublicationBackend {
     inner: Arc<dyn StorageBackend>,
     fault: Arc<PublicationFault>,
@@ -62,15 +70,12 @@ pub struct AdmissionClock;
 
 pub struct AdmissionWorker(pub Mutex<Option<tokio::task::JoinHandle<harmos::storage::Result<()>>>>);
 
-thread_local! {
-    static STORAGE_NOW: std::cell::Cell<tokio::time::Instant> = std::cell::Cell::new(tokio::time::Instant::now());
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
 impl harmos::storage::WorkerOwner for AdmissionWorker {
     fn stop(&self) -> harmos::storage::StorageFuture<'_, ()> {
         let task = self.0.lock().unwrap().take();
@@ -130,11 +135,13 @@ impl PublicationFault {
         self.released.load(Ordering::SeqCst)
     }
 }
+
 impl PublicationBackend {
     pub fn new(inner: Arc<dyn StorageBackend>, fault: Arc<PublicationFault>) -> Self {
         Self { inner, fault }
     }
 }
+
 impl StorageBackend for PublicationBackend {
     fn finish_file<'a>(
         &'a self, staging: &'a StagedFile, position: &'a StorageCursor, length: u64, sha256: [u8; 32],

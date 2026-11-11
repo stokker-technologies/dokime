@@ -38,6 +38,7 @@ use dokime_domain::model::values::Value;
 #[derive(Clone)]
 pub struct Streams {
     sink: Arc<dyn SampleSink>,
+
     #[cfg(feature = "native")]
     admission: Option<Arc<Admission>>,
 
@@ -108,6 +109,19 @@ pub trait OwnedStream: TelemetryStream {}
 /* === Implementations === */
 
 impl Streams {
+    // Foreign Bindings Publish A Validated Batch Through The Same Row Admission.
+    pub async fn publish_rows(&self, stream: &Identifier, rows: Vec<(BTreeMap<String, Value>, Vec<u8>)>) -> Result<(), String> {
+        for (values, payload) in rows {
+            self.published_as(stream, move || values, Some(payload), "foreign row").await;
+        }
+        self.flush().await;
+        #[cfg(feature = "native")]
+        if let Some(failure) = self.failure() {
+            return Err(failure.to_string());
+        }
+        Ok(())
+    }
+
     pub fn new(sink: Arc<dyn SampleSink>) -> Self {
         // Native streams own the flush task and listener queue; the portable
         // stream facade delegates publication directly to its supplied sink.
@@ -228,19 +242,20 @@ impl Streams {
         // measured it or a step pushed it, so a step waiting on its own observer
         // and a step waiting on what it pushed itself are one mechanism.
         //
-        // The row is copied for the subscriptions only when there are any. A
-        // observer at five milliseconds is the hot path of a run, and most runs
-        // listen to nothing at all — paying for a map clone on every sample so
-        // that a subscription nobody opened could have read it would be the
-        // whole mechanism costing something on the runs that do not use it.
+        // Copy Only for Active Listeners; Delivery Follows Successful Admission.
+        // A listening step can finish the execution and stop this observer as
+        // soon as it receives the final row, so that row must already be evidence.
         #[cfg(feature = "native")]
-        if listening {
-            // A send that races the last subscriber away is not a failure: the
-            // row is already this run's evidence either way.
-            let _ = self.listening.send((stream.clone(), values.clone()));
-        }
+        let publication = listening.then(|| (stream.clone(), values.clone()));
         match self.sink.publish(stream, values, storage_payload).await {
-            Ok(()) => self.flush_later(),
+            Ok(()) => {
+                #[cfg(feature = "native")]
+                if let Some(row) = publication {
+                    // Losing the Last Subscriber Does Not Retract Admitted Evidence.
+                    let _ = self.listening.send(row);
+                }
+                self.flush_later();
+            }
             Err(error) => self.failed(stream, &error),
         }
     }
@@ -353,6 +368,66 @@ impl<R: TelemetryRow + harmos::Message> Pushing<'_, R> {
 #[cfg(all(test, feature = "native"))]
 mod tests {
     use super::*;
+    use std::future::Future;
+
+    struct AdmissionSink {
+        gate: tokio::sync::Semaphore,
+        accepted: std::sync::atomic::AtomicU64,
+        refuse: bool,
+    }
+
+    impl SampleSink for AdmissionSink {
+        fn publish<'a>(
+            &'a self, _: &'a Identifier, _: BTreeMap<String, Value>, _: Option<Vec<u8>>,
+        ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
+            Box::pin(async move {
+                self.gate.acquire().await.unwrap().forget();
+                if self.refuse {
+                    return Err("fixture admission refused".into());
+                }
+                self.accepted.fetch_add(1, std::sync::atomic::Ordering::Release);
+                Ok(())
+            })
+        }
+
+        fn produced(&self, _: &str) -> u64 {
+            self.accepted.load(std::sync::atomic::Ordering::Acquire)
+        }
+    }
+
+    #[tokio::test]
+    async fn listeners_receive_only_admitted_rows() {
+        for refuse in [false, true] {
+            let sink = Arc::new(AdmissionSink {
+                gate: tokio::sync::Semaphore::new(0),
+                accepted: Default::default(),
+                refuse,
+            });
+            let streams = Streams::new(sink.clone());
+            let stream = Identifier::new("fixture.admission").unwrap();
+            let mut receiver = streams.subscribe();
+            let mut publication =
+                Box::pin(streams.published_as(&stream, || BTreeMap::from([("value".into(), Value::Integer(17))]), None, "fixture"));
+            std::future::poll_fn(|context| {
+                assert!(publication.as_mut().poll(context).is_pending());
+                std::task::Poll::Ready(())
+            })
+            .await;
+            assert!(matches!(receiver.try_recv(), Err(tokio::sync::broadcast::error::TryRecvError::Empty)));
+
+            sink.gate.add_permits(1);
+            publication.await;
+            if refuse {
+                assert!(streams.failure().is_some());
+                assert!(matches!(receiver.try_recv(), Err(tokio::sync::broadcast::error::TryRecvError::Empty)));
+            } else {
+                let (received, values) = receiver.try_recv().unwrap();
+                assert_eq!(received, stream);
+                assert_eq!(values["value"], Value::Integer(17));
+                assert_eq!(streams.produced(stream.as_str()), 1);
+            }
+        }
+    }
 
     #[derive(Default)]
     struct EncodedSink(std::sync::Mutex<Vec<Vec<u8>>>);

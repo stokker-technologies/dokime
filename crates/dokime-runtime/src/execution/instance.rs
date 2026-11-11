@@ -42,14 +42,14 @@ pub struct TestExecutionInstance {
 /* === Implementations === */
 
 impl TestExecutionInstance {
-    pub fn new(execution: TestExecution) -> Self {
+    pub fn new(execution: TestExecution) -> Result<Self, crate::document::DocumentRegistryError> {
         let mut documents = DocumentRegistry::default();
         let updated_at = execution.finished_at.clone().or_else(|| execution.started_at.clone()).unwrap_or_else(crate::model::time::now_utc);
         for definition in execution.documents.values().cloned() {
-            documents.open_instance(definition, updated_at.clone());
+            documents.open_instance(definition, updated_at.clone())?;
         }
 
-        Self { execution, documents }
+        Ok(Self { execution, documents })
     }
 }
 

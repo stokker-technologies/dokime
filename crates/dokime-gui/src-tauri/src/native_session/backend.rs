@@ -26,7 +26,6 @@ use dokime_server::host;
 
 const DESKTOP_READINESS_TIMEOUT_MS: u64 = 60_000;
 const DESKTOP_STARTUP_DIAGNOSTIC_BYTES: u64 = 65_536;
-
 const REDACTED: &str = "<redacted>";
 const BEARER: &str = "bearer";
 const AUTHORIZATION: &str = "authorization";
@@ -93,7 +92,7 @@ pub async fn start(backend: &Backend, on_phase: impl FnMut(&str) + Send) -> Resu
         if let Some(journal) = &backend.trace_journal {
             network = network.with_trace_journal(journal.clone());
         }
-        host::Session::start(&backend.arguments, config, network, on_phase).await
+        host::Session::start(&backend.arguments, config, network, Vec::new(), on_phase).await
     };
     let started = tokio::time::timeout(Duration::from_millis(DESKTOP_READINESS_TIMEOUT_MS), launch).await;
     let result = match started {
@@ -196,11 +195,15 @@ fn quote_or_blank(byte: u8) -> bool {
 /* === Tests === */
 
 #[cfg(test)]
-#[test]
-fn diagnostics_redact_secrets() {
-    let message = redact("Authorization: Bearer fixture-access-key\npassword='fixture-password' token=fixture-token");
-    for secret in ["fixture-access-key", "fixture-password", "fixture-token"] {
-        assert!(!message.contains(secret));
+mod tests {
+    use super::*;
+
+    #[test]
+    fn diagnostics_redact_secrets() {
+        let message = redact("Authorization: Bearer fixture-access-key\npassword='fixture-password' token=fixture-token");
+        for secret in ["fixture-access-key", "fixture-password", "fixture-token"] {
+            assert!(!message.contains(secret));
+        }
+        assert!(message.contains(REDACTED));
     }
-    assert!(message.contains(REDACTED));
 }

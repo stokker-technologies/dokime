@@ -59,7 +59,7 @@ pub(crate) const EXECUTION_NOT_PLANNED: &str = "case has no unstarted execution;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.provider.run")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RunProvider {
     pub mode: dokime_domain::model::execution::ExecutionMode,
     pub test_cycle_id: TestCycleId,
@@ -286,8 +286,7 @@ fn execution_documents(
     case: &TestCase, template: Option<&TestCaseTemplate>,
 ) -> BTreeMap<dokime_domain::model::identity::DocumentId, DocumentDefinition> {
     let id = dokime_domain::model::identity::DocumentId::from_identifier("default").expect("default document id is valid");
-    let mut document = DocumentDefinition::new(
-        "default",
+    let mut document = crate::documents::default_document(
         template.map(|template| template.metadata.label.clone()).unwrap_or_else(|| case.metadata.label.clone()),
     );
     if let Some(authored) = template.and_then(|template| template.document.as_ref()) {

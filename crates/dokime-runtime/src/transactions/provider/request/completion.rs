@@ -31,7 +31,7 @@ use crate::transactions::records::draft::BuiltinDraft;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.request.complete")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct CompleteRun {
     pub request_id: CommandId,
     pub at: Timestamp,
@@ -40,14 +40,14 @@ pub struct CompleteRun {
     pub unsealed: Option<Unsealed>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct Unsealed {
     pub cause: String,
     pub execution_ids: Vec<TestExecutionId>,
 }
 
 #[harmos::transaction(id = "dokime.execution.request.settle")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SettleRun {
     pub request_id: CommandId,
     pub at: Timestamp,

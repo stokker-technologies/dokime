@@ -47,10 +47,12 @@ pub struct AggregateSamples {
 
     #[serde(default)]
     pub r#where: Vec<Predicate>,
+
     pub between: Option<Window>,
 
     #[serde(default)]
     pub outputs: Vec<Output>,
+
     pub at: Option<SnapshotRef>,
 }
 

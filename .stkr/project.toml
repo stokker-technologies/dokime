@@ -4,10 +4,6 @@
 
 # === === Project === === #
 
-[project]
-name = "Dokime"
-platforms = ["unix", "windows"]
-
 [tools]
 # Verify Detached Updater Signatures With The Compiled Public Key.
 include = ["minisign"]
@@ -15,324 +11,6 @@ include = ["minisign"]
 [features]
 # The Build Scripts Compile The Operation Contracts With Protoc.
 proto = true
-
-# === === Languages === === #
-
-[languages.rust]
-roots = ["crates", "plugins"]
-# The domain crate also builds for the browser.
-targets = ["wasm32-unknown-unknown"]
-# The GUI's Node dependencies and the starter templates are not workspace Rust sources.
-exclude = ["crates/dokime-gui/node_modules", "crates/cargo-dokime/templates"]
-
-[languages.python]
-build_target = "any"
-roots = ["tools/python", "packages"]
-generated = [
-  "packages/dokime-client/src/dokime_client/_wire",
-  "packages/dokime-client/src/dokime_client/operation.py",
-  "packages/dokime-client/src/dokime_client/dynamic.py",
-]
-
-[languages.typescript]
-roots = ["crates/dokime-gui"]
-exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri", "crates/dokime-gui/src/routeTree.gen.ts"]
-generated = ["target/generated/typescript", "crates/dokime-gui/src/lib/rpc/generated", "crates/dokime-gui/src/generated/organization"]
-
-# === === Repository === === #
-
-[housekeeping]
-max_workspaces = 5
-
-# === === CI === === #
-
-# --- Impact --- #
-
-[ci.impact]
-default = "full"
-
-[[ci.impact.rules]]
-name = "guidance"
-include = [
-  "**/skills/**",
-  "**/.skills/**",
-  "**/.agents/**",
-  "**/.codex/**",
-  "**/.claude/**",
-  "**/.cursor/**",
-  "**/.gemini/**",
-  "**/.opencode/**",
-  "**/.github/agents/**",
-  "**/.github/instructions/**",
-  "**/.github/prompts/**",
-  "**/.mcp.json",
-  "**/AGENTS.md",
-  "**/CLAUDE.md",
-  "**/.github/copilot-instructions.md",
-  "**/README.md",
-  "**/readme.md",
-  "**/CONTRIBUTING.md",
-  "**/contributing.md",
-  "**/LICENSE*",
-  "**/LICENCE*",
-  "**/license*",
-  "**/licence*",
-  "**/COPYING*",
-  "**/NOTICE*",
-]
-jobs = []
-
-[[ci.impact.rules]]
-name = "prose"
-include = ["docs/**/*.md"]
-exclude = [
-  "**/skills/**",
-  "**/.skills/**",
-  "**/.agents/**",
-  "**/.codex/**",
-  "**/.claude/**",
-  "**/.cursor/**",
-  "**/.gemini/**",
-  "**/.opencode/**",
-  "**/.github/agents/**",
-  "**/.github/instructions/**",
-  "**/.github/prompts/**",
-  "**/.mcp.json",
-  "**/AGENTS.md",
-  "**/CLAUDE.md",
-  "**/.github/copilot-instructions.md",
-  "**/README.md",
-  "**/readme.md",
-  "**/CONTRIBUTING.md",
-  "**/contributing.md",
-  "**/LICENSE*",
-  "**/LICENCE*",
-  "**/license*",
-  "**/licence*",
-  "**/COPYING*",
-  "**/NOTICE*",
-]
-jobs = ["check:repository"]
-
-# --- Stage / Check --- #
-
-[[ci.jobs]]
-id = "check:python:generated"
-inputs = ["build:python#python"]
-
-[[ci.jobs]]
-id = "check:typescript:generated"
-inputs = ["build#clients"]
-
-# --- Stage / Build --- #
-
-[[ci.jobs]]
-id = "build"
-inputs = ["build:python#python"]
-
-[[ci.jobs]]
-id = "build:rust:tests"
-inputs = []
-outputs.tests = ["target/build/{profile}/{target}/tests", "target/build/{profile}/{target}/fixtures"]
-
-[[ci.jobs]]
-id = "build:python"
-inputs = []
-outputs.python = ["target/build/{profile}/any/python"]
-
-[[ci.jobs]]
-id = "build"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-outputs.cli = ["target/build/{profile}/{target}/bin/dokime"]
-outputs.gui = ["target/build/{profile}/{target}/bin/dokime-gui"]
-outputs.generator = ["target/build/{profile}/{target}/bin/cargo-dokime"]
-outputs.plugins = ["target/build/{profile}/{target}/plugins"]
-outputs.clients = ["target/build/{profile}/{target}/generated/typescript"]
-outputs.packaging = ["target/build/{profile}/{target}/product", "target/build/{profile}/{target}/web"]
-
-[[ci.jobs]]
-id = "build"
-platform = "windows"
-outputs.cli = ["target/build/{profile}/{target}/bin/dokime.exe"]
-outputs.gui = ["target/build/{profile}/{target}/bin/dokime-gui.exe"]
-outputs.generator = ["target/build/{profile}/{target}/bin/cargo-dokime.exe"]
-outputs.plugins = ["target/build/{profile}/{target}/plugins"]
-outputs.clients = ["target/build/{profile}/{target}/generated/typescript"]
-outputs.packaging = ["target/build/{profile}/{target}/product", "target/build/{profile}/{target}/web"]
-
-[[ci.jobs]]
-id = "build:rust:tests"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-[[ci.jobs]]
-id = "build:rust:bench"
-outputs.bench = ["target/build/bench/{target}"]
-
-[[ci.jobs]]
-id = "build:rust:bench"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-caches = ["mise", "cargo-downloads", "uv", "pnpm", "sccache", "bench-baselines"]
-
-# --- Stage / Test --- #
-
-[[ci.jobs]]
-id = "test:rust:unit"
-inputs = ["build:rust:tests#tests"]
-
-[[ci.jobs]]
-id = "test:rust:integration"
-inputs = ["build:rust:tests#tests"]
-
-[[ci.jobs]]
-id = "test:rust:acceptance"
-inputs = ["build:rust:tests#tests", "build#cli", "build#generator", "build#plugins", "build#clients", "build:python#python"]
-
-[[ci.jobs]]
-id = "test:rust:system"
-inputs = ["build:rust:tests#tests", "build#cli", "build#plugins", "build:python#python"]
-
-[[ci.jobs]]
-id = "test:rust:starter"
-pipelines = ["nightly"]
-inputs = ["build#generator"]
-
-[[ci.jobs]]
-id = "test:rust:coverage"
-inputs = ["build:rust:tests#tests", "build#cli", "build#gui", "build#generator", "build#plugins", "build#clients", "build:python#python"]
-
-[[ci.jobs]]
-id = "test:typescript:unit"
-inputs = ["build#clients"]
-
-[[ci.jobs]]
-id = "test:typescript:integration"
-inputs = ["build#clients"]
-
-[[ci.jobs]]
-id = "test:typescript:system"
-inputs = ["build#cli", "build#gui", "build#plugins", "build#clients"]
-
-[[ci.jobs]]
-id = "test:python:unit"
-inputs = ["build:python#python"]
-
-[[ci.jobs]]
-id = "test:python:integration"
-inputs = ["build:python#python"]
-
-[[ci.jobs]]
-id = "test:python:acceptance"
-inputs = ["build:python#python", "build#cli", "build#plugins"]
-
-[[ci.jobs]]
-id = "test:python:coverage"
-inputs = ["build:python#python", "build#cli", "build#plugins"]
-
-[[ci.jobs]]
-id = "test:rust:acceptance"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
-
-[[ci.jobs]]
-id = "test:rust:coverage"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-[[ci.jobs]]
-id = "test:rust:integration"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
-
-[[ci.jobs]]
-id = "test:rust:system"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
-
-[[ci.jobs]]
-id = "test:rust:unit"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]
-
-[[ci.jobs]]
-id = "test:typescript:system"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]
-
-[[ci.jobs]]
-id = "test:typescript:system"
-platform = "windows"
-bootstrap = ["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]
-
-# --- Stage / Bench --- #
-
-[[ci.jobs]]
-id = "bench:rust:unit"
-inputs = ["build:rust:bench#bench"]
-
-[[ci.jobs]]
-id = "bench:rust:integration"
-inputs = ["build:rust:bench#bench"]
-
-[[ci.jobs]]
-id = "bench:rust:system"
-inputs = ["build:rust:bench#bench"]
-
-# --- Stage / Package --- #
-
-[[ci.jobs]]
-id = "package:rust"
-inputs = ["build#cli", "build#gui", "build#generator", "build#plugins", "build#packaging"]
-outputs.package = ["target/package/{profile}/{target}/rust"]
-
-[[ci.jobs]]
-id = "package:python"
-inputs = ["build:python#python"]
-outputs.package = ["target/package/{profile}/any/python"]
-
-[[ci.jobs]]
-id = "package:rust"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-# --- Stage / Release --- #
-
-[[ci.jobs]]
-id = "release:tag"
-inputs = []
-
-[[ci.jobs]]
-id = "release:publish:dry"
-inputs = ["package:rust#package", "package:python#package"]
-
-[[ci.jobs]]
-id = "release:rehearse"
-inputs = ["package:rust#package", "package:python#package"]
-
-[[ci.jobs]]
-id = "release:publish"
-inputs = ["package:rust#package", "package:python#package"]
-
-[[ci.jobs]]
-id = "release:verify"
-inputs = ["package:rust#package", "package:python#package"]
-
-[[ci.jobs]]
-id = "release:publish:dry"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-[[ci.jobs]]
-id = "release:rehearse"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
-
-[[ci.jobs]]
-id = "release:tag"
-platform = "unix"
-bootstrap = ["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]
 
 # === === Hooks === === #
 
@@ -342,20 +20,13 @@ step_timeout_seconds = 900
 
 # === === Conventions === === #
 
-[conventions.testing.limits]
-unit = 512
-integration = 256
-acceptance = 128
-system = 64
-
-
-[conventions.testing.deadlines]
-unit = 120
-integration = 120
-acceptance = 900
-system = 900
+[conventions.rust]
+# The Owner-Locked SDK Lives Beside The Other SDKs And Depends On The Facade And Server.
+bindings = ["dokime-python"]
 
 [conventions.rust.source_roots]
+# Owner-Locked Layout Exception To The crates/<project>-python Convention.
+dokime-python = "sdk/python/src"
 # Validate the authored source that this compile-only crate renders and includes.
 dokime-starter-check = "crates/cargo-dokime/templates"
 
@@ -363,15 +34,19 @@ dokime-starter-check = "crates/cargo-dokime/templates"
 # Audit Native Sources And Cargo/CI Policy Skeletons.
 include = ["**/*.rs", "**/*.py", "**/Cargo.toml", "mise.toml", ".stkr/project.toml"]
 # Generated RPC output is owned and checked by the binding generators.
-exclude = ["packages/dokime-client/src/dokime_client/client/_generated/**", "crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
+exclude = ["crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 
 [barrels]
-# Deliberate public façades, not accidental re-export files: the authoring
-# prelude and the one namespace a sidecar author imports from.
-exclude = ["crates/dokime-runtime/src/prelude.rs", "crates/dokime-runtime/src/plugin/sidecar.rs"]
+# Deliberate Public Import Surfaces: Authoring, Criterion Evidence And GUI Test Ports.
+exclude = [
+  "crates/dokime-runtime/src/prelude.rs",
+  "crates/dokime-runtime/src/plugin/sidecar.rs",
+  "crates/dokime-runtime/src/evidence.rs",
+  "crates/dokime-gui/src-tauri/src/testing.rs",
+]
 
 [markdown]
-include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**", "openspec/**"]
+include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**", "openspec/**", "docs/**/*.md"]
 
 # === === Templates === === #
 
@@ -532,9 +207,7 @@ snippet = "stkr"
 
 [release]
 dev_channel = true
-provider = "github"
 repository = "stokker-technologies/dokime"
-product = "dokime"
 plugin_extension = "dokime"
 crates_bootstrap_secret = "CARGO_REGISTRY_TOKEN"
 # Prepare The Tutorial From The Same Versioned Client Bytes As The Release.
@@ -561,11 +234,8 @@ lock_commands = [
     "sync",
     "--locked",
     "--all-groups",
-    "--no-install-package",
-    "dokime-client",
   ],
 ]
-targets = ["linux-x86_64", "windows-x86_64"]
 signature_checks = [
   [
     "uv",
@@ -581,13 +251,6 @@ signature_checks = [
     "--require-signed",
   ],
 ]
-
-[[release.plugins]]
-kind = "sidecar"
-package = "plugin-host"
-requires_dokime = ">=0.1.1, <0.2.0"
-targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
-path = "target/package/{profile}/{target}/rust/plugins/plugin-host.dokime"
 
 [[release.package_signing]]
 language = "rust"
@@ -627,31 +290,14 @@ path = "target/package/{profile}/{target}/rust/installers/latest.json"
 name = "latest.json"
 signed_only = true
 
-[version]
-value = "0.1.2"
-files = [
-  "Cargo.toml",
-  "pyproject.toml",
-  "packages/dokime-client/pyproject.toml",
-  "packages/dokime-client/examples/remote/python/pyproject.toml",
-  "crates/dokime-gui/package.json",
-  "crates/dokime-gui/src-tauri/tauri.conf.json",
-]
+# === === PyO3 === === #
 
-[[package.executables]]
-package = "dokime-cli"
-command = "dokime"
-name = "dokime-cli"
-targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
-release = true
-verify = ["--version"]
-installers = ["mise"]
-
-[[package.executables]]
-package = "cargo-dokime"
-command = "cargo-dokime"
-name = "cargo-dokime"
-targets = { linux-x86_64 = "x86_64-unknown-linux-gnu", windows-x86_64 = "x86_64-pc-windows-msvc" }
-release = true
-verify = ["--version"]
-installers = ["mise"]
+[[pyo3.modules]]
+name = "_native"
+crate = "dokime-python"
+module_rename = "_native"
+rust = "sdk/python/src"
+stub = "sdk/python/python/dokime/_native.pyi"
+import = "dokime._native"
+root = true
+state_exceptions = { PyOperationInstance = "The owned running invocation is single-use behind an async mutex; cancellation, immutable identity and response schema belong to that one scoped handle.", PyStream = "The Python stream coordinates one incoming Rust stream, a bounded input sender, opening task and cancellation; its Client is the existing cloneable handle.", PyBackend = "The session is shared through one async mutex; an admission flag closes export synchronously before shutdown is awaited, and endpoint/root are immutable startup snapshots." }

@@ -14,17 +14,18 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 // Third Party Imports
 
 // Local Imports
 // Third-Party Imports
-use crate::error::Error;
-use crate::settings::SAMPLE_INTERVAL_MS;
-use crate::suites::common::system::{self, SystemInputs};
+use crate::domain::Error;
+use crate::domain::document::{self as system, Subscriptions};
+use crate::domain::model::settings::SAMPLE_INTERVAL_MS;
 use dokime::document::{Document, Plot, PlotStyle, Section};
 use dokime::execution::{CriterionContext, ObserverContext, StepContext};
+use dokime::prelude::StreamExt;
 
 /* === Constants === */
 
@@ -57,12 +58,12 @@ pub struct RunCompleted {
     pub samples: u64,
 }
 
-pub struct Pulse;
+pub struct Template;
 
 pub struct PulseResources {
     armed: AtomicBool,
     sample_count: u64,
-    produced: tokio::sync::watch::Sender<u64>,
+    produced: AtomicU64,
 }
 
 // The attribute reads these fields once and generates every half: the columns
@@ -76,7 +77,7 @@ pub struct PulseResources {
     label = "OBC Pulse",
     description = "Deterministic samples produced inside the OBC plugin."
 )]
-pub struct PulseRow {
+pub struct Row {
     #[row(role = counter)]
     pub sample_index: i64,
 
@@ -84,7 +85,7 @@ pub struct PulseRow {
 }
 
 #[dokime::parameters]
-pub struct PulseParameters {
+pub struct Parameters {
     #[parameter(
         label = "Sample Count",
         default = DEFAULT_SAMPLE_COUNT,
@@ -99,7 +100,7 @@ pub struct PulseParameters {
         default = DEFAULT_TOLERANCE,
         min = DEFAULT_TOLERANCE,
     )]
-    pub tolerance: f64,
+    pub tolerance_au: f64,
 
     #[parameter(
         label = "Capture System During Pulse",
@@ -137,8 +138,8 @@ pub enum Prompts {
 }
 
 #[dokime::catalog]
-pub enum ObserverStreams {
-    PulseRow(PulseRow),
+pub enum Streams {
+    Row(Row),
 }
 
 /* === Traits === */
@@ -154,38 +155,20 @@ pub enum ObserverStreams {
     records = Records,
     prompts = Prompts,
     // The host around the bench, drawn by the closing system section.
-    subscribes = SystemInputs,
+    subscribes = Subscriptions,
     // The inputs this template is given, as the type that declares them.
-    parameters = PulseParameters, description = "Streams a short deterministic pulse from inside the sidecar.")]
-impl Pulse {
+    parameters = Parameters, description = "Streams a short deterministic pulse from inside the sidecar.")]
+impl Template {
     async fn initialize(
-        parameters: &PulseParameters, _ctx: &mut dokime::execution::InitializationContext<'_>,
+        parameters: &Parameters, _ctx: &mut dokime::execution::InitializationContext<'_>,
     ) -> Result<(Self, PulseResources), Error> {
         let template = Self;
         let shared = PulseResources {
             armed: AtomicBool::new(false),
             sample_count: parameters.sample_count,
-            produced: tokio::sync::watch::Sender::new(0),
+            produced: AtomicU64::new(0),
         };
         Ok((template, shared))
-    }
-
-    fn document() -> Document {
-        let mut pulse = Plot::time_series("Pulse");
-        pulse.id("obc.checks.pulse.signals");
-        pulse.unit("a.u.");
-        pulse.style(PlotStyle::LinePoints);
-        pulse.y(PulseRow::column_value());
-        pulse.marker_records([RunStarted::marker(), RunCompleted::marker()]);
-
-        let mut signals = Section::new("Pulse");
-        signals.plot(pulse);
-
-        let mut document = Document::new("obc.checks.pulse.document", LABEL);
-        document.section(signals);
-        document.section(system::section("obc.checks.pulse"));
-
-        document
     }
 
     #[dokime::step(
@@ -195,13 +178,19 @@ impl Pulse {
     async fn start(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         // === Confirm Capture === //
 
-        if ctx.parameters().require_confirmation && !ctx.ask(ConfirmPulse).await? {
-            return Err(Error::ConfirmationDeclined);
+        if ctx.parameters().require_confirmation {
+            // Ask for Confirmation
+            let prompt = ConfirmPulse;
+            let accepted = ctx.ask(prompt).await?;
+            if !accepted {
+                return Err(Error::ConfirmationDeclined);
+            }
         }
 
         // === Start Signal Capture === //
 
-        ctx.publish(RunStarted {}).await;
+        let record = RunStarted {};
+        ctx.publish(record).await;
 
         Ok(())
     }
@@ -215,59 +204,89 @@ impl Pulse {
         // template-wide samples(...) declaration is needed for this window.
         let _system = if ctx.parameters().capture_system { Some(ctx.lease::<crate::observers::system::SystemRow>().await?) } else { None };
         let wanted = ctx.parameters().sample_count;
-        let mut produced = ctx.resources().produced.subscribe();
+        let mut samples = ctx.listen::<Row>();
         ctx.resources().armed.store(true, Ordering::Release);
-        produced.wait_for(|count| *count >= wanted).await.expect("the resources retain the sample counter");
+        while let Some(row) = samples.next().await {
+            if row.sample_index as u64 + 1 >= wanted {
+                break;
+            }
+        }
 
         Ok(())
     }
 
     #[dokime::step(label = "Complete", description = "The last phase: say what the run produced.")]
     async fn complete(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        let produced = *ctx.resources().produced.borrow();
-        ctx.publish(RunCompleted { samples: produced }).await;
+        let produced = ctx.resources().produced.load(Ordering::Acquire);
+        let record = RunCompleted { samples: produced };
+        ctx.publish(record).await;
 
         Ok(())
     }
 
     #[dokime::criterion(id = ACCEPTANCE, label = "Pulse Completed", description = "Decides the run from the rows it produced.\nThree answers, not two: `true` passed, `false` failed, and an error is indeterminate — a sample this cannot read has told it nothing, which is not the same as telling it the run was wrong.")]
     fn completed(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-        if ctx.parameters().capture_system && !ctx.gaps::<crate::observers::system::SystemRow>().is_empty() {
+        // Check / Captured System Continuity
+        let continuity_ok = !ctx.parameters().capture_system || ctx.gaps::<crate::observers::system::SystemRow>().is_empty();
+        if !continuity_ok {
             return Ok(false);
         }
-        let samples = ctx.samples::<PulseRow>();
-        let tolerance = ctx.parameters().tolerance;
+        let samples = ctx.samples::<Row>();
+        let tolerance_au = ctx.parameters().tolerance_au;
         for (index, sample) in samples.iter().enumerate() {
             if !sample.value.is_finite() {
                 return Err(Error::Unmeasured { index, column: "value" });
             }
             let sample_index = u64::try_from(sample.sample_index).map_err(|_| Error::Unmeasured { index, column: "sample_index" })?;
-            if (sample.value - pulse_value(sample_index)).abs() > tolerance {
+            // Check / Expected Pulse Value
+            let value_ok = (sample.value - pulse_value(sample_index)).abs() <= tolerance_au;
+            if !value_ok {
                 return Ok(false);
             }
         }
 
-        Ok(samples.len() as u64 >= ctx.parameters().sample_count)
+        // Check / Number of Rows
+        let number_ok = samples.len() as u64 >= ctx.parameters().sample_count;
+        Ok(number_ok)
     }
 
-    #[dokime::observer(interval_ms = SAMPLE_INTERVAL_MS, streams = ObserverStreams)]
+    #[dokime::observer(interval_ms = SAMPLE_INTERVAL_MS, streams = Streams)]
     async fn pulse(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         if !ctx.resources().armed.load(Ordering::Acquire) {
             return Ok(());
         }
-        // Count A Row Only Once Published, So The Stream Step Never Ends Ahead Of It.
-        let index = *ctx.resources().produced.borrow();
-        ctx.publish(PulseRow {
+        // Count Published Rows
+        let index = ctx.resources().produced.load(Ordering::Acquire);
+        let row = Row {
             sample_index: index as i64,
             value: pulse_value(index),
-        })
-        .await;
+        };
+        ctx.publish(row).await;
         if index + 1 >= ctx.resources().sample_count {
             ctx.resources().armed.store(false, Ordering::Release);
         }
-        ctx.resources().produced.send_replace(index + 1);
+        ctx.resources().produced.store(index + 1, Ordering::Release);
 
         Ok(())
+    }
+
+    fn document() -> Document {
+        let mut pulse = Plot::time_series("Pulse");
+        pulse.id("obc.checks.pulse.signals");
+        pulse.unit("a.u.");
+        pulse.style(PlotStyle::LinePoints);
+        pulse.y(Row::column_value());
+        pulse.marker_records([RunStarted::marker(), RunCompleted::marker()]);
+
+        let mut signals = Section::new("Pulse");
+        signals.plot(pulse);
+
+        let mut document = Document::new(LABEL);
+        document.section(signals);
+        let section = system::section("obc.checks.pulse");
+        document.section(section);
+
+        document
     }
 }
 

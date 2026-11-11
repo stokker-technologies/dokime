@@ -28,13 +28,15 @@ use std::convert::Infallible;
 use std::num::{NonZeroU32, NonZeroUsize};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
+
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-// Local Imports
 use harmos::storage::*;
 use harmos::{Identifier, Runtime, state::Envelope};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+// Local Imports
 
 /* === Constants === */
 
@@ -60,18 +62,26 @@ struct State {
 }
 
 #[harmos::transaction(id = "bench.advance")]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Serialize, Deserialize)]
 struct Advance {
     payload: String,
 }
 
 #[harmos::record(id = "bench.observed")]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Serialize, Deserialize)]
 struct Observed {
     payload: String,
 }
 
 struct Projection;
+
+#[derive(Default, serde::Deserialize)]
+struct StorageConfig {
+    #[serde(skip)]
+    storage: Option<StorageManager>,
+
+    mode: Option<String>,
+}
 
 /* === Enums === */
 
@@ -149,13 +159,6 @@ impl RecordProjection for Projection {
             Ok(())
         })
     }
-}
-
-#[derive(Default, serde::Deserialize)]
-struct StorageConfig {
-    #[serde(skip)]
-    storage: Option<StorageManager>,
-    mode: Option<String>,
 }
 
 impl harmos::Lifecycle for Model {
