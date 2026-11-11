@@ -210,6 +210,15 @@ pub async fn admission(size: Admission) {
 
 pub fn request(max_points: u64) -> model::plots::wire::PlotRequest {
     model::plots::wire::PlotRequest {
+        arrangement: None,
+        pareto: false,
+        hole: None,
+        xy_interval: None,
+        grid: None,
+        reduction: None,
+        render: Default::default(),
+        y_viewport: None,
+        panel_height: None,
         plot_id: Some("fixture.progress.plot".into()),
         plot_type: model::plots::wire::PlotType::TimeSeries,
         style: model::documents::wire::PlotStyle::Unspecified,

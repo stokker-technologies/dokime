@@ -265,6 +265,15 @@ async fn data_frame(watch: &ResponseStream<PlotStreamFrame>, kind: PlotStreamKin
 fn requests(from: f64, to: f64) -> Vec<PlotRequest> {
     (0..fixture::PLOTS)
         .map(|column| PlotRequest {
+            arrangement: None,
+            pareto: false,
+            hole: None,
+            xy_interval: None,
+            grid: None,
+            reduction: None,
+            render: Default::default(),
+            y_viewport: None,
+            panel_height: None,
             plot_id: Some(format!("plot.{column}")),
             plot_type: PlotType::TimeSeries,
             stream: "bench.pipeline".into(),

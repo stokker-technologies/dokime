@@ -669,6 +669,15 @@ async fn first_frame(client: &Client, cycle_id: &str, execution_id: &str) -> mod
         plots::wire::{AxisScale, PlotRequest, PlotType},
     };
     let request = PlotRequest {
+        arrangement: None,
+        pareto: false,
+        hole: None,
+        xy_interval: None,
+        grid: None,
+        reduction: None,
+        render: Default::default(),
+        y_viewport: None,
+        panel_height: None,
         plot_id: Some("bench.recovery.voltage".into()),
         plot_type: PlotType::TimeSeries,
         style: model::documents::wire::PlotStyle::Line,
