@@ -332,9 +332,9 @@ also supply their matrix row and a unique suite identifier. The callable workflo
 own the job bodies; callers own stage dependencies and event routing. Release
 and Nightly call `publish.yml` and `verify.yml` with `channel=stable|nightly` and
 the package profile. Stable callers additionally pass `build-run`, `build-sha`
-and `build-version` from the validated review. Windows signed packages come from
-the current release run; other stable packages come from the review run. Signing
-and registry/tag authority remain in Release's protected flow.
+and `build-version` from the validated review. Stable package downloads come from
+that review run on both platforms. Signing and registry/tag authority remain in
+Release's protected flow.
 
 The shared artifact interface is `build-<kind>-<profile>-<platform>`,
 `package-<profile>-<language>-<platform>` (each containing its matching
@@ -412,17 +412,19 @@ Build / Bench, Check, Test, Bench, Package, Release / Dry and Nightly /
 Publish, Verify and Report stages. Product languages, runner matrices and
 download inventories remain product-owned.
 
-Harmos's `release-assets-layout` follow-up must extract its shared validation,
-publish and verify bodies with the same channel/profile and review metadata
-inputs; route Nightly through `release:publish -- --channel nightly`; and add
-the manifest-based native Verify stage. Its draft and public inventory checks
-must download and hash every remote asset, rather than relying on optional API
-digest metadata. It already has named `CI_INPUT_ARCHIVES` and `release-manifest`;
-its report follow-up must consume `results-*`, preserve the original notes and
-replace reports, index and checksums through the shared draft publisher. Duplicate
-revision detection must ignore newer queued runs so the oldest run can proceed.
-Dokime adopted Harmos's explicit `dev` freshness guard and exact run-identity
-report guard. No Harmos source changes are part of this delivery.
+Both products use shared validation, publication and verification workflows with
+`channel` and `profile` inputs. Stable review evidence uses `build-run`, `build-sha`
+and `build-version`; every package download, including Windows Rust, selects
+`build-run || github.run_id`. Nightly defaults to its current run. The release
+manifest comes from the publication run.
+
+Both publishers download, size and hash remote assets, verify native downloads
+from `release-manifest`, and replace the complete reports, index and checksum
+inventory through the shared draft publisher. Reports preserve original notes
+and require the exact run identity. Freshness requires `dev` and lets the oldest
+duplicate run proceed. Harmos retains one validation dispatcher and downloads
+the published inventory for report updates; Dokime splits validation by job and
+restages package inputs. Workflow organization and inventories remain product-owned.
 
 For focused consumer lint use
 `mise run check -- --language rust --package dokime-packaging` (or `dokime-gui`).

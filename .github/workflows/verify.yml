@@ -68,7 +68,7 @@ jobs:
       with:
         name: package-${{ env.PROFILE }}-rust-${{ matrix.platform }}
         path: target/ci
-        run-id: ${{ matrix.platform == 'windows' && github.run_id || inputs.build-run || github.run_id }}
+        run-id: ${{ inputs.build-run || github.run_id }}
         github-token: ${{ github.token }}
     - name: Download Release Manifest
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
