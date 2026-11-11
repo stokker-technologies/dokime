@@ -2,9 +2,16 @@
 
 ## 1. Contract
 
-- [ ] 1.1 Settle the open points in `design.md` with the owner and record each outcome there.
-- [ ] 1.2 Reconcile the overlapping changes and write the spec deltas that retire superseded requirements.
-- [ ] 1.3 Lock the source inventory: producers, consumers, tests, fixtures, examples, tasks, README and guidance.
+- [x] 1.1 Settle the open points in `design.md` with the owner and record each outcome there.
+- [x] 1.2 Reconcile the overlapping changes and write the spec deltas that retire superseded requirements.
+- [x] 1.3 Lock the source inventory: producers, consumers, tests, fixtures, examples, tasks, README and guidance.
+- [x] 1.2.1 Retire Python backend, native-wheel, embedded-callback, generation reload and dependency-start-order requirements; retain remote authoring, typed clients, diagnostics and focused proof requirements in replacement deltas.
+- [x] 1.3.1 Protocol inventory: `proto/{dokime,harmos}/`, `crates/dokime-protocol/{src,examples,tests}`, client-service generation in `crates/dokime-server/`, document bindings under `sdk/{python,csharp,cpp}` and protocol export in `crates/dokime-cli/src/commands/proto.rs`; check generated drift and protobuf round trips.
+- [x] 1.3.2 Host inventory: `crates/dokime-domain/src/model/`, `crates/dokime-operations/src/`, `crates/dokime-runtime/src/{catalog.rs,contributions.rs,domains,execution,runtime,storage,transactions,transport}`, and `crates/dokime-server/src/{grpc,host}`; migrate producers and consumers together, preserving effects, bounded queries/transfers, authorization and durability.
+- [x] 1.3.3 Consumer inventory: `crates/{dokime,dokime-client,dokime-cli,dokime-packaging,cargo-dokime,dokime-gui/src-tauri}`, GUI source/generated clients and report assets, `sdk/`, `plugins/sidecars/{host,obc}` and examples/starters; migrate capabilities, origin/outcome, settings and catalog consumers with their producers.
+- [x] 1.3.4 Removal/proof inventory: `crates/dokime-macros`, old execution workflow/provider/replay and embedded-plugin tests/fixtures, Python native bindings/stubs/backend and wheel tooling; retain meaningful effect/recovery/transfer/report/plot journeys under their replacement owners and use focused package targets only.
+- [x] 1.3.5 Configuration/guidance inventory: workspace/package manifests and locks, build scripts, `mise.toml`, `tools/{project.toml,python}`, `.github/workflows`, README, `docs/{product-guide,tooling,gui}.md`, topic guides and `.agents/skills/dokime-{architecture,authoring,conventions}`. Update only affected current contracts; no customer or private plugin identifiers.
+- [x] 1.3.6 Ownership/order: this worker owns the inventory except GUI benches/e2e, bench tooling and `plot-refresh-scaling`; preserve pre-existing shared manifest/lock/tooling edits. Contract/protocol precede Harmos adoption, execution model precedes manager, SDKs precede removals; storage extraction and import admission remain later work. Each source checkbox requires focused native proof; final/platform validation stays separate.
 
 ## 2. Protocol
 
@@ -16,8 +23,13 @@
 - [x] 2.6 Export embedded Dokime and Harmos protocol sources through `dokime proto export --out`, preserving package paths without opening storage.
 - [ ] 2.7 Attach the checked-in protocol sources to releases through the archive owned by `release-layout` task 2.3.
 - [ ] 2.8 Wave 2: make proto files authoritative, put generated definitions and light helpers in protocol, document cross-language semantics for each SDK, and inventory Harmos native state/recovery/storage semantics retained in `harmos-domain`; move wire mirrors out.
+- [ ] 2.8.1 Export an authoritative descriptor set with checked-in generated messages; expose descriptor lookup for host operation declarations and prove generation drift.
+- [ ] 2.8.2 Document shared value, identifier, timestamp, resource, error, settings and operation semantics for all four SDKs; inventory retained Harmos native semantics against the adopted revision.
+- [ ] 2.8.3 Replace remaining Dokime wire mirrors and migrate their declarations and consumers; dissolve the domain owner in 5.9 after the host and SDK waves.
 
 - [ ] 2.9 Host-wave prerequisite owned here, before 3.2/3.3: define Origin with PluginRun containing frozen TestCase/plugin/template/digest/process start time and Import containing its definition/manifest; reserve removed TestCase identity fields, regenerate bindings and migrate persistence, materialization and plugin-call envelopes. No separate execution-definition or Run type.
+- [ ] 2.9.1 Define frozen Origin/PluginRun/Import protobuf messages, reserve TestCase identity fields and add origin to every plugin execution-call envelope; regenerate and prove round trips and origin agreement.
+- [ ] 2.9.2 Migrate persisted execution definitions, catalog materialization and every execution-call consumer to the frozen origin; refuse incompatible development roots with explicit backup/reset guidance.
 
 ## 3. Host
 
@@ -28,7 +40,11 @@
 - [ ] 3.5 Compute stream statistics per execution and step range.
 - [ ] 3.6 Replace Settings › Plugins with managed and remote entries and their states.
 - [ ] 3.7 Adopt unary-only plugin operations, migrate streamed sample operations, apply internal visibility and unset-policy defaults, resolve Duration setting fields and require the placement stream window after owner confirmation; refresh vendored Harmos sources and verify descriptor parity.
+- [x] 3.7.1 Verify that the vendored `proto/harmos/v1/plugin.proto` already matches the requested Harmos revision byte for byte; retain it without a local protocol fork.
+- [ ] 3.7.2 Migrate plugin/host call sites and operation policies, stream-setting resolution, required stream window and descriptor parity after dependency adoption.
 - [ ] 3.8 Wave 2: extend Harmos client-facing operation declarations/codecs to accept generated protobuf types and descriptors before adoption; preserve bounded decoding, cancellation, backpressure, service paths and streaming envelopes, then pin the published revision.
+- [x] 3.8.1 Inspect the requested Harmos revision: `ProtobufOperation`, `OperationFactory::protobuf`, descriptor-backed memory admission, native stream endpoints and retained gRPC paths already supply the required generated-message foundation; no Harmos extension is needed.
+- [ ] 3.8.2 Pin the requested published revision in the workspace and migrate every removed facade/SDK consumer to its explicit owner without path overrides or compatibility shims.
 - [ ] 3.9 Wave 3: move every host operation declaration and handler together, one file per operation in `dokime-operations`, with protocol requests/replies and Rust callee-owned deadlines/retries; define narrow resources without runtime dependencies, register directly, and delete `hosted!` and `Host`/`Serve` forwarding area by area.
 - [ ] 3.10 Wave 3: move server logs/trace replay, support bundles, transfers/upload transactions, paging/frontier closure, watches, plot deltas/reduction, diagnostics and redaction into ordinary operations with their meaningful behavior tests.
 - [ ] 3.11 Wave 3: put startup `main.rs`, listener configuration and the one client authorization hook in runtime; preserve pairing/key persistence, rotation, settings and shutdown; retain execution manager, effects, plugin entries, transactions, state and cycle transitions under the runtime host owner.

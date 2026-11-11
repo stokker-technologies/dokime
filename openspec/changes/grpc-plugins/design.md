@@ -755,17 +755,18 @@ The initial wire definitions are checked in at repository-root `proto/`.
 The choices for the protocol slice are recorded below; runtime adoption
 and migration of existing client services remain later-wave work.
 
-Not yet decided with the owner, before its task starts:
-
-1. Spec deltas that retire `python-backend`, `python-sdk`,
-   `python-plugin-authoring` and the reload and start-order requirements this
-   change removes.
+The owner has locked the protocol and operation decisions below. The requirement
+deltas retire embedded Python backend ownership, native Python wheels and callback
+bridges, startup settings injection, generation reload and dependency-ordered
+plugin startup. Python retains typed authoring and clients over gRPC; managed
+plugin restarts interrupt active runs rather than retaining generation state.
+Availability is an entry state, not admission of an entire dependency graph.
 
 Client access and its security are the separate change
 `remote-access-simplification`. Branding is the separate change
 `organization-pack-coverage`.
 
-### Awaiting Owner Confirmation
+### Confirmed Operation Decisions
 
 - Unary-only plugin operations and adapting the streamed sample operations.
 - Private visibility for observer control, storage file operations,
@@ -774,6 +775,37 @@ Client access and its security are the separate change
 - `interval_setting` as a qualified protobuf section field holding a Duration.
 - Required host setting `PlacementSettings.stream_window`.
 - The `dokime.v1` wire choices in Initial Protocol Slice Decisions below.
+
+## Implementation Decisions
+
+The protocol descriptor set is generated from all authoritative Dokime inputs
+and their imported Harmos/Google definitions, checked in beside the Rust messages
+and exposed by the protocol crate. Host declarations use those descriptors;
+SDKs implement the same documented semantics without a second definition model.
+Origin validation requires a PluginRun with a full TestCase and nonempty
+plugin/template/digest/process identity for execution calls. Import origins are
+valid execution evidence but never plugin-call envelopes. An envelope's TestCase
+must equal its frozen origin case. Import carries provenance only here; admission,
+draft handles and stream publication remain owned by imported-executions.
+
+### Harmos Native Semantics Inventory
+
+At the requested revision, `harmos-domain/src/state/` retains record identity,
+state catalogs, transaction entries, barriers, reversible routing and envelopes;
+`journal.rs` owns recovery/replay contracts. `schema/` retains stored schema
+identity, revisions, validation and codecs. `model/storage/` retains native
+query, directory, data, write and time semantics; stream revisions remain native.
+Operation policies, native resource contexts and admission are Rust contracts,
+not alternate protobuf messages. `harmos-protocol` owns generated transport/host
+messages and descriptors. Dokime must consume those rather than restoring old
+operation, plugin, stream or catalog wire mirrors in its domain crate.
+
+### Requests to Harmos
+
+None identified for generated protobuf host operations: the requested revision
+already provides protobuf declarations, descriptor-backed admission and bounded
+gRPC codecs. Adoption must migrate Dokime's old facade consumers to the explicit
+SDK/runtime/operations/storage owners; no compatibility facade is introduced.
 
 ## Initial Protocol Slice Decisions
 
