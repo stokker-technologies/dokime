@@ -2,7 +2,7 @@
 
 ### Requirement: Windowed Plots From Stored Buckets
 
-A plot over a time window SHALL be answered from stored time buckets, reading raw samples only for the newest edge and for ranges no bucket covers.
+A time-series plot over a time window SHALL be answered from stored time buckets, reading raw samples only for the newest edge and for ranges no bucket covers. Contour binning and grid/trajectory frame semantics belong to plot-kinds.
 
 #### Scenario: Repeated Update
 
@@ -16,7 +16,7 @@ A plot over a time window SHALL be answered from stored time buckets, reading ra
 
 ### Requirement: Width-Aware Requests
 
-A plot request SHALL carry the visible range and the panel width, and the backend SHALL return a number of points proportional to that width.
+A time-series plot request SHALL carry the visible range and the panel width, and the backend SHALL return a number of points proportional to that width. Two-dimensional contour resolution and playback frames belong to plot-kinds.
 
 #### Scenario: Zoom
 

@@ -22,7 +22,7 @@ replacement, and the same data travels in two representations.
    holding first, last, minimum, maximum and running moments. Closed buckets
    are reused; only the newest edge is computed from live data. Raw samples
    stay the evidence.
-2. **The request carries the viewport and the panel width.** The backend
+2. **Time-series requests carry the viewport and the panel width.** The backend
    buckets by time to that width and returns more detail when the user
    zooms. Minimum and maximum are taken per time bucket, not per row count.
 3. **Live updates are deltas.** A watch sends new and changed buckets after
@@ -46,6 +46,11 @@ stays measured so that case is visible when it comes.
 
 ## Not in This Change
 
+- Plot kind renames/options, contour x/y/z binning to two-dimensional panel
+  resolution, generic grid frames and shared trajectory/grid playback are
+  owned by `plot-kinds`. This change supplies the existing transport and
+  time-bucket mechanisms; it does not prescribe point reduction for those
+  kind-specific payloads or own their report/SDK/plugin migration.
 - Replacing the temporary SQLite staging used for plots with expressions,
   grouping or markers. It sorts, groups and joins raw rows with bounded
   memory by spilling to disk. Proposed: once stored buckets answer most
