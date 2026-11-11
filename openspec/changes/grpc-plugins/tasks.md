@@ -89,6 +89,7 @@
 - [ ] 6.2 Run the system stories with a managed plugin and with a Python script that serves and drives its own suite.
 - [ ] 6.3 Run the combined-tree Rust and settings/plot checks after all source handoffs; repair failures and retain native platform limitations.
 - [ ] 6.3.1 Rerun Python checking after the benchmark owner repairs import ordering in `tools/python/tests/integration/test_desktop_bench.py`; that path is outside this worker's ownership.
+- [ ] 6.3.2 Complete whole-tree Rust checking and the Tests artifact build after workstation free space is restored above the 50 GiB cutoff; both were interrupted at that cutoff, with Tests compiler evidence retained at `target/build/dev/windows-x86_64/tests/compiler.json`. Protocol-focused checking/tests, format and repository checking do not establish this combined proof.
 
 ## Workflow Follow-Up
 
