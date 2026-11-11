@@ -56,6 +56,7 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--starter", action="store_true")
     parser.add_argument("--dry", action="store_true")
     parser.add_argument("--stage", choices=("assets", "python", "finalize"))
+    parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
     parser.add_argument("--project", choices=("sdk/python", "tools/python"))
     parser.add_argument("--scene", choices=("cycle", "plots", "report", "history", "library", "cycles", "touch"))
     parser.add_argument("--select")
@@ -209,6 +210,14 @@ def main(arguments: list[str] | None = None) -> int:
             if language != "typescript"
         ]
     elif args.operation == "publish":
+        if args.channel == "nightly" and not args.dry:
+            if args.stage:
+                parser.error("nightly publishes the complete package inventory")
+            from .. import policy
+            from ..release import nightly
+
+            nightly.publish(policy.root())
+            return 0
         if args.dry:
             tasks = [("release:publish:dry", [])]
         else:

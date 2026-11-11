@@ -503,19 +503,24 @@ def finalize(directory: Path, settings: dict) -> None:
         raise policy.ToolError("release links differ from upload.json")
 
 
-def verify(directory: Path, settings: dict) -> None:
+def verify(directory: Path, settings: dict, *, channel: str = "stable") -> None:
     """After Publication: Download Every Published Asset, Match SHA256SUMS And Signatures, Install On This Platform."""
-    tag = release_tag(directory)
+    tag = release_tag(directory) if channel == "stable" else channel
     sha = _revision(directory)
     if registry.remote_tag(settings, tag) != sha:
         raise policy.ToolError(f"{tag} does not identify the checked-out revision")
     inventory = {item["name"]: item for item in layout.uploads(directory)}
     quoted = _quote(tag)
     if settings["provider"] == "github":
-        remote = registry.document(settings, "releases/tags/" + quoted)
-        if not isinstance(remote, dict) or remote.get("draft") or remote.get("prerelease"):
+        remote = registry.document(settings, "releases/tags/" + quoted, channel=channel != "stable")
+        if not isinstance(remote, dict) or remote.get("draft") is not False or remote.get("prerelease") is not (channel != "stable"):
             raise policy.ToolError("release is not published")
-        downloads = {item["name"]: f"releases/assets/{item['id']}" for item in registry.pages(settings, f"releases/{remote['id']}/assets")}
+        if remote.get("target_commitish") != sha:
+            raise policy.ToolError("published release identifies another revision")
+        downloads = {
+            item["name"]: f"releases/assets/{item['id']}"
+            for item in registry.pages(settings, f"releases/{remote['id']}/assets", channel=channel != "stable")
+        }
     else:
         remote = registry.document(settings, "releases/" + quoted)
         if not isinstance(remote, dict):
@@ -526,10 +531,11 @@ def verify(directory: Path, settings: dict) -> None:
         raise policy.ToolError("published downloads differ from upload.json")
     with temporary.directory() as root:
         for name, item in inventory.items():
-            data = registry.verify_download(settings, downloads[name], item)
+            data = registry.verify_download(settings, downloads[name], item, channel=channel != "stable")
             policy.inside(root, name).write_bytes(data)
         _checksums(root / SUMS, inventory)
-        registry.verify_signatures(directory, settings, root, list(inventory))
+        if channel == "stable":
+            registry.verify_signatures(directory, settings, root, list(inventory))
         native = native_target(settings)
         packages.installed(directory, {**settings, "tag": tag}, root, native)
     policy.write_json(directory / "target/state/release-publication.json", {"sha": sha, "tag": tag, "verified": True})

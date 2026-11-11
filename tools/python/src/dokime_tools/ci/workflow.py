@@ -68,7 +68,6 @@ def main(arguments: list[str] | None = None) -> int:
         "operation",
         choices=(
             "nightly-freshness",
-            "nightly-publish",
             "nightly-report",
             "release-mode",
             "review",
@@ -86,12 +85,15 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--profile", choices=("dev", "release"), default="release")
     parser.add_argument("--target")
     parser.add_argument("--stage-only", action="store_true")
+    parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
     options = parser.parse_args(arguments)
     transport.receive()
     operation = options.operation
     if operation == "nightly-freshness":
         from .review import pages, request
 
+        if os.environ["GITHUB_REF"] != "refs/heads/dev":
+            raise ValueError("nightly requires dev")
         build = True
         if os.environ["GITHUB_EVENT_NAME"] == "schedule":
             # A Missing Tag Is The First Nightly; Other API Failures Must Fail Closed.
@@ -109,37 +111,17 @@ def main(arguments: list[str] | None = None) -> int:
                 build = published["object"]["sha"] != os.environ["GITHUB_SHA"]
         for status in ("in_progress", "queued"):
             runs = pages(f"actions/workflows/nightly.yml/runs?head_sha={os.environ['GITHUB_SHA']}&status={status}", "workflow_runs")
-            if any(str(run["id"]) != os.environ["GITHUB_RUN_ID"] for run in runs):
+            if any(int(run["id"]) < int(os.environ["GITHUB_RUN_ID"]) for run in runs):
                 build = False
                 break
         with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
             output.write(f"build={str(build).lower()}\n")
-    elif operation == "nightly-publish":
+    elif operation == "nightly-report":
         from ..release import nightly
 
-        nightly.publish(policy.root())
-    elif operation == "nightly-report":
-        from .review import request
-
-        results = json.loads(os.environ["NEEDS"])
-        from ..release import reports
-
-        summary, _ = reports.collect(policy.root())
-        line = reports.table(summary, results, os.environ["RUN_URL"])
-        release = request("releases/tags/nightly")
-        # A Later Publication Must Never Receive This Run's Result.
-        if f"[{os.environ['GITHUB_RUN_ID']}]" not in release["body"]:
-            raise ValueError("nightly notes belong to another run")
-        notes = re.sub(r"\n<!-- nightly-results -->.*?<!-- /nightly-results -->\n?", "", release["body"], flags=re.DOTALL)
-        with tempfile.TemporaryDirectory(prefix="dokime-nightly-notes-") as temporary:
-            path = Path(temporary) / "notes.md"
-            path.write_text(notes + "\n<!-- nightly-results -->\n" + line + "\n<!-- /nightly-results -->\n", encoding="utf-8")
-            subprocess.run(
-                ["gh", "release", "edit", "nightly", "--repo", os.environ["GITHUB_REPOSITORY"], "--notes-file", str(path)],
-                check=True,
-                creationflags=spawn_flags(),
-            )
-        print(line)
+        published = nightly.complete(policy.root())
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+            output.write(f"published={str(published).lower()}\n")
     elif operation == "release-mode":
         from .review import github_release_mode
 
@@ -220,6 +202,11 @@ def main(arguments: list[str] | None = None) -> int:
             publication_guard()
             return run.main(["tag"])
         if operation == "release-verify":
+            if options.channel == "nightly":
+                from ..release import nightly
+
+                nightly.verify(policy.root())
+                return 0
             return run.main(["verify"])
         args = ["rehearse", "--profile", options.profile]
         if options.target:

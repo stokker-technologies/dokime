@@ -45,389 +45,42 @@ jobs:
       MISE_ENABLE_TOOLS: python,uv,node,pnpm
     outputs:
       build: ${{ steps.freshness.outputs.build }}
+    if: github.ref == 'refs/heads/dev'
   check:
-    name: Check / ${{ matrix.work }} (${{ matrix.platform }})
+    name: Check
+    uses: ./.github/workflows/validate-check.yml
+    with:
+      channel: nightly
+      profile: release
     needs:
     - freshness
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-        persist-credentials: false
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: ${{ matrix.bootstrap }}
-    - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.mise-path }}
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' && steps.setup.outputs.pnpm-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.pnpm-path }}
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.uv-path }}
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true' && steps.setup.outputs.sccache-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.sccache-path }}
-        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
-    env:
-      CI_TRANSPORT: 'true'
-      COMPILER_CACHE_BACKEND: disk
-      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv,aqua:EmbarkStudios/cargo-deny,aqua:rustsec/rustsec/cargo-audit
-      CI_PROFILE: release
-      CI_PLATFORM: ${{ matrix.platform }}
-      CI_CACHE_PROFILE: test
     if: needs.freshness.outputs.build == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Repository
-          command: check -- --repository
-          bootstrap: '[]'
-          inputs: ''
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Python
-          command: check -- --language python
-          bootstrap: '[]'
-          inputs: ''
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: TypeScript
-          command: check -- --language typescript
-          bootstrap: '[]'
-          inputs: ''
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust
-          command: check -- --language rust
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
-          inputs: ''
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust
-          command: check -- --language rust
-          bootstrap: '[]'
-          inputs: ''
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: WebAssembly
-          command: check -- --wasm
-          bootstrap: '[]'
-          inputs: ''
   build_product:
-    name: Build / Product (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: ${{ runner.os == 'Linux' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]' || '[]' }}
-    - run: mise run build -- --artifact product --profile ${{ env.PROFILE }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-cli-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-cli-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-clients-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-clients-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-generator-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-generator-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-gui-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-gui-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-packaging-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-packaging-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-plugins-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-plugins-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' && steps.setup.outputs.pnpm-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true' && steps.setup.outputs.sccache-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup.outputs.sccache-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
-      COMPILER_CACHE_BACKEND: disk
-      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
-      CI_TRANSPORT: 'true'
-      CI_OUTPUTS: ${{ matrix.outputs }}
+    name: Build / Product
+    uses: ./.github/workflows/validate-build-product.yml
+    with:
+      channel: nightly
+      profile: release
     needs:
     - freshness
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          inputs: ''
-          outputs: '[{"archive":"target/ci/build-cli-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime"]},{"archive":"target/ci/build-clients-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript"]},{"archive":"target/ci/build-generator-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/bin/cargo-dokime"]},{"archive":"target/ci/build-gui-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime-gui"]},{"archive":"target/ci/build-packaging-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/product","target/build/{profile}/{target}/web"]},{"archive":"target/ci/build-plugins-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/plugins"]}]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          inputs: ''
-          outputs: '[{"archive":"target/ci/build-cli-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime.exe"]},{"archive":"target/ci/build-clients-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript"]},{"archive":"target/ci/build-generator-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/bin/cargo-dokime.exe"]},{"archive":"target/ci/build-gui-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/bin/dokime-gui.exe"]},{"archive":"target/ci/build-packaging-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/product","target/build/{profile}/{target}/web"]},{"archive":"target/ci/build-plugins-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/plugins"]}]'
     if: needs.freshness.outputs.build == 'true'
   build_tests:
-    name: Build / Tests (${{ matrix.platform }})
+    name: Build / Tests
+    uses: ./.github/workflows/validate-build-tests.yml
+    with:
+      channel: nightly
+      profile: release
     needs:
     - freshness
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: ${{ runner.os == 'Linux' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]' || '[]' }}
-    - run: mise run build -- --artifact tests --profile ${{ env.PROFILE }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-tests-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-tests-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' && steps.setup.outputs.pnpm-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true' && steps.setup.outputs.sccache-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup.outputs.sccache-path }}
-    env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
-      COMPILER_CACHE_BACKEND: disk
-      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
-      CI_TRANSPORT: 'true'
-      CI_OUTPUTS: ${{ matrix.outputs }}
-      CI_CACHE_PROFILE: test
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          inputs: ''
-          outputs: '[{"archive":"target/ci/build-tests-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/tests","target/build/{profile}/{target}/fixtures"]}]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          inputs: ''
-          outputs: '[{"archive":"target/ci/build-tests-{profile}-windows.tar.zst","paths":["target/build/{profile}/{target}/tests","target/build/{profile}/{target}/fixtures"]}]'
     if: needs.freshness.outputs.build == 'true'
   build_python:
-    name: Build / Python (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: ${{ runner.os == 'Linux' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]' || '[]' }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-cli-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-packaging-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-    - run: mise run build -- --language python --profile ${{ env.PROFILE }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-      if: success()
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' && steps.setup.outputs.pnpm-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true' && steps.setup.outputs.sccache-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
-        path: ${{ steps.setup.outputs.sccache-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
-      COMPILER_CACHE_BACKEND: disk
-      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
-      CI_TRANSPORT: 'true'
-      CI_OUTPUTS: ${{ matrix.outputs }}
+    name: Build / Python
+    uses: ./.github/workflows/validate-build-python.yml
+    with:
+      channel: nightly
+      profile: release
     needs:
     - build_product
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          inputs: ''
-          outputs: '[{"archive":"target/ci/build-product-python-{profile}-{platform}.tar.zst","paths":["target/build/{profile}/{target}/python"]}]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          inputs: ''
-          outputs: '[{"archive":"target/ci/build-product-python-{profile}-{platform}.tar.zst","paths":["target/build/{profile}/{target}/python"]}]'
   build_bench:
     name: Build / Bench
     needs:
@@ -453,26 +106,26 @@ jobs:
         compression-level: 0
       if: success()
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
+        != 'true' && steps.setup.outputs.cargo_downloads-path != ''
       with:
         key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
         path: ${{ steps.setup.outputs.cargo_downloads-path }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' &&
+        steps.setup.outputs.mise-path != ''
       with:
         key: ${{ steps.setup.outputs.mise-cache-primary-key }}
         path: ${{ steps.setup.outputs.mise-path }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' &&
+        steps.setup.outputs.uv-path != ''
       with:
         key: ${{ steps.setup.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup.outputs.uv-path }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true' && steps.setup.outputs.sccache-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true'
+        && steps.setup.outputs.sccache-path != ''
       with:
         key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
         path: ${{ steps.setup.outputs.sccache-path }}
@@ -487,169 +140,27 @@ jobs:
       CI_CACHE_PROFILE: bench
     if: needs.freshness.outputs.build == 'true'
   check_generated:
-    name: Check / ${{ matrix.work }} (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: ${{ matrix.bootstrap }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',0,')
-    - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.mise-path }}
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' && steps.setup.outputs.pnpm-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.pnpm-path }}
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.uv-path }}
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-    env:
-      CI_TRANSPORT: 'true'
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,uv
-      CI_PROFILE: release
-      CI_PLATFORM: ${{ matrix.platform }}
+    name: Check / Generated
+    uses: ./.github/workflows/validate-check-generated.yml
+    with:
+      channel: nightly
+      profile: release
     needs:
     - build_python
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Python / Generated
-          command: ci:bindings --
-          bootstrap: '[]'
-          inputs: '0'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Python / Generated
-          command: ci:bindings --
-          bootstrap: '[]'
-          inputs: '0'
   test:
-    name: Test / ${{ matrix.work }} (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: ${{ matrix.bootstrap }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',0,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-clients-${{ env.PROFILE }}-unix
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',1,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-cli-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',2,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-plugins-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',3,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-tests-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',4,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-clients-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',5,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-generator-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',6,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-gui-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',7,')
-    - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      if: always()
-      with:
-        name: results-${{ strategy.job-index }}-${{ github.job }}-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: |-
-          target/tests/
-          target/traces/
-          target/test-reports/
-          target/benchmarks/
-          target/coverage/
-        if-no-files-found: ignore
-        retention-days: 7
-        include-hidden-files: true
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.mise-path }}
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' && steps.setup.outputs.pnpm-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.pnpm-path }}
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.uv-path }}
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-    env:
-      CI_TRANSPORT: 'true'
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,uv
-      CI_PROFILE: release
-      CI_PLATFORM: ${{ matrix.platform }}
+    name: Test
+    uses: ./.github/workflows/validate-test.yml
+    with:
+      channel: nightly
+      profile: release
+      platform: ${{ matrix.platform }}
+      runner: ${{ matrix.runner }}
+      work: ${{ matrix.work }}
+      command: ${{ matrix.command }}
+      bootstrap: ${{ matrix.bootstrap }}
+      archives: ${{ matrix.archives }}
+      minutes: ${{ matrix.minutes }}
+      suite: ${{ format('{0}', strategy.job-index) }}
     needs:
     - build_product
     - build_tests
@@ -664,154 +175,162 @@ jobs:
           work: Python / Unit
           command: test -- --language python --layer unit
           bootstrap: '[]'
-          inputs: '0'
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / Unit
           command: test -- --language python --layer unit
           bootstrap: '[]'
-          inputs: '0'
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: TypeScript / Unit
           command: test -- --language typescript --layer unit
           bootstrap: '[]'
-          inputs: '1'
+          archives: '["target/ci/build-clients-{profile}-unix.tar.zst"]'
         - platform: unix
           runner: ubuntu-22.04
           minutes: 120
           work: Python / Integration
           command: test -- --language python --layer integration
           bootstrap: '[]'
-          inputs: '0'
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / Integration
           command: test -- --language python --layer integration
           bootstrap: '[]'
-          inputs: '0'
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: TypeScript / Integration
           command: test -- --language typescript --layer integration
           bootstrap: '[]'
-          inputs: '1'
+          archives: '["target/ci/build-clients-{profile}-unix.tar.zst"]'
         - platform: unix
           runner: ubuntu-22.04
           minutes: 120
           work: Python / Acceptance
           command: test -- --language python --layer acceptance
           bootstrap: '[]'
-          inputs: 0,2,3,4
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
+            "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / Acceptance
           command: test -- --language python --layer acceptance
           bootstrap: '[]'
-          inputs: 0,2,3,4
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
+            "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-22.04
           minutes: 120
           work: Python / System
           command: test -- --language python --layer system
           bootstrap: '[]'
-          inputs: 0,2
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Python / System
           command: test -- --language python --layer system
           bootstrap: '[]'
-          inputs: 0,2
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: Rust / Acceptance
           command: test -- --language rust --layer acceptance
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          inputs: 0,2,3,4,5,6
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
+            "target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-generator-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Rust / Acceptance
           command: test -- --language rust --layer acceptance
           bootstrap: '[]'
-          inputs: 0,2,3,4,5,6
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
+            "target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-generator-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: Rust / Integration
           command: test -- --language rust --layer integration
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          inputs: '4'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Rust / Integration
           command: test -- --language rust --layer integration
           bootstrap: '[]'
-          inputs: '4'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: Rust / Starter
           command: test -- --starter
           bootstrap: '[]'
-          inputs: '6'
+          archives: '["target/ci/build-generator-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Rust / Starter
           command: test -- --starter
           bootstrap: '[]'
-          inputs: '6'
+          archives: '["target/ci/build-generator-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: Rust / System
           command: test -- --language rust --layer system
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          inputs: 0,2,3,4
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
+            "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Rust / System
           command: test -- --language rust --layer system
           bootstrap: '[]'
-          inputs: 0,2,3,4
+          archives: '["target/ci/build-product-python-{profile}-{platform}.tar.zst", "target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst",
+            "target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: Rust / Unit
           command: test -- --language rust --layer unit
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          inputs: '4'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Rust / Unit
           command: test -- --language rust --layer unit
           bootstrap: '[]'
-          inputs: '4'
+          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: TypeScript / System
           command: test -- --language typescript --layer system
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
-          inputs: 2,3,4,5,7
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
+            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: TypeScript / System
           command: test -- --language typescript --layer system
           bootstrap: '["python tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
-          inputs: 2,3,4,5,7
+          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst", "target/ci/build-plugins-{profile}-{platform}.tar.zst", "target/ci/build-tests-{profile}-{platform}.tar.zst",
+            "target/ci/build-clients-{profile}-{platform}.tar.zst", "target/ci/build-gui-{profile}-{platform}.tar.zst"]'
   coverage:
     name: Test / ${{ matrix.work }} (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -865,36 +384,39 @@ jobs:
       if: always()
       with:
         name: results-${{ strategy.job-index }}-${{ github.job }}-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: |-
-          target/tests/
+        path: 'target/tests/
+
           target/traces/
+
           target/test-reports/
+
           target/benchmarks/
-          target/coverage/
+
+          target/coverage/'
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
+        != 'true' && steps.setup.outputs.cargo_downloads-path != ''
       with:
         path: ${{ steps.setup.outputs.cargo_downloads-path }}
         key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' &&
+        steps.setup.outputs.mise-path != ''
       with:
         path: ${{ steps.setup.outputs.mise-path }}
         key: ${{ steps.setup.outputs.mise-cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' && steps.setup.outputs.pnpm-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' &&
+        steps.setup.outputs.pnpm-path != ''
       with:
         path: ${{ steps.setup.outputs.pnpm-path }}
         key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' &&
+        steps.setup.outputs.uv-path != ''
       with:
         path: ${{ steps.setup.outputs.uv-path }}
         key: ${{ steps.setup.outputs.uv-cache-primary-key }}
@@ -951,36 +473,39 @@ jobs:
       if: always()
       with:
         name: results-${{ strategy.job-index }}-${{ github.job }}-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: |-
-          target/tests/
+        path: 'target/tests/
+
           target/traces/
+
           target/test-reports/
+
           target/benchmarks/
-          target/coverage/
+
+          target/coverage/'
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.bench_baselines-cache-hit != 'true' && steps.setup.outputs.bench_baselines-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.bench_baselines-cache-hit
+        != 'true' && steps.setup.outputs.bench_baselines-path != ''
       with:
         path: ${{ steps.setup.outputs.bench_baselines-path }}
         key: ${{ steps.setup.outputs.bench_baselines-cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
+        != 'true' && steps.setup.outputs.cargo_downloads-path != ''
       with:
         path: ${{ steps.setup.outputs.cargo_downloads-path }}
         key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' &&
+        steps.setup.outputs.mise-path != ''
       with:
         path: ${{ steps.setup.outputs.mise-path }}
         key: ${{ steps.setup.outputs.mise-cache-primary-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' &&
+        steps.setup.outputs.uv-path != ''
       with:
         path: ${{ steps.setup.outputs.uv-path }}
         key: ${{ steps.setup.outputs.uv-cache-primary-key }}
@@ -1021,201 +546,20 @@ jobs:
           inputs: '0'
           layer: integration
   package:
-    name: Package / ${{ matrix.work }} (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
+    name: Package
+    uses: ./.github/workflows/validate-package.yml
+    with:
+      channel: nightly
+      profile: release
     needs:
     - build_product
     - build_python
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: ${{ matrix.bootstrap }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',0,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-cli-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',1,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-generator-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',2,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-gui-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',3,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-packaging-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',4,')
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: build-plugins-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci
-      if: contains(format(',{0},', matrix.inputs), ',5,')
-    - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
-    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: package-${{ env.PROFILE }}-${{ matrix.language }}-${{ matrix.platform }}
-        path: target/ci/*.tar.zst
-        if-no-files-found: error
-        retention-days: 7
-        compression-level: 0
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.mise-path }}
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' && steps.setup.outputs.pnpm-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.pnpm-path }}
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.uv-path }}
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-    env:
-      CI_TRANSPORT: 'true'
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:ip7z/7zip,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,python,rust,uv
-      CI_OUTPUTS: ${{ matrix.outputs }}
-      CI_PROFILE: release
-      CI_PLATFORM: ${{ matrix.platform }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Python
-          command: package -- --language python
-          outputs: '[{"archive":"target/ci/package-{profile}-python-{platform}.tar.zst","paths":["target/package/{profile}/{target}/python"]}]'
-          bootstrap: '[]'
-          language: python
-          inputs: '0'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Python
-          command: package -- --language python
-          outputs: '[{"archive":"target/ci/package-{profile}-python-{platform}.tar.zst","paths":["target/package/{profile}/{target}/python"]}]'
-          bootstrap: '[]'
-          language: python
-          inputs: '0'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Rust
-          command: package -- --language rust
-          outputs: '[{"archive":"target/ci/package-{profile}-rust-{platform}.tar.zst","paths":["target/package/{profile}/{target}/rust"]}]'
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
-          language: rust
-          inputs: 1,2,3,4,5
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust
-          command: package -- --language rust
-          outputs: '[{"archive":"target/ci/package-{profile}-rust-{platform}.tar.zst","paths":["target/package/{profile}/{target}/rust"]}]'
-          bootstrap: '[]'
-          language: rust
-          inputs: 1,2,3,4,5
   release_dry:
     name: Release / Dry
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: package-${{ env.PROFILE }}-python-windows
-        path: target/ci
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: package-${{ env.PROFILE }}-python-unix
-        path: target/ci
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: package-${{ env.PROFILE }}-rust-windows
-        path: target/ci
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: package-${{ env.PROFILE }}-rust-unix
-        path: target/ci
-        github-token: ${{ github.token }}
-    - run: mise run release:publish -- --dry --profile ${{ env.PROFILE }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-        path: ${{ steps.setup.outputs.mise-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' && steps.setup.outputs.pnpm-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-        path: ${{ steps.setup.outputs.pnpm-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
-      with:
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-        path: ${{ steps.setup.outputs.uv-path }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true' && steps.setup.outputs.sccache-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.sccache-path }}
-        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
-    env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,minisign,node,pnpm,powershell,protoc,python,rust,sccache,uv
-      COMPILER_CACHE_BACKEND: disk
-      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
-      RELEASE_PROFILE: release
-      CI_TRANSPORT: 'true'
+    uses: ./.github/workflows/validate-release-dry.yml
+    with:
+      channel: nightly
+      profile: release
     needs:
     - package
     permissions:
@@ -1223,101 +567,22 @@ jobs:
       contents: read
   publish:
     name: Nightly / Publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+    uses: ./.github/workflows/publish.yml
     needs:
     - package
-    - bench
-    - coverage
+    if: github.ref == 'refs/heads/dev'
     permissions:
-      actions: read
       contents: write
+      actions: read
+      checks: read
       id-token: write
       attestations: write
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-        persist-credentials: false
-    - id: setup
-      uses: ./.github/actions/setup
-      with:
-        platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: package-${{ env.PROFILE }}-python-windows
-        path: target/ci
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: package-${{ env.PROFILE }}-python-unix
-        path: target/ci
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: package-${{ env.PROFILE }}-rust-windows
-        path: target/ci
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: package-${{ env.PROFILE }}-rust-unix
-        path: target/ci
-        github-token: ${{ github.token }}
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        pattern: results-*
-        path: target/nightly-reports
-    - run: mise run ci:nightly-publish --
-      env:
-        GH_TOKEN: ${{ github.token }}
-    - name: Attest Nightly Downloads
-      uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
-      with:
-        subject-checksums: target/release-assets/any/SHA256SUMS
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit != 'true' && steps.setup.outputs.cargo_downloads-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.cargo_downloads-path }}
-        key: ${{ steps.setup.outputs.cargo_downloads-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.mise-cache-hit != 'true' && steps.setup.outputs.mise-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.mise-path }}
-        key: ${{ steps.setup.outputs.mise-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.pnpm-cache-hit != 'true' && steps.setup.outputs.pnpm-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.pnpm-path }}
-        key: ${{ steps.setup.outputs.pnpm-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true' && steps.setup.outputs.sccache-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.sccache-path }}
-        key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
-    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.uv-cache-hit != 'true' && steps.setup.outputs.uv-path
-        != ''
-      with:
-        path: ${{ steps.setup.outputs.uv-path }}
-        key: ${{ steps.setup.outputs.uv-cache-primary-key }}
-    env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
-      COMPILER_CACHE_BACKEND: disk
-      SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 8G
-      COMPILER_CACHE_MODE: ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
-      RELEASE_PROFILE: release
-      CI_TRANSPORT: 'true'
-    if: always() && github.ref == 'refs/heads/dev' && needs.package.result == 'success'
+    secrets: inherit
+    with:
+      channel: nightly
   report:
     name: Nightly / Report
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    uses: ./.github/workflows/publish.yml
     needs:
     - freshness
     - check
@@ -1332,28 +597,27 @@ jobs:
     - package
     - release_dry
     - publish
-    permissions:
-      actions: read
-      contents: write
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        fetch-depth: 0
-    - uses: ./.github/actions/setup
-      with:
-        platform: unix
-      id: setup
-    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        pattern: results-*
-        path: target/nightly-reports
-    - id: report
-      run: mise run ci:nightly-report --
-      env:
-        GH_TOKEN: ${{ github.token }}
-        NEEDS: ${{ toJSON(needs) }}
-        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-    env:
-      CI_TRANSPORT: 'true'
-      MISE_ENABLE_TOOLS: python,uv,node,pnpm
+    - verify
     if: always() && needs.freshness.outputs.build == 'true' && needs.publish.result == 'success'
+    permissions:
+      contents: write
+      actions: read
+      checks: read
+      id-token: write
+      attestations: write
+    secrets: inherit
+    with:
+      channel: nightly
+      report: true
+      results: ${{ toJSON(needs) }}
+  verify:
+    name: Nightly / Verify
+    uses: ./.github/workflows/verify.yml
+    needs:
+    - publish
+    permissions:
+      contents: read
+      actions: read
+    secrets: inherit
+    with:
+      channel: nightly

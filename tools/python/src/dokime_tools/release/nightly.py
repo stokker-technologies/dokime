@@ -52,7 +52,7 @@ IMMUTABLE = (
 # === Public Functions === #
 
 
-def publish(directory: Path) -> None:
+def publish(directory: Path, *, release_notes: str | None = None) -> None:
     settings = policy.policy(directory, "release")
     if settings.get(TAG) is not True:
         raise policy.ToolError(f"release.{TAG} must opt in to channel publication")
@@ -69,17 +69,38 @@ def publish(directory: Path) -> None:
 
     with policy.credential_free(settings, profile=PROFILE):
         run._refuse_overrides(directory)
-        content = _notes(directory, settings, sha, source_run, previous_notes)
+        content = release_notes if release_notes is not None else _notes(directory, settings, sha, source_run, previous_notes)
         run.dry(directory, settings, profile=PROFILE, require_all=True, release_notes=content, channel=TAG)
 
     files = layout.uploads(directory, staged=True)
     notes = (directory / run.ASSETS / run.SHARED / "CHANGELOG.md").read_text(encoding="utf-8")
     summary = json.loads((directory / run.ASSETS / run.SHARED / "reports.json").read_text(encoding="utf-8"))
-    notes += "\n<!-- nightly-results -->\n" + reports.table(summary, {}, url) + "\n<!-- /nightly-results -->\n"
+    results = json.loads(os.environ.get("NEEDS", "{}"))
+    notes += "\n<!-- nightly-results -->\n" + reports.table(summary, results, url) + "\n<!-- /nightly-results -->\n"
     if github:
         _github(directory, settings, files, sha, identifier, notes)
     else:
         _gitlab(settings, files, sha, identifier, notes)
+
+
+def complete(directory: Path) -> bool:
+    """Replace This Run's Inventory And Notes With Its Completed Suite Reports."""
+    settings = policy.policy(directory, "release")
+    sha, identifier, url = _source(settings["provider"] == "github")
+    current = registry.document(settings, "releases/tags/nightly", channel=True)
+    identity = f"| CI Run | [{identifier}]({url}) |"
+    if not current or identity not in current.get("body", "").splitlines() or current.get("target_commitish") != sha:
+        print("A Newer Run Replaced Nightly; Leaving Its Assets And Notes Unchanged")
+        return False
+    # Reuse The Draft Swap So Report Assets, Index And Checksums Change Together.
+    notes = re.sub(r"\n<!-- nightly-results -->.*?<!-- /nightly-results -->\n?", "", current["body"], flags=re.DOTALL)
+    publish(directory, release_notes=notes)
+    return True
+
+
+def verify(directory: Path) -> None:
+    """Verify Nightly Downloads And Native Installation Against The Shared Manifest."""
+    run.verify(directory, policy.policy(directory, "release"), channel=TAG)
 
 
 # === Private Functions === #
@@ -317,6 +338,9 @@ def _verify_assets(settings: dict, endpoint: str, files: list[dict], failure: st
     digests = {item["name"]: "sha256:" + item["sha256"] for item in files}
     if any(asset.get("digest") not in (None, digests[asset["name"]]) for asset in assets):
         raise policy.ToolError(f"{TAG} upload digest differs")
+    inventory = {item["name"]: item for item in files}
+    for asset in assets:
+        registry.verify_download(settings, f"releases/assets/{asset['id']}", inventory[asset["name"]], channel=True)
 
 
 def _point_tag(settings: dict, current: str | None, sha: str) -> None:

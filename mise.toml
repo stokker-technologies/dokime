@@ -634,11 +634,6 @@ hide = true
 description = "Nightly Freshness"
 run = "{{vars.tools}} dokime_tools.ci.workflow nightly-freshness"
 
-[tasks."ci:nightly-publish"]
-hide = true
-description = "Nightly Publish"
-run = "{{vars.tools}} dokime_tools.ci.workflow nightly-publish"
-
 [tasks."ci:nightly-report"]
 hide = true
 description = "Nightly Report"

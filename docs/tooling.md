@@ -296,7 +296,7 @@ variables are provider transport metadata, not workstation preparation options.
 Compiler caches are scoped by OS, architecture, compiler profile and the selected
 Rust toolchain, followed by the restorable Cargo lock digest.
 
-Hidden `ci:nightly-freshness`, `ci:nightly-publish`, `ci:nightly-report`, `ci:review`,
+Hidden `ci:nightly-freshness`, `ci:nightly-report`, `ci:review`,
 `ci:release-mode`, `ci:required`, `ci:mirror`, `ci:bindings`, `ci:sign-product` and `ci:sign-windows`
 own provider operations. They accept `--help` and stay out of `mise tasks`.
 `prepare` only prepares dependencies. Release preparation includes its review;
@@ -321,7 +321,31 @@ Dev pushes keep the existing check/build-only scope. The final required gate
 rejects failed, cancelled or unexpectedly skipped jobs; only event-excluded work
 may be skipped.
 
-Nightly runs every four hours or on manual dispatch, serializes runs without cancelling an active run, and skips the whole run after Plan / Freshness (every downstream job) for scheduled heads already published or heads with another in-progress or queued Nightly run.
+Nightly runs every four hours in UTC or on manual dispatch on `dev`, and serializes
+runs without cancellation. Plan / Freshness skips scheduled heads already at the
+`nightly` tag, or heads with an earlier in-progress or queued Nightly run. Manual
+runs always rebuild unless an earlier duplicate owns the revision. Tag lookup
+errors other than a missing tag fail closed; run lookup errors also fail the plan.
+
+CI and Nightly call `validate-*.yml` with `channel` and `profile`; test callers
+also supply their matrix row and a unique suite identifier. The callable workflows
+own the job bodies; callers own stage dependencies and event routing. Release
+and Nightly call `publish.yml` and `verify.yml` with `channel=stable|nightly` and
+the package profile. Stable callers additionally pass `build-run`, `build-sha`
+and `build-version` from the validated review. Windows signed packages come from
+the current release run; other stable packages come from the review run. Signing
+and registry/tag authority remain in Release's protected flow.
+
+The shared artifact interface is `build-<kind>-<profile>-<platform>`,
+`package-<profile>-<language>-<platform>` (each containing its matching
+`target/ci/<name>.tar.zst`), `release-manifest` (`upload.json`), and `results-*`
+for suite evidence. Tests and publication select named `CI_INPUT_ARCHIVES`;
+missing inputs fail before extraction. Publication uses
+`mise run release:publish -- --channel stable|nightly`; verification uses
+`mise run release:verify -- --channel stable|nightly`. Nightly verifies remote
+download sizes and SHA-256 before and after the draft swap, then runs the shared
+Linux/Windows verification from the manifest. Its tool installation proof uses
+mise's mutable `nightly` version; Cargo's semantic-version installer is stable-only.
 
 Release staging reads `NOTICE` and `THIRD-PARTY-NOTICES` from each target's
 `target/package/<profile>/<target>/rust/dokime-distribution-<version>-<triple>.zip`.
@@ -368,11 +392,37 @@ Nightly downloads `results-*` artifacts into separate folders under
 `target/nightly-reports/`. Benchmark tasks preserve normalized measurements and
 pre-refresh baselines in `target/benchmarks/benchmarks-<language>-<layer>.json`.
 The integration layer includes every matching binary, including
-`integration-plots`. Publication waits for benchmark and coverage jobs to settle,
-but requires success only from package jobs. Staging bundles available raw reports
-and summaries, and publishes fixed-name `benchmarks.json`; missing reports remain
-visible through suite failures. The final report replaces its marked notes section
-idempotently and refuses to update notes belonging to another run.
+`integration-plots`. Publication waits only for packages; checks, tests, benchmarks
+and coverage run alongside it and may fail. The initial release includes available
+reports. Once every suite and verification has settled, Nightly / Report calls the
+same publisher with `report=true` and the suite results. It stages the same package
+bytes with the completed raw reports and summaries, fixed-name `benchmarks.json`,
+the updated index and checksums, then replaces the release through the same verified
+draft swap. This requires a second asset upload but keeps publication independent
+of suite outcomes and updates the complete inventory together. The marked notes
+section records each suite result and the pipeline URL. Repeating the report
+replaces that section; exact run URL, identifier and commit checks leave a newer
+publication untouched.
+
+### Harmos Alignment
+
+Both products retain the four-hour UTC schedule, manual runs on `dev`,
+noncancelling concurrency, Plan / Freshness, Build / Product, Build / Tests,
+Build / Bench, Check, Test, Bench, Package, Release / Dry and Nightly /
+Publish, Verify and Report stages. Product languages, runner matrices and
+download inventories remain product-owned.
+
+Harmos's `release-assets-layout` follow-up must extract its shared validation,
+publish and verify bodies with the same channel/profile and review metadata
+inputs; route Nightly through `release:publish -- --channel nightly`; and add
+the manifest-based native Verify stage. Its draft and public inventory checks
+must download and hash every remote asset, rather than relying on optional API
+digest metadata. It already has named `CI_INPUT_ARCHIVES` and `release-manifest`;
+its report follow-up must consume `results-*`, preserve the original notes and
+replace reports, index and checksums through the shared draft publisher. Duplicate
+revision detection must ignore newer queued runs so the oldest run can proceed.
+Dokime adopted Harmos's explicit `dev` freshness guard and exact run-identity
+report guard. No Harmos source changes are part of this delivery.
 
 For focused consumer lint use
 `mise run check -- --language rust --package dokime-packaging` (or `dokime-gui`).

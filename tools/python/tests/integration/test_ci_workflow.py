@@ -17,13 +17,13 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # Third Party Imports
 # Local Imports
 from dokime_tools import policy
-from dokime_tools.ci import native, transport, workflow
-from dokime_tools.release import registry
+from dokime_tools.ci import native, tasks, transport, workflow
+from dokime_tools.release import nightly, registry
 
 # Type Checking Imports
 
@@ -51,36 +51,97 @@ class WorkflowTests(unittest.TestCase):
                     self.assertEqual(workflow.main(["release-mode"]), 0)
                     self.assertEqual(output.read_text(encoding="utf-8"), f"mode={mode}\nsha={sha}\n")
 
-    def test_nightly_report_replaces_only_its_publication_results(self):
+    def test_nightly_report_requires_exact_publication_identity(self):
+        sha = "a" * 40
+        url = "https://example.test/run"
+        identity = f"| CI Run | [7]({url}) |"
+        notes = identity + "\n"
+        release = {"body": notes + "\n<!-- nightly-results -->\n{}\n<!-- /nightly-results -->\n", "target_commitish": sha}
+        with (
+            patch.object(nightly.policy, "policy", return_value={"provider": "github"}),
+            patch.object(nightly, "_source", return_value=(sha, "7", url)),
+            patch.object(nightly.registry, "document", return_value=release),
+            patch.object(nightly, "publish") as publish,
+        ):
+            self.assertTrue(nightly.complete(Path.cwd()))
+            self.assertTrue(nightly.complete(Path.cwd()))
+            self.assertEqual(publish.call_count, 2)
+            self.assertEqual(publish.call_args.kwargs["release_notes"], notes)
+            for body, revision in ((identity.replace("[7]", "[70]"), sha), (identity, "b" * 40)):
+                release.update(body=body, target_commitish=revision)
+                self.assertFalse(nightly.complete(Path.cwd()))
+            self.assertEqual(publish.call_count, 2)
+
+    def test_nightly_channel_uses_shared_publish_and_verify_entries(self):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(nightly, "publish") as publish,
+            patch.object(nightly, "verify") as verify,
+            patch.object(workflow, "publication_guard") as guard,
+        ):
+            self.assertEqual(tasks.main(["publish", "--channel", "nightly"]), 0)
+            self.assertEqual(workflow.main(["release-verify", "--channel", "nightly"]), 0)
+            publish.assert_called_once_with(Path.cwd())
+            verify.assert_called_once_with(Path.cwd())
+            guard.assert_not_called()
+
+    def test_nightly_freshness_compares_tags_and_only_earlier_duplicates(self):
+        sha = "a" * 40
+        cases = (
+            ("schedule", sha, 0, "", [], False),
+            ("schedule", "b" * 40, 0, "", [], True),
+            ("schedule", None, 1, "HTTP/2 404", [], True),
+            ("schedule", None, 1, "HTTP/2 403", [], None),
+            ("schedule", None, 1, "HTTP/2 503", [], None),
+            ("workflow_dispatch", sha, 0, "", [], True),
+            ("workflow_dispatch", sha, 0, "", [{"id": 6}], False),
+            ("workflow_dispatch", sha, 0, "", [{"id": 7}, {"id": 8}], True),
+        )
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            release = {"body": "| CI Run | [7](https://example.test/run) |\n"}
-            environment = {
-                "GITHUB_RUN_ID": "7",
-                "GITHUB_REPOSITORY": "example/dokime",
-                "RUN_URL": "https://example.test/run",
-                "NEEDS": json.dumps({"bench": {"result": "failure"}}),
-            }
+            output = Path(temporary) / "output"
+            for event, published, code, message, runs, expected in cases:
+                environment = {
+                    "GITHUB_REF": "refs/heads/dev",
+                    "GITHUB_EVENT_NAME": event,
+                    "GITHUB_SHA": sha,
+                    "GITHUB_RUN_ID": "7",
+                    "GITHUB_REPOSITORY": "example/dokime",
+                    "GITHUB_OUTPUT": str(output),
+                }
+                with (
+                    self.subTest(event=event, code=code, runs=runs),
+                    patch.dict(os.environ, environment, clear=True),
+                    patch.object(workflow.subprocess, "run", return_value=Mock(returncode=code, stdout=message, stderr="")),
+                    patch("dokime_tools.ci.review.request", return_value={"object": {"sha": published}}) as request,
+                    patch("dokime_tools.ci.review.pages", return_value=runs),
+                ):
+                    output.write_text("", encoding="utf-8")
+                    if expected is None:
+                        with self.assertRaises(RuntimeError):
+                            workflow.main(["nightly-freshness"])
+                        self.assertEqual(output.read_text(), "")
+                        continue
+                    self.assertEqual(workflow.main(["nightly-freshness"]), 0)
+                    self.assertEqual(output.read_text(), f"build={str(expected).lower()}\n")
+                    if event == "workflow_dispatch":
+                        request.assert_not_called()
+            with patch.dict(os.environ, {"GITHUB_REF": "refs/heads/topic"}, clear=True), self.assertRaises(ValueError):
+                workflow.main(["nightly-freshness"])
 
-            def edit(command, **_):
-                release["body"] = Path(command[-1]).read_text(encoding="utf-8")
-
-            with (
-                patch.dict(os.environ, environment, clear=True),
-                patch.object(workflow.policy, "root", return_value=root),
-                patch.object(workflow.transport, "receive"),
-                patch.object(workflow.transport, "send"),
-                patch("dokime_tools.ci.review.request", return_value=release),
-                patch.object(workflow.subprocess, "run", side_effect=edit) as publish,
-            ):
-                workflow.main(["nightly-report"])
-                workflow.main(["nightly-report"])
-                self.assertEqual(release["body"].count("<!-- nightly-results -->"), 1)
-                self.assertEqual(publish.call_count, 2)
-                release["body"] = "| CI Run | [8](https://example.test/later) |\n"
-                with self.assertRaises(ValueError):
-                    workflow.main(["nightly-report"])
-                self.assertEqual(publish.call_count, 2)
+    def test_named_transport_rejects_missing_inputs_before_extracting(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            archive = Path(temporary) / "package-release-unix.tar.zst"
+            archive.touch()
+            missing = Path(temporary) / "missing.tar.zst"
+            selection = [str(archive).replace("release", "{profile}").replace("unix", "{platform}"), str(missing)]
+            environment = {"CI_INPUT_ARCHIVES": json.dumps(selection), "PROFILE": "release", "CI_PLATFORM": "unix"}
+            with patch.dict(os.environ, environment, clear=True), patch.object(transport.artifacts, "extract") as extract:
+                with self.assertRaises(FileNotFoundError):
+                    transport.receive()
+                extract.assert_not_called()
+                missing.touch()
+                transport.receive()
+                self.assertEqual([call.args[1] for call in extract.call_args_list], [archive, missing])
 
     def test_required_rejects_failed_cancelled_and_unexpected_skips(self):
         for result in ("failure", "cancelled", "skipped"):

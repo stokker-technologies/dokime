@@ -236,6 +236,8 @@ def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
         provider = settings["provider"]
         repository = settings.get("repository") if provider == "github" else settings["project_id"]
         for installer in item["installers"]:
+            if settings["tag"] == "nightly" and installer != "mise":
+                continue
             with temporary.directory() as install:
                 if installer == "mise":
                     tool = f"{provider}:{repository}[asset_pattern={item['output']},bin={item['binary']}]@{version}"

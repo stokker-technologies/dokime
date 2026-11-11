@@ -37,9 +37,18 @@ from . import artifacts
 
 def receive() -> None:
     """Extract Only Explicitly Downloaded Transport Archives."""
-    if os.environ.get("CI_TRANSPORT") != "true":
+    selected = os.environ.get("CI_INPUT_ARCHIVES")
+    if os.environ.get("CI_TRANSPORT") != "true" and selected is None:
         return
-    for archive in sorted(Path("target/ci").glob("*.tar.zst")):
+    archives = sorted(Path("target/ci").glob("*.tar.zst"))
+    if selected is not None:
+        profile = os.environ.get("PROFILE", "dev")
+        platform = os.environ.get("CI_PLATFORM", "windows" if os.name == "nt" else "unix")
+        archives = [Path(path.replace("{profile}", profile).replace("{platform}", platform)) for path in json.loads(selected)]
+        for archive in archives:
+            if not archive.is_file():
+                raise FileNotFoundError(f"missing CI input archive: {archive}")
+    for archive in archives:
         artifacts.extract(Path.cwd(), archive)
 
 

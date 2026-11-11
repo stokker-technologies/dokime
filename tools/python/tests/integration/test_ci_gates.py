@@ -298,6 +298,65 @@ class PinTests(unittest.TestCase):
 
 
 class ChannelTests(unittest.TestCase):
+    def test_nightly_installation_uses_mise_mutable_version(self):
+        definition = {
+            "installers": ["mise", "cargo-binstall"],
+            "output": "dokime.zip",
+            "binary": "dokime.exe",
+            "verify": ["--version"],
+        }
+
+        def install(command, **kwargs):
+            destination = Path(command[-1])
+            destination.mkdir(parents=True, exist_ok=True)
+            (destination / "dokime.exe").write_bytes(b"executable")
+
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.object(run.packages, "definitions", return_value=[definition]),
+            patch.object(run.packages, "binary_bytes", return_value=b"executable"),
+            patch.object(
+                run.packages.subprocess, "run", side_effect=lambda command, **kwargs: install(command) if command[0] == "mise" else None
+            ) as execute,
+        ):
+            settings = {"provider": "github", "repository": "example/dokime", "tag": "nightly"}
+            run.packages.installed(Path(temporary), settings, Path(temporary), "windows-x86_64")
+            commands = [call.args[0] for call in execute.call_args_list]
+            self.assertEqual(len(commands), 2)
+            self.assertEqual(commands[0][0:2], ["mise", "install-into"])
+            self.assertTrue(commands[0][2].endswith("@nightly"))
+            self.assertEqual(commands[1][1:], ["--version"])
+
+    def test_shared_verifier_preserves_channel_and_signing_policy(self):
+        for channel in ("stable", "nightly"):
+            tag = "v0.1.5" if channel == "stable" else "nightly"
+            remote = {"id": 1, "draft": False, "prerelease": channel == "nightly", "target_commitish": NEW}
+            with (
+                self.subTest(channel=channel),
+                tempfile.TemporaryDirectory() as temporary,
+                patch.object(run, "release_tag", return_value="v0.1.5"),
+                patch.object(run, "_revision", return_value=NEW),
+                patch.object(registry, "remote_tag", return_value=NEW),
+                patch.object(registry, "document", return_value=remote),
+                patch.object(registry, "pages", return_value=[{"name": "SHA256SUMS", "id": 2}]),
+                patch.object(registry, "verify_download", return_value=b"checksums") as download,
+                patch.object(registry, "verify_signatures") as signatures,
+                patch.object(run.layout, "uploads", return_value=[{"name": "SHA256SUMS"}]),
+                patch.object(run, "_checksums"),
+                patch.object(run, "native_target", return_value="windows-x86_64"),
+                patch.object(run.packages, "installed") as installed,
+            ):
+                root = Path(temporary)
+                run.verify(root, {"provider": "github"}, channel=channel)
+                self.assertEqual(download.call_args.kwargs["channel"], channel == "nightly")
+                self.assertEqual(signatures.call_count, int(channel == "stable"))
+                self.assertEqual(installed.call_args.args[1]["tag"], tag)
+                state = json.loads((root / "target/state/release-publication.json").read_text())
+                self.assertEqual(state, {"sha": NEW, "tag": tag, "verified": True})
+                remote["prerelease"] = not remote["prerelease"]
+                with self.assertRaises(policy.ToolError):
+                    run.verify(root, {"provider": "github"}, channel=channel)
+
     def test_nightly_source(self):
         base = {"GITHUB_REPOSITORY": "owner/repo", "GITHUB_RUN_ID": "42", "GITHUB_SHA": "a" * 40, "GITHUB_SERVER_URL": "https://github.com"}
         expected = ("a" * 40, "42", "https://github.com/owner/repo/actions/runs/42")
@@ -329,7 +388,7 @@ class ChannelTests(unittest.TestCase):
                 self.assertEqual(set(github.releases), {3, published["id"]})
 
     def test_failure_before_swap_keeps_previous(self):
-        for fault in ("create", "upload:linux.zip", "upload:SHA256SUMS", "size", "pending", "digest"):
+        for fault in ("create", "upload:linux.zip", "upload:SHA256SUMS", "size", "pending", "digest", "download"):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary:
                 directory, files = _staged_files(Path(temporary))
                 github = FakeGitHub(previous=True, faults={fault})
@@ -594,6 +653,10 @@ class FakeGitHub:
         return assets
 
     def request(self, settings, endpoint, method="GET", data=None, **kwargs):
+        if endpoint.startswith("releases/assets/") and method == "GET":
+            identity = int(endpoint.rsplit("/", 1)[1])
+            asset = next(asset for assets in self.assets.values() for asset in assets if asset["id"] == identity)
+            return b"corrupt" if "download" in self.faults else asset["data"]
         if endpoint == f"git/refs/tags/{nightly.TAG}" and method == "DELETE":
             self.tag = None
             return
@@ -618,6 +681,7 @@ class FakeGitHub:
                 "size": len(data),
                 "state": "uploaded",
                 "digest": "sha256:" + hashlib.sha256(data).hexdigest(),
+                "data": data,
             }
         )
         self.next_id += 1
