@@ -159,6 +159,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                 aria-label={suite.name}
                 columns={columns}
                 data={members.map((template) => ({ suite, template }))}
+                emptyText="No Templates Match"
                 getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
                 onRowClick={setOpenTemplate}
               />
