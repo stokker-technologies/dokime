@@ -1,21 +1,20 @@
-/* Charcoal and Gilt on warm paper. */
-
 :root {
   color-scheme: light;
-  --background: #f2ebdd;
-  --foreground: #302d25;
-  --card: #fbf8f0;
-  --card-foreground: #302d25;
-  --popover: #fbf8f0;
-  --popover-foreground: #302d25;
-  --primary: #7a5a28;
-  --primary-foreground: #fff9ec;
-  --secondary: #e7dfd0;
-  --secondary-foreground: #383228;
-  --muted: #ece6da;
-  --muted-foreground: #6b6459;
-  --accent: #e3d6ba;
-  --accent-foreground: #3b3121;
+  --background: #efecdf;
+  --foreground: #161616;
+  --card: #efecdf;
+  --card-foreground: #161616;
+  --popover: #efecdf;
+  --popover-foreground: #161616;
+  --link: #8f4128;
+  --primary: #161616;
+  --primary-foreground: #efecdf;
+  --secondary: #d9d4be;
+  --secondary-foreground: #161616;
+  --muted: #d9d4be;
+  --muted-foreground: color-mix(in srgb, #161616 70%, #efecdf);
+  --accent: #d9d4be;
+  --accent-foreground: #161616;
   --destructive: #a6463f;
   --success: #5f6842;
   --success-foreground: #ffffff;
@@ -23,8 +22,8 @@
   --warning-foreground: #ffffff;
   --info: #6b6557;
   --info-foreground: #ffffff;
-  --border: #d1c7b5;
-  --input: #c3b8a6;
+  --border: color-mix(in srgb, #161616 21%, transparent);
+  --input: color-mix(in srgb, #161616 30%, transparent);
   --ring: #8b6a32;
   --chart-1: #b54a46;
   --chart-2: #de9046;
