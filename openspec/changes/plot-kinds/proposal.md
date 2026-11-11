@@ -7,9 +7,9 @@ components. Some names describe options, six kinds are rejected, and two
 heatmap names draw the same interpolated numeric surface. Authors need names
 that describe the input and the drawing, with parity in saved reports.
 
-This is a specification proposal, not landed behavior. The owner locked the
-names and behavior below; the remaining consolidation and builder spellings
-are proposed and await confirmation. Implementation must wait for that agreement.
+This change records the owner-approved target contract, not landed behavior.
+The kind catalog, options, builders, reductions and playback semantics below
+are locked for implementation.
 
 ## Locked by the Owner
 
@@ -29,39 +29,43 @@ are proposed and await confirmation. Implementation must wait for that agreement
 - Selection belongs to one plot. Cursor linking and shared time selection
   between plots are explicitly out of scope.
 
-## Proposed Kind Table — Awaiting Owner Confirmation
+## Kind Table
 
-Names below omit the protobuf `PLOT_KIND_` prefix. Proposed catalog: ten kinds.
+Names below omit the protobuf `PLOT_KIND_` prefix. The catalog has ten kinds.
 The table records actual behavior, including absent renderers, rather than
-assuming every enum value works. Inline examples are proposed Python builder
+assuming every enum value works. Inline examples are Python builder
 expressions; stream field handles are expressions, never parsed strings.
 
 | Old Kind | New Kind or Card | Input, Drawing and What the Author Writes Instead |
 | --- | --- | --- |
 | `TIME_SERIES` | `TIME_SERIES` | Timestamp plus numeric/Boolean values; retain line/points/step styling. `dokime.plot.time_series(value)` |
 | `BAR` | `BAR` | Category/value pairs; currently latest value per category, horizontal bars. `dokime.plot.bar(value).x(category)` |
-| `GROUPED_BAR` | `BAR` | Currently rejected; same category/value shape plus series. Arrangement option: `dokime.plot.bar(value).x(category).series_by(group).arrangement("grouped")` |
-| `STACKED_BAR` | `BAR` | Currently rejected; same inputs as grouped bars. `dokime.plot.bar(value).x(category).series_by(group).arrangement("stacked")` |
+| `GROUPED_BAR` | `BAR` | Currently rejected; same category/value shape plus series. Arrangement option: `dokime.plot.bar(value).x(category).series_by(group).arrangement(dokime.plot.BarArrangement.GROUPED)` |
+| `STACKED_BAR` | `BAR` | Currently rejected; same inputs as grouped bars. `dokime.plot.bar(value).x(category).series_by(group).arrangement(dokime.plot.BarArrangement.STACKED)` |
 | `PIE` | `PIE` | Currently rejected; categorical nonnegative magnitudes, part-to-whole sectors. `dokime.plot.pie(value).x(category)` |
 | `DONUT` | `PIE` | Currently rejected; same inputs, a hole option. `dokime.plot.pie(value).x(category).hole(0.5)` |
 | `PARETO` | `BAR` | Currently rejected; same category/value pairs, descending bars and cumulative percentage line. `dokime.plot.bar(value).x(category).pareto(True)` |
 | `XY` | `XY` | Paired numeric coordinates; retain line, points, line-points and step. `dokime.plot.xy(value).x(position)` |
-| `XY_INTERVAL` | `XY` | Currently backend x-bin mean/sigma bounds drawn as intervals, not authored low/high fields. Keep that reduction as an option on the same numeric pairs: `dokime.plot.xy(value).x(position).interval("sigma")` |
+| `XY_INTERVAL` | `XY` | Currently backend x-bin mean/sigma bounds drawn as intervals, not authored low/high fields. Keep that reduction as an option on the same numeric pairs: `dokime.plot.xy(value).x(position).interval(dokime.plot.XyInterval.SIGMA)` |
 | `TRAJECTORY` | `TRAJECTORY` | Ordered numeric x/y samples drawn as a line with points; retain timestamps for the new instant playback. `dokime.plot.trajectory(value).x(position)` |
-| `HEATMAP` | `CONTOUR` | Current renderer consumes numeric x/y/z and interpolates; replace with backend bins and gaps. `dokime.plot.contour(value).x(position).y(height).render("cells")` |
-| `XY_VALUE_HEATMAP` | `CONTOUR` | Same renderer and numeric triples; no second kind. `dokime.plot.contour(value).x(position).y(height).render("bands")` |
-| `WIFI_CHANNEL_OCCUPANCY` | `GRID_CHART` | Currently scan frames with per-channel counts and domain-specific groups/highlights; use document-defined row/column/value/frame bindings. `dokime.plot.grid_chart(value).row(row).column(column).frame(instant)` |
+| `HEATMAP` | `CONTOUR` | Current renderer consumes numeric x/y/z and interpolates; replace with backend bins and gaps. `dokime.plot.contour(value).x(position).y(height).render(dokime.plot.ContourRender.CELLS)` |
+| `XY_VALUE_HEATMAP` | `CONTOUR` | Same renderer and numeric triples; no second kind. `dokime.plot.contour(value).x(position).y(height).render(dokime.plot.ContourRender.BANDS)` |
+| `WIFI_CHANNEL_OCCUPANCY` | `GRID_CHART` | Currently scan frames with per-channel counts and domain-specific groups/highlights; use document-defined row/column/value/frame bindings. `dokime.plot.grid_chart(value).row(row).column(column).frame(instant).reduce(dokime.plot.Reduction.MAX)` |
 | `FREQUENCY_SERIES` | `FREQUENCY_SERIES` | Numeric sampled signal plus sample rate; backend FFT, frequency/amplitude drawing. `dokime.plot.frequency_series(value).sample_rate_hz(1000)` |
 | `HISTOGRAM` | `HISTOGRAM` | Numeric samples reduced into value bins/counts, with statistics. `dokime.plot.histogram(value)` |
 | `BOX_SUMMARY` | `BOX_PLOT` | Numeric sample distributions per group reduced to quartiles, whiskers and outliers. `dokime.plot.box_plot(value).series_by(group)` |
 | `AGGREGATE_TABLE` | Summary Card, No Plot Kind | Currently rejected; reuse aggregate expressions and summary tiles rather than invent a table renderer. `dokime.Summary().tile("Mean", value.mean())` |
 
 Grouped and stacked arrangements and the Pareto option require real rendering,
-not aliases to the current bars. Proposed Pareto accepts one nonnegative value
+not aliases to the current bars. Pareto accepts one finite nonnegative value
 per category, sorts descending, and shows cumulative percentage on a secondary
-axis; it is mutually exclusive with grouped/stacked arrangement. Proposed pie
-rejects negative values and shows an empty state for a zero total. Summary
-tiles replace an unsupported promise, not an existing working table. The
+axis; it is mutually exclusive with grouped/stacked arrangement and series
+bindings. Equal values retain declared category order; a zero total shows bars
+without a cumulative line. Pie accepts one finite nonnegative magnitude per
+category, rejects negative or nonfinite values, and shows an empty state for a
+zero total. Its hole fraction defaults to zero and must be finite in [0, 1).
+Duplicate category totals are refused for Pareto and pie; authors aggregate
+samples explicitly before supplying totals. Summary tiles replace an unsupported promise, not an existing working table. The
 ordinary typed Table card stays for tabular data.
 
 Keep histogram and box plot distinct from bar: their input is a distribution
@@ -79,14 +83,13 @@ the backend returns bin extents, dimensions, z values and validity. Empty
 is distinct from zero. The interface never constructs a scattered-point surface.
 The saved report uses its capture resolution and the same validity mask.
 
-Proposed detail awaiting confirmation: reduce multiple samples in a bin by
-mean z by default, with an explicit reduction option for max/min. Bin geometry
-follows the declared axis scales. Invalid numeric coordinates/values contribute
+Reduce multiple samples in a bin by mean z by default, with explicit max/min
+reduction options. Bin geometry follows the declared axis scales. Invalid numeric coordinates/values contribute
 no sample. Both rendering modes mask missing cells; contour paths and fills
 must not bridge holes. Disable d3 contour smoothing for the binned field and
 clip bands and isolines to valid cells; never fill absent bins to feed d3.
 
-These flat builders are proposed conveniences over `dokime.v1.Plot`: the
+These flat builders are thin conveniences over `dokime.v1.Plot`: the
 constructor takes z and sets the kind; `.x` and `.y` set coordinate expressions.
 Presentation and reduction options become typed protobuf fields, not another DSL.
 `scan` below is an already-declared stream; no nested axis or surface builders.
@@ -97,7 +100,8 @@ y = scan.field("position_y")
 z = scan.field("temperature").scale(1.0)
 surface = (dokime.plot.contour(z).x(x).y(y)
            .label("Temperature Map").unit("°C")
-           .reduce("mean").render("bands"))
+           .reduce(dokime.plot.Reduction.MEAN)
+           .render(dokime.plot.ContourRender.BANDS))
 document = dokime.Document("Scan").section(dokime.Section("Map").plot(surface))
 ```
 
@@ -107,14 +111,22 @@ let y = scan.field("position_y");
 let z = scan.field("temperature").scale(1.0);
 let surface = Plot::contour(z).x(x).y(y)
     .label("Temperature Map").unit("°C")
-    .reduce("mean").render("bands");
+    .reduce(Reduction::Mean).render(ContourRender::Bands);
 let document = Document::new("Scan").section(Section::new("Map").plot(surface));
 ```
 
-Use `.render("cells")` for colored bins; `.render("bands")` draws filled
-bands with isolines. These strings stand for typed options in each generated
-language binding; exact builder spelling remains proposed. Expression chaining
-assembles `DataExpression` messages as required by `grpc-plugins`.
+Use the typed `ContourRender` option `CELLS` for colored bins and `BANDS` for
+filled bands with isolines. Builders accept enum values, not strings:
+Python uses `dokime.plot.Reduction.MEAN` and `dokime.plot.ContourRender.BANDS`;
+Rust uses `Reduction::Mean` and `ContourRender::Bands`. `Reduction` contains
+mean, min and max; `BarArrangement` contains grouped and stacked;
+`XyInterval` contains sigma, with absent interval meaning ordinary XY.
+Python enum members use uppercase snake case and Rust variants use PascalCase.
+The constructor and method names in these examples are the contract in both
+languages, with idiomatic enum casing. Ordinary BAR has no arrangement option
+set; grouped/stacked require a series binding. `.pareto(True)` in Python and
+`.pareto(true)` in Rust enable Pareto; `.hole(fraction)` sets the pie hole.
+Expression chaining assembles `DataExpression` messages as required by `grpc-plugins`.
 
 ## Grid Chart Definition and Builders
 
@@ -126,17 +138,26 @@ cell reduction within each frame. Missing cells stay distinct from zero.
 For occupancy the host plugin declares bands, channel encoding/lists, active
 channel, scan frames and count wording; none is inferred by the product.
 
-Proposed message shape uses explicit row/column/frame bindings and typed axis
+The message shape uses explicit row/column/frame bindings and typed axis
 entries, rather than overloading numeric contour axes. The example's `rows`
 and `columns` are sequences of declared key/label/order/group entries; `active`
 is an expression identifying a highlighted cell. All are protobuf data, with
-no plugin UI callbacks. Proposed reducer is explicit (max in this example).
+no plugin UI callbacks. The reducer is required and explicit (max in this example),
+with no implicit default. Row, column, value and frame are `DataExpression`
+bindings; row and column keys match the declared entries, value is numeric,
+and frame is a timestamp. Each entry carries key, label, order and optional
+group; highlights bind row/column identities. Unknown keys and an absent
+reducer are validation errors. The backend groups by frame, row and column
+and applies the declared mean, min or max to duplicate cells. Invalid numeric
+values contribute no sample; an empty cell remains absent. These bindings,
+entries, reducer and highlights are typed fields on the grid definition,
+separate from numeric contour coordinates.
 
 ```python
 grid = (dokime.plot.grid_chart(readings.field("value"))
         .row(readings.field("row_key")).column(readings.field("column_key"))
         .frame(readings.field("timestamp")).rows(rows).columns(columns)
-        .reduce("max").highlight(active).label("Sensor Grid"))
+        .reduce(dokime.plot.Reduction.MAX).highlight(active).label("Sensor Grid"))
 document = dokime.Document("Survey").section(dokime.Section("Cells").plot(grid))
 ```
 
@@ -144,7 +165,7 @@ document = dokime.Document("Survey").section(dokime.Section("Cells").plot(grid))
 let grid = Plot::grid_chart(readings.field("value"))
     .row(readings.field("row_key")).column(readings.field("column_key"))
     .frame(readings.field("timestamp")).rows(rows).columns(columns)
-    .reduce("max").highlight(active).label("Sensor Grid");
+    .reduce(Reduction::Max).highlight(active).label("Sensor Grid");
 let document = Document::new("Survey").section(Section::new("Cells").plot(grid));
 ```
 
@@ -157,10 +178,10 @@ payload, in timestamp order. Seeking, Play, Pause and Replay cause no query,
 watch restart, window change or report fetch. Normal live delivery may continue
 independently; follow-latest applies to those incoming frames.
 
-Proposed interaction details awaiting confirmation: initial selection follows
-latest; seeking an earlier instant or starting playback suspends follow-latest;
-Latest or committing the last instant restores it. Play advances from the
-selection, Pause holds it, Replay starts at the first available instant, and
+Initial selection follows latest; seeking an earlier instant or starting playback suspends follow-latest;
+Latest or committing the last instant restores it. Playback reaching the end
+stops without restoring follow-latest; only that explicit user selection does.
+Play advances from the selection, Pause holds it, Replay starts at the first available instant, and
 playback stops at the loaded end. Empty/single-instant data disables animation.
 Trajectory shows the ordered path through the selected instant and marks the
 current position; grid shows only the selected frame. No synthetic frames or
@@ -218,11 +239,3 @@ and generated examples/starters; host and bench plugin document definitions;
 screenshots task scenes and fixtures; product guide, plot authoring guidance
 and any affected README claims. Every advertised kind/option must actually draw
 in both live and report views. This specification edits no implementation files.
-
-## Open Decisions
-
-Owner confirmation is required for the proposed ten-kind table (including
-implementing previously rejected bar/pie variants and replacing aggregate table
-with Summary), exact builder/typed-option shapes, contour reducer/axis details,
-and playback endpoint/path semantics above. The locked five decisions do not
-depend on accepting these proposed details unchanged.

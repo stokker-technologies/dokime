@@ -2,7 +2,7 @@
 
 ## 1. Protocol Kind Rename
 
-- [ ] 1.1 Obtain owner confirmation of the proposed kind table, replacement Summary card, typed options, contour reduction and playback details; lock the complete source inventory in proposal.md before implementation.
+- [x] 1.1 Record owner approval of the ten-kind table, replacement Summary card, typed options/builders, contour reduction, explicit grid reducer and playback details; lock the complete source inventory in proposal.md before implementation.
 - [ ] 1.2 Update `dokime.v1.PlotKind` and `Plot` bindings/options in `proto/dokime/v1/documents.proto` first; reserve retired names/numbers, regenerate contracts and reject retired names with replacement guidance. Preserve the v1 development baseline and existing storage.
 
 ## 2. Backend Binning and Frames
