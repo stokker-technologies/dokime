@@ -176,7 +176,14 @@ message GridChart {
   string summary_label = 7;
 }
 message ReferenceLine { DataExpression value = 1; string label = 2; string color = 3; }
-message ReferenceBand { DataExpression min = 1; DataExpression max = 2; string label = 3; string color = 4; }
+message ReferenceBand {
+  DataExpression min = 1;
+  DataExpression max = 2;
+  string label = 3;
+  string color = 4;
+  DataExpression center = 5;
+  DataExpression tolerance = 6;
+}
 enum PlotKind {
   reserved 3, 4, 6, 7, 9, 11, 12, 13, 16, 17;
   reserved "PLOT_KIND_GROUPED_BAR", "PLOT_KIND_STACKED_BAR", "PLOT_KIND_DONUT",

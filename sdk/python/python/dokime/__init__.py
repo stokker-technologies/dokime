@@ -41,15 +41,6 @@ from .authoring import (
     PromptAnswer as PromptAnswer,
 )
 from .authoring import (
-    ReferenceBand as ReferenceBand,
-)
-from .authoring import (
-    ReferenceLine as ReferenceLine,
-)
-from .authoring import (
-    ReferenceValue as ReferenceValue,
-)
-from .authoring import (
     RegistrationError as RegistrationError,
 )
 from .authoring import (

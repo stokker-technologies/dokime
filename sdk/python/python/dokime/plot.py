@@ -295,6 +295,18 @@ class Plot:
         self.message.grid.summary_label = label
         return self
 
+    def reference_line(self, line: Any) -> Self:
+        if getattr(getattr(line, "DESCRIPTOR", None), "full_name", None) != "dokime.v1.ReferenceLine":
+            raise TypeError("expected a dokime.v1.ReferenceLine message")
+        self.message.reference_lines.add().CopyFrom(line)
+        return self
+
+    def reference_band(self, band: Any) -> Self:
+        if getattr(getattr(band, "DESCRIPTOR", None), "full_name", None) != "dokime.v1.ReferenceBand":
+            raise TypeError("expected a dokime.v1.ReferenceBand message")
+        self.message.reference_bands.add().CopyFrom(band)
+        return self
+
 
 # === Public Functions === #
 

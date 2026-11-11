@@ -318,8 +318,8 @@ fn plot(source: wire::Plot) -> std::result::Result<PlotDefinition, String> {
             Ok(ReferenceBand {
                 min: source.min.map(reference).transpose()?,
                 max: source.max.map(reference).transpose()?,
-                center: None,
-                tolerance: None,
+                center: source.center.map(reference).transpose()?,
+                tolerance: source.tolerance.map(reference).transpose()?,
                 label: Some(source.label),
                 color: source.color,
             })
@@ -486,7 +486,18 @@ mod tests {
             .label("Temperature Map")
             .unit("°C")
             .reduce(wire::Reduction::Mean)
-            .render(wire::ContourRender::Bands);
+            .render(wire::ContourRender::Bands)
+            .reference_band(wire::ReferenceBand {
+                center: Some(wire::DataExpression {
+                    kind: Some(wire::data_expression::Kind::Parameter("target_y".into())),
+                    ..Default::default()
+                }),
+                tolerance: Some(wire::DataExpression {
+                    kind: Some(wire::data_expression::Kind::Parameter("band_y".into())),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
         let source = wire::Document::new("Scan").section(wire::Section::new("Map").section(wire::Section::new("Detail").plot(surface)));
         let admitted = decode_document(&source.encode_to_vec()).unwrap();
         let DocumentNode::Section(section) = &admitted.layout.nodes[0] else { panic!("section") };
@@ -495,6 +506,12 @@ mod tests {
         assert_eq!(plot.plot_type, PlotType::Contour);
         assert_eq!(plot.render, ContourRender::Bands);
         assert_eq!(plot.reduction, Some(Reduction::Mean));
+        assert!(
+            matches!(&plot.reference_bands[0].center, Some(ReferenceValue::Expression(value)) if value.source == DataSource::Parameter { name: "target_y".into() })
+        );
+        assert!(
+            matches!(&plot.reference_bands[0].tolerance, Some(ReferenceValue::Expression(value)) if value.source == DataSource::Parameter { name: "band_y".into() })
+        );
         assert_eq!(
             plot.z_expression.as_ref().unwrap().transforms,
             vec![DataTransform::Scale { factor: 2.0 }, DataTransform::Offset { value: -1.0 }]

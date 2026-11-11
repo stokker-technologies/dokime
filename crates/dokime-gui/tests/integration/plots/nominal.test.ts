@@ -46,7 +46,7 @@ import {
   summaryInFlight,
   toggleTrace,
 } from "@/lib/statistics";
-import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec } from "@/lib/types";
+import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec, TelemetryStream } from "@/lib/types";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
 import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
@@ -1902,6 +1902,59 @@ test("Reference Values Resolve Constants Parameters and Tolerances Per Case in L
     assert.deepEqual(native.referenceBands, live.referenceBands);
   }
   assert.deepEqual(descriptor, original);
+});
+
+test("Reference Expressions Apply Numeric Maps in Order", () => {
+  const plot = {
+    plot_id: "mapped-reference",
+    title: "Mapped Reference",
+    stream: "readings",
+    plot_type: "xy",
+    y: ["value"],
+    reference_lines: [
+      {
+        value: {
+          source: { type: "parameter", name: "target" },
+          transforms: [
+            { type: "scale", factor: 2 },
+            { type: "offset", value: -1 },
+          ],
+        },
+      },
+    ],
+    reference_bands: [
+      {
+        center: {
+          source: { type: "parameter", name: "target" },
+          transforms: [
+            { type: "offset", value: -1 },
+            { type: "scale", factor: 2 },
+          ],
+        },
+        tolerance: 1,
+      },
+    ],
+  } as DocumentViewPlot;
+  const live = documentPlotSpec({ plot, payload: null, parameters: { target: 5 } });
+  assert.equal(live.referenceLines[0].value, 9);
+  assert.deepEqual([live.referenceBands[0].min, live.referenceBands[0].max], [7, 9]);
+  assert.deepEqual(documentPlotSpec({ plot: JSON.parse(JSON.stringify(plot)), payload: null, parameters: { target: 5 } }), live);
+});
+
+test("Generic Grid and Contour State Does Not Depend on Host Scan Fields", () => {
+  for (const plot_type of ["grid_chart", "contour"] as const) {
+    const plot = { plot_id: "generic", title: "Generic", stream: "host.wifi.scan", plot_type, y: ["value"] } as DocumentViewPlot;
+    const plain = documentPlotSpec({ plot, payload: null });
+    const withHostFields = documentPlotSpec({
+      plot,
+      payload: null,
+      telemetry: {
+        "host.wifi.scan": { samples: [{ scan_status: "error", scan_error: "unavailable" }] },
+      } as Record<string, TelemetryStream>,
+    });
+    assert.equal(withHostFields.stateLabel, plain.stateLabel);
+    assert.equal(withHostFields.stateDetail, plain.stateDetail);
+  }
 });
 
 test("Display Scale Converts Returned Points Statistics and References Without Mutating Evidence", () => {

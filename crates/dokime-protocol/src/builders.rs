@@ -330,6 +330,14 @@ impl Plot {
         self.grid.get_or_insert_default().summary_label = label.into();
         self
     }
+    pub fn reference_line(mut self, line: ReferenceLine) -> Self {
+        self.reference_lines.push(line);
+        self
+    }
+    pub fn reference_band(mut self, band: ReferenceBand) -> Self {
+        self.reference_bands.push(band);
+        self
+    }
 }
 
 impl Document {

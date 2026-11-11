@@ -75,6 +75,8 @@ struct Plot {
     Plot& rows(const std::vector<v1::GridAxisEntry>& entries) { message.mutable_grid()->clear_rows(); for (const auto& entry : entries) *message.mutable_grid()->add_rows() = entry; return *this; }
     Plot& columns(const std::vector<v1::GridAxisEntry>& entries) { message.mutable_grid()->clear_columns(); for (const auto& entry : entries) *message.mutable_grid()->add_columns() = entry; return *this; }
     Plot& highlight(const v1::GridHighlight& value) { *message.mutable_grid()->add_highlights() = value; return *this; }
+    Plot& reference_line(const v1::ReferenceLine& value) { *message.add_reference_lines() = value; return *this; }
+    Plot& reference_band(const v1::ReferenceBand& value) { *message.add_reference_bands() = value; return *this; }
 };
 
 /* === Templates === */

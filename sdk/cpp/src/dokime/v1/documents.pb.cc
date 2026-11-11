@@ -1898,12 +1898,12 @@ constexpr ReferenceBand::ParseTableT_ ReferenceBand::InternalGenerateParseTable_
     {
       PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_._has_bits_),
       0, // no _extensions_
-      4, 24,  // max_field_number, fast_idx_mask
+      6, 56,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      4294967280,  // skipmap
+      4294967232,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      4,  // num_field_entries
-      2,  // num_aux_entries
+      6,  // num_field_entries
+      4,  // num_aux_entries
       offsetof(ParseTableT_, aux_entries),
       class_data,
       nullptr,  // post_loop_handler
@@ -1912,10 +1912,7 @@ constexpr ReferenceBand::ParseTableT_ ReferenceBand::InternalGenerateParseTable_
       ::_pbi::TcParser::GetTable<::dokime::v1::ReferenceBand>(),  // to_prefetch
       #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
     }, {{
-      // string color = 4;
-      {::_pbi::TcParser::FastUS1,
-       {34, 1, 0,
-        PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.color_)}},
+      {::_pbi::TcParser::MiniParse, {}},
       // .dokime.v1.DataExpression min = 1;
       {::_pbi::TcParser::FastMtS1,
        {10, 2, 0,
@@ -1928,6 +1925,19 @@ constexpr ReferenceBand::ParseTableT_ ReferenceBand::InternalGenerateParseTable_
       {::_pbi::TcParser::FastUS1,
        {26, 0, 0,
         PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.label_)}},
+      // string color = 4;
+      {::_pbi::TcParser::FastUS1,
+       {34, 1, 0,
+        PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.color_)}},
+      // .dokime.v1.DataExpression center = 5;
+      {::_pbi::TcParser::FastMtS1,
+       {42, 4, 2,
+        PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.center_)}},
+      // .dokime.v1.DataExpression tolerance = 6;
+      {::_pbi::TcParser::FastMtS1,
+       {50, 5, 3,
+        PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.tolerance_)}},
+      {::_pbi::TcParser::MiniParse, {}},
     }}, {{
       65535, 65535
     }}, {{
@@ -1939,8 +1949,22 @@ constexpr ReferenceBand::ParseTableT_ ReferenceBand::InternalGenerateParseTable_
       {PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.label_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string color = 4;
       {PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.color_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // .dokime.v1.DataExpression center = 5;
+      {PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.center_), _Internal::kHasBitsOffset + 4, 2, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      // .dokime.v1.DataExpression tolerance = 6;
+      {PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.tolerance_), _Internal::kHasBitsOffset + 5, 3, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     }},
     {{
+        #ifndef PROTOBUF_MESSAGE_GLOBALS
+        {::_pbi::TcParser::GetTable<::dokime::v1::DataExpression>()},
+        #else
+        {::_pbi::FieldAuxMessageGlobals(), &::dokime::v1::DataExpression_globals_},
+        #endif
+        #ifndef PROTOBUF_MESSAGE_GLOBALS
+        {::_pbi::TcParser::GetTable<::dokime::v1::DataExpression>()},
+        #else
+        {::_pbi::FieldAuxMessageGlobals(), &::dokime::v1::DataExpression_globals_},
+        #endif
         #ifndef PROTOBUF_MESSAGE_GLOBALS
         {::_pbi::TcParser::GetTable<::dokime::v1::DataExpression>()},
         #else
@@ -1972,7 +1996,9 @@ inline constexpr ReferenceBand::Impl_::Impl_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         min_{nullptr},
-        max_{nullptr} {}
+        max_{nullptr},
+        center_{nullptr},
+        tolerance_{nullptr} {}
 
 template <typename>
 constexpr ReferenceBand::ReferenceBand(::_pbi::ConstantInitialized,
@@ -4140,15 +4166,19 @@ const ::uint32_t
         1,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::dokime::v1::ReferenceBand, _impl_._has_bits_),
-        7, // hasbit index offset
+        9, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::dokime::v1::ReferenceBand, _impl_.min_),
         PROTOBUF_FIELD_OFFSET(::dokime::v1::ReferenceBand, _impl_.max_),
         PROTOBUF_FIELD_OFFSET(::dokime::v1::ReferenceBand, _impl_.label_),
         PROTOBUF_FIELD_OFFSET(::dokime::v1::ReferenceBand, _impl_.color_),
+        PROTOBUF_FIELD_OFFSET(::dokime::v1::ReferenceBand, _impl_.center_),
+        PROTOBUF_FIELD_OFFSET(::dokime::v1::ReferenceBand, _impl_.tolerance_),
         2,
         3,
         0,
         1,
+        4,
+        5,
 };
 
 static const ::_pbi::MigrationSchema
@@ -4289,60 +4319,63 @@ const char descriptor_table_protodef_dokime_2fv1_2fdocuments_2eproto[] ABSL_ATTR
     "hts\030\006 \003(\0132\030.dokime.v1.GridHighlight\022\025\n\rs"
     "ummary_label\030\007 \001(\t\"W\n\rReferenceLine\022(\n\005v"
     "alue\030\001 \001(\0132\031.dokime.v1.DataExpression\022\r\n"
-    "\005label\030\002 \001(\t\022\r\n\005color\030\003 \001(\t\"}\n\rReference"
-    "Band\022&\n\003min\030\001 \001(\0132\031.dokime.v1.DataExpres"
-    "sion\022&\n\003max\030\002 \001(\0132\031.dokime.v1.DataExpres"
-    "sion\022\r\n\005label\030\003 \001(\t\022\r\n\005color\030\004 \001(\t*\250\002\n\014E"
-    "videnceCard\022\035\n\031EVIDENCE_CARD_UNSPECIFIED"
-    "\020\000\022\027\n\023EVIDENCE_CARD_STEPS\020\001\022\032\n\026EVIDENCE_"
-    "CARD_CRITERIA\020\002\022\036\n\032EVIDENCE_CARD_TRACEAB"
-    "ILITY\020\003\022\027\n\023EVIDENCE_CARD_NOTES\020\004\022\031\n\025EVID"
-    "ENCE_CARD_RECORDS\020\005\022\033\n\027EVIDENCE_CARD_ART"
-    "IFACTS\020\006\022\027\n\023EVIDENCE_CARD_MEDIA\020\007\022\030\n\024EVI"
-    "DENCE_CARD_HEALTH\020\010\022 \n\034EVIDENCE_CARD_STR"
-    "EAM_CONTEXT\020\t*\212\002\n\tAggregate\022\031\n\025AGGREGATE"
-    "_UNSPECIFIED\020\000\022\023\n\017AGGREGATE_COUNT\020\001\022\021\n\rA"
-    "GGREGATE_SUM\020\002\022\021\n\rAGGREGATE_MIN\020\003\022\021\n\rAGG"
-    "REGATE_MAX\020\004\022\022\n\016AGGREGATE_MEAN\020\005\022\024\n\020AGGR"
-    "EGATE_STDDEV\020\006\022\024\n\020AGGREGATE_MEDIAN\020\007\022\030\n\024"
-    "AGGREGATE_PERCENTILE\020\010\022\023\n\017AGGREGATE_FIRS"
-    "T\020\t\022\022\n\016AGGREGATE_LAST\020\n\022\021\n\rAGGREGATE_RMS"
-    "\020\013*\373\001\n\016FilterOperator\022\037\n\033FILTER_OPERATOR"
-    "_UNSPECIFIED\020\000\022\026\n\022FILTER_OPERATOR_EQ\020\001\022\026"
-    "\n\022FILTER_OPERATOR_NE\020\002\022\026\n\022FILTER_OPERATO"
-    "R_GT\020\003\022\026\n\022FILTER_OPERATOR_GE\020\004\022\026\n\022FILTER"
-    "_OPERATOR_LT\020\005\022\026\n\022FILTER_OPERATOR_LE\020\006\022\034"
-    "\n\030FILTER_OPERATOR_CONTAINS\020\007\022\032\n\026FILTER_O"
-    "PERATOR_EXISTS\020\010*\204\001\n\tPlotStyle\022\032\n\026PLOT_S"
-    "TYLE_UNSPECIFIED\020\000\022\023\n\017PLOT_STYLE_LINE\020\001\022"
-    "\025\n\021PLOT_STYLE_POINTS\020\002\022\032\n\026PLOT_STYLE_LIN"
-    "E_POINTS\020\003\022\023\n\017PLOT_STYLE_STEP\020\004*R\n\tAxisS"
-    "cale\022\032\n\026AXIS_SCALE_UNSPECIFIED\020\000\022\025\n\021AXIS"
-    "_SCALE_LINEAR\020\001\022\022\n\016AXIS_SCALE_LOG\020\002*`\n\tR"
-    "eduction\022\031\n\025REDUCTION_UNSPECIFIED\020\000\022\022\n\016R"
-    "EDUCTION_MEAN\020\001\022\021\n\rREDUCTION_MIN\020\002\022\021\n\rRE"
-    "DUCTION_MAX\020\003*c\n\rContourRender\022\036\n\032CONTOU"
-    "R_RENDER_UNSPECIFIED\020\000\022\030\n\024CONTOUR_RENDER"
-    "_CELLS\020\001\022\030\n\024CONTOUR_RENDER_BANDS\020\002*k\n\016Ba"
-    "rArrangement\022\037\n\033BAR_ARRANGEMENT_UNSPECIF"
-    "IED\020\000\022\033\n\027BAR_ARRANGEMENT_GROUPED\020\001\022\033\n\027BA"
-    "R_ARRANGEMENT_STACKED\020\002*@\n\nXyInterval\022\033\n"
-    "\027XY_INTERVAL_UNSPECIFIED\020\000\022\025\n\021XY_INTERVA"
-    "L_SIGMA\020\001*\273\004\n\010PlotKind\022\031\n\025PLOT_KIND_UNSP"
-    "ECIFIED\020\000\022\031\n\025PLOT_KIND_TIME_SERIES\020\001\022\021\n\r"
-    "PLOT_KIND_BAR\020\002\022\021\n\rPLOT_KIND_PIE\020\005\022\020\n\014PL"
-    "OT_KIND_XY\020\010\022\030\n\024PLOT_KIND_TRAJECTORY\020\n\022\036"
-    "\n\032PLOT_KIND_FREQUENCY_SERIES\020\016\022\027\n\023PLOT_K"
-    "IND_HISTOGRAM\020\017\022\025\n\021PLOT_KIND_CONTOUR\020\022\022\030"
-    "\n\024PLOT_KIND_GRID_CHART\020\023\022\026\n\022PLOT_KIND_BO"
-    "X_PLOT\020\024\"\004\010\003\020\003\"\004\010\004\020\004\"\004\010\006\020\006\"\004\010\007\020\007\"\004\010\t\020\t\"\004"
-    "\010\013\020\013\"\004\010\014\020\014\"\004\010\r\020\r\"\004\010\020\020\020\"\004\010\021\020\021*\025PLOT_KIND_"
-    "GROUPED_BAR*\025PLOT_KIND_STACKED_BAR*\017PLOT"
-    "_KIND_DONUT*\020PLOT_KIND_PARETO*\025PLOT_KIND"
-    "_XY_INTERVAL*\021PLOT_KIND_HEATMAP*\032PLOT_KI"
-    "ND_XY_VALUE_HEATMAP* PLOT_KIND_WIFI_CHAN"
-    "NEL_OCCUPANCY*\025PLOT_KIND_BOX_SUMMARY*\031PL"
-    "OT_KIND_AGGREGATE_TABLEb\006proto3"
+    "\005label\030\002 \001(\t\022\r\n\005color\030\003 \001(\t\"\326\001\n\rReferenc"
+    "eBand\022&\n\003min\030\001 \001(\0132\031.dokime.v1.DataExpre"
+    "ssion\022&\n\003max\030\002 \001(\0132\031.dokime.v1.DataExpre"
+    "ssion\022\r\n\005label\030\003 \001(\t\022\r\n\005color\030\004 \001(\t\022)\n\006c"
+    "enter\030\005 \001(\0132\031.dokime.v1.DataExpression\022,"
+    "\n\ttolerance\030\006 \001(\0132\031.dokime.v1.DataExpres"
+    "sion*\250\002\n\014EvidenceCard\022\035\n\031EVIDENCE_CARD_U"
+    "NSPECIFIED\020\000\022\027\n\023EVIDENCE_CARD_STEPS\020\001\022\032\n"
+    "\026EVIDENCE_CARD_CRITERIA\020\002\022\036\n\032EVIDENCE_CA"
+    "RD_TRACEABILITY\020\003\022\027\n\023EVIDENCE_CARD_NOTES"
+    "\020\004\022\031\n\025EVIDENCE_CARD_RECORDS\020\005\022\033\n\027EVIDENC"
+    "E_CARD_ARTIFACTS\020\006\022\027\n\023EVIDENCE_CARD_MEDI"
+    "A\020\007\022\030\n\024EVIDENCE_CARD_HEALTH\020\010\022 \n\034EVIDENC"
+    "E_CARD_STREAM_CONTEXT\020\t*\212\002\n\tAggregate\022\031\n"
+    "\025AGGREGATE_UNSPECIFIED\020\000\022\023\n\017AGGREGATE_CO"
+    "UNT\020\001\022\021\n\rAGGREGATE_SUM\020\002\022\021\n\rAGGREGATE_MI"
+    "N\020\003\022\021\n\rAGGREGATE_MAX\020\004\022\022\n\016AGGREGATE_MEAN"
+    "\020\005\022\024\n\020AGGREGATE_STDDEV\020\006\022\024\n\020AGGREGATE_ME"
+    "DIAN\020\007\022\030\n\024AGGREGATE_PERCENTILE\020\010\022\023\n\017AGGR"
+    "EGATE_FIRST\020\t\022\022\n\016AGGREGATE_LAST\020\n\022\021\n\rAGG"
+    "REGATE_RMS\020\013*\373\001\n\016FilterOperator\022\037\n\033FILTE"
+    "R_OPERATOR_UNSPECIFIED\020\000\022\026\n\022FILTER_OPERA"
+    "TOR_EQ\020\001\022\026\n\022FILTER_OPERATOR_NE\020\002\022\026\n\022FILT"
+    "ER_OPERATOR_GT\020\003\022\026\n\022FILTER_OPERATOR_GE\020\004"
+    "\022\026\n\022FILTER_OPERATOR_LT\020\005\022\026\n\022FILTER_OPERA"
+    "TOR_LE\020\006\022\034\n\030FILTER_OPERATOR_CONTAINS\020\007\022\032"
+    "\n\026FILTER_OPERATOR_EXISTS\020\010*\204\001\n\tPlotStyle"
+    "\022\032\n\026PLOT_STYLE_UNSPECIFIED\020\000\022\023\n\017PLOT_STY"
+    "LE_LINE\020\001\022\025\n\021PLOT_STYLE_POINTS\020\002\022\032\n\026PLOT"
+    "_STYLE_LINE_POINTS\020\003\022\023\n\017PLOT_STYLE_STEP\020"
+    "\004*R\n\tAxisScale\022\032\n\026AXIS_SCALE_UNSPECIFIED"
+    "\020\000\022\025\n\021AXIS_SCALE_LINEAR\020\001\022\022\n\016AXIS_SCALE_"
+    "LOG\020\002*`\n\tReduction\022\031\n\025REDUCTION_UNSPECIF"
+    "IED\020\000\022\022\n\016REDUCTION_MEAN\020\001\022\021\n\rREDUCTION_M"
+    "IN\020\002\022\021\n\rREDUCTION_MAX\020\003*c\n\rContourRender"
+    "\022\036\n\032CONTOUR_RENDER_UNSPECIFIED\020\000\022\030\n\024CONT"
+    "OUR_RENDER_CELLS\020\001\022\030\n\024CONTOUR_RENDER_BAN"
+    "DS\020\002*k\n\016BarArrangement\022\037\n\033BAR_ARRANGEMEN"
+    "T_UNSPECIFIED\020\000\022\033\n\027BAR_ARRANGEMENT_GROUP"
+    "ED\020\001\022\033\n\027BAR_ARRANGEMENT_STACKED\020\002*@\n\nXyI"
+    "nterval\022\033\n\027XY_INTERVAL_UNSPECIFIED\020\000\022\025\n\021"
+    "XY_INTERVAL_SIGMA\020\001*\273\004\n\010PlotKind\022\031\n\025PLOT"
+    "_KIND_UNSPECIFIED\020\000\022\031\n\025PLOT_KIND_TIME_SE"
+    "RIES\020\001\022\021\n\rPLOT_KIND_BAR\020\002\022\021\n\rPLOT_KIND_P"
+    "IE\020\005\022\020\n\014PLOT_KIND_XY\020\010\022\030\n\024PLOT_KIND_TRAJ"
+    "ECTORY\020\n\022\036\n\032PLOT_KIND_FREQUENCY_SERIES\020\016"
+    "\022\027\n\023PLOT_KIND_HISTOGRAM\020\017\022\025\n\021PLOT_KIND_C"
+    "ONTOUR\020\022\022\030\n\024PLOT_KIND_GRID_CHART\020\023\022\026\n\022PL"
+    "OT_KIND_BOX_PLOT\020\024\"\004\010\003\020\003\"\004\010\004\020\004\"\004\010\006\020\006\"\004\010\007"
+    "\020\007\"\004\010\t\020\t\"\004\010\013\020\013\"\004\010\014\020\014\"\004\010\r\020\r\"\004\010\020\020\020\"\004\010\021\020\021*\025"
+    "PLOT_KIND_GROUPED_BAR*\025PLOT_KIND_STACKED"
+    "_BAR*\017PLOT_KIND_DONUT*\020PLOT_KIND_PARETO*"
+    "\025PLOT_KIND_XY_INTERVAL*\021PLOT_KIND_HEATMA"
+    "P*\032PLOT_KIND_XY_VALUE_HEATMAP* PLOT_KIND"
+    "_WIFI_CHANNEL_OCCUPANCY*\025PLOT_KIND_BOX_S"
+    "UMMARY*\031PLOT_KIND_AGGREGATE_TABLEb\006proto"
+    "3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_dokime_2fv1_2fdocuments_2eproto_deps[1] = {
@@ -4352,7 +4385,7 @@ static ::absl::once_flag descriptor_table_dokime_2fv1_2fdocuments_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_dokime_2fv1_2fdocuments_2eproto = {
     false,
     false,
-    5671,
+    5761,
     descriptor_table_protodef_dokime_2fv1_2fdocuments_2eproto,
     "dokime/v1/documents.proto",
     &descriptor_table_dokime_2fv1_2fdocuments_2eproto_once,
@@ -10989,6 +11022,12 @@ ReferenceBand::ReferenceBand(
   _impl_.max_ = (CheckHasBit(cached_has_bits, 0x00000008U))
                  ? Super_::CopyConstruct(arena, *from._impl_.max_)
                  : nullptr;
+  _impl_.center_ = (CheckHasBit(cached_has_bits, 0x00000010U))
+                 ? Super_::CopyConstruct(arena, *from._impl_.center_)
+                 : nullptr;
+  _impl_.tolerance_ = (CheckHasBit(cached_has_bits, 0x00000020U))
+                 ? Super_::CopyConstruct(arena, *from._impl_.tolerance_)
+                 : nullptr;
 
   // @@protoc_insertion_point(copy_constructor:dokime.v1.ReferenceBand)
 }
@@ -11003,9 +11042,9 @@ inline void ReferenceBand::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, min_),
            0,
-           offsetof(Impl_, max_) -
+           offsetof(Impl_, tolerance_) -
                offsetof(Impl_, min_) +
-               sizeof(Impl_::max_));
+               sizeof(Impl_::tolerance_));
 }
 ReferenceBand::~ReferenceBand() {
   // @@protoc_insertion_point(destructor:dokime.v1.ReferenceBand)
@@ -11022,6 +11061,8 @@ inline void ReferenceBand::SharedDtor(MessageLite& self) {
   this_._impl_.color_.Destroy();
   delete this_._impl_.min_;
   delete this_._impl_.max_;
+  delete this_._impl_.center_;
+  delete this_._impl_.tolerance_;
   this_._impl_.~Impl_();
 }
 
@@ -11058,7 +11099,7 @@ PROTOBUF_NOINLINE void ReferenceBand::Clear() {
   ::uint32_t cached_has_bits [[maybe_unused]] = 0;
 
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000000fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       this_._impl_.label_.ClearNonDefaultToEmpty();
     }
@@ -11072,6 +11113,14 @@ PROTOBUF_NOINLINE void ReferenceBand::Clear() {
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       ABSL_DCHECK(this_._impl_.max_ != nullptr);
       this_._impl_.max_->Clear();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      ABSL_DCHECK(this_._impl_.center_ != nullptr);
+      this_._impl_.center_->Clear();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      ABSL_DCHECK(this_._impl_.tolerance_ != nullptr);
+      this_._impl_.tolerance_->Clear();
     }
   }
   _impl_._has_bits_.Clear();
@@ -11131,6 +11180,20 @@ PROTOBUF_NOINLINE void ReferenceBand::Clear() {
     }
   }
 
+  // .dokime.v1.DataExpression center = 5;
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+        5, *this_._impl_.center_, this_._impl_.center_->GetCachedSize(), target,
+        stream);
+  }
+
+  // .dokime.v1.DataExpression tolerance = 6;
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+        6, *this_._impl_.tolerance_, this_._impl_.tolerance_->GetCachedSize(), target,
+        stream);
+  }
+
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
     target =
         ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -11154,7 +11217,7 @@ PROTOBUF_NOINLINE void ReferenceBand::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000000fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
     // string label = 3;
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_label().empty()) {
@@ -11179,6 +11242,16 @@ PROTOBUF_NOINLINE void ReferenceBand::Clear() {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.max_);
     }
+    // .dokime.v1.DataExpression center = 5;
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      total_size += 1 +
+                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.center_);
+    }
+    // .dokime.v1.DataExpression tolerance = 6;
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      total_size += 1 +
+                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.tolerance_);
+    }
   }
   return this_.MaybeComputeUnknownFieldsSize(total_size,
                                              &this_._impl_._cached_size_);
@@ -11198,7 +11271,7 @@ void ReferenceBand::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000000fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_label().empty()) {
         _this->_internal_set_label(from._internal_label());
@@ -11233,6 +11306,22 @@ void ReferenceBand::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.max_->MergeFrom(*from._impl_.max_);
       }
     }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      ABSL_DCHECK(from._impl_.center_ != nullptr);
+      if (_this->_impl_.center_ == nullptr) {
+        _this->_impl_.center_ = Super_::CopyConstruct(arena, *from._impl_.center_);
+      } else {
+        _this->_impl_.center_->MergeFrom(*from._impl_.center_);
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      ABSL_DCHECK(from._impl_.tolerance_ != nullptr);
+      if (_this->_impl_.tolerance_ == nullptr) {
+        _this->_impl_.tolerance_ = Super_::CopyConstruct(arena, *from._impl_.tolerance_);
+      } else {
+        _this->_impl_.tolerance_->MergeFrom(*from._impl_.tolerance_);
+      }
+    }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;
   _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
@@ -11256,8 +11345,8 @@ void ReferenceBand::InternalSwap(ReferenceBand* PROTOBUF_RESTRICT PROTOBUF_NONNU
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.label_, &other->_impl_.label_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.color_, &other->_impl_.color_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.max_)
-      + sizeof(ReferenceBand::_impl_.max_)
+      PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.tolerance_)
+      + sizeof(ReferenceBand::_impl_.tolerance_)
       - PROTOBUF_FIELD_OFFSET(ReferenceBand, _impl_.min_)>(
           reinterpret_cast<char*>(&_impl_.min_),
           reinterpret_cast<char*>(&other->_impl_.min_));

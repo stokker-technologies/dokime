@@ -55,6 +55,8 @@ public static class PlotOptions
     public static Plot Rows(this Plot plot, System.Collections.Generic.IEnumerable<GridAxisEntry> entries) { plot.Grid ??= new(); plot.Grid.Rows.Clear(); foreach (var entry in entries) plot.Grid.Rows.Add(entry.Clone()); return plot; }
     public static Plot Columns(this Plot plot, System.Collections.Generic.IEnumerable<GridAxisEntry> entries) { plot.Grid ??= new(); plot.Grid.Columns.Clear(); foreach (var entry in entries) plot.Grid.Columns.Add(entry.Clone()); return plot; }
     public static Plot Highlight(this Plot plot, GridHighlight value) { plot.Grid ??= new(); plot.Grid.Highlights.Add(value.Clone()); return plot; }
+    public static Plot ReferenceLine(this Plot plot, ReferenceLine value) { plot.ReferenceLines.Add(value.Clone()); return plot; }
+    public static Plot ReferenceBand(this Plot plot, ReferenceBand value) { plot.ReferenceBands.Add(value.Clone()); return plot; }
 }
 
 public static class Documents

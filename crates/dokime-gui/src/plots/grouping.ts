@@ -104,7 +104,10 @@ export function documentPlotSpec({
     stateLabel: state.label,
     stateDetail: state.detail,
 
-    contextSummary: plotContextSummary({ stream: plot.stream, telemetry, context: payload?.context }),
+    contextSummary:
+      plot.plot_type === "contour" || plot.plot_type === "grid_chart"
+        ? undefined
+        : plotContextSummary({ stream: plot.stream, telemetry, context: payload?.context }),
     context: {
       ...(payload?.context ?? {}),
     },
@@ -242,12 +245,20 @@ function referenceValue(
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (!value) return null;
   const source = value.source;
+  let result: number | null = null;
   if (source.type === "telemetry") {
     const stream = source.stream ?? plot.stream;
-    return numberValue(latestSample(telemetry, stream)?.[source.field]);
+    result = numberValue(latestSample(telemetry, stream)?.[source.field]);
   }
-  if (source.type === "parameter") return numberValue(parameters?.[source.name]);
-  return null;
+  if (source.type === "parameter") result = numberValue(parameters?.[source.name]);
+  for (const transform of value.transforms ?? []) {
+    if (result === null) return null;
+    if (transform.type === "scale") result *= transform.factor;
+    else if (transform.type === "offset") result += transform.value;
+    else return null;
+    if (!Number.isFinite(result)) return null;
+  }
+  return result;
 }
 
 function placeholderSeries(keys: string[], plot: DocumentViewPlot): PlotPayload["series"] {
@@ -302,6 +313,7 @@ function plotState({
   if (hasFinitePoint) {
     return {};
   }
+  if (plotType === "grid_chart" || plotType === "contour") return {};
 
   const latest = latestSample(telemetry, stream);
   if (stream === "host.wifi.scan") {

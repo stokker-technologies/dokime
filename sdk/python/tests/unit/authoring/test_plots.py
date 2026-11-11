@@ -50,6 +50,11 @@ def test_canonical_contour_and_grid_builders() -> None:
         .reduce(plot.Reduction.MEAN)
         .render(plot.ContourRender.BANDS)
     )
+    surface.reference_band(
+        message(
+            "ReferenceBand", center=message("DataExpression", parameter="target_y"), tolerance=message("DataExpression", parameter="band_y")
+        )
+    )
     grid = (
         plot.grid_chart(Scan.field("value"))
         .row(Scan.field("row_key"))
@@ -71,6 +76,8 @@ def test_canonical_contour_and_grid_builders() -> None:
     assert first.plot.z.transform.input.stream.field == "temperature"
     assert first.plot.reduction == int(plot.Reduction.MEAN)
     assert first.plot.render == int(plot.ContourRender.BANDS)
+    assert first.plot.reference_bands[0].center.parameter == "target_y"
+    assert first.plot.reference_bands[0].tolerance.parameter == "band_y"
     assert second.plot.grid.frame.stream.field == "timestamp"
     assert second.plot.reduction == int(plot.Reduction.MAX)
     assert not value.message.HasField("aggregate")

@@ -396,6 +396,10 @@ pub struct ReferenceBand {
     pub label: ::prost::alloc::string::String,
     #[prost(string, tag = "4")]
     pub color: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "5")]
+    pub center: ::core::option::Option<DataExpression>,
+    #[prost(message, optional, tag = "6")]
+    pub tolerance: ::core::option::Option<DataExpression>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]

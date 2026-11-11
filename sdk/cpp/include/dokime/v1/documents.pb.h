@@ -3484,6 +3484,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ReferenceBand final : public ::goog
     kColorFieldNumber = 4,
     kMinFieldNumber = 1,
     kMaxFieldNumber = 2,
+    kCenterFieldNumber = 5,
+    kToleranceFieldNumber = 6,
   };
   // string label = 3;
   void clear_label() ;
@@ -3545,12 +3547,42 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ReferenceBand final : public ::goog
   ::dokime::v1::DataExpression* PROTOBUF_NONNULL _internal_mutable_max();
 
   public:
+  // .dokime.v1.DataExpression center = 5;
+  [[nodiscard]] bool has_center() const;
+  void clear_center() ;
+  [[nodiscard]] const ::dokime::v1::DataExpression& center() const;
+  [[nodiscard]] ::dokime::v1::DataExpression* PROTOBUF_NULLABLE release_center();
+  ::dokime::v1::DataExpression* PROTOBUF_NONNULL mutable_center();
+  void set_allocated_center(::dokime::v1::DataExpression* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_center(::dokime::v1::DataExpression* PROTOBUF_NULLABLE value);
+  ::dokime::v1::DataExpression* PROTOBUF_NULLABLE unsafe_arena_release_center();
+
+  private:
+  const ::dokime::v1::DataExpression& _internal_center() const;
+  ::dokime::v1::DataExpression* PROTOBUF_NONNULL _internal_mutable_center();
+
+  public:
+  // .dokime.v1.DataExpression tolerance = 6;
+  [[nodiscard]] bool has_tolerance() const;
+  void clear_tolerance() ;
+  [[nodiscard]] const ::dokime::v1::DataExpression& tolerance() const;
+  [[nodiscard]] ::dokime::v1::DataExpression* PROTOBUF_NULLABLE release_tolerance();
+  ::dokime::v1::DataExpression* PROTOBUF_NONNULL mutable_tolerance();
+  void set_allocated_tolerance(::dokime::v1::DataExpression* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_tolerance(::dokime::v1::DataExpression* PROTOBUF_NULLABLE value);
+  ::dokime::v1::DataExpression* PROTOBUF_NULLABLE unsafe_arena_release_tolerance();
+
+  private:
+  const ::dokime::v1::DataExpression& _internal_tolerance() const;
+  ::dokime::v1::DataExpression* PROTOBUF_NONNULL _internal_mutable_tolerance();
+
+  public:
   // @@protoc_insertion_point(class_scope:dokime.v1.ReferenceBand)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<2, 4,
-                          2, 42,
+      ::google::protobuf::internal::TcParseTable<3, 6,
+                          4, 42,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -3582,6 +3614,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ReferenceBand final : public ::goog
     ::google::protobuf::internal::ArenaStringPtr color_;
     ::dokime::v1::DataExpression* PROTOBUF_NULLABLE min_;
     ::dokime::v1::DataExpression* PROTOBUF_NULLABLE max_;
+    ::dokime::v1::DataExpression* PROTOBUF_NULLABLE center_;
+    ::dokime::v1::DataExpression* PROTOBUF_NULLABLE tolerance_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -12399,6 +12433,202 @@ inline void ReferenceBand::set_allocated_color(::std::string* PROTOBUF_NULLABLE 
     _impl_.color_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:dokime.v1.ReferenceBand.color)
+}
+
+// .dokime.v1.DataExpression center = 5;
+inline bool ReferenceBand::has_center() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000010U);
+  PROTOBUF_ASSUME(!value || _impl_.center_ != nullptr);
+  return value;
+}
+inline void ReferenceBand::clear_center() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.center_ != nullptr) _impl_.center_->Clear();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+}
+inline const ::dokime::v1::DataExpression& ReferenceBand::_internal_center() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::dokime::v1::DataExpression* p = _impl_.center_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::dokime::v1::DataExpression>(&::dokime::v1::DataExpression_globals_);
+}
+inline const ::dokime::v1::DataExpression& ReferenceBand::center() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:dokime.v1.ReferenceBand.center)
+  return _internal_center();
+}
+inline void ReferenceBand::unsafe_arena_set_allocated_center(
+    ::dokime::v1::DataExpression* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.center_);
+  }
+  _impl_.center_ = reinterpret_cast<::dokime::v1::DataExpression*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:dokime.v1.ReferenceBand.center)
+}
+inline ::dokime::v1::DataExpression* PROTOBUF_NULLABLE ReferenceBand::release_center() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ::dokime::v1::DataExpression* released = _impl_.center_;
+  _impl_.center_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::dokime::v1::DataExpression* PROTOBUF_NULLABLE ReferenceBand::unsafe_arena_release_center() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:dokime.v1.ReferenceBand.center)
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ::dokime::v1::DataExpression* temp = _impl_.center_;
+  _impl_.center_ = nullptr;
+  return temp;
+}
+inline ::dokime::v1::DataExpression* PROTOBUF_NONNULL ReferenceBand::_internal_mutable_center() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.center_ == nullptr) {
+    auto* p = Super_::DefaultConstruct<::dokime::v1::DataExpression>(GetArena());
+    _impl_.center_ = reinterpret_cast<::dokime::v1::DataExpression*>(p);
+  }
+  return _impl_.center_;
+}
+inline ::dokime::v1::DataExpression* PROTOBUF_NONNULL ReferenceBand::mutable_center()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ::dokime::v1::DataExpression* _msg = _internal_mutable_center();
+  // @@protoc_insertion_point(field_mutable:dokime.v1.ReferenceBand.center)
+  return _msg;
+}
+inline void ReferenceBand::set_allocated_center(::dokime::v1::DataExpression* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.center_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = value->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  }
+
+  _impl_.center_ = reinterpret_cast<::dokime::v1::DataExpression*>(value);
+  // @@protoc_insertion_point(field_set_allocated:dokime.v1.ReferenceBand.center)
+}
+
+// .dokime.v1.DataExpression tolerance = 6;
+inline bool ReferenceBand::has_tolerance() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000020U);
+  PROTOBUF_ASSUME(!value || _impl_.tolerance_ != nullptr);
+  return value;
+}
+inline void ReferenceBand::clear_tolerance() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.tolerance_ != nullptr) _impl_.tolerance_->Clear();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+}
+inline const ::dokime::v1::DataExpression& ReferenceBand::_internal_tolerance() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::dokime::v1::DataExpression* p = _impl_.tolerance_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::dokime::v1::DataExpression>(&::dokime::v1::DataExpression_globals_);
+}
+inline const ::dokime::v1::DataExpression& ReferenceBand::tolerance() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:dokime.v1.ReferenceBand.tolerance)
+  return _internal_tolerance();
+}
+inline void ReferenceBand::unsafe_arena_set_allocated_tolerance(
+    ::dokime::v1::DataExpression* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.tolerance_);
+  }
+  _impl_.tolerance_ = reinterpret_cast<::dokime::v1::DataExpression*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:dokime.v1.ReferenceBand.tolerance)
+}
+inline ::dokime::v1::DataExpression* PROTOBUF_NULLABLE ReferenceBand::release_tolerance() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ::dokime::v1::DataExpression* released = _impl_.tolerance_;
+  _impl_.tolerance_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::dokime::v1::DataExpression* PROTOBUF_NULLABLE ReferenceBand::unsafe_arena_release_tolerance() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:dokime.v1.ReferenceBand.tolerance)
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ::dokime::v1::DataExpression* temp = _impl_.tolerance_;
+  _impl_.tolerance_ = nullptr;
+  return temp;
+}
+inline ::dokime::v1::DataExpression* PROTOBUF_NONNULL ReferenceBand::_internal_mutable_tolerance() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.tolerance_ == nullptr) {
+    auto* p = Super_::DefaultConstruct<::dokime::v1::DataExpression>(GetArena());
+    _impl_.tolerance_ = reinterpret_cast<::dokime::v1::DataExpression*>(p);
+  }
+  return _impl_.tolerance_;
+}
+inline ::dokime::v1::DataExpression* PROTOBUF_NONNULL ReferenceBand::mutable_tolerance()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ::dokime::v1::DataExpression* _msg = _internal_mutable_tolerance();
+  // @@protoc_insertion_point(field_mutable:dokime.v1.ReferenceBand.tolerance)
+  return _msg;
+}
+inline void ReferenceBand::set_allocated_tolerance(::dokime::v1::DataExpression* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.tolerance_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = value->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  }
+
+  _impl_.tolerance_ = reinterpret_cast<::dokime::v1::DataExpression*>(value);
+  // @@protoc_insertion_point(field_set_allocated:dokime.v1.ReferenceBand.tolerance)
 }
 
 #ifdef __GNUC__

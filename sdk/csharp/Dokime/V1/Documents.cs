@@ -102,10 +102,12 @@ namespace Dokime.V1 {
             "LkdyaWRBeGlzRW50cnkSLAoKaGlnaGxpZ2h0cxgGIAMoCzIYLmRva2ltZS52",
             "MS5HcmlkSGlnaGxpZ2h0EhUKDXN1bW1hcnlfbGFiZWwYByABKAkiVwoNUmVm",
             "ZXJlbmNlTGluZRIoCgV2YWx1ZRgBIAEoCzIZLmRva2ltZS52MS5EYXRhRXhw",
-            "cmVzc2lvbhINCgVsYWJlbBgCIAEoCRINCgVjb2xvchgDIAEoCSJ9Cg1SZWZl",
-            "cmVuY2VCYW5kEiYKA21pbhgBIAEoCzIZLmRva2ltZS52MS5EYXRhRXhwcmVz",
-            "c2lvbhImCgNtYXgYAiABKAsyGS5kb2tpbWUudjEuRGF0YUV4cHJlc3Npb24S",
-            "DQoFbGFiZWwYAyABKAkSDQoFY29sb3IYBCABKAkqqAIKDEV2aWRlbmNlQ2Fy",
+            "cmVzc2lvbhINCgVsYWJlbBgCIAEoCRINCgVjb2xvchgDIAEoCSLWAQoNUmVm",
+            "ZXJlbmNlQmFuZBImCgNtaW4YASABKAsyGS5kb2tpbWUudjEuRGF0YUV4cHJl",
+            "c3Npb24SJgoDbWF4GAIgASgLMhkuZG9raW1lLnYxLkRhdGFFeHByZXNzaW9u",
+            "Eg0KBWxhYmVsGAMgASgJEg0KBWNvbG9yGAQgASgJEikKBmNlbnRlchgFIAEo",
+            "CzIZLmRva2ltZS52MS5EYXRhRXhwcmVzc2lvbhIsCgl0b2xlcmFuY2UYBiAB",
+            "KAsyGS5kb2tpbWUudjEuRGF0YUV4cHJlc3Npb24qqAIKDEV2aWRlbmNlQ2Fy",
             "ZBIdChlFVklERU5DRV9DQVJEX1VOU1BFQ0lGSUVEEAASFwoTRVZJREVOQ0Vf",
             "Q0FSRF9TVEVQUxABEhoKFkVWSURFTkNFX0NBUkRfQ1JJVEVSSUEQAhIeChpF",
             "VklERU5DRV9DQVJEX1RSQUNFQUJJTElUWRADEhcKE0VWSURFTkNFX0NBUkRf",
@@ -173,7 +175,7 @@ namespace Dokime.V1 {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.V1.GridHighlight), global::Dokime.V1.GridHighlight.Parser, new[]{ "Row", "Column", "Label" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.V1.GridChart), global::Dokime.V1.GridChart.Parser, new[]{ "Row", "Column", "Frame", "Rows", "Columns", "Highlights", "SummaryLabel" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.V1.ReferenceLine), global::Dokime.V1.ReferenceLine.Parser, new[]{ "Value", "Label", "Color" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.V1.ReferenceBand), global::Dokime.V1.ReferenceBand.Parser, new[]{ "Min", "Max", "Label", "Color" }, null, null, null, null)
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.V1.ReferenceBand), global::Dokime.V1.ReferenceBand.Parser, new[]{ "Min", "Max", "Label", "Color", "Center", "Tolerance" }, null, null, null, null)
           }));
     }
     #endregion
@@ -7263,6 +7265,8 @@ namespace Dokime.V1 {
       max_ = other.max_ != null ? other.max_.Clone() : null;
       label_ = other.label_;
       color_ = other.color_;
+      center_ = other.center_ != null ? other.center_.Clone() : null;
+      tolerance_ = other.tolerance_ != null ? other.tolerance_.Clone() : null;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -7320,6 +7324,30 @@ namespace Dokime.V1 {
       }
     }
 
+    /// <summary>Field number for the "center" field.</summary>
+    public const int CenterFieldNumber = 5;
+    private global::Dokime.V1.DataExpression center_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.V1.DataExpression Center {
+      get { return center_; }
+      set {
+        center_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "tolerance" field.</summary>
+    public const int ToleranceFieldNumber = 6;
+    private global::Dokime.V1.DataExpression tolerance_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.V1.DataExpression Tolerance {
+      get { return tolerance_; }
+      set {
+        tolerance_ = value;
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -7339,6 +7367,8 @@ namespace Dokime.V1 {
       if (!object.Equals(Max, other.Max)) return false;
       if (Label != other.Label) return false;
       if (Color != other.Color) return false;
+      if (!object.Equals(Center, other.Center)) return false;
+      if (!object.Equals(Tolerance, other.Tolerance)) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -7350,6 +7380,8 @@ namespace Dokime.V1 {
       if (max_ != null) hash ^= Max.GetHashCode();
       if (Label.Length != 0) hash ^= Label.GetHashCode();
       if (Color.Length != 0) hash ^= Color.GetHashCode();
+      if (center_ != null) hash ^= Center.GetHashCode();
+      if (tolerance_ != null) hash ^= Tolerance.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -7384,6 +7416,14 @@ namespace Dokime.V1 {
         output.WriteRawTag(34);
         output.WriteString(Color);
       }
+      if (center_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Center);
+      }
+      if (tolerance_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Tolerance);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -7410,6 +7450,14 @@ namespace Dokime.V1 {
         output.WriteRawTag(34);
         output.WriteString(Color);
       }
+      if (center_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Center);
+      }
+      if (tolerance_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Tolerance);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -7431,6 +7479,12 @@ namespace Dokime.V1 {
       }
       if (Color.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(Color);
+      }
+      if (center_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Center);
+      }
+      if (tolerance_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Tolerance);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -7461,6 +7515,18 @@ namespace Dokime.V1 {
       }
       if (other.Color.Length != 0) {
         Color = other.Color;
+      }
+      if (other.center_ != null) {
+        if (center_ == null) {
+          Center = new global::Dokime.V1.DataExpression();
+        }
+        Center.MergeFrom(other.Center);
+      }
+      if (other.tolerance_ != null) {
+        if (tolerance_ == null) {
+          Tolerance = new global::Dokime.V1.DataExpression();
+        }
+        Tolerance.MergeFrom(other.Tolerance);
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -7503,6 +7569,20 @@ namespace Dokime.V1 {
             Color = input.ReadString();
             break;
           }
+          case 42: {
+            if (center_ == null) {
+              Center = new global::Dokime.V1.DataExpression();
+            }
+            input.ReadMessage(Center);
+            break;
+          }
+          case 50: {
+            if (tolerance_ == null) {
+              Tolerance = new global::Dokime.V1.DataExpression();
+            }
+            input.ReadMessage(Tolerance);
+            break;
+          }
         }
       }
     #endif
@@ -7542,6 +7622,20 @@ namespace Dokime.V1 {
           }
           case 34: {
             Color = input.ReadString();
+            break;
+          }
+          case 42: {
+            if (center_ == null) {
+              Center = new global::Dokime.V1.DataExpression();
+            }
+            input.ReadMessage(Center);
+            break;
+          }
+          case 50: {
+            if (tolerance_ == null) {
+              Tolerance = new global::Dokime.V1.DataExpression();
+            }
+            input.ReadMessage(Tolerance);
             break;
           }
         }
