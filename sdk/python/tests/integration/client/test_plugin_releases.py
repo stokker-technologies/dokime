@@ -117,7 +117,7 @@ def test_child_diagnostics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caps
 
 
 @pytest.mark.parametrize("target", ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"])
-def test_sidecars_archive(tmp_path: Path, target: str) -> None:
+def test_plugins_archive_contains_only_shipping_bundles(tmp_path: Path, target: str) -> None:
     (tmp_path / "tools").mkdir()
     (tmp_path / "tools/project.toml").write_text(
         '[[release.plugins]]\npackage="plugin-host"\nkind="sidecar"\npath="rust/plugins/plugin-host.dokime"\n'
@@ -131,7 +131,7 @@ def test_sidecars_archive(tmp_path: Path, target: str) -> None:
     archive = plugins.archive(tmp_path, build, tmp_path / "output", "1.2.3", target)
     assert archive is not None
     suffix = ".zip" if "windows" in target else ".tar.gz"
-    assert archive.name == f"dokime-sidecars-1.2.3-{target}{suffix}"
+    assert archive.name == f"dokime-plugins-1.2.3-{target}{suffix}"
     if suffix == ".zip":
         with zipfile.ZipFile(archive) as opened:
             assert opened.namelist() == ["plugin-host.dokime"]
