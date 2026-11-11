@@ -40,6 +40,7 @@ def host(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(bootstrap.os, "geteuid", lambda: 1001, raising=False)
     monkeypatch.setattr(bootstrap.shutil, "which", lambda name: "/usr/bin/" + name)
     monkeypatch.setattr(bootstrap, "_package_installed", lambda package: False)
+
     def run(command, **options):
         commands.append(command)
         assert options["stdin"] == subprocess.DEVNULL
