@@ -23,5 +23,6 @@
 
 ## Workflow Follow-Up
 
+- `plot-kinds` owns kind cleanup, two-dimensional contour binning, grid frames and playback with their report/SDK/plugin consumers; the completed transport work here remains its dependency.
 - Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
 - Run only focused tasks until combined source closure; final native proof remains separate.
