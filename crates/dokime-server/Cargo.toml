@@ -222,6 +222,11 @@ name = "system-server"
 path = "benches/system/main.rs"
 harness = false
 
+[[bench]]
+name = "integration-plots"
+path = "benches/plots/main.rs"
+harness = false
+
 # === Example Targets === #
 
 # === Workspace Lints === #

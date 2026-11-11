@@ -20,6 +20,7 @@ import sys
 # Local Imports
 from dokime_tools.build import bench, frontend, paths
 from dokime_tools.package import plugins
+from dokime_tools.prepare import generated
 from dokime_tools.test import archive
 
 # Type Checking Imports
@@ -64,6 +65,11 @@ def build(binary: str | None = None) -> None:
     staged = plugins.prepare(
         ROOT, messages, "bench", tool=tool, output=output / "fixtures/plugins", packages=("plugin-host", *plugins.FIXTURES)
     )
+
+    if binary in (None, "integration-plots"):
+        generated.generate(messages, check=True)
+        modules = generated.stage("bench")
+        staged += [path for path in modules.rglob("*") if path.is_file()]
 
     staged += [path for path in directory.rglob("*") if path.is_file()]
     staged += [path for path in binaries.iterdir() if path.is_file()]
