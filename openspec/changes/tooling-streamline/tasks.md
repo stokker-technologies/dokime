@@ -27,7 +27,7 @@
 ## 5. Final Validation
 
 - [ ] 5.1 Run every entry point locally on Windows and Linux, and confirm hosted CI and Nightly run the same tasks.
-- [x] 5.2 Update `CONTRIBUTING.md` and the tooling guide.
+- [x] 5.2 Update `docs/CONTRIBUTING.md` and the tooling guide.
 - [ ] 5.3 Verify the Linux product build and repair platform-specific failures through the product build task; Windows proof does not close this task.
 - [ ] 5.4 Reconcile machine Hub repository-check support for the entry-point model before final repository-check proof; keep Hub implementation outside this product.
 

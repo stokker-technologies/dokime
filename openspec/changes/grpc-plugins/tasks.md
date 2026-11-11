@@ -76,5 +76,5 @@
 - [x] Reconcile the pending privacy guide formatter noise, merge the organization-pack specification branch and update moved-path references.
 - [x] Regenerate the runtime report, bundled brand resources and desktop icons after the default appearance change.
 - [x] Publish Product compiler records only after successful compilation, retaining failed output separately; prove replacement and failure behavior through tooling integration tests.
-- [ ] Pass combined formatting, repository, Python, TypeScript and Rust checks and the Tests artifact build.
-- [ ] Rerun plot and settings TypeScript unit/integration tests, shell organization tests and the focused runtime captured-head test.
+- [x] Pass combined formatting, repository, Python, TypeScript and Rust checks and the Tests artifact build.
+- [x] Rerun plot and settings TypeScript unit/integration tests, shell organization tests and the focused runtime captured-head test.
