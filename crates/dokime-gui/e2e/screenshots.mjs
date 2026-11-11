@@ -85,6 +85,9 @@ async function capture(scene, ready, prepare) {
   const viewport = scene === "touch" ? touch : desktop;
   for (const theme of ["light", "dark"]) {
     // Set Appearance Through The Product Controls.
+    if (process.platform === "win32") {
+      await session.request("POST", "/ms/cdp/execute", { cmd: "Emulation.clearDeviceMetricsOverride", params: {} });
+    }
     await setDensity(session, viewport);
     if (process.platform === "win32") {
       await session.request("POST", "/ms/cdp/execute", {
@@ -98,16 +101,22 @@ async function capture(scene, ready, prepare) {
       session.execute("return document.documentElement.classList.contains('dark') === arguments[0]", [theme === "dark"]),
     );
     await prepare(theme);
-    await until(`${scene} ready`, async () => {
-      if (["cycle", "touch"].includes(scene)) await answerPendingPrompts(session);
-      return ready();
-    });
+    await until(`${scene} ready`, ready);
     if (["cycle", "plots", "touch"].includes(scene)) {
       await until("populated trace statistics", () =>
         session.execute(`
         const count = document.querySelector('table[aria-label="Trace Statistics"] tbody tr td:nth-child(4)')?.innerText;
         return Number(count?.replaceAll(',', '')) >= 32;
       `),
+      );
+    }
+    if (scene === "plots") {
+      await until("zoomed trace statistics settled", () =>
+        session.execute(`
+          const table = document.querySelector('table[aria-label="Trace Statistics"]');
+          const grid = table?.closest('[data-slot=data-table]');
+          return grid && !grid.classList.contains('opacity-50') && getComputedStyle(grid).opacity === '1';
+        `),
       );
     }
     if (["cycle", "touch"].includes(scene)) {
@@ -236,8 +245,8 @@ try {
     const route = `/cycles/${cycle.cycleId}?executionId=${executionId}`;
     await session.goto(route);
     await session.clickNamed("button", "Start");
+    // Keep Inspection Pending Until Both Running Captures Are Saved.
     await until("live measurement plots", async () => {
-      await answerPendingPrompts(session);
       await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
       return session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)");
     });
@@ -340,6 +349,7 @@ try {
             ],
           });
           await session.request("DELETE", "/actions");
+          await session.execute("document.querySelector('.uplot').closest('.plot-card').scrollIntoView({block:'start'});");
         },
       );
 
@@ -412,8 +422,8 @@ try {
       });
       await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
       await session.clickNamed("button", "Start");
+      // The Operator Answers After Capturing The Active And Touch Views.
       await until("active observation", async () => {
-        await answerPendingPrompts(session);
         await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
         return session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)");
       });
@@ -430,8 +440,10 @@ try {
         () => session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)"),
         async () => {
           await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
-          await until("touch live plots", () => session.find("css selector", ".uplot canvas"));
-          await session.execute("document.querySelector('[data-execution-section=Report]').scrollIntoView({block:'start'});");
+          await until("touch live plots", async () => {
+            await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
+            return session.find("css selector", ".uplot canvas");
+          });
         },
       );
 
