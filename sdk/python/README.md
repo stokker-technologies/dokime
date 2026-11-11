@@ -1,7 +1,12 @@
 # Dokime Python SDK
 
 Async remote control, live records and telemetry, finite snapshot queries, and saved execution evidence.
-The native package wraps Dokime's Rust client. Python supplies async contexts,
+The lifecycle examples below describe the flat target API. `Backend.start()` and
+`Cycle.close()` still require source work; see the
+[follow-up inventory](../../openspec/changes/imported-executions/design.md).
+Existing clients already provide `connect()`/`close()` and readers `aclose()`.
+
+The native package wraps Dokime's Rust client. Python supplies explicit resource lifecycles,
 iterators and dataframe conversion; Rust owns connections, negotiation, identity
 checks, deadlines and cancellation. The provisional distribution is
 `dokime-python`, importing `dokime`. Registry publication awaits the naming decision.
@@ -57,24 +62,26 @@ import asyncio, dokime
 
 
 async def main():
-    async with dokime.Backend(port=0) as backend:
-        backend.export_pairing("lab.pair", label="Bench 3")
+    backend = dokime.Backend(port=0)
+    await backend.start()
+    backend.export_pairing("lab.pair", label="Bench 3")
+    await backend.close()
 
 
 asyncio.run(main())
 ```
 
-The context uses the GUI/server root resolver and always loads installed plugins.
+Explicit backend startup uses the GUI/server root resolver and always loads installed plugins.
 `root=` selects execution storage; `application_root=` selects distribution
 configuration and defaults storage to its `data/` folder. `port=None` uses the
 server's default local port; zero allocates an available port. `endpoint` and
 `root` expose the resolved values while running. `backend.client()` returns a
-`DokimeClient` context whose lifetime is independent of the backend.
+`DokimeClient` connection whose lifetime is independent of the backend.
 
 Pairing export reuses the managed remote listener. When disabled, it starts TLS
 and backend-key authentication on an available loopback port; already enabled
 settings remain authoritative. The GUI can import the exported file while the
-context runs. Context exit stops listeners and plugins before releasing storage.
+backend runs. Explicit close stops listeners and plugins before releasing storage.
 Export after shutdown starts raises `BackendClosed` without writing a file.
 
 Startup raises `BackendRunning` for an owned root, `BackendAddressUnavailable`
@@ -114,8 +121,10 @@ plugin = dk.Plugin("example", "0.1.0", catalog=[Double, sample])
 
 
 async def main():
-    async with dk.Backend(port=0, plugins=[plugin]):
-        await asyncio.sleep(3)
+    backend = dk.Backend(port=0, plugins=[plugin])
+    await backend.start()
+    await asyncio.sleep(3)
+    await backend.close()
 
 
 asyncio.run(main())
@@ -187,11 +196,13 @@ Read a pairing file explicitly, or omit its path to use `DOKIME_REMOTE`:
 ```python
 from dokime import DokimeClient
 
-async with DokimeClient.from_pairing("lab.pair") as client:
-    backend = await client.connect()
+client = DokimeClient.from_pairing("lab.pair")
+backend = await client.connect()
+await client.close()
 
-async with DokimeClient.from_pairing() as client:
-    backend = await client.connect()
+client = DokimeClient.from_pairing()
+backend = await client.connect()
+await client.close()
 ```
 
 The file supplies ordered endpoints, expected backend identity, a self-signed
@@ -214,7 +225,7 @@ the remote connection inputs.
 
 ## Creating Cycles
 
-Use an owned cycle context to start a template and retain its sealed evidence:
+Create a cycle explicitly, then close it to retain its sealed evidence:
 
 ```python
 import asyncio
@@ -223,13 +234,16 @@ from dokime import DokimeClient
 
 
 async def main() -> int:
-    async with DokimeClient.from_pairing("examples/lab.pair") as client:
-        async with client.new_cycle("Example Lab Tracking") as cycle:
-            run = await cycle.start("example.demo.tracking", duration_min=10)
-            async for record in run.records("example.tool.connected", "example.tool.disconnected"):
-                print(record.type)
-        await cycle.save(Path("target/reports/tracking") / run.id, report="cycle.summary")
-        return run.outcome.exit_code
+    client = DokimeClient.from_pairing("examples/lab.pair")
+    await client.connect()
+    cycle = await client.create_cycle(label="Example Lab Tracking")
+    run = await cycle.start("example.demo.tracking", duration_min=10)
+    async for record in run.records("example.tool.connected", "example.tool.disconnected"):
+        print(record.type)
+    await cycle.close()
+    await cycle.save(Path("target/reports/tracking") / run.id, report="cycle.summary")
+    await client.close()
+    return run.outcome.exit_code
 
 
 raise SystemExit(asyncio.run(main()))
@@ -237,14 +251,14 @@ raise SystemExit(asyncio.run(main()))
 
 This template requires the corresponding installed plugin. For the OBC fixture,
 use `await cycle.start("obc.checks.pulse", sample_count=8)`.
-`new_cycle(label, description=None, identifier=None, continue_automatically=False)`
-creates the cycle on entry. Every exit, including exceptions and Ctrl+C, seals
-it through the server's durable boundary: admission closes, owned work stops,
-unstarted members cancel, and final outcomes drain. Other cycles continue.
-Cleanup is shielded against cancellation. An ordinary body failure and cleanup
-failure raise `ExceptionGroup`; cancellation or KeyboardInterrupt requires its
-`BaseExceptionGroup` subclass so the original failure can remain intact.
-A lost creation response leaves the identity unknown; inspect the backend before
+`await client.create_cycle(label=..., description=None, identifier=None,
+continue_automatically=False)` creates the cycle directly. The flat target adds
+`await cycle.close()` to seal it through the server's durable boundary: admission
+closes, owned work stops, unstarted members cancel and final outcomes drain.
+Other cycles continue. Use `try/finally` around owned work when cleanup must run
+after failure or cancellation. Close retains shielded cleanup and failure
+grouping; the current source exposes that cleanup only through context entry/exit.
+A lost creation response leaves identity unknown; inspect the backend before
 creating another cycle. Cleanup requires a reachable backend and reports failures.
 
 `cycle.start(template, **parameters)` resolves the template, materializes cases,
@@ -276,7 +290,7 @@ scope, which may be empty or identify a different execution.
 Concurrent readers are independent. Each record and sample has `.to_json()`,
 including nested datetime values as RFC 3339 text; no custom encoder is needed.
 Use an `asyncio.TaskGroup` for concurrent record and sample consumption. Close an
-early-abandoned iterator with `contextlib.aclosing`.
+early-abandoned iterator with `await reader.aclose()`.
 
 `await cycle.save(directory, report=None)` creates the directory and writes
 `execution-<id>.zip` for every known member, `cycle.zip`, optional `report.html`,
@@ -315,26 +329,36 @@ without waiting for completion so the script can answer:
 
 ```python
 import asyncio
-from contextlib import aclosing
 
-async with DokimeClient.from_pairing("lab.pair") as client:
-    async with client.new_cycle("Confirmation") as cycle:
-        execution = await cycle.start("obc.checks.pulse", require_confirmation=True)
-        async with asyncio.timeout(60):
-            while True:
-                async with aclosing(execution.pending_prompts()) as reader:
-                    pending = [item async for item in reader]
-                if pending:
-                    break
-                if await execution.checkpoint() is not None:
-                    raise ValueError("execution sealed without its confirmation")
-                await asyncio.sleep(0.2)
-        if len(pending) != 1:
-            raise ValueError("expected one confirmation")
-        prompt = pending[0]
-        print(prompt.title, prompt.message, prompt.actions)
-        await execution.respond(prompt.id, action="yes")
-        outcome = await execution
+client = DokimeClient.from_pairing("lab.pair")
+await client.connect()
+cycle = await client.create_cycle(label="Confirmation")
+execution = await cycle.start("obc.checks.pulse", require_confirmation=True)
+
+
+async def wait_for_confirmation(execution):
+    while True:
+        reader = execution.pending_prompts()
+        try:
+            pending = [item async for item in reader]
+        finally:
+            await reader.aclose()
+        if pending:
+            return pending
+        if await execution.checkpoint() is not None:
+            raise ValueError("execution sealed without its confirmation")
+        await asyncio.sleep(0.2)
+
+
+pending = await asyncio.wait_for(wait_for_confirmation(execution), timeout=60)
+if len(pending) != 1:
+    raise ValueError("expected one confirmation")
+prompt = pending[0]
+print(prompt.title, prompt.message, prompt.actions)
+await execution.respond(prompt.id, action="yes")
+outcome = await execution
+await cycle.close()
+await client.close()
 ```
 
 `execution.prompt(prompt_id)` inspects the admitted
@@ -395,18 +419,20 @@ releases; follow their setup instructions to prepare a matching local wheel.
 ```python
 from dokime import DokimeClient
 
-async with DokimeClient.from_pairing("lab.pair") as client:
-    execution = await client.execution(execution_id)
-    await execution.start()
-    async for record in execution.records("obc.run.*"):
-        print(record.to_json())
-    print(execution.outcome.exit_code)
+client = DokimeClient.from_pairing("lab.pair")
+await client.connect()
+execution = await client.execution(execution_id)
+await execution.start()
+async for record in execution.records("obc.run.*"):
+    print(record.to_json())
+print(execution.outcome.exit_code)
+await client.close()
 ```
 
 Retain execution identity and mode before Start. Resolve uncertain admission
 using the same identity and mode. Closing the client, abandoning an iterator,
 or reaching a local timeout leaves backend work running when using these
-lower-level primitives. Use `new_cycle` for owned cleanup on every exit.
+lower-level primitives. Use explicit cycle creation and close; use `try/finally` when cleanup must survive errors.
 The callback-based `execution.run()` API has been removed.
 
 Live cursors belong to one backend epoch. Replacing or restarting the backend
@@ -429,11 +455,13 @@ The plugins' own requirements for calls into other plugins or host services
 remain enforced independently of the access key.
 
 ```python
-async with DokimeClient.from_pairing("lab.pair") as client:
-    providers = await client.operations()
-    provider = await client.show("stokker_sensor.read", owner="stokker_sensor")
-    request = provider.operation.request()
-    response = await client.call(provider.operation, request)
+client = DokimeClient.from_pairing("lab.pair")
+await client.connect()
+providers = await client.operations()
+provider = await client.show("example_sensor.read", owner="example_sensor")
+request = provider.operation.request()
+response = await client.call(provider.operation, request)
+await client.close()
 ```
 
 Use an operation ID with a standard protobuf JSON mapping for a dynamic unary
@@ -458,15 +486,17 @@ mutating calls are never automatically retried.
 ```python
 from dokime import DokimeClient, Predicate, QuerySettings
 
-async with DokimeClient(query_settings=QuerySettings(page_rows=500)) as client:
-    async for execution in client.executions(
-        template="example.measurement",
-        where=[Predicate("status", "eq", "failed")],
-        between=("2026-10-01", "2026-11-01"),
-    ):
-        print(execution.id, execution.status, execution.checkpoint_available)
-    async for cycle in client.cycles(phase="sealed", archive="all"):
-        print(cycle.id, cycle.execution_count)
+client = DokimeClient(query_settings=QuerySettings(page_rows=500))
+await client.connect()
+async for execution in client.executions(
+    template="example.measurement",
+    where=[Predicate("status", "eq", "failed")],
+    between=("2026-10-01", "2026-11-01"),
+):
+    print(execution.id, execution.status, execution.checkpoint_available)
+async for cycle in client.cycles(phase="sealed", archive="all"):
+    print(cycle.id, cycle.execution_count)
+await client.close()
 ```
 
 Factories perform no I/O. Iteration pulls finite pages from the connected
@@ -479,11 +509,12 @@ midnight UTC. Naive datetimes are refused. Each reader permits one consumer.
 and completeness. Reuse `reader.snapshot` through `at=` after the first response.
 Close an abandoned reader with `await reader.aclose()`.
 
-Readers also support async contexts and explicit bounded materialization:
+Readers support explicit close and bounded materialization:
 
 ```python
-async with execution.query_records("example.event") as records:
-    rows = await records.collect(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+records = execution.query_records("example.event")
+rows = await records.collect(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+await records.aclose()
 print(records.complete, records.snapshot)
 ```
 
@@ -542,15 +573,18 @@ Use typed statuses to refuse a new run while the backend has active work:
 ```python
 from dokime import CycleStatus, DokimeClient, ExecutionStatus
 
-async with DokimeClient.from_pairing("lab.pair") as client:
-    busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
-    if busy:
-        raise RuntimeError("Backend has active work")
-    async for execution in client.executions(status=ExecutionStatus.FAILED):
-        print(execution.id, execution.status)
-    async for schema in client.record_schemas():
-        columns = [field.identifier for field in schema.fields]
-        print(schema.record_type, columns)
+client = DokimeClient.from_pairing("lab.pair")
+await client.connect()
+busy = [c async for c in client.cycles(status=[CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING])]
+if busy:
+    await client.close()
+    raise RuntimeError("Backend has active work")
+async for execution in client.executions(status=ExecutionStatus.FAILED):
+    print(execution.id, execution.status)
+async for schema in client.record_schemas():
+    columns = [field.identifier for field in schema.fields]
+    print(schema.record_type, columns)
+await client.close()
 ```
 
 Cycle summaries expose `CycleStatus` in `status` and an integer `running_count`;
@@ -592,16 +626,17 @@ queries with either [optional extra](#install). Construct a fresh reader for eac
 conversion; item/page/collect/aggregate/dataframe consumption is exclusive.
 
 ```python
-async with execution.telemetry("example.stream", fields=["counter", "cpu.load"]) as samples:
-    frame = await samples.to_polars(max_rows=10_000, max_bytes=16 * 1024 * 1024)
-    metadata = samples.metadata
-    assert metadata is not None and metadata.schema is not None
-    print(metadata.schema.fields, metadata.schema.versions)
-    print(samples.snapshot, samples.complete)
-
-async with execution.query_records("example.event") as records:
-    frame = await records.to_pandas(max_rows=10_000)
-    print(frame.attrs["dokime"])
+samples = execution.telemetry("example.stream", fields=["counter", "cpu.load"])
+frame = await samples.to_polars(max_rows=10_000, max_bytes=16 * 1024 * 1024)
+metadata = samples.metadata
+assert metadata is not None and metadata.schema is not None
+print(metadata.schema.fields, metadata.schema.versions)
+print(samples.snapshot, samples.complete)
+await samples.aclose()
+records = execution.query_records("example.event")
+frame = await records.to_pandas(max_rows=10_000)
+print(frame.attrs["dokime"])
+await records.aclose()
 ```
 
 Both helpers use finite `QuerySettings.max_rows`/`max_bytes` when omitted. The byte

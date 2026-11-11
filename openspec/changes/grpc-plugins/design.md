@@ -27,8 +27,11 @@ Plugin (Managed | Remote)
 
 TestCaseTemplate ── expand (host) ──► parameter sets
 parameter set ──── materialize (plugin, pure) ──► TestCase
-TestCase ───────── execute (host) ──► Execution
-Execution: initialize → steps → criteria → cleanup, each an operation call
+TestCase ── run (host manager live state) ──► fill Execution
+Import ──── import (later admission path) ──► fill Execution
+Execution: evidence container, open → closed → sealed
+Live run: queued → initializing → stepping → evaluating → cleaning up
+          → finished | cancelled | interrupted
 ```
 
 | Stage | Owner | Notes |
@@ -36,7 +39,8 @@ Execution: initialize → steps → criteria → cleanup, each an operation call
 | Template, parameter definitions, files, document | Plugin catalog | `dokime.suites` section; no steps or criteria |
 | Expand dimensions, filters, overrides, case cap | Host | The planning operation owns expansion |
 | `materialize(parameters)` | Plugin | Pure; the host may call it for preview and validation |
-| `Execution`, ordering, retries, cancel, verdict | Host | The execution manager |
+| Execution evidence, origin, outcome and seal | Host | Shared evidence model |
+| Live run ordering, retries and cancel | Host | Execution manager state, never a stored run or API type |
 | Step, criterion, initialize, cleanup bodies | Plugin | Ordinary operations |
 
 ## Plugins
@@ -73,9 +77,8 @@ message Metadata {
 }
 
 message TestCase {
-  string template = 1;
-  string plugin = 2;                  // plugin id
-  bytes digest = 3;                   // catalog digest it was materialized from
+  reserved 1, 2, 3;
+  reserved "template", "plugin", "digest";
   map<string, Value> parameters = 4;  // resolved
   repeated Step steps = 5;
   repeated Criterion criteria = 6;
@@ -93,6 +96,38 @@ message Criterion {
 }
 ```
 
+Definitions are one per verb: `TestCase` for run and `Import` for import.
+They freeze into an execution through `Origin`; there is no separate
+execution-definition type. `PluginRun` contains the full frozen TestCase,
+plugin/template identity, materialization digest and plugin process start time.
+`Import` is the frozen import manifest with sources/hashes, claimed importer,
+SDK version, processing description and import time. Its detailed admission
+contract belongs to `imported-executions`.
+
+```proto
+message Origin {
+  oneof kind {
+    PluginRun plugin_run = 1; // the TestCase, plugin and its start time
+    Import import = 2;        // frozen import definition and source manifest
+  }
+}
+message PluginRun {
+  TestCase test_case = 1;
+  string plugin = 2;
+  string template = 3;
+  bytes digest = 4;
+  google.protobuf.Timestamp started_at = 5; // plugin process identity
+}
+// Import is the definition/manifest, not a live runtime object.
+// Existing execution/call field numbers are assigned during implementation.
+```
+
+Preserve the remaining TestCase field numbers and reserve the removed identity
+fields above. Plugin calls carry origin beside the full case; both references
+must agree. Materialization routing names the template in MaterializeRequest;
+the host captures identity/digest from the catalog. No fake case or plugin is
+created for imports. These contracts replace the earlier origin sketch.
+
 - Generated operation names only need to be stable within one catalog digest.
   The host materializes again when the digest changed before execution.
 - A step's retry count is its operation's retry policy.
@@ -101,26 +136,65 @@ message Criterion {
 
 ## Execution
 
+An execution is the evidence container: identity, cycle, origin, frozen schemas,
+evidence, attributed outcome and seal. Its states are open, closed and sealed.
+It knows nothing about steps; step/attempt evidence is interpreted through the
+TestCase frozen in PluginRun origin. Every execution freezes its used schemas:
+from the plugin catalog for a run, from a script's import-local catalog for an
+import. Import catalogs never register plugins or overwrite definitions.
+
+A run is only the execution manager's live state for a TestCase: queued,
+initializing, stepping, evaluating, cleaning up, then finished, cancelled or
+interrupted. It is not a stored object or API type and exists only while running.
+Durable execution evidence and recovery markers do not create a persisted Run.
+Build this model and migrate consumers before building the manager; this is
+host-wave work, not a dependency supplied later by imported-executions.
+
 ```text
-host: open the test case's streams
-host: <template>.initialize(execution, parameters)
-host: for each step: invoke step.operation          (retries per its policy)
-host: for each criterion: invoke criterion.operation → verdict
-host: <template>.cleanup(execution)                 (always, also after failure or cancel)
-host: close the streams, fold verdicts, finalize storage
+host: create open execution with PluginRun origin and frozen schemas
+manager: queue its live run, open the test case's streams
+manager: initialize → steps (with retries) → criteria → cleanup
+manager: close streams and execution evidence, attribute outcome
+host: render final report, then publish report and seal
+manager: release live run state at finished/cancelled/interrupted
 ```
 
-- All criteria must pass. A criterion that needs "either" reads several
-  streams itself.
-- Interactive Next, Run Step and Finish are decisions inside the host loop.
-- Cancel is an ordinary operation cancel.
-- The SDK keeps one suite instance per execution, created by the first call
-  and dropped after cleanup. It is never serialized.
+Cleanup remains required after successful initialization, including failure or
+cancellation. Interactive Next, Run Step and Finish are decisions inside the
+live loop. Cancel addresses the execution and is valid only while a run drives
+it. SDK suite resources are created on the first operation and released after
+cleanup; they are never serialized.
 
-| On reconnect, `started_at` is | Result |
+Outcome records how it was reached: not evaluated, evaluated (Passed, Failed and
+the existing evaluated kinds), or declared by the importer. No criteria are
+accepted on imports. Cycle headline verdicts fold only evaluated outcomes;
+declared and unevaluated members are counted and shown separately in cycle
+summaries and reports. A cycle with no evaluated result is never Passed. Empty
+criterion sets cannot produce an evaluated pass merely by vacuous success.
+
+The backend states each execution's supported start, rerun, cancel, inspect and
+export operations for its origin and current state. Desktop shows only those.
+Import drafts never enter the live run queue, are not cancel targets and do not
+inherit start/rerun actions; their separate operations belong to imported-executions.
+
+Recovery handles interrupted runs by closing their executions, retaining their
+interrupted outcome and completing ordinary report/seal work as applicable. It
+never closes or finalizes an import draft. Restarting a plugin interrupts its
+active runs, closes their executions and seals them and their affected cycles
+through normal finalization; drafts and unrelated executions are excluded.
+
+| On reconnect, plugin process `started_at` is | Result |
 | --- | --- |
 | Unchanged | The step in flight failed; retry it if its policy allows |
-| Changed | Seal the execution and its cycles |
+| Changed | Interrupt the run, close its execution and finalize its affected cycles |
+
+Rendering and publishing reports are separate for runs and imports. Rendering
+accepts a fixed execution snapshot plus a document and returns temporary output
+without durable writes or publication. Publication commits a selected report
+with its frozen document/revision and seal under the host's durability contract.
+Rendering failure publishes nothing. Reusing rendering does not invoke existing
+operations that capture or publish reports as a side effect. Import previews,
+revision conditions and draft-only visibility are specified by imported-executions.
 
 ## Authoring
 
@@ -270,9 +344,11 @@ judges belongs in a stream, not in records.
   interval and the SDK answers it with the function's value, stamped with
   the tick's time. A stream without an observer is a generator that yields
   samples when the device produces them.
-- The host owns the only clock. `ctx.sleep` is a host call, so a test can
-  advance time for Dokime and every plugin together and a long story
-  finishes at once.
+- The host owns orchestration time and `ctx.sleep`, allowing deterministic
+  accelerated live-run tests. Evidence separately retains source time, host
+  receipt time and durable position; each stream declares its axis. Host arrival
+  ordering does not erase source time. Imported UTC normalization belongs to
+  `imported-executions`; the host is not the only evidence clock.
 - Records are not a stream. A verdict may rest on them, so each is an
   acknowledged host operation on the step's own call.
 - Removed: stream leases, publication admission, sample and record delivery
@@ -428,6 +504,11 @@ every release; a breaking change moves the package to `v2`.
 
 ## SDKs
 
+Python public APIs always offer a flat form: compose values and submit them to
+one call, and explicitly close resources. No API requires a context manager.
+Import builders and their one-call submission arrive in `imported-executions`
+after this SDK wave and `storage-interface`.
+
 | Half | Uses | Built On |
 | --- | --- | --- |
 | Plugin | `harmos.v1` transport, `dokime.v1` messages and host calls | The Harmos SDK for the language |
@@ -438,13 +519,15 @@ every release; a breaking change moves the package to `v2`.
 import dokime
 from suite import ThermalCycle
 
-async with dokime.serve(ThermalCycle, address="127.0.0.1:7001") as plugin:
-    async with dokime.connect("bench.pair") as client:
-        await client.plugins.add(plugin.url)
-        cases = await client.templates.materialize("thermal.cycle", parameters={"limit": [70, 85]})
-        cycle = await client.cycles.start(cases)
-        async for progress in cycle.watch():
-            print(progress)
+plugin = await dokime.serve(ThermalCycle, address="127.0.0.1:7001")
+client = await dokime.connect("bench.pair")
+await client.plugins.add(plugin.url)
+cases = await client.templates.materialize("thermal.cycle", parameters={"limit": [70, 85]})
+cycle = await client.cycles.start(cases)
+async for progress in cycle.watch():
+    print(progress)
+await client.close()
+await plugin.close()
 ```
 
 - Every operation Dokime serves to clients appears in every language's client
@@ -538,8 +621,10 @@ Sizes are of existing paths, not deletion totals; several files are mixed.
 | Tests tied to the old loop | `crates/dokime-runtime/tests/integration/execution/workflow/` | about 6,300 |
 
 Kept and renamed as the execution manager: durable admission and queueing,
-the running transition, verdict folding, storage finalization, report intents
-and cycle accounting (`transactions/provider*`, `provider_finish`).
+live-run transitions, attributed verdict folding, storage finalization, report
+intents and cycle accounting (`transactions/provider*`, `provider_finish`). Migrate
+their semantics to the evidence-container model rather than retain run phases on
+Execution or recover all unsealed objects as interrupted runs.
 
 Kept for managed plugins: install, store, bundles, feeds and installer
 entries.
@@ -655,7 +740,7 @@ remain separate. Existing archives are historical requirements, not new slices.
 | --- | --- | --- |
 | 1 | Organization source done; finish packaged proof. Remote source done except deferred recovery 2.4; finish connection proof. Plot source done; baseline 1.1 and comparison 4.1 open. Tooling partial: entry points and matrices landed, superseded leaves remain. Protocol definitions and host-source export done; release archive open. | Organization shell/packaging; remote client/server/connection UI; plot runtime/server/UI; `mise.toml`, `tools/python`, `.github`; `proto/`, protocol crate |
 | 2 | Pending: adopt Harmos and first extend its client-facing gRPC declarations/codecs for generated protobuf types and descriptors (3.8). Migrate catalogs, transactions and messages; refresh vendored definitions. Establish proto/helper and Harmos native-domain ownership (2.8). | Harmos declarations/codecs and SDK consumers; workspace dependency and protocol consumers |
-| 3 | Pending: execution manager, materialization, context operations, resource store, stream ingest/statistics and plugin entries (2.2–2.5, 3.2–3.6). Move declarations and protocol-message handlers together into operations with narrow resources; register directly and remove forwarding per area (3.9). Move server behavior into operations, remote access into listener/configuration and one authorization hook, startup into runtime; retain transactions/state/cycles together (3.10–3.11). | Operations; runtime execution, resources and listener; former server behavior; settings UI |
+| 3 | Pending: first land `dokime.v1` Origin and migrate TestCase identity fields/call envelopes (2.9); establish evidence-container lifecycle, frozen definitions/schemas, attributed outcomes, capabilities and render/publish separation (3.12–3.15) before the execution manager; then materialization, context operations, resource store, stream ingest/statistics and plugin entries (2.2–2.5, 3.2–3.6). Move declarations and protocol-message handlers together into operations with narrow resources; register directly and remove forwarding per area (3.9). Move server behavior into operations, remote access into listener/configuration and one authorization hook, startup into runtime; retain transactions/state/cycles together (3.10–3.11). | Operations; runtime execution, resources and listener; former server behavior; settings UI |
 | 4 | Pending: four SDKs and starters (4.x); `sdk/rust` is `dokime` with plugin and client halves, matching `harmos`. CLI and desktop host through runtime; replace build-script facade imports with protocol (4.8–4.9). Migrate built-in plugins and `domain-neutral-interface`. | `sdk/`, CLI, desktop host composition, build scripts, plugins and protocol consumers |
 | 5 | Pending: removals (5.x), including server, client crate, domain, dead conversions and operations contract-only feature. Keep tracing small. Complete `test-stories`, guides, README and final native validation. Reconcile retained Arrow, identity, installer, cadence, marker and embedded-server proof tasks and `prototype-streamline` work. `release-layout` and `dev-release-gates` own release/CI follow-through; `telemetry-at-record` remains deferred. | Removed crates/features, manifests, tests, docs, packaging and retained change owners |
 | After 5 | Separate `storage-interface` change: before-and-after benchmarks including multi-day data; design and implement five generic capabilities in Harmos first, then break Dokime storage cycles and extract one `dokime-storage`. Not part of a gRPC implementation wave. | Harmos storage contracts/backends; Dokime storage, queries and consumers |
@@ -705,9 +790,13 @@ not serve new operations or migrate the existing catalog readers.
   identifiers. Steps, criteria and execution stream identifiers belong only to
   `TestCase`. Parameter expressions are recursive typed trees, including current
   ranges, references, dynamic defaults, arithmetic and expansion selections.
-- Execution messages retain their defined field numbers and use typed
+- Host-wave revision (not yet landed): Origin freezes one TestCase or Import;
+  Execution has only open/closed/sealed, attributed outcome and frozen schemas.
+  No wire Run or separate execution-definition type is introduced.
+- Execution messages retain their defined field numbers except the explicitly
+  reserved TestCase fields moved to PluginRun origin, and use typed
   values before first adoption. Initialize, step, criterion and cleanup
-  requests all carry the full case. Initialize is optional, and even cleanup may
+  requests all carry the full case and execution origin. Initialize is optional, and even cleanup may
   be the first call for a case without steps or criteria. The SDK can therefore
   create its execution instance on the first operation without depending on
   materialize retaining state. Step/criterion calls also carry their identifier,
@@ -761,3 +850,8 @@ not serve new operations or migrate the existing catalog readers.
   obtain plugin sources from their author. Running-host, Describe URL and bundle
   export sources, catalog-reader migration and release attachment remain later
   work; task 2.3 stays open.
+
+`grpc-plugins` owns the execution model and Origin in host wave 3 before manager
+construction. `imported-executions` depends on it; import admission, bulk staging,
+SDK builders and draft/report publication follow the SDK wave and
+`storage-interface` after wave 5.

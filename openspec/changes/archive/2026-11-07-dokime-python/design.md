@@ -1,14 +1,18 @@
 # Design
 
-Foundation, client, backend and authoring decisions describe the delivered native SDK. Steps and observers use the unified `ctx.operation` API.
+Foundation, client, backend and authoring decisions describe the native SDK.
+Lifecycle examples now show the flat target API; Backend.start() still needs
+source work as inventoried in `../../imported-executions/design.md`. Steps and observers use the unified `ctx.operation` API.
 
 ## Flow
 
 ```python
 import asyncio, dokime
 async def main():
-    async with dokime.Backend(port=0) as backend:
-        backend.export_pairing("lab.dokime-remote", label="Bench 3")
+    backend = dokime.Backend(port=0)
+    await backend.start()
+    backend.export_pairing("lab.dokime-remote", label="Bench 3")
+    await backend.close()
 asyncio.run(main())
 ```
 
@@ -70,8 +74,8 @@ The explicit inputs in `crates/dokime-runtime/build/mod.rs` and `crates/dokime-d
 ## Client Parity Decisions
 
 - Rust `Client` owns the live connection, negotiation, identity checks, request deadlines and cancellation. PyO3 async futures release Python while waiting and propagate asyncio cancellation by dropping the Rust future. Closing the Python connection closes the shared Rust handle without stopping admitted backend work.
-- Python retains its language-specific owned async contexts, lazy finite readers, immutable value views and optional dataframe conversion. These compose Rust client operations and retain the existing lifecycle and bounded-materialization contracts; no Python gRPC transport remains.
-- The client identity snapshot stays at `dokime.client.Backend`; `dokime.Backend` owns the backend async context.
+- Python retains its language-specific owned explicit resource lifecycles, lazy finite readers, immutable value views and optional dataframe conversion. These compose Rust client operations and retain the existing lifecycle and bounded-materialization contracts; no Python gRPC transport remains.
+- The client identity snapshot stays at `dokime.client.Backend`; `dokime.Backend` owns the explicit backend lifecycle.
 - Private interpreter message classes are reflected from the Rust catalog through Harmos. No generated Python wire tree, descriptor asset, schema projection implementation or Python contract exporter remains. `dokime.client.contracts.operation(service, method)` replaces generated root operation constants; live plugin discovery still uses the authorized Rust catalog.
 - A connection reuses reflected message classes for identical complete contracts and provider generations in its current catalog. Rediscovery still fetches Rust's authorized entries and refreshes grants/availability, while retired contracts leave the cache. This preserves request-class identity across rediscovery and avoids reconstructing every descriptor pool for each newly used method; no historical or unbounded reflection cache is added.
 - Raw Rust client calls authorize external gRPC paths through that same live catalog; product methods retain the negotiated availability check. Streaming input uses a one-frame bounded channel, with explicit finish/cancel and final-status observation.
@@ -95,7 +99,7 @@ The gRPC service, Harmos sidecar lifecycle, `local.lock`, reports and Python-cli
 ## Backend Decisions
 
 - `Session::start` accepts native embedded providers; existing CLI/GUI callers pass an empty list. Python owns one session through an async mutex, released before Python exception construction. Shutdown closes pairing admission synchronously, then uses the server's retained drain; cancelled startup retains the existing rollback. Endpoint/root are immutable startup snapshots. The extension uses the product executable crates' recursion limit of 256: native code generation exceeded Rust's default while computing an inherited runtime-query future layout; check and Clippy did not evaluate that layout.
-- `Backend(port=None, root=None, application_root=None, plugins=())` uses the server resolver and default port; zero requests an available local port. `root` selects execution storage, `application_root` selects distribution settings. Installed plugins always load. `client()` returns an independent local client context.
+- `Backend(port=None, root=None, application_root=None, plugins=())` uses the server resolver and default port; zero requests an available local port. `root` selects execution storage, `application_root` selects distribution settings. Installed plugins always load. `client()` returns an independent local client.
 - Synchronous `export_pairing(path, label=...)` releases Python while awaiting the Rust controller and atomically publishing its pairing file. Enabled remote settings remain authoritative; a disabled listener is enabled with TLS and per-client keys at `127.0.0.1:0`, avoiding a second configured-port collision. No network scope is widened implicitly.
 - Startup preserves native cause chains and maps owned roots, address conflicts, format identities and installed-ID conflicts to structured Python errors. Classification explicitly unwraps transparent runtime variants and shared native error payloads rather than parsing messages. Installed IDs remain reserved while disabled; removal-pending entries do not reserve IDs. Refusal happens before installed admission can prune a conflicting bundle. The small runtime plugin-admission edit does not touch invocation dispatch.
 - Task 3 uses private `_native.EmbeddedProvider(id, version, description)` handles for real metadata-only catalogs with no templates or callbacks. This supports composition and collision proof without defining decorators or an invocation API. Task 4 owns executable authoring and callback support; this handle's `inner` already owns the native provider abstraction.
