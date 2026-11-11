@@ -23,6 +23,7 @@ from dokime_tools.build import cargo, lint
 # Third Party Imports
 # Local Imports
 from dokime_tools.ci import tasks
+from dokime_tools.prepare import generated
 
 # Type Checking Imports
 
@@ -33,6 +34,30 @@ from dokime_tools.ci import tasks
 # === Types === #
 
 # === Classes === #
+
+
+class GeneratedContractTests(unittest.TestCase):
+    def test_overlapping_preparations_read_their_own_compiler_records(self):
+        records = []
+        running = False
+
+        def compile_contracts(*args, **kwargs):
+            nonlocal running
+            output = kwargs["stdout"]
+            output.write("inner" if running else "outer")
+            output.flush()
+            if not running:
+                running = True
+                generated.prepare()
+
+        with (
+            patch.object(generated.subprocess, "run", side_effect=compile_contracts),
+            patch.object(
+                generated, "generate", side_effect=lambda messages, **kwargs: records.append(messages.read_text(encoding="utf-8"))
+            ),
+        ):
+            generated.prepare()
+        self.assertEqual(records, ["inner", "outer"])
 
 
 class FocusedCargoTests(unittest.TestCase):

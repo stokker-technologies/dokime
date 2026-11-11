@@ -210,6 +210,8 @@ For local builds, `mise.toml` selects `RUSTC_WRAPPER=sccache`,
 `SCCACHE_DIR=<OS user cache>/sccache` and `SCCACHE_CACHE_SIZE=20G`.
 sccache owns its persistent background server. Incremental compilation stays enabled;
 only CI sets `CARGO_INCREMENTAL=0`. Each checkout keeps its own `target/`.
+Contract generation keeps each invocation's compiler record in a private temporary
+folder, so overlapping checks cannot overwrite the record another invocation reads.
 The session running compilation monitors free disk space outside project tooling.
 If allocation failures recur, disable it for one run by setting
 `RUSTC_WRAPPER` to an empty value:

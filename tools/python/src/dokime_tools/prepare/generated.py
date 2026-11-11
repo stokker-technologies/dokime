@@ -53,20 +53,20 @@ MODULES = ROOT / "target/generated/typescript"
 def prepare(*, check: bool = True) -> None:
     """Build The Generator Independently Of The Frontend And Refresh Its Modules."""
 
-    messages = ROOT / "target/contracts/typescript/compiler.jsonl"
-    messages.parent.mkdir(parents=True, exist_ok=True)
     arguments = ["--locked", "--profile", "dev", "-p", "cargo-dokime", "-p", "dokime-server"]
-    with messages.open("w", encoding="utf-8") as output:
-        subprocess.run(
-            ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"],
-            cwd=ROOT,
-            check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            stdin=sys.stdin,
-            stdout=output,
-            stderr=sys.stderr,
-        )
-    generate(messages, check=check)
+    with tempfile.TemporaryDirectory(prefix="dokime-contracts-") as directory:
+        messages = Path(directory) / "compiler.jsonl"
+        with messages.open("w", encoding="utf-8") as output:
+            subprocess.run(
+                ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"],
+                cwd=ROOT,
+                check=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdin=sys.stdin,
+                stdout=output,
+                stderr=sys.stderr,
+            )
+        generate(messages, check=check)
 
 
 def generate(messages: Path, *, check: bool = False) -> None:
