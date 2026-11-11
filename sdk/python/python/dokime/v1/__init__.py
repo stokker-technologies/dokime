@@ -25,7 +25,7 @@ from google.protobuf.message_factory import GetMessageClass
 
 # === Public Exports === #
 
-__all__ = ["message", "enum_value"]
+__all__ = ["enum_value", "message"]
 
 # === Constants === #
 
