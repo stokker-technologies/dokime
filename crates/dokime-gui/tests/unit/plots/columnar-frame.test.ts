@@ -78,6 +78,37 @@ test("Aligned Columns Decode With One Shared Time Array and No Point Copies", ()
   assert.ok(decoded.payload.series.every((series) => series.points.length === 0));
 });
 
+test("Cartesian Columns Reject Mismatched Lengths and Nonfinite Coordinates", () => {
+  for (const time of [[1], [1, Number.NaN], [1, Number.POSITIVE_INFINITY]]) {
+    const wire = create(WatchFrameSchema, {
+      updates: [
+        {
+          kind: { HarmosVariant: { case: "Snapshot", value: {} } },
+          envelope: {
+            plotId: "signal",
+            epoch: "epoch",
+            selection: "signal",
+            diagnostics: {},
+            payload: {
+              stream: "signal",
+              xKey: "timestamp",
+              series: [{ key: "a", label: "A" }],
+              frame: {
+                mode: { HarmosVariant: { case: "Aligned", value: {} } },
+                time,
+                series: [{ y: [{ value: 2 }, {}] }],
+              },
+            },
+          },
+        },
+      ],
+    });
+    const decoded = mapNativePlotStreamFrame(wire).updates[0];
+    assert.ok(decoded.kind !== "pending");
+    assert.equal(decoded.payload.cartesian, null);
+  }
+});
+
 test("Independent Columns Preserve Categorical Axes and Z Values", () => {
   const wire = create(WatchFrameSchema, {
     updates: [
@@ -101,6 +132,6 @@ test("Independent Columns Preserve Categorical Axes and Z Values", () => {
   });
   const decoded = mapNativePlotStreamFrame(wire).updates[0];
   assert.ok(decoded.kind !== "pending");
-  assert.deepEqual(decoded.payload.series[0].points, [{ x: "Category", y: 2, z: 7 }]);
+  assert.deepEqual(decoded.payload.series[0].points, [{ x: "Category", y: 2, z: 7, instant: null }]);
   assert.equal(decoded.payload.cartesian, null);
 });

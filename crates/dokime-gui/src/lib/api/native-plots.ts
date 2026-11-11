@@ -815,11 +815,18 @@ function mapNativeCartesianFrame(frame?: NativePlotFrame): PlotCartesianFrame | 
     return null;
   }
   const mode = cartesianMode(frame.mode);
-  const series = frame.series.map((column) => ({
-    x: mode === "aligned" ? frame.time : column.x.map((value) => Number(nativeValueToJson(value))),
-    y: column.y.map((value) => value.value ?? null),
-  }));
-  if (series.some((column) => column.x.length !== column.y.length || column.x.some((value) => !Number.isFinite(value)))) return null;
+  let valid = true;
+  const series = frame.series.map((column) => {
+    const x = mode === "aligned" ? frame.time : column.x.map((value) => Number(nativeValueToJson(value)));
+    const y = new Array<number | null>(column.y.length);
+    if (x.length !== y.length) valid = false;
+    for (let row = 0; row < y.length; row += 1) {
+      y[row] = column.y[row].value ?? null;
+      if (!Number.isFinite(x[row])) valid = false;
+    }
+    return { x, y };
+  });
+  if (!valid) return null;
   return {
     mode,
     series,
