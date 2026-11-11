@@ -91,7 +91,12 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn std::error::Error>> {
     crate::protocol::generate(&root, output.path())?;
 
     // Compare Both Packages, Retaining Evidence on Failure.
-    for (generated, committed) in [("dokime.v1.rs", "src/v1.rs"), ("harmos.v1.rs", "src/harmos/v1.rs")] {
+    for (generated, committed) in [
+        ("dokime.v1.rs", "src/v1.rs"),
+        ("harmos.v1.rs", "src/harmos/v1.rs"),
+        ("descriptors.bin", "src/descriptors.bin"),
+        ("reflection.rs", "src/reflection.rs"),
+    ] {
         let actual = fs::read(output.path().join(generated))?;
         let expected = fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(committed))?;
         if actual != expected {

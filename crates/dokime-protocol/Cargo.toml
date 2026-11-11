@@ -38,6 +38,7 @@ publish.workspace = true
 
 # Serialization
 prost = { workspace = true, features = ["derive", "std"] }
+prost-reflect = { workspace = true }
 prost-types = { workspace = true, features = ["std"] }
 
 # Configuration
@@ -85,6 +86,7 @@ protoc-bin-vendored = { workspace = true }
 tempfile = { workspace = true, default-features = true }
 
 # Parsing
+heck = { workspace = true }
 
 # Concurrency
 

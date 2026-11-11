@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod execution_origin;
 mod generated_code_matches_proto;
 
 #[path = "../support/protocol.rs"]

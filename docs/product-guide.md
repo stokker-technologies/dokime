@@ -2212,6 +2212,27 @@ contracts still use the export below.
 nothing. Obtain plugin `.proto` sources from its author until export from a
 running host, plugin URL or bundle is implemented.
 
+### Shared Protobuf Semantics
+
+The new `dokime.v1` contracts are authoritative in `proto/dokime/v1/`.
+`dokime-protocol` contains generated Rust messages, their descriptor set and
+light helpers; host operations use those same descriptors. The existing host
+and SDK migration is still in progress. These rules apply to every adopting SDK:
+
+| Contract | Rust, Python, C# and C++ Semantics |
+| --- | --- |
+| Values | Preserve the selected `Value` oneof, exact signed/unsigned 64-bit integers and bytes. An absent kind is invalid; explicit null differs from absence. Lists retain order; named maps have no semantic order. |
+| Identity | Use declared identifiers exactly. Labels are presentation, never lookup keys. No SDK invents a plugin identity for imported evidence. |
+| Time | Protobuf timestamps are UTC seconds plus nanoseconds. Source time, host receipt time and durable position are distinct. Duration values carry their protobuf units and must be positive where an interval is required. |
+| Frozen Origin | A PluginRun freezes its TestCase, plugin/template identity, catalog digest and process start time. Every execution call carries that origin and the same complete case. Import freezes provenance and never authorizes plugin execution calls. |
+| Operations | Plugin operations are unary. Public context calls inherit the execution scope; payloads cannot select another execution. Streamed requests/results are host-native only. |
+| Policy | The operation owns deadlines, cancellation grace, retries and backoff on the host clock. An unset policy has no deadline, zero grace and no retries. SDK conveniences must not invent additional timeouts. |
+| Resources | Rust stores values by type, replacing on `set` and returning a named error on missing `get`. Python uses its suite instance. Both live from the first execution call through cleanup; resources are never serialized into definitions. |
+| Settings | Read saved typed values on demand through the host; save never requires startup injection or an applied-versus-saved comparison. |
+| Failure | Preserve structured classification, refusal identity and diagnostic details across gRPC. Missing providers fail the call naming the provider, without changing unrelated entries. |
+| Statistics | Count zero has no meaningful numeric fields. Queries use execution streams and optional step ranges; first/last follow live arrival order without replacing source timestamps. |
+| Lifecycle | Compose values and explicitly release clients/plugins. Python always offers a flat form without a required context manager. |
+
 ## Generated Clients
 
 Export the operation catalog's language-neutral protobuf contract without a running backend:

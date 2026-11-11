@@ -22,6 +22,8 @@ use std::{
 };
 
 // Third Party Imports
+use heck::{ToSnakeCase, ToUpperCamelCase};
+use prost::Message;
 
 // Local Imports
 
@@ -86,11 +88,39 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     let mut config = prost_build::Config::new();
     config.protoc_executable(&compiler);
     config.extern_path(".harmos.v1", "crate::harmos::v1");
+    config.file_descriptor_set_path(output.join("descriptors.bin"));
     tonic_prost_build::configure().build_client(true).build_server(true).out_dir(output).compile_with_config(
         config,
         &inputs,
         &[proto.clone(), includes.clone()],
     )?;
+    let mut descriptors = prost_types::FileDescriptorSet::decode(fs::read(output.join("descriptors.bin"))?.as_slice())?;
+    for file in &mut descriptors.file {
+        file.source_code_info = None;
+    }
+    let descriptors = descriptors.encode_to_vec();
+    fs::write(output.join("descriptors.bin"), &descriptors)?;
+    let pool = prost_reflect::DescriptorPool::decode(descriptors.as_slice())?;
+    let mut reflection = String::from("// @generated from authoritative protobuf descriptors.\n");
+    for message in pool.all_messages().filter(|message| message.package_name() == "dokime.v1" && !message.is_map_entry()) {
+        let mut parents = Vec::new();
+        let mut parent = message.parent_message();
+        while let Some(message) = parent {
+            parents.push(message.name().to_snake_case());
+            parent = message.parent_message();
+        }
+        parents.reverse();
+        parents.push(message.name().to_upper_camel_case());
+        let path = parents.join("::");
+        reflection.push_str(&format!(
+            "impl prost_reflect::ReflectMessage for crate::v1::{path} {{\n\
+             fn descriptor(&self) -> prost_reflect::MessageDescriptor {{\n\
+             crate::descriptor_pool().get_message_by_name(\"{}\").expect(\"generated protocol descriptor\")\n\
+             }}\n}}\n",
+            message.full_name(),
+        ));
+    }
+    fs::write(output.join("reflection.rs"), reflection)?;
     let mut config = prost_build::Config::new();
     config.protoc_executable(compiler);
     tonic_prost_build::configure().build_client(true).build_server(true).out_dir(output).compile_with_config(

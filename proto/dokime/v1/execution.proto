@@ -23,15 +23,52 @@ message MaterializeRequest {
 }
 
 message TestCase {
-  string template = 1;
-  // Plugin identifier and catalog digest the case was materialized from.
-  string plugin = 2;
-  bytes digest = 3;
+  reserved 1, 2, 3;
+  reserved "template", "plugin", "digest";
   map<string, Value> parameters = 4;
   repeated Step steps = 5;
   repeated Criterion criteria = 6;
   // Identifiers of the streams the host opens for the execution.
   repeated string streams = 7;
+}
+
+// An execution freezes its definition and provenance, never a live run object.
+message Origin {
+  oneof kind {
+    PluginRun plugin_run = 1;
+    Import import = 2;
+  }
+}
+
+message PluginRun {
+  TestCase test_case = 1;
+  string plugin = 2;
+  string template = 3;
+  bytes digest = 4;
+  // The plugin process identity from harmos.v1.Description, not run start time.
+  google.protobuf.Timestamp started_at = 5;
+}
+
+// Frozen import provenance. Admission, uploads and draft handles are separate.
+message Import {
+  Metadata metadata = 1;
+  repeated ImportSource sources = 2;
+  // Claimed identity; neither this nor sealing attests measurement authenticity.
+  string importer = 3;
+  string sdk_version = 4;
+  string processing = 5;
+  google.protobuf.Timestamp imported_at = 6;
+  // Store-scoped whole-import key, distinct from a mutation request identity.
+  string key = 7;
+  // Corrections create new evidence and may name their sealed predecessor.
+  string predecessor = 8;
+}
+
+message ImportSource {
+  string name = 1;
+  bytes sha256 = 2;
+  // The host verifies attached bytes; unattached hashes remain importer claims.
+  bool attached = 3;
 }
 
 message Step {
@@ -51,6 +88,7 @@ message Criterion {
 message InitializeRequest {
   string execution = 1;
   TestCase test_case = 2;
+  Origin origin = 3;
 }
 
 message InitializeResponse {}
@@ -62,6 +100,7 @@ message StepRequest {
   // Supplied on every execution call so the SDK can create its instance even
   // when the template has no initialize operation.
   TestCase test_case = 3;
+  Origin origin = 4;
 }
 
 message StepResponse {}
@@ -71,6 +110,7 @@ message CriterionRequest {
   // Metadata.identifier of the criterion.
   string criterion = 2;
   TestCase test_case = 3;
+  Origin origin = 4;
 }
 
 message CriterionResponse {
@@ -81,6 +121,7 @@ message CleanupRequest {
   string execution = 1;
   Termination termination = 2;
   TestCase test_case = 3;
+  Origin origin = 4;
 }
 
 message CleanupResponse {}
@@ -93,6 +134,8 @@ enum Termination {
   TERMINATION_FAILED = 2;
   // The operator stopped or cancelled the execution.
   TERMINATION_CANCELLED = 3;
+  // The plugin process changed or host recovery closed an interrupted run.
+  TERMINATION_INTERRUPTED = 4;
 }
 
 // ----------------------------------- Host operations a plugin calls (ctx)

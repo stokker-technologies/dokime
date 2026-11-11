@@ -12,6 +12,10 @@
 /* === Modules === */
 
 pub mod builders;
+mod execution;
+
+#[rustfmt::skip]
+mod reflection;
 
 // Checked-In Output of the Generator Exercised by the Integration Drift Check.
 #[rustfmt::skip]
@@ -27,12 +31,16 @@ pub mod harmos {
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::OnceLock;
 
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
+
+/// Authoritative Dokime descriptors, including their Harmos and Google imports.
+pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("descriptors.bin");
 
 /* === Macros === */
 
@@ -81,6 +89,12 @@ impl v1::PlotKind {
 }
 
 /* === Public Functions === */
+
+/// Shared descriptors for generated messages and host operation registration.
+pub fn descriptor_pool() -> &'static prost_reflect::DescriptorPool {
+    static POOL: OnceLock<prost_reflect::DescriptorPool> = OnceLock::new();
+    POOL.get_or_init(|| prost_reflect::DescriptorPool::decode(FILE_DESCRIPTOR_SET).expect("checked-in Dokime protocol descriptors"))
+}
 
 /* === Private Functions === */
 

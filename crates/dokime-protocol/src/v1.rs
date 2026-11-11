@@ -1267,13 +1267,6 @@ pub struct MaterializeRequest {
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TestCase {
-    #[prost(string, tag = "1")]
-    pub template: ::prost::alloc::string::String,
-    /// Plugin identifier and catalog digest the case was materialized from.
-    #[prost(string, tag = "2")]
-    pub plugin: ::prost::alloc::string::String,
-    #[prost(bytes = "vec", tag = "3")]
-    pub digest: ::prost::alloc::vec::Vec<u8>,
     #[prost(map = "string, message", tag = "4")]
     pub parameters: ::std::collections::HashMap<::prost::alloc::string::String, Value>,
     #[prost(message, repeated, tag = "5")]
@@ -1283,6 +1276,74 @@ pub struct TestCase {
     /// Identifiers of the streams the host opens for the execution.
     #[prost(string, repeated, tag = "7")]
     pub streams: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// An execution freezes its definition and provenance, never a live run object.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Origin {
+    #[prost(oneof = "origin::Kind", tags = "1, 2")]
+    pub kind: ::core::option::Option<origin::Kind>,
+}
+/// Nested message and enum types in `Origin`.
+pub mod origin {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Kind {
+        #[prost(message, tag = "1")]
+        PluginRun(super::PluginRun),
+        #[prost(message, tag = "2")]
+        Import(super::Import),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PluginRun {
+    #[prost(message, optional, tag = "1")]
+    pub test_case: ::core::option::Option<TestCase>,
+    #[prost(string, tag = "2")]
+    pub plugin: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub template: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "4")]
+    pub digest: ::prost::alloc::vec::Vec<u8>,
+    /// The plugin process identity from harmos.v1.Description, not run start time.
+    #[prost(message, optional, tag = "5")]
+    pub started_at: ::core::option::Option<::prost_types::Timestamp>,
+}
+/// Frozen import provenance. Admission, uploads and draft handles are separate.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Import {
+    #[prost(message, optional, tag = "1")]
+    pub metadata: ::core::option::Option<Metadata>,
+    #[prost(message, repeated, tag = "2")]
+    pub sources: ::prost::alloc::vec::Vec<ImportSource>,
+    /// Claimed identity; neither this nor sealing attests measurement authenticity.
+    #[prost(string, tag = "3")]
+    pub importer: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub sdk_version: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub processing: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "6")]
+    pub imported_at: ::core::option::Option<::prost_types::Timestamp>,
+    /// Store-scoped whole-import key, distinct from a mutation request identity.
+    #[prost(string, tag = "7")]
+    pub key: ::prost::alloc::string::String,
+    /// Corrections create new evidence and may name their sealed predecessor.
+    #[prost(string, tag = "8")]
+    pub predecessor: ::prost::alloc::string::String,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ImportSource {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "2")]
+    pub sha256: ::prost::alloc::vec::Vec<u8>,
+    /// The host verifies attached bytes; unattached hashes remain importer claims.
+    #[prost(bool, tag = "3")]
+    pub attached: bool,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1312,6 +1373,8 @@ pub struct InitializeRequest {
     pub execution: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "2")]
     pub test_case: ::core::option::Option<TestCase>,
+    #[prost(message, optional, tag = "3")]
+    pub origin: ::core::option::Option<Origin>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1328,6 +1391,8 @@ pub struct StepRequest {
     /// when the template has no initialize operation.
     #[prost(message, optional, tag = "3")]
     pub test_case: ::core::option::Option<TestCase>,
+    #[prost(message, optional, tag = "4")]
+    pub origin: ::core::option::Option<Origin>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1342,6 +1407,8 @@ pub struct CriterionRequest {
     pub criterion: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "3")]
     pub test_case: ::core::option::Option<TestCase>,
+    #[prost(message, optional, tag = "4")]
+    pub origin: ::core::option::Option<Origin>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1358,6 +1425,8 @@ pub struct CleanupRequest {
     pub termination: i32,
     #[prost(message, optional, tag = "3")]
     pub test_case: ::core::option::Option<TestCase>,
+    #[prost(message, optional, tag = "4")]
+    pub origin: ::core::option::Option<Origin>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1525,6 +1594,8 @@ pub enum Termination {
     Failed = 2,
     /// The operator stopped or cancelled the execution.
     Cancelled = 3,
+    /// The plugin process changed or host recovery closed an interrupted run.
+    Interrupted = 4,
 }
 impl Termination {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -1537,6 +1608,7 @@ impl Termination {
             Self::Completed => "TERMINATION_COMPLETED",
             Self::Failed => "TERMINATION_FAILED",
             Self::Cancelled => "TERMINATION_CANCELLED",
+            Self::Interrupted => "TERMINATION_INTERRUPTED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -1546,6 +1618,7 @@ impl Termination {
             "TERMINATION_COMPLETED" => Some(Self::Completed),
             "TERMINATION_FAILED" => Some(Self::Failed),
             "TERMINATION_CANCELLED" => Some(Self::Cancelled),
+            "TERMINATION_INTERRUPTED" => Some(Self::Interrupted),
             _ => None,
         }
     }

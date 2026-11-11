@@ -778,10 +778,18 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+The requested Harmos adoption revision is
+`e2c76608c597643d3a92127d45ec612c38239163`. The vendored plugin proto already
+matches it byte for byte. Dependency adoption is still open; the old host
+facade and macro consumers must move to the explicit owners in the same cutover.
+
 The protocol descriptor set is generated from all authoritative Dokime inputs
 and their imported Harmos/Google definitions, checked in beside the Rust messages
 and exposed by the protocol crate. Host declarations use those descriptors;
 SDKs implement the same documented semantics without a second definition model.
+Generated Rust documentation retains proto comments; the embedded descriptor set
+omits source locations and comments after generation. Every generated Dokime
+message implements descriptor-backed reflection without an SDK or host dependency.
 Origin validation requires a PluginRun with a full TestCase and nonempty
 plugin/template/digest/process identity for execution calls. Import origins are
 valid execution evidence but never plugin-call envelopes. An envelope's TestCase
