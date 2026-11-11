@@ -7,15 +7,17 @@
  * ***
  */
 
-// File watches over a running execution: a local tree that grows, rotates and
+// File captures over a running execution: a local tree that grows, rotates and
 // gains files, and an in-process FTP server; and live follows of native outputs.
 
 /* === Modules === */
+
+pub(crate) mod capture;
 pub(crate) mod follow;
 pub(crate) mod ftp;
-pub(crate) mod watch;
 
 /* === Re-Exports === */
+
 pub(crate) use crate::service_support::prelude::*;
 
 /* === Imports === */
@@ -24,17 +26,19 @@ pub(crate) use crate::service_support::prelude::*;
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
+use {
+    model::files::wire::CaptureMode, model::files::wire::FileRule, model::files::wire::FileSource, model::files::wire::MirrorCapture,
+    model::files::wire::StreamCapture,
+};
 
 // Local Imports
 use dokime_domain::model;
+use dokime_operations::files::StartCapture;
 use dokime_runtime::artifacts::{ArtifactRecord, ArtifactStatus};
-use dokime_runtime::domains::files::{FileWatch, WatchEvent};
-use {
-    model::files::wire::FileRule, model::files::wire::FileRuleAction, model::files::wire::FileWatchPolicy,
-    model::files::wire::FileWatchSource, model::files::wire::FileWatchSourcePayload, model::files::wire::LocalWatchSource,
-};
+use dokime_runtime::domains::files::{CaptureEvent, FileCapture};
 
 /* === Constants === */
+
 // The artifact folder every story captures into.
 pub(crate) const OUTPUT: &str = "capture";
 
@@ -43,6 +47,7 @@ pub(crate) const OUTPUT: &str = "capture";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 // A runtime whose only execution stays running until released.
 pub(crate) struct Bench {
     pub(crate) owner: crate::service_support::system_reports::Runtime,
@@ -57,6 +62,7 @@ pub(crate) struct Bench {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Bench {
     pub(crate) async fn start(configure: impl FnOnce(RuntimeConfig, &Path) -> RuntimeConfig) -> Self {
         let root = tempdir().unwrap();
@@ -80,60 +86,39 @@ impl Bench {
 }
 
 /* === Public Functions === */
-pub(crate) fn request(
-    execution: &str, source: FileWatchSourcePayload, rules: Vec<FileRule>, policy: FileWatchPolicy,
-) -> dokime_operations::files::FileWatch {
-    dokime_operations::files::FileWatch {
-        execution_id: Some(execution.to_owned()),
-        source: Some(FileWatchSource { payload: Some(source) }),
-        rules,
-        output: OUTPUT.to_owned(),
-        policy,
-        selection: model::files::wire::FileWatchSelection::All,
-        wait_for_source_seconds: None,
-        poll_interval_ms: None,
-        maximum_seconds: None,
-        maximum_files: None,
-        maximum_bytes: None,
-    }
+
+// A capture over a tree into the output every story reads.
+pub(crate) fn request(root: &Path, rules: impl IntoIterator<Item = FileRule>, mode: impl Into<CaptureMode>) -> StartCapture {
+    StartCapture::new(FileSource::tree(root, rules), OUTPUT, mode)
 }
 
-pub(crate) fn local(root: &Path) -> FileWatchSourcePayload {
-    FileWatchSourcePayload::Local(LocalWatchSource { root: root.to_str().unwrap().to_owned() })
+pub(crate) fn stream() -> StreamCapture {
+    StreamCapture::plain()
 }
 
-pub(crate) fn include(glob: &str) -> FileRule {
-    FileRule {
-        glob: glob.to_owned(),
-        action: FileRuleAction::Include,
-    }
+// Stories drive a Mirror's passes themselves.
+pub(crate) fn mirror() -> MirrorCapture {
+    MirrorCapture::every(3600)
 }
 
-pub(crate) fn exclude(glob: &str) -> FileRule {
-    FileRule {
-        glob: glob.to_owned(),
-        action: FileRuleAction::Exclude,
-    }
-}
-
-pub(crate) async fn poll(watch: &mut FileWatch) -> Vec<WatchEvent> {
+pub(crate) async fn poll(capture: &mut FileCapture) -> Vec<CaptureEvent> {
     let mut events = Vec::new();
-    watch.poll(&mut events).await.unwrap();
+    capture.poll(&mut events).await.unwrap();
     events
 }
 
-pub(crate) async fn seal(watch: &mut FileWatch) -> Vec<WatchEvent> {
+pub(crate) async fn seal(capture: &mut FileCapture) -> Vec<CaptureEvent> {
     let mut events = Vec::new();
-    watch.seal(&mut events).await.unwrap();
+    capture.seal(&mut events).await.unwrap();
     events
 }
 
 // The artifacts sealed by these events, by path relative to the root.
-pub(crate) fn sealed(events: &[WatchEvent]) -> BTreeMap<String, ArtifactRecord> {
+pub(crate) fn sealed(events: &[CaptureEvent]) -> BTreeMap<String, ArtifactRecord> {
     events
         .iter()
         .filter_map(|event| match event {
-            WatchEvent::Sealed { path, record } => Some((path.clone(), (**record).clone())),
+            CaptureEvent::Sealed { path, record } => Some((path.clone(), (**record).clone())),
             _ => None,
         })
         .collect()

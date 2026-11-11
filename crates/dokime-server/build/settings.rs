@@ -37,7 +37,7 @@ type Error = Box<dyn std::error::Error>;
 
 /* === Public Functions === */
 
-/// Export Domain Defaults Alongside The Generated Operation Bindings.
+// Export Domain Defaults Alongside The Generated Operation Bindings.
 pub(super) fn export_application_settings(directory: &std::path::Path) -> Result<(), Error> {
     let settings = dokime::domain::model::settings::application::ApplicationSettings::default();
     let bytes = serde_json::to_vec_pretty(&settings)?;

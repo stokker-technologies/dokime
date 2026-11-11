@@ -20,12 +20,13 @@
 
 // Third Party Imports
 use harmos::Aggregate;
+use model::expressions::{DataExpression, DataTransform, Expression, telemetry};
 
 // Local Imports
 use dokime_domain::model;
-use model::expressions::{DataExpression, DataTransform, Expression, telemetry};
 
 /* === Constants === */
+
 const VOCABULARY: [Aggregate; 11] = [
     Aggregate::Count,
     Aggregate::Sum,

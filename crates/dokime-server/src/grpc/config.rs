@@ -86,6 +86,10 @@ impl TlsIdentity {
 }
 
 impl Config {
+    pub fn bind_addr(&self) -> SocketAddr {
+        self.bind_addr
+    }
+
     pub fn max_message_bytes(&self) -> usize {
         self.max_message_bytes
     }

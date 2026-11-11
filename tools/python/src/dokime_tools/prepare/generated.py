@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Carry The Generated GUI Message Modules Between The Build And The Lanes
 
     python -m dokime_tools.prepare.generated
@@ -34,10 +33,8 @@ from dokime_tools.build import storage
 from dokime_tools.build.outputs import executables
 from dokime_tools.package.contracts import locate
 from dokime_tools.package.staging import sync_output
-from dokime_tools.prepare import bindings
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -69,7 +66,6 @@ def prepare(*, check: bool = True) -> None:
             stdout=output,
             stderr=sys.stderr,
         )
-    bindings.generate(messages, check=check)
     generate(messages, check=check)
 
 

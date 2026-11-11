@@ -9,7 +9,43 @@
 
 /* === Modules === */
 
+mod license_file_containment;
+
+#[path = "../../src/installer/distribution.rs"]
+pub mod distribution;
+
+#[path = "../../src/installer/license.rs"]
+pub mod license;
+
+#[path = "../../src/installer/manifest.rs"]
+pub mod manifest;
+
+#[path = "../../src/installer/signing.rs"]
+pub mod signing;
+
+#[path = "../../src/installer/native.rs"]
+pub mod native_implementation;
+
+mod native;
+
+#[path = "../../src/installer/plugins.rs"]
+pub mod plugins_implementation;
+
+mod plugins;
+
+#[path = "../../src/installer/artwork.rs"]
+pub mod artwork_implementation;
+
+#[path = "installer/artwork.rs"]
+mod artwork_story;
+
+#[cfg(windows)]
+pub mod windows;
+
 /* === Re-Exports === */
+
+pub use artwork_implementation as artwork;
+pub use dokime_packaging::installer::release;
 
 /* === Imports === */
 

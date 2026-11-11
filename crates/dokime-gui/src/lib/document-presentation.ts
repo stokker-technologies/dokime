@@ -77,7 +77,6 @@ export function documentView(
   layout: DocumentViewLayout,
 ): DocumentViewPayload {
   return {
-    schema_version: 1,
     document_id: documentId,
     metadata,
     title: metadata.label,
@@ -178,18 +177,18 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
     z_field: input.z_field ?? null,
     unit: input.unit ?? null,
     description: input.description ?? null,
+    scale: input.scale,
     marker_record_types: input.marker_record_types ?? [],
     filters: input.filters ?? [],
     reference_lines: (input.reference_lines ?? []).map((line) => ({
       ...line,
-      color: nonEmptyString(line.color) ?? "#60706a",
-      source_scale: line.source_scale ?? 1,
+      color: nonEmptyString(line.color) ?? undefined,
     })),
     reference_bands: (input.reference_bands ?? []).map((band) => ({
       ...band,
       center: band.center ?? null,
       tolerance: band.tolerance ?? null,
-      color: nonEmptyString(band.color) ?? "#60706a",
+      color: nonEmptyString(band.color) ?? undefined,
     })),
     x_format: input.x_format ?? null,
     y_format: input.y_format ?? null,

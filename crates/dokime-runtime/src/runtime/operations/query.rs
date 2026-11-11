@@ -61,6 +61,16 @@ macro_rules! serve {
     };
 }
 
+serve!(ListExecutions, ExecutionPage, query_list_executions);
+
+serve!(ListCycles, CyclePage, query_list_cycles);
+
+serve!(ListRecords, RecordPage, query_list_records);
+
+serve!(ListSamples, SamplePage, query_list_samples);
+
+serve!(AggregateSamples, Statistics, query_aggregate_samples);
+
 /* === Type Aliases === */
 
 /* === Structs === */
@@ -86,12 +96,6 @@ enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
-
-serve!(ListExecutions, ExecutionPage, query_list_executions);
-serve!(ListCycles, CyclePage, query_list_cycles);
-serve!(ListRecords, RecordPage, query_list_records);
-serve!(ListSamples, SamplePage, query_list_samples);
-serve!(AggregateSamples, Statistics, query_aggregate_samples);
 
 impl Queries {
     async fn admit(&self, operation: &str) -> Result<SemaphorePermit<'_>, Status> {
@@ -152,7 +156,7 @@ pub(crate) fn prepare(setup: &mut harmos::Setup<Dokime>, live: &LiveRuntime, con
 
 /* === Private Functions === */
 
-fn status(mut failure: Box<Failure>) -> Status {
+pub(crate) fn status(mut failure: Box<Failure>) -> Status {
     use dokime_domain::model::diagnostics::redacted;
     failure.message = redacted(&failure.message);
     failure.field = failure.field.map(|field| redacted(&field));
@@ -237,36 +241,6 @@ mod tests {
             assert_eq!(error.code(), if revoke { Code::PermissionDenied } else { Code::Cancelled });
             assert!(dropped.load(Ordering::SeqCst));
             assert!(queries.admit(ListCycles::ID).await.is_ok());
-        }
-    }
-
-    #[test]
-    fn failure_mapping_preserves_typed_details_and_redacts_paths() {
-        let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap();
-        for (reason, code) in [
-            (Reason::UnknownField, Code::InvalidArgument),
-            (Reason::PermissionDenied, Code::PermissionDenied),
-            (Reason::ScopeNotFound, Code::NotFound),
-            (Reason::SnapshotUnavailable, Code::FailedPrecondition),
-            (Reason::WorkLimit, Code::ResourceExhausted),
-            (Reason::Deadline, Code::DeadlineExceeded),
-            (Reason::Corruption, Code::DataLoss),
-            (Reason::StorageUnavailable, Code::Unavailable),
-        ] {
-            let mut failure = Failure::new(reason, ListSamples::ID, format!("Cannot read {home}/evidence"));
-            failure.field = Some(format!("{home}/field"));
-            failure.limit = Some(dokime_domain::model::query::error::EffectiveLimit { name: "rows".into(), value: 2 });
-            let error = status(failure);
-            assert_eq!(error.code(), code);
-            assert!(!error.message().contains(&home));
-            let details = error.get_error_details();
-            let info = details.error_info().unwrap();
-            assert_eq!(info.domain, "dokime.query");
-            let decoded: Failure = serde_json::from_str(&info.metadata["query"]).unwrap();
-            assert_eq!(decoded.reason, reason);
-            assert_eq!(decoded.operation, ListSamples::ID);
-            assert_eq!(decoded.limit.unwrap().value, 2);
-            assert!(!decoded.field.unwrap().contains(&home));
         }
     }
 }

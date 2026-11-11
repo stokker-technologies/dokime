@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::{
     env::consts::EXE_SUFFIX,
@@ -35,6 +36,7 @@ use tempfile::TempDir;
 /* === Type Aliases === */
 
 /* === Structs === */
+
 pub struct Server {
     child: Child,
     endpoint: String,
@@ -53,6 +55,7 @@ pub struct StorageCounters {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Server {
     pub fn start(plugin: Option<&Path>) -> Self {
         let root = tempfile::tempdir().unwrap();
@@ -138,12 +141,14 @@ impl Drop for Server {
 }
 
 /* === Public Functions === */
+
 pub fn plugin_bundle() -> Option<PathBuf> {
     let path = build_root().join("fixtures/plugins/plugin-obc.dokime");
     path.is_file().then_some(path)
 }
 
 /* === Private Functions === */
+
 fn startup_event(stdout: &mut BufReader<ChildStdout>) -> serde_json::Value {
     let mut line = String::new();
     assert!(stdout.read_line(&mut line).unwrap() > 0, "the server exited before reporting readiness");

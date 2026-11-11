@@ -31,7 +31,7 @@ use serde::Serialize;
 
 /* === Structs === */
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeasurementUnit {
     pub metadata: Metadata,
     pub family: UnitFamily,
@@ -40,7 +40,7 @@ pub struct MeasurementUnit {
 
 /* === Enums === */
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UnitFamily {
     Count,

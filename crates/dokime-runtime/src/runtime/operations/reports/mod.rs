@@ -68,7 +68,14 @@ impl Serve<MaterializeReport> for Runtime {
         Box::pin(async move {
             let runtime = crate::app::live_runtime(&self.0).await?;
             let resources = Resources::from_runtime(&runtime);
-            resources.materialize(request).await.map(Into::into).map_err(status)
+            resources
+                .materialize(request)
+                .await
+                .inspect_err(|error| {
+                    tracing::error!(?error, "report materialization failed");
+                })
+                .map(Into::into)
+                .map_err(operation_status)
         })
     }
 }
@@ -157,6 +164,23 @@ impl Resources {
                 runtime.query_config().clone(),
             ),
         }
+    }
+}
+
+#[cfg(feature = "testing")]
+impl RuntimeHandle {
+    // Exercise The Same Historical Materializer Used By Cycle Composition.
+    pub async fn rebuild_sealed_report(&self, id: &TestExecutionId) -> Result<harmos::storage::FileReference> {
+        let resources = Resources::from_runtime(self);
+        let view = crate::runtime::storage::execution::ExecutionView::open(self.storage(), id, harmos::storage::ObjectVersion::Latest)
+            .await?
+            .ok_or_else(|| Error::InvalidReportInputs("sealed execution is missing".into()))?;
+        let seal = view.execution().saved.as_ref().ok_or_else(|| Error::InvalidReportInputs("execution is unsealed".into()))?;
+        let progress = resources.progress.begin("Rebuilding Sealed Report");
+        let captured = crate::report::materialize::sealed_member(&resources.scope, self.storage(), seal, &progress).await?;
+        let mut prepared = crate::report::Renderer.execution(captured, seal.source.outputs.clone(), &self.storage().cursor_saved())?;
+        let rebuilt = prepared.save_dependencies(self.storage(), &seal.sealed_at, &seal.source.execution).await?;
+        Ok(rebuilt.report)
     }
 }
 
@@ -267,8 +291,8 @@ fn invalid(reason: &str) -> Error {
     Error::InvalidReportInputs(reason.into())
 }
 
-// Diagnostics Keep The Typed Cause; The Transport Contains Only The Readable Message.
-pub(crate) fn status(error: Error) -> Status {
+// Call Sites Own Diagnostics; Conversion Preserves the Transport Code and Message.
+pub(crate) fn operation_status(error: Error) -> Status {
     let code = match &error {
         Error::Admission(failure) => {
             use dokime_domain::model::diagnostics::admission::AdmissionFailure as Failure;
@@ -294,8 +318,53 @@ pub(crate) fn status(error: Error) -> Status {
     } else {
         "The report could not be created. Try again; if the problem continues, collect diagnostics.".into()
     };
-    tracing::error!(error = ?error, "report materialization failed");
     Status::new(code, message)
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dokime_domain::model::diagnostics::admission::AdmissionFailure as Failure;
+
+    #[test]
+    fn operation_status_preserves_admission_codes_and_messages() {
+        let failures = [
+            (Failure::validation("invalid", "invalid input", vec![]), tonic::Code::InvalidArgument),
+            (Failure::conflict("conflict", "conflicting input"), tonic::Code::FailedPrecondition),
+            (Failure::overload("file_capture_cap", "capacity reached"), tonic::Code::ResourceExhausted),
+            (Failure::unavailable("unavailable", "unavailable source"), tonic::Code::Unavailable),
+            (Failure::forbidden("forbidden", "forbidden source"), tonic::Code::PermissionDenied),
+            (Failure::not_found("file_capture_missing", "missing source"), tonic::Code::NotFound),
+            (Failure::timeout("timeout", "deadline reached"), tonic::Code::DeadlineExceeded),
+            (Failure::cancelled("cancelled", "cancelled request"), tonic::Code::Cancelled),
+            (Failure::internal("internal", "internal failure"), tonic::Code::Internal),
+        ];
+        for (failure, code) in failures {
+            let message = failure.to_string();
+            let status = operation_status(Error::Admission(failure));
+            assert_eq!(status.code(), code);
+            assert_eq!(status.message(), message);
+        }
+    }
+
+    #[test]
+    fn operation_status_preserves_runtime_codes_and_messages() {
+        let fallback = "The report could not be created. Try again; if the problem continues, collect diagnostics.";
+        let errors = [
+            (Error::InvalidReportInputs("invalid".into()), tonic::Code::InvalidArgument, Some(fallback)),
+            (Error::InvalidCheckpointQuery("invalid".into()), tonic::Code::InvalidArgument, Some(fallback)),
+            (Error::ShuttingDown, tonic::Code::Unavailable, None),
+            (Error::Interrupted, tonic::Code::Unavailable, None),
+            (Error::ReportUnavailable(Box::new(Error::Interrupted)), tonic::Code::FailedPrecondition, None),
+            (Error::Operation("failed".into()), tonic::Code::FailedPrecondition, Some(fallback)),
+        ];
+        for (error, code, message) in errors {
+            let message = message.map(str::to_owned).unwrap_or_else(|| error.to_string());
+            let status = operation_status(error);
+            assert_eq!(status.code(), code);
+            assert_eq!(status.message(), message);
+        }
+    }
+}

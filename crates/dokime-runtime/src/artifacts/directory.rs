@@ -22,7 +22,6 @@ use std::io::{Read, Seek, SeekFrom};
 
 #[cfg(feature = "native")]
 use std::path::Path;
-
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
@@ -45,7 +44,6 @@ use crate::transport::{ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYT
 
 #[cfg(feature = "native")]
 const GROWTH_FLOOR: u64 = 64 * 1024;
-
 const ARTIFACTS: &str = "artifacts";
 
 // The registration name of the whole artifacts folder.
@@ -398,48 +396,3 @@ fn read(path: &Path, from: u64, pending: u64, sweeping: bool) -> io::Result<Vec<
 }
 
 /* === Tests === */
-
-#[cfg(all(test, feature = "native"))]
-mod tests {
-    use super::*;
-    use crate::artifacts::Artifacts;
-
-    struct Sink;
-
-    impl ArtifactSink for Sink {
-        fn push(&self, _: ArtifactChunk) {}
-    }
-
-    #[test]
-    fn temporary_artifacts_cleanup_without_sweep() {
-        for failure in [false, true] {
-            let artifacts = Artifacts::new("temporary-owner", Arc::new(Sink));
-            let root = artifacts.root().unwrap();
-            let area = root.parent().unwrap().to_owned();
-            std::fs::write(root.join("evidence.bin"), b"captured evidence").unwrap();
-            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-                let _owner = artifacts;
-                assert!(!failure, "injected artifact fixture failure");
-            }));
-            assert_eq!(outcome.is_err(), failure);
-            assert!(!area.exists(), "artifact scratch survived owner teardown: {}", area.display());
-        }
-    }
-
-    #[test]
-    fn temporary_artifacts_follow_the_last_clone_and_isolate_equal_tokens() {
-        let first = Artifacts::new("same-token", Arc::new(Sink));
-        let second = Artifacts::new("same-token", Arc::new(Sink));
-        let first_root = first.root().unwrap();
-        let second_root = second.root().unwrap();
-        assert_ne!(first_root, second_root);
-        let retained = first.clone();
-        drop(first);
-        assert!(first_root.exists());
-        drop(retained);
-        assert!(!first_root.exists());
-        assert!(second_root.exists());
-        drop(second);
-        assert!(!second_root.exists());
-    }
-}

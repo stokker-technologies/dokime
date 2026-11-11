@@ -32,7 +32,7 @@
 
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Archive, LockKeyhole, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/lib/notifications";
@@ -43,13 +43,15 @@ import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { TestExecution } from "@/lib/types";
+import { useRerunNoticeStore } from "@/stores/rerun-notice-store";
 import { useSelectionStore } from "@/stores/selection-store";
 import { ControlCard } from "./ControlCard";
 import { CycleEvidencePane } from "./CycleEvidencePane";
-import { cycleControlState, inputNeededLabel } from "./control-model";
+import { cycleControlState, inputNeededLabel, rerunNoticeLines } from "./control-model";
 import {
   useCycleCommands,
   useCycleDetailQuery,
+  useCycleLabelQuery,
   useCyclePendingPromptsQuery,
   useCycleRuntimeShellQuery,
   useRerunCase,
@@ -145,6 +147,10 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const selection = useMemo<CycleSelection>(() => ({ caseId, executionId, view }), [caseId, executionId, view]);
   const selectedRow = selectedCycleRow(rows, selection);
   const finished = finishedCaseCount(cases);
+  const rerunOf = plan?.test_cycle.rerun_of ?? null;
+  const rerunOfLabel = useCycleLabelQuery(rerunOf).data ?? rerunOf;
+  const rerunNotices = useRerunNoticeStore((state) => state.notices[cycleId]);
+  const setRerunNotices = useRerunNoticeStore((state) => state.setRerunNotices);
   const status = plan?.test_cycle.status ?? "planned";
   const phase = plan?.test_cycle.phase ?? "active";
   const activeExecutionId =
@@ -326,13 +332,11 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     followActive,
     kind: "cycle",
     onAddCases: () => void navigate({ to: "/library", search: { appendTo: cycleId } }),
-    onCopyCycle: () =>
-      run({ done: "Cycle Copied", failed: "The Cycle Could Not Be Copied" }, async () => {
-        const response = await commands.copyCycle.mutateAsync();
-        await navigate({
-          to: "/cycles/$cycleId",
-          params: { cycleId: response.plan.test_cycle.test_cycle_id },
-        });
+    onRerunCycle: () =>
+      run({ done: "Cycle Rerun Planned", failed: "The Cycle Could Not Be Rerun" }, async () => {
+        const response = await commands.rerunCycle.mutateAsync();
+        setRerunNotices(response.cycleId, response);
+        await navigate({ to: "/cycles/$cycleId", params: { cycleId: response.cycleId } });
       }),
     onOpenReport: () => openReport(null),
     onSettings: () => setSettingsOpen(true),
@@ -344,8 +348,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       runningRow?.execution && progress
         ? {
             ordinal: runningRow.ordinal,
-            step: stepLabel(runningRow.execution, progress.stepId, progress.phase),
-            stepId: progress.stepId,
+            step: stepLabel(runningRow.execution, progress.stepId),
           }
         : null,
   });
@@ -398,7 +401,19 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
               }
               live={live}
               onRename={plan.test_cycle.sealed || plan.test_cycle.archived ? null : (label) => commands.renameCycle.mutateAsync(label)}
-              progress={`${finished} of ${cases.length} cases finished`}
+              progress={
+                <>
+                  {`${finished} of ${cases.length} cases finished`}
+                  {rerunOf ? (
+                    <>
+                      {" · Rerun of "}
+                      <Link className="underline" params={{ cycleId: rerunOf }} to="/cycles/$cycleId">
+                        {rerunOfLabel}
+                      </Link>
+                    </>
+                  ) : null}
+                </>
+              }
               status={state}
               subject="Cycle"
               title={plan.test_cycle.title}
@@ -406,9 +421,8 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
             {live ? (
               <ControlCard
                 actions={seal}
-                detail={control.detail}
                 label="Cycle Controls"
-                progress={runningRow && progress ? { completed: progress.completed, total: progress.total } : null}
+                progress={runningRow && progress ? { completed: progress.completed, phase: progress.phase, total: progress.total } : null}
                 state={control.line}
               >
                 {phase === "seal_failed" && plan.test_cycle.seal_failure ? (
@@ -420,6 +434,13 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
                     )}
                   />
                 ) : null}
+                {rerunNotices
+                  ? rerunNoticeLines(rerunNotices).map((line) => (
+                      <p className="text-muted-foreground text-sm" data-rerun-notice key={line}>
+                        {line}
+                      </p>
+                    ))
+                  : null}
                 {waiting ? (
                   <p className="grid auto-cols-max grid-flow-col items-baseline gap-x-2 text-sm" data-input-needed>
                     <span className="text-warning">{waiting}</span>

@@ -30,6 +30,7 @@ use crate::arguments::Shape;
 
 const FIELD_ARGUMENTS: &[&str] = &["label", "description", "unit", "default", "expansion", "min", "max", "min_items", "max_items"];
 const VARIANT_ARGUMENTS: &[&str] = &["id", "label"];
+const INTEGER_REPRESENTATIONS: &[&str] = &["u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize"];
 
 /* === Macros === */
 
@@ -65,6 +66,7 @@ struct ChoiceVariant {
     name: Ident,
     identifier: LitStr,
     label: TokenStream,
+    discriminant: Option<Expr>,
 }
 
 /* === Enums === */
@@ -359,7 +361,7 @@ fn declare_choice(attribute: TokenStream, item: &TokenStream) -> Result<TokenStr
     if variants.is_empty() {
         return Err(Error::new(input.ident.span(), "a choice admits at least one value: declare a variant"));
     }
-    // Choices Used In Records And Rows Share The Same Message Codec.
+    // Choices Used In Records And Rows Share The Same Message Codec, Whose Tags Derive From Names.
     let stripped = stripped_choice(&input);
     let declared = crate::message::message(crate::message::Kind::Plain, quote!(), stripped);
     let name = &input.ident;
@@ -383,9 +385,40 @@ fn declare_choice(attribute: TokenStream, item: &TokenStream) -> Result<TokenStr
     });
     let admitted = variants.iter().map(|variant| variant.identifier.value()).collect::<Vec<_>>().join(", ");
     let offered = variants.iter().map(|variant| &variant.identifier);
+    // A Represented Enum With Written Discriminants Also Reads Back Its Number.
+    let valued = match representation(&input)? {
+        Some(represented) if variants.iter().any(|variant| variant.discriminant.is_some()) => {
+            // An Unwritten Discriminant Follows The Previous One, As Rust Numbers Them.
+            let mut previous = None;
+            let numbered = variants.iter().map(|variant| {
+                let number = match (&variant.discriminant, &previous) {
+                    (Some(written), _) => quote!(#written),
+                    (None, Some(previous)) => quote!((#previous) + 1),
+                    (None, None) => quote!(0),
+                };
+                previous = Some(number.clone());
+                let variant_name = &variant.name;
+
+                quote!(Self::#variant_name => #number,)
+            });
+            let numbered = numbered.collect::<Vec<_>>();
+
+            quote! {
+                #[automatically_derived]
+                impl #generics #name #types #predicates {
+                    pub const fn value(self) -> #represented {
+                        match self { #(#numbered)* }
+                    }
+                }
+            }
+        }
+        _ => quote!(),
+    };
 
     Ok(quote! {
         #declared
+
+        #valued
 
         #[automatically_derived]
         impl #generics #sdk::prompts::PromptFieldValue for #name #types #predicates {
@@ -466,16 +499,71 @@ fn variant(variant: &Variant) -> Result<ChoiceVariant, Error> {
         }
     }
     let written = variant.ident.unraw().to_string();
+    let discriminant = variant.discriminant.as_ref().map(|(_, value)| value);
+    let identifier = match (identifier, discriminant) {
+        (Some(identifier), _) => identifier,
+        (None, Some(value)) => LitStr::new(&discriminated(value)?, value.span()),
+        (None, None) => LitStr::new(&underscored(&written), variant.ident.span()),
+    };
+    let label = label.unwrap_or_else(|| {
+        let titled = labelled(&written, documented(&variant.attrs).as_deref());
+
+        quote!(#titled)
+    });
 
     Ok(ChoiceVariant {
-        identifier: identifier.unwrap_or_else(|| LitStr::new(&underscored(&written), variant.ident.span())),
-        label: label.unwrap_or_else(|| {
-            let titled = spaced(&written);
-
-            quote!(#titled)
-        }),
+        identifier,
+        label,
         name: variant.ident.clone(),
+        discriminant: discriminant.cloned(),
     })
+}
+
+fn discriminated(value: &Expr) -> Result<String, Error> {
+    let refused = || Error::new(value.span(), "a choice's discriminant is its id: write an integer literal or `#[choice(id = \"...\")]`");
+    match value {
+        Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(number), .. }) => Ok(number.base10_digits().to_owned()),
+        Expr::Unary(syn::ExprUnary { op: syn::UnOp::Neg(_), expr, .. }) => match expr.as_ref() {
+            Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(number), .. }) => Ok(format!("-{}", number.base10_digits())),
+            _ => Err(refused()),
+        },
+        _ => Err(refused()),
+    }
+}
+
+fn documented(attributes: &[syn::Attribute]) -> Option<String> {
+    let mut written = String::new();
+    for attribute in attributes.iter().filter(|attribute| attribute.path().is_ident("doc")) {
+        let Meta::NameValue(named) = &attribute.meta else {
+            continue;
+        };
+        let Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(text), .. }) = &named.value else {
+            continue;
+        };
+        written.push_str(&text.value());
+        written.push('\n');
+    }
+
+    written.lines().map(str::trim).find(|line| !line.is_empty()).map(str::to_owned)
+}
+
+fn representation(input: &DeriveInput) -> Result<Option<Ident>, Error> {
+    for attribute in input.attrs.iter().filter(|attribute| attribute.path().is_ident("repr")) {
+        let written = attribute.parse_args_with(Punctuated::<Ident, Token![,]>::parse_terminated)?;
+        if let Some(integer) = written.into_iter().find(|written| INTEGER_REPRESENTATIONS.iter().any(|integer| written == integer)) {
+            return Ok(Some(integer));
+        }
+    }
+
+    Ok(None)
+}
+
+fn labelled(name: &str, documented: Option<&str>) -> String {
+    let humanized = humanized(name);
+    match documented {
+        Some(documented) => format!("{humanized} \u{b7} {documented}"),
+        None => humanized,
+    }
 }
 
 fn literal(value: &Expr) -> Result<LitStr, Error> {
@@ -488,20 +576,88 @@ fn literal(value: &Expr) -> Result<LitStr, Error> {
     }
 }
 
-fn spaced(name: &str) -> String {
+fn humanized(name: &str) -> String {
+    let characters = name.chars().filter(|character| *character != '_').collect::<Vec<_>>();
     let mut written = String::with_capacity(name.len() + 4);
-    for (index, character) in name.chars().enumerate() {
-        if character.is_ascii_uppercase() && index > 0 {
-            written.push(' ');
+    for (index, character) in characters.iter().enumerate() {
+        if let Some(previous) = index.checked_sub(1).map(|previous| characters[previous]) {
+            let following = characters.get(index + 1);
+            let worded = previous.is_ascii_lowercase() && character.is_ascii_uppercase();
+            let numbered = previous.is_ascii_digit() != character.is_ascii_digit();
+            // An Acronym Ends Where Its Last Capital Starts The Next Word.
+            let abbreviated =
+                previous.is_ascii_uppercase() && character.is_ascii_uppercase() && following.is_some_and(char::is_ascii_lowercase);
+            if worded || numbered || abbreviated {
+                written.push(' ');
+            }
         }
-        written.push(character);
+        written.push(*character);
     }
 
     written
 }
 
 fn stripped_choice(input: &DeriveInput) -> TokenStream {
-    crate::arguments::stripped(input, "choice").to_token_stream()
+    let mut stripped = crate::arguments::stripped(input, "choice");
+    if let Data::Enum(enumeration) = &mut stripped.data {
+        for variant in &mut enumeration.variants {
+            variant.discriminant = None;
+        }
+    }
+
+    stripped.to_token_stream()
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn declared(item: &str) -> Result<TokenStream, Error> {
+        declare_choice(quote!(), &item.parse().unwrap())
+    }
+
+    fn label(item: &str) -> String {
+        let input: DeriveInput = syn::parse_str(item).unwrap();
+        let Data::Enum(enumeration) = &input.data else { unreachable!() };
+        let variant = enumeration.variants.first().unwrap();
+
+        labelled(&variant.ident.to_string(), documented(&variant.attrs).as_deref())
+    }
+
+    #[test]
+    fn data_variants_refused() {
+        assert!(declared("enum Mode { Fast(u8) }").is_err());
+        assert!(declared("enum Mode { Fast { rate: u8 } }").is_err());
+    }
+
+    #[test]
+    fn empty_enum_refused() {
+        assert!(declared("enum Mode {}").is_err());
+    }
+
+    #[test]
+    fn computed_discriminant_needs_id() {
+        assert!(declared("#[repr(u8)] enum Mode { Fast = 1 + 1 }").is_err());
+        assert!(declared(r#"#[repr(u8)] enum Mode { #[choice(id = "fast")] Fast = 1 + 1 }"#).is_ok());
+    }
+
+    #[test]
+    fn names_humanized() {
+        assert_eq!(humanized("Ch36"), "Ch 36");
+        assert_eq!(humanized("HTTPServer"), "HTTP Server");
+        assert_eq!(humanized("SlowAndCareful"), "Slow And Careful");
+        assert_eq!(humanized("Band2G4"), "Band 2 G 4");
+    }
+
+    #[test]
+    fn documented_labels() {
+        assert_eq!(
+            label(r#"enum Channel { #[doc = " 5 GHz, UNII-1"] #[doc = ""] #[doc = " Indoor."] Ch36 = 36 }"#),
+            "Ch 36 \u{b7} 5 GHz, UNII-1"
+        );
+        assert_eq!(label(r#"enum Channel { #[doc = ""] #[doc = " 2.4 GHz"] Ch1 }"#), "Ch 1 \u{b7} 2.4 GHz");
+        assert_eq!(label("enum Channel { Ch1 }"), "Ch 1");
+    }
+}

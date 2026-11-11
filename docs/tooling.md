@@ -15,7 +15,7 @@ own environment setup, synchronization, version metadata, binding generation,
 frontend preparation, native packaging, CI and
 test execution. The project-neutral modules come from `harmos-tools`, the
 `tools/python` package of the Harmos repository, pinned in
-`tools/python/pyproject.toml` to the same revision as the Harmos crates. The shared
+`tools/python/pyproject.toml` to the same release tag as the Harmos crates. The shared
 Python environment lives at repository-root `.venv/`.
 
 After changing Python dependencies, `mise run prepare --refresh-lock` refreshes
@@ -42,8 +42,7 @@ descendants are terminated even when their leader already exited.
 
 Each Python package carries its own `[tool.ty]` configuration. `lint:python`
 type-checks the repository tooling with `ty check --project tools/python`;
-`check:python:generated` type-checks the client package after the build has
-verified its generated modules.
+`check:python:bindings` checks the hand-maintained SDK stubs against the built extension with mypy stubtest and type-checks the SDK.
 
 `mise run build:rust:tests` packages the host and OBC fixture bundles from the
 Tests compiler output under `target/build/<profile>/<target>/fixtures/plugins/`.
@@ -75,12 +74,97 @@ only. Dev pushes save the dev Product and Tests caches; Nightly on dev runs in
 `COMPILER_CACHE_KIND`; `.github/actions/save-caches` enforces the Tests and Bench
 save policy. The workflows own producer selection.
 
-## Focused Python Client Checks
+## Benchmark Baselines
 
-`mise run test:python:unit --select <expression>` checks current client source in
-the root environment without a staged wheel. A focused integration selection uses
-`mise run test:python:integration --select <expression>` and also checks source.
-Full Python unit and integration tasks retain their built-wheel input.
+Nightly Rust System and Integration benchmarks restore baselines by branch,
+OS, architecture and leaf: `ci-v6-bench-baselines-<os>-<arch>-<branch>-bench-rust-<leaf>`.
+Restore prefixes try that identity first, then the former v5 identity containing
+`hash(mise.lock)`. Successful Nightlies on dev save refreshed measurements with
+run ID and attempt suffixes, so immutable caches retain the latest baseline.
+The restore identity no longer changes with the source revision or lock file.
+
+`mise run bench:rust:<leaf> --refresh-baseline` seeds missing native baselines
+and emits a `::notice::` naming each benchmark. Without refresh, a missing
+baseline fails and names the refresh command. Existing baselines retain their
+regression comparison and threshold; failed benchmark executions still fail.
+
+## Native Python SDK Builds
+
+`sdk/python` contains native Rust client, backend and callback wrappers, Python authoring declarations, contexts and readers. The `dokime-python` distribution and `dokime` import names are provisional; registry publication is refused until naming is settled.
+
+```sh
+mise run build --profile dev
+mise run build:python --profile dev
+mise run test:python:wheel --profile dev
+mise run package:python --profile dev
+```
+
+The explicit Python producer uses maturin and PyO3's Python 3.13+ stable ABI.
+Ordinary Rust Product, Tests and Bench producers exclude `dokime-python`; Cargo's
+`default-members` also omit it. The SDK depends on `dokime` and `dokime-server` by
+the owner-locked exception to facade-only bindings, and its source-root exception
+is declared in `.stkr/project.toml`.
+
+CI builds Product and then Python on Linux and Windows, restoring the matching
+Product compiler cache. Both use the native Cargo target directory and the same
+profile; release wheels enable the server's native media feature. Shared Cargo
+units reuse only when their resolved dependency features match. The wheel and
+package exports use `target/{build,package}/<profile>/<native-target>/python/`.
+Package copies the built wheel and never compiles it. Release assets collect both
+native wheels; no source distribution or platform-independent wheel is produced.
+`test:python:wheel` installs into a disposable environment outside the checkout
+and imports the native extension with isolated Python path handling.
+
+## Focused Python Checks
+
+`mise run test:python:unit --select <expression>` and `mise run test:python:integration --select <expression>` run the moved client tests against the installed native wheel. Build it first with `mise run build:python`. `check:python:bindings` runs stubtest from an isolated installed-wheel environment. Python contract generation and its checked-in wire tree have been removed; private interpreter message views come from Rust reflection.
+
+For client acceptance without the desktop or Rust test archive, build the focused
+native inputs and select their fixture root:
+
+```sh
+mise run build:python:fixtures
+mise run test:python:acceptance --artifacts target/build/dev/windows-x86_64/fixtures/python-client
+```
+
+Add `--select backend` to run only the installed-wheel backend startup, pairing,
+storage refusal and installed-plugin collision stories during backend work.
+
+Use the corresponding native target directory on Linux. The foreign-operation
+socket fixtures come from Rust contract construction; refresh their JSON with
+`mise run build:rust:focused -- run --locked -p dokime-python --example client-contracts -- sdk/python/tests/integration/client/fixtures/operations.json`.
+
+## Python System Story and Batch Measurements
+
+`sdk/python/tests/{unit,integration,acceptance,system}/` separate pure value
+invariants, in-process callback ownership, installed-wheel stories and the
+CLI/SDK composition. `sdk/python/examples/starter/` supplies `dokime new --lang
+python`; it is embedded by `crates/dokime-cli/src/commands/new.rs`, so changing the
+starter requires rebuilding the CLI as well as validating the Python source.
+
+```sh
+mise run build:python:fixtures
+mise run test:python:system --artifacts target/build/dev/windows-x86_64/fixtures/python-client
+```
+
+The system story starts the generated Python plugin, exports pairing, runs a
+prompt and measurement execution, seals its report, and reopens it without the
+plugin. It consumes only the native CLI and wheel, never a desktop or test
+archive. Nightly runs the same task on Linux and Windows; PR and dev jobs do not
+select it. Use `linux-x86_64` for the corresponding local Linux fixture path.
+
+After validation has stopped, measure the same 10,000-row, 1,000-row-batch workload:
+
+```sh
+mise run build:rust:focused -- run --locked -p dokime-python --example authoring-batch
+mise run bench:python:system
+```
+
+The native example and Python benchmark both await admitted ingestion. Python's
+native pytest-benchmark JSON under `target/benchmarks/` additionally records
+synchronous bridge preparation (snapshot, encoding and value conversion) and the
+awaited publication separately. These are development-profile workstation
+measurements, not a throughput target. Timings are absent from correctness tests.
 
 ## Test Hang Guards
 
@@ -121,17 +205,29 @@ RUSTC_WRAPPER= mise run build:rust
 In PowerShell use `$env:RUSTC_WRAPPER = ''; mise run build:rust`, then remove
 the override with `Remove-Item Env:RUSTC_WRAPPER`.
 
-## Simulation Scratch Recovery
+## Validation
 
-Simulation scratch stays in the system temporary directory. Each workspace is
-published with a self-contained ownership marker before it receives source or
-build outputs. A native lease outside the disposable directory protects the
-owner through cleanup. Normal completion and failures preserve diagnostics in
-`target/ci/simulation/` and remove owned scratch. The next simulation recovers
-unlocked scratch after a crash, even when the original checkout's records are gone.
+Run targeted tasks locally for changed behavior. Hosted CI and Nightly provide
+full validation across the declared platforms.
 
-Legacy, unmarked, linked, malformed or live scratch is retained with its path and
-an explanation. Inspect those paths and establish that their owner has stopped
-before removing them manually. New versioned stable paths allow simulations to
-start while unverifiable legacy directories remain. Never delete a native lease
-file or redirect TEMP into the checkout.
+Nightly runs every four hours or on manual dispatch, serializes runs without cancelling an active run, and skips the whole run after Plan / Freshness (every downstream job) for scheduled heads already published or heads with another in-progress or queued Nightly run.
+
+Release staging reads `NOTICE` and `THIRD-PARTY-NOTICES` from each target's
+`target/package/<profile>/<target>/rust/dokime-distribution-<version>-<triple>.zip`.
+Package jobs already include these ZIPs in their Rust artifacts. Staging requires
+byte-identical notices across targets and fails with the artifact path if a copy
+is missing or differs. Both Nightly and stable publication reuse these bytes for
+the shared notice downloads and CLI and sidecar archives; publication does not
+regenerate notices or require GUI `node_modules` for them.
+
+Release tooling shares the notice download helper for all HTTP requests, including
+provider pages, the crates index and release identity tokens. It makes at most six
+attempts on connection errors, timeouts, incomplete reads, SSL EOF and HTTP 5xx;
+HTTP 4xx responses are never retried. Exponential delays start at two seconds,
+cap at thirty seconds and use jitter between half and all of the delay. Small
+requests use sixty-second timeouts; uploads add one second per decimal MB, capped
+at thirty minutes. Before retrying a GitHub asset upload, the tooling lists assets
+and deletes matching names, including partial uploads. Successful uploads must
+match the local size and, when the API supplies it, SHA-256 digest; staged asset
+hashes come from the same inventory as SHA256SUMS. Exhausted requests report the
+operation, URL, attempt count and last cause.

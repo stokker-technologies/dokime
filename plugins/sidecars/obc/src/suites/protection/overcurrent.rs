@@ -19,13 +19,15 @@
 
 // Local Imports
 use super::TEMPLATE;
-use crate::error::Error;
-use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
-use crate::suites::common::system::{self, SystemInputs};
-use crate::suites::common::{measurement, readiness, verdicts};
+use crate::domain::Error;
+use crate::domain::document::{self as system, Subscriptions};
+use crate::domain::model::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
+use crate::domain::model::charger::{Charger, Fault, Power};
+use crate::domain::model::measurement;
+use crate::domain::model::measurement::Row;
+use crate::operations::charger::*;
 use dokime::definition::ParameterDefault;
 use dokime::prelude::*;
-use obc_runtime::device::{Device, Fault, Power, Reading};
 
 /* === Constants === */
 
@@ -37,11 +39,11 @@ bench!(Parameters);
 
 /* === Structs === */
 
-#[dokime::stream(id = "obc.charger.protection.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
+#[dokime::stream(id = "obc.charger.protection.samples", window = 4096, row = Row, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::Row`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
 pub struct Samples;
 
-pub struct Overcurrent {
-    device: Device,
+pub struct Template {
+    device: Charger,
     fault_observed: bool,
     initially_powered: bool,
     restart_blocked: bool,
@@ -71,7 +73,7 @@ pub struct Faulted {}
 
 #[dokime::record(
     id = "obc.charger.protection.stopped",
-    label = "Charger Supply De-energized; Any Fault Latch Remains Set",
+    label = "Charger Supply De-Energized; Any Fault Latch Remains Set",
     description = "The procedure left the Charger safely disconnected, and what it decided."
 )]
 #[derive(Clone, Debug)]
@@ -90,7 +92,7 @@ pub struct Stopped {
 
 #[dokime::parameters]
 pub struct Parameters {
-    #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
+    #[parameter(label = "AC RMS Voltage", unit = "V", default = 230.0)]
     pub ac_voltage_v: f64,
 
     #[parameter(label = "Load Impedance Magnitude", unit = "ohm", default = 100.0)]
@@ -108,7 +110,7 @@ pub struct Parameters {
             dokime::domain::model::values::Value::Number(50.0),
             dokime::domain::model::values::Value::Number(10.0),
         ])), description = "The impedances the procedure applies in order, starting from the one the Charger was energized at. Declared in ohms like the load it replaces.")]
-    pub load_steps: Vec<f64>,
+    pub load_steps_ohm: Vec<f64>,
 
     #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
     pub frequency_hz: f64,
@@ -136,7 +138,14 @@ pub struct Parameters {
 
 #[dokime::catalog]
 pub enum Required {
-    AskReadiness(crate::domain::operations::AskReadiness),
+    AskReadiness(crate::operations::AskReadiness),
+    InitializeCharger(InitializeCharger),
+    ProbeChargerRestart(ProbeChargerRestart),
+    ReleaseCharger(ReleaseCharger),
+    SampleCharger(SampleCharger),
+    SetChargerLoad(SetChargerLoad),
+    StartCharger(StartCharger),
+    StopCharger(StopCharger),
 }
 
 #[dokime::catalog]
@@ -158,15 +167,24 @@ pub enum Streams {
 
 #[dokime::template(id = TEMPLATE, label = "Overcurrent Protection", tags = ["device", "protection"],
     requires = Required,
-    subscribes = SystemInputs,
+    subscribes = Subscriptions,
     records = Records,
     streams = Streams,
     parameters = Parameters, description = "Walk the declared ladder of loads and verify that the RMS protection latch disconnects the Charger.")]
-impl Overcurrent {
+impl Template {
     async fn initialize(supply: &Parameters, ctx: &mut InitializationContext<'_>) -> Result<Self, Error> {
-        readiness::ready(ctx).await?;
+        // Check Bench Readiness
+        let operation = crate::operations::AskReadiness {};
+        let readiness = ctx.operation(operation).await?;
+        if readiness.stopped {
+            return Err(Error::Observation("the bench is stopped".into()));
+        }
+
+        // Initialize Charger
+        let operation = InitializeCharger { supply: supply.supply(), logging: false };
+        let device = ctx.operation(operation).await?.into_owned();
         Ok(Self {
-            device: Device::initialize(supply.supply()).map_err(Error::Device)?,
+            device,
             fault_observed: false,
             initially_powered: false,
             restart_blocked: false,
@@ -174,50 +192,80 @@ impl Overcurrent {
             published: 0,
         })
     }
-    fn document() -> Document {
-        let mut document = measurement::document(<Samples as dokime::StreamSpec>::ID, "Overcurrent Protection");
-        document.section(system::section(TEMPLATE));
-        document
-    }
+
     #[dokime::step(
         id = "initialize",
         label = "Initialize and Start Charger",
         description = "Bring the simulated Charger to its nominal operating point.\nEnergises the supply at the configured voltage and load, then waits for the RMS readings to settle before any fault is provoked."
     )]
     async fn setup(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        ctx.publish(Initialized {}).await;
-        self.device.start().map_err(Error::Device)?;
-        ctx.publish(Started {}).await;
-        let reading = self.device.sample(0.1);
+        // Publish Initialized
+        let record = Initialized {};
+        ctx.publish(record).await;
+        // Start Charger
+        let operation = StartCharger { device_id: self.device.device_id };
+        self.device = ctx.operation(operation).await?.into_owned();
+        let record = Started {};
+        ctx.publish(record).await;
+        // Sample Charger
+        let operation = SampleCharger {
+            device_id: self.device.device_id,
+            elapsed_s: 0.1,
+        };
+        let sample = ctx.operation(operation).await?.into_owned();
+        self.device = sample.charger;
+        let reading = sample.reading;
         self.initially_powered = self.device.power == Power::Running && self.device.fault.is_none() && reading.current_rms_a > 0.0;
         let phase = if self.initially_powered { "running" } else { "initial_fault" };
-        publish(ctx, &mut self.published, reading, phase).await;
+        // Publish Measurement
+        let row = measurement::row(self.published, reading, phase);
+        ctx.stream::<Row>().into::<Samples>().push(row).await;
+        self.published += 1;
         Ok(())
     }
+
     #[dokime::step(
         label = "Walk the Load Ladder",
-        description = "Walk the declared ladder of load impedances until the latch opens.\n`load_steps` is one ordered run of impedances belonging to this case, not three cases: the procedure applies each in turn, samples the Charger after each, and stops at the rung where the RMS protection opens the supply."
+        description = "Walk the declared ladder of load impedances until the latch opens.\n`load_steps_ohm` is one ordered run of impedances belonging to this case, not three cases: the procedure applies each in turn, samples the Charger after each, and stops at the rung where the RMS protection opens the supply."
     )]
     async fn overload(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let interval_s = ctx.parameters().sample_interval_s;
-        let ladder = ctx.parameters().load_steps.clone();
+        let ladder = ctx.parameters().load_steps_ohm.clone();
         let mut elapsed_s = 0.1;
 
         for (rung, load_ohm) in ladder.into_iter().enumerate() {
-            self.device.supply.load_ohm = load_ohm;
+            // Apply Load
+            let operation = SetChargerLoad {
+                device_id: self.device.device_id,
+                load_ohm,
+            };
+            self.device = ctx.operation(operation).await?.into_owned();
             elapsed_s += interval_s;
-            let reading = self.device.sample(elapsed_s);
+            // Sample Charger
+            let operation = SampleCharger {
+                device_id: self.device.device_id,
+                elapsed_s,
+            };
+            let sample = ctx.operation(operation).await?.into_owned();
+            self.device = sample.charger;
+            let reading = sample.reading;
             self.fault_observed = self.initially_powered && self.device.fault == Some(Fault::Overcurrent) && reading.current_rms_a == 0.0;
             let phase = if self.fault_observed { "faulted" } else { "loaded" };
-            publish(ctx, &mut self.published, reading, phase).await;
+            // Publish Measurement
+            let row = measurement::row(self.published, reading, phase);
+            ctx.stream::<Row>().into::<Samples>().push(row).await;
+            self.published += 1;
             if self.fault_observed {
                 self.tripped_at_step = rung as u64 + 1;
-                ctx.publish(Faulted {}).await;
+                let record = Faulted {};
+                ctx.publish(record).await;
                 break;
             }
         }
 
-        self.restart_blocked = self.device.start().is_err();
+        // Probe Restart While Latched
+        let operation = ProbeChargerRestart { device_id: self.device.device_id };
+        self.restart_blocked = ctx.operation(operation).await?.blocked;
         Ok(())
     }
 
@@ -226,20 +274,26 @@ impl Overcurrent {
         description = "Confirm the supply stays open and leave the Charger de-energised."
     )]
     async fn stop(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        let reading = self.device.sample(0.1 + ctx.parameters().duration_s);
-        publish(ctx, &mut self.published, reading, "disconnected").await;
-        self.device.stop();
-        ctx.publish(Stopped {
+        // Sample Charger
+        let operation = SampleCharger {
+            device_id: self.device.device_id,
+            elapsed_s: 0.1 + ctx.parameters().duration_s,
+        };
+        let sample = ctx.operation(operation).await?.into_owned();
+        self.device = sample.charger;
+        let reading = sample.reading;
+        // Publish Measurement
+        let row = measurement::row(self.published, reading, "disconnected");
+        ctx.stream::<Row>().into::<Samples>().push(row).await;
+        self.published += 1;
+        // Stop Charger
+        let operation = StopCharger { device_id: self.device.device_id };
+        self.device = ctx.operation(operation).await?.into_owned();
+        let record = Stopped {
             accepted: self.fault_observed && self.restart_blocked && self.device.power == Power::Faulted,
             tripped_at_step: self.tripped_at_step,
-        })
-        .await;
-        Ok(())
-    }
-
-    async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
-        self.device.stop();
-        ctx.info("Charger resources released");
+        };
+        ctx.publish(record).await;
         Ok(())
     }
 
@@ -249,17 +303,36 @@ impl Overcurrent {
         description = "Passed once the overload latched a fault and blocked the restart."
     )]
     fn protected(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
-        verdicts::decided(ctx.records::<Stopped>(), |stopped| stopped.accepted)
+        let records = ctx.records::<Stopped>()?;
+        let stopped = records.last().ok_or_else(|| Error::MissingEvidence(Stopped::RECORD_TYPE.into()))?;
+
+        // Check / Accepted Outcome
+        let accepted_ok = stopped.accepted;
+        Ok(accepted_ok)
+    }
+
+    async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
+        // Release Charger
+        let operation = ReleaseCharger { device_id: self.device.device_id };
+        let result = ctx.operation(operation).await;
+        if let Err(error) = &result {
+            ctx.warn(format!("charger cleanup: {error}"));
+        }
+        result?;
+        ctx.info("Charger resources released");
+        Ok(())
+    }
+
+    fn document() -> Document {
+        let mut document = measurement::document(<Samples as dokime::StreamSpec>::ID, "Overcurrent Protection");
+        let section = system::section(TEMPLATE);
+        document.section(section);
+        document
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-async fn publish<T, O, I>(ctx: &mut StepContext<'_, T, O, I>, published: &mut u64, reading: Reading, phase: &str) {
-    measurement::publish::<Samples, _, _, _>(ctx, *published, reading, phase).await;
-    *published += 1;
-}
 
 /* === Tests === */

@@ -42,8 +42,6 @@ use dokime_domain::model::values::Value;
 pub trait DeclaredRecord: Sized {
     const RECORD_TYPE: &'static str;
 
-    const SCHEMA_VERSION: u32 = 1;
-
     const SEVERITY: RecordSeverity;
 
     fn contract() -> RecordContract;

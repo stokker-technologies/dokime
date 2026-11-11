@@ -40,7 +40,7 @@ use crate::{config::ApplicationMetadata, paths::ApplicationPaths, storage::sqlit
 
 /* === Structs === */
 
-/// A Temporary Copy Of Installed Bundles And Independently Readable Metadata.
+// A Temporary Copy Of Installed Bundles And Independently Readable Metadata.
 pub struct PluginRecovery {
     bundles: tempfile::TempDir,
     metadata: ApplicationMetadata,
@@ -53,8 +53,8 @@ pub struct PluginRecovery {
 /* === Implementations === */
 
 impl PluginRecovery {
-    /// Read Without Opening Or Upgrading The Execution Store.
-    /// Unreadable Metadata Does Not Prevent Recovering The Bundle Files.
+    // Read Without Opening Or Upgrading The Execution Store.
+    // Unreadable Metadata Does Not Prevent Recovering The Bundle Files.
     pub fn capture(root: &Path, application: &ApplicationPaths) -> Result<Self, PluginError> {
         let bundles = tempfile::tempdir()?;
         let mut metadata = ApplicationMetadata::new();
@@ -143,7 +143,7 @@ impl PluginRecovery {
         Ok(Self { bundles, metadata })
     }
 
-    /// Recreate Installation Storage; Ordinary Startup Verifies And Admits Each Bundle.
+    // Recreate Installation Storage; Ordinary Startup Verifies And Admits Each Bundle.
     pub async fn restore(mut self, root: &Path, application: &ApplicationPaths) -> Result<(), PluginError> {
         // Only The New Database Receives Recovered Metadata, Never Execution State.
         let database = State::open_with(root, crate::config::local_storage_defaults()).await?;

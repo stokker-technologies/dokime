@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use super::{PlotPayload, PlotPayloadContext, PlotPayloadRequest, PlotPoint, PlotSeries};
-use crate::document::PlotType;
+use crate::document::{PlotStyle, PlotType};
 use crate::expressions::DataTransform;
 use crate::runtime::Result;
 use crate::storage::sqlite::data::telemetry::previews::{Envelope, Point};
@@ -276,9 +276,7 @@ impl Preview {
                 self.series.insert(key, other);
                 continue;
             };
-            if matches!(request.plot_type, Some(PlotType::XyScatter | PlotType::Trajectory | PlotType::XyValueHeatmap))
-                && trace.count + other.count > limits.exact_points
-            {
+            if uses_density_grid(request) && trace.count + other.count > limits.exact_points {
                 for point in trace.exact.iter().chain(&other.exact) {
                     if let (Some(x), Some(y)) = (axis(point), point.y) {
                         trace.grid.push(Cell { x, y, count: 1 }, limits);
@@ -443,7 +441,7 @@ impl Preview {
         };
         let payload = super::project_retained_plot_payload(samples, records.into(), &raw, "", &context)?;
         self.context.extend(payload.context.clone());
-        let scatter = matches!(request.plot_type, Some(PlotType::XyScatter | PlotType::Trajectory | PlotType::XyValueHeatmap));
+        let scatter = uses_density_grid(request);
         for series in &payload.series {
             let aggregate = aggregate_for(request, &series.key);
             if !self.series.contains_key(&series.key) && self.series.len() >= limits.groups {
@@ -847,6 +845,11 @@ fn aggregate_for(request: &PlotPayloadRequest, key: &str) -> Option<harmos::Aggr
         .find_map(|transform| if let DataTransform::Aggregate(method) = transform { Some(*method) } else { None })
 }
 
+fn uses_density_grid(request: &PlotPayloadRequest) -> bool {
+    matches!(request.plot_type, Some(PlotType::Trajectory | PlotType::XyValueHeatmap))
+        || (request.plot_type == Some(PlotType::Xy) && request.style == PlotStyle::Points)
+}
+
 fn record_plot(request: &PlotPayloadRequest) -> bool {
     request.y_expressions.iter().any(|expression| matches!(expression.source, crate::expressions::DataSource::Record { .. }))
 }
@@ -1002,10 +1005,11 @@ mod tests {
     }
 
     #[test]
-    fn scatter_density() {
+    fn xy_points_density() {
         let request = PlotPayloadRequest {
             stream: "tracking".into(),
-            plot_type: Some(PlotType::XyScatter),
+            plot_type: Some(PlotType::Xy),
+            style: PlotStyle::Points,
             x_key: Some("easting".into()),
             y_keys: vec!["northing".into()],
             ..Default::default()
@@ -1034,6 +1038,53 @@ mod tests {
         let compressed = payload(&preview, &small);
         assert!(compressed.series[0].points.len() <= 2);
         assert_eq!(compressed.series[0].points.iter().map(|point| point.z.unwrap() as u64).sum::<u64>(), 40);
+    }
+
+    #[test]
+    fn xy_style_reduction() {
+        for style in [PlotStyle::Points, PlotStyle::Line, PlotStyle::LinePoints, PlotStyle::Step] {
+            let request = PlotPayloadRequest {
+                stream: "tracking".into(),
+                plot_type: Some(PlotType::Xy),
+                style: style.clone(),
+                x_key: Some("easting".into()),
+                y_keys: vec!["northing".into()],
+                ..Default::default()
+            };
+            // Exercise Both Incremental Reduction And Merges Crossing The Exact Limit.
+            for split in [None, Some(4), Some(8)] {
+                let mut preview = Preview::default();
+                let mut tail = Preview::default();
+                for index in 0..12 {
+                    let target = if split.is_some_and(|split| index >= split) { &mut tail } else { &mut preview };
+                    target.sample(sample(index, index as f64, index as f64), &request, limits()).unwrap();
+                }
+                if split.is_some() {
+                    preview.merge(tail, &request, limits()).unwrap();
+                }
+                preview = serde_json::from_slice(&serde_json::to_vec(&preview).unwrap()).unwrap();
+                let trace = preview.series.values().next().unwrap();
+                let result = payload(&preview, &request);
+                assert_eq!(trace.count, 12);
+                assert_eq!(trace.moments.count, 12);
+                assert_eq!(result.series[0].raw_points, 12);
+                assert!(result.series[0].points.len() <= result.max_points);
+                if style == PlotStyle::Points {
+                    assert_eq!(trace.grid.cells.values().map(|cell| cell.count).sum::<u64>(), 12);
+                    assert_eq!(result.series[0].points.iter().map(|point| point.z.unwrap() as u64).sum::<u64>(), 12);
+                    assert_eq!(result.summaries[0].count, 12);
+                    assert_eq!(result.summaries[0].mean, Some(5.5));
+                } else {
+                    assert!(trace.grid.cells.is_empty());
+                    assert!(!trace.envelope.buckets.is_empty());
+                    let points = &result.series[0].points;
+                    assert!(!points.is_empty());
+                    assert!(points.iter().all(|point| point.z.is_none()));
+                    assert!(points.windows(2).all(|pair| pair[0].x.as_f64().unwrap() <= pair[1].x.as_f64().unwrap()));
+                    assert!(result.summaries.is_empty());
+                }
+            }
+        }
     }
 
     #[test]

@@ -85,20 +85,32 @@ impl Serve<wire::CreateCycle> for Resources {
     }
 }
 
-impl Serve<wire::CopyCycle> for Resources {
+impl Serve<wire::RerunCycle> for Resources {
     fn serve<'a>(
-        &'a self, request: wire::CopyCycle, ctx: Context<'a, wire::CopyCycle>,
-    ) -> Served<'a, dokime::domain::model::execution::wire::CreateCycleReply> {
+        &'a self, request: wire::RerunCycle, ctx: Context<'a, wire::RerunCycle>,
+    ) -> Served<'a, dokime::domain::model::execution::wire::RerunCycleReply> {
         Box::pin(async move {
             let context = command_context(ctx.call(), request.context.as_ref())?;
-            let id = dokime::app::live_runtime(&self.runtime)
+            let outcome = dokime::app::live_runtime(&self.runtime)
                 .await?
-                .copy_cycle(cycle_id(&request.source_cycle_id)?, context)
+                .rerun_cycle(cycle_id(&request.source_cycle_id)?, request.label, context)
                 .await
                 .map_err(status)?;
-            Ok((dokime::domain::model::execution::wire::CreateCycleReply {
-                cycle_id: id.to_string(),
+            let notices = |notices: Vec<dokime::RerunCaseNotice>| {
+                notices
+                    .into_iter()
+                    .map(|notice| dokime::domain::model::execution::wire::RerunCaseNotice {
+                        case_id: notice.case_id,
+                        suite_id: notice.suite_id,
+                        reason: notice.reason,
+                    })
+                    .collect()
+            };
+            Ok((dokime::domain::model::execution::wire::RerunCycleReply {
+                cycle_id: outcome.cycle_id.to_string(),
                 observed_cursor: Some(canonical::cursor(&dokime::app::live_runtime(&self.runtime).await?.watch_state().latest())),
+                skipped: notices(outcome.skipped),
+                dropped_parameters: notices(outcome.dropped_parameters),
             })
             .into())
         })
@@ -327,7 +339,7 @@ pub(super) fn prepare(setup: &mut dokime::harmos::Setup<dokime::app::Dokime>, ru
     let served = Arc::new(Resources { runtime: runtime.clone() });
 
     setup.resource::<Host<wire::CreateCycle>>(Host::<wire::CreateCycle>::new(served.clone()));
-    setup.resource::<Host<wire::CopyCycle>>(Host::<wire::CopyCycle>::new(served.clone()));
+    setup.resource::<Host<wire::RerunCycle>>(Host::<wire::RerunCycle>::new(served.clone()));
     setup.resource::<Host<wire::AppendExecutions>>(Host::<wire::AppendExecutions>::new(served.clone()));
     setup.resource::<Host<wire::DeleteCase>>(Host::<wire::DeleteCase>::new(served.clone()));
     setup.resource::<Host<wire::SetCycleArchived>>(Host::<wire::SetCycleArchived>::new(served.clone()));

@@ -69,7 +69,7 @@ const ACTION_ICONS: Record<ExecutionAction, ReactNode> = {
 
 export type ExecutionActions = {
   state: ExecutionControlState;
-  progress: { completed: number; total: number } | null;
+  progress: { completed: number; phase: string; total: number } | null;
   /** Whether the action's command is in flight or refused right now. */
   disabled: (action: ExecutionAction) => boolean;
   run: (action: ExecutionAction) => void;
@@ -128,6 +128,7 @@ export function useExecutionActions({
   execution,
   onSelectExecution,
   prompts,
+  pluginAvailable,
   row,
 }: {
   cycleActive: boolean;
@@ -136,6 +137,7 @@ export function useExecutionActions({
   execution: TestExecution | null;
   onSelectExecution: (executionId: string) => void;
   prompts: readonly PromptRequest[];
+  pluginAvailable?: boolean;
   row: CycleExecutionRow;
 }): ExecutionActions | null {
   const commands = useCycleCommands(cycleId);
@@ -144,12 +146,13 @@ export function useExecutionActions({
   if (!execution) return null;
   const progress = live && live.testExecutionId === execution.test_execution_id ? live : null;
   const state = executionControlState({
+    pluginAvailable,
+    report: execution.report,
     controls: execution.controls,
     progress: progress
       ? {
           completed: progress.completed,
-          id: progress.stepId,
-          label: stepLabel(execution, progress.stepId, progress.phase),
+          label: stepLabel(execution, progress.stepId),
           total: progress.total,
         }
       : null,
@@ -197,10 +200,11 @@ export function useExecutionActions({
 
 /* === Public Functions === */
 
-/** The running step's human label, as the Steps card names it; the phase for an opaque id. */
-export function stepLabel(execution: Pick<TestExecution, "steps">, stepId: string, phase: string): string {
+/** The running step's label, as its plugin names it; the humanized id only before a record names it. */
+export function stepLabel(execution: Pick<TestExecution, "steps">, stepId: string): string {
   const record = execution.steps.find((item) => item.record_type === "step" && item.step_id === stepId);
-  return record ? stepRecordLabel(record, false) : progressStepLabel(stepId, phase);
+  const label = record ? stepRecordLabel(record, false) : stepId;
+  return label === stepId ? progressStepLabel(stepId) : label;
 }
 
 /* === Private Functions === */

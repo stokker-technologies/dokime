@@ -46,7 +46,7 @@ use dokime_domain::model::values::Value;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.cycle.policy")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateCyclePolicy {
     pub test_cycle_id: TestCycleId,
     pub continue_automatically: bool,
@@ -54,7 +54,7 @@ pub struct UpdateCyclePolicy {
 }
 
 #[harmos::transaction(id = "dokime.execution.cycle.control")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct ControlCycle {
     pub test_cycle_id: TestCycleId,
     pub action: CycleControlAction,
@@ -62,7 +62,7 @@ pub struct ControlCycle {
 }
 
 #[harmos::transaction(id = "dokime.execution.cycle.reset")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct ResetCycle {
     pub test_cycle_id: TestCycleId,
     pub action: CycleResetAction,
@@ -77,7 +77,7 @@ struct CycleControlPlan {
 
 /* === Enums === */
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleControlAction {
     Pause,
@@ -85,7 +85,7 @@ pub enum CycleControlAction {
     Stop,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "action")]
 pub enum CycleResetAction {
     Delete { test_case_id: CaseId },

@@ -16,6 +16,7 @@ import json
 import re
 import stat
 import tarfile
+import urllib.parse
 import zipfile
 from pathlib import Path
 
@@ -36,7 +37,6 @@ from harmos_tools.release import policy
 
 # === Public Functions === #
 
-
 def triple(directory: Path, settings: dict, target: str) -> str:
     """Resolve A Product's Actual ABI From Its Declarations, Never From Its Name."""
     candidates = {
@@ -52,7 +52,6 @@ def triple(directory: Path, settings: dict, target: str) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+){2,}", value):
         raise policy.ToolError("invalid release Rust target triple")
     return value
-
 
 def asset_name(directory: Path, settings: dict, definition: dict, selected: str, tag: str, source: Path) -> str | None:
     """Accept Only The Locked Download Kinds; Product Examples And Registry Artifacts Stay Out."""
@@ -81,7 +80,6 @@ def asset_name(directory: Path, settings: dict, definition: dict, selected: str,
         raise policy.ToolError(f"unsupported release asset; declare distribution ZIPs with kind = 'distribution': {source.name}")
     suffix = "-setup.exe" if source.name.endswith("-setup.exe") else source.suffix
     return f"{settings['product']}-{tag[1:]}-{triple(directory, settings, selected)}{suffix}"
-
 
 def plugins(directory: Path, settings: dict, tag: str, targets: list[str], profile: str) -> list[dict]:
     """Resolve Explicit Shipped Bundles Into Shared Archives And Version-Less Members."""
@@ -142,7 +140,6 @@ def plugins(directory: Path, settings: dict, tag: str, targets: list[str], profi
             )
     return result
 
-
 def plugin_feed(settings: dict, tag: str, bundles: list[dict]) -> dict:
     entries = {}
     for bundle in bundles:
@@ -158,7 +155,6 @@ def plugin_feed(settings: dict, tag: str, bundles: list[dict]) -> dict:
         )
         entry["targets"][bundle["triple"]] = {key: bundle[key] for key in ("archive", "member", "sha256")}
     return {"format_version": 2, "plugins": [entries[name] for name in sorted(entries)]}
-
 
 def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Path]:
     """Archive Bundle Bytes Once Per Kind And Target, Hashing The Exact Member Bytes."""
@@ -193,11 +189,76 @@ def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Pa
         outputs.append(destination)
     return outputs
 
+def download_url(settings: dict, tag: str, name: str) -> str:
+    """The Public Download Of One Release Asset Under Its Tag, From The Declared Provider."""
+    quoted = f"{urllib.parse.quote(tag, safe='')}/{urllib.parse.quote(name, safe='')}"
+    if settings["provider"] == "github":
+        return f"https://github.com/{settings['repository']}/releases/download/{quoted}"
+    base = settings.get("api_url", "https://gitlab.com/api/v4").removesuffix("/api/v4")
+    return f"{base}/{settings['project_id']}/-/releases/{quoted.replace('/', '/downloads/', 1)}"
+
+def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
+    """Read Kind, OS, Architecture And Format Back From The Asset Names This Tooling Produces."""
+    product = settings["product"]
+    lowered = name.lower()
+    format_ = next((suffix for suffix in ("tar.gz", "exe", "zip", "deb", "rpm", "whl", "md", "json") if lowered.endswith("." + suffix)), "")
+    if name.endswith(".cdx.json"):
+        os_name, arch = _platform(name.removesuffix(".cdx.json"))
+        return {"kind": "sbom", "os": os_name, "arch": arch, "format": "json"}
+    if name in {"NOTICE", "THIRD-PARTY-NOTICES"}:
+        return {"kind": "notices", "os": "any", "arch": "any", "format": "txt"}
+    if name == "SHA256SUMS":
+        return {"kind": "checksums", "os": "any", "arch": "any", "format": "txt"}
+    if name == "CHANGELOG.md":
+        return {"kind": "changelog", "os": "any", "arch": "any", "format": "md"}
+    os_name, arch = _platform(name)
+    if format_ == "whl":
+        return {"kind": "sdk-python", "os": os_name, "arch": arch, "format": "whl"}
+    if format_ == "deb" and name.startswith(f"{product}_"):
+        return {"kind": "installer", "os": "linux", "arch": "x86_64" if name.endswith("_amd64.deb") else arch, "format": "deb"}
+    if format_ == "rpm" and name.startswith(f"{product}-"):
+        return {"kind": "installer", "os": "linux", "arch": arch, "format": "rpm"}
+    if format_ == "exe" and name.startswith(f"{product}-") and name.endswith("-setup.exe"):
+        return {"kind": "installer", "os": os_name, "arch": arch, "format": "exe"}
+    if name.startswith(f"{product}-distribution-") and format_ == "zip":
+        return {"kind": "payload", "os": os_name, "arch": arch, "format": "zip"}
+    if re.match(rf"{re.escape(product)}-(?:sidecars|guests)-", name) and format_ in {"zip", "tar.gz"}:
+        return {"kind": "plugin", "os": os_name, "arch": arch, "format": format_}
+    for executable, kind in sorted(executables.items(), key=lambda item: -len(item[0])):
+        if name.startswith(f"{executable}-") and format_ in {"zip", "tar.gz"}:
+            return {"kind": kind, "os": os_name, "arch": arch, "format": format_}
+    return {"kind": "other", "os": os_name, "arch": arch, "format": format_ or Path(name).suffix[1:].lower() or "txt"}
+
+def downloads(
+    settings: dict, executables: dict[str, str], *, version: str, channel: str, tag: str, published: str, files: list[dict], sums: str
+) -> dict:
+    """The Download Manifest: Every Staged Upload Classified, Linked Under Its Tag, Hashed From SHA256SUMS."""
+    digests = {}
+    for line in sums.splitlines():
+        digest, separator, name = line.partition("  ")
+        if not separator or name in digests:
+            raise policy.ToolError("invalid or duplicate SHA256SUMS entry")
+        digests[name] = digest
+    artifacts = []
+    for item in sorted(files, key=lambda entry: entry["name"]):
+        # SHA256SUMS cannot list itself; its own digest comes from the upload inventory.
+        digest = item["sha256"] if item["name"] == "SHA256SUMS" else digests.get(item["name"])
+        if digest is None:
+            raise policy.ToolError(f"SHA256SUMS does not list {item['name']}")
+        artifacts.append(
+            {
+                **classify(settings, executables, item["name"]),
+                "name": item["name"],
+                "url": download_url(settings, tag, item["name"]),
+                "size": item["size"],
+                "sha256": digest,
+            }
+        )
+    return {"version": version, "channel": channel, "tag": tag, "pub_date": published, "artifacts": artifacts}
 
 def upload_manifest(directory: Path, root: Path, files: list[dict]) -> None:
     entries = [{**item, "path": (root / item["path"]).relative_to(directory).as_posix()} for item in files]
     policy.write_json(root / "upload.json", {"format_version": 1, "assets": entries})
-
 
 def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
     """Read The Exact Publication Inventory, Refusing Unsafe Names, Paths And Changed Bytes."""
@@ -232,7 +293,33 @@ def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
         raise policy.ToolError("release upload manifest has no SHA256SUMS")
     return manifest["assets"]
 
-
 # === Private Functions === #
+
+def _platform(name: str) -> tuple[str, str]:
+    """OS And Architecture From A Rust Target Triple Or Wheel Platform Tag In The Name; Neither Means Any."""
+    lowered = name.lower()
+    triple = re.search(r"(x86_64|aarch64)-[a-z0-9_]+-(windows|linux|darwin)", lowered)
+    if triple:
+        return {"darwin": "macos"}.get(triple[2], triple[2]), triple[1]
+    if lowered.endswith(".whl"):
+        platform_tag = lowered.removesuffix(".whl").rsplit("-", 1)[-1]
+        if platform_tag == "any":
+            return "any", "any"
+        os_name = (
+            "windows"
+            if platform_tag.startswith("win")
+            else "linux"
+            if "linux" in platform_tag
+            else "macos"
+            if platform_tag.startswith("macosx")
+            else "any"
+        )
+        arch = (
+            "x86_64" if platform_tag.endswith(("x86_64", "amd64")) else "aarch64" if platform_tag.endswith(("aarch64", "arm64")) else "any"
+        )
+        return os_name, arch
+    if lowered.endswith(".rpm"):
+        return "linux", lowered.removesuffix(".rpm").rsplit(".", 1)[-1]
+    return "any", "any"
 
 # === Entry Point === #

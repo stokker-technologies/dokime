@@ -19,6 +19,7 @@ pub mod evidence;
 pub mod execution;
 pub mod files;
 pub mod history;
+
 #[cfg(feature = "runtime")]
 pub mod hosting;
 pub mod media;
@@ -79,7 +80,6 @@ pub const STOP_SETTLEMENT: OperationPolicy = policy(Duration::from_secs(5));
 // Operations A Remote Listener Never Serves: They Reach The Host's Filesystem, Screen,
 // Camera, Microphone Or Listener Settings. A Remote Call's Loopback Address Grants No Native Trust.
 pub const LOCAL_ONLY: &[&str] = &[
-    <files::FileWatch as OperationDeclaration>::ID,
     <media::Screenshot as OperationDeclaration>::ID,
     <media::Photo as OperationDeclaration>::ID,
     <media::AudioRecording as OperationDeclaration>::ID,
@@ -131,9 +131,6 @@ pub enum Operations {
     Execution(execution::Operations),
 
     #[nested]
-    Files(files::Operations),
-
-    #[nested]
     History(history::Operations),
 
     #[nested]
@@ -182,7 +179,7 @@ pub enum Operations {
 
 /* === Public Functions === */
 
-/// The gRPC method path an operation declares, such as `/dokime.v1.Notes/CreateNote`.
+// The gRPC method path an operation declares, such as `/dokime.v1.Notes/CreateNote`.
 pub fn path<O: OperationDeclaration>() -> String {
     O::GRPC.expect("product operations declare their gRPC binding").path()
 }

@@ -8,28 +8,11 @@
  */
 
 /* === Modules === */
-pub(crate) mod dokime {
-    #[sdk::message]
-    #[derive(Clone, PartialEq)]
-    pub struct Payload {
-        pub text: String,
-    }
-
-    #[allow(dead_code)]
-    #[sdk::message]
-    #[derive(Clone, PartialEq)]
-    pub struct Ignored {
-        pub text: String,
-    }
-
-    pub fn reply(request: Payload) -> Payload {
-        request
-    }
-}
 
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
 
@@ -41,6 +24,7 @@ use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Pu
 // Local Imports
 
 /* === Constants === */
+
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(240),
     attempt_timeout: std::time::Duration::from_secs(240),
@@ -51,9 +35,11 @@ const POLICY: OperationPolicy = OperationPolicy {
 /* === Macros === */
 
 /* === Type Aliases === */
+
 type Observing = ObserverAttachment<Publisher<Renamed>>;
 
 /* === Structs === */
+
 struct Renamed {
     resources: Arc<Resources>,
     observers: Option<Arc<Observing>>,
@@ -115,6 +101,7 @@ struct GetSpareEcho {
 }
 
 /* === Enums === */
+
 #[sdk::harmos::catalog(harmos_path = sdk::harmos)]
 enum Implemented {
     GetEcho(GetEcho),
@@ -147,6 +134,7 @@ pub enum Records {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl sdk::Operation for GetEcho {
     type Error = sdk::Refusal;
 
@@ -247,6 +235,7 @@ impl Renamed {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 #[cfg(not(test))]
 fn main() {
     std::hint::black_box(<Renamed as Declared>::markers()).unwrap();
@@ -261,6 +250,57 @@ fn operation_ids(nodes: &[sdk::catalog::Node<sdk::harmos::operations::WireDeclar
             sdk::catalog::Node::Nested(nested) => operation_ids(nested),
         })
         .collect()
+}
+
+pub(crate) mod dokime {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+
+    // Local Imports
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    #[sdk::message]
+    #[derive(Clone, PartialEq)]
+    pub struct Payload {
+        pub text: String,
+    }
+
+    #[allow(dead_code)]
+    #[sdk::message]
+    #[derive(Clone, PartialEq)]
+    pub struct Ignored {
+        pub text: String,
+    }
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    /* === Public Functions === */
+
+    pub fn reply(request: Payload) -> Payload {
+        request
+    }
+
+    /* === Private Functions === */
+
+    /* === Tests === */
 }
 
 /* === Tests === */

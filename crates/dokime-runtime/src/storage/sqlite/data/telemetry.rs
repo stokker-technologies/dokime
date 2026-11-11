@@ -21,19 +21,16 @@ mod reader;
 
 #[cfg(feature = "native")]
 pub(crate) mod report;
-
-#[cfg(test)]
-mod tests;
-mod writer;
+pub(in crate::storage::sqlite) mod writer;
 
 /* === Re-Exports === */
 
 pub(super) use catalog::SCHEMA;
 pub(super) use catalog::file as catalog_file;
 pub(crate) use flush::Tail;
-pub(crate) use inventory::StreamFile;
+pub use inventory::StreamFile;
 pub(in crate::storage::sqlite) use reader::CachedBatch;
-pub(crate) use reader::NumericRow;
+pub use reader::NumericRow;
 pub(crate) use writer::Store;
 
 /* === Imports === */
@@ -54,7 +51,7 @@ use crate::storage::{
 
 /* === Constants === */
 
-const SAMPLE_POSITION: &str = "
+pub(in crate::storage::sqlite) const SAMPLE_POSITION: &str = "
 SELECT i.position FROM stream_samples i JOIN streams s ON s.file_id=i.file_id
 WHERE i.sample_id=?1 AND s.stream=?2 AND i.position<=?3
 AND EXISTS(SELECT 1 FROM stream_captures c
@@ -90,7 +87,7 @@ impl State {
             .filter("template", scope.template_id.as_ref().map(ToString::to_string))
             .filter("suite", scope.suite_id.as_ref().map(ToString::to_string));
         scan.metrics = Some(self.0.read_metrics.clone());
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.read(move |connection| {
             Ok((|| {
                 let tail = owner.telemetry_tail.lock().unwrap().select(page.after, at.sequence, |entry| {
@@ -130,7 +127,7 @@ impl State {
         if !at.covers(&after)? {
             return Err(Error::Invalid("telemetry frontier moved backwards"));
         }
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.read(move |connection| {
             Ok((|| {
                 let mut streams = owner.telemetry_tail.lock().unwrap().streams_between(after.sequence, at.sequence);
@@ -189,9 +186,23 @@ impl State {
         let encoded = serde_json::to_string(&contract)?;
         let schema = crate::storage::ipc::contract_schema(&contract, None)?;
         let field = schema.fields()[1].clone();
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.call(move |connection| {
             Ok((|| {
+                let previous: Option<String> = connection
+                    .query_row("SELECT contract FROM telemetry_contracts WHERE schema_key=?1", [&key], |row| row.get(0))
+                    .optional()?;
+                if let Some(previous) = previous {
+                    let previous: dokime_domain::model::telemetry::TelemetryContract = serde_json::from_str(&previous)?;
+                    let same = match (&previous.storage_schema, &contract.storage_schema) {
+                        (Some(previous), Some(current)) => crate::storage::telemetry::same_graph(previous, current)?,
+                        (None, None) => true,
+                        _ => false,
+                    };
+                    if !same {
+                        return Err(Error::TelemetryIntegrity { stream: contract.stream.to_string() });
+                    }
+                }
                 connection.execute(
                     "INSERT INTO telemetry_contracts VALUES (?1,?2) ON CONFLICT(schema_key) DO UPDATE SET contract=excluded.contract",
                     params![key, encoded],
@@ -203,20 +214,28 @@ impl State {
         .await?
     }
 
-    pub(super) async fn arrow_write(&self, batch: StorageBatch<StoredRow>) -> Result<SavedData, Error> {
-        let owner = self.0.clone();
+    pub(in crate::storage::sqlite) async fn arrow_write(&self, batch: StorageBatch<StoredRow>) -> Result<SavedData, Error> {
+        let bytes = batch
+            .as_slice()
+            .iter()
+            .try_fold(0usize, |total, row| super::entry::stream_length(row, usize::MAX).map(|bytes| total.saturating_add(bytes)))?;
+        let prepare_owner = self.0.owner.clone();
+        let prepare_batch = batch.clone();
         self.call(move |connection| {
-            let waiting = std::time::Instant::now();
+            Ok(prepare_owner.telemetry.lock().unwrap().prepare(connection, prepare_batch.as_slice(), &prepare_owner.telemetry_contracts))
+        })
+        .await??;
+        let owner = self.0.owner.clone();
+        self.grouped(batch.len(), bytes, move |connection| {
             let mut store = owner.telemetry.lock().unwrap();
-            tracing::debug!(name: "ingest.lock.store.writer", elapsed_ns = waiting.elapsed().as_nanos() as u64);
             Ok(store.write(connection, batch, &owner.telemetry_contracts))
         })
         .await?
     }
 
     pub(crate) async fn finalize_telemetry(&self, execution: String) -> Result<(), Error> {
-        let owner = self.0.clone();
-        self.call(move |connection| Ok(owner.telemetry.lock().unwrap().finish(connection, Some(&execution)))).await?
+        let owner = self.0.owner.clone();
+        self.grouped(1, execution.len(), move |connection| Ok(owner.telemetry.lock().unwrap().finish(connection, Some(&execution)))).await?
     }
 
     pub(crate) async fn telemetry_read(
@@ -236,7 +255,7 @@ impl State {
             .filter("template", scope.template_id.as_ref().map(ToString::to_string))
             .filter("suite", scope.suite_id.as_ref().map(ToString::to_string));
         scan.metrics = Some(self.0.read_metrics.clone());
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.read(move |connection| {
             Ok((|| {
                 // Capture The Tail Before Establishing SQLite's Snapshot; A Concurrent Commit
@@ -279,7 +298,7 @@ impl State {
         let mut scan = Scan::new("stream", at.sequence, 0, page).filter("execution", execution.clone()).filter("stream", stream.clone());
         scan.metrics = Some(self.0.read_metrics.clone());
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.read(move |connection| {
             Ok((|| {
                 let tail = owner.telemetry_tail.lock().unwrap().select(after, at.sequence, |entry| {
@@ -330,7 +349,7 @@ impl State {
         selection: crate::evidence_runtime::TelemetrySelection, _codec: TypedCodec,
     ) -> Result<Option<std::time::SystemTime>, Error> {
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.read(move |connection| {
             Ok((|| {
                 let tail = owner
@@ -363,7 +382,7 @@ impl State {
         terms: Vec<(&'static str, Value)>, start: std::time::SystemTime, after: String,
     ) -> Result<(String, Vec<(u64, TelemetryEntry)>), Error> {
         let root = self.0.readers.database.parent().ok_or(Error::Invalid("storage root is absent"))?.to_owned();
-        let owner = self.0.clone();
+        let owner = self.0.owner.clone();
         self.read(move |connection| {
             Ok((|| {
                 let mut selected = selection.clone();

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{
@@ -19,27 +20,32 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
 };
 use std::time::Duration;
+
 // Third Party Imports
-use dokime_runtime::harmos::plugin::Declared;
-use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 use tokio_stream::StreamExt;
+
 // Local Imports
 use dokime_runtime::Value;
 use dokime_runtime::execution::{CriterionContext, InitializationContext, ObserverContext, StepContext, Workflow};
+use dokime_runtime::harmos::plugin::Declared;
+use dokime_runtime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::plugin::testing::Harness;
 use dokime_runtime::{Publishable, Refusal, Supervisor};
 
 /* === Constants === */
-const SUITE: &str = "observer.checks";
 
+const SUITE: &str = "observer.checks";
 static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> = LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
 
 /* === Macros === */
+
 /* === Type Aliases === */
+
 type Publishing = Publisher<Owner>;
 
 /* === Structs === */
+
 #[derive(Default)]
 struct Probe {
     starts: AtomicUsize,
@@ -117,6 +123,7 @@ struct Watch(Arc<Probe>, usize);
 
 #[derive(Default)]
 struct StatelessWatch;
+
 struct Checks;
 
 struct AwaitEvent;
@@ -152,13 +159,24 @@ struct GetProbeResponse {
     secrets: bool,
 }
 
+#[dokime_runtime::operation(id = "observer_fixture.get_count", policy = super::native::POLICY, response = GetCountResponse, resources = [Shared])]
+#[derive(Clone, PartialEq)]
+struct GetCount {}
+
+#[dokime_runtime::operation(id = "observer_fixture.get_probe", policy = super::native::POLICY, response = GetProbeResponse, resources = [Shared])]
+#[derive(Clone, PartialEq)]
+struct GetProbe {}
+
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 enum WatchError {
     #[error(transparent)]
     Publish(#[from] dokime_runtime::harmos::sidecar::PublishError),
+
     #[error(transparent)]
     Call(#[from] dokime_runtime::harmos::sidecar::CallError),
+
     #[error(transparent)]
     Sdk(#[from] dokime_runtime::Error),
 }
@@ -215,6 +233,7 @@ enum ProbeRequired {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Probe {
     // Counts one event and wakes every story waiting on the probe.
     fn bump(&self, counter: &AtomicUsize) {
@@ -235,9 +254,7 @@ impl Probe {
         }
     }
 }
-#[dokime_runtime::operation(id = "observer_fixture.get_count", policy = super::native::POLICY, response = GetCountResponse, resources = [Shared])]
-#[derive(Clone, PartialEq)]
-struct GetCount {}
+
 impl dokime_runtime::Operation for GetCount {
     type Error = Refusal;
 
@@ -254,9 +271,7 @@ impl dokime_runtime::Operation for GetCount {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "observer_fixture.get_probe", policy = super::native::POLICY, response = GetProbeResponse, resources = [Shared])]
-#[derive(Clone, PartialEq)]
-struct GetProbe {}
+
 impl dokime_runtime::Operation for GetProbe {
     type Error = Refusal;
 
@@ -584,6 +599,7 @@ impl Pending {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn registered(probe: &Arc<Probe>) -> String {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let token = format!("probe-{}", NEXT.fetch_add(1, Ordering::SeqCst));
@@ -595,11 +611,10 @@ fn registered(probe: &Arc<Probe>) -> String {
 fn probe(token: &str) -> Arc<Probe> {
     Arc::clone(PROBES.lock().expect("the probe registry is never poisoned").get(token).expect("a run names a probe this file registered"))
 }
+
 fn answered(token: String) -> impl Fn(GetProbe) -> GetProbeResponse + Send + Sync + 'static {
     move |_| GetProbeResponse { token: token.clone(), secrets: true }
 }
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -761,3 +776,5 @@ async fn plugin_observer_reload_interval() {
     native.shutdown().await;
     assert_eq!(probe.starts.load(Ordering::SeqCst), probe.stops.load(Ordering::SeqCst));
 }
+
+/* === Tests === */

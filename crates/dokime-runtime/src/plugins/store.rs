@@ -139,8 +139,8 @@ impl PluginStore {
         self.install_checked(bytes, configured, host_sources, |_| Ok(())).await
     }
 
-    /// Validates the caller's result representation before publishing installed state.
-    /// The validator performs synchronous admission checks without mutating storage.
+    // Validates the caller's result representation before publishing installed state.
+    // The validator performs synchronous admission checks without mutating storage.
     pub async fn install_checked(
         &self, bytes: &[u8], configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
         validate: impl FnOnce(&PluginEntry) -> Result<(), PluginError> + Send + 'static,
@@ -148,7 +148,7 @@ impl PluginStore {
         self.install_selected(bytes, configured, host_sources, false, validate).await
     }
 
-    /// Install An Installer's Bundle Only When Its Package Is Absent Or Older.
+    // Install An Installer's Bundle Only When Its Package Is Absent Or Older.
     pub async fn install_bundled(
         &self, bytes: &[u8], configured: &[PluginMetadata], host_sources: &BTreeSet<String>,
     ) -> Result<PluginEntry, PluginError> {
@@ -237,12 +237,12 @@ impl PluginStore {
             .await
     }
 
-    /// The Stored State Of One Installation, Without Reading Its Bundle.
+    // The Stored State Of One Installation, Without Reading Its Bundle.
     pub(crate) async fn state(&self, id: Uuid) -> Result<Option<PluginState>, PluginError> {
         Ok(self.settings.read(move |document| document.plugins.get(&id).map(|plugin| plugin.state)).await?)
     }
 
-    /// One Installation's Bundle Input When It Is Installed.
+    // One Installation's Bundle Input When It Is Installed.
     pub(crate) async fn bundle(&self, id: Uuid) -> Result<Option<super::PluginBundle>, PluginError> {
         Ok(self
             .installed()
@@ -251,8 +251,8 @@ impl PluginStore {
             .find(|bundle| matches!(bundle.provenance, super::PluginProvenance::Installed { install_id, .. } if install_id == id)))
     }
 
-    /// A Refused Replacement Keeps The Running Installation: It Is Installed Again With Its
-    /// Program Values, And The Refused One Waits For Removal With Its Failure Recorded.
+    // A Refused Replacement Keeps The Running Installation: It Is Installed Again With Its
+    // Program Values, And The Refused One Waits For Removal With Its Failure Recorded.
     pub(crate) async fn restore(
         &self, kept: Uuid, refused: Uuid, failure: dokime_domain::model::plugins::wire::PluginStartFailure,
     ) -> Result<(), PluginError> {
@@ -303,14 +303,28 @@ impl PluginStore {
             .await
     }
 
-    /// Discard Stopped Installations, Retaining Failed Boots Until Startup.
-    pub(crate) async fn discard_stopped(&self, stopped: &BTreeSet<Uuid>) -> Result<(), PluginError> {
-        self.discard(|id, plugin| {
-            stopped.contains(&id)
-                && plugin.state == PluginState::RemovalPending
-                && !matches!(plugin.last_boot, Some(PluginLastBoot::Failed { .. }))
-        })
-        .await
+    // Discard Installations Once Their Programs Have Stopped, Including Failed Boots.
+    pub(crate) async fn discard_stopped(&self, stopped: &BTreeSet<Uuid>) -> Result<BTreeSet<Uuid>, PluginError> {
+        self.discard(|id, plugin| stopped.contains(&id) && plugin.state == PluginState::RemovalPending).await
+    }
+
+    // Successful Activation Supersedes Every Pending Installation Of The Same Package.
+    pub(crate) async fn discard_replaced(&self, active: Uuid) -> Result<BTreeSet<Uuid>, PluginError> {
+        let entry = self.get(active).await?;
+        let Some(metadata) = entry.metadata.filter(|_| entry.installation.state == PluginState::Installed) else {
+            return Ok(BTreeSet::new());
+        };
+        let replaced = self
+            .list()
+            .await?
+            .into_iter()
+            .filter_map(|entry| {
+                let pending = entry.installation.state == PluginState::RemovalPending;
+                let same_package = entry.metadata.is_some_and(|other| other.identity.name == metadata.identity.name);
+                (pending && same_package).then_some(entry.installation.install_id)
+            })
+            .collect();
+        self.discard_stopped(&replaced).await
     }
 
     pub async fn sweep(&self) -> Result<(), PluginError> {
@@ -375,13 +389,13 @@ impl PluginStore {
         }
     }
 
-    async fn discard(&self, selected: impl Fn(Uuid, &PluginSettings) -> bool) -> Result<(), PluginError> {
+    async fn discard(&self, selected: impl Fn(Uuid, &PluginSettings) -> bool) -> Result<BTreeSet<Uuid>, PluginError> {
         let candidates: Vec<Uuid> = self
             .settings
             .read(|document| document.plugins.iter().filter(|(id, plugin)| selected(**id, plugin)).map(|(id, _)| *id).collect())
             .await?;
         if candidates.is_empty() {
-            return Ok(());
+            return Ok(BTreeSet::new());
         }
         let mut failures = Vec::new();
         for id in &candidates {
@@ -392,6 +406,7 @@ impl PluginStore {
             }
         }
         sync_directory(&self.root)?;
+        let removed = candidates.iter().filter(|id| !failures.iter().any(|(failed, _)| failed == *id)).copied().collect();
         self.settings
             .edit(move |document| {
                 for id in &candidates {
@@ -415,9 +430,10 @@ impl PluginStore {
                         });
                     }
                 }
-                Ok(())
+                Ok::<_, PluginError>(())
             })
-            .await
+            .await?;
+        Ok(removed)
     }
 }
 

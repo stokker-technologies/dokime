@@ -28,6 +28,7 @@ use crate::storage::{Error, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -42,6 +43,7 @@ pub struct Selection {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Selection {
     pub fn encoding_memory(value: &crate::analysis::Selection) -> Result<usize> {
         if value.id.is_empty() || value.version == 0 {

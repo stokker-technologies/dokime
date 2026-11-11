@@ -10,9 +10,9 @@
 /* === Modules === */
 
 pub(crate) mod append;
-pub(crate) mod copy;
 pub(crate) mod create;
 pub(crate) mod policy;
+pub(crate) mod rerun;
 
 /* === Re-Exports === */
 

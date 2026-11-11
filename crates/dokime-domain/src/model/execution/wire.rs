@@ -53,6 +53,27 @@ pub struct CreateCycleReply {
     pub observed_cursor: Option<Cursor>,
 }
 
+// The New Cycle And What The Installed Plugin No Longer Declares. Skipped
+// Cases Were Not Created; Dropped Parameters Belong To Created Cases.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RerunCycleReply {
+    pub cycle_id: String,
+    pub observed_cursor: Option<Cursor>,
+    pub skipped: Vec<RerunCaseNotice>,
+    pub dropped_parameters: Vec<RerunCaseNotice>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RerunCaseNotice {
+    #[row(description = "The case's authored identifier, as its plugin declares it.")]
+    pub case_id: String,
+
+    pub suite_id: String,
+    pub reason: String,
+}
+
 // Ordered Identities From This Append, Independent Of Concurrent Appends.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -198,6 +219,9 @@ pub struct CycleSummary {
 
     #[row(description = "Why the cycle's seal failed while its phase is SealFailed; its evidence is kept.")]
     pub seal_failure: Option<String>,
+
+    #[row(description = "The cycle this one reruns, when Rerun Cycle created it.")]
+    pub rerun_of: Option<String>,
 }
 
 #[harmos::message]

@@ -44,15 +44,15 @@ pub struct TestCycleInstance {
 /* === Implementations === */
 
 impl TestCycleInstance {
-    pub fn new(cycle: CycleView) -> Self {
+    pub fn new(cycle: CycleView) -> Result<Self, crate::document::DocumentRegistryError> {
         let executions = cycle
             .test_executions
             .iter()
             .cloned()
-            .map(|execution| (execution.test_execution_id.clone(), TestExecutionInstance::new(execution)))
-            .collect();
+            .map(|execution| Ok((execution.test_execution_id.clone(), TestExecutionInstance::new(execution)?)))
+            .collect::<Result<_, crate::document::DocumentRegistryError>>()?;
 
-        Self { cycle, executions }
+        Ok(Self { cycle, executions })
     }
 
     pub fn executions(&self) -> impl Iterator<Item = &TestExecutionInstance> {

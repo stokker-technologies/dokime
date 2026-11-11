@@ -8,11 +8,16 @@
  */
 
 /* === Modules === */
+
 /* === Re-Exports === */
+
 /* === Imports === */
+
 // Standard Library Imports
 use std::{collections::BTreeMap, path::Path};
+
 // Third Party Imports
+
 // Local Imports
 use dokime::{
     client::{Client, TestExecutionHandle, contracts},
@@ -20,13 +25,21 @@ use dokime::{
 };
 
 /* === Constants === */
+
 /* === Macros === */
+
 /* === Type Aliases === */
+
 /* === Structs === */
+
 /* === Enums === */
+
 /* === Traits === */
+
 /* === Implementations === */
+
 /* === Public Functions === */
+
 pub async fn finalize(client: &Client) {
     let root = tempfile::tempdir().unwrap();
     let mut request = contracts::execution::ListCycles {
@@ -83,6 +96,7 @@ pub async fn finalize(client: &Client) {
 }
 
 /* === Private Functions === */
+
 async fn save_execution(client: &Client, execution: &TestExecutionHandle, root: &Path) {
     let id = execution.id().to_string();
     let checkpoint = execution.checkpoint().await.unwrap();

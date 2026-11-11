@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Shared Build Configuration And Task Invocation"""
 
 # === Imports === #

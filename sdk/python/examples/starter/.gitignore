@@ -1,0 +1,4 @@
+.venv/
+.dokime/
+*.dokime-remote
+__pycache__/

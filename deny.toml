@@ -1,0 +1,43 @@
+# Dependency Policy: Only Explicitly Allowed License Alternatives May Be Selected.
+[advisories]
+# Accepted advisories belong here with a reason, owner and expiry; see SECURITY.md.
+ignore = []
+
+[licenses]
+allow = [
+  "Apache-2.0",
+  "MIT",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-3.0",
+  "MPL-2.0",
+  # Permissive Compression License for libbz2-rs-sys; Retain Its Notices.
+  "bzip2-1.0.6",
+  # Permissive Attribution License for the libfuzzer-sys Development Dependency.
+  "NCSA",
+  # Public-Domain Dedication for notify and tiny-keccak.
+  "CC0-1.0",
+  # Permissive Apache Terms with the LLVM Linking Exception for target-lexicon and winx.
+  "Apache-2.0 WITH LLVM-exception",
+  # Permissive Data License for the webpki Certificate Root Collections.
+  "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.93
+
+[bans]
+# Parallel dependency versions are allowed; security and license policy apply to every version.
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# Development dependencies are limited to the organization that owns this product.
+allow-git = [
+  "https://github.com/stokker-technologies/plugin-host",
+  "https://github.com/stokker-technologies/plot",
+  "https://github.com/stokker-technologies/harmos",
+]

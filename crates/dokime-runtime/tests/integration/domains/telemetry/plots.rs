@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
@@ -25,6 +26,7 @@ use dokime_runtime::runtime::query::{
 };
 
 /* === Constants === */
+
 const PLOT_POINTS: usize = 400;
 
 /* === Macros === */
@@ -42,6 +44,7 @@ const PLOT_POINTS: usize = 400;
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 // snapshot query with all window uses all samples before downsampling.
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -370,7 +373,7 @@ async fn execution_plots_samples() {
         .await
         .unwrap();
     let mut suite = fixture_suite(&["passed"]);
-    let mut document = dokime_runtime::document::DocumentDefinition::new("default", "Plot Settings");
+    let mut document = dokime_runtime::document::DocumentDefinition::new("Plot Settings");
     let mut section = dokime_runtime::document::DocumentSection::new("Settings");
     let mut plot = dokime_runtime::document::Plot::time_series("Captured Plot");
     plot.id("captured.plot");
@@ -382,7 +385,8 @@ async fn execution_plots_samples() {
     wide.stream = Some("fixture.wide".into());
     wide.y = wide_keys.iter().map(|key| (*key).into()).collect();
     section.plot(wide);
-    let mut sparse = dokime_runtime::document::Plot::xy_scatter("Sparse Plot");
+    let mut sparse = dokime_runtime::document::Plot::xy("Sparse Plot");
+    sparse.style(dokime_runtime::document::PlotStyle::Points);
     sparse.id("sparse.plot");
     sparse.stream = Some("fixture.wide".into());
     sparse.x = Some("elapsed_s".into());
@@ -390,7 +394,8 @@ async fn execution_plots_samples() {
     section.plot(sparse);
     for (id, field, label) in [("distance.plot", "distance_m", "distance.selected"), ("position.plot", "position_x_m", "position.selected")]
     {
-        let mut projection = dokime_runtime::document::Plot::xy_scatter(id);
+        let mut projection = dokime_runtime::document::Plot::xy(id);
+        projection.style(dokime_runtime::document::PlotStyle::Points);
         projection.id(id);
         projection.stream = Some("fixture.wide".into());
         projection.x = Some("elapsed_s".into());
@@ -408,7 +413,8 @@ async fn execution_plots_samples() {
     exact.stream = Some("fixture.exact".into());
     exact.y = vec!["sample_index".into()];
     section.plot(exact);
-    let mut missing_x = dokime_runtime::document::Plot::xy_scatter("Independent Window");
+    let mut missing_x = dokime_runtime::document::Plot::xy("Independent Window");
+    missing_x.style(dokime_runtime::document::PlotStyle::Points);
     missing_x.id("missing-x.plot");
     missing_x.stream = Some("fixture.exact".into());
     missing_x.x = Some("ordinal".into());
@@ -689,8 +695,6 @@ fn band_scan(band: &str, occupied: usize, total: usize, peak: usize) -> WifiBand
         peak_count: peak,
     }
 }
-
-/* === Tests === */
 
 // distribution query bins its x column and does not limit evidence to the display budget.
 #[dokime_tracing::trace_test]
@@ -1116,3 +1120,5 @@ async fn numeric_query_reductions_match_spilled_results() {
         owner.shutdown().await.unwrap();
     }
 }
+
+/* === Tests === */

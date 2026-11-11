@@ -30,7 +30,6 @@ from . import storage
 
 # Type Checking Imports
 
-
 # === Public Exports === #
 
 # === Constants === #
@@ -42,7 +41,11 @@ from . import storage
 # === Public Functions === #
 
 
-def build(directory: Path, extra: Sequence[str] = (), selection: Sequence[str] = ("--workspace", "--bins", "--benches")) -> Path:
+def build(
+    directory: Path,
+    extra: Sequence[str] = (),
+    selection: Sequence[str] = ("--workspace", "--exclude", "dokime-python", "--bins", "--benches"),
+) -> Path:
     output = paths.output(directory, "build", "bench")
     messages = output / "bench/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)

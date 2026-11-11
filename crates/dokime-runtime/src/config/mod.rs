@@ -40,7 +40,7 @@ pub use harmos::storage::StorageSettings;
 pub use launch::Config;
 
 #[cfg(feature = "native")]
-pub use runtime::{InstalledSidecar, RuntimeConfig, SidecarNoticeHandler, StreamPublicationSettings};
+pub use runtime::{FileCaptureSettings, InstalledSidecar, RuntimeConfig, SidecarNoticeHandler, StreamPublicationSettings};
 
 #[cfg(feature = "native")]
 pub use settings::{ApplicationMetadata, Settings};

@@ -255,6 +255,22 @@
   --pill-width: 6rem;
 }
 
+/* Plot references and markers: a muted sequence apart from the theme's series
+   palette (`--chart-*`), so a reference never reads as a trace. See docs/gui.md. */
+:root {
+  --plot-reference-1: #415166;
+  --plot-reference-2: #9c8378;
+  --plot-reference-3: #435f52;
+  --plot-reference-4: #8f889f;
+}
+
+.dark {
+  --plot-reference-1: #8ba2b2;
+  --plot-reference-2: #e5d5c3;
+  --plot-reference-3: #987f7f;
+  --plot-reference-4: #dacbde;
+}
+
 :root[data-density="compact"] {
   --status-bar-height: 2rem;
   --settings-row-py: 0.5rem;

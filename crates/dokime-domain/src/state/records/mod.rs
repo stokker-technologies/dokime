@@ -45,7 +45,7 @@ pub struct EvidenceRecords {
 }
 
 #[harmos::record(id = "dokime.captured_record")]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapturedRecord {
     pub record: Record,

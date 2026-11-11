@@ -26,15 +26,16 @@ from pathlib import Path
 from typing import Any
 
 # Third Party Imports
-from harmos_tools.package import changelog
 from harmos_tools.process import spawn_flags
+from harmos_tools.build import paths
 from harmos_tools.release import policy
 
 # Local Imports
 
 # isort: split
 from ..build import storage
-from . import pins
+from ..package import changelog
+from . import notices, pins
 
 # Type Checking Imports
 
@@ -49,17 +50,12 @@ RATE_BUDGET = 5400
 REHEARSAL_CHECK = "Release / Rehearsal"
 RELEASE_BRANCH = "release/"
 GITLAB_REHEARSAL_JOB = "Release / Rehearsal"
-# Transient Provider Failures Retry With Doubling Pauses; Only Idempotent Methods Retry Server Errors.
-RETRY_ATTEMPTS = 4
-RETRY_PAUSE_SECONDS = 2
-THROTTLED = frozenset({429})
-TRANSIENT = frozenset({500, 502, 503, 504})
-IDEMPOTENT = frozenset({"GET", "PUT", "PATCH", "DELETE"})
+# Large Assets Get One Second per MB Beyond JSON's Minute, Bounded at Thirty Minutes.
+UPLOAD_MAX_TIMEOUT_S = 1800
 
 # === Types === #
 
 # === Classes === #
-
 
 class ProviderRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -73,9 +69,7 @@ class ProviderRedirect(urllib.request.HTTPRedirectHandler):
                 redirected.remove_header(name)
         return redirected
 
-
 # === Public Functions === #
-
 
 def publish_crates(directory: Path, *, sleep=time.sleep, clock=time.monotonic) -> None:
     """Publish Workspace Crates One At A Time In Dependency Order, Resuming Past Published Versions."""
@@ -88,11 +82,9 @@ def publish_crates(directory: Path, *, sleep=time.sleep, clock=time.monotonic) -
     with changelog.staged(directory, packages):
         _publish_crates(directory, packages, deadline, sleep=sleep, clock=clock)
 
-
 def rehearse_crates(directory: Path, *, skip_published: bool = True) -> None:
     """Dry-Run Crates In Publication Order Without Publishing Credentials."""
     nightly = os.environ.get("GITHUB_WORKFLOW_REF", "").split("/workflows/")[-1].startswith("nightly.yml@")
-    nightly = nightly or os.environ.get("CI_SIMULATE") == "1" and os.environ.get("CI_PIPELINE_KIND") == "nightly"
     if not pins.check(directory, warn=nightly):
         return
     with policy.credential_free(policy.policy(directory, "release")):
@@ -106,54 +98,46 @@ def rehearse_crates(directory: Path, *, skip_published: bool = True) -> None:
         with changelog.staged(directory, packages):
             _rehearse_crates(directory, packages, target, lock, original, staged, skip_published=skip_published)
 
-
 def publishable(directory: Path) -> dict:
     """Publishable Workspace Members By Name."""
     metadata = json.loads(policy.execute(directory, ["cargo", "metadata", "--format-version", "1", "--no-deps", "--locked"], capture=True))
     return policy.publishable(directory, metadata)
-
 
 def crate_published(name: str, version: str | None = None) -> bool:
     """Whether The Sparse Index Lists This Crate, Or This Exact Crate Version."""
     lower = name.lower()
     prefix = {1: "1", 2: "2", 3: "3/" + lower[0]}.get(len(lower), f"{lower[0:2]}/{lower[2:4]}")
     try:
-        with urllib.request.urlopen(f"{CRATES_INDEX}/{prefix}/{lower}", timeout=60) as response:
-            lines = response.read().decode("utf-8").splitlines()
-    except urllib.error.HTTPError as error:
-        if error.code == 404:
+        lines = notices.download(f"{CRATES_INDEX}/{prefix}/{lower}", operation="crates.io index read").decode("utf-8").splitlines()
+    except policy.ToolError as error:
+        cause = error.__cause__
+        if isinstance(cause, urllib.error.HTTPError) and cause.code == 404:
             return False
-        raise policy.ToolError(f"crates.io index read failed: HTTP {error.code}") from error
-    except urllib.error.URLError as error:
-        if isinstance(error.reason, FileNotFoundError):
+        if isinstance(cause, urllib.error.URLError) and isinstance(cause.reason, FileNotFoundError):
             return False
-        raise policy.ToolError(f"crates.io index read failed: {error.reason}") from error
+        raise
     entries = [json.loads(line) for line in lines if line.strip()]
     return bool(entries) if version is None else any(entry.get("vers") == version for entry in entries)
-
 
 def python(directory: Path, settings: dict, *, dry_run: bool) -> None:
     """Upload The Release Python Packages: PyPI For GitHub Products, The Project Registry On GitLab."""
     profile = policy.profile()
-    selected = sorted(str(path.relative_to(directory)) for path in directory.glob(f"target/package/{profile}/*/python/*") if path.is_file())
+    selected = []
+    for target in settings["targets"]:
+        root = paths.output(directory, "package", profile, target) / "python"
+        if not root.is_dir():
+            continue
+        wheels = sorted(root.glob("*.whl"))
+        if len(wheels) != 1 or "-cp313-abi3-" not in wheels[0].name:
+            raise policy.ToolError(f"expected one native abi3 wheel for {target}")
+        selected.append(wheels[0].relative_to(directory).as_posix())
     if not selected:
         raise policy.ToolError(f"release:publish:python has no {profile} Python packages")
     if dry_run:
         # Build and check only: uv validates every file without credentials or upload.
         policy.execute(directory, ["uv", "publish", "--dry-run", "--trusted-publishing", "never", *selected])
         return
-    if settings["provider"] == "github":
-        policy.execute(directory, ["uv", "publish", "--trusted-publishing", "always", *selected])
-        return
-    base = os.environ.get("CI_API_V4_URL", settings.get("api_url", "https://gitlab.com/api/v4"))
-    project = settings.get("project_id", os.environ.get("CI_PROJECT_ID"))
-    token = os.environ.get("CI_JOB_TOKEN")
-    if not token or not project:
-        raise policy.ToolError("GitLab Python publication requires the native CI_JOB_TOKEN")
-    destination = f"{base}/projects/{urllib.parse.quote(str(project), safe='')}/packages/pypi"
-    command = ["uv", "publish", "--publish-url", destination, "--username", "gitlab-ci-token", "--password", token, *selected]
-    policy.execute(directory, command)
-
+    raise policy.ToolError("native Python publication requires the owner to settle the PyPI and import name")
 
 def request(
     settings: dict,
@@ -252,31 +236,39 @@ def request(
         raise policy.ToolError("release.provider must be github or gitlab")
     if data is not None:
         headers["Content-Type"] = "application/octet-stream" if binary else "application/json"
-    for attempt in range(1, RETRY_ATTEMPTS + 1):
-        native = urllib.request.Request(url, data=data, headers=headers, method=method)
-        try:
-            with urllib.request.build_opener(ProviderRedirect()).open(native, timeout=60) as response:
-                return response.read()
-        except urllib.error.HTTPError as error:
-            # A Retried Delete Whose Earlier Attempt Landed Finds Nothing Left To Remove.
-            if error.code == 404 and (method == "GET" or method == "DELETE" and attempt > 1):
-                return None
-            message = error.read().decode("utf-8", errors="replace")
-            for secret in (token, os.environ.get("CI_JOB_TOKEN")):
-                if secret:
-                    message = message.replace(secret, "***")
-            retry = error.code in THROTTLED or error.code in TRANSIENT and method in IDEMPOTENT
-            if not retry or attempt == RETRY_ATTEMPTS:
-                raise policy.ToolError(f"release provider {method} failed: HTTP {error.code}: {message}") from error
-            print(f"release provider {method} {endpoint}: HTTP {error.code}; retrying ({attempt}/{RETRY_ATTEMPTS})", flush=True)
-            _pause(RETRY_PAUSE_SECONDS * 2 ** (attempt - 1))
-    raise AssertionError("unreachable")
+    native = urllib.request.Request(url, data=data, headers=headers, method=method)
+    timeout_s = min(UPLOAD_MAX_TIMEOUT_S, 60 + len(data or b"") / 1_000_000) if binary and data is not None else 60
 
+    def replace_partial() -> None:
+        assets_endpoint = endpoint.split("?", 1)[0]
+        name = urllib.parse.parse_qs(urllib.parse.urlsplit(endpoint).query)["name"][0]
+        for asset in pages(settings, assets_endpoint, channel=channel):
+            if asset["name"] == name:
+                request(settings, f"releases/assets/{asset['id']}", "DELETE", channel=channel)
+
+    try:
+        result = notices.download(
+            native,
+            operation=f"release provider {method}",
+            timeout_s=timeout_s,
+            opener=urllib.request.build_opener(ProviderRedirect()).open,
+            before_retry=replace_partial if upload else None,
+        )
+    except policy.ToolError as error:
+        cause = error.__cause__
+        if isinstance(cause, urllib.error.HTTPError) and cause.code == 404 and method in {"GET", "DELETE"}:
+            return None
+        raise
+    if upload:
+        asset = json.loads(result)
+        digest = "sha256:" + hashlib.sha256(data or b"").hexdigest()
+        if asset.get("size") != len(data or b"") or asset.get("digest") not in (None, digest):
+            raise policy.ToolError(f"release provider {method} verification failed: {url}: asset size or sha256 differs")
+    return result
 
 def document(settings: dict, endpoint: str, method: str = "GET", body: dict | None = None, *, channel: bool = False) -> Any:
     value = request(settings, endpoint, method, json.dumps(body).encode() if body is not None else None, channel=channel)
     return json.loads(value) if value else None
-
 
 def pages(settings: dict, endpoint: str, key: str | None = None, *, channel: bool = False) -> list:
     result = []
@@ -291,7 +283,6 @@ def pages(settings: dict, endpoint: str, key: str | None = None, *, channel: boo
         if len(values) < 100:
             return result
         page += 1
-
 
 def arm_auto_merge(settings: dict, branch: str, title: str, *, sleep=time.sleep) -> None:
     """Arm Native Squash Auto-Merge After Opening The Release Review, Waiting Briefly For GitLab's Pipeline."""
@@ -352,7 +343,6 @@ def arm_auto_merge(settings: dict, branch: str, title: str, *, sleep=time.sleep)
             sleep(5)
     raise policy.ToolError(f"GitLab release review for {branch} was not ready for auto-merge after 12 attempts; the review remains open")
 
-
 def verify_duplicate_policy(settings: dict) -> None:
     """Read Back The Group's Generic Package Duplicate Protection; Publication Never Changes It."""
     project = document(settings, "")
@@ -383,7 +373,6 @@ def verify_duplicate_policy(settings: dict) -> None:
     ):
         raise policy.ToolError("GitLab generic package duplicate protection must be verified for the project's group")
 
-
 def require_tag(directory: Path, tag: str) -> None:
     """The Protected Push Of Exactly This Stable Tag, Checked Out At Its Commit."""
     if re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag) is None:
@@ -409,7 +398,6 @@ def require_tag(directory: Path, tag: str) -> None:
     if actual != sha or tagged != actual:
         raise policy.ToolError("release tag SHA differs from checkout")
 
-
 def draft(settings: dict, tag: str, sha: str, body: str) -> dict:
     """The GitHub Draft For This Tag: Reused While Still A Draft, Never Replacing A Published Release."""
     releases = [item for item in pages(settings, "releases") if item["tag_name"] == tag]
@@ -429,7 +417,6 @@ def draft(settings: dict, tag: str, sha: str, body: str) -> dict:
         raise policy.ToolError("release draft was not created as a draft")
     return created
 
-
 def upload(settings: dict, release: int, item: dict, data: bytes) -> str:
     """Upload One Asset To A Draft Unless Present, Then Verify Its Remote Bytes."""
     available = [value for value in pages(settings, f"releases/{release}/assets") if value["name"] == item["name"]]
@@ -444,7 +431,6 @@ def upload(settings: dict, release: int, item: dict, data: bytes) -> str:
     verify_download(settings, endpoint, item)
     return endpoint
 
-
 def upload_generic(settings: dict, package: str, tag: str, item: dict, data: bytes) -> dict:
     """Upload One Asset To The Duplicate-Protected GitLab Generic Package Version."""
     endpoint = f"packages/generic/{urllib.parse.quote(package, safe='')}/{urllib.parse.quote(tag, safe='')}/{urllib.parse.quote(item['name'], safe='')}"
@@ -458,13 +444,11 @@ def upload_generic(settings: dict, package: str, tag: str, item: dict, data: byt
     project = urllib.parse.quote(str(settings.get("project_id", os.environ.get("CI_PROJECT_ID"))), safe="")
     return {"endpoint": endpoint, "link": {"name": item["name"], "url": f"{base}/projects/{project}/{endpoint}"}}
 
-
 def verify_download(settings: dict, endpoint: str, item: dict) -> bytes:
     data = request(settings, endpoint, binary=True)
     if data is None or len(data) != item["size"] or hashlib.sha256(data).hexdigest() != item["sha256"]:
         raise policy.ToolError(f"remote release download differs: {item['name']}")
     return data
-
 
 def verify_signatures(directory: Path, settings: dict, root: Path, names: list[str]) -> None:
     """Run Product-Owned Signature Checks Over Hash-Verified Bytes With RELEASE_ASSET_ROOT Pointing At Them."""
@@ -481,7 +465,6 @@ def verify_signatures(directory: Path, settings: dict, root: Path, names: list[s
             os.environ.pop("RELEASE_ASSET_ROOT", None)
         else:
             os.environ["RELEASE_ASSET_ROOT"] = previous
-
 
 def release_review(settings: dict, sha: str, branch: str) -> dict | None:
     """The Merged Release Review Whose Merge Commit Is This Revision, If Any."""
@@ -508,7 +491,6 @@ def release_review(settings: dict, sha: str, branch: str) -> dict | None:
     if len(matches) > 1:
         raise policy.ToolError("the revision identifies several merged release merge requests")
     return {"head": matches[0]["sha"], "number": matches[0]["iid"]} if matches else None
-
 
 def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
     """The Release Review Head Passed Its Rehearsal And Its Tree Is Exactly The Merged Tree."""
@@ -555,22 +537,18 @@ def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
         raise policy.ToolError(f"release MR !{review['number']} pipeline {pipeline['id']} has no successful {GITLAB_REHEARSAL_JOB} job")
     _same_tree(directory, head, sha)
 
-
 def oidc_claims(url: str, token: str) -> dict:
     """The Claims Of A GitHub OIDC Token Requested For Diagnosis Only; The Token Itself Is Never Printed."""
     separator = "&" if "?" in url else "?"
     native = urllib.request.Request(f"{url}{separator}audience=release-identity", headers={"Authorization": "Bearer " + token})
-    with urllib.request.urlopen(native, timeout=60) as response:
-        value = json.loads(response.read())["value"]
+    value = json.loads(notices.download(native, operation="release identity token fetch"))["value"]
     payload = value.split(".")[1]
     return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-
 
 def workflow_filename(reference: str) -> str:
     """The Workflow File Name Of A `owner/repo/.github/workflows/<file>@<ref>` Reference."""
     match = re.search(r"([^/]+\.ya?ml)(?=@)", reference)
     return match.group(1) if match else "(unknown)"
-
 
 def delete_branch(settings: dict, branch: str) -> bool:
     """Delete A Remote Branch If It Still Exists, Since Native Source-Branch Removal Usually Got There First."""
@@ -586,14 +564,12 @@ def delete_branch(settings: dict, branch: str) -> bool:
         request(settings, endpoint, "DELETE")
     return True
 
-
 def create_tag(settings: dict, tag: str, sha: str) -> None:
     """Create The Lightweight Release Tag Through The Provider With The Release Token."""
     if settings["provider"] == "github":
         document(settings, "git/refs", "POST", {"ref": "refs/tags/" + tag, "sha": sha})
     else:
         document(settings, "repository/tags", "POST", {"tag_name": tag, "ref": sha})
-
 
 def remote_tag(settings: dict, tag: str) -> str | None:
     """The Commit A Remote Tag Identifies, Peeling Annotated Tags."""
@@ -609,13 +585,7 @@ def remote_tag(settings: dict, tag: str) -> str | None:
     existing = document(settings, "repository/tags/" + name)
     return existing.get("commit", {}).get("id") if existing else None
 
-
 # === Private Functions === #
-
-
-def _pause(seconds: float) -> None:
-    time.sleep(seconds)
-
 
 def _publish_crates(directory: Path, packages: dict, deadline: float, *, sleep, clock) -> None:
     for name in _publication_order(packages):
@@ -648,7 +618,6 @@ def _publish_crates(directory: Path, packages: dict, deadline: float, *, sleep, 
             print(f"{name} {version}: rate limited; retrying in {wait}s")
             sleep(wait)
 
-
 def _rehearse_crates(
     directory: Path, packages: dict, target: Path, lock: Path, original: bytes | None, staged: list, *, skip_published: bool
 ) -> None:
@@ -669,7 +638,6 @@ def _rehearse_crates(
         # The patches record themselves in the lock file; the rehearsal leaves the committed lock untouched.
         if original is not None:
             lock.write_bytes(original)
-
 
 def _same_tree(directory: Path, head: str, merged: str) -> None:
     revisions = (head, merged)
@@ -700,7 +668,6 @@ def _same_tree(directory: Path, head: str, merged: str) -> None:
         raise policy.ToolError("rehearsal tree verification returned no valid tree object IDs")
     if trees[0] != trees[1]:
         raise policy.ToolError("the merged tree differs from the rehearsed release review head; update the review and merge again")
-
 
 def _publication_order(packages: dict) -> list[str]:
     """Publishable Crates After Every Publishable Crate Their Published Manifest Requires, Ties By Name.
@@ -742,7 +709,6 @@ def _publication_order(packages: dict) -> list[str]:
         visit(name)
     return order
 
-
 def _retry_after(output: str) -> int:
     """Seconds Until The Registry-Indicated Retry Time, Or The Published Interval."""
     match = re.search(r"try again after ([A-Z][a-z]{2}, \d{1,2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT)", output)
@@ -750,6 +716,5 @@ def _retry_after(output: str) -> int:
         return RATE_INTERVAL
     retry = email.utils.parsedate_to_datetime(match.group(1)).timestamp()
     return max(1, min(RATE_INTERVAL * 2, int(retry - time.time()) + 1))
-
 
 # === Entry Point === #

@@ -26,7 +26,7 @@ use std::time::Duration;
 
 pub const CADENCE_MS: u64 = 1;
 pub const CADENCE: Duration = Duration::from_millis(CADENCE_MS);
-// File Watch Admission Retains Its Product Minimum.
+// File Capture Admission Retains Its Product Minimum.
 pub const FILE_POLL: Duration = Duration::from_millis(50);
 pub const STATE_TAIL: usize = 4;
 pub const PAGE_ROWS: usize = 2;

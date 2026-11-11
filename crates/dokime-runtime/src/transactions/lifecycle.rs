@@ -44,7 +44,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.runtime.started")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct MarkRuntimeStarted {
     pub session_id: SessionId,
     pub record_namespace: SessionId,
@@ -54,17 +54,17 @@ pub struct MarkRuntimeStarted {
 }
 
 #[harmos::transaction(id = "dokime.runtime.identity.establish")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct EstablishNodeIdentity {
     pub candidate: DokimeNodeIdentity,
 }
 
 #[harmos::transaction(id = "dokime.runtime.shutdown.start")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct StartShutdown;
 
 #[harmos::transaction(id = "dokime.runtime.interrupted.recover")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecoverInterruptedCycles {
     pub at: Timestamp,
 
@@ -81,18 +81,20 @@ pub struct ReportFinalization {
     pub lifecycle: Option<ReportLifecycle>,
 }
 
-#[harmos::transaction(id = "dokime.report.finalization.request")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RequestReportFinalization {
     pub executions: Vec<TestExecutionId>,
     pub intent: ReportFinalization,
 }
 
-#[harmos::transaction(id = "dokime.report.lifecycle.capture")]
+retained_transaction!(RequestReportFinalization, "dokime.report.finalization.request");
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CaptureReportLifecycle {
     pub lifecycle: ReportLifecycle,
 }
+
+retained_transaction!(CaptureReportLifecycle, "dokime.report.lifecycle.capture");
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReportLifecycle {
@@ -101,32 +103,32 @@ pub struct ReportLifecycle {
     pub context: Option<harmos::storage::FileReference>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CycleReportFinalization {
     pub source: dokime_domain::model::execution::result::TestCycle,
     pub evidence_at: harmos::storage::StorageCursor,
 }
 
 #[harmos::transaction(id = "dokime.cycle.report.finalization.request")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RequestCycleReportFinalization {
     pub intent: CycleReportFinalization,
 }
 
 #[harmos::transaction(id = "dokime.cycle.seal")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SealCycle {
     pub sealed_cycle: dokime_domain::model::execution::result::TestCycle,
 }
 
 #[harmos::transaction(id = "dokime.execution.seal")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SealExecution {
     pub seal: dokime_domain::model::execution::saved::ExecutionSeal,
 }
 
 #[harmos::transaction(id = "dokime.cycle.sealing.begin")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct BeginCycleSeal {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub at: Timestamp,
@@ -134,7 +136,7 @@ pub struct BeginCycleSeal {
 
 // Settles A Seal That Could Not Complete: The Cycle Leaves Sealing With Its Cause Recorded.
 #[harmos::transaction(id = "dokime.cycle.sealing.fail")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct FailCycleSeal {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub cause: String,
@@ -142,14 +144,14 @@ pub struct FailCycleSeal {
 }
 
 #[harmos::transaction(id = "dokime.execution.request.queued.stop")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct StageQueuedStop {
     pub request_id: dokime_domain::model::identity::CommandId,
     pub at: Timestamp,
 }
 
 #[harmos::transaction(id = "dokime.report.failed")]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct FailReport {
     pub execution: TestExecutionId,
     pub cause: String,
@@ -645,21 +647,44 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
 
 /* === Public Functions === */
 
-// A step attempt that ended without a completion receipt keeps this redacted detail.
+// A step attempt that ended without a completion receipt and without a known cause.
 #[track_caller]
 pub(crate) fn interrupted_step_detail() -> dokime_domain::model::diagnostics::Diagnostic {
-    dokime_domain::model::diagnostics::Diagnostic::of("step runner ended without a completion receipt").redacted()
+    step_failure_detail(None)
 }
 
-/// Whether cycle work can still reach a plugin. Completion means provider cleanup and stream
-/// drain have settled and report context and plugin analysis results are frozen durably.
-/// Durable report publication and sealing do not keep plugins live.
-/// Provider tasks separately protect draining work and the gap before automatic continuation.
+// The redacted detail a step attempt the host ended keeps: the cause the host knows, such as a
+// refused question, lease or page, and the generic receipt text only when none is known.
+#[track_caller]
+pub(crate) fn step_failure_detail(cause: Option<&str>) -> dokime_domain::model::diagnostics::Diagnostic {
+    let cause = cause.map(str::trim).filter(|cause| !cause.is_empty());
+    dokime_domain::model::diagnostics::Diagnostic::of(cause.unwrap_or("step runner ended without a completion receipt")).redacted()
+}
+
+pub(crate) fn fail_open_step(execution: &mut TestExecution, cause: &str, at: &Timestamp) {
+    let Some(start) = execution.active_step_attempt.take() else {
+        return;
+    };
+    execution.step_attempts.push(dokime_domain::model::execution::result::TestStepAttempt {
+        attempt_id: start.attempt_id,
+        step_id: start.step_id,
+        started_at: start.started_at,
+        finished_at: Some(at.clone()),
+        termination: dokime_domain::model::execution::termination::TerminationReason::Failed,
+        detail: Some(step_failure_detail(Some(cause))),
+    });
+    execution.refresh_step_records();
+}
+
+// Whether cycle work can still reach a plugin. Completion means provider cleanup and stream
+// drain have settled and report context and plugin analysis results are frozen durably.
+// Durable report publication and sealing do not keep plugins live.
+// Provider tasks separately protect draining work and the gap before automatic continuation.
 pub(crate) fn cycle_has_plugin_work(cycle: &dokime_domain::model::execution::result::TestCycle) -> bool {
     matches!(cycle.lifecycle, CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping)
 }
 
-/// The truthful outcome a closing cycle settles on: its members' aggregate once any ran, Stopped otherwise.
+// The truthful outcome a closing cycle settles on: its members' aggregate once any ran, Stopped otherwise.
 pub(crate) fn closed_lifecycle(
     cycle: &dokime_domain::model::execution::result::TestCycle, executions: &Map<TestExecutionId, TestExecution>,
 ) -> CycleStatus {
@@ -786,6 +811,16 @@ mod tests {
         };
         recover.check(state).unwrap();
         recover.apply(state);
+    }
+
+    #[test]
+    fn step_failure_detail_prefers_the_known_cause() {
+        let cause = "Operator question fixture.question is not declared by this template.";
+        assert_eq!(step_failure_detail(Some(cause)).message, cause);
+        let generic = interrupted_step_detail().message;
+        assert_ne!(generic, cause);
+        assert_eq!(step_failure_detail(None).message, generic);
+        assert_eq!(step_failure_detail(Some("  ")).message, generic, "a blank cause is no cause");
     }
 
     #[test]

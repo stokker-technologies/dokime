@@ -52,7 +52,6 @@ SCRIPTS = ("typescript", "javascript")
 
 # === Public Functions === #
 
-
 def test(
     directory: Path,
     category: str,
@@ -68,7 +67,7 @@ def test(
     rules = policy.load(directory)
     key = f"{category}-{language}"
     _preflight(directory, category, language, profile)
-    if language == "python" and not prepared and not (category in ("unit", "integration") and "-k" in extra):
+    if language == "python" and not prepared:
         archive.install_wheels(directory, profile)
     with _scratch(directory, key, profile) as scratch, temporary.directory() if language == "python" else nullcontext(scratch) as fixtures:
         deadline = rules.deadline(category)
@@ -99,8 +98,6 @@ def test(
             arguments += ["-o", f"cache_dir={fixtures / 'pytest-cache'}"]
             command = pytest.run(cwd, f"tests/{category}", deadline, junit, arguments)
             environment = pytest.environment(directory)
-            if category in ("unit", "integration") and "-k" in extra:
-                environment["PYTHONPATH"] = str(cwd / "src")
         else:
             junit = scratch / "junit.xml"
             command = vitest.run(extra, junit, deadline)
@@ -137,7 +134,6 @@ def test(
             traces.summarize(trace_report, junit)
         lane["arguments"] = list(extra)
         return 0 if lane["outcome"] == "passed" else 1
-
 
 def coverage(
     directory: Path,
@@ -208,7 +204,6 @@ def coverage(
         )
         return 0 if lane["outcome"] == "passed" else 1
 
-
 def bench(
     directory: Path,
     category: str,
@@ -254,14 +249,17 @@ def bench(
 
     for name, median, baseline in rows:
         if baseline is None:
-            print(f"benchmark baseline missing: {name}")
+            if refresh and status == 0:
+                print(f"::notice::benchmark baseline seeded: {name}")
+            else:
+                print(f"benchmark baseline missing: {name}; run mise run bench:{language}:{category} --refresh-baseline")
+                status = status or 1
             continue
         change = (median - baseline) / baseline * 100
         if math.isfinite(change) and change > rules.bench_regression_percent:
             print(f"benchmark regression: {name}: {change:.1f}%")
     print(f"bench {category}-{language}: {len(rows)} native results; see {report.BENCHMARKS}")
     return 0 if status == 0 else 1
-
 
 def main(arguments: Sequence[str] | None = None) -> int:
     values = list(sys.argv[1:] if arguments is None else arguments)
@@ -341,9 +339,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         print(f"test: {error}", file=sys.stderr)
         return 1
 
-
 # === Private Functions === #
-
 
 def _preflight(
     directory: Path,
@@ -356,7 +352,6 @@ def _preflight(
         output = paths.output(directory, "build", profile).relative_to(directory)
         archive.fixtures(directory, profile, roots=[(output / part).as_posix() for part in ("tests", "fixtures")])
 
-
 @contextmanager
 def _scratch(directory: Path, key: str, profile: str) -> Generator[Path]:
     if not key.startswith("bench-"):
@@ -366,7 +361,6 @@ def _scratch(directory: Path, key: str, profile: str) -> Generator[Path]:
         shutil.rmtree(output, ignore_errors=True)
     with temporary.directory() as scratch:
         yield scratch
-
 
 def _lane(
     directory: Path,
@@ -443,7 +437,6 @@ def _lane(
         "durations": [(case.suite, case.name, case.package, case.seconds) for case in found if case.outcome == "passed"],
     }
 
-
 def _console() -> dict:
     """Keep Native Console Signaling Available Without A Visible Window."""
     if os.name != "nt":
@@ -458,7 +451,6 @@ def _console() -> dict:
         "stdout": sys.stdout,
         "stderr": sys.stderr,
     }
-
 
 def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | None, *, timeout_s: float | None = None) -> int:
     try:
@@ -488,7 +480,6 @@ def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | No
     except OSError as error:
         raise policy.TestError(f"{command[0]} is unavailable: {error}") from error
 
-
 def _measured(command: Sequence[str], cwd: Path, environment: dict[str, str]) -> tuple[int, int | None]:
     """Exit status and peak resident bytes of one process and the children it waited for."""
     try:
@@ -501,7 +492,6 @@ def _measured(command: Sequence[str], cwd: Path, environment: dict[str, str]) ->
     process.returncode = os.waitstatus_to_exitcode(status)
     scale = 1 if sys.platform == "darwin" else 1024
     return process.returncode, usage.ru_maxrss * scale
-
 
 def _bench_rust(
     directory: Path,
@@ -557,14 +547,13 @@ def _bench_rust(
             estimates = json.loads(path.read_text(encoding="utf-8"))
             key = path.parent.parent
             rows.append((benchmark.get("full_id", key.name), estimates["median"]["point_estimate"], baselines.get(key)))
-            if code == 0 and (refresh or key not in baselines):
+            if code == 0 and refresh:
                 shutil.copytree(path.parent, key / BASELINE, dirs_exist_ok=True)
         if measure and peak is not None:
             print(f"benchmark peak memory: {owner.as_posix()}: {peak} bytes")
     if not executed:
         raise policy.TestError("no native benchmark executable matched the selection")
     return rows, status
-
 
 def _criterion_baselines(home: Path) -> dict[Path, float]:
     medians = {}
@@ -576,7 +565,6 @@ def _criterion_baselines(home: Path) -> dict[Path, float]:
         if not isinstance(median, bool) and isinstance(median, (int, float)) and math.isfinite(median) and median > 0:
             medians[path.parent.parent] = median
     return medians
-
 
 def _bench_python(
     directory: Path,
@@ -617,12 +605,11 @@ def _bench_python(
     for entry in json.loads(output.read_text(encoding="utf-8"))["benchmarks"]:
         name = entry.get("fullname", entry["name"])
         rows.append((name, entry["stats"]["median"] * 1e9, baselines.get(name)))
-    if status == 0 and (refresh or not baselines):
+    if status == 0 and refresh:
         shutil.copyfile(output, stored)
     if measure and peak is not None:
         print(f"benchmark peak memory: {project}/{category}: {peak} bytes")
     return rows, status
-
 
 # === Entry Point === #
 

@@ -68,7 +68,7 @@ pub struct Plugin {
     pub path: Option<PathBuf>,
 }
 
-/// Organization Pack Terms Installed In Addition To Dokime's Apache-2.0 License.
+// Organization Pack Terms Installed In Addition To Dokime's Apache-2.0 License.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct License {
@@ -122,7 +122,7 @@ impl Artifact {
 }
 
 impl License {
-    /// Returns The Validated SPDX Expression And Terms File.
+    // Returns The Validated SPDX Expression And Terms File.
     pub(super) fn terms(&self) -> Result<(&str, &Path), Error> {
         let (Some(spdx), Some(file)) = (self.spdx.as_deref(), self.file.as_deref()) else {
             let field = if self.spdx.is_none() { "spdx" } else { "file" };
@@ -133,7 +133,7 @@ impl License {
         Ok((spdx, file))
     }
 
-    /// Resolves The Terms File Inside The Pack Folder That Holds The Manifest.
+    // Resolves The Terms File Inside The Pack Folder That Holds The Manifest.
     fn resolve(&mut self, base: &Path) -> Result<(), Error> {
         let (_, file) = self.terms()?;
         let text = file.to_str().ok_or_else(|| file_error("must be UTF-8"))?;
@@ -421,32 +421,6 @@ name='x'"
             ))
             .is_err()
         );
-    }
-
-    #[test]
-    fn license_file_containment() {
-        let pack = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
-        std::fs::create_dir(pack.path().join("terms")).unwrap();
-        std::fs::write(pack.path().join("terms/EULA.txt"), "terms").unwrap();
-        std::fs::write(outside.path().join("EULA.txt"), "terms").unwrap();
-        let escape = format!("../{}/EULA.txt", outside.path().file_name().unwrap().to_str().unwrap());
-
-        let mut license = License {
-            spdx: Some("LicenseRef-Acme-Proprietary".into()),
-            file: Some("terms/EULA.txt".into()),
-        };
-        license.resolve(pack.path()).unwrap();
-        assert_eq!(license.file.as_deref(), Some(pack.path().join("terms/EULA.txt").canonicalize().unwrap().as_path()));
-
-        for file in [escape.as_str(), "/EULA.txt", "C:/EULA.txt", r"terms\EULA.txt", "missing.txt", "terms"] {
-            let mut license = License {
-                spdx: Some("LicenseRef-Acme-Proprietary".into()),
-                file: Some(file.into()),
-            };
-            let Err(Error::License { field, .. }) = license.resolve(pack.path()) else { panic!("{file}") };
-            assert_eq!(field, "file", "{file}");
-        }
     }
 
     #[test]

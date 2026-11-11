@@ -855,8 +855,7 @@ impl RuntimeHandle {
     // Wants A Held Stream From Its Owner's Current Publication; A Stream Whose Owner Is Not
     // Serving Yet Is Engaged When The Owner Is Exposed.
     fn engage_stream_demand(&self, stream: &Identifier) {
-        let version = self.state_read().telemetry_definitions.get(stream).map(|contract| contract.schema_version);
-        let Some(publication) = version.and_then(|version| self.streams().publication(stream.as_str(), version)) else {
+        let Some(publication) = self.streams().current_publication(stream.as_str()) else {
             return;
         };
         let demand: StreamDemand = Box::pin(publication.watch());

@@ -110,6 +110,7 @@ async fn append_and_seal(handle: &dokime::RuntimeHandle, wire: &WireClient, case
     assert_eq!(handle.watch_state().latest().state().cycle_view(&cycle).unwrap().test_executions.len(), members);
 
     let before = counters();
+    let started = std::time::Instant::now();
     wire.unary::<contracts::execution::SealCycle>(auth(
         contracts::execution::SealCycle {
             cycle_id: cycle_id.clone(),
@@ -124,7 +125,17 @@ async fn append_and_seal(handle: &dokime::RuntimeHandle, wire: &WireClient, case
         (summary.phase == dokime::domain::model::execution::result::CyclePhase::Sealed).then_some(summary)
     })
     .await;
-    let seal = Work::between(before, counters());
+    let after = counters();
+    let seal = Work::between(before, after);
+    eprintln!(
+        "members={members} append={append:?} seal={seal:?} seal_s={:.3} wal_syncs={} database_syncs={} journal_syncs={} file_syncs={} directory_syncs={}",
+        started.elapsed().as_secs_f64(),
+        after.sqlite_syncs.wal - before.sqlite_syncs.wal,
+        after.sqlite_syncs.database - before.sqlite_syncs.database,
+        after.sqlite_syncs.journal - before.sqlite_syncs.journal,
+        after.durable_files - before.durable_files,
+        after.directory_syncs - before.directory_syncs,
+    );
     assert!(sealed.sealed);
     assert_eq!(sealed.execution_count, members as u64);
     (append, seal)

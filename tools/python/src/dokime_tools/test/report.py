@@ -41,7 +41,6 @@ LOCK = TESTS / ".lock"
 
 # === Classes === #
 
-
 @dataclass(frozen=True)
 class Case:
     """One story of a JUnit report; `suite` and `name` are its native identity."""
@@ -54,9 +53,7 @@ class Case:
     outcome: str
     seconds: float
 
-
 # === Public Functions === #
-
 
 def native_directory(root: Path, relative: Path) -> Path:
     path = root / relative
@@ -66,7 +63,6 @@ def native_directory(root: Path, relative: Path) -> Path:
         raise policy.TestError("native report directory must not contain links")
     path.mkdir(parents=True, exist_ok=True)
     return path.resolve()
-
 
 def location(directory: Path, profile: str, key: str) -> Path:
     parts = key.split("-")
@@ -79,7 +75,6 @@ def location(directory: Path, profile: str, key: str) -> Path:
     if len(parts) != 2 or parts[0] not in policy.CATEGORIES:
         raise policy.TestError("unknown report layer")
     return paths.output(directory, "tests", profile) / key
-
 
 def cases(text: str, category: str, language: str, package: str) -> list[Case]:
     """The stories of one JUnit document; Rust packages come from the nextest binary id."""
@@ -104,7 +99,6 @@ def cases(text: str, category: str, language: str, package: str) -> list[Case]:
         found.append(Case(selected, language, owner, suite, name, outcome, seconds))
     return found
 
-
 def merge(texts: Sequence[str]) -> str:
     """One JUnit document holding every suite of the given reports."""
     merged = ElementTree.Element("testsuites")
@@ -120,12 +114,10 @@ def merge(texts: Sequence[str]) -> str:
             wrapper.extend(orphans)
     return ElementTree.tostring(merged, encoding="unicode")
 
-
 def load(path: Path) -> dict:
     if not path.is_file():
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
-
 
 def write(path: Path, text: str) -> None:
     """Replace a file atomically so a concurrent reader never sees half of it."""
@@ -134,10 +126,8 @@ def write(path: Path, text: str) -> None:
     staging.write_text(text, encoding="utf-8")
     staging.replace(path)
 
-
 def dump(path: Path, value: object) -> None:
     write(path, json.dumps(value, indent=2, sort_keys=True) + "\n")
-
 
 @contextmanager
 def locked(directory: Path) -> Generator[None]:
@@ -163,16 +153,13 @@ def locked(directory: Path) -> Generator[None]:
             else:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
-
 # === Private Functions === #
-
 
 def _parse(text: str) -> ElementTree.Element:
     try:
         return ElementTree.fromstring(text)
     except ElementTree.ParseError as error:
         raise policy.TestError(f"invalid JUnit report: {error}") from error
-
 
 def _testcases(root: ElementTree.Element) -> Iterator[tuple[str, ElementTree.Element]]:
     """Every case with its suite: the classname, else the enclosing suite name."""
@@ -182,6 +169,5 @@ def _testcases(root: ElementTree.Element) -> Iterator[tuple[str, ElementTree.Ele
     for suite in root.iter("testsuite"):
         for node in suite.findall("testcase"):
             yield node.get("classname") or suite.get("name") or "", node
-
 
 # === Entry Point === #

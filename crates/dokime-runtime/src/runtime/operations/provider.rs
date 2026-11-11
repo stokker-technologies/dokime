@@ -429,8 +429,8 @@ async fn finish_interrupted_provider_job(runtime: &RuntimeHandle, job: &Provider
 
 fn interruption_stage(outcome: &harmos::Error, shutting_down: bool) -> &'static str {
     match outcome {
-        harmos::Error::OperationRefused(harmos::Refusal::TimedOut) => "timeout",
-        harmos::Error::OperationRefused(harmos::Refusal::Cancelled) => "cancel",
+        harmos::Error::OperationRefused(harmos::Refusal::TimedOut { .. }) => "timeout",
+        harmos::Error::OperationRefused(harmos::Refusal::Cancelled { .. }) => "cancel",
         harmos::Error::OperationPanicked { .. } => "panic",
         harmos::Error::OperationRefused(harmos::Refusal::Unavailable) if !shutting_down => "panic",
         harmos::Error::OperationRefused(harmos::Refusal::Unavailable) | harmos::Error::Closing { .. } => "interrupt",

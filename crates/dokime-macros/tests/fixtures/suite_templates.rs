@@ -12,13 +12,16 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports
 use sdk::execution::{InitializationContext, StepContext};
+
 // Local Imports
 
 /* === Constants === */
+
 const FOREIGN: &str = "elsewhere.probe";
 
 /* === Macros === */
@@ -26,6 +29,7 @@ const FOREIGN: &str = "elsewhere.probe";
 /* === Type Aliases === */
 
 /* === Structs === */
+
 struct Foreign;
 
 struct First;
@@ -37,6 +41,7 @@ struct Borrowed;
 struct Repeated;
 
 /* === Enums === */
+
 #[sdk::catalog]
 enum BorrowedTemplates {
     Foreign(Foreign),
@@ -51,6 +56,7 @@ enum RepeatedTemplates {
 /* === Traits === */
 
 /* === Implementations === */
+
 // A constant id is checked by the suite that owns it, not on its own line.
 #[sdk::template(id = FOREIGN, label = "Foreign")]
 impl Foreign {
@@ -103,6 +109,7 @@ impl Repeated {}
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn main() {}
 
 /* === Tests === */

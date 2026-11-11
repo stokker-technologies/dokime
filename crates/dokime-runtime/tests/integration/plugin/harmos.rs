@@ -12,11 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::sync::Arc;
+
 // Third Party Imports
-use dokime_runtime::harmos::plugin::Declared;
+
 // Local Imports
+use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::{Refusal, Supervisor};
 
 /* === Constants === */
@@ -26,6 +29,7 @@ use dokime_runtime::{Refusal, Supervisor};
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[dokime_runtime::row]
 #[derive(Clone, PartialEq)]
 struct DirectReading {
@@ -43,6 +47,7 @@ struct DirectStreams {
 }
 
 /* === Enums === */
+
 #[dokime_runtime::catalog]
 enum Streams {
     Inlet(Inlet),
@@ -52,6 +57,7 @@ enum Streams {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl dokime_runtime::harmos::builtins::lifecycle::Policy for DirectStreams {
     const INITIALIZATION_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
     const SHUTDOWN_POLICY: dokime_runtime::harmos::operations::OperationPolicy = super::native::POLICY;
@@ -104,8 +110,6 @@ impl DirectStreams {
 
 /* === Private Functions === */
 
-/* === Tests === */
-
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn stream_alias_publication() {
@@ -127,15 +131,15 @@ async fn stream_alias_publication() {
         vec![],
     )
     .await;
-    let inlet = native.runtime.streams.publication("sdk_streams.inlet", 1).unwrap();
-    let outlet = native.runtime.streams.publication("sdk_streams.outlet", 1).unwrap();
+    let inlet = native.runtime.streams.current_publication("sdk_streams.inlet").unwrap();
+    let outlet = native.runtime.streams.current_publication("sdk_streams.outlet").unwrap();
 
     // Original Read Handles Preserve Lifecycle Evidence After Producer Retirement.
     native.retire().await;
     for (name, expected, stream) in [("inlet", vec![7], inlet), ("outlet", vec![8], outlet)] {
         assert_eq!(stream.definition().id(), format!("sdk_streams.{name}"));
         assert_eq!(
-            stream.definition().schema().unwrap(),
+            stream.definition().schema(),
             &harmos::schema::graph::Schema::from_declaration(
                 <DirectReading as harmos::schema::Described>::DEFINITION,
                 &harmos::config::SchemaSettings::default(),
@@ -155,3 +159,5 @@ async fn stream_alias_publication() {
     }
     native.shutdown().await;
 }
+
+/* === Tests === */

@@ -18,12 +18,13 @@ mod upload;
 // Standard Library Imports
 
 // Third Party Imports
-use crate::wire::WireMessage;
 use serde_json::json;
 use sha2::Digest;
+
 // Local Imports
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::Fixture;
+use crate::wire::WireMessage;
 use dokime::domain::model;
 use dokime::operations::backend;
 use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE};
@@ -189,8 +190,6 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-/* === Tests === */
-
 #[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn refuses_invalid_dispatch() {
@@ -274,46 +273,6 @@ async fn unary_call_bridges() {
 }
 
 #[dokime_tracing::trace_test]
-#[test]
-fn client_stream_opens() {
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = runtime.block_on(Fixture::new());
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let (stream, _channel) = harness.open(generation, INSTALL, &envelope(1, &[]), true).expect("the bridge admits the stream");
-    assert!(stream > 0);
-    use tauri::Manager;
-    harness.app.state::<Bridge>().cancel_owner("main");
-    runtime.block_on(fixture.close());
-}
-
-#[dokime_tracing::trace_test]
-#[test]
-fn installs_large_bundle() {
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = runtime.block_on(Fixture::new());
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let bytes = large_bundle(70 * 1024 * 1024);
-    let frames = install(&harness, generation, &bytes);
-
-    let terminal = frames.last().expect("the stream returns a terminal status");
-    let terminal = String::from_utf8_lossy(&terminal[9..]);
-    assert_eq!(frames.len(), 2, "one reply, then the final status: {terminal:?}");
-    assert_eq!(frames[0][8], FRAME_MESSAGE);
-    assert_eq!(frames[1][8], FRAME_END);
-
-    let (installation, _admitted_memory) =
-        model::plugins::wire::PluginInstallation::from_wire(&frames[0][9..]).expect("the reply is a PluginInstallation");
-    assert_eq!(installation.sha256, hex(&sha2::Sha256::digest(&bytes)));
-    assert!(matches!(installation.state, model::plugins::wire::PluginInstallationState::Installed));
-    assert!(installation.installed_at.is_some());
-    use tauri::Manager;
-    harness.app.state::<Bridge>().cancel_owner("main");
-    runtime.block_on(fixture.close());
-}
-
-#[dokime_tracing::trace_test]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn native_client_installs_large_bundle() {
     use dokime::client::{Client, Target};
@@ -327,25 +286,6 @@ async fn native_client_installs_large_bundle() {
     assert!(matches!(installed.state, model::plugins::wire::PluginInstallationState::Installed));
     client.close();
     fixture.close().await;
-}
-
-#[dokime_tracing::trace_test]
-#[test]
-fn refuses_foreign_bundle() {
-    let target = if cfg!(windows) { "x86_64-unknown-linux-gnu" } else { "x86_64-pc-windows-msvc" };
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
-    let fixture = runtime.block_on(Fixture::new());
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let frames = install(&harness, generation, &bundle_for_target(1024, target));
-    let terminal = frames.last().unwrap();
-    assert_eq!(terminal[8], FRAME_ERROR);
-    let error: serde_json::Value = serde_json::from_slice(&terminal[9..]).unwrap();
-    let message = error["detail"]["message"].as_str().unwrap_or_default();
-    assert!(message.contains("no executable for this host"), "expected a host-target refusal, got: {error}");
-    use tauri::Manager;
-    harness.app.state::<Bridge>().cancel_owner("main");
-    runtime.block_on(fixture.close());
 }
 
 #[dokime_tracing::trace_test]
@@ -422,9 +362,38 @@ async fn client_close_drops() {
 
 #[cfg(feature = "testing")]
 mod native {
+    /* === Modules === */
+
+    /* === Re-Exports === */
+
+    /* === Imports === */
+
+    // Standard Library Imports
+
+    // Third Party Imports
+    use tauri::Manager;
+
+    // Local Imports
     use super::*;
     use dokime_gui::testing::{DroppedFiles, InstallProgress, desktop_plugin_install_file};
-    use tauri::Manager;
+
+    /* === Constants === */
+
+    /* === Macros === */
+
+    /* === Type Aliases === */
+
+    /* === Structs === */
+
+    /* === Enums === */
+
+    /* === Traits === */
+
+    /* === Implementations === */
+
+    /* === Public Functions === */
+
+    /* === Private Functions === */
 
     fn app_and_window(session: &dokime_gui::connection::ConnectionSession) -> (tauri::App<tauri::test::MockRuntime>, bridge::Window) {
         let app = tauri::test::mock_builder()
@@ -474,24 +443,6 @@ mod native {
     }
 
     #[dokime_tracing::trace_test]
-    #[test]
-    fn install_future_size() {
-        let (app, window) = app_and_window(&dokime_gui::connection::ConnectionSession::default());
-        let future = desktop_plugin_install_file(
-            window,
-            app.state::<dokime_gui::connection::ConnectionSession>(),
-            app.state::<DroppedFiles>(),
-            app.handle().clone(),
-            "0".into(),
-            false,
-            tauri::ipc::Channel::<InstallProgress>::new(|_| Ok(())),
-        );
-        let bytes = std::mem::size_of_val(&future);
-        eprintln!("desktop_plugin_install_file (mock): {bytes} bytes");
-        assert!(bytes <= 16 * 1024, "plugin install command future uses {bytes} bytes");
-    }
-
-    #[dokime_tracing::trace_test]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn unreadable_file_returns_error() {
         let fixture = Fixture::new().await;
@@ -512,4 +463,85 @@ mod native {
         install_file(&app, &window, false).await.expect_err("unmanaged dialog state must not panic");
         fixture.close().await;
     }
+
+    /* === Tests === */
+
+    #[dokime_tracing::trace_test]
+    #[test]
+    fn install_future_size() {
+        let (app, window) = app_and_window(&dokime_gui::connection::ConnectionSession::default());
+        let future = desktop_plugin_install_file(
+            window,
+            app.state::<dokime_gui::connection::ConnectionSession>(),
+            app.state::<DroppedFiles>(),
+            app.handle().clone(),
+            "0".into(),
+            false,
+            tauri::ipc::Channel::<InstallProgress>::new(|_| Ok(())),
+        );
+        let bytes = std::mem::size_of_val(&future);
+        eprintln!("desktop_plugin_install_file (mock): {bytes} bytes");
+        assert!(bytes <= 16 * 1024, "plugin install command future uses {bytes} bytes");
+    }
+}
+
+/* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[test]
+fn client_stream_opens() {
+    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let fixture = runtime.block_on(Fixture::new());
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let (stream, _channel) = harness.open(generation, INSTALL, &envelope(1, &[]), true).expect("the bridge admits the stream");
+    assert!(stream > 0);
+    use tauri::Manager;
+    harness.app.state::<Bridge>().cancel_owner("main");
+    runtime.block_on(fixture.close());
+}
+
+#[dokime_tracing::trace_test]
+#[test]
+fn installs_large_bundle() {
+    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let fixture = runtime.block_on(Fixture::new());
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let bytes = large_bundle(70 * 1024 * 1024);
+    let frames = install(&harness, generation, &bytes);
+
+    let terminal = frames.last().expect("the stream returns a terminal status");
+    let terminal = String::from_utf8_lossy(&terminal[9..]);
+    assert_eq!(frames.len(), 2, "one reply, then the final status: {terminal:?}");
+    assert_eq!(frames[0][8], FRAME_MESSAGE);
+    assert_eq!(frames[1][8], FRAME_END);
+
+    let (installation, _admitted_memory) =
+        model::plugins::wire::PluginInstallation::from_wire(&frames[0][9..]).expect("the reply is a PluginInstallation");
+    assert_eq!(installation.sha256, hex(&sha2::Sha256::digest(&bytes)));
+    assert!(matches!(installation.state, model::plugins::wire::PluginInstallationState::Installed));
+    assert!(installation.installed_at.is_some());
+    use tauri::Manager;
+    harness.app.state::<Bridge>().cancel_owner("main");
+    runtime.block_on(fixture.close());
+}
+
+#[dokime_tracing::trace_test]
+#[test]
+fn refuses_foreign_bundle() {
+    let target = if cfg!(windows) { "x86_64-unknown-linux-gnu" } else { "x86_64-pc-windows-msvc" };
+    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let fixture = runtime.block_on(Fixture::new());
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let frames = install(&harness, generation, &bundle_for_target(1024, target));
+    let terminal = frames.last().unwrap();
+    assert_eq!(terminal[8], FRAME_ERROR);
+    let error: serde_json::Value = serde_json::from_slice(&terminal[9..]).unwrap();
+    let message = error["detail"]["message"].as_str().unwrap_or_default();
+    assert!(message.contains("no executable for this host"), "expected a host-target refusal, got: {error}");
+    use tauri::Manager;
+    harness.app.state::<Bridge>().cancel_owner("main");
+    runtime.block_on(fixture.close());
 }

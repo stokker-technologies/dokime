@@ -1,0 +1,55 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[build-system]
+requires = ["maturin==1.14.0"]
+build-backend = "maturin"
+
+[project]
+# Provisional Local Artifact Identity; Registry Publication Requires The Owner's Name Decision.
+name = "dokime-python"
+dynamic = ["version"]
+requires-python = ">=3.13"
+description = "Native Dokime Python SDK."
+license = "Apache-2.0"
+classifiers = ["Private :: Do Not Upload", "Programming Language :: Python :: Implementation :: CPython"]
+dependencies = ["protobuf>=7.36.2,<8", "python-dotenv==1.2.4"]
+
+[project.optional-dependencies]
+arrays = ["numpy>=2,<3", "pyarrow>=22,<30"]
+polars = ["polars>=2.1,<3"]
+pandas = ["pandas>=3,<4"]
+
+[tool.maturin]
+module-name = "dokime._native"
+python-source = "python"
+features = ["pyo3/extension-module"]
+
+[tool.ty.environment]
+python-version = "3.13"
+python = "../../.venv"
+extra-paths = ["python"]
+
+[tool.ty.src]
+include = ["python/dokime", "tests", "examples"]
+
+[tool.ty.rules]
+# Reflected Protobuf Message Classes Have Their Fields At Runtime.
+unresolved-import = "warn"
+unresolved-attribute = "warn"
+unknown-argument = "warn"
+
+[tool.pytest.ini_options]
+addopts = ["--strict-config", "--strict-markers", "--import-mode=importlib", "--timeout-method=thread"]
+
+# Tests Import The Installed Wheel; Native PyO3 Code Is Not Python Coverage.
+[tool.coverage.run]
+source_pkgs = ["dokime"]
+
+[tool.coverage.paths]
+dokime = ["python/dokime", "*/site-packages/dokime"]

@@ -12,6 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::sync::{
@@ -19,23 +20,23 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
+
 // Third Party Imports
-use dokime_runtime::harmos::plugin::Declared;
+
 // Local Imports
 use dokime_runtime::execution::{Caller, CleanupContext, InitializationContext, Run, StepContext, Workflow};
+use dokime_runtime::harmos::plugin::Declared;
 use dokime_runtime::plugin::Configuration;
 use dokime_runtime::plugin::testing::{Harness, HarnessError};
 use dokime_runtime::{Refusal, Supervisor};
 
 /* === Constants === */
+
 const SUITE: &str = "resources.checks";
 const TEMPLATE: &str = "resources.checks.probe";
-
 const WATCHED_FIRST_BYTES: usize = 128 * 1024;
 const WATCHED_CONTENT: &str = "the chamber log, rewritten in place\n";
-
 const WATCH_SETTLE: Duration = Duration::from_millis(500);
-
 static DOUBLES: LazyLock<Mutex<BTreeMap<String, Arc<Observations>>>> = LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
 /* === Macros === */
@@ -43,6 +44,7 @@ static DOUBLES: LazyLock<Mutex<BTreeMap<String, Arc<Observations>>>> = LazyLock:
 /* === Type Aliases === */
 
 /* === Structs === */
+
 #[derive(Default)]
 struct Observations {
     events: Mutex<Vec<&'static str>>,
@@ -65,6 +67,7 @@ struct PartialInitialization(Arc<Observations>);
 struct GetDeviceResponse {
     #[row(description = "The device's own address, which two instances never share.")]
     identity: u64,
+
     #[row(description = "The token its observations are registered under.")]
     token: String,
 }
@@ -98,6 +101,7 @@ pub struct OwnerSettings {
 struct Owner {
     device: Arc<Device>,
 }
+
 struct Checks;
 
 struct Probe {
@@ -109,25 +113,40 @@ struct Probe {
 struct ProbeParameters {
     #[parameter(label = "Wait for cancellation", default = false)]
     wait: bool,
+
     #[parameter(label = "Refuse initialization", default = false)]
     initialize_fail: bool,
+
     #[parameter(label = "Wait during initialization", default = false)]
     initialize_wait: bool,
+
     #[parameter(label = "Write into a watched directory", default = false)]
     watch_directory: bool,
 }
 
 struct CatalogOnly;
 
+#[dokime_runtime::operation(id = "resource_owner.get_device", policy = super::native::POLICY, response = GetDeviceResponse, resources = [Device])]
+#[derive(Clone, PartialEq)]
+struct GetDevice {}
+
+#[dokime_runtime::operation(id = "resource_owner.start_run", policy = super::native::POLICY, response = StartRunResponse, resources = [Device])]
+#[derive(Clone, PartialEq)]
+struct StartRun {}
+
 /* === Enums === */
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("execution received a different resource handle")]
     ResourceChanged,
+
     #[error("initialization refused after acquiring a resource")]
     InitializationRefused,
+
     #[error("the execution could not write its evidence")]
     Evidence(#[from] std::io::Error),
+
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime_runtime::Error),
 }
@@ -157,6 +176,7 @@ enum ProbeRequired {
 /* === Traits === */
 
 /* === Implementations === */
+
 impl Observations {
     fn record(&self, event: &'static str) {
         self.events.lock().unwrap().push(event);
@@ -221,9 +241,7 @@ impl Drop for PartialInitialization {
         self.0.record("partial initialization dropped");
     }
 }
-#[dokime_runtime::operation(id = "resource_owner.get_device", policy = super::native::POLICY, response = GetDeviceResponse, resources = [Device])]
-#[derive(Clone, PartialEq)]
-struct GetDevice {}
+
 impl dokime_runtime::Operation for GetDevice {
     type Error = Refusal;
 
@@ -240,9 +258,7 @@ impl dokime_runtime::Operation for GetDevice {
         answered.map(Into::into)
     }
 }
-#[dokime_runtime::operation(id = "resource_owner.start_run", policy = super::native::POLICY, response = StartRunResponse, resources = [Device])]
-#[derive(Clone, PartialEq)]
-struct StartRun {}
+
 impl dokime_runtime::Operation for StartRun {
     type Error = Refusal;
 
@@ -398,6 +414,7 @@ impl dokime_runtime::harmos::Lifecycle for CatalogOnly {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
 fn registered(observations: &Arc<Observations>) -> String {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let token = format!("observations-{}", NEXT.fetch_add(1, Ordering::SeqCst));
@@ -457,8 +474,6 @@ async fn opened(observations: &Arc<Observations>) -> super::native::Native<dokim
     )
     .await
 }
-
-/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
@@ -706,6 +721,8 @@ async fn harness_caller_settles() {
     // The owned helper task settles after its caller drops.
     observations.recorded("cleanup finished").await;
 }
+
+/* === Tests === */
 
 #[dokime_tracing::trace_test]
 #[test]

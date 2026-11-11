@@ -41,7 +41,6 @@ STRICT = ["--strict-config", "--strict-markers", "--import-mode=importlib"]
 
 # === Public Functions === #
 
-
 def environment(directory: Path) -> dict[str, str]:
     """The shared root environment with no ambient selection that could narrow a lane."""
     variables = dict(os.environ)
@@ -49,7 +48,6 @@ def environment(directory: Path) -> dict[str, str]:
     variables.pop("PYTEST_ADDOPTS", None)
     variables.pop("COVERAGE_PROCESS_START", None)
     return variables
-
 
 def run(
     project: Path,
@@ -80,13 +78,21 @@ def run(
         *arguments,
     ]
 
-
 def coverage(project: Path, cobertura: Path) -> list[str]:
-    """Coverage arguments measuring the authored sources of the project."""
-    source = project / "src"
-    measured = source if source.is_dir() else project
-    return [f"--cov={measured}", f"--cov-report=xml:{cobertura}"]
+    """Coverage arguments whose measured sources the project's own coverage configuration declares.
 
+    The project's `pyproject.toml` names what is measured and maps installed packages back to
+    their source tree, so tests that import an installed wheel still report authored modules.
+    """
+    configuration = project / "pyproject.toml"
+    if not configuration.is_file():
+        raise policy.TestError(f"missing coverage configuration {configuration}")
+    return [
+        "--cov",
+        f"--cov-config={configuration}",
+        "--cov-report=term",
+        f"--cov-report=xml:{cobertura}",
+    ]
 
 def bench(project: Path, category: str, output: Path, arguments: Sequence[str]) -> list[str]:
     suite = f"benchmarks/{category}"
@@ -103,8 +109,6 @@ def bench(project: Path, category: str, output: Path, arguments: Sequence[str]) 
         *arguments,
     ]
 
-
 # === Private Functions === #
-
 
 # === Entry Point === #

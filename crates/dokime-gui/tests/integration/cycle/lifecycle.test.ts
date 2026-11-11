@@ -20,7 +20,7 @@ import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
 import { ControlCard } from "@/features/cycle/ControlCard";
-import { cycleControlState } from "@/features/cycle/control-model";
+import { cycleControlState, executionControlState } from "@/features/cycle/control-model";
 import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import {
   appendNativeCaseAttempt,
@@ -172,7 +172,7 @@ test("Durable Stop Seal", async () => {
 
 test("Container Seal Controls", () => {
   // An Active Cycle Offers Seal Cycle Alone, Whatever Its Members Did
-  for (const running of [null, { ordinal: 2, step: "Energize Charger", stepId: "energize" }]) {
+  for (const running of [null, { ordinal: 2, step: "Energize Charger" }]) {
     const state = cycleControlState({ phase: "active", running });
     assert.deepEqual(state.actions, ["Seal Cycle"]);
     const html = renderToStaticMarkup(
@@ -188,23 +188,42 @@ test("Container Seal Controls", () => {
   }
   assert.equal(cycleControlState({ phase: "active", running: null }).line, "Idle · no execution running");
   assert.equal(
-    cycleControlState({ phase: "active", running: { ordinal: 2, step: "Energize Charger", stepId: "energize" } }).line,
+    cycleControlState({ phase: "active", running: { ordinal: 2, step: "Energize Charger" } }).line,
     "Execution 2 · Energize Charger",
   );
 
   // Sealing and Sealed Offer Nothing
-  assert.deepEqual(cycleControlState({ phase: "sealing", running: null }), {
-    actions: [],
-    detail: null,
-    line: "Sealing · saving evidence",
-  });
-  assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], detail: null, line: "Sealed · evidence saved" });
+  assert.deepEqual(cycleControlState({ phase: "sealing", running: null }), { actions: [], line: "Sealing · saving evidence" });
+  assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], line: "Sealed · evidence saved" });
 
   // A Failed Seal Offers Retry and Archive, Never a Running Control
   assert.deepEqual(cycleControlState({ phase: "seal_failed", running: null }).actions, ["Retry Seal", "Archive"]);
 });
 
-test("Stream Refreshes Documents and Preserves Sealed Detail", async () => {
+test("Finished Execution Without Its Plugin Has No New Attempt Button", () => {
+  const state = executionControlState({
+    controls: null,
+    pluginAvailable: false,
+    progress: null,
+    promptWaiting: false,
+    status: "passed",
+    stopping: false,
+  });
+  const html = renderToStaticMarkup(
+    createElement(ControlCard, {
+      actions: state.actions.map((action) => createElement("button", { key: action, type: "button" }, action)),
+      detail: state.detail,
+      label: "Execution Controls",
+      state: state.line,
+    }),
+  );
+  assert.equal(state.phase, "ended");
+  assert.equal((html.match(/<button/g) ?? []).length, 0);
+  assert.equal((html.match(/data-control-state/g) ?? []).length, 1);
+  assert.ok(state.detail);
+});
+
+test("Stream Refreshes Documents And Preserves Sealed Detail", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   const calls = { document: 0, sealed: 0, active: 0 };
   const keys = {

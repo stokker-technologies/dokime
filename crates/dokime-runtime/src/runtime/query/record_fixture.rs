@@ -147,6 +147,19 @@ impl Fixture {
         }
     }
 
+    pub fn contract() -> dokime_domain::model::records::RecordContract {
+        let mut contract = dokime_domain::model::records::RecordContract::declared("example.measurement", "Measurement");
+        let mut field = dokime_domain::model::records::RecordField::new(
+            harmos::Metadata::new(Identifier::new("counter.value").unwrap(), "Counter", None),
+            dokime_domain::model::values::ValueType::Integer,
+        );
+        field.required = false;
+        field.nullable = true;
+        field.default = Some(Value::Unsigned(99));
+        contract.fields.push(field);
+        contract
+    }
+
     pub fn entry(&self, position: u64) -> RecordEntry {
         let record = Record::new(
             RecordId::from_seed(format!("query-row-{position}")),
@@ -154,7 +167,7 @@ impl Fixture {
                 time::OffsetDateTime::UNIX_EPOCH + time::Duration::nanoseconds(position as i64),
             ),
             Identifier::new("example.measurement").unwrap(),
-            1,
+            Self::contract().schema_version(),
             "observer.fixture",
             RecordSeverity::Warning,
         );
@@ -289,16 +302,21 @@ impl Fixture {
 
 /* === Tests === */
 
-#[tokio::test]
-async fn temporary_fixture_cleanup() {
-    for failure in [false, true] {
-        let fixture = Fixture::new(2).await;
-        let path = fixture._root.path().to_owned();
-        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-            let _fixture = fixture;
-            assert!(!failure, "injected fixture failure");
-        }));
-        assert_eq!(outcome.is_err(), failure);
-        assert!(!path.exists(), "fixture storage survived teardown: {}", path.display());
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn temporary_fixture_cleanup() {
+        for failure in [false, true] {
+            let fixture = Fixture::new(2).await;
+            let path = fixture._root.path().to_owned();
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+                let _fixture = fixture;
+                assert!(!failure, "injected fixture failure");
+            }));
+            assert_eq!(outcome.is_err(), failure);
+            assert!(!path.exists(), "fixture storage survived teardown: {}", path.display());
+        }
     }
 }

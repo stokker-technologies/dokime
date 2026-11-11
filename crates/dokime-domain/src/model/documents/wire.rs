@@ -22,9 +22,7 @@ use serde::Serialize;
 // Local Imports
 use crate::model::definition::wire::*;
 use crate::model::identity::wire::Metadata;
-
 use crate::model::identity::wire::*;
-
 use crate::model::plots::wire::*;
 use crate::model::values::wire::Value;
 
@@ -56,6 +54,7 @@ pub struct DocumentFrontiers {
         description = "SHA-256 of this captured artifact/report descriptor input, not a journal position or published checkpoint. These owners have no shared revision."
     )]
     pub artifacts_sha256: Option<String>,
+
     pub evidence: Option<DocumentTelemetryCut>,
 }
 
@@ -183,15 +182,22 @@ pub struct PlotPresentation {
         description = "The unit an elapsed x axis counts in, as the column declared it: \"s\", \"ms\", \"us\", \"min\", \"h\". Absent for a wall-time axis."
     )]
     pub x_axis_unit: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotReferenceValue {
+    pub constant: Option<f64>,
+    pub expression: Option<DataExpression>,
 }
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotReferenceLine {
-    pub axis: ReferenceAxis,
-    pub value: Option<f64>,
-    pub source: Option<DataExpression>,
-    pub source_scale: f64,
+    pub value: PlotReferenceValue,
     pub label: Option<String>,
     pub color: String,
 }
@@ -199,13 +205,12 @@ pub struct PlotReferenceLine {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotReferenceBand {
-    pub axis: ReferenceAxis,
-    pub min: Option<f64>,
-    pub max: Option<f64>,
+    pub min: Option<PlotReferenceValue>,
+    pub max: Option<PlotReferenceValue>,
     pub label: Option<String>,
     pub color: String,
-    pub center: Option<DataExpression>,
-    pub tolerance: Option<DataExpression>,
+    pub center: Option<PlotReferenceValue>,
+    pub tolerance: Option<PlotReferenceValue>,
 }
 
 #[harmos::message]
@@ -442,14 +447,6 @@ pub enum PlotStyle {
     Points,
     LinePoints,
     Step,
-}
-
-#[harmos::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ReferenceAxis {
-    Unspecified,
-    X,
-    Y,
 }
 
 #[harmos::message]

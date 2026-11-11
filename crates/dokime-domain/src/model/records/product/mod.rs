@@ -31,8 +31,6 @@ use crate::model::values::Value;
 
 /* === Constants === */
 
-pub const PRODUCT_RECORD_SCHEMA_VERSION: u32 = 2;
-
 /* === Macros === */
 
 macro_rules! product_enum {
@@ -361,7 +359,8 @@ impl ProductRecordDraft {
         self
     }
     pub fn into_record(self, record_id: crate::model::identity::RecordId, timestamp: Timestamp) -> Record {
-        let mut record = Record::new(record_id, timestamp, self.record_type, PRODUCT_RECORD_SCHEMA_VERSION, self.source, self.severity);
+        let kind = crate::model::records::BuiltinRecordType::from_identifier(&self.record_type).expect("built-in product record");
+        let mut record = Record::new(record_id, timestamp, self.record_type, kind.schema_version(), self.source, self.severity);
         record.message = self.message;
         record.details = self.details;
         record.scope = self.scope;

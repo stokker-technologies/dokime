@@ -73,6 +73,37 @@ async fn assert_pending<F: Future + Unpin>(future: &mut F) {
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
+async fn negotiation_deadline_expires_and_reconnects() {
+    // Hold Negotiation After The Request Reaches The Backend.
+    let mut service = Service::new("negotiation-deadline");
+    let gate = Arc::new(Gate::new());
+    service.gate = Some(gate.clone());
+    let server = Listener::start(service, false, Ipv4Addr::LOCALHOST).await;
+    let target = Target::local(&server.endpoint).unwrap();
+    let deadline = Duration::from_millis(target.settings().request_timeout_ms);
+    let pending = Client::connect(target.clone(), None, None);
+    tokio::pin!(pending);
+    tokio::select! {
+        _ = gate.entered.notified() => {},
+        result = &mut pending => panic!("negotiation ended before the gated response: {:?}", result.err()),
+    }
+
+    // Expire The Product Deadline Without Waiting On The Machine Clock.
+    tokio::time::pause();
+    tokio::time::advance(deadline).await;
+    assert!(matches!(pending.await, Err(Error::Rpc(status)) if status.code() == tonic::Code::DeadlineExceeded));
+    tokio::time::resume();
+
+    // Release Both The Cancelled Request And The Reconnect.
+    gate.release.add_permits(2);
+    let client = Client::connect(target, None, None).await.unwrap();
+    assert_eq!(client.backend().backend_id, "negotiation-deadline");
+    client.close_and_wait().await;
+    server_health(&server.endpoint).await;
+}
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
 async fn uploads_use_stream_deadlines() {
     for mode in ["raw", "typed", "prepared"] {
         let mut service = Service::new("stream-deadline");

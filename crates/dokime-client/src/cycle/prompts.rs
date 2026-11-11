@@ -177,9 +177,11 @@ fn validate_page(
 fn validate_listed(
     identity: &dokime_domain::model::prompts::wire::PendingPromptIdentity, prompt: &dokime_domain::model::prompts::wire::PromptInstance,
 ) -> Result<()> {
-    let matches_definition = identity.definition.as_ref().zip(prompt.definition.as_ref()).is_some_and(|(listed, actual)| {
-        listed.prompt_type == actual.prompt_type && listed.schema_version == actual.schema_version && listed.title == actual.title
-    });
+    let matches_definition = identity
+        .definition
+        .as_ref()
+        .zip(prompt.definition.as_ref())
+        .is_some_and(|(listed, actual)| listed.prompt_type == actual.prompt_type && listed.title == actual.title);
     if prompt.prompt_id != identity.prompt_id
         || prompt.scope != identity.scope
         || prompt.created_at != identity.created_at

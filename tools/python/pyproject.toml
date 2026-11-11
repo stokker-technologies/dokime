@@ -23,8 +23,8 @@ exclude = ["src/dokime_tools/docs", "src/dokime_tools/release", "src/dokime_tool
 system-certs = true
 
 [tool.uv.sources]
-# Keep this revision equal to the Harmos crate pins in Cargo.toml.
-harmos-tools = { git = "https://github.com/stokker-technologies/harmos", subdirectory = "tools/python", rev = "5b63c87056bb1c7f080e579625c00053c7cf7d12" }
+# Keep this tag equal to the Harmos crate versions in Cargo.toml.
+harmos-tools = { git = "https://github.com/stokker-technologies/harmos", subdirectory = "tools/python", tag = "v0.1.14" }
 
 [tool.ruff]
 # Dokime owns these runners; release and test orchestration have dedicated task proof.

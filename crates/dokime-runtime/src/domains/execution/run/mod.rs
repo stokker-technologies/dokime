@@ -90,6 +90,9 @@ struct PhaseTracker {
 struct PromptBridge {
     outstanding: BTreeMap<PromptId, [u8; 32]>,
     declared: Vec<crate::prompts::PromptDefinition>,
+    template: String,
+    // The first question the host refused; a run that winds down on it still ends on this cause.
+    refused: Option<ProviderExecutionFailure>,
 }
 
 #[derive(Default)]
@@ -225,7 +228,17 @@ impl Target {
 
 impl PromptBridge {
     fn new(declared: Vec<crate::prompts::PromptDefinition>) -> Self {
-        Self { outstanding: BTreeMap::new(), declared }
+        Self {
+            outstanding: BTreeMap::new(),
+            declared,
+            template: String::new(),
+            refused: None,
+        }
+    }
+
+    fn for_template(mut self, template: impl Into<String>) -> Self {
+        self.template = template.into();
+        self
     }
 
     fn admit_replay(&self, prompt: &PromptRequest) -> Result<Option<[u8; 32]>, ProviderExecutionFailure> {
@@ -239,25 +252,48 @@ impl PromptBridge {
             return Ok(Some(fingerprint));
         };
         if previous != &fingerprint {
-            return Err(failure("sidecar_prompt", "replayed question identity has different values or definition"));
+            let message = format!(
+                "Operator question {} was raised again under the same identity with different values or definition. Give each \
+                 question its own identity.",
+                prompt.prompt_type
+            );
+            return Err(failure("sidecar_prompt", message));
         }
         Ok(None)
+    }
+
+    // Reads, admits and scopes one raised question; a refusal names the cause and the fix,
+    // never the question's values.
+    fn admit(&self, scope: &RecordScope, encoded: &str) -> Result<(PromptRequest, Option<[u8; 32]>), ProviderExecutionFailure> {
+        let mut prompt: PromptRequest = serde_json::from_str(encoded).map_err(|error| {
+            let message = format!(
+                "The run sent an operator question the host cannot read ({:?} error at line {}, column {}). Rebuild the plugin \
+                 against the installed Dokime SDK.",
+                error.classify(),
+                error.line(),
+                error.column()
+            );
+            failure("sidecar_prompt", message)
+        })?;
+        admit_prompt(&self.declared, &self.template, &prompt)?;
+        // Scope is the host's to assign, exactly as it is for samples and
+        // records: a run must not be able to raise a prompt against another
+        // artifact's execution.
+        prompt.scope = scope.clone();
+        let fingerprint = self.admit_replay(&prompt)?;
+        Ok((prompt, fingerprint))
     }
 
     async fn request(
         &mut self, context: &ExecutionFixtureContext, scope: &RecordScope, encoded: &str,
     ) -> Result<PromptId, ProviderExecutionFailure> {
-        let mut prompt: PromptRequest = serde_json::from_str(encoded).map_err(|error| {
-            let message = format!("the run sent a malformed operator prompt: {error}");
-            failure("sidecar_prompt", message)
-        })?;
-        admit_prompt(&self.declared, &prompt)?;
-        // Scope is the host's to assign, exactly as it is for samples and
-        // records: a run must not be able to raise a prompt against another
-        // artifact's execution.
-        prompt.scope = scope.clone();
+        let admitted = self.admit(scope, encoded);
+        if let Err(refusal) = &admitted {
+            self.refused.get_or_insert_with(|| refusal.clone());
+        }
+        let (prompt, fingerprint) = admitted?;
         let prompt_id = prompt.prompt_id.clone();
-        let Some(fingerprint) = self.admit_replay(&prompt)? else {
+        let Some(fingerprint) = fingerprint else {
             return Ok(prompt_id);
         };
         context.request_prompt(prompt).await.map_err(|rejection| {
@@ -468,7 +504,7 @@ async fn execute_case(
         execution: execution.clone(),
         source: source.to_owned(),
         target: target.clone(),
-        prompts: PromptBridge::new(declared.prompts),
+        prompts: PromptBridge::new(declared.prompts).for_template(case.metadata.identifier.as_str()),
         phase,
     };
     let session = Arc::new(Session::new(opened));
@@ -621,9 +657,15 @@ async fn execute_case(
         }
         Err(error) => Err(error),
     };
+    // A question the host refused ends the case on that cause even when the run
+    // wound down on its own after the refusal reached it.
+    let refusal = match session.take_refusal().await {
+        Some(refusal) => Some(refusal),
+        None => session.prompts.lock().await.refused.take(),
+    };
     // Whichever failure ends the case is the one its log says, so a run that
     // refused on its own is narrated the same way as a page the host refused.
-    let result = match (concluded, session.take_refusal().await) {
+    let result = match (concluded, refusal) {
         (Ok(_), Some(refusal)) | (Err(_), Some(refusal)) => {
             session.narrate_refusal(&refusal).await;
             Err(refusal)
@@ -634,6 +676,7 @@ async fn execute_case(
         }
         (result, None) => result,
     };
+    // Provider finalization settles the open step and execution together after cleanup.
     context.finalization.finish(context).await?;
     result
 }
@@ -724,11 +767,19 @@ async fn run_sidecar_cycle(
     })
 }
 
-fn admit_prompt(declared: &[crate::prompts::PromptDefinition], prompt: &PromptRequest) -> Result<(), ProviderExecutionFailure> {
-    if !declared.iter().any(|definition| definition.prompt_type == prompt.prompt_type) {
-        return Err(failure("sidecar_prompt", format!("operator question {} is not declared by this template", prompt.prompt_type)));
+fn admit_prompt(
+    declared: &[crate::prompts::PromptDefinition], template: &str, prompt: &PromptRequest,
+) -> Result<(), ProviderExecutionFailure> {
+    if declared.iter().any(|definition| definition.prompt_type == prompt.prompt_type) {
+        return Ok(());
     }
-    Ok(())
+    let named = if template.is_empty() { String::new() } else { format!(" ({template})") };
+    let message = format!(
+        "Operator question {} is not declared by this template{named}. Declare it in the template's `prompts` catalog and \
+         reinstall the plugin.",
+        prompt.prompt_type
+    );
+    Err(failure("sidecar_prompt", message))
 }
 
 async fn stop_requested(context: &ExecutionFixtureContext, session: &Session, concern: Concern) -> bool {
@@ -1068,6 +1119,8 @@ fn failure(stage: impl Into<String>, message: impl Into<String>) -> ProviderExec
 }
 
 async fn close_stopped_attempt(context: &ExecutionFixtureContext, execution: &TestExecution) -> Result<(), ProviderExecutionFailure> {
+    use dokime_domain::model::execution::termination::TerminationReason;
+    let stage = "stop_settlement";
     let execution_id = execution.test_execution_id.clone();
     let active = context
         .runtime
@@ -1077,7 +1130,7 @@ async fn close_stopped_attempt(context: &ExecutionFixtureContext, execution: &Te
         .await
         .map_err(|error| {
             let message = error.to_string();
-            failure("stop_settlement", message)
+            failure(stage, message)
         })?
         .value;
     let Some(start) = active else {
@@ -1088,12 +1141,12 @@ async fn close_stopped_attempt(context: &ExecutionFixtureContext, execution: &Te
         step_id: start.step_id,
         started_at: start.started_at,
         finished_at: Some(crate::model::time::now_utc()),
-        termination: dokime_domain::model::execution::termination::TerminationReason::Cancelled,
+        termination: TerminationReason::Cancelled,
         detail: None,
     };
     context.record_step_attempt(execution.scope.clone(), attempt).await.map_err(|error| {
         let message = error.to_string();
-        failure("stop_settlement", message)
+        failure(stage, message)
     })
 }
 

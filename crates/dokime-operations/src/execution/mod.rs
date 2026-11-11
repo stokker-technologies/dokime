@@ -11,7 +11,6 @@
 
 mod append_executions;
 mod cancel_execution;
-mod copy_cycle;
 mod create_cycle;
 mod delete_case;
 mod get_case;
@@ -28,6 +27,7 @@ mod pause_cycle;
 mod pause_execution;
 mod rename_cycle;
 mod rename_execution;
+mod rerun_cycle;
 mod resume_cycle;
 mod resume_execution;
 mod run_provider_cycle;
@@ -44,7 +44,6 @@ mod update_cycle_policy;
 
 pub use append_executions::{AppendExecutions, ExecutionBinding};
 pub use cancel_execution::CancelExecution;
-pub use copy_cycle::CopyCycle;
 pub use create_cycle::CreateCycle;
 pub use delete_case::DeleteCase;
 pub use get_case::GetCase;
@@ -61,6 +60,7 @@ pub use pause_cycle::PauseCycle;
 pub use pause_execution::PauseExecution;
 pub use rename_cycle::RenameCycle;
 pub use rename_execution::RenameExecution;
+pub use rerun_cycle::RerunCycle;
 pub use resume_cycle::ResumeCycle;
 pub use resume_execution::ResumeExecution;
 pub use run_provider_cycle::RunProviderCycle;
@@ -95,7 +95,6 @@ use dokime_domain::model::execution::wire::*;
 crate::hosted!(
     AppendExecutions,
     CancelExecution,
-    CopyCycle,
     CreateCycle,
     DeleteCase,
     GetCase,
@@ -112,6 +111,7 @@ crate::hosted!(
     PauseExecution,
     RenameCycle,
     RenameExecution,
+    RerunCycle,
     ResumeCycle,
     ResumeExecution,
     RunProviderCycle,
@@ -139,8 +139,8 @@ crate::hosted!(
 #[harmos::catalog]
 pub enum Operations {
     ListExecutionSteps(ListExecutionSteps),
-    CopyCycle(CopyCycle),
     CreateCycle(CreateCycle),
+    RerunCycle(RerunCycle),
     GetCycle(GetCycle),
     GetCase(GetCase),
     GetExecution(GetExecution),

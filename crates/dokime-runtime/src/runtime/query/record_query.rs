@@ -226,7 +226,7 @@ async fn page(
         let contract = contracts
             .records
             .iter()
-            .find(|contract| contract.record_type.as_str() == request.record_type && contract.schema_version == record.schema_version)
+            .find(|contract| contract.record_type.as_str() == request.record_type && contract.schema_version() == record.schema_version)
             .expect("selected captured record contract");
         record.details.retain(|id, _| contract.fields.iter().any(|field| field.metadata.identifier.as_str() == id));
         for field in &contract.fields {

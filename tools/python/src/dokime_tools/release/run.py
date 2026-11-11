@@ -22,21 +22,23 @@ import subprocess
 import sys
 import tomllib
 import urllib.parse
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 
 # Third Party Imports
-from harmos_tools import temporary
-from harmos_tools.package import run as packages
-from harmos_tools.package.changelog import notes
+from harmos_tools.build import paths
 from harmos_tools.process import spawn_flags
+from harmos_tools import temporary
 from harmos_tools.release import policy, version
 
 # Local Imports
 
 # isort: split
+from ..package import run as packages
+from ..package.changelog import notes
 from ..test import archive
-from . import layout, pins, registry, screenshots
+from . import layout, notices, pins, registry, sbom, screenshots
 
 # Type Checking Imports
 
@@ -46,6 +48,8 @@ from . import layout, pins, registry, screenshots
 
 STABLE = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 SUMS = "SHA256SUMS"
+# Downloads.json Repeats SHA256SUMS Digests, So It Is Uploaded Beside, Never Inside, SHA256SUMS.
+DOWNLOADS = "downloads.json"
 STATE = "published.json"
 # Staged downloads live under <target>/; SHA256SUMS and the publication state span targets and live under any/.
 ASSETS = "target/release-assets"
@@ -76,11 +80,9 @@ VERBS = [
 
 # === Public Functions === #
 
-
 def continuous_integration() -> bool:
     """Whether A CI Runner Executes This Process."""
     return any(os.environ.get(name, "").lower() in {"1", "true"} for name in ("CI", "GITHUB_ACTIONS", "GITLAB_CI"))
-
 
 def release_tag(directory: Path) -> str:
     """The Stable Tag Of The Prepared Version: `v` Plus `[version] value`."""
@@ -89,7 +91,6 @@ def release_tag(directory: Path) -> str:
         raise policy.ToolError("version.value must declare a stable MAJOR.MINOR.PATCH version")
     return "v" + value
 
-
 def native_target(settings: dict) -> str:
     system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}.get(platform.system())
     architecture = {"amd64": "x86_64", "arm64": "aarch64"}.get(platform.machine().lower(), platform.machine().lower())
@@ -97,7 +98,6 @@ def native_target(settings: dict) -> str:
     if selected not in settings.get("targets", []):
         raise policy.ToolError(f"native target {selected} is not one of release.targets")
     return selected
-
 
 def assets(directory: Path, settings: dict, selected: str, tag: str, profile: str | None = None, *, signed: bool = False) -> list[dict]:
     """The Declared Release Downloads Of One Target, From Its Existing Package Of The Profile."""
@@ -128,14 +128,17 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
         name = layout.asset_name(directory, settings, definition, selected, tag, source)
         if name is None:
             continue
-        reserved = {SUMS, STATE, "CHANGELOG.md", "plugins.json", "upload.json", ".", ".."}
+        reserved = {SUMS, STATE, DOWNLOADS, "CHANGELOG.md", "plugins.json", "upload.json", ".", ".."}
         if Path(name).name != name or name in reserved or "\\" in name or any(ord(character) < 32 for character in name):
             raise policy.ToolError(f"invalid release asset name: {name}")
         if not source.is_file() or source.is_symlink():
             raise policy.ToolError(f"missing regular release asset: {source}")
         result.append({"name": name, "path": relative, "target": selected})
+    wheels = sorted((paths.output(directory, "package", profile, selected) / "python").glob("*.whl"))
+    if len(wheels) != 1 or "-cp313-abi3-" not in wheels[0].name:
+        raise policy.ToolError(f"expected one native abi3 wheel for {selected}")
+    result.append({"name": wheels[0].name, "path": wheels[0].relative_to(directory).as_posix(), "target": selected})
     return result
-
 
 def stage(
     directory: Path,
@@ -147,10 +150,18 @@ def stage(
     signed: bool = False,
     source_revision: str | None = None,
     release_notes: str | None = None,
+    channel: str = "stable",
 ) -> list[dict]:
     """Copy Each Target's Release Downloads Into Its target/release-assets/<target>/ And Their SHA256SUMS Into any/."""
     profile = policy.profile() if profile is None else profile
     root = _root(directory)
+    distributions = [
+        paths.output(directory, "package", profile, selected)
+        / "rust"
+        / f"{settings['product']}-distribution-{tag[1:]}-{layout.triple(directory, settings, selected)}.zip"
+        for selected in targets
+    ]
+    packaged_notices = notices.packaged(distributions)
     # Only the staged targets and the shared checksums are replaced; another target's staging stays untouched.
     for owned in [*targets, SHARED]:
         destination = policy.inside(root, owned)
@@ -158,6 +169,10 @@ def stage(
             raise policy.ToolError("unsafe release staging target")
         if destination.exists():
             shutil.rmtree(destination)
+    shared = root / SHARED
+    shared.mkdir(parents=True)
+    for name, content in packaged_notices.items():
+        (shared / name).write_bytes(content)
     files = []
     plugins = layout.plugins(directory, settings, tag, targets, profile)
     for selected in targets:
@@ -172,9 +187,11 @@ def stage(
                 raise policy.ToolError(f"release download names collide across targets: {asset['name']}")
             destination = policy.inside(root / selected, asset["name"])
             shutil.copyfile(policy.inside(directory, asset["path"]), destination)
+            if destination.name.startswith(("dokime-cli-", "cargo-dokime-")) and destination.name.endswith((".zip", ".tar.gz")):
+                notices.archive(shared, destination)
             files.append(_describe(root, destination))
-    (root / SHARED).mkdir(parents=True)
     for destination in layout.plugin_archives(directory, root, plugins):
+        notices.archive(shared, destination)
         if any(item["name"].casefold() == destination.name.casefold() for item in files):
             raise policy.ToolError(f"release download names collide across targets: {destination.name}")
         files.append(_describe(root, destination))
@@ -188,11 +205,44 @@ def stage(
         feed = root / SHARED / "plugins.json"
         policy.write_json(feed, layout.plugin_feed(settings, tag, plugins))
         files.append(_describe(root, feed))
+    for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+        destination = root / SHARED / name
+        files.append(_describe(root, destination))
+    shell_inventory = sbom.shell(directory, root / SHARED)
+    files.append(_describe(root, shell_inventory))
+    for selected in targets:
+        rust = sbom.workspace(directory, layout.triple(directory, settings, selected), root / selected)
+        originals = [item for item in files if Path(item["path"]).parts[0] == selected]
+        for source in rust:
+            files.append(_describe(root, source))
+        for item in originals:
+            source = root / item["path"]
+            if not source.name.endswith((".zip", ".tar.gz", ".whl", ".exe", ".deb", ".rpm")):
+                continue
+            desktop = source.name.startswith("dokime-distribution-") or source.name.endswith(("-setup.exe", ".deb", ".rpm"))
+            inventories = [*rust, shell_inventory] if desktop else rust
+            destination = sbom.artifact(directory, source, root / selected, inventories)
+            files.append(_describe(root, destination))
     (root / SHARED / SUMS).write_text("".join(f"{item['sha256']}  {item['name']}\n" for item in files), encoding="utf-8")
     files.append(_describe(root, root / SHARED / SUMS))
+    executables = {
+        item["name"]: "cli" if item["command"] == settings["product"] else item["command"]
+        for item in policy.config(directory).get("package", {}).get("executables", [])
+    }
+    manifest = layout.downloads(
+        settings,
+        executables,
+        version=tag[1:],
+        channel=channel,
+        tag=tag if channel == "stable" else channel,
+        published=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        files=files,
+        sums=(root / SHARED / SUMS).read_text(encoding="utf-8"),
+    )
+    policy.write_json(root / SHARED / DOWNLOADS, manifest)
+    files.append(_describe(root, root / SHARED / DOWNLOADS))
     layout.upload_manifest(directory, root, files)
     return files
-
 
 def planned_version(directory: Path, current: str) -> str:
     """The Current Version Before Its First Tag, Else git-cliff's Configured Automatic Version."""
@@ -206,7 +256,6 @@ def planned_version(directory: Path, current: str) -> str:
         listing = "\n".join("  " + line for line in since.splitlines()) or "  (no commits)"
         raise policy.ToolError(f"v{current} is released and no Conventional Commit since warrants a new version; commits since:\n{listing}")
     return planned
-
 
 def prepare(directory: Path, settings: dict) -> None:
     """Bump Every Version Carrier And Regenerate Release Inputs In The Working Tree."""
@@ -236,7 +285,6 @@ def prepare(directory: Path, settings: dict) -> None:
     if policy.policy(directory, "screenshots").get("scenes"):
         screenshots.capture(directory)
     print(f"Prepared v{planned}; review the changes, or let Release / Prepare open the release review")
-
 
 def review(directory: Path, settings: dict) -> None:
     """Commit The Prepared Tree To release/v<version> And Open Its Review Into dev With The Release Token."""
@@ -291,7 +339,6 @@ def review(directory: Path, settings: dict) -> None:
         raise policy.ToolError(f"opening the release review failed; {branch} is pushed and can be reviewed by hand")
     registry.arm_auto_merge(settings, branch, title)
 
-
 def dry(
     directory: Path,
     settings: dict,
@@ -301,6 +348,7 @@ def dry(
     source_revision: str | None = None,
     release_notes: str | None = None,
     targets: list[str] | None = None,
+    channel: str = "stable",
 ) -> None:
     """Stage The Active Profile's Packages Like A Release And Run The Native Downloads From Them, Offline."""
     tag = release_tag(directory)
@@ -315,15 +363,16 @@ def dry(
         raise policy.ToolError(f"{profile} packages are missing for release targets: {', '.join(missing)}")
     if missing:
         print(f"note: no local {profile} packages for {', '.join(missing)}; CI stages every release target")
-    stage(directory, settings, tag, present, profile=profile, source_revision=source_revision, release_notes=release_notes)
+    stage(directory, settings, tag, present, profile=profile, source_revision=source_revision, release_notes=release_notes, channel=channel)
     files = layout.uploads(directory, staged=True)
     _checksums(root / SHARED / SUMS, {item["name"]: item for item in files})
     native = _native()
     if native in present:
         # The staged bytes themselves run, from an isolated directory, exactly as a user's download would.
         packages.verify(directory, profile, native, root / native)
-    print(f"staged {len(files) - 1} download(s) and {SUMS} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}")
-
+    print(
+        f"staged {len(files) - 2} download(s), {SUMS} and {DOWNLOADS} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}"
+    )
 
 def publish(directory: Path, settings: dict) -> None:
     """Stage And Publish Exactly The Manifest's Downloads From The Protected Release Tag."""
@@ -358,7 +407,6 @@ def publish(directory: Path, settings: dict) -> None:
             }
             policy.write_json(root / SHARED / STATE, state)
     policy.write_json(root / SHARED / STATE, state)
-
 
 def finalize(directory: Path, settings: dict) -> None:
     """Verify Every Manifest Download And Signature Before Making The Release Visible."""
@@ -407,7 +455,6 @@ def finalize(directory: Path, settings: dict) -> None:
     if {link.get("name") for link in (remote.get("assets") or {}).get("links", [])} != set(inventory):
         raise policy.ToolError("release links differ from upload.json")
 
-
 def verify(directory: Path, settings: dict) -> None:
     """After Publication: Download Every Published Asset, Match SHA256SUMS And Signatures, Install On This Platform."""
     tag = release_tag(directory)
@@ -439,11 +486,9 @@ def verify(directory: Path, settings: dict) -> None:
         packages.installed(directory, {**settings, "tag": tag}, root, native)
     policy.write_json(directory / "target/state/release-publication.json", {"sha": sha, "tag": tag, "verified": True})
 
-
 def crates(directory: Path, settings: dict) -> None:
     """Publish Crates From The Protected Tag Job."""
     registry.publish_crates(directory)
-
 
 def tag(directory: Path, settings: dict) -> None:
     """Tag An Exactly Rehearsed Merged Release Review, Then Fast-Forward main."""
@@ -495,7 +540,6 @@ def tag(directory: Path, settings: dict) -> None:
     if registry.delete_branch(settings, branch):
         print(f"{branch}: deleted after its squash")
 
-
 def rehearse(directory: Path, settings: dict, *, target: str | None = None, profile: str = "release", stage_only: bool = False) -> None:
     """Verify Selected Local Packages Or Every Hosted Target Without Publishing Credentials."""
     hosted = continuous_integration()
@@ -520,7 +564,6 @@ def rehearse(directory: Path, settings: dict, *, target: str | None = None, prof
             registry.python(directory, settings, dry_run=True)
     print(f"release {'staging' if stage_only else 'rehearsal'} passed using staged {profile}-profile packages")
 
-
 def identity(directory: Path, settings: dict) -> None:
     """Print The OIDC Identity Registries See And The Trusted Publisher Values That Match It."""
     url = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL")
@@ -544,7 +587,6 @@ def identity(directory: Path, settings: dict) -> None:
         if actual != expected:
             print(f"warning: {registry_name} sees workflow {actual}, but the rendered guidance names {expected}")
 
-
 def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("verb", choices=VERBS)
@@ -558,7 +600,6 @@ def main(arguments: list[str] | None = None) -> int:
         print(f"release: {error}", file=sys.stderr)
         return 1
     return 0
-
 
 def run(directory: Path, verb: str, *, target: str | None = None, profile: str | None = None, stage_only: bool = False) -> None:
     if verb != "rehearse" and (target is not None or profile is not None or stage_only):
@@ -587,12 +628,10 @@ def run(directory: Path, verb: str, *, target: str | None = None, profile: str |
     }
     operations[verb](directory, settings)
 
-
 # === Private Functions === #
 
-
 def _checksums(path: Path, inventory: dict) -> None:
-    expected = {name: item["sha256"] for name, item in inventory.items() if name != SUMS}
+    expected = {name: item["sha256"] for name, item in inventory.items() if name not in {SUMS, DOWNLOADS}}
     actual = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         digest, separator, name = line.partition("  ")
@@ -602,26 +641,28 @@ def _checksums(path: Path, inventory: dict) -> None:
     if actual != expected:
         raise policy.ToolError("SHA256SUMS differs from upload.json")
 
-
 def _tag_event(directory: Path, settings: dict, sha: str) -> dict | None:
     if settings["provider"] == "gitlab":
         source = os.environ.get("PIPELINE_SOURCE", os.environ.get("CI_PIPELINE_SOURCE"))
         if source != "web" or os.environ.get("CI_COMMIT_BRANCH") != "dev" or os.environ.get("CI_COMMIT_SHA") != sha:
             raise policy.ToolError("GitLab tagging requires a web-started dev release pipeline at the checkout revision")
         return None
-    if (
-        os.environ.get("GITHUB_EVENT_NAME") != "pull_request"
-        or os.environ.get("GITHUB_REF") != "refs/heads/dev"
-        or os.environ.get("GITHUB_SHA") != sha
-    ):
-        raise policy.ToolError("GitHub tagging requires a closed, merged release PR into dev at the checkout revision")
+    if os.environ.get("GITHUB_EVENT_NAME") not in {"workflow_run", "workflow_dispatch"} or os.environ.get("GITHUB_REF") != "refs/heads/dev":
+        raise policy.ToolError("GitHub tagging requires a dev validation completion or dispatch")
+    event_sha = os.environ.get("GITHUB_SHA", "")
+    if not event_sha:
+        raise policy.ToolError("GitHub tagging requires the dev event revision")
+    if sha != event_sha:
+        policy.execute(directory, ["git", "merge-base", "--is-ancestor", sha, event_sha])
     workflow = f"{settings['repository']}/.github/workflows/{RELEASE_WORKFLOW}@"
     if not os.environ.get("GITHUB_WORKFLOW_REF", "").startswith(workflow):
         raise policy.ToolError("GitHub tagging runs only in release.yml")
-    event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
-    review = event.get("pull_request", {})
+    merged = registry.release_review(settings, sha, registry.RELEASE_BRANCH + release_tag(directory))
+    if merged is None:
+        raise policy.ToolError("the revision has no merged release review")
+    review = registry.document(settings, f"pulls/{merged['number']}")
     if (
-        event.get("action") != "closed"
+        not isinstance(review, dict)
         or review.get("merged") is not True
         or review.get("merge_commit_sha") != sha
         or type(review.get("number")) is not int
@@ -629,9 +670,8 @@ def _tag_event(directory: Path, settings: dict, sha: str) -> dict | None:
         or review.get("head", {}).get("ref") != registry.RELEASE_BRANCH + release_tag(directory)
         or any(review.get(side, {}).get("repo", {}).get("full_name") != settings["repository"] for side in ("base", "head"))
     ):
-        raise policy.ToolError("GitHub event is not the merged release review for this version and revision")
+        raise policy.ToolError("GitHub review is not the merged release review for this version and revision")
     return review
-
 
 def _commit_review(directory: Path, settings: dict, branch: str, title: str) -> None:
     """Create The Preparation Commit Through The Provider API, Signed By The Provider."""
@@ -692,30 +732,25 @@ def _commit_review(directory: Path, settings: dict, branch: str, title: str) -> 
     if not verified:
         raise policy.ToolError("preparation API commit is not verified; GitLab requires web-based commit signing enabled")
 
-
 def _bytes(root: Path, item: dict) -> bytes:
     data = policy.inside(root, item["path"]).read_bytes()
     if hashlib.sha256(data).hexdigest() != item["sha256"]:
         raise policy.ToolError(f"staged release bytes changed: {item['name']}")
     return data
 
-
 def _describe(root: Path, path: Path) -> dict:
     data = path.read_bytes()
     return {"name": path.name, "path": path.relative_to(root).as_posix(), "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
-
 
 def _native() -> str:
     system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}.get(platform.system(), "")
     architecture = {"amd64": "x86_64", "arm64": "aarch64"}.get(platform.machine().lower(), platform.machine().lower())
     return f"{system}-{architecture}"
 
-
 def _online(settings: dict) -> bool:
     """Whether Provider Credentials Allow Reading Remote Tags."""
     names = ("GH_TOKEN", "GITHUB_TOKEN") if settings.get("provider") == "github" else ("RELEASE_TOKEN", "GITLAB_TOKEN")
     return any(os.environ.get(name) for name in names)
-
 
 def _policy_version(directory: Path, value: str) -> None:
     """Write `[version] value` In The Project Policy, Keeping Every Other Line."""
@@ -727,11 +762,9 @@ def _policy_version(directory: Path, value: str) -> None:
     body = re.sub(r"(?m)^value\s*=.*$", f'value = "{value}"', match.group(2), count=1)
     path.write_text(text[: match.start()] + match.group(1) + body + text[match.end() :], encoding="utf-8")
 
-
 def _package(settings: dict) -> str:
     """The GitLab Generic Package That Carries The Release Downloads."""
     return settings.get("package", settings["product"])
-
 
 def _push_remote(settings: dict, token: str) -> str:
     """An Authenticated Push URL For The Release Identity, Which The main Ruleset Admits."""
@@ -740,11 +773,9 @@ def _push_remote(settings: dict, token: str) -> str:
         return f"https://x-access-token:{token}@github.com/{repository}.git"
     return f"https://oauth2:{token}@{os.environ['CI_SERVER_HOST']}/{os.environ['CI_PROJECT_PATH']}.git"
 
-
 def _quote(value: str) -> str:
     """A Single Path Segment Of A Provider Endpoint."""
     return urllib.parse.quote(value, safe="")
-
 
 def _refuse_overrides(directory: Path) -> None:
     """Published Bytes Never Come From Unpublished Local Dependency Checkouts."""
@@ -758,7 +789,6 @@ def _refuse_overrides(directory: Path) -> None:
     ]
     if outside:
         raise policy.ToolError(f"unpublished local dependency override: {', '.join(sorted(outside))}")
-
 
 def _require_publication(directory: Path, settings: dict) -> None:
     """Refuse A Release Whose Crates Cannot Publish: A First Publication Needs The Bootstrap Token."""
@@ -774,17 +804,14 @@ def _require_publication(directory: Path, settings: dict) -> None:
     if not available:
         print("warning: " + message)
 
-
 def _revision(directory: Path) -> str:
     sha = archive.revision(directory)
     if not sha:
         raise policy.ToolError("release operations require a committed HEAD")
     return sha
 
-
 def _root(directory: Path) -> Path:
     return policy.inside(directory, ASSETS)
-
 
 def _run(directory: Path, command: list[str], secret: str) -> str:
     """Run A Command That Carries A Credential, Never Echoing It; Returns Its Scrubbed Standard Output."""
@@ -803,18 +830,15 @@ def _run(directory: Path, command: list[str], secret: str) -> str:
         raise policy.ToolError(f"{command[0]} {command[1]} failed with exit code {result.returncode}")
     return scrub(result.stdout or "")
 
-
 @cache
 def _tracked(directory: Path, *patterns: str) -> list[str]:
     """Tracked paths matching Git pathspec patterns, where `*` also crosses directories."""
     listed = policy.execute(directory, ["git", "ls-files", "-z", "--", *patterns], capture=True)
     return sorted(filter(None, listed.split("\0")))
 
-
 def _task_defined(directory: Path, name: str) -> bool:
     with (directory / "mise.toml").open("rb") as file:
         return name in tomllib.load(file).get("tasks", {})
-
 
 # === Entry Point === #
 

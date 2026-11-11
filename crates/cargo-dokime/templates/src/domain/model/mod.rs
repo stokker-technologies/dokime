@@ -1,6 +1,6 @@
 /* ***
  *
- * {{package}}
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+
 pub mod chamber;
 pub mod prompts;
 pub mod settings;
@@ -16,6 +17,7 @@ pub mod soak;
 /* === Re-Exports === */
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

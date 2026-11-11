@@ -117,7 +117,7 @@ impl FtpSource {
             for line in lines {
                 visited += 1;
                 if visited > SCAN_ENTRIES {
-                    return Err(capped(format!("the watch root holds more than {} entries", SCAN_ENTRIES)));
+                    return Err(capped(format!("the capture root holds more than {} entries", SCAN_ENTRIES)));
                 }
                 let Some(listed) = self.parse(&line) else {
                     continue;
@@ -242,7 +242,7 @@ impl FtpSource {
         match tokio::time::timeout(COMMAND_TIMEOUT, connection.list(Some(remote))).await {
             Ok(Ok(lines)) => Ok(lines),
             Ok(Err(FtpError::UnexpectedResponse(response))) if response.status == suppaftp::Status::FileUnavailable => Err(invalid(
-                "FTP directory unavailable (550): it may be absent or permission denied. Create the directory and grant listing access before watching; automatic root waiting cannot distinguish these causes",
+                "FTP directory unavailable (550): it may be absent or permission denied. Create the directory and grant listing access before capturing; automatic root waiting cannot distinguish these causes",
             )),
             Ok(Err(source)) => Err(unreachable_source(source)),
             Err(_) => Err(unreachable_source("the directory listing timed out")),

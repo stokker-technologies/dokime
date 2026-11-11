@@ -47,7 +47,8 @@ pub(crate) struct Store {
     pub root: PathBuf,
     pub settings: super::super::super::Settings,
     open: BTreeMap<String, Stream>,
-    #[cfg(test)]
+
+    #[cfg(any(test, feature = "testing"))]
     fail_sync: bool,
 }
 
@@ -77,14 +78,32 @@ impl Store {
             root,
             settings,
             open: BTreeMap::new(),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "testing"))]
             fail_sync: false,
         }
     }
 
-    #[cfg(test)]
-    pub(super) fn fail_next_sync(&mut self) {
+    #[cfg(any(test, feature = "testing"))]
+    pub(in crate::storage::sqlite) fn fail_next_sync(&mut self) {
         self.fail_sync = true;
+    }
+
+    pub(super) fn prepare(
+        &mut self, connection: &mut Connection, rows: &[StoredRow], contracts: &super::RegisteredContracts,
+    ) -> Result<()> {
+        let head = saved(connection)?;
+        for row in rows {
+            head.history.check(&row.record.position.history)?;
+            if row.record.position.sequence <= head.sequence {
+                continue;
+            }
+            let id = identity(row);
+            if !self.open.contains_key(&id) {
+                let stream = self.create(connection, &id, row, contracts)?;
+                self.open.insert(id, stream);
+            }
+        }
+        Ok(())
     }
 
     #[tracing::instrument(level = "debug", name = "ingest.writer", skip_all)]
@@ -132,7 +151,7 @@ impl Store {
         drop(decode_span);
         let checkpoints = groups.keys().map(|id| (id.clone(), self.open[id].writer.checkpoint())).collect::<Vec<_>>();
         let result = (|| {
-            let transaction = connection.transaction()?;
+            let transaction = connection.savepoint()?;
             let mut aggregates = super::aggregates::Batch::default();
             let mut previews = super::previews::Batch::new(self.settings.previews);
             for (id, entries) in groups {
@@ -186,11 +205,12 @@ impl Store {
                         })
                         .collect::<Result<Vec<_>>>()?;
                     let batch = ipc::record_batch_at(stream.schema.clone(), chunk, &times)?;
-                    #[cfg(test)]
+                    #[cfg(any(test, feature = "testing"))]
                     if std::mem::take(&mut self.fail_sync) {
                         stream.writer.fail_next_sync();
                     }
                     let index = stream.writer.append(&batch)?;
+                    super::super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     drop(arrow_span);
                     let catalog_span = tracing::debug_span!("ingest.catalog").entered();
                     let first_at = *times.iter().min().ok_or(Error::Invalid("empty telemetry batch"))?;
@@ -395,7 +415,7 @@ impl Store {
             plots.save(&transaction)?;
             drop(plot_span);
             transaction.execute("UPDATE storage_data_head SET saved=?1 WHERE singleton=1", [position(head.sequence)])?;
-            super::super::super::commit(transaction)?;
+            super::super::super::release(transaction)?;
             Ok(head)
         })();
         if result.is_err() {
@@ -422,7 +442,8 @@ impl Store {
                     return Err(Error::Invalid("telemetry values are not a message"));
                 };
                 let graph = payload_graph(&schema.schema, definition)?;
-                let mut contract = TelemetryContract::declared(row.stream.as_str(), row.stream.as_str()).with_storage_schema(graph);
+                let mut contract = TelemetryContract::declared(row.stream.as_str(), row.stream.as_str());
+                contract.storage_schema = Some(graph);
                 contract.schema_version = row.record.schema.version.get();
                 contract
             }
@@ -459,7 +480,13 @@ impl Store {
             if cataloged {
                 return Err(Error::Corrupt("telemetry file has no stream catalog"));
             }
-            if path.try_exists()? { ipc::Writer::recover_empty(&path, arrow.clone())? } else { ipc::Writer::create(&path, arrow.clone())? }
+            if path.try_exists()? {
+                ipc::Writer::recover_empty(&path, arrow.clone())?
+            } else {
+                let writer = ipc::Writer::create(&path, arrow.clone())?;
+                super::super::super::DURABLE_FILES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                writer
+            }
         };
         let codec = contracts.read().unwrap().get(&key).map(|(codec, _)| codec.clone());
         let codec = match codec {
@@ -478,19 +505,24 @@ impl Store {
             .filter(|(_, stream)| execution.is_none_or(|id| stream.schema.metadata().get("execution_id").is_some_and(|value| value == id)))
             .map(|(id, _)| id.clone())
             .collect::<Vec<_>>();
-        for id in ids {
-            let stream = self.open.get_mut(&id).expect("telemetry writer exists");
+        let transaction = connection.savepoint()?;
+        for id in &ids {
+            let stream = self.open.get_mut(id).expect("telemetry writer exists");
             let (size, digest) = stream.writer.finish()?;
-            let transaction = connection.transaction()?;
-            transaction
-                .execute("UPDATE files SET size_bytes=?2,sha256=?3 WHERE id=?1", params![id, catalog::integer(size)?, digest.as_slice()])?;
-            transaction.execute("UPDATE streams SET finalized=1 WHERE file_id=?1", [&id])?;
-            super::super::super::commit(transaction)?;
-            // Close Before Removing Ownership; Windows Never Renames Or Deletes An Open File.
-            self.open.remove(&id);
+            transaction.prepare_cached("UPDATE files SET size_bytes=?2,sha256=?3 WHERE id=?1")?.execute(params![
+                id,
+                catalog::integer(size)?,
+                digest.as_slice()
+            ])?;
+            transaction.prepare_cached("UPDATE streams SET finalized=1 WHERE file_id=?1")?.execute([id])?;
         }
         if let Some(execution) = execution {
-            connection.execute("UPDATE streams SET sealed=1 WHERE execution=?1", [execution])?;
+            transaction.prepare_cached("UPDATE streams SET sealed=1 WHERE execution=?1")?.execute([execution])?;
+        }
+        super::super::super::release(transaction)?;
+        for id in ids {
+            // Close Before Removing Ownership; Windows Never Renames Or Deletes An Open File.
+            self.open.remove(&id);
         }
         Ok(())
     }
@@ -515,11 +547,11 @@ impl Store {
             let indices = super::reader::indices(connection, &id)?;
             let checkpoint = ipc::Checkpoint { end, hash, batches: indices.len() };
             let (size, hash) = ipc::recover(&self.root.join(format!("telemetry/{id}.arrow")), schema, &indices, &checkpoint)?;
-            let transaction = connection.transaction()?;
+            let transaction = connection.savepoint()?;
             transaction
                 .execute("UPDATE files SET size_bytes=?2,sha256=?3 WHERE id=?1", params![id, catalog::integer(size)?, hash.as_slice()])?;
             transaction.execute("UPDATE streams SET finalized=1 WHERE file_id=?1", [&id])?;
-            super::super::super::commit(transaction)?;
+            super::super::super::release(transaction)?;
         }
         Ok(())
     }
@@ -534,7 +566,8 @@ pub(super) fn identity(row: &StoredRow) -> String {
         .as_ref()
         .map(ToString::to_string)
         .unwrap_or_else(|| format!("session:{}", row.record.source.as_ref().map(harmos::Identifier::as_str).unwrap_or_default()));
-    let digest = Sha256::digest(format!("{owner}|{}", row.stream));
+    let schema = serde_json::to_string(&row.record.schema).expect("a schema key contains serializable scalars");
+    let digest = Sha256::digest(format!("{owner}|{}|{schema}", row.stream));
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
@@ -595,7 +628,9 @@ fn payload_graph(graph: &harmos::schema::graph::Schema, root: usize) -> Result<h
         definitions.push(fields);
         next += 1;
     }
-    Ok(Schema { root: 0, definitions })
+    let representations =
+        graph.representations.iter().filter_map(|(index, value)| indices.get(index).map(|mapped| (*mapped, value.clone()))).collect();
+    Ok(Schema { root: 0, definitions, representations })
 }
 
 /* === Tests === */

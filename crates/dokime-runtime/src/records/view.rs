@@ -37,6 +37,7 @@ use dokime_domain::model::records::evidence::RecordEntry;
 #[derive(Clone, Copy)]
 pub enum View<'a> {
     Slice(&'a [RecordEntry]),
+
     #[cfg(feature = "storage")]
     Retained(&'a ReadRows<RecordEntry>),
 }

@@ -98,7 +98,7 @@ pub async fn desktop_backend_import_pairing(
     .await
     .map_err(|_| ConnectionError::BackendUnavailable)?;
     let Some(selected) = selected else { return Ok(None) };
-    let path = selected.into_path().map_err(|error| ConnectionError::Registry { message: error.to_string() })?;
+    let path = selected.into_path().map_err(|error| ConnectionError::Registry { message: error.to_string(), cause: None })?;
     import_path(&app, &registry, &connection, path, identifier)
         .await
         .inspect_err(|error| {
@@ -195,7 +195,31 @@ pub fn session_error(error: crate::native_session::DesktopSessionError) -> Conne
 /* === Private Functions === */
 
 fn persistence(error: dokime::client::profiles::Error) -> ConnectionError {
-    ConnectionError::Registry { message: error.to_string() }
+    use std::error::Error;
+    let mut messages = Vec::new();
+    let mut source = error.source();
+    while let Some(error) = source {
+        messages.push(error.to_string());
+        source = error.source();
+    }
+    let mut cause = None;
+    for message in messages.into_iter().rev() {
+        cause = Some(Box::new(super::contract::RegistryCause { message, cause }));
+    }
+    ConnectionError::Registry { message: error.to_string(), cause }
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn profiles_schema_cause_survives_notification_serialization() {
+        let error = dokime::client::profiles::decode(br#"{"unexpected": true}"#).unwrap_err();
+        let source = std::error::Error::source(&error).unwrap().to_string();
+        let carrier = serde_json::to_value(super::persistence(error)).unwrap();
+        assert_eq!(carrier["kind"], "registry");
+        assert_eq!(carrier["cause"]["message"], source);
+        assert!(carrier["cause"]["cause"].is_null());
+    }
+}

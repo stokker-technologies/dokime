@@ -132,6 +132,23 @@ export function applyPlotMessages(current: LivePlotState, messages: readonly Plo
   return next;
 }
 
+/** Commit All Arrived Frames To One Document State Without Mutating The Visible State. */
+export function applyDocumentPlotMessages(current: LivePlotStateMap, messages: readonly PlotPayloadStreamMessage[]): LivePlotStateMap {
+  if (messages.length === 0) return current;
+  const next = { ...current };
+  for (const message of messages) {
+    const previous = next[message.plot_id];
+    if (!previous) continue;
+    try {
+      next[message.plot_id] = applyPlotMessages(previous, [message]);
+    } catch (error) {
+      const failure = failureOf(error, "Plot Stream Failed");
+      next[message.plot_id] = { ...previous, status: "error", error: failure.message, failure };
+    }
+  }
+  return next;
+}
+
 /** Keep One Render Representation Of The Latest Server Snapshot. */
 function retainFrame(payload: PlotPayload): PlotPayload {
   if (!payload.cartesian) return payload;

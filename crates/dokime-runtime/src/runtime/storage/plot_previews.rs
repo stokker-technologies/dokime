@@ -44,8 +44,8 @@ use crate::runtime::Result;
 
 /* === Public Functions === */
 
-/// One replay of the execution's evidence feeding every requested preview, so
-/// a document's uncheckpointed plots cost one read rather than one each.
+// One replay of the execution's evidence feeding every requested preview, so
+// a document's uncheckpointed plots cost one read rather than one each.
 pub(crate) async fn rebuild(
     view: &ExecutionView, local: &crate::storage::sqlite::State, requests: &[PlotPayloadRequest], limits: Limits,
     settings: &harmos::config::SchemaSettings,

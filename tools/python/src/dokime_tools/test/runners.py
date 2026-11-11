@@ -34,12 +34,10 @@ from ..release.run import release_tag
 
 # === Public Functions === #
 
-
 def permitted(group: dict, repository: str, workflow: str, reference: str) -> bool:
     return not group.get("restricted_to_workflows", False) or f"{repository}/.github/workflows/{workflow}@{reference}" in group.get(
         "selected_workflows", []
     )
-
 
 def main() -> None:
     repository = os.environ["GITHUB_REPOSITORY"]
@@ -67,9 +65,7 @@ def main() -> None:
                 if not any(permitted(group, repository, workflow, reference) for group in eligible):
                     raise RuntimeError(f"runner group allowlist does not permit {workflow}@{reference} with labels {required}")
 
-
 # === Private Functions === #
-
 
 def _pages(endpoint: str) -> list[dict]:
     return json.loads(
@@ -78,7 +74,6 @@ def _pages(endpoint: str) -> list[dict]:
             creationflags=spawn_flags(),
         )
     )
-
 
 # === Entry Point === #
 

@@ -72,7 +72,9 @@ async fn watch_liveness() {
     let client = Client::connect(Target::local(server.local_endpoint()).unwrap(), None, None).await.unwrap();
     let plots = client.stream(contracts::plots::Watch { requests: vec![request(10_000)] }).await.unwrap();
     let opened = loop {
-        let frame = plots.message().await.unwrap().unwrap();
+        let mut revision = plots.message().await.unwrap().unwrap();
+        assert_eq!(revision.updates.len(), 1);
+        let frame = revision.updates.pop().unwrap();
         if frame.kind != model::plots::wire::PlotStreamKind::Unspecified {
             break frame;
         }
@@ -106,7 +108,9 @@ async fn watch_liveness() {
     let beats = usize::try_from(idle.as_nanos() / step.as_nanos()).unwrap() + 1;
     for _ in 0..beats {
         tokio::time::advance(step).await;
-        let frame = plots.message().await.unwrap().unwrap();
+        let mut revision = plots.message().await.unwrap().unwrap();
+        assert_eq!(revision.updates.len(), 1);
+        let frame = revision.updates.pop().unwrap();
         assert_eq!(frame.kind, model::plots::wire::PlotStreamKind::Unspecified);
         assert!(frame.envelope.unwrap().payload.is_none());
         let frame = logs.message().await.unwrap().unwrap();
@@ -120,7 +124,9 @@ async fn watch_liveness() {
     // Both Live Paths Still Deliver Actual Data After The Simulated Quiet Period.
     publish(&handle, &id, 10, 1).await;
     let updated = loop {
-        let frame = plots.message().await.unwrap().unwrap();
+        let mut revision = plots.message().await.unwrap().unwrap();
+        assert_eq!(revision.updates.len(), 1);
+        let frame = revision.updates.pop().unwrap();
         if frame.kind != model::plots::wire::PlotStreamKind::Unspecified {
             break frame;
         }

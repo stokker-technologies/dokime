@@ -170,14 +170,13 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             fn contract() -> #sdk::telemetry::TelemetryContract {
                 let metadata = <Self as #sdk::StreamSpec>::metadata();
                 #sdk::telemetry::TelemetryContract {
-                    schema_version: <Self as #sdk::StreamSpec>::VERSION,
                     metadata: metadata.clone(),
                     ..#sdk::telemetry::TelemetryContract::declared(
                         <Self as #sdk::StreamSpec>::ID,
                         &metadata.label,
                     )
                         .columns(<#row as #sdk::telemetry::TelemetryRow>::columns())
-                        .typed::<#row>()
+                        .typed::<#row>(<Self as #sdk::StreamSpec>::WINDOW)
                         #closing
                 }
             }

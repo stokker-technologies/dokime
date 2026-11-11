@@ -149,7 +149,7 @@ pub fn contract(version: u32) -> TelemetryContract {
         telemetry::{TelemetryColumn, TelemetryRole},
         values::ValueType,
     };
-    let mut contract = TelemetryContract::declared("query.readings", "Readings").typed::<Reading>();
+    let mut contract = TelemetryContract::declared("query.readings", "Readings").typed::<Reading>(1);
     contract.schema_version = version;
     contract.columns.push(TelemetryColumn::new(metadata("counter", "Counter"), ValueType::Integer, TelemetryRole::Value));
     let mut value = TelemetryColumn::new(metadata("value", "Value"), ValueType::Number, TelemetryRole::Value);

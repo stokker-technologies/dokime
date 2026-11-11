@@ -33,7 +33,7 @@ struct Probe;
 
 #[sdk::catalog]
 enum Builtins {
-    Watch(sdk::operations::files::WatchFile),
+    Start(sdk::operations::files::StartCapture),
 }
 
 #[sdk::catalog]

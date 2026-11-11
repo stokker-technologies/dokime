@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Summarize Payload-Free Test Span Lifetimes"""
 
 # === Imports === #
@@ -25,7 +24,6 @@ from . import report
 
 # Type Checking Imports
 
-
 # === Public Exports === #
 
 # === Constants === #
@@ -35,7 +33,6 @@ from . import report
 # === Classes === #
 
 # === Public Functions === #
-
 
 def summarize(destination: Path, junit: Path) -> None:
     """Summarize Lifetimes; Overlapping Children Count Once Against Their Parent."""
@@ -115,9 +112,7 @@ def summarize(destination: Path, junit: Path) -> None:
         lines += ["## Unreadable Traces", "", *[f"- {_cell(name)}" for name in incomplete], ""]
     report.write(destination / "time-summary.md", "\n".join(lines))
 
-
 # === Private Functions === #
-
 
 def _union(intervals: list[tuple[float, float]], start: float, end: float) -> float:
     covered, through = 0.0, start
@@ -128,9 +123,7 @@ def _union(intervals: list[tuple[float, float]], start: float, end: float) -> fl
             through = right
     return covered
 
-
 def _cell(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ").replace("\r", " ")
-
 
 # === Entry Point === #

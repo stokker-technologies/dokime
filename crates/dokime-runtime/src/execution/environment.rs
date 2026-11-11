@@ -68,6 +68,9 @@ pub struct Environment<'a, C = (), O = (), I = ()> {
 
     #[cfg(feature = "native")]
     handles: super::instances::Handles,
+
+    #[cfg(feature = "native")]
+    captures: super::builtins::LocalCaptures,
 }
 
 /* === Enums === */
@@ -102,6 +105,8 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
             identity: Arc::default(),
             #[cfg(feature = "native")]
             handles: super::instances::Handles::new(),
+            #[cfg(feature = "native")]
+            captures: super::builtins::LocalCaptures::default(),
         }
     }
 
@@ -121,6 +126,11 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
     #[cfg(feature = "native")]
     pub(crate) fn handles(&self) -> &super::instances::Handles {
         &self.handles
+    }
+
+    #[cfg(feature = "native")]
+    pub(crate) fn captures(&self) -> &super::builtins::LocalCaptures {
+        &self.captures
     }
 
     #[cfg(feature = "native")]
@@ -215,6 +225,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
                     journal: transport.journal(),
                     identity: self.identity(),
                     handles: self.handles.clone(),
+                    captures: self.captures.clone(),
                 },
             );
         #[cfg(not(feature = "native"))]

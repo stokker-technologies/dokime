@@ -92,6 +92,7 @@ pub(in crate::grpc) fn historical_plot(
         analysis: value.analysis.as_ref().map(analysis_selection).transpose()?,
         plot_id: Some(value.metadata.identifier.as_str().to_owned()),
         plot_type: enums::plot_type(&value.plot_type),
+        style: enums::plot_style(&value.style),
         x_scale: enums::axis_scale(&value.x_scale),
         y_scale: enums::axis_scale(&value.y_scale),
         stream: value.stream.clone().unwrap_or_default(),
@@ -118,6 +119,7 @@ pub(in crate::grpc) fn historical_plot(
     };
     let (x_axis, x_axis_unit) = enums::plot_axis(value.x_axis.as_ref());
     let presentation = dokime::domain::model::documents::wire::PlotPresentation {
+        scale: value.scale,
         style: enums::plot_style(&value.style),
         fft: Some(fft_options(&value.fft)?),
         interval: Some(interval_options(&value.interval)?),
@@ -388,34 +390,32 @@ fn histogram_options(
     })
 }
 
+fn reference_value(value: &dokime::document::ReferenceValue) -> Result<dokime::domain::model::documents::wire::PlotReferenceValue, Status> {
+    use dokime::document::ReferenceValue;
+    let (constant, expression) = match value {
+        ReferenceValue::Constant(value) => {
+            finite(*value, "plot reference value")?;
+            (Some(*value), None)
+        }
+        ReferenceValue::Expression(value) => (None, Some(data_expression(value)?)),
+    };
+    Ok(dokime::domain::model::documents::wire::PlotReferenceValue { constant, expression })
+}
+
 fn reference_line(value: &dokime::document::ReferenceLine) -> Result<dokime::domain::model::documents::wire::PlotReferenceLine, Status> {
-    finite(value.source_scale, "reference line source_scale")?;
-    if let Some(item) = value.value {
-        finite(item, "reference line value")?;
-    }
     Ok(dokime::domain::model::documents::wire::PlotReferenceLine {
-        axis: enums::reference_axis(&value.axis),
-        value: value.value,
-        source: value.source.as_ref().map(data_expression).transpose()?,
-        source_scale: value.source_scale,
+        value: reference_value(&value.value)?,
         label: value.label.clone(),
         color: value.color.clone(),
     })
 }
 
 fn reference_band(value: &dokime::document::ReferenceBand) -> Result<dokime::domain::model::documents::wire::PlotReferenceBand, Status> {
-    if let Some(item) = value.min {
-        finite(item, "reference band min")?;
-    }
-    if let Some(item) = value.max {
-        finite(item, "reference band max")?;
-    }
     Ok(dokime::domain::model::documents::wire::PlotReferenceBand {
-        axis: enums::reference_axis(&value.axis),
-        min: value.min,
-        max: value.max,
-        center: value.center.as_ref().map(data_expression).transpose()?,
-        tolerance: value.tolerance.as_ref().map(data_expression).transpose()?,
+        min: value.min.as_ref().map(reference_value).transpose()?,
+        max: value.max.as_ref().map(reference_value).transpose()?,
+        center: value.center.as_ref().map(reference_value).transpose()?,
+        tolerance: value.tolerance.as_ref().map(reference_value).transpose()?,
         label: value.label.clone(),
         color: value.color.clone(),
     })

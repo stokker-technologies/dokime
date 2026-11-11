@@ -42,7 +42,6 @@ use dokime_cli::{Cli, Error};
 
 /* === Private Functions === */
 
-/* === Tests === */
 #[dokime_tracing::trace_test]
 #[tokio::test]
 async fn operation_inputs() {
@@ -106,3 +105,5 @@ async fn operation_inputs() {
     assert!(matches!(args.run(configuration.clone()).await.unwrap_err(), Error::Input(_)));
     assert!(directory_output.is_dir());
 }
+
+/* === Tests === */

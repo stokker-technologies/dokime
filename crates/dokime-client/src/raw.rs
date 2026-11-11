@@ -87,6 +87,7 @@ impl Decoder for RawDecoder {
 
 impl Client {
     pub async fn call_raw(&self, path: &str, request: Vec<u8>, deadline: Duration) -> Result<Vec<u8>> {
+        self.authorize_raw(path).await?;
         let (grpc, route) = self.raw_call(path, request.len())?;
         self.with_timeout(deadline)
             .execute(async {
@@ -113,6 +114,15 @@ impl Client {
     where
         S: Stream<Item = Vec<u8>> + Send + 'static,
     {
+        self.stream_raw_response(path, input, deadline).await.map(tonic::Response::into_inner)
+    }
+
+    // Opens A Raw Stream While Retaining Its Initial Response Metadata.
+    pub async fn stream_raw_response<S>(&self, path: &str, input: S, deadline: Duration) -> Result<tonic::Response<RawStreaming<Vec<u8>>>>
+    where
+        S: Stream<Item = Vec<u8>> + Send + 'static,
+    {
+        self.authorize_raw(path).await?;
         let (mut grpc, path) = self.raw_call(path, 0)?;
         let input = Input::new(input, self.inner.cancellation.child_token());
         let mut request = self.request(input);
@@ -120,7 +130,7 @@ impl Client {
         self.with_timeout(deadline)
             .execute(async move {
                 grpc.ready().await.map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
-                grpc.streaming(request, path, RawCodec).await.map(tonic::Response::into_inner)
+                grpc.streaming(request, path, RawCodec).await
             })
             .await
     }
@@ -129,10 +139,25 @@ impl Client {
         self.request_limit()
     }
 
+    async fn authorize_raw(&self, path: &str) -> Result<()> {
+        if self.backend().methods.iter().any(|method| method == path) || path.starts_with("/dokime.v1.") {
+            return self.require(path);
+        }
+        // External Bindings Are Advertised By The Authorized Operation Catalog.
+        self.verify(true).await?;
+        let operations = self.operations().await.map_err(|error| match error {
+            super::operations::Error::Client(error) => error,
+            _ => Error::IncompatibleApi,
+        })?;
+        if operations.iter().any(|entry| entry.grpc_available && entry.contract.grpc().is_some_and(|binding| binding.path() == path)) {
+            return Ok(());
+        }
+        Err(Error::Rpc(tonic::Status::permission_denied("operation is not available to this caller")))
+    }
+
     fn raw_call(
         &self, path: &str, request_bytes: usize,
     ) -> Result<(tonic::client::Grpc<tonic::transport::Channel>, tonic::codegen::http::uri::PathAndQuery)> {
-        self.require(path)?;
         if request_bytes > self.request_limit() {
             return Err(Error::Rpc(tonic::Status::out_of_range("request exceeds the negotiated message limit")));
         }

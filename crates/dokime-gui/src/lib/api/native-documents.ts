@@ -520,23 +520,20 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
     x: request.xKey,
     series_by: request.seriesBy,
     unit: request.unit ?? null,
+    scale: presentation?.scale,
     description: metadata?.description ?? null,
     marker_record_types: [...request.markerRecordTypes],
     filters: request.filters.map(mapNativeFilter),
     reference_lines: (presentation?.referenceLines ?? []).map((line) => ({
-      axis: line.axis?.HarmosVariant.case === "X" ? "x" : "y",
-      value: line.value ?? null,
-      source: mapNativeExpression(line.source),
-      source_scale: line.sourceScale,
+      value: mapNativeReferenceValue(line.value),
       label: line.label ?? null,
       color: line.color,
     })),
     reference_bands: (presentation?.referenceBands ?? []).map((band) => ({
-      axis: band.axis?.HarmosVariant.case === "X" ? "x" : "y",
-      min: band.min ?? null,
-      max: band.max ?? null,
-      center: mapNativeExpression(band.center),
-      tolerance: mapNativeExpression(band.tolerance),
+      min: band.min ? mapNativeReferenceValue(band.min) : null,
+      max: band.max ? mapNativeReferenceValue(band.max) : null,
+      center: band.center ? mapNativeReferenceValue(band.center) : null,
+      tolerance: band.tolerance ? mapNativeReferenceValue(band.tolerance) : null,
       label: band.label ?? null,
       color: band.color,
     })),
@@ -596,10 +593,8 @@ function mapNativePlotType(value: PlotType | undefined): DocumentViewCard["plots
     case "Pareto":
     case "AggregateTable":
       throw new Error(`Unsupported document plot type: ${value?.HarmosVariant.case}`);
-    case "XyScatter":
-      return "xy_scatter";
-    case "XyLine":
-      return "xy_line";
+    case "Xy":
+      return "xy";
     case "XyInterval":
       return "xy_interval";
     case "Trajectory":
@@ -684,7 +679,14 @@ function mapFilterOperator(value: FilterOperator | undefined): "eq" | "ne" | "gt
   }
 }
 
-function mapNativeExpression(value?: DataExpression): DocumentDataExpression | null {
+function mapNativeReferenceValue(value: { constant?: number; expression?: Parameters<typeof mapNativeExpression>[0] } | undefined) {
+  if (value?.constant !== undefined) return value.constant;
+  const expression = mapNativeExpression(value?.expression);
+  if (!expression) throw new Error("plot reference value is absent");
+  return expression;
+}
+
+function mapNativeExpression(value?: DataExpression): import("../document-contracts").DataExpression | null {
   if (!value) return null;
   const sourceKind = value.source?.HarmosVariant;
   if (!sourceKind?.case || !sourceKind.value.field0 || value.transforms.length > GUI_PLOT_TRANSFORMS)

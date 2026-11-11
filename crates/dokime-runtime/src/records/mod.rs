@@ -13,11 +13,11 @@ pub mod contract;
 pub mod declared;
 pub mod host;
 pub mod inbox;
-pub mod route;
 pub mod view;
 
 /* === Re-Exports === */
 
+pub use crate::operations::records::RecordPublication;
 pub use crate::values::{FieldError, FieldValue, field};
 pub use contract::{
     BuiltinRecordType, PRODUCT_CALIBRATION_KINDS, PRODUCT_CALIBRATION_PHASES, PRODUCT_CONNECTION_STATES, PRODUCT_READINESS_STATES,
@@ -29,7 +29,6 @@ pub use declared::{DeclaredRecord, message_of};
 pub use dokime_domain::model::validation::CompatibilityStatus;
 pub use dokime_domain::model::validation::ValidationMode;
 pub use inbox::{Deliveries, RecordSource};
-pub use route::{RECORD_PUBLICATION_VERSION, RecordPublication};
 
 /* === Imports === */
 
