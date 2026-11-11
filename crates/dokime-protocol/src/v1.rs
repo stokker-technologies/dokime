@@ -314,6 +314,60 @@ pub struct Plot {
     pub reference_lines: ::prost::alloc::vec::Vec<ReferenceLine>,
     #[prost(message, repeated, tag = "14")]
     pub reference_bands: ::prost::alloc::vec::Vec<ReferenceBand>,
+    #[prost(enumeration = "BarArrangement", optional, tag = "15")]
+    pub arrangement: ::core::option::Option<i32>,
+    #[prost(bool, tag = "16")]
+    pub pareto: bool,
+    #[prost(double, optional, tag = "17")]
+    pub hole: ::core::option::Option<f64>,
+    #[prost(enumeration = "XyInterval", optional, tag = "18")]
+    pub interval: ::core::option::Option<i32>,
+    #[prost(enumeration = "Reduction", optional, tag = "19")]
+    pub reduction: ::core::option::Option<i32>,
+    #[prost(enumeration = "ContourRender", tag = "20")]
+    pub render: i32,
+    #[prost(message, optional, tag = "21")]
+    pub grid: ::core::option::Option<GridChart>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct GridAxisEntry {
+    #[prost(string, tag = "1")]
+    pub key: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub label: ::prost::alloc::string::String,
+    #[prost(sint32, tag = "3")]
+    pub order: i32,
+    #[prost(string, optional, tag = "4")]
+    pub group: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GridHighlight {
+    #[prost(message, optional, tag = "1")]
+    pub row: ::core::option::Option<DataExpression>,
+    #[prost(message, optional, tag = "2")]
+    pub column: ::core::option::Option<DataExpression>,
+    #[prost(string, tag = "3")]
+    pub label: ::prost::alloc::string::String,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GridChart {
+    #[prost(message, optional, tag = "1")]
+    pub row: ::core::option::Option<DataExpression>,
+    #[prost(message, optional, tag = "2")]
+    pub column: ::core::option::Option<DataExpression>,
+    #[prost(message, optional, tag = "3")]
+    pub frame: ::core::option::Option<DataExpression>,
+    #[prost(message, repeated, tag = "4")]
+    pub rows: ::prost::alloc::vec::Vec<GridAxisEntry>,
+    #[prost(message, repeated, tag = "5")]
+    pub columns: ::prost::alloc::vec::Vec<GridAxisEntry>,
+    #[prost(message, repeated, tag = "6")]
+    pub highlights: ::prost::alloc::vec::Vec<GridHighlight>,
+    #[prost(string, tag = "7")]
+    pub summary_label: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -496,25 +550,138 @@ impl FilterOperator {
 #[allow(clippy::all)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
+pub enum Reduction {
+    Unspecified = 0,
+    Mean = 1,
+    Min = 2,
+    Max = 3,
+}
+impl Reduction {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "REDUCTION_UNSPECIFIED",
+            Self::Mean => "REDUCTION_MEAN",
+            Self::Min => "REDUCTION_MIN",
+            Self::Max => "REDUCTION_MAX",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "REDUCTION_UNSPECIFIED" => Some(Self::Unspecified),
+            "REDUCTION_MEAN" => Some(Self::Mean),
+            "REDUCTION_MIN" => Some(Self::Min),
+            "REDUCTION_MAX" => Some(Self::Max),
+            _ => None,
+        }
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ContourRender {
+    Unspecified = 0,
+    Cells = 1,
+    Bands = 2,
+}
+impl ContourRender {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "CONTOUR_RENDER_UNSPECIFIED",
+            Self::Cells => "CONTOUR_RENDER_CELLS",
+            Self::Bands => "CONTOUR_RENDER_BANDS",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "CONTOUR_RENDER_UNSPECIFIED" => Some(Self::Unspecified),
+            "CONTOUR_RENDER_CELLS" => Some(Self::Cells),
+            "CONTOUR_RENDER_BANDS" => Some(Self::Bands),
+            _ => None,
+        }
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum BarArrangement {
+    Unspecified = 0,
+    Grouped = 1,
+    Stacked = 2,
+}
+impl BarArrangement {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "BAR_ARRANGEMENT_UNSPECIFIED",
+            Self::Grouped => "BAR_ARRANGEMENT_GROUPED",
+            Self::Stacked => "BAR_ARRANGEMENT_STACKED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "BAR_ARRANGEMENT_UNSPECIFIED" => Some(Self::Unspecified),
+            "BAR_ARRANGEMENT_GROUPED" => Some(Self::Grouped),
+            "BAR_ARRANGEMENT_STACKED" => Some(Self::Stacked),
+            _ => None,
+        }
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum XyInterval {
+    Unspecified = 0,
+    Sigma = 1,
+}
+impl XyInterval {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "XY_INTERVAL_UNSPECIFIED",
+            Self::Sigma => "XY_INTERVAL_SIGMA",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "XY_INTERVAL_UNSPECIFIED" => Some(Self::Unspecified),
+            "XY_INTERVAL_SIGMA" => Some(Self::Sigma),
+            _ => None,
+        }
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
 pub enum PlotKind {
     Unspecified = 0,
     TimeSeries = 1,
     Bar = 2,
-    GroupedBar = 3,
-    StackedBar = 4,
     Pie = 5,
-    Donut = 6,
-    Pareto = 7,
     Xy = 8,
-    XyInterval = 9,
     Trajectory = 10,
-    Heatmap = 11,
-    XyValueHeatmap = 12,
-    WifiChannelOccupancy = 13,
     FrequencySeries = 14,
     Histogram = 15,
-    BoxSummary = 16,
-    AggregateTable = 17,
+    Contour = 18,
+    GridChart = 19,
+    BoxPlot = 20,
 }
 impl PlotKind {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -526,21 +693,14 @@ impl PlotKind {
             Self::Unspecified => "PLOT_KIND_UNSPECIFIED",
             Self::TimeSeries => "PLOT_KIND_TIME_SERIES",
             Self::Bar => "PLOT_KIND_BAR",
-            Self::GroupedBar => "PLOT_KIND_GROUPED_BAR",
-            Self::StackedBar => "PLOT_KIND_STACKED_BAR",
             Self::Pie => "PLOT_KIND_PIE",
-            Self::Donut => "PLOT_KIND_DONUT",
-            Self::Pareto => "PLOT_KIND_PARETO",
             Self::Xy => "PLOT_KIND_XY",
-            Self::XyInterval => "PLOT_KIND_XY_INTERVAL",
             Self::Trajectory => "PLOT_KIND_TRAJECTORY",
-            Self::Heatmap => "PLOT_KIND_HEATMAP",
-            Self::XyValueHeatmap => "PLOT_KIND_XY_VALUE_HEATMAP",
-            Self::WifiChannelOccupancy => "PLOT_KIND_WIFI_CHANNEL_OCCUPANCY",
             Self::FrequencySeries => "PLOT_KIND_FREQUENCY_SERIES",
             Self::Histogram => "PLOT_KIND_HISTOGRAM",
-            Self::BoxSummary => "PLOT_KIND_BOX_SUMMARY",
-            Self::AggregateTable => "PLOT_KIND_AGGREGATE_TABLE",
+            Self::Contour => "PLOT_KIND_CONTOUR",
+            Self::GridChart => "PLOT_KIND_GRID_CHART",
+            Self::BoxPlot => "PLOT_KIND_BOX_PLOT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -549,21 +709,14 @@ impl PlotKind {
             "PLOT_KIND_UNSPECIFIED" => Some(Self::Unspecified),
             "PLOT_KIND_TIME_SERIES" => Some(Self::TimeSeries),
             "PLOT_KIND_BAR" => Some(Self::Bar),
-            "PLOT_KIND_GROUPED_BAR" => Some(Self::GroupedBar),
-            "PLOT_KIND_STACKED_BAR" => Some(Self::StackedBar),
             "PLOT_KIND_PIE" => Some(Self::Pie),
-            "PLOT_KIND_DONUT" => Some(Self::Donut),
-            "PLOT_KIND_PARETO" => Some(Self::Pareto),
             "PLOT_KIND_XY" => Some(Self::Xy),
-            "PLOT_KIND_XY_INTERVAL" => Some(Self::XyInterval),
             "PLOT_KIND_TRAJECTORY" => Some(Self::Trajectory),
-            "PLOT_KIND_HEATMAP" => Some(Self::Heatmap),
-            "PLOT_KIND_XY_VALUE_HEATMAP" => Some(Self::XyValueHeatmap),
-            "PLOT_KIND_WIFI_CHANNEL_OCCUPANCY" => Some(Self::WifiChannelOccupancy),
             "PLOT_KIND_FREQUENCY_SERIES" => Some(Self::FrequencySeries),
             "PLOT_KIND_HISTOGRAM" => Some(Self::Histogram),
-            "PLOT_KIND_BOX_SUMMARY" => Some(Self::BoxSummary),
-            "PLOT_KIND_AGGREGATE_TABLE" => Some(Self::AggregateTable),
+            "PLOT_KIND_CONTOUR" => Some(Self::Contour),
+            "PLOT_KIND_GRID_CHART" => Some(Self::GridChart),
+            "PLOT_KIND_BOX_PLOT" => Some(Self::BoxPlot),
             _ => None,
         }
     }

@@ -112,26 +112,71 @@ message Plot {
   optional uint32 display_points = 12;
   repeated ReferenceLine reference_lines = 13;
   repeated ReferenceBand reference_bands = 14;
+  optional BarArrangement arrangement = 15;
+  bool pareto = 16;
+  optional double hole = 17;
+  optional XyInterval interval = 18;
+  optional Reduction reduction = 19;
+  ContourRender render = 20;
+  GridChart grid = 21;
+}
+enum Reduction {
+  REDUCTION_UNSPECIFIED = 0;
+  REDUCTION_MEAN = 1;
+  REDUCTION_MIN = 2;
+  REDUCTION_MAX = 3;
+}
+enum ContourRender {
+  CONTOUR_RENDER_UNSPECIFIED = 0;
+  CONTOUR_RENDER_CELLS = 1;
+  CONTOUR_RENDER_BANDS = 2;
+}
+enum BarArrangement {
+  BAR_ARRANGEMENT_UNSPECIFIED = 0;
+  BAR_ARRANGEMENT_GROUPED = 1;
+  BAR_ARRANGEMENT_STACKED = 2;
+}
+enum XyInterval {
+  XY_INTERVAL_UNSPECIFIED = 0;
+  XY_INTERVAL_SIGMA = 1;
+}
+message GridAxisEntry {
+  string key = 1;
+  string label = 2;
+  sint32 order = 3;
+  optional string group = 4;
+}
+message GridHighlight {
+  DataExpression row = 1;
+  DataExpression column = 2;
+  string label = 3;
+}
+message GridChart {
+  DataExpression row = 1;
+  DataExpression column = 2;
+  DataExpression frame = 3;
+  repeated GridAxisEntry rows = 4;
+  repeated GridAxisEntry columns = 5;
+  repeated GridHighlight highlights = 6;
+  string summary_label = 7;
 }
 message ReferenceLine { DataExpression value = 1; string label = 2; string color = 3; }
 message ReferenceBand { DataExpression min = 1; DataExpression max = 2; string label = 3; string color = 4; }
 enum PlotKind {
+  reserved 3, 4, 6, 7, 9, 11, 12, 13, 16, 17;
+  reserved "PLOT_KIND_GROUPED_BAR", "PLOT_KIND_STACKED_BAR", "PLOT_KIND_DONUT",
+      "PLOT_KIND_PARETO", "PLOT_KIND_XY_INTERVAL", "PLOT_KIND_HEATMAP",
+      "PLOT_KIND_XY_VALUE_HEATMAP", "PLOT_KIND_WIFI_CHANNEL_OCCUPANCY",
+      "PLOT_KIND_BOX_SUMMARY", "PLOT_KIND_AGGREGATE_TABLE";
   PLOT_KIND_UNSPECIFIED = 0;
   PLOT_KIND_TIME_SERIES = 1;
   PLOT_KIND_BAR = 2;
-  PLOT_KIND_GROUPED_BAR = 3;
-  PLOT_KIND_STACKED_BAR = 4;
   PLOT_KIND_PIE = 5;
-  PLOT_KIND_DONUT = 6;
-  PLOT_KIND_PARETO = 7;
   PLOT_KIND_XY = 8;
-  PLOT_KIND_XY_INTERVAL = 9;
   PLOT_KIND_TRAJECTORY = 10;
-  PLOT_KIND_HEATMAP = 11;
-  PLOT_KIND_XY_VALUE_HEATMAP = 12;
-  PLOT_KIND_WIFI_CHANNEL_OCCUPANCY = 13;
   PLOT_KIND_FREQUENCY_SERIES = 14;
   PLOT_KIND_HISTOGRAM = 15;
-  PLOT_KIND_BOX_SUMMARY = 16;
-  PLOT_KIND_AGGREGATE_TABLE = 17;
+  PLOT_KIND_CONTOUR = 18;
+  PLOT_KIND_GRID_CHART = 19;
+  PLOT_KIND_BOX_PLOT = 20;
 }
