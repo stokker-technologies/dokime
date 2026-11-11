@@ -217,10 +217,12 @@ def stage(
     if native not in targets:
         raise policy.ToolError("protocol export requires a packaged native CLI target")
     cli = next(item for item in packages.definitions(directory, profile, native) if item.get("command") == "dokime")
-    with temporary.directory() as exported:
-        executable = exported / cli["binary"]
+    with temporary.directory() as temporary_root:
+        executable = temporary_root / cli["binary"]
         executable.write_bytes(packages.binary_bytes(root / native / cli["output"], cli["binary"]))
         executable.chmod(0o755)
+        # Linux's `dokime` executable must not occupy the exported `dokime/` package directory.
+        exported = temporary_root / "proto"
         policy.execute(directory, [str(executable), "proto", "export", "--out", str(exported)])
         sources = sorted(exported.rglob("*.proto"))
         if not sources or not all((exported / package).is_dir() for package in ("dokime/v1", "harmos/v1")):

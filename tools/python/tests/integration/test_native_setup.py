@@ -27,10 +27,11 @@ import unittest
 import urllib.error
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # Third Party Imports
 # Local Imports
+from dokime_tools.ci import bootstrap
 
 # Type Checking Imports
 
@@ -47,6 +48,53 @@ SCANNING = {"AMRunningMode": "Normal", "RealTimeProtectionEnabled": True, "OnAcc
 # === Types === #
 
 # === Classes === #
+
+
+class PackageFetchTests(unittest.TestCase):
+    def test_fetch_recovers_from_install_and_update_mirror_failures(self):
+        failure = "Temporary failure resolving 'azure.archive.ubuntu.com'\nUnable to fetch some archives\n"
+        runner = Mock(
+            side_effect=[
+                subprocess.CompletedProcess([], status, stdout=output)
+                for status, output in ((0, ""), (100, failure), (100, failure), (0, ""), (0, ""))
+            ]
+        )
+        sleep = Mock()
+        with contextlib.redirect_stdout(io.StringIO()):
+            bootstrap.fetch_packages(["fixture-package"], ["sudo", "-n"], runner=runner, sleep=sleep)
+        commands = [call.args[0] for call in runner.call_args_list]
+        self.assertEqual(
+            ["install" if "install" in command else "update" for command in commands], ["update", "install", "update", "update", "install"]
+        )
+        self.assertTrue(all(command[:3] == ["sudo", "-n", "apt-get"] for command in commands))
+        self.assertTrue(all(f"Acquire::Retries={bootstrap.APT_ACQUIRE_RETRIES}" in command for command in commands))
+        self.assertTrue(all("APT::Update::Error-Mode=any" in command for command in commands if "update" in command))
+        self.assertIn("fixture-package", commands[-1])
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], list(bootstrap.APT_RETRY_DELAYS_S[:2]))
+
+    def test_fetch_stops_at_retry_bound_and_preserves_mirror_error(self):
+        failure = "Temporary failure resolving 'azure.archive.ubuntu.com'\nUnable to fetch some archives\n"
+        for operation in ("update", "install"):
+            with self.subTest(operation=operation):
+                outcomes = [subprocess.CompletedProcess([], 0, stdout="")] if operation == "install" else []
+                outcomes += [subprocess.CompletedProcess([], 100, stdout=failure)]
+                attempts = len(bootstrap.APT_RETRY_DELAYS_S) + 1
+                runner = Mock(side_effect=outcomes * attempts)
+                sleep = Mock()
+                with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError) as raised:
+                    bootstrap.fetch_packages(["fixture-package"], runner=runner, sleep=sleep)
+                self.assertIn(f"after {attempts} attempts", str(raised.exception))
+                self.assertIn(failure.strip(), str(raised.exception))
+                self.assertEqual(runner.call_count, len(outcomes) * attempts)
+                self.assertEqual([call.args[0] for call in sleep.call_args_list], list(bootstrap.APT_RETRY_DELAYS_S))
+
+    def test_successful_fetch_does_not_retry(self):
+        runner = Mock(return_value=subprocess.CompletedProcess([], 0, stdout=""))
+        sleep = Mock()
+        with contextlib.redirect_stdout(io.StringIO()):
+            bootstrap.fetch_packages(["fixture-package"], runner=runner, sleep=sleep)
+        self.assertEqual(runner.call_count, 2)
+        sleep.assert_not_called()
 
 
 class NativeSetupTests(unittest.TestCase):

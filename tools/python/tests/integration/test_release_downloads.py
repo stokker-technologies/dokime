@@ -163,8 +163,8 @@ class StageTests(unittest.TestCase):
                         self.assertIn(str(source), str(failure.exception))
 
     def test_stage_publishes_one_index_and_exact_layout(self):
-        for channel in ("stable", "nightly"):
-            with self.subTest(channel=channel), tempfile.TemporaryDirectory() as directory:
+        for channel, binary in (("stable", "dokime"), ("nightly", "dokime.exe")):
+            with self.subTest(channel=channel, binary=binary), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 feed = {
                     "version": "0.1.3",
@@ -187,6 +187,7 @@ class StageTests(unittest.TestCase):
                     return shell_inventory
 
                 def export(_, command):
+                    self.assertTrue(Path(command[0]).is_file())
                     exported = Path(command[-1])
                     for name in ("dokime/v1/execution.proto", "harmos/v1/plugin.proto"):
                         path = exported / name
@@ -213,7 +214,7 @@ class StageTests(unittest.TestCase):
                     mock.patch.object(run, "_native", return_value="windows-x86_64"),
                     mock.patch.object(run.packages, "verify"),
                     mock.patch.object(
-                        run.packages, "definitions", return_value=[{"command": "dokime", "binary": "dokime.exe", "output": "cli.zip"}]
+                        run.packages, "definitions", return_value=[{"command": "dokime", "binary": binary, "output": "cli.zip"}]
                     ),
                     mock.patch.object(run.packages, "binary_bytes", return_value=b"cli"),
                     mock.patch.object(run.policy, "execute", side_effect=export),
