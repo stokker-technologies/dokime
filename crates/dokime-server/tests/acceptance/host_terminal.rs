@@ -142,12 +142,18 @@ async fn environment_file_precedence() {
     let output = command().args(["--env-file"]).arg(root.path().join("missing.env")).output().unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot load environment file"));
-    let malformed = root.path().join("malformed");
-    std::fs::create_dir(&malformed).unwrap();
-    std::fs::write(malformed.join(".env"), "DOKIME_APPLICATION_ROOT='unterminated\n").unwrap();
-    let output = command().current_dir(&malformed).output().unwrap();
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("cannot load project .env file"));
+    // Implicit Project Environment Files Are Ignored.
+    let implicit = root.path().join("implicit");
+    std::fs::create_dir(&implicit).unwrap();
+    std::fs::write(implicit.join(".env"), "DOKIME_APPLICATION_ROOT='unterminated\n").unwrap();
+    let output = command()
+        .current_dir(&implicit)
+        .args(["--shutdown-stdin", "--port", "0", "--application-root"])
+        .arg(implicit.join("application"))
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(implicit.join("application/data/local.sqlite").is_file());
 }
 
 fn owned_launch(application: &std::path::Path) -> std::process::Command {
