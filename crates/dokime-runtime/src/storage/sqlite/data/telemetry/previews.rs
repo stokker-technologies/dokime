@@ -17,7 +17,7 @@
 
 // Standard Library Imports
 use std::collections::BTreeMap;
-use std::io::Write;
+use std::io::{Read, Write};
 
 // Third Party Imports
 use rusqlite::{Connection, OptionalExtension, params};
@@ -639,15 +639,29 @@ pub(crate) fn report_previews(
 /* === Private Functions === */
 
 pub(crate) fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>, Error> {
-    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
-    serde_json::to_writer(&mut encoder, value)?;
-    encoder.flush()?;
+    let encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
+    let encoder = write_json(value, encoder)?;
     Ok(encoder.finish()?)
 }
 
 pub(crate) fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, Error> {
     let decoder = flate2::read::ZlibDecoder::new(bytes);
-    serde_json::from_reader(decoder).map_err(|error| {
+    read_json(decoder)
+}
+
+fn write_json<T: Serialize, W: Write>(value: &T, writer: W) -> Result<W, Error> {
+    // The Preview Is Already Bounded; Serialize Once Instead Of Calling Zlib For Every JSON Token.
+    let bytes = serde_json::to_vec(value)?;
+    let mut writer = writer;
+    writer.write_all(&bytes)?;
+    Ok(writer)
+}
+
+fn read_json<T: serde::de::DeserializeOwned>(mut reader: impl Read) -> Result<T, Error> {
+    // Parse The Bounded Checkpoint As A Slice Instead Of Driving Decompression One Byte At A Time.
+    let mut bytes = Vec::new();
+    let decoded = reader.read_to_end(&mut bytes).map_err(serde_json::Error::io);
+    decoded.and_then(|_| serde_json::from_slice(&bytes)).map_err(|error| {
         Error::Incompatible(format!("Preview layout is incompatible; use a fresh storage root and preserve existing evidence: {error}"))
     })
 }
@@ -657,6 +671,55 @@ pub(crate) fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checkpoint_json_uses_block_io() {
+        struct Counted {
+            bytes: std::io::Cursor<Vec<u8>>,
+            calls: usize,
+        }
+
+        impl Write for Counted {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.calls += 1;
+                self.bytes.write(bytes)
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        impl Read for &mut Counted {
+            fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
+                self.calls += 1;
+                self.bytes.read(bytes)
+            }
+        }
+
+        // Many Small JSON Tokens Must Reach Compression As Blocks.
+        let expected: Vec<_> = (0..512).map(|index| (index, format!("sample-{index}"))).collect();
+        let output = Counted {
+            bytes: std::io::Cursor::new(Vec::new()),
+            calls: 0,
+        };
+        let mut output = write_json(&expected, output).unwrap();
+        let tokens = expected.len();
+        assert!(output.calls < tokens);
+
+        // Parsing Must Not Call The Decompressor Once Per JSON Byte.
+        output.bytes.set_position(0);
+        output.calls = 0;
+        let restored: Vec<(i32, String)> = read_json(&mut output).unwrap();
+        assert_eq!(restored, expected);
+        assert!(output.calls < tokens);
+
+        // The Compressed Checkpoint Keeps Its Existing Round-Trip And Refusal Semantics.
+        let encoded = encode(&expected).unwrap();
+        assert_eq!(decode::<Vec<(i32, String)>>(&encoded).unwrap(), expected);
+        assert!(decode::<Vec<(i32, String)>>(&encoded[..encoded.len() / 2]).is_err());
+        assert!(matches!(decode::<Vec<(i32, String)>>(b"invalid compression"), Err(Error::Incompatible(_))));
+    }
 
     #[test]
     fn context_merges_fields_across_flushes() {

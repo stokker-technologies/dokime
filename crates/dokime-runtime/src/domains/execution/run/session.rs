@@ -571,10 +571,12 @@ impl Session {
         }
         tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement subscriptions closed");
         self.deliver_records().await?;
+        tracing::debug!(execution_id = %execution.test_execution_id, close, "record settlement records delivered");
         if close {
             // Close Live Measurement Before The Replay Cut: No Row Reaches The Run After It, So The
             // Receipt Names Exactly The Last Replayed Row.
             context.runtime.sampling().fence_executions(std::slice::from_ref(&execution.test_execution_id)).await;
+            tracing::debug!(execution_id = %execution.test_execution_id, "record settlement sampling fenced");
             context.runtime.settle_leaseholder_deliveries(&execution.test_execution_id).await;
             tracing::debug!(execution_id = %execution.test_execution_id, "record settlement replaying samples");
             super::replay_sample_inputs(context, &self.target, execution).await?;
@@ -583,17 +585,21 @@ impl Session {
         Ok(())
     }
     pub(crate) async fn deliver_records(&self) -> Result<(), ProviderExecutionFailure> {
+        tracing::debug!(execution_id = %self.execution.test_execution_id, "record delivery acquiring order");
         let _delivery = self.record_delivery.lock().await;
         let context = &self.context;
         let execution = &self.execution;
         let through = context.runtime.state_manager.applied().0;
+        tracing::debug!(execution_id = %execution.test_execution_id, through, "record delivery waiting for capture");
         context
             .runtime
             .record_source
             .wait_through(&context.runtime.state_manager, through)
             .await
             .map_err(|error| failure("sidecar_records", error.to_string()))?;
+        tracing::debug!(execution_id = %execution.test_execution_id, through, "record delivery capture reached");
         let at = context.runtime.saved_through(through).await.map_err(|error| failure("sidecar_records", error.to_string()))?;
+        tracing::debug!(execution_id = %execution.test_execution_id, through, "record delivery storage reached; requesting signal");
         let acknowledged = self
             .target
             .signal(ExecutionSignal {
@@ -601,6 +607,7 @@ impl Session {
                 ..Default::default()
             })
             .await?;
+        tracing::debug!(execution_id = %execution.test_execution_id, "record delivery signal received");
         let mut after = acknowledged.record_ordinal;
         loop {
             let rows = context
