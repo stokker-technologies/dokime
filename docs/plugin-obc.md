@@ -28,6 +28,14 @@ the `plugin_obc.analysis.ripple` analysis gives any plotted trace its peak-to-pe
 the process system observer publishes monitoring data. Explicit subscriptions
 capture host observations for an execution.
 
+The start-up document covers the ten plot kinds. Its Signal Maps section pairs a
+sparse input-power contour (mean reduction and filled bands) with an electrical
+trajectory and a generic channel grid supplied by the host document definition.
+Trajectory and grid each own loaded-data playback; their selections are independent.
+Phase Breakdown demonstrates pie/donut and Pareto options, while Distributions
+includes the frequency-series view. The plots and report screenshot journeys seek,
+replay and pause these controls; screenshot images are regenerated separately.
+
 Pulse, steady-state and process observers use the short fixture cadences declared
 in `src/domain/model/settings.rs`. Model sample intervals determine simulated waveform time;
 sample-count completion follows publication notifications. Shipping host observers

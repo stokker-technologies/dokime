@@ -328,8 +328,22 @@ pending notices. The frontend decodes each revision in full and applies its
 updates through one shared animation-frame commit, so the document's charts
 receive the complete revision together.
 
-Numeric time series and histograms show numeric statistics. XY, XY interval, trajectory and heatmap plots omit the statistics block in both the
+Numeric time series and histograms show numeric statistics. XY (including its interval option), trajectory, contour and grid charts omit the statistics block in both the
 desktop and report renderer. XY traces keep their ordinary legend.
+
+The ten-kind catalog and input/options contract are in
+[Plot Catalog](product-guide.md#plot-catalog). Contour cells and d3 filled bands
+with isolines use the backend grid and validity mask; empty bins stay gaps and
+zero values stay visible. Grid charts render only declared row/column entries,
+groups, labels, reducer output and highlights.
+
+Trajectory and grid charts share the plot playback primitive in
+`crates/dokime-gui/src/plots/playback.tsx`: one shared Slider and Button controls
+below each plot. Selection, Play, Pause and Replay use retained instants locally,
+without querying or publishing another plot's window/cursor. Play stops at the
+loaded end; Latest releases a held selection. New data does not move a held
+selection. Empty or single-instant plots disable animation. The frozen HTML report
+embeds this implementation and remains usable with networking disabled.
 
 Plot legend tables list traces only. Clicking a trace row hides or restores that
 trace within its plot card. Event and prompt markers always remain drawn on the

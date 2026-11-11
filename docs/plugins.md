@@ -259,7 +259,7 @@ SDK dependency:
 plugin-host = { git = "https://github.com/stokker-technologies/dokime", tag = "v0.2.0", default-features = false }
 ```
 
-Host stream rows and contracts live in `plugin_host::domain::telemetry` (the rows are also exported at the crate root). Host document defaults and `wifi_channel_occupancy` live in `plugin_host::domain::document`. Dokime itself owns no host stream definitions; its `dokime::host` module contains only application lifecycle records. Install the host bundle before admitting templates that subscribe to `host.*`: absent publishers receive the ordinary per-stream refusal, and valid leases remain independent. Application-registered catalogs retain `PluginOwner::Host` and appear as Built-in.
+Host stream rows and contracts live in `plugin_host::domain::telemetry` (the rows are also exported at the crate root). Host document defaults and `wifi_channel_grid` live in `plugin_host::domain::document`. Dokime itself owns no host stream definitions; its `dokime::host` module contains only application lifecycle records. Install the host bundle before admitting templates that subscribe to `host.*`: absent publishers receive the ordinary per-stream refusal, and valid leases remain independent. Application-registered catalogs retain `PluginOwner::Host` and appear as Built-in.
 
 Its bundle and release-feed name are `plugin-host`; the stored sidecar owner is
 `plugin_host`, using Harmos's portable owner spelling; `host` names application-owned operations

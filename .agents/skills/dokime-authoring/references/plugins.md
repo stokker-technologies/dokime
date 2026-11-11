@@ -173,11 +173,13 @@ Use `?` by default for operation failures in a step.
   operation names.
 - Cleanup attempts everything and logs a warning for each failure.
 
-Use `Plot::xy(label)` for explicit X and Y axes; style defaults to `Line`.
+Use canonical `dokime::plot::Plot::xy(value).x(horizontal)` for explicit X and Y
+axes; values are `dokime::v1::DataExpression` messages, such as
+`dokime::FieldReference::new("readings").field("voltage_v")`. Style defaults to `Line`.
 Choose `PlotStyle::Points` for density-grid reduction, or `Line`, `LinePoints`
 or `Step` for the ordered envelope.
 
-Plot references are plot-owned Y-axis values in stored units. Use
+Existing internal native host models retain plot-owned Y-axis references in stored units. Use
 `plot.reference_band("Limits", lower, upper)`,
 `plot.reference_tolerance("Target ± Band", center, tolerance)` and
 `plot.reference_line("Limit", value)` with literals or expression handles.

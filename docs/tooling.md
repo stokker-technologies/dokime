@@ -169,6 +169,22 @@ the compiler in the local Cargo registry. Builds consume the checked-in Rust und
 same drift check without regenerating committed source. Existing GUI/client
 contract generation continues separately through the ordinary `generate` task.
 
+Document protocol generation also refreshes the Python descriptor and C#/C++
+message sources. Their focused builder checks are:
+
+```sh
+mise -C sdk/csharp run test:builders
+mise -C sdk/cpp run test:builders
+```
+
+The frozen report bundles the GUI's renderers and playback controls. After changing
+those components, regenerate its embedded asset as well as native bindings:
+
+```sh
+mise run generate
+mise -C crates/dokime-gui run generate:report
+```
+
 ## Focused Python Checks
 
 `mise run test -- --language python --layer unit --select <expression>` and `mise run test -- --language python --layer integration --select <expression>` run the moved client tests against the installed native wheel. Build it first with `mise run build -- --language python`. `check -- --bindings` runs stubtest from an isolated installed-wheel environment. Python contract generation and its checked-in wire tree have been removed; private interpreter message views come from Rust reflection.

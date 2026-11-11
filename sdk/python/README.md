@@ -710,75 +710,106 @@ raw `client.call` still exposes its canonical contracts. The existing catalog
 `dokime.query.aggregate` remains a separate grouping operation, using the same
 `Aggregate` vocabulary for catalog columns rather than stream samples.
 
-Declare a document with the same label-derived identity as Rust:
+Declare a document with canonical message builders, matching the Rust SDK:
 
 ```python
-document = dokime.Document("Hold at Temperature")
-document.id("hold")  # Optional Stable Key Across Label Edits
+from dokime import Document, Section, Summary, plot
+from dokime.v1 import message
+
+voltage = plot.xy(plot.field("charging", "dc_voltage_v")).x(plot.field("charging", "elapsed_s")).label("Battery Voltage").unit("V")
+document = (
+    Document("Charger Qualification")
+    .id("qualification")
+    .section(
+        Section("Battery Charging")
+        .plot(voltage)
+        .summary(Summary().tile("Mean Voltage", plot.field("charging", "dc_voltage_v").mean(), unit="V"))
+    )
+)
 # Pass document=document to @dokime.template(...).
 ```
 
-Native validation derives the identifier with the shared traceability rule,
-refuses invalid or empty derived identifiers and registry collisions, and directs
-the author to set `.id(...)`. The runtime retains its internal `default` view,
-merging authored content with built-in results and evidence.
+`@dokime.stream` classes also expose `Row.field("voltage_v")`. Builders keep one
+canonical `dokime.v1` message in `.message`; composition copies operands. A
+`Section` accepts plots, summaries and nested sections. Dynamic
+`ctx.document.section(section)` accepts a `Section` value, with flat sections only.
+Labels derive identifiers; `.id(...)` preserves a key across label edits. Native
+validation refuses empty/invalid identifiers and collisions. The runtime retains
+its internal `default` view, merging authored content with results and evidence.
 
-Python document plots are mappings passed as cards to `document.section(...)`
-or to the dynamic `ctx.document.section(...)` handle. Use `"plot_type": "xy"` for explicit X and Y axes.
-Style defaults to `"line"`; choose `"points"`, `"line_points"` or `"step"` through
-`"style"`. Points use the density grid above the exact preview limit; the other
-styles retain the ordered envelope without a grid. For example:
-
-```python
-plot = {
-    "metadata": {"identifier": "tracking.path", "label": "Tracking Path"},
-    "plot_type": "xy",
-    "x_expression": {"source": {"type": "telemetry", "stream": "tracking", "field": "easting_m"}},
-    "y_expressions": [{"source": {"type": "telemetry", "stream": "tracking", "field": "northing_m"}}],
-    "style": "points",
-}
-```
-
-The development document schema remains v1. Older incompatible documents need
-an explicit fresh storage root; existing data is preserved.
-
-Their `unit` is only a label. Use `"scale": 1e3` beside
-`"unit": "mm"` on a `"plot_type": "time_series"` plot to display stored metres
-as millimetres. The native document validator accepts only positive finite
-scales on time-series y values against the row timestamp, refusing other kinds,
-custom analyses and alternate x axes. Omit `scale` for the default 1.0.
-Live plots and frozen HTML scale points, y-axis/cursor/tooltip values, statistics
-(except count) and y references. Filters and section repeats use stored units;
-evidence, exports, criteria, queries and expressions keep stored values.
-
-Reference lines and bands are Y-axis properties of the plot. Python mappings use
-numbers or data-expression mappings for the same `ReferenceValue` as Rust.
-`dokime.ReferenceLine` and `dokime.ReferenceBand` type these mappings; choose
-either `min`/`max` or `center`/`tolerance` on a band:
+The flat factories are `time_series`, `frequency_series`, `xy`, `trajectory`,
+`contour`, `grid_chart`, `bar`, `pie`, `histogram` and `box_plot`. Factories take a
+value expression; add axes, labels and typed options through their chains:
 
 ```python
-lower = {"source": {"type": "parameter", "name": "lower_limit_c"}}
-upper = {"source": {"type": "parameter", "name": "upper_limit_c"}}
-target = {"source": {"type": "parameter", "name": "target_c"}}
-band = {"source": {"type": "parameter", "name": "band_c"}}
-plot["reference_bands"] = [
-    {"label": "Requirement", "min": -10.0, "max": 10.0},
-    {"label": "Limits", "min": lower, "max": upper},
-    {"label": "Target ± Band", "center": target, "tolerance": band},
-    {"label": "Zero ± Band", "center": 0.0, "tolerance": band},
-]
-plot["reference_lines"] = [{"label": "Limit", "value": upper}]
+surface = (
+    plot.contour(plot.field("scan", "temperature"))
+    .x(plot.field("scan", "position_x"))
+    .y(plot.field("scan", "position_y"))
+    .label("Temperature Map")
+    .reduce(plot.Reduction.MEAN)
+    .render(plot.ContourRender.BANDS)
+)
+
+bars = (
+    plot.bar(plot.field("totals", "value"))
+    .x(plot.field("totals", "category"))
+    .series_by(plot.field("totals", "series"))
+    .arrangement(plot.BarArrangement.STACKED)
+)
+pie = plot.pie(plot.field("totals", "value")).x(plot.field("totals", "category")).hole(0.5)
+interval = plot.xy(plot.field("scan", "temperature")).x(plot.field("scan", "position_x")).interval(plot.XyInterval.SIGMA)
+
+grid = (
+    plot.grid_chart(plot.field("scan", "value"))
+    .row(plot.field("scan", "row"))
+    .column(plot.field("scan", "column"))
+    .frame(plot.field("scan", "timestamp"))
+    .rows([message("GridAxisEntry", key="sensor", label="Sensor", order=0)])
+    .columns([message("GridAxisEntry", key="site", label="Site", order=0, group="Room")])
+    .reduce(plot.Reduction.MAX)
+    .label("Readings")
+)
 ```
 
-These values are in stored units and scale with the data. Each case uses its
-captured parameters on the shared live/frozen presentation path. Missing,
-nonfinite or reversed dynamic bounds and negative dynamic tolerance are undrawn.
-Native document validation refuses reversed literal bounds and negative literal
-tolerance, naming the plot. References have no axis or quantity argument; data
-expressions still cannot contain numeric constants. Incompatible development
-storage requires a fresh root; the schema remains v1 and old data is never reset.
+Contour inputs are scattered numeric x/y/z; the backend reduces duplicate points
+into panel-resolution bins. Empty bins stay gaps in both cells and filled bands
+with isolines, with no interpolation. A valid zero remains drawn. Grid charts
+require an explicit mean/min/max reducer and declared row/column entries. Keys,
+order, groups, labels, highlights and summary wording belong to the document.
 
-`Query.Aggregate` and plot expressions name their statistic with the Harmos
+Trajectory and grid sliders select only already loaded instants. Play, Pause and
+Replay run entirely locally, never fetch data or move another plot, and stop at
+the loaded end. Latest resumes live following. Empty or single-instant plots
+cannot play. The same controls work offline in bounded frozen HTML reports.
+See the [plot catalog](../../docs/product-guide.md#plot-catalog) for all options
+and retired-name replacements. Retired constructors and kind names are refused;
+there are no aliases or compatibility readers. Existing documents using retired
+kinds are not migrated. Development storage remains v1; select a fresh root
+explicitly when necessary and preserve old data.
+
+A unit is a label. Convert expression values with `.scale(1e3).offset(-1.0)`;
+transform and aggregate order matters. This leaves evidence in stored units.
+References are canonical Y-axis messages, using constants or captured parameters:
+
+```python
+upper = message("DataExpression", parameter="upper_limit_c")
+target = message("DataExpression", parameter="target_c")
+band = message("DataExpression", parameter="band_c")
+voltage.reference_line(message("ReferenceLine", label="Limit", value=upper))
+voltage.reference_band(message("ReferenceBand", label="Target ± Band", center=target, tolerance=band))
+```
+
+A band accepts min/max or center/tolerance; literal values use a `DataExpression`
+with its `literal` value message. Missing, nonfinite, reversed bounds or negative
+dynamic tolerances stay undrawn. Native validation rejects reversed literal bounds
+and negative literal tolerances. Apply conversions explicitly to reference
+expressions when converting data expressions. Raw plot mappings and string option
+values are not accepted. `plot.Aggregate` and conveniences such as `.mean()` build
+the canonical document expression enum; the client query API below has its own
+reflected transport representation.
+
+`Query.Aggregate` names its statistic with the Harmos
 aggregate enum message: one `_harmos_variant` oneof whose members are `Count`,
 `Sum`, `Mean`, `Median`, `Min`, `Max`, `Rms`, `Std` and `Percentile`, which
 carries a `rank` from 0 to 100. `Aggregate` builds and reads that field for any

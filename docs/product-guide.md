@@ -1231,26 +1231,24 @@ The storage baseline remains v1 and existing storage is never automatically rese
 ### Present the Result
 
 Compose plots from the same typed measurement fields used by the procedure.
-This shortened example follows OBC's
-[measurement document](../plugins/sidecars/obc/src/domain/model/measurement.rs); `stream` selects
-the suite-owned stream carrying `Row` rows:
+The canonical SDK builders write `dokime.v1` document messages directly:
 
 ```rust
-let mut voltage = Plot::xy("Battery Voltage");
-voltage.unit("V");
-voltage.x(Row::column_elapsed_s().on(stream));
-voltage.y(Row::column_dc_voltage_v().on(stream));
+use dokime::{Document, FieldReference, Section};
+use dokime::plot::Plot;
 
-let mut charging = Section::new("Battery Charging");
-charging.plot(voltage);
-
-let mut document = Document::new("Charger Qualification");
-document.section(charging);
+let readings = FieldReference::new("charging");
+let voltage = Plot::xy(readings.field("dc_voltage_v"))
+    .x(readings.field("elapsed_s"))
+    .label("Battery Voltage")
+    .unit("V");
+let document = Document::new("Charger Qualification")
+    .section(Section::new("Battery Charging").plot(voltage));
 ```
 
 `Document::new(label)` derives its identifier with the same normalization as
 traceability and sections: `Charger Qualification` becomes `charger.qualification`.
-Set `document.id("qualification");` when label edits must preserve the key.
+Chain `.id("qualification")` when label edits must preserve the key.
 Validation refuses empty or invalid derived identifiers and duplicate identifiers
 within one document registry; set `.id(...)` to resolve them. Each template declares
 one document. Runtime execution views retain their internal `default` document,
@@ -1262,8 +1260,13 @@ one line. All unit-bearing labels use square brackets directly after the label;
 table headers truncate with a full-text tooltip instead of wrapping the unit
 below the title. Preserve unit symbols and case.
 
-`unit` is only a label; it never converts data. To display stored metres as
-millimetres on a time-series y axis:
+`unit` is only a label; it never converts data. Expression chains convert numeric
+values before plotting: `readings.field("distance_m").scale(1e3).offset(-1.0)`.
+Transform order matters, including whether a transform precedes an aggregate.
+Evidence remains in its stored units. Arbitrary arithmetic syntax is unsupported.
+
+The internal native host models used by existing Rust plugins also retain their
+time-series display scale. With that API, display stored metres as millimetres:
 
 ```rust
 let mut distance = Plot::time_series("Distance Delta");
@@ -1282,7 +1285,7 @@ Count stays unchanged. Filters such as `.only(column.gt(...))` and section
 repeats use stored units. Stored evidence, exports, criteria, query plans and
 expressions are unchanged; arithmetic such as `column * 1e3` remains unsupported.
 
-Column handles keep plot expressions tied to the declared data shape, and they
+Native column handles keep plot expressions tied to the declared data shape, and they
 compare straight into filters: `voltage.only(column.gt(0.0))` narrows a plot,
 and `section.each(column, "Point {value}")` repeats a section once per distinct
 value, in ascending order. A repeat selects row-local values: a value, order or
@@ -1292,7 +1295,7 @@ bands; the
 [soak starter](../crates/cargo-dokime/templates/src/suites/soak/hold.rs) demonstrates
 a target-temperature band and event markers.
 
-Reference bands and lines belong to the plot and always use its Y axis. Bounds,
+In the native host model API, reference bands and lines belong to the plot and always use its Y axis. Bounds,
 centers, tolerances and line values accept `f64` or an existing expression handle
 (or `DataExpression`); constants do not become data expressions, so
 `plot.y(10.0)` is still invalid. All reference values use stored units and scale
@@ -1311,6 +1314,50 @@ path in live plots and frozen HTML. Missing or invalid dynamic bounds are undraw
 Document validation refuses reversed literal bounds and negative literal tolerance,
 naming the plot. The development document/storage format stays at v1; existing
 incompatible documents require an explicit fresh storage root, preserving old data.
+
+#### Plot Catalog
+
+| Kind | Input and Options |
+| --- | --- |
+| `TIME_SERIES` | Numeric or Boolean y against the row timestamp. |
+| `FREQUENCY_SERIES` | Numeric samples and a declared or inferred uniform sample rate. |
+| `XY` | Explicit x and y; `XyInterval::Sigma` adds the interval presentation. |
+| `TRAJECTORY` | Ordered x/y positions with captured instants and local playback. |
+| `CONTOUR` | Scattered numeric x/y/z; `Reduction::{Mean, Min, Max}` and `ContourRender::{Cells, Bands}`. |
+| `GRID_CHART` | Explicit row, column, value and frame expressions, ordered entries and an explicit reducer. |
+| `BAR` | Category totals; `BarArrangement::{Grouped, Stacked}` with a series binding, or `.pareto(true)`. |
+| `PIE` | Unique category totals; `.hole(0.5)` produces a donut. |
+| `HISTOGRAM` | Numeric samples and a bin count. |
+| `BOX_PLOT` | Numeric sample distributions. |
+
+Factories take the value expression first; histogram uses it as x, contour as z,
+and the other kinds as y. Add `.x(...)` and `.y(...)` where needed. Typed options
+are exported from `dokime::plot` and Python's `dokime.plot`; a builder's `message`
+is its canonical protobuf message. Summaries are document cards, built with
+`Summary` and `Section::summary`, rather than plot kinds.
+
+Contour binning happens on the backend at the requested viewport and panel
+resolution. Duplicate points reduce within each bin (mean by default). Empty bins
+remain gaps, including in filled bands and isolines; no interpolation fills missing
+evidence. A valid zero remains a drawn value. Grid charts carry row/column order,
+grouping, labels, highlights and summary wording in the document; the renderer
+contains no channel or other domain interpretation.
+
+Trajectory and grid charts each own a slider with Play, Pause and Replay beneath
+the plot. Seeking and playback use only loaded instants, issue no requests and
+never move another plot. Reaching the loaded end stops playback. Returning to
+Latest resumes live following. Empty and single-instant captures cannot play.
+Frozen HTML reports use the same controls over their bounded captured data,
+without networking.
+
+Retired names are refused with replacement guidance: `GROUPED_BAR`, `STACKED_BAR`
+and `PARETO` become `BAR` options; `DONUT` becomes a `PIE` hole; `XY_INTERVAL`
+becomes an `XY` interval; `HEATMAP` and `XY_VALUE_HEATMAP` become `CONTOUR`;
+`WIFI_CHANNEL_OCCUPANCY` becomes a declared `GRID_CHART`; `BOX_SUMMARY` becomes `BOX_PLOT`;
+`AGGREGATE_TABLE` becomes a Summary card. There are no aliases or compatibility
+readers, and stored documents using retired kinds are not migrated. The development
+storage baseline stays v1; select a fresh root explicitly when needed and preserve
+existing data.
 
 Numeric time series list their traces in a statistics table beneath
 the plot instead of a legend: count, min, max, mean, median, std, and rms of
@@ -2342,7 +2389,7 @@ metadata; capture cost still scales with their cardinality, rather than sample h
 
 Specialized projections apply filters and scopes before accumulating data. They
 keep exact inputs up to `exact_points` (2,000 by default). Longer time series use
-extrema envelopes. `Plot::xy(label)` defaults to `PlotStyle::Line`;
+extrema envelopes. The native host model's `Plot::xy(label)` defaults to `PlotStyle::Line`;
 `Points` keeps paired coordinates in a density grid (64 by 64 by default),
 re-binning occupied cells as extents grow. Each cell retains its sample count.
 `Line`, `LinePoints` and `Step` retain the ordered envelope without a grid. Group counters and numeric moments update incrementally, and
