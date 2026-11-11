@@ -17,6 +17,9 @@ Until the host virtual clock is adopted, timestamps and measurements use real ti
 
 For each scene it selects light and then dark mode, sets the webview viewport and
 density, waits for populated content and captures without operating-system chrome.
+The inspection prompt stays pending until the running views are captured; the
+journey answers it before finishing and sealing the execution. Finished plots wait
+for zoom statistics, and touch plots enter the viewport before their readiness wait.
 The manifest records scene, theme, viewport, density, source revision and capture time.
 A selected scene replaces only its two images and metadata and builds its prerequisites.
 Library capture needs no execution; running scenes stop their execution after capture.
@@ -42,7 +45,6 @@ only available light images. The public product site must use these names under
 `docs/screenshots/`. The manifest lists the images actually captured; `--check`
 reports missing scenes until the complete set is available.
 
-Finished execution scenes currently remain blocked on Windows by evidence admission
-exceeding its 30-second operation deadline during final record settlement, followed
-by the backend's 25-second runtime shutdown timeout. Captures never accept a failed
-execution as a finished scene. See the open change's task list for the owning wait.
+The published set contains all seven scenes in both themes. Captures require a
+successful sealed execution for finished scenes and successful backend teardown;
+an image captured before a later failure never makes the task pass.

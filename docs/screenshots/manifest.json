@@ -8,8 +8,8 @@
       "height": 1000
     },
     "density": "comfortable",
-    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
-    "captured_at": "2026-11-11T10:56:53.222Z"
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:09:49.264Z"
   },
   {
     "image": "cycle-dark.png",
@@ -20,8 +20,80 @@
       "height": 1000
     },
     "density": "comfortable",
-    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
-    "captured_at": "2026-11-11T10:56:59.901Z"
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:09:54.602Z"
+  },
+  {
+    "image": "plots-light.png",
+    "scene": "plots",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:36.364Z"
+  },
+  {
+    "image": "plots-dark.png",
+    "scene": "plots",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:41.366Z"
+  },
+  {
+    "image": "report-light.png",
+    "scene": "report",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:48.606Z"
+  },
+  {
+    "image": "report-dark.png",
+    "scene": "report",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:51.613Z"
+  },
+  {
+    "image": "history-light.png",
+    "scene": "history",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:55.117Z"
+  },
+  {
+    "image": "history-dark.png",
+    "scene": "history",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:10:57.926Z"
   },
   {
     "image": "library-light.png",
@@ -32,8 +104,8 @@
       "height": 1000
     },
     "density": "comfortable",
-    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
-    "captured_at": "2026-11-11T10:45:43.299Z"
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:00.144Z"
   },
   {
     "image": "library-dark.png",
@@ -44,8 +116,32 @@
       "height": 1000
     },
     "density": "comfortable",
-    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
-    "captured_at": "2026-11-11T10:45:45.433Z"
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:02.985Z"
+  },
+  {
+    "image": "cycles-light.png",
+    "scene": "cycles",
+    "theme": "light",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:12.302Z"
+  },
+  {
+    "image": "cycles-dark.png",
+    "scene": "cycles",
+    "theme": "dark",
+    "viewport": {
+      "width": 1600,
+      "height": 1000
+    },
+    "density": "comfortable",
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:14.102Z"
   },
   {
     "image": "touch-light.png",
@@ -56,8 +152,8 @@
       "height": 1200
     },
     "density": "touch",
-    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
-    "captured_at": "2026-11-11T11:01:53.079Z"
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:18.610Z"
   },
   {
     "image": "touch-dark.png",
@@ -68,7 +164,7 @@
       "height": 1200
     },
     "density": "touch",
-    "revision": "2f131f2c2293d9dbae8ccbbe6f95ea7111d1457e",
-    "captured_at": "2026-11-11T11:01:58.821Z"
+    "revision": "a32ffea845d97316a0b6d0390587e3cd726c8e72",
+    "captured_at": "2026-11-11T12:11:22.754Z"
   }
 ]
