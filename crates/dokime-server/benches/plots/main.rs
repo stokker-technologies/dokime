@@ -144,43 +144,6 @@ fn benchmark(criterion: &mut Criterion) {
         });
     }
 
-    // Profile One Request Per Window With The Product Trace Exporter.
-    let profiling = std::env::var_os("DOKIME_PLOT_PROFILE").is_some();
-    let _trace = profiling.then(dokime_tracing::process).flatten();
-    if profiling {
-        let end = fixture::ORIGIN_S + (fixture::ROWS - 1) as f64;
-        for (name, from, to) in [("profile.live", end - 21_600.0, end), ("profile.zoom", end - 150.0, end - 120.0)] {
-            let selected = requests(from, to).remove(0);
-            let started = Instant::now();
-            let watch = executor.block_on(
-                async {
-                    let watch = client.stream(contracts::plots::Watch { requests: vec![selected] }).await.unwrap();
-                    let reply = data_frame(&watch, PlotStreamKind::Snapshot).await;
-                    println!("{name}: {:.3} ms, {} bytes", started.elapsed().as_secs_f64() * 1_000.0, encode(&reply).len());
-                    watch
-                }
-                .instrument(tracing::debug_span!("plot.bench.request", window = name)),
-            );
-            executor.block_on(watch.close());
-        }
-    }
-
-    // Exercise The Desktop's Grouped Live Watch At The Default Message Limit.
-    executor.block_on(async {
-        let watch = client.stream(contracts::plots::Watch { requests: requests(end - 21_600.0, end) }).await.unwrap();
-        let grouped = data_frame(&watch, PlotStreamKind::Snapshot).await;
-        assert_eq!(grouped.updates.len(), fixture::PLOTS);
-        let bytes = encode(&grouped).len();
-        let points = grouped
-            .updates
-            .iter()
-            .map(|update| update.envelope.as_ref().unwrap().payload.as_ref().unwrap().frame.as_ref().unwrap().point_count)
-            .sum::<u64>();
-        let warnings = grouped.updates.iter().flat_map(|update| &update.envelope.as_ref().unwrap().warnings).count();
-        println!("desktop_grouped_watch: {bytes} protobuf bytes, {points} points, {warnings} warnings across {} plots", fixture::PLOTS);
-        watch.close().await;
-    });
-
     // Capture Each Plot's Real Watch Without Exceeding A Grouped Revision's Budget.
     let frames = executor.block_on(async {
         let mut frames = Vec::new();
@@ -225,6 +188,43 @@ fn benchmark(criterion: &mut Criterion) {
         });
     }
     group.finish();
+
+    // Profile One Request Per Window With The Product Trace Exporter.
+    let profiling = std::env::var_os("DOKIME_PLOT_PROFILE").is_some();
+    let _trace = profiling.then(dokime_tracing::process).flatten();
+    if profiling {
+        let end = fixture::ORIGIN_S + (fixture::ROWS - 1) as f64;
+        for (name, from, to) in [("profile.live", end - 21_600.0, end), ("profile.zoom", end - 150.0, end - 120.0)] {
+            let selected = requests(from, to).remove(0);
+            let started = Instant::now();
+            let watch = executor.block_on(
+                async {
+                    let watch = client.stream(contracts::plots::Watch { requests: vec![selected] }).await.unwrap();
+                    let reply = data_frame(&watch, PlotStreamKind::Snapshot).await;
+                    println!("{name}: {:.3} ms, {} bytes", started.elapsed().as_secs_f64() * 1_000.0, encode(&reply).len());
+                    watch
+                }
+                .instrument(tracing::debug_span!("plot.bench.request", window = name)),
+            );
+            executor.block_on(watch.close());
+        }
+    }
+
+    // Exercise The Desktop's Grouped Live Watch At The Default Message Limit.
+    executor.block_on(async {
+        let watch = client.stream(contracts::plots::Watch { requests: requests(end - 21_600.0, end) }).await.unwrap();
+        let grouped = data_frame(&watch, PlotStreamKind::Snapshot).await;
+        assert_eq!(grouped.updates.len(), fixture::PLOTS);
+        let bytes = encode(&grouped).len();
+        let points = grouped
+            .updates
+            .iter()
+            .map(|update| update.envelope.as_ref().unwrap().payload.as_ref().unwrap().frame.as_ref().unwrap().point_count)
+            .sum::<u64>();
+        let warnings = grouped.updates.iter().flat_map(|update| &update.envelope.as_ref().unwrap().warnings).count();
+        println!("desktop_grouped_watch: {bytes} protobuf bytes, {points} points, {warnings} warnings across {} plots", fixture::PLOTS);
+        watch.close().await;
+    });
 
     // Close Only The Processes And Runtime Owned By This Benchmark.
     drop(interface.stdin.take());

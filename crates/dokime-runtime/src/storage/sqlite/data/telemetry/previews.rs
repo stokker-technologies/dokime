@@ -105,6 +105,12 @@ struct Projection {
     last: Option<Point>,
 }
 
+// One Window Reuses Its Inflater And JSON Buffer Across Independent Bucket Frames.
+struct BucketDecoder {
+    state: flate2::Decompress,
+    bytes: Vec<u8>,
+}
+
 pub(in crate::storage::sqlite) struct Batch {
     settings: crate::storage::sqlite::PreviewSettings,
     fields: FieldProjections,
@@ -125,6 +131,38 @@ enum NumericValue {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl BucketDecoder {
+    fn new() -> Self {
+        Self {
+            state: flate2::Decompress::new(true),
+            bytes: Vec::new(),
+        }
+    }
+
+    fn decode(&mut self, input: &[u8]) -> Result<Bucket, Error> {
+        self.state.reset(true);
+        self.bytes.clear();
+        let decoded = (|| -> std::io::Result<()> {
+            loop {
+                self.bytes.reserve(1);
+                let input_offset = self.state.total_in() as usize;
+                let output_len = self.bytes.len();
+                let status = self
+                    .state
+                    .decompress_vec(&input[input_offset..], &mut self.bytes, flate2::FlushDecompress::None)
+                    .map_err(std::io::Error::other)?;
+                if status == flate2::Status::StreamEnd {
+                    return Ok(());
+                }
+                if self.state.total_in() as usize == input_offset && self.bytes.len() == output_len {
+                    return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "incomplete preview checkpoint"));
+                }
+            }
+        })();
+        decoded.map_err(serde_json::Error::io).and_then(|_| serde_json::from_slice(&self.bytes)).map_err(preview_decode_error)
+    }
+}
 
 impl NumericValue {
     fn new(value: &dokime_domain::model::values::Value) -> Result<Self, Error> {
@@ -456,6 +494,7 @@ pub(crate) fn window_buckets(
          WHERE execution=?1 AND stream=?2 AND field=?3 AND width=?4 AND bucket>=?5 AND bucket<?6 ORDER BY bucket",
     )?;
     let mut buckets = Vec::new();
+    let mut decoder = BucketDecoder::new();
     for width in widths {
         let span = i128::from(width);
         let first = i64::try_from(from.div_euclid(span) + i128::from(from.rem_euclid(span) != 0))
@@ -468,7 +507,7 @@ pub(crate) fn window_buckets(
             if through > super::super::position(at) {
                 continue;
             }
-            buckets.push((start, start + span, decode(super::super::blob(row, 2)?)?));
+            buckets.push((start, start + span, decoder.decode(super::super::blob(row, 2)?)?));
         }
     }
     Ok(buckets)
@@ -678,9 +717,11 @@ fn read_json<T: serde::de::DeserializeOwned>(mut reader: impl Read) -> Result<T,
     // Parse The Bounded Checkpoint As A Slice Instead Of Driving Decompression One Byte At A Time.
     let mut bytes = Vec::new();
     let decoded = reader.read_to_end(&mut bytes).map_err(serde_json::Error::io);
-    decoded.and_then(|_| serde_json::from_slice(&bytes)).map_err(|error| {
-        Error::Incompatible(format!("Preview layout is incompatible; use a fresh storage root and preserve existing evidence: {error}"))
-    })
+    decoded.and_then(|_| serde_json::from_slice(&bytes)).map_err(preview_decode_error)
+}
+
+fn preview_decode_error(error: serde_json::Error) -> Error {
+    Error::Incompatible(format!("Preview layout is incompatible; use a fresh storage root and preserve existing evidence: {error}"))
 }
 
 /* === Tests === */
@@ -853,6 +894,19 @@ mod tests {
             );
             assert_eq!(projection.envelope.buckets.values().map(|bucket| bucket.min.value).fold(f64::INFINITY, f64::min), -1e12);
             assert!(projection.envelope.buckets.len() <= settings.bucket_count.get());
+        }
+    }
+
+    #[test]
+    fn bucket_decoder_resets_between_checkpoints_and_after_corruption() {
+        let mut decoder = BucketDecoder::new();
+        for (position, time, value) in [(1, -100, 0.0), (u64::MAX, i128::MAX, f64::MAX), (7, i128::MIN, -1.0)] {
+            let expected = Bucket::new(Point { position, time, value });
+            let bytes = encode(&expected).unwrap();
+            let actual = decoder.decode(&bytes).unwrap();
+            assert_eq!(serde_json::to_vec(&actual).unwrap(), serde_json::to_vec(&expected).unwrap());
+            assert!(matches!(decoder.decode(&bytes[..bytes.len() / 2]), Err(Error::Incompatible(_))));
+            assert!(matches!(decoder.decode(b"not compressed"), Err(Error::Incompatible(_))));
         }
     }
 

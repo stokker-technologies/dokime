@@ -59,6 +59,8 @@ const SERVER_PLOT_THROTTLE_MS: u64 = 100;
 
 /* === Type Aliases === */
 
+type SnapshotResult = Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>;
+
 /* === Structs === */
 
 struct Resources {
@@ -124,9 +126,7 @@ impl Resources {
         self.produce(|| Ok(plot_error_frame(current, error.message().to_owned(), frame.epoch, frame.selection)))
     }
 
-    async fn query_snapshot(
-        &self, current: &PlotPayloadRequest, at: &StorageCursor,
-    ) -> Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error> {
+    async fn query_snapshot(&self, current: &PlotPayloadRequest, at: &StorageCursor) -> SnapshotResult {
         let started = Instant::now();
         let runtime =
             dokime::app::live_runtime(&self.runtime).await.map_err(|error| dokime::runtime::Error::Operation(error.to_string()))?;
@@ -145,9 +145,7 @@ impl Resources {
     }
 
     #[tracing::instrument(level = "debug", name = "plot.watch.snapshots", skip_all)]
-    async fn query_snapshots(
-        &self, requests: &[PlotPayloadRequest], at: &StorageCursor,
-    ) -> Vec<Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>> {
+    async fn query_snapshots(&self, requests: &[PlotPayloadRequest], at: &StorageCursor) -> Vec<SnapshotResult> {
         let runtime = match dokime::app::live_runtime(&self.runtime).await {
             Ok(runtime) => runtime,
             Err(error) => return requests.iter().map(|_| Err(dokime::runtime::Error::Operation(error.to_string()))).collect(),
@@ -193,8 +191,7 @@ impl Resources {
 
     #[tracing::instrument(level = "debug", name = "plot.watch.frames", skip_all)]
     fn snapshot_frames(
-        &self, requests: &mut Vec<PlotPayloadRequest>, current: &PlotPayloadRequest,
-        result: Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>, frame: &FrameContext<'_>,
+        &self, requests: &mut Vec<PlotPayloadRequest>, current: &PlotPayloadRequest, result: SnapshotResult, frame: &FrameContext<'_>,
         delivered: &mut BTreeMap<String, PlotPayloadEnvelope>,
     ) -> Result<(bool, Vec<Response<dokime::domain::model::plots::wire::PlotStreamUpdate>>), Status> {
         let native = match result {
@@ -240,7 +237,7 @@ impl Resources {
     #[tracing::instrument(level = "debug", name = "plot.watch.statistics", skip_all)]
     async fn statistics_at(
         &self, mut requests: Vec<PlotPayloadRequest>, at: StorageCursor,
-    ) -> (Vec<PlotPayloadRequest>, Vec<Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>>) {
+    ) -> (Vec<PlotPayloadRequest>, Vec<SnapshotResult>) {
         requests.retain(|request| request.defer_statistics);
         for request in &mut requests {
             request.defer_statistics = false;
