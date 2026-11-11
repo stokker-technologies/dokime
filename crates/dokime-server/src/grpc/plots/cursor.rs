@@ -153,7 +153,11 @@ fn plot_request(request: dokime::domain::model::plots::wire::PlotRequest) -> Res
         return Err(Status::invalid_argument("contour y_viewport must be a finite range with from < to"));
     }
 
+    if plot_type == Some(dokime::document::PlotType::GridChart) && request.reduction.is_none() {
+        return Err(Status::invalid_argument("GRID_CHART requires an explicit reducer"));
+    }
     Ok(PlotPayloadRequest {
+        grid: request.grid.map(grid_definition).transpose()?,
         reduction: request.reduction,
         render: request.render,
         y_viewport: request.y_viewport.map(|w| PlotWindow { from: w.from, to: w.to }),
@@ -262,6 +266,22 @@ fn plot_filter(filter: dokime::domain::model::plots::wire::PlotFilter) -> Result
         enums::filter_operator_from_wire(filter.operator)?.ok_or_else(|| Status::invalid_argument("plot filter operator is required"))?;
     let value = filter.value.map(|value| canonical::decode(value, &mut Budget::new()?, 0)).transpose()?;
     Ok(DocumentFilter { expression, operator, value })
+}
+
+fn grid_definition(value: dokime::domain::model::plots::wire::GridDefinition) -> Result<dokime::document::GridDefinition, Status> {
+    let grid = dokime::document::GridDefinition {
+        row: value.row.map(data_expression).transpose()?, column: value.column.map(data_expression).transpose()?,
+        frame: value.frame.map(data_expression).transpose()?, rows: value.rows, columns: value.columns, summary_label: value.summary_label,
+        highlights: value.highlights.into_iter().map(|highlight| Ok(dokime::document::GridHighlight {
+            row: data_expression(highlight.row.ok_or_else(|| Status::invalid_argument("grid highlight row is missing"))?)?,
+            column: data_expression(highlight.column.ok_or_else(|| Status::invalid_argument("grid highlight column is missing"))?)?, label: highlight.label,
+        })).collect::<Result<_, Status>>()?,
+    };
+    grid.validate().map_err(Status::invalid_argument)?;
+    if grid.rows.len().saturating_mul(grid.columns.len()) > SERVER_PLOT_POINTS as usize {
+        return Err(Status::resource_exhausted("grid dimensions exceed the plot budget"));
+    }
+    Ok(grid)
 }
 
 fn data_expression(expression: dokime::domain::model::plots::wire::DataExpression) -> Result<DataExpression, Status> {

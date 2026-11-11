@@ -135,6 +135,8 @@ fn request_expressions(request: &PlotPayloadRequest) -> impl Iterator<Item = &Da
         .chain(request.z_expression.iter())
         .chain(request.series_by_expression.iter())
         .chain(request.filters.iter().map(|filter| &filter.expression))
+        .chain(request.grid.iter().flat_map(|grid| grid.row.iter().chain(grid.column.iter()).chain(grid.frame.iter())
+            .chain(grid.highlights.iter().flat_map(|highlight| [&highlight.row, &highlight.column]))))
 }
 
 fn expression_needs_dimension_context(expression: &DataExpression) -> bool {

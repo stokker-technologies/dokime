@@ -228,6 +228,9 @@ pub struct TelemetrySummaryCondition {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlotDefinition {
     #[serde(default)]
+    pub grid: Option<super::grid::GridDefinition>,
+
+    #[serde(default)]
     pub reduction: Option<Reduction>,
 
     #[serde(default)]
@@ -420,6 +423,9 @@ pub struct PlotDescriptor {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlotInput {
+    #[serde(default)]
+    pub grid: Option<super::grid::GridDefinition>,
+
     #[serde(default)]
     pub reduction: Option<Reduction>,
 
@@ -807,6 +813,7 @@ impl harmos::MemorySize for PlotDescriptor {
 impl harmos::MemorySize for PlotInput {
     fn memory_size(&self) -> usize {
         let fields = [
+            (harmos::MemorySize::memory_size(&self.grid), std::mem::size_of_val(&self.grid)),
             (harmos::MemorySize::memory_size(&self.analysis), std::mem::size_of_val(&self.analysis)),
             (harmos::MemorySize::memory_size(&self.plot_id), std::mem::size_of_val(&self.plot_id)),
             (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
@@ -927,6 +934,7 @@ impl harmos::MemorySize for DocumentCardBody {
 impl harmos::MemorySize for PlotDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
+            (harmos::MemorySize::memory_size(&self.grid), std::mem::size_of_val(&self.grid)),
             (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
             (harmos::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
             (harmos::MemorySize::memory_size(&self.x), std::mem::size_of_val(&self.x)),
@@ -1648,6 +1656,7 @@ impl PlotAxisKind {
 impl PartialEq for PlotDefinition {
     fn eq(&self, other: &Self) -> bool {
         let Self {
+            grid,
             reduction,
             render,
             automatic_id: _,
@@ -1682,7 +1691,8 @@ impl PartialEq for PlotDefinition {
             display_points,
             downsample,
         } = self;
-        reduction == &other.reduction
+        grid == &other.grid
+            && reduction == &other.reduction
             && render == &other.render
             && metadata == &other.metadata
             && plot_type == &other.plot_type
@@ -1723,6 +1733,7 @@ impl PlotDefinition {
         let identifier = identifier_from_label(&label);
 
         Self {
+            grid: None,
             reduction: None,
             render: ContourRender::Cells,
             automatic_id: true,
@@ -2166,7 +2177,12 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
             }
         }
         PlotType::WifiChannelOccupancy => validate_wifi_channel_occupancy(plot, error)?,
-        PlotType::GridChart => {},
+        PlotType::GridChart => {
+            if plot.reduction.is_none() { return Err(error(format_args!("GRID_CHART requires an explicit reducer"))); }
+            let Some(grid) = &plot.grid else { return Err(error(format_args!("GRID_CHART requires a grid definition"))) };
+            if let Err(message) = grid.validate() { return Err(error(format_args!("{message}"))); }
+            if plot.y.len() + plot.y_expressions.len() != 1 { return Err(error(format_args!("GRID_CHART requires exactly one numeric value expression"))); }
+        },
         PlotType::Histogram => validate_histogram_axes(plot, error)?,
         PlotType::BoxPlot | PlotType::BoxSummary | PlotType::Pie | PlotType::Donut => {
             if plot.y.len() != 1 && plot.y_expressions.len() != 1 {

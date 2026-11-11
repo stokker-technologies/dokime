@@ -58,8 +58,8 @@ pub use plots::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, PlotCartesianFrame,
     PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
     PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotPoint, PlotSeries, PlotSeriesSummary,
-    PlotWatchKeys, PlotWindow, RuntimePlotQueryMode, RuntimePlotStreamBatch, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow,
-    WifiChannelCount, WifiScan, declared_plot_request, matching_plot_payload_request, plot_payload_request_for_descriptor,
+    PlotWatchKeys, PlotWindow, RuntimePlotQueryMode, RuntimePlotStreamBatch, SigmaBin, SigmaSeries,
+    declared_plot_request, matching_plot_payload_request, plot_payload_request_for_descriptor,
     plot_payload_stream_kind, reduce_plot_payload,
 };
 pub use projections::{

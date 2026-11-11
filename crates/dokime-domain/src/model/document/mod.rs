@@ -13,6 +13,7 @@ pub mod addition;
 pub mod column;
 pub mod definition;
 pub mod format;
+pub mod grid;
 pub mod validation;
 
 /* === Re-Exports === */
@@ -50,6 +51,7 @@ pub use definition::FilterOperator;
 pub use definition::FrequencyLevelUnit;
 pub use definition::HistogramOptions;
 pub use definition::Plot;
+pub use grid::{GridAxisEntry, GridDefinition, GridHighlight};
 pub use definition::{Reduction, ContourRender};
 pub use definition::PlotAxisKind;
 pub use definition::PlotDefinition;

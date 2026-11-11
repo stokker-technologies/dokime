@@ -39,9 +39,10 @@ use dokime_domain::model::plots::wire::ContourGrid;
 /* === Public Functions === */
 
 pub(super) fn bin(series: &[PlotSeries], request: &PlotPayloadRequest) -> Result<ContourGrid, String> {
-    let columns = request.panel_width.unwrap_or(36).clamp(1, 512);
-    let rows = request.panel_height.unwrap_or(28).clamp(1, 512);
-    let count = (columns * rows) as usize;
+    let columns = request.panel_width.unwrap_or(36);
+    let rows = request.panel_height.unwrap_or(28);
+    let count = columns.checked_mul(rows).filter(|count| *count > 0 && *count <= 262_144)
+        .ok_or("contour panel dimensions exceed the display budget or are zero")? as usize;
     let points = series.iter().flat_map(|series| &series.points).filter_map(|point| {
         let x = transformed(point.x.as_f64()?, &request.x_scale)?;
         let y = transformed(point.y?, &request.y_scale)?;

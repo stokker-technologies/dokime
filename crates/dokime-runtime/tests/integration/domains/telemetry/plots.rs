@@ -21,9 +21,8 @@
 use super::*;
 use crate::service_support::plots::{plot_query_suite, register_plot_suite, wifi_request};
 use dokime_runtime::runtime::query::{
-    DownsampleTechnique, PlotAnalysis, PlotDomain, PlotPayloadRequest, PlotSeriesSummary, PlotWindow, RuntimePlotQueryMode, WifiBandScan,
-    WifiBandWindow, WifiChannelCount,
-};
+    DownsampleTechnique, PlotAnalysis, PlotDomain, PlotPayloadRequest, PlotSeriesSummary, PlotWindow, RuntimePlotQueryMode,
+    };
 
 /* === Constants === */
 
@@ -202,11 +201,10 @@ async fn series_window_summaries() {
     }
 }
 
-// a wifi occupancy plot carries its per-scan and per-band counts: readings
-// sharing a whole second form one scan, a channel keeping its largest reading.
+// Declared Identities Group Exact Instants, Preserving Duplicates and Empty Cells.
 #[dokime_tracing::trace_test]
 #[tokio::test]
-async fn wifi_occupancy_scans() {
+async fn declared_grid_frames() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     register_plot_suite(&runtime).await;
@@ -221,7 +219,7 @@ async fn wifi_occupancy_scans() {
                 dokime_runtime::model::identity::new_id(),
                 stream.clone(),
                 0,
-                Timestamp::new(format!("2026-01-01T00:00:0{second}.{index}Z")),
+                Timestamp::new(format!("2026-01-01T00:00:0{second}Z")),
                 "host.fixture",
             );
             sample.values.insert("sample_index".to_owned(), Value::Integer(index as i64));
@@ -232,33 +230,31 @@ async fn wifi_occupancy_scans() {
         .collect();
     runtime.publish_telemetry_batch(TelemetryBatch::new(dokime_runtime::model::identity::new_id(), stream, samples)).await.unwrap();
     runtime.storage().flush().await.unwrap();
+    use dokime_runtime::document::{GridAxisEntry, GridDefinition, PlotType, Reduction};
+    use dokime_runtime::expressions::telemetry;
+    let entries = [1, 6, 36, 1005].into_iter().enumerate().map(|(order, key)| GridAxisEntry {
+        key: key.to_string(), label: key.to_string(), order: order as i32, group: None,
+    }).collect::<Vec<_>>();
     let mut request = wifi_request(None, Some(0));
-    request.plot_type = Some(dokime_runtime::document::PlotType::WifiChannelOccupancy);
-    request.x_key = Some("timestamp".to_owned());
-    request.series_by = Some("wifi_channel".to_owned());
-
-    let envelopes = runtime.query_plot_payloads(vec![request]).await.unwrap();
-
-    let Some(PlotAnalysis::WifiOccupancy {
-        channels,
-        occupied_channels,
-        bands,
-        scans,
-    }) = &envelopes[0].payload.analysis
-    else {
-        panic!("no wifi occupancy: {:?}", envelopes[0].payload.analysis);
-    };
-    assert_eq!(channels, &[1, 6, 36, 1005]);
-    assert_eq!(occupied_channels, &[1, 6, 36, 1005]);
-    assert_eq!(bands, &[band_window("2.4 GHz", 2), band_window("5 GHz", 1), band_window("6 GHz", 1),]);
-    let totals = scans.iter().map(|scan| (scan.occupied_channels, scan.total_networks, scan.peak_count)).collect::<Vec<_>>();
-    assert_eq!(totals, [(2, 5, 3), (3, 11, 5), (0, 0, 0)]);
-    assert_eq!(scans[1].channels, [(6, 5), (36, 4), (1005, 2)].map(|(channel, count)| WifiChannelCount { channel, count }));
-    assert_eq!(scans[1].bands, [band_scan("2.4 GHz", 1, 5, 5), band_scan("5 GHz", 1, 4, 4), band_scan("6 GHz", 1, 2, 2),]);
-    assert_eq!(scans[0].bands, [band_scan("2.4 GHz", 2, 5, 3), band_scan("5 GHz", 0, 0, 0)]);
-    assert!(scans[0].time.starts_with("2026-01-01T00:00:00"));
-    assert_eq!(scans[2].channels, [WifiChannelCount { channel: 1, count: 0 }, WifiChannelCount { channel: 6, count: 0 }]);
-    assert_eq!(scans[2].bands, [band_scan("2.4 GHz", 0, 0, 0)]);
+    request.plot_type = Some(PlotType::GridChart);
+    request.reduction = Some(Reduction::Max);
+    request.grid = Some(GridDefinition {
+        row: Some(telemetry("host.wifi.scan", "wifi_channel")),
+        column: Some(telemetry("host.wifi.scan", "wifi_channel")),
+        frame: Some(telemetry("host.wifi.scan", "timestamp")),
+        rows: entries.clone(), columns: entries, summary_label: "Readings".into(), ..Default::default()
+    });
+    let envelopes = runtime.query_plot_payloads(vec![request.clone()]).await.unwrap();
+    let Some(PlotAnalysis::GridChart { data }) = &envelopes[0].payload.analysis else { panic!("grid frames missing") };
+    assert_eq!(data.frames.len(), 3);
+    assert_eq!(data.frames[1].values[5], 5.0);
+    assert!(data.frames[1].valid[5]);
+    assert!(!data.frames[1].valid[0]);
+    assert_eq!(data.frames[2].values[0], 0.0);
+    assert!(data.frames[2].valid[0]);
+    request.grid.as_mut().unwrap().rows.pop();
+    let refused = runtime.query_plot_payloads(vec![request]).await.unwrap();
+    assert!(matches!(&refused[0].payload.analysis, Some(PlotAnalysis::Error { message }) if message.contains("unknown row key")));
 }
 
 // an xy interval plot's analysis counts the samples its bins summarize.
@@ -681,19 +677,6 @@ fn assert_summary(summaries: &[PlotSeriesSummary], count: usize, statistics: [f6
         assert!((actual - expected).abs() < 1e-9, "{actual} != {expected} in {summary:?}");
     }
     assert_eq!(summary.window, Some(PlotWindow { from: window[0], to: window[1] }));
-}
-
-fn band_window(band: &str, occupied_channels: usize) -> WifiBandWindow {
-    WifiBandWindow { band: band.to_owned(), occupied_channels }
-}
-
-fn band_scan(band: &str, occupied: usize, total: usize, peak: usize) -> WifiBandScan {
-    WifiBandScan {
-        band: band.to_owned(),
-        occupied_channels: occupied,
-        total_networks: total,
-        peak_count: peak,
-    }
 }
 
 // distribution query bins its x column and does not limit evidence to the display budget.

@@ -45,6 +45,7 @@ pub struct PlotSnapshotsReply {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotRequest {
+    pub grid: Option<GridDefinition>,
     pub reduction: Option<crate::model::document::Reduction>,
     pub render: crate::model::document::ContourRender,
     pub y_viewport: Option<PlotWindow>,
@@ -189,6 +190,52 @@ pub struct PlotStreamFrame {
 pub struct PlotStreamUpdate {
     pub kind: PlotStreamKind,
     pub envelope: Option<PlotEnvelope>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GridDefinition {
+    pub row: Option<DataExpression>,
+    pub column: Option<DataExpression>,
+    pub frame: Option<DataExpression>,
+    pub rows: Vec<crate::model::document::GridAxisEntry>,
+    pub columns: Vec<crate::model::document::GridAxisEntry>,
+    pub highlights: Vec<GridHighlight>,
+    pub summary_label: String,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GridHighlight {
+    pub row: Option<DataExpression>,
+    pub column: Option<DataExpression>,
+    pub label: String,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GridFrames {
+    pub rows: Vec<crate::model::document::GridAxisEntry>,
+    pub columns: Vec<crate::model::document::GridAxisEntry>,
+    pub frames: Vec<GridFrame>,
+    pub summary_label: String,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GridFrame {
+    pub instant: String,
+    pub values: Vec<f64>,
+    pub valid: Vec<bool>,
+    pub highlights: Vec<GridCell>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct GridCell {
+    pub row: u32,
+    pub column: u32,
+    pub label: String,
 }
 
 #[harmos::message]
@@ -450,58 +497,6 @@ pub struct PlotSigmaBin {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotWifiOccupancyAnalysis {
-    #[row(description = "Every channel a series reported, ascending.")]
-    pub channels: Vec<i64>,
-
-    #[row(description = "Channels that held a network in any scan, ascending.")]
-    pub occupied_channels: Vec<i64>,
-
-    pub bands: Vec<PlotWifiBandWindow>,
-
-    #[row(description = "Scans in time order.")]
-    pub scans: Vec<PlotWifiScan>,
-}
-
-// Channels of one band that held a network in any scan of the window.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotWifiBandWindow {
-    pub band: String,
-    pub occupied_channels: u64,
-}
-
-// One scan: the readings sharing a whole second, a channel keeping its
-// largest reading.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotWifiScan {
-    pub time: String,
-    pub channels: Vec<PlotWifiChannelCount>,
-    pub bands: Vec<PlotWifiBandScan>,
-    pub occupied_channels: u64,
-    pub total_networks: u64,
-    pub peak_count: u64,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotWifiChannelCount {
-    pub channel: i64,
-    pub count: u64,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlotWifiBandScan {
-    pub band: String,
-    pub occupied_channels: u64,
-    pub total_networks: u64,
-    pub peak_count: u64,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListAnalysesReply {
     pub definitions: Vec<AnalysisDefinition>,
     pub next_after_id: Option<String>,
@@ -710,11 +705,11 @@ pub enum DataTransformKind {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlotAnalysisResult {
     Contour(ContourGrid),
+    GridChart(GridFrames),
     Histogram(PlotHistogramAnalysis),
     BoxSummary(PlotBoxSummaryAnalysis),
     SigmaInterval(PlotSigmaIntervalAnalysis),
     Error(PlotAnalysisError),
-    WifiOccupancy(PlotWifiOccupancyAnalysis),
 }
 
 /* === Traits === */

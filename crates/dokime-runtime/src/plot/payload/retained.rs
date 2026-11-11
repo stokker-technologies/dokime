@@ -43,6 +43,20 @@ pub(crate) fn project(
     telemetry: &[crate::telemetry::TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest,
     generated_at: &str, context: &super::PlotPayloadContext,
 ) -> Result<ReadBatch<PlotPayload>> {
+    if request.plot_type == Some(PlotType::GridChart) {
+        let selected = crate::plot::record_samples::PlotSamples::new(telemetry, request).collect();
+        let mut payload = super::payload_from_series(&selected, records, request, generated_at, context, Vec::new());
+        let result = (|| {
+            let mut frames = super::grid::Frames::new(request)?;
+            for sample in selected { frames.push(sample)?; }
+            Ok::<_, String>(frames.finish(payload.max_points))
+        })();
+        payload.analysis = Some(match result {
+            Ok(data) => super::PlotAnalysis::GridChart { data },
+            Err(message) => super::PlotAnalysis::Error { message },
+        });
+        return Ok(ReadBatch::new(payload));
+    }
     if let Some(payload) = super::records::project(telemetry, records, request, generated_at, context)? {
         return Ok(payload);
     }
@@ -55,18 +69,17 @@ pub(crate) fn project(
 pub(crate) fn finish(payload: ReadBatch<PlotPayload>, request: &PlotPayloadRequest) -> Result<ReadBatch<PlotPayload>> {
     let spectrum = matches!(request.plot_type, Some(PlotType::FrequencySeries));
     let interval = matches!(request.plot_type, Some(PlotType::XyInterval));
-    let wifi = matches!(request.plot_type, Some(PlotType::WifiChannelOccupancy));
     // Other Non-FFT Analysis And Summary Intermediates Remain Separate Producer Gaps.
     // They Run Before Native Construction, Not Under A False FFT-Only Peak.
     let payload = payload.try_map(|mut payload| {
-        if !spectrum && !interval && !wifi {
+        if !spectrum && !interval && request.plot_type != Some(PlotType::GridChart) {
             payload.analysis = analyses::analyze(&mut payload.series, request);
         }
         payload.summaries = if request.defer_statistics { Vec::new() } else { analyses::summarize(&payload.series, request) };
         Ok::<_, crate::runtime::Error>(payload)
     })?;
     let payload = payload.try_map(|mut payload| {
-        if spectrum || interval || wifi {
+        if spectrum || interval {
             payload.analysis = analyses::analyze(&mut payload.series, request);
         }
         if spectrum {

@@ -41,6 +41,9 @@ use dokime_domain::model::values::ValueFormat;
 #[serde(rename_all = "snake_case")]
 pub struct PlotPayloadRequest {
     #[serde(default)]
+    pub grid: Option<crate::document::GridDefinition>,
+
+    #[serde(default)]
     pub reduction: Option<crate::document::Reduction>,
 
     #[serde(default)]

@@ -16,6 +16,8 @@ mod wire;
 
 /* === Re-Exports === */
 
+pub(crate) use wire::grid_definition_wire;
+
 pub(super) use wire::{data_expression_wire, document_plot_definition, plot_filter_wire};
 
 /* === Imports === */

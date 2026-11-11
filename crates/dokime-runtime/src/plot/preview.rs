@@ -1123,40 +1123,6 @@ mod tests {
         assert!(preview.reason.is_none());
     }
 
-    #[test]
-    fn channel_envelopes() {
-        let request = PlotPayloadRequest {
-            stream: "tracking".into(),
-            plot_type: Some(PlotType::WifiChannelOccupancy),
-            y_keys: vec!["northing".into()],
-            series_by: Some("easting".into()),
-            ..Default::default()
-        };
-        let mut preview = Preview::default();
-        for scan in 0..20 {
-            for (offset, channel) in [1.0, 6.0].into_iter().enumerate() {
-                let count = if scan == 19 { channel } else { (scan % 4 + 1) as f64 };
-                let mut sample = sample(scan * 2 + offset as u64, channel, count);
-                let time = time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(scan as i64);
-                sample.timestamp = Timestamp::new(time.format(&time::format_description::well_known::Rfc3339).unwrap());
-                preview.sample(sample, &request, limits()).unwrap();
-            }
-            preview = serde_json::from_slice(&serde_json::to_vec(&preview).unwrap()).unwrap();
-        }
-        let result = payload(&preview, &request);
-        assert_eq!(
-            result.series.iter().map(|series| (series.key.as_str(), series.raw_points)).collect::<Vec<_>>(),
-            vec![("1", 20), ("6", 20)]
-        );
-        let Some(super::super::PlotAnalysis::WifiOccupancy { scans, channels, .. }) = result.analysis else {
-            panic!("occupancy analysis missing")
-        };
-        assert_eq!(channels, vec![1, 6]);
-        let last = scans.last().unwrap();
-        assert_eq!(last.channels.iter().map(|channel| (channel.channel, channel.count)).collect::<Vec<_>>(), vec![(1, 1), (6, 6)]);
-        assert_eq!(last.total_networks, 7);
-    }
-
     fn event(sequence: u64, seconds: i64, kind: &str) -> RecordEntry {
         use dokime_domain::model::records::{RecordSeverity, publication::RecordPublishRequest};
         let time = time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(seconds);

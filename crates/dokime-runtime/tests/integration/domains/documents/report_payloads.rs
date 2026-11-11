@@ -1147,6 +1147,9 @@ fn fixture_test_execution(
 
 fn fixture_plot_input(plot_id: Identifier, scope: RecordScope, plot_type: PlotType) -> PlotInput {
     PlotInput {
+        grid: None,
+        reduction: None,
+        render: Default::default(),
         plot_id,
         scope,
         plot_type,

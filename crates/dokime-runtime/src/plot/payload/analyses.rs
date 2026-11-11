@@ -9,7 +9,7 @@
 
 /* === Modules === */
 
-pub(super) mod wifi;
+
 
 /* === Re-Exports === */
 
@@ -93,47 +93,17 @@ pub struct SigmaSeries {
     pub raw_points: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct WifiChannelCount {
-    pub channel: i64,
-    pub count: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct WifiBandScan {
-    pub band: String,
-    pub occupied_channels: usize,
-    pub total_networks: usize,
-    pub peak_count: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct WifiScan {
-    pub time: String,
-    pub channels: Vec<WifiChannelCount>,
-    pub bands: Vec<WifiBandScan>,
-    pub occupied_channels: usize,
-    pub total_networks: usize,
-    pub peak_count: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct WifiBandWindow {
-    pub band: String,
-    pub occupied_channels: usize,
-}
-
 /* === Enums === */
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PlotAnalysis {
+    GridChart { data: dokime_domain::model::plots::wire::GridFrames },
     Contour { grid: dokime_domain::model::plots::wire::ContourGrid },
     Error { message: String },
     Histogram { series: Vec<HistogramSeries> },
     BoxSummary { series: Vec<BoxSummary>, total: usize },
     SigmaInterval { series: Vec<SigmaSeries> },
-    WifiOccupancy { channels: Vec<i64>, occupied_channels: Vec<i64>, bands: Vec<WifiBandWindow>, scans: Vec<WifiScan> },
 }
 
 /* === Traits === */
@@ -178,10 +148,6 @@ pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -
             Some(PlotAnalysis::BoxSummary { series: boxes, total })
         }
         PlotType::XyInterval => Some(match interval_analysis(series, request) {
-            Ok(analysis) => analysis,
-            Err(message) => PlotAnalysis::Error { message: message.into() },
-        }),
-        PlotType::WifiChannelOccupancy => Some(match wifi::analyze(series) {
             Ok(analysis) => analysis,
             Err(message) => PlotAnalysis::Error { message: message.into() },
         }),

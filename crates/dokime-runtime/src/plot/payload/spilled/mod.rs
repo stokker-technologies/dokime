@@ -17,7 +17,6 @@ mod input;
 mod projection;
 mod series;
 mod spectrum;
-mod wifi;
 
 /* === Re-Exports === */
 
@@ -60,6 +59,34 @@ pub(crate) fn project(
         if request.analysis.is_none() {
             payload.analysis = analyses::analyze(&mut [], request);
         }
+        if request.plot_type == Some(PlotType::GridChart) {
+            let mut frames = match super::grid::Frames::new(request) {
+                Ok(frames) => frames,
+                Err(message) => {
+                    payload.analysis = Some(PlotAnalysis::Error { message });
+                    return Ok(ReadBatch::new(payload));
+                }
+            };
+            let mut latest = None;
+            read.samples(|sample| {
+                if projection::selected(&sample, request) { latest = latest.max(super::parse_timestamp(sample.timestamp.as_str())); }
+                Ok(())
+            })?;
+            let cutoff = latest.and_then(|latest| super::plot_window_cutoff(latest, request.window_s));
+            let mut error = None;
+            read.samples(|sample| {
+                let visible = cutoff.is_none_or(|cutoff| super::parse_timestamp(sample.timestamp.as_str()).is_some_and(|time| time >= cutoff));
+                if projection::selected(&sample, request) && visible && error.is_none() {
+                    error = frames.push(&sample).err();
+                }
+                Ok(())
+            })?;
+            payload.analysis = Some(match error {
+                Some(message) => PlotAnalysis::Error { message },
+                None => PlotAnalysis::GridChart { data: frames.finish(payload.max_points) },
+            });
+            return Ok(ReadBatch::new(payload));
+        }
         let mut marker_count = 0;
         read.records(false, |_, record| {
             if request.marker_record_types.iter().any(|kind| kind == record.record_type.as_str())
@@ -84,17 +111,10 @@ pub(crate) fn project(
             }
             Ok(())
         })?;
-        if request.plot_type == Some(PlotType::WifiChannelOccupancy) {
-            wifi::reset(&read)?;
-            payload.context = wifi_context(&read, request)?;
-        }
         let mut visit = |series| append(&read, &mut payload, series, request, context);
         if !correlation::project(&read, request, &mut visit)? {
             let projection = projection::Projection::telemetry(&read, request)?;
             projection.series(&read, &mut visit)?;
-        }
-        if request.plot_type == Some(PlotType::WifiChannelOccupancy) && !matches!(payload.analysis, Some(PlotAnalysis::Error { .. })) {
-            payload.analysis = Some(wifi::finish(&read)?);
         }
         let window = payload.summaries.iter().filter_map(|summary| summary.window).reduce(|left, right| PlotWindow {
             from: left.from.min(right.from),
@@ -179,27 +199,9 @@ fn analyze(read: &Read<'_>, payload: &mut PlotPayload, series: &mut Series, requ
             }
             series.metadata.format = None;
         }
-        Some(PlotType::WifiChannelOccupancy) => wifi::append(read, series)?,
         _ => {}
     }
     Ok(())
-}
-
-fn wifi_context(read: &Read<'_>, request: &PlotPayloadRequest) -> Result<std::collections::BTreeMap<String, crate::Value>> {
-    let mut occupancy = None;
-    read.samples(|sample| {
-        if projection::selected(&sample, request) {
-            let newer = occupancy.as_ref().is_none_or(|previous: &crate::telemetry::TelemetrySample| {
-                (sample.timestamp.as_str(), sample.sequence) >= (previous.timestamp.as_str(), previous.sequence)
-            });
-            if newer {
-                occupancy = Some(sample);
-            }
-        }
-        Ok(())
-    })?;
-    let samples: Vec<_> = occupancy.iter().collect();
-    Ok(super::plot_context(request, &samples))
 }
 
 /* === Tests === */

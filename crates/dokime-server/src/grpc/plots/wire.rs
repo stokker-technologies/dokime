@@ -147,6 +147,19 @@ pub(crate) fn plot_filter_wire(filter: &DocumentFilter) -> Result<dokime::domain
     })
 }
 
+pub(crate) fn grid_definition_wire(value: &dokime::document::GridDefinition) -> Result<dokime::domain::model::plots::wire::GridDefinition, Status> {
+    use dokime::domain::model::plots::wire;
+    Ok(wire::GridDefinition {
+        row: value.row.as_ref().map(data_expression_wire).transpose()?,
+        column: value.column.as_ref().map(data_expression_wire).transpose()?,
+        frame: value.frame.as_ref().map(data_expression_wire).transpose()?,
+        rows: value.rows.clone(), columns: value.columns.clone(), summary_label: value.summary_label.clone(),
+        highlights: value.highlights.iter().map(|highlight| Ok(wire::GridHighlight {
+            row: Some(data_expression_wire(&highlight.row)?), column: Some(data_expression_wire(&highlight.column)?), label: highlight.label.clone(),
+        })).collect::<Result<_, Status>>()?,
+    })
+}
+
 pub(crate) fn data_expression_wire(expression: &DataExpression) -> Result<dokime::domain::model::plots::wire::DataExpression, Status> {
     let source =
         Some(match &expression.source {
@@ -252,6 +265,7 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<dokime::domain::mod
     let y_keys = request.y_keys.to_vec();
     let marker_record_types = request.marker_record_types.to_vec();
     Ok(dokime::domain::model::plots::wire::PlotRequest {
+        grid: request.grid.as_ref().map(grid_definition_wire).transpose()?,
         reduction: request.reduction,
         render: request.render,
         y_viewport: request.y_viewport.map(|w| dokime::domain::model::plots::wire::PlotWindow { from: w.from, to: w.to }),
@@ -498,6 +512,7 @@ fn plot_analysis(value: dokime::runtime::query::PlotAnalysis) -> Result<dokime::
     let number = |value| finite_number(value, "plot analysis number");
     let result = match value {
         PlotAnalysis::Contour { grid } => Analysis::Contour(grid),
+        PlotAnalysis::GridChart { data } => Analysis::GridChart(data),
         PlotAnalysis::Error { message } => Analysis::Error(wire::PlotAnalysisError { message }),
         PlotAnalysis::Histogram { series } => Analysis::Histogram(wire::PlotHistogramAnalysis {
             series: mapped(series, |series| {
@@ -562,54 +577,9 @@ fn plot_analysis(value: dokime::runtime::query::PlotAnalysis) -> Result<dokime::
                 })
             })?,
         }),
-        PlotAnalysis::WifiOccupancy {
-            channels,
-            occupied_channels,
-            bands,
-            scans,
-        } => Analysis::WifiOccupancy(wifi_occupancy(channels, occupied_channels, bands, scans)?),
+
     };
     Ok(wire::PlotAnalysis { result: Some(result) })
-}
-
-fn wifi_occupancy(
-    channels: Vec<i64>, occupied_channels: Vec<i64>, bands: Vec<dokime::runtime::query::WifiBandWindow>,
-    scans: Vec<dokime::runtime::query::WifiScan>,
-) -> Result<dokime::domain::model::plots::wire::PlotWifiOccupancyAnalysis, Status> {
-    use dokime::domain::model::plots::wire;
-    let count = |value| u64::try_from(value).map_err(|_| Status::internal("wifi occupancy count does not fit wire"));
-    Ok(wire::PlotWifiOccupancyAnalysis {
-        channels,
-        occupied_channels,
-        bands: mapped(bands, |band| {
-            Ok(wire::PlotWifiBandWindow {
-                band: band.band,
-                occupied_channels: count(band.occupied_channels)?,
-            })
-        })?,
-        scans: mapped(scans, |scan| {
-            Ok(wire::PlotWifiScan {
-                time: scan.time,
-                channels: mapped(scan.channels, |channel| {
-                    Ok(wire::PlotWifiChannelCount {
-                        channel: channel.channel,
-                        count: count(channel.count)?,
-                    })
-                })?,
-                bands: mapped(scan.bands, |band| {
-                    Ok(wire::PlotWifiBandScan {
-                        band: band.band,
-                        occupied_channels: count(band.occupied_channels)?,
-                        total_networks: count(band.total_networks)?,
-                        peak_count: count(band.peak_count)?,
-                    })
-                })?,
-                occupied_channels: count(scan.occupied_channels)?,
-                total_networks: count(scan.total_networks)?,
-                peak_count: count(scan.peak_count)?,
-            })
-        })?,
-    })
 }
 
 fn plot_frame(

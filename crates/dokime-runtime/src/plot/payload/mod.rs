@@ -13,6 +13,8 @@ pub(super) mod analyses;
 pub(crate) mod builtins;
 mod cartesian;
 mod contour;
+#[cfg(feature = "storage")]
+mod grid;
 mod groups;
 
 #[cfg(feature = "storage")]
@@ -31,9 +33,8 @@ mod types;
 /* === Re-Exports === */
 
 pub use analyses::{
-    BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, SigmaBin, SigmaSeries, WifiBandScan, WifiBandWindow,
-    WifiChannelCount, WifiScan,
-};
+    BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, SigmaBin, SigmaSeries,
+    };
 
 #[cfg(feature = "storage")]
 pub(crate) use retained::{
@@ -250,6 +251,7 @@ pub fn declared_plot_request(
     descriptor: &PlotDescriptor, scope: Option<RecordScope>, max_points: Option<usize>, window_s: Option<f64>,
 ) -> PlotPayloadRequest {
     PlotPayloadRequest {
+        grid: descriptor.input.grid.clone(),
         reduction: descriptor.input.reduction,
         render: descriptor.input.render,
         y_viewport: None,
@@ -469,7 +471,9 @@ fn visit_plot_streams(request: &PlotPayloadRequest, mut visit: impl FnMut(&str))
         .chain(&request.y_expressions)
         .chain(&request.series_by_expression)
         .chain(&request.z_expression)
-        .chain(request.filters.iter().map(|filter| &filter.expression));
+        .chain(request.filters.iter().map(|filter| &filter.expression))
+        .chain(request.grid.iter().flat_map(|grid| grid.row.iter().chain(grid.column.iter()).chain(grid.frame.iter())
+            .chain(grid.highlights.iter().flat_map(|highlight| [&highlight.row, &highlight.column]))));
     for expression in expressions {
         if let DataSource::Telemetry { stream, .. } = &expression.source {
             visit(stream);
@@ -490,10 +494,10 @@ fn request_z_index<'a>(telemetry: &'a [TelemetrySample], request: &'a PlotPayloa
 }
 
 fn payload_from_series(
-    samples: &[&TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest, generated_at: &str,
+    _samples: &[&TelemetrySample], records: crate::records::view::View<'_>, request: &PlotPayloadRequest, generated_at: &str,
     format_context: &PlotPayloadContext, series: Vec<PlotSeries>,
 ) -> PlotPayload {
-    let context = plot_context(request, samples);
+    let context = BTreeMap::new();
     // Every series in one payload reads the same declared y axis, so they
     // share the one resolved winner: a plot override or a column's declared
     // format apply uniformly, not per series.
@@ -656,34 +660,6 @@ fn expression_field_name(expression: &DataExpression) -> Option<&str> {
         DataSource::Dimension { name } | DataSource::Parameter { name } => Some(name),
         DataSource::Record { record_type } => Some(record_type),
         DataSource::Artifact { artifact } => Some(artifact),
-    }
-}
-
-fn plot_context(request: &PlotPayloadRequest, samples: &[&TelemetrySample]) -> BTreeMap<String, Value> {
-    if request.plot_type.as_ref() != Some(&PlotType::WifiChannelOccupancy) {
-        return BTreeMap::new();
-    }
-
-    let mut context = BTreeMap::new();
-    for (key, value) in plot_context_values(samples) {
-        copy_context_value(&mut context, key, value);
-    }
-    context
-}
-
-fn plot_context_values<'a>(samples: &[&'a TelemetrySample]) -> [(&'static str, Option<&'a Value>); 3] {
-    let occupancy_values = samples.last().map(|sample| &sample.values);
-
-    [
-        ("active_wifi_channel", occupancy_values.and_then(|values| values.get("active_wifi_channel"))),
-        ("active_wifi_band", occupancy_values.and_then(|values| values.get("active_wifi_band"))),
-        ("active_wifi_ssid", occupancy_values.and_then(|values| values.get("active_wifi_ssid"))),
-    ]
-}
-
-fn copy_context_value(context: &mut BTreeMap<String, Value>, key: &str, value: Option<&Value>) {
-    if let Some(value) = value.filter(|value| traceable_context_value(value)) {
-        context.insert(key.to_owned(), value.clone());
     }
 }
 
