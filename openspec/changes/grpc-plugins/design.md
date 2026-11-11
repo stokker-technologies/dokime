@@ -3,7 +3,7 @@
 ## Resuming
 
 Integrate every open change under `openspec/changes/` together on `feat/grpc-plugins`.
-Feature worktrees hand back local commits; this worktree is `feat/gp-organization-pack`.
+Feature worktrees hand back local commits; the integration checkout is `feat/grpc-plugins`.
 Use the single `grpc-plugins` implementation marker for the combined work.
 The Implementation Waves table below owns ordering and current completion.
 Give a worker one whole task, its specification section and explicit disjoint path ownership.

@@ -51,7 +51,8 @@ def build(profile: str) -> list[str]:
         (dist / "index.html").write_text("", encoding="utf-8")
 
     command = ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"]
-    with messages.open("w", encoding="utf-8") as written:
+    pending = messages.with_name("compiler.pending.json")
+    with pending.open("w", encoding="utf-8") as written:
         subprocess.run(
             command,
             cwd=ROOT,
@@ -61,6 +62,7 @@ def build(profile: str) -> list[str]:
             stdin=sys.stdin,
             stderr=sys.stderr,
         )
+    pending.replace(messages)
     binaries = output / "bin"
     clear_output(binaries)
     staged = []

@@ -10,6 +10,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,7 @@ from unittest.mock import patch
 from environment import isolate_environment
 
 from dokime_tools.build import cargo, lint
+from dokime_tools.build.rust import __main__ as product
 
 # Third Party Imports
 # Local Imports
@@ -58,6 +60,46 @@ class GeneratedContractTests(unittest.TestCase):
         ):
             generated.prepare()
         self.assertEqual(records, ["inner", "outer"])
+
+
+class ProductCompilerRecordTests(unittest.TestCase):
+    def test_publishes_only_successful_compiler_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            messages = root / "product/compiler.json"
+            messages.parent.mkdir()
+            messages.write_text("previous successful build", encoding="utf-8")
+            web = root / "gui"
+            (web / "dist").mkdir(parents=True)
+
+            def compile_product(*args, **kwargs):
+                kwargs["stdout"].write("replacement build")
+                self.assertEqual(messages.read_text(encoding="utf-8"), "previous successful build")
+                if fail:
+                    raise subprocess.CalledProcessError(1, args[0])
+
+            with (
+                patch.object(product.paths, "output", return_value=root),
+                patch.object(product.configuration, "features", return_value=[]),
+                patch.object(product.frontend, "WEB_ROOT", web),
+                patch.object(product.subprocess, "run", side_effect=compile_product),
+                patch.object(product.outputs, "executables", return_value={}),
+                patch.object(product.plugins, "prepare", return_value=[]),
+                patch.object(product.cargo, "record_target"),
+            ):
+                # Retain The Last Successful Record And The Failed Diagnostics
+                fail = True
+                with self.assertRaises(subprocess.CalledProcessError):
+                    product.build("dev")
+                self.assertEqual(messages.read_text(encoding="utf-8"), "previous successful build")
+                pending = messages.with_name("compiler.pending.json")
+                self.assertEqual(pending.read_text(encoding="utf-8"), "replacement build")
+
+                # Publish The Completed Replacement Only After Cargo Succeeds
+                fail = False
+                product.build("dev")
+                self.assertEqual(messages.read_text(encoding="utf-8"), "replacement build")
+                self.assertFalse(pending.exists())
 
 
 class FocusedCargoTests(unittest.TestCase):

@@ -68,5 +68,13 @@
 - [x] Generate notices under `target/notices/` and preserve distribution, installer and wheel notice contents.
 - [x] Repair compiler cache save inputs and preserve job-level Setup cache settings.
 - [x] Run repository/Python checks and formatting; exercise notices generation/staging through focused tooling tests.
-- [ ] Rerun the combined repository/Python entry points after the concurrent organization edits are formatted; the latest entry-point rerun stops at `organization/organization.toml`.
+- [x] Rerun the combined repository/Python entry points after the concurrent organization edits are formatted.
 - [ ] Complete an artifact release rehearsal; local `--profile dev --stage-only` is blocked by missing Windows package artifacts.
+
+## Desktop and Repository Integration
+
+- [x] Reconcile the pending privacy guide formatter noise, merge the organization-pack specification branch and update moved-path references.
+- [x] Regenerate the runtime report, bundled brand resources and desktop icons after the default appearance change.
+- [x] Publish Product compiler records only after successful compilation, retaining failed output separately; prove replacement and failure behavior through tooling integration tests.
+- [ ] Pass combined formatting, repository, Python, TypeScript and Rust checks and the Tests artifact build.
+- [ ] Rerun plot and settings TypeScript unit/integration tests, shell organization tests and the focused runtime captured-head test.

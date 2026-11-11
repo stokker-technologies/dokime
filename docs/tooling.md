@@ -59,6 +59,9 @@ artifact from `mise run build -- --language rust` by default; `--build-json <rec
 another successful task build. Missing artifacts fail explicitly; these
 launchers never build or install a supervisor. `tauri:dev --print-config`
 continues to inspect frontend launch configuration without an artifact.
+Rust Product writes `product/compiler.pending.json` while Cargo runs and replaces
+`product/compiler.json` only after success. A failed build retains its pending
+record for diagnosis without publishing partial compiler output to frontend consumers.
 `operational.packaging.process_stop_ms` bounds each cleanup stage separately:
 Unix gets one graceful-wait budget and one forced-reap budget, up to twice the
 configured duration; Windows uses only the forced-reap budget. Surviving owned
