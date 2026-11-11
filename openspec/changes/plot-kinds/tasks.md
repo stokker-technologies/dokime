@@ -41,15 +41,15 @@
 
 ## 9. Final Validation
 
-- [ ] 9.1 After all source items and targeted proof close, run the configured Windows and Linux plot/document/report checks and touched tests through project tasks; report actual results and remaining proof.
+- [x] 9.1 After all source items and targeted proof close, run the configured Windows and Linux plot/document/report checks and touched tests through project tasks; report actual results and remaining proof.
   - [x] Windows: whole-project format, protocol/native/report generation, repository checks, the full Rust check and the full TypeScript check pass. The Rust check retains the nonfatal unreachable `tokio::process::Command::new` configuration warning.
   - [x] Windows and Linux: protocol drift/builders/replacement diagnostics (three tests), contour numeric maps, generic grid reduction, eager/spilled parity, canonical document admission, retained report numerics/grid frames and the gRPC telemetry/plot watch pass through focused Rust selections.
   - [x] Windows and Linux: GUI plot integration (46 tests), offline live/frozen Chromium proof (one test), generated TypeScript checking and client loading pass. Windows document-query integration also passes (two tests).
   - [x] Windows and Linux: focused transport/plot unit tests pass (18 tests), including shared time columns, null values, rejected mismatched/nonfinite coordinates and retained bucket deltas after the adapter allocation repair.
   - [x] Python authoring builders pass against native wheels on Windows and Linux (17 tests each). Windows C# and C++ document builders pass (two and one tests respectively).
   - [x] Windows Tests artifact builds and its 16 compile-contract checks pass. No full test lane was run for this change.
-  - [ ] Repeat `integration-plots` on Windows and record its comparison beside the existing plot-pipeline measurements.
-- [ ] 9.2 Strictly validate this change and affected ownership deltas, and review the complete advertised catalog and screenshot/report acceptance before delivery authorization.
+  - [x] Repeat `integration-plots` on Windows and record all three runs beside the existing plot-pipeline measurements. Final medians pass the unchanged 20% threshold; decode improves, delta application is unchanged, and Criterion still flags small live/zoom query increases. No unqualified no-regression claim is made.
+- [x] 9.2 Strictly validate this change and affected ownership deltas, and review the complete advertised catalog and screenshot/report acceptance before delivery authorization.
 
 ## Workflow Follow-Up
 
