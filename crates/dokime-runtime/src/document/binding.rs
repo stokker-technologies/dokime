@@ -331,9 +331,11 @@ pub(super) fn row<'a>(input: Row<'a>, expression: &DataExpression, evidence: Evi
         }
     };
     for transform in transforms {
-        let DataTransform::Detail { name } = transform else {
-            break;
-        };
+        if transform.is_numeric() {
+            value = Cow::Owned(Value::Number(transform.map_numeric(dokime_domain::model::values::numeric_value(&value)?)?));
+            continue;
+        }
+        let DataTransform::Detail { name } = transform else { break };
         value = match value {
             Cow::Borrowed(Value::Object(fields)) => Cow::Borrowed(fields.get(name)?),
             Cow::Owned(Value::Object(mut fields)) => Cow::Owned(fields.remove(name)?),
@@ -372,9 +374,20 @@ pub(crate) fn expression_needs_telemetry(expression: &DataExpression, context: C
 }
 
 pub(super) fn validate_expression(expression: &DataExpression, aggregate: bool) -> Result<()> {
+    for transform in &expression.transforms {
+        match transform {
+            DataTransform::Scale { factor } if !factor.is_finite() => return Err(failure("scale factor must be finite")),
+            DataTransform::Offset { value } if !value.is_finite() => return Err(failure("offset must be finite")),
+            _ => {}
+        }
+    }
+
     if let Some(index) = expression.transforms.iter().position(|transform| matches!(transform, DataTransform::PerCase)) {
         let suffix = &expression.transforms[index + 1..];
-        if !aggregate || suffix.len() != 1 || suffix.first().is_some_and(|transform| !matches!(transform, DataTransform::Aggregate(_))) {
+        if !aggregate
+            || suffix.iter().filter(|transform| matches!(transform, DataTransform::Aggregate(_))).count() != 1
+            || suffix.iter().any(|transform| !transform.is_numeric() && !matches!(transform, DataTransform::Aggregate(_)))
+        {
             return Err(failure("per-case scalar summaries require one final outer fold"));
         }
         return validate_selector(&expression.source, &expression.transforms[..index], true);
@@ -467,6 +480,17 @@ fn validate_selector(source: &DataSource, transforms: &[DataTransform], aggregat
         return Err(failure("record scalar bindings require a selector or an occurrence count"));
     }
     for (index, transform) in transforms.iter().enumerate() {
+        if transform.is_numeric() {
+            let parameter = match transform {
+                DataTransform::Scale { factor } => *factor,
+                DataTransform::Offset { value } => *value,
+                _ => unreachable!(),
+            };
+            if !parameter.is_finite() {
+                return Err(failure("numeric transform parameter must be finite"));
+            }
+            continue;
+        }
         if matches!(transform, DataTransform::Detail { .. }) {
             if transforms.iter().take(index).any(|transform| matches!(transform, DataTransform::TimeBetween { .. })) {
                 return Err(failure("elapsed record seconds do not have detail fields"));
@@ -476,7 +500,7 @@ fn validate_selector(source: &DataSource, transforms: &[DataTransform], aggregat
         if index == 0 && matches!(source, DataSource::Record { .. }) && matches!(transform, DataTransform::TimeBetween { .. }) {
             continue;
         }
-        if aggregate && index + 1 == transforms.len() && matches!(transform, DataTransform::Aggregate(_)) {
+        if aggregate && matches!(transform, DataTransform::Aggregate(_)) && transforms[index + 1..].iter().all(DataTransform::is_numeric) {
             continue;
         }
         return Err(failure("row selectors permit detail transforms; summaries permit one final scalar fold"));

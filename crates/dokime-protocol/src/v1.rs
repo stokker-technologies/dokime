@@ -328,6 +328,12 @@ pub struct Plot {
     pub render: i32,
     #[prost(message, optional, tag = "21")]
     pub grid: ::core::option::Option<GridChart>,
+    #[prost(enumeration = "PlotStyle", tag = "22")]
+    pub style: i32,
+    #[prost(enumeration = "AxisScale", tag = "23")]
+    pub x_scale: i32,
+    #[prost(enumeration = "AxisScale", tag = "24")]
+    pub y_scale: i32,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -543,6 +549,72 @@ impl FilterOperator {
             "FILTER_OPERATOR_LE" => Some(Self::Le),
             "FILTER_OPERATOR_CONTAINS" => Some(Self::Contains),
             "FILTER_OPERATOR_EXISTS" => Some(Self::Exists),
+            _ => None,
+        }
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum PlotStyle {
+    Unspecified = 0,
+    Line = 1,
+    Points = 2,
+    LinePoints = 3,
+    Step = 4,
+}
+impl PlotStyle {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "PLOT_STYLE_UNSPECIFIED",
+            Self::Line => "PLOT_STYLE_LINE",
+            Self::Points => "PLOT_STYLE_POINTS",
+            Self::LinePoints => "PLOT_STYLE_LINE_POINTS",
+            Self::Step => "PLOT_STYLE_STEP",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "PLOT_STYLE_UNSPECIFIED" => Some(Self::Unspecified),
+            "PLOT_STYLE_LINE" => Some(Self::Line),
+            "PLOT_STYLE_POINTS" => Some(Self::Points),
+            "PLOT_STYLE_LINE_POINTS" => Some(Self::LinePoints),
+            "PLOT_STYLE_STEP" => Some(Self::Step),
+            _ => None,
+        }
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum AxisScale {
+    Unspecified = 0,
+    Linear = 1,
+    Log = 2,
+}
+impl AxisScale {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "AXIS_SCALE_UNSPECIFIED",
+            Self::Linear => "AXIS_SCALE_LINEAR",
+            Self::Log => "AXIS_SCALE_LOG",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "AXIS_SCALE_UNSPECIFIED" => Some(Self::Unspecified),
+            "AXIS_SCALE_LINEAR" => Some(Self::Linear),
+            "AXIS_SCALE_LOG" => Some(Self::Log),
             _ => None,
         }
     }

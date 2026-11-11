@@ -79,7 +79,7 @@ pub fn compiler(root: &Path) -> Result<(PathBuf, PathBuf), Box<dyn std::error::E
 
 pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let proto = root.join("proto");
-    let (compiler, includes) = compiler(root)?;
+    let (compiler, includes) = self::compiler(root)?;
     let mut inputs = fs::read_dir(proto.join("dokime/v1"))?.map(|entry| entry.map(|entry| entry.path())).collect::<Result<Vec<_>, _>>()?;
     inputs.retain(|path| path.extension().is_some_and(|extension| extension == "proto"));
     inputs.sort();
@@ -98,6 +98,23 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
         &[proto.join("harmos/v1/plugin.proto")],
         &[proto, includes],
     )?;
+    let python = output.join("python");
+    let csharp = output.join("csharp");
+    let cpp = output.join("cpp");
+    for path in [&python, &csharp, &cpp] {
+        fs::create_dir_all(path)?;
+    }
+    let (compiler, includes) = self::compiler(root)?;
+    let proto = root.join("proto");
+    let document_messages = output.join("document-messages");
+    fs::create_dir_all(&document_messages)?;
+    let mut config = prost_build::Config::new();
+    config.protoc_executable(compiler);
+    config.out_dir(document_messages);
+    config.file_descriptor_set_path(python.join("documents.pb"));
+    config.protoc_arg(format!("--csharp_out={}", csharp.display()));
+    config.protoc_arg(format!("--cpp_out={}", cpp.display()));
+    config.compile_protos(&[proto.join("dokime/v1/values.proto"), proto.join("dokime/v1/documents.proto")], &[proto, includes])?;
     Ok(())
 }
 

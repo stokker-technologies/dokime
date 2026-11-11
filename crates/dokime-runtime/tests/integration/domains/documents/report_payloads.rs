@@ -224,10 +224,7 @@ pub(super) async fn rendered_case_plots() {
         test_case_id: case_id,
         test_execution_id: Some(test_execution_id.clone()),
         documents: BTreeMap::from([(document_id("default"), report_document(fixture_tracking_case_document(scope.clone())))]),
-        plots: BTreeMap::from([(
-            "tracking.distance".to_owned(),
-            fixture_plot_payload("tracking", "distance_m", 7.5, 1),
-        )]),
+        plots: BTreeMap::from([("tracking.distance".to_owned(), fixture_plot_payload("tracking", "distance_m", 7.5, 1))]),
     }];
 
     let html = render(&input).await;

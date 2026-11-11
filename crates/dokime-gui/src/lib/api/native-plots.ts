@@ -510,6 +510,16 @@ function dataTransform(value: unknown): DataTransform {
   const input = object(value, "data transform");
   const kind = requiredText(input.type, "data transform type");
   switch (kind) {
+    case "scale":
+    case "offset": {
+      const value = kind === "scale" ? input.factor : input.value;
+      if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${kind} requires a finite number`);
+      return { kind: { HarmosVariant: { case: kind === "scale" ? "Scale" : "Offset", value: { field0: { value } } } } };
+    }
+    case "detail":
+      return { kind: { HarmosVariant: { case: "Detail", value: { field0: { name: requiredText(input.name, "detail field") } } } } };
+    case "per_case":
+      return { kind: { HarmosVariant: { case: "PerCase", value: { field0: {} } } } };
     case "aggregate":
       return {
         kind: {

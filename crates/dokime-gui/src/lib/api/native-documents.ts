@@ -747,6 +747,10 @@ function mapNativeExpression(value?: DataExpression): import("../document-contra
       case "Detail":
         if (!kind.value.field0) invalid("expression transform is missing");
         return { type: "detail" as const, name: kind.value.field0.name };
+      case "Scale":
+        return { type: "scale" as const, factor: kind.value.field0.value };
+      case "Offset":
+        return { type: "offset" as const, value: kind.value.field0.value };
       case "PerCase":
         if (!kind.value.field0) invalid("expression transform is missing");
         return { type: "per_case" as const };

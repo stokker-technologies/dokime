@@ -119,6 +119,21 @@ message Plot {
   optional Reduction reduction = 19;
   ContourRender render = 20;
   GridChart grid = 21;
+  PlotStyle style = 22;
+  AxisScale x_scale = 23;
+  AxisScale y_scale = 24;
+}
+enum PlotStyle {
+  PLOT_STYLE_UNSPECIFIED = 0;
+  PLOT_STYLE_LINE = 1;
+  PLOT_STYLE_POINTS = 2;
+  PLOT_STYLE_LINE_POINTS = 3;
+  PLOT_STYLE_STEP = 4;
+}
+enum AxisScale {
+  AXIS_SCALE_UNSPECIFIED = 0;
+  AXIS_SCALE_LINEAR = 1;
+  AXIS_SCALE_LOG = 2;
 }
 enum Reduction {
   REDUCTION_UNSPECIFIED = 0;

@@ -346,6 +346,18 @@ fn data_transform(transform: dokime::domain::model::plots::wire::DataTransform) 
             previous_record_type: value.previous_record_type,
         },
         dokime::domain::model::plots::wire::DataTransformKind::Detail(value) => DataTransform::Detail { name: value.name },
+        dokime::domain::model::plots::wire::DataTransformKind::Scale(value) => {
+            if !value.value.is_finite() {
+                return Err(Status::invalid_argument("scale factor must be finite"));
+            }
+            DataTransform::Scale { factor: value.value }
+        }
+        dokime::domain::model::plots::wire::DataTransformKind::Offset(value) => {
+            if !value.value.is_finite() {
+                return Err(Status::invalid_argument("offset must be finite"));
+            }
+            DataTransform::Offset { value: value.value }
+        }
         dokime::domain::model::plots::wire::DataTransformKind::PerCase(_) => DataTransform::PerCase,
     })
 }

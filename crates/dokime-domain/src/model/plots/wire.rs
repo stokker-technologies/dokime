@@ -592,6 +592,12 @@ pub struct AnalysisValues {
     pub display_indices: Vec<u32>,
 }
 
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct NumericTransform {
+    pub value: f64,
+}
+
 /* === Enums === */
 
 #[harmos::message]
@@ -690,6 +696,8 @@ pub enum DataExpressionSource {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DataTransformKind {
+    Scale(NumericTransform),
+    Offset(NumericTransform),
     Aggregate(AggregateTransform),
     TimeBetween(TimeBetweenTransform),
     Detail(DetailTransform),

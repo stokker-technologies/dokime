@@ -78,7 +78,8 @@ macro_rules! common {
         match $kind {
             "log" => Some(log!($ctx, $payload).map(|_| Value::Null)),
             "section" => Some((|| {
-                let section = serde_json::from_value($payload.clone()).map_err(|error| error.to_string())?;
+                let spec: super::provider::DocumentSpec = serde_json::from_value($payload.clone()).map_err(|error| error.to_string())?;
+                let section = dokime::document::protobuf::decode_section(&spec.message)?;
                 $ctx.document().section(section);
                 Ok(Value::Null)
             })()),
@@ -416,15 +417,7 @@ pub(super) fn definition(
         .collect::<Result<Vec<_>, _>>()?;
     context.set_prompts(declared_prompts);
     if let Some(spec) = &spec.document {
-        let mut document = dokime::document::DocumentDefinition::new(&spec.label);
-        if let Some(identifier) = &spec.id {
-            document.id(identifier);
-        }
-        document.validate_identity()?;
-        for section in &spec.sections {
-            document.section(section.clone());
-        }
-        context.set_document(document);
+        context.set_document(dokime::document::protobuf::decode_document(&spec.message)?);
     }
     let template = context.into_test_case_template().map_err(|error| error.to_string())?;
     let rows = spec.streams.iter().chain(spec.observers.iter().flat_map(|observer| &observer.streams)).collect::<BTreeSet<_>>();

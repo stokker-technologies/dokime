@@ -122,6 +122,7 @@ pub(super) fn series_entry(key: String, label: String, unit: Option<&str>, point
 
 pub(super) fn x_value(input: super::XInput<'_>) -> Result<JsonValue> {
     match input {
+        super::XInput::Number(value) => Ok(JsonValue::from(value)),
         super::XInput::Missing => Ok(JsonValue::Null),
         super::XInput::Timestamp(value) => Ok(JsonValue::String(text(value)?)),
         super::XInput::Value(value) => json_value(value),

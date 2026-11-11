@@ -2093,6 +2093,28 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
   assert.equal(request.grid?.rows[0].key, "sensor");
 });
 
+test("Numeric Expression Maps Preserve Their Wire Order", () => {
+  const request = toNativePlotRequest({
+    stream: "scan",
+    yKeys: [],
+    plotType: "contour",
+    zExpression: {
+      source: { type: "telemetry", stream: "scan", field: "temperature" },
+      transforms: [
+        { type: "scale", factor: 2 },
+        { type: "offset", value: -1 },
+      ],
+    },
+  });
+  const maps = request.zExpression?.transforms.map((transform) => transform.kind?.HarmosVariant);
+  const scale = maps?.[0];
+  const offset = maps?.[1];
+  assert.ok(scale?.case === "Scale");
+  assert.ok(offset?.case === "Offset");
+  assert.equal(scale.value.field0.value, 2);
+  assert.equal(offset.value.field0.value, -1);
+});
+
 test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
   const declaration = { plot_id: "totals", title: "Totals", stream: "values", plot_type: "bar", y: ["value"] } as DocumentViewPlot;
   const payload: PlotPayload = {
@@ -2177,8 +2199,8 @@ test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () =>
   document.body.append(host);
   const root = createRoot(host);
   let incoming = ["2026-01-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000002Z", "2026-01-01T00:00:04Z"];
-  let trajectory: ReturnType<typeof usePlotPlayback<string[]>>;
-  let grid: ReturnType<typeof usePlotPlayback<string[]>>;
+  let trajectory!: ReturnType<typeof usePlotPlayback<string[]>>;
+  let grid!: ReturnType<typeof usePlotPlayback<string[]>>;
   const windows = useSummaryWindowStore.getState().windows;
   function View() {
     const available = orderedInstants(incoming);
@@ -2200,63 +2222,64 @@ test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () =>
     const first = incoming[0];
     const last = incoming.at(-1);
     assert.notEqual(instantTime(incoming[0]), instantTime(incoming[1]));
-    assert.equal(trajectory!.instant, last);
-    const slider = host.querySelector('[role="slider"]')!;
+    assert.equal(trajectory.instant, last);
+    const slider = host.querySelector('[role="slider"]');
+    assert.ok(slider);
     await act(async () => {
       slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", code: "ArrowLeft", bubbles: true }));
     });
-    assert.equal(trajectory!.instant, incoming[1]);
-    assert.equal(grid!.instant, last);
-    const held = trajectory!.data;
+    assert.equal(trajectory.instant, incoming[1]);
+    assert.equal(grid.instant, last);
+    const held = trajectory.data;
     incoming = [...incoming, "2026-01-01T00:00:08Z"];
     await render();
-    assert.equal(trajectory!.instant, incoming[1]);
-    assert.equal(trajectory!.data, held);
-    assert.equal(grid!.instant, incoming.at(-1));
+    assert.equal(trajectory.instant, incoming[1]);
+    assert.equal(trajectory.data, held);
+    assert.equal(grid.instant, incoming.at(-1));
     await act(async () => {
-      trajectory!.replay();
+      trajectory.replay();
     });
-    assert.equal(trajectory!.instant, first);
+    assert.equal(trajectory.instant, first);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(200);
     });
-    assert.equal(trajectory!.instant, held[1]);
+    assert.equal(trajectory.instant, held[1]);
     await act(async () => {
-      trajectory!.pause();
+      trajectory.pause();
       await vi.advanceTimersByTimeAsync(600);
     });
-    assert.equal(trajectory!.instant, held[1]);
+    assert.equal(trajectory.instant, held[1]);
     await act(async () => {
-      trajectory!.play();
+      trajectory.play();
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(600);
     });
-    assert.equal(trajectory!.instant, last);
-    assert.equal(trajectory!.playing, false);
-    assert.equal(trajectory!.following, false);
+    assert.equal(trajectory.instant, last);
+    assert.equal(trajectory.playing, false);
+    assert.equal(trajectory.following, false);
     await act(async () => {
-      trajectory!.seek(held.length - 1, true);
+      trajectory.seek(held.length - 1, true);
     });
-    assert.equal(trajectory!.instant, incoming.at(-1));
-    assert.equal(trajectory!.following, true);
+    assert.equal(trajectory.instant, incoming.at(-1));
+    assert.equal(trajectory.following, true);
     await act(async () => {
-      trajectory!.play();
+      trajectory.play();
     });
-    assert.equal(trajectory!.following, false);
+    assert.equal(trajectory.following, false);
     incoming = [...incoming, "2026-01-01T00:00:12Z"];
     await render();
-    assert.equal(trajectory!.instant, "2026-01-01T00:00:08Z");
+    assert.equal(trajectory.instant, "2026-01-01T00:00:08Z");
     await act(async () => {
-      trajectory!.latest();
+      trajectory.latest();
     });
-    assert.equal(trajectory!.instant, incoming.at(-1));
+    assert.equal(trajectory.instant, incoming.at(-1));
     incoming = [first];
     await render();
     assert.equal((host.querySelector("button") as HTMLButtonElement).disabled, true);
     incoming = [];
     await render();
-    assert.equal(trajectory!.instant, null);
+    assert.equal(trajectory.instant, null);
     assert.equal(host.querySelector('[data-slot="slider"]')?.getAttribute("aria-disabled"), "true");
     assert.equal(useSummaryWindowStore.getState().windows, windows);
     assert.equal(fetch.mock.calls.length, 0);

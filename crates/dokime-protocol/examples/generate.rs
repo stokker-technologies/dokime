@@ -50,6 +50,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let bytes = std::fs::read(output.path().join(generated))?;
         std::fs::write(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(committed), bytes)?;
     }
+    for (generated, committed) in [
+        ("python/documents.pb", "sdk/python/python/dokime/v1/documents.pb"),
+        ("csharp/Documents.cs", "sdk/csharp/Dokime/V1/Documents.cs"),
+        ("csharp/Values.cs", "sdk/csharp/Dokime/V1/Values.cs"),
+        ("cpp/dokime/v1/documents.pb.h", "sdk/cpp/include/dokime/v1/documents.pb.h"),
+        ("cpp/dokime/v1/values.pb.h", "sdk/cpp/include/dokime/v1/values.pb.h"),
+        ("cpp/dokime/v1/documents.pb.cc", "sdk/cpp/src/dokime/v1/documents.pb.cc"),
+        ("cpp/dokime/v1/values.pb.cc", "sdk/cpp/src/dokime/v1/values.pb.cc"),
+    ] {
+        let destination = root.join(committed);
+        std::fs::create_dir_all(destination.parent().expect("output parent"))?;
+        std::fs::write(destination, std::fs::read(output.path().join(generated))?)?;
+    }
     Ok(())
 }
 

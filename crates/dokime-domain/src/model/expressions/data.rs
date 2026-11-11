@@ -38,6 +38,8 @@ const FN_DATA_ARTIFACT: &str = "data.artifact";
 const FN_TRANSFORM_PREFIX: &str = "data.transform.";
 const FN_TRANSFORM_TIME_BETWEEN: &str = "data.transform.time_between";
 const FN_TRANSFORM_DETAIL: &str = "data.transform.detail";
+const FN_TRANSFORM_SCALE: &str = "data.transform.scale";
+const FN_TRANSFORM_OFFSET: &str = "data.transform.offset";
 const FN_TRANSFORM_PER_CASE: &str = "data.transform.per_case";
 
 /* === Macros === */
@@ -83,6 +85,8 @@ pub enum DataSource {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DataTransform {
+    Scale { factor: f64 },
+    Offset { value: f64 },
     // One member of the Harmos aggregate vocabulary over the values so far,
     // tagged `aggregate` and named by its display name: `{"type": "aggregate",
     // "aggregate": "p95"}`.
@@ -111,7 +115,7 @@ impl harmos::MemorySize for DataSource {
 impl harmos::MemorySize for DataTransform {
     fn memory_size(&self) -> usize {
         let heap = match self {
-            Self::Aggregate(_) | Self::PerCase => 0,
+            Self::Aggregate(_) | Self::PerCase | Self::Scale { .. } | Self::Offset { .. } => 0,
             Self::TimeBetween { previous_record_type } => previous_record_type.capacity(),
             Self::Detail { name } => name.capacity(),
         };
@@ -132,7 +136,30 @@ impl harmos::MemorySize for DataExpression {
     }
 }
 
+impl DataTransform {
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, Self::Scale { .. } | Self::Offset { .. })
+    }
+    pub fn map_numeric(&self, input: f64) -> Option<f64> {
+        let value = match self {
+            Self::Scale { factor } => input * factor,
+            Self::Offset { value } => input + value,
+            _ => return None,
+        };
+        value.is_finite().then_some(value)
+    }
+}
+
 impl DataExpression {
+    pub fn scale(mut self, factor: f64) -> Self {
+        self.transforms.push(DataTransform::Scale { factor });
+        self
+    }
+    pub fn offset(mut self, value: f64) -> Self {
+        self.transforms.push(DataTransform::Offset { value });
+        self
+    }
+
     pub fn label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
         self
@@ -315,6 +342,8 @@ fn data_source_expression(source: DataSource) -> Expression {
 
 fn data_transform_expression(transform: DataTransform, expression: Expression) -> Expression {
     match transform {
+        DataTransform::Scale { factor } => Expression::call(FN_TRANSFORM_SCALE, vec![expression, Expression::literal(factor)]),
+        DataTransform::Offset { value } => Expression::call(FN_TRANSFORM_OFFSET, vec![expression, Expression::literal(value)]),
         DataTransform::Aggregate(aggregate) => Expression::call(format!("{FN_TRANSFORM_PREFIX}{}", aggregate.name()), vec![expression]),
         DataTransform::TimeBetween { previous_record_type } => {
             Expression::call(FN_TRANSFORM_TIME_BETWEEN, vec![expression, Expression::literal(previous_record_type)])
@@ -389,6 +418,20 @@ fn parse_data_expression(expression: &Expression) -> Result<(DataSource, Vec<Dat
             let (source, mut transforms) = parse_data_expression(inner)?;
             transforms.push(DataTransform::Detail { name: text_literal(name)? });
 
+            Ok((source, transforms))
+        }
+        FN_TRANSFORM_SCALE | FN_TRANSFORM_OFFSET => {
+            let [inner, operand] = args.as_slice() else { return Err(DataExpressionError::UnsupportedExpression) };
+            let ExpressionKind::Literal { value } = &operand.kind else { return Err(DataExpressionError::UnsupportedExpression) };
+            let value = crate::model::values::numeric_value(value)
+                .filter(|value| value.is_finite())
+                .ok_or(DataExpressionError::UnsupportedExpression)?;
+            let (source, mut transforms) = parse_data_expression(inner)?;
+            transforms.push(if function == FN_TRANSFORM_SCALE {
+                DataTransform::Scale { factor: value }
+            } else {
+                DataTransform::Offset { value }
+            });
             Ok((source, transforms))
         }
         FN_TRANSFORM_PER_CASE => parse_unary_transform(args, DataTransform::PerCase),

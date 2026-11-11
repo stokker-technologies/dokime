@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub mod builders;
+
 // Checked-In Output of the Generator Exercised by the Integration Drift Check.
 #[rustfmt::skip]
 pub mod v1;

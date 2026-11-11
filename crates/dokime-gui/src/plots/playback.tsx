@@ -89,7 +89,7 @@ export function PlotPlayback({ title, playback }: { title: string; playback: Omi
   const interacting = useRef(false);
   const value = useMemo(() => [index], [index]);
   return (
-    <div className="grid gap-2" role="group" aria-label={`${title} Playback`} data-playback-instant={instant ?? ""}>
+    <fieldset className="grid min-w-0 gap-2" aria-label={`${title} Playback`} data-playback-instant={instant ?? ""}>
       <Slider
         aria-label={`${title} Instant`}
         aria-valuetext={instant ?? "No Instants"}
@@ -130,7 +130,7 @@ export function PlotPlayback({ title, playback }: { title: string; playback: Omi
         </Button>
         <output className="min-w-0 truncate text-xs tabular-nums text-muted-foreground">{instant ?? "No Instants"}</output>
       </div>
-    </div>
+    </fieldset>
   );
 }
 

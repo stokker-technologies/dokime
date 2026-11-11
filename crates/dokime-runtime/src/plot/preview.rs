@@ -489,7 +489,9 @@ impl Preview {
         let aggregate = aggregate(request);
         if aggregate.is_some() {
             for expression in &mut raw.y_expressions {
-                expression.transforms.retain(|transform| !matches!(transform, DataTransform::Aggregate(_)));
+                if let Some(index) = expression.transforms.iter().position(|transform| matches!(transform, DataTransform::Aggregate(_))) {
+                    expression.transforms.truncate(index);
+                }
             }
         }
         let context = PlotPayloadContext {
@@ -688,7 +690,10 @@ impl Preview {
                         .map(|(x, moments)| PlotPoint {
                             instant: None,
                             x: x.clone(),
-                            y: moments.value(method),
+                            y: aggregate_expression(request, &trace.template.key).map_or_else(
+                                || moments.value(method),
+                                |expression| super::payload::aggregate_value(moments.value(method), expression),
+                            ),
                             z: None,
                         })
                         .collect()
@@ -985,17 +990,21 @@ fn aggregate(request: &PlotPayloadRequest) -> Option<harmos::Aggregate> {
 }
 
 fn aggregate_for(request: &PlotPayloadRequest, key: &str) -> Option<harmos::Aggregate> {
-    let expression = request.y_expressions.iter().find(|expression| match &expression.source {
+    let expression = aggregate_expression(request, key);
+    expression
+        .into_iter()
+        .flat_map(|expression| &expression.transforms)
+        .find_map(|transform| if let DataTransform::Aggregate(method) = transform { Some(*method) } else { None })
+}
+
+fn aggregate_expression<'a>(request: &'a PlotPayloadRequest, key: &str) -> Option<&'a crate::expressions::DataExpression> {
+    request.y_expressions.iter().find(|expression| match &expression.source {
         crate::expressions::DataSource::Telemetry { field, .. } => {
             key == field || key.starts_with(&format!("{field}:")) || expression.label.as_deref() == Some(key)
         }
         crate::expressions::DataSource::Record { record_type } => key.ends_with(record_type),
         _ => false,
-    });
-    expression
-        .into_iter()
-        .flat_map(|expression| &expression.transforms)
-        .find_map(|transform| if let DataTransform::Aggregate(method) = transform { Some(*method) } else { None })
+    })
 }
 
 fn uses_density_grid(request: &PlotPayloadRequest) -> bool {

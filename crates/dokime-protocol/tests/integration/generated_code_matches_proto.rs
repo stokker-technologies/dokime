@@ -84,5 +84,69 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn std::error::Error>> {
             panic!("generated Rust differs from {committed}; run mise run generate -- --protocol; evidence: {}", output.display());
         }
     }
+    for (generated, committed) in [
+        ("python/documents.pb", "sdk/python/python/dokime/v1/documents.pb"),
+        ("csharp/Documents.cs", "sdk/csharp/Dokime/V1/Documents.cs"),
+        ("csharp/Values.cs", "sdk/csharp/Dokime/V1/Values.cs"),
+        ("cpp/dokime/v1/documents.pb.h", "sdk/cpp/include/dokime/v1/documents.pb.h"),
+        ("cpp/dokime/v1/values.pb.h", "sdk/cpp/include/dokime/v1/values.pb.h"),
+        ("cpp/dokime/v1/documents.pb.cc", "sdk/cpp/src/dokime/v1/documents.pb.cc"),
+        ("cpp/dokime/v1/values.pb.cc", "sdk/cpp/src/dokime/v1/values.pb.cc"),
+    ] {
+        assert_eq!(fs::read(output.path().join(generated))?, fs::read(root.join(committed))?, "stale {committed}");
+    }
     Ok(())
+}
+
+#[test]
+fn typed_plot_builders_produce_canonical_document_messages() {
+    use dokime_protocol::builders::Plot;
+    use dokime_protocol::v1::*;
+    use prost::Message;
+    let scan = FieldReference::new("scan");
+    let surface = Plot::contour(scan.field("temperature").scale(1.0))
+        .x(scan.field("position_x"))
+        .y(scan.field("position_y"))
+        .label("Temperature Map")
+        .unit("°C")
+        .reduce(Reduction::Mean)
+        .render(ContourRender::Bands);
+    assert_eq!(surface.kind, PlotKind::Contour as i32);
+    assert_eq!(surface.y.len(), 1);
+    let data_expression::Kind::Transform(transform) = surface.z.as_ref().unwrap().kind.as_ref().unwrap() else { panic!("typed scale") };
+    assert_eq!(transform.kind, Some(transform_expression::Kind::Scale(1.0)));
+    let grid = Plot::grid_chart(scan.field("value"))
+        .row(scan.field("row_key"))
+        .column(scan.field("column_key"))
+        .frame(scan.field("timestamp"))
+        .rows([GridAxisEntry {
+            key: "sensor".into(),
+            label: "Sensor".into(),
+            order: 0,
+            group: None,
+        }])
+        .columns([GridAxisEntry {
+            key: "site".into(),
+            label: "Site".into(),
+            order: 0,
+            group: None,
+        }])
+        .reduce(Reduction::Max)
+        .label("Sensor Grid");
+    assert!(grid.grid.as_ref().unwrap().frame.is_some());
+    let document = Document::new("Scan").section(Section::new("Map").plot(surface).plot(grid));
+    assert_eq!(Document::decode(document.encode_to_vec().as_slice()).unwrap(), document);
+    let variants = [
+        Plot::bar(scan.field("value")).x(scan.field("category")).series_by(scan.field("group")).arrangement(BarArrangement::Grouped),
+        Plot::bar(scan.field("value")).x(scan.field("category")).series_by(scan.field("group")).arrangement(BarArrangement::Stacked),
+        Plot::bar(scan.field("value")).x(scan.field("category")).pareto(true),
+        Plot::pie(scan.field("value")).x(scan.field("category")).hole(0.5),
+        Plot::xy(scan.field("value")).x(scan.field("position")).interval(XyInterval::Sigma),
+    ];
+    assert_eq!(variants[0].arrangement, Some(BarArrangement::Grouped as i32));
+    assert_eq!(variants[1].arrangement, Some(BarArrangement::Stacked as i32));
+    assert!(variants[2].pareto);
+    assert_eq!(variants[3].hole, Some(0.5));
+    assert_eq!(variants[4].interval, Some(XyInterval::Sigma as i32));
+    assert_eq!(Plot::contour(scan.field("value")).id("stable").label("Temperature Map").metadata.as_ref().unwrap().identifier, "stable");
 }

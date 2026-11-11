@@ -13,6 +13,7 @@ from pathlib import Path as _Path
 
 # Third Party Imports
 # Local Imports
+from . import plot as plot
 from ._native import __version__ as __version__
 from .authoring import Context as Context
 from .authoring import Document as Document
@@ -108,6 +109,8 @@ from .client.query.selection import Predicate as Predicate
 from .client.query.statistics import QualityCounts as QualityCounts
 from .client.query.statistics import Statistic as Statistic
 from .client.query.statistics import Statistics as Statistics
+from .documents import Section as Section
+from .documents import Summary as Summary
 
 # Type Checking Imports
 

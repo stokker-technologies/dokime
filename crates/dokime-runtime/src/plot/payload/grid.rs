@@ -249,6 +249,7 @@ fn frame_hash(time: i128) -> u64 {
 
 fn key(sample: &TelemetrySample, expression: &crate::expressions::DataExpression) -> Result<String, String> {
     match expression_x_input(sample, Some(expression), "") {
+        XInput::Number(value) if value.is_finite() => Ok(value.to_string()),
         XInput::Timestamp(value) => Ok(value.to_owned()),
         XInput::Value(crate::Value::Text(value)) => Ok(value.clone()),
         XInput::Value(crate::Value::Integer(value)) => Ok(value.to_string()),

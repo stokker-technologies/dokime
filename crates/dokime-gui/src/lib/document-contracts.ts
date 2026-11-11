@@ -47,6 +47,8 @@ export type DataSource =
 export type Aggregate = "count" | "sum" | "mean" | "median" | "min" | "max" | "rms" | "std" | `p${number}`;
 
 export type DataTransform =
+  | { type: "scale"; factor: number }
+  | { type: "offset"; value: number }
   | { type: "aggregate"; aggregate: Aggregate }
   | { type: "time_between"; previous_record_type: string }
   | { type: "detail"; name: string }

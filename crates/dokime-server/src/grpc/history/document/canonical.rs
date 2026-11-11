@@ -347,6 +347,8 @@ fn data_transform(value: &dokime::expressions::DataTransform) -> Result<dokime::
             })
         }
         DataTransform::Detail { name } => Kind::Detail(dokime::domain::model::plots::wire::DetailTransform { name: name.clone() }),
+        DataTransform::Scale { factor } => Kind::Scale(dokime::domain::model::plots::wire::NumericTransform { value: *factor }),
+        DataTransform::Offset { value } => Kind::Offset(dokime::domain::model::plots::wire::NumericTransform { value: *value }),
         DataTransform::PerCase => Kind::PerCase(dokime::domain::model::plots::wire::EmptyTransform {}),
     };
     Ok(dokime::domain::model::plots::wire::DataTransform { kind: Some(kind) })

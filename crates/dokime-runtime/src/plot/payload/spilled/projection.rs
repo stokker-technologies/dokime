@@ -238,6 +238,10 @@ impl<'a> Projection<'a> {
                         Ok(())
                     })?;
                     let y = scalar_number(accumulator.finish(&mut || Ok(()))?);
+                    let y = match input {
+                        Input::Expression(expression) => payload::aggregate_value(y, expression),
+                        _ => y,
+                    };
                     aggregates.push(PlotPoint { instant: None, x: group.into(), y, z })?;
                 } else {
                     let mut points = Points::new()?;
@@ -356,6 +360,15 @@ pub(super) fn selected(sample: &TelemetrySample, request: &PlotPayloadRequest) -
 }
 
 fn z_value(read: &Read<'_>, sample: &TelemetrySample, request: &PlotPayloadRequest) -> Result<Option<f64>> {
+    let value = raw_z_value(read, sample, request)?;
+    Ok(request
+        .z_expression
+        .as_ref()
+        .filter(|expression| matches!(expression.source, crate::expressions::DataSource::Telemetry { .. }))
+        .map_or(value, |expression| payload::map_numeric(value, expression.transforms.iter())))
+}
+
+fn raw_z_value(read: &Read<'_>, sample: &TelemetrySample, request: &PlotPayloadRequest) -> Result<Option<f64>> {
     let (stream, field) = match request.z_expression.as_ref() {
         Some(expression) => match &expression.source {
             crate::expressions::DataSource::Telemetry { stream, field } => (stream.as_str(), field.as_str()),

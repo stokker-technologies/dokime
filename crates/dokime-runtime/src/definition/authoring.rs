@@ -45,6 +45,7 @@ use dokime_domain::model::values::validate_value_format;
 /* === Macros === */
 
 product_error!(TemplateAuthoringError, formatter {
+    Self::InvalidDocument(reason) => write!(formatter, "invalid document: {reason}"),
     Self::MissingMetadata => formatter.write_str("test case template metadata is required"),
     Self::InvalidIdentifier { field, value, reason } => write!(formatter, "invalid {field} identifier {value:?}: {reason}"),
 });
@@ -125,6 +126,7 @@ pub enum ParameterDefault {
 
 #[derive(Debug)]
 pub enum TemplateAuthoringError {
+    InvalidDocument(String),
     MissingMetadata,
     InvalidIdentifier { field: &'static str, value: String, reason: dokime_domain::Error },
 }
@@ -232,8 +234,11 @@ impl TemplateContext {
         self.parameters = parameters;
     }
 
-    pub fn set_document(&mut self, document: DocumentDefinition) {
-        self.document = Some(document);
+    pub fn set_document(&mut self, document: impl crate::document::protobuf::IntoDocumentDefinition) {
+        match document.into_document_definition() {
+            Ok(document) => self.document = Some(document),
+            Err(reason) => self.errors.push(TemplateAuthoringError::InvalidDocument(reason)),
+        }
     }
 
     pub fn set_steps(&mut self, steps: Vec<Step>) {

@@ -1,0 +1,27 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Settings === #
+
+# === Tools === #
+
+[tools]
+dotnet = "10.0.403"
+
+# === Environment === #
+
+# === Variables === #
+
+# === Generate === #
+
+[tasks."test:builders"]
+description = "Test Canonical Document Builders"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" restore tests/Builders/Builders.csproj --locked-mode',
+  '"{{tools.dotnet.path}}/dotnet" run --project tests/Builders/Builders.csproj --configuration Release --no-restore',
+]

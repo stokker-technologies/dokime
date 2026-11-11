@@ -11,6 +11,8 @@
 
 /* === Re-Exports === */
 
+pub use super::limits::DocumentLimits;
+
 /* === Imports === */
 
 // Standard Library Imports
@@ -31,17 +33,6 @@ use super::{DocumentDefinition, DocumentPayload, DocumentResolveInput};
 
 /* === Structs === */
 
-#[derive(Clone, Copy, Debug)]
-pub struct DocumentLimits {
-    pub source_bytes: usize,
-    pub depth: usize,
-    pub expanded_nodes: usize,
-    pub materialized_bytes: usize,
-    pub layout_depth: usize,
-    pub unavailable_reason_bytes: usize,
-    pub maximum_plot_points: usize,
-}
-
 pub(crate) struct SharedBindings<'a> {
     selection: &'a DocumentSelection,
     data: BorrowedData<'a>,
@@ -61,20 +52,6 @@ pub enum DocumentLimit {
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Default for DocumentLimits {
-    fn default() -> Self {
-        Self {
-            source_bytes: 16777216,
-            depth: 32,
-            expanded_nodes: 4096,
-            materialized_bytes: 33554432,
-            layout_depth: 12,
-            unavailable_reason_bytes: 512,
-            maximum_plot_points: 100000,
-        }
-    }
-}
 
 impl std::fmt::Display for DocumentLimit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

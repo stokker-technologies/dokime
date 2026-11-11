@@ -129,6 +129,14 @@ impl ProjectedRow<'_> {
         };
         let Some(mut value) = value else { return Ok(None) };
         for transform in &expression.transforms {
+            if transform.is_numeric() {
+                let Some(number) = dokime_domain::model::values::numeric_value(&value).and_then(|value| transform.map_numeric(value))
+                else {
+                    return Ok(None);
+                };
+                value = Value::Number(number);
+                continue;
+            }
             let DataTransform::Detail { name } = transform else { break };
             let Value::Object(mut fields) = value else { return Ok(None) };
             let Some(selected) = fields.remove(name) else { return Ok(None) };

@@ -111,7 +111,7 @@ pub enum PlotAnalysis {
 /* === Public Functions === */
 
 pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -> Option<PlotAnalysis> {
-    if request.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty()) {
+    if request.z_expression.as_ref().is_some_and(|expression| expression.transforms.iter().any(|transform| !transform.is_numeric())) {
         return Some(PlotAnalysis::Error {
             message: "Z expressions must select a scalar field without transforms".into(),
         });

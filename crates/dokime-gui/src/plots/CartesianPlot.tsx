@@ -1351,7 +1351,6 @@ export function facetedSeriesPaths(
   marks: PointMarks,
   color: string,
   currentPosition = false,
-  localViewport = false,
 ): uPlot.Series.PathBuilder {
   return (plot, seriesIdx) => {
     const data = facetedSeriesData(plot, seriesIdx);

@@ -308,6 +308,12 @@ pub(super) struct Transform {
     // The Harmos vocabulary's wire name (`mean`, `p95`) of an `aggregate`.
     #[serde(default)]
     aggregate: Option<String>,
+
+    #[serde(default)]
+    factor: Option<f64>,
+
+    #[serde(default)]
+    value: Option<f64>,
 }
 
 #[harmos::message]
@@ -2135,9 +2141,12 @@ impl Transform {
             (self.previous_record_type.is_some(), kind == "time_between"),
             (self.name.is_some(), kind == "detail"),
             (self.aggregate.is_some(), kind == "aggregate"),
+            (self.factor.is_some(), kind == "scale"),
+            (self.value.is_some(), kind == "offset"),
         ];
-        if !matches!(kind, "aggregate" | "time_between" | "detail" | "per_case")
+        if !matches!(kind, "aggregate" | "time_between" | "detail" | "per_case" | "scale" | "offset")
             || fields.iter().any(|(present, required)| present != required)
+            || self.factor.into_iter().chain(self.value).any(|value| !value.is_finite())
         {
             return Err(Error::Invalid("data transform fields differ"));
         }
@@ -2160,6 +2169,8 @@ impl TryFrom<&DataTransform> for Transform {
             ..Default::default()
         };
         match value {
+            DataTransform::Scale { factor } => transform.factor = Some(*factor),
+            DataTransform::Offset { value } => transform.value = Some(*value),
             DataTransform::TimeBetween { previous_record_type } => {
                 transform.previous_record_type = Some(previous_record_type.as_str().to_owned())
             }
@@ -2177,6 +2188,8 @@ impl TryFrom<Transform> for DataTransform {
     fn try_from(row: Transform) -> Result<Self> {
         row.projection_memory()?;
         match row.kind.as_str() {
+            "scale" => Ok(Self::Scale { factor: row.factor.unwrap() }),
+            "offset" => Ok(Self::Offset { value: row.value.unwrap() }),
             "aggregate" => row
                 .aggregate
                 .as_deref()
@@ -2542,6 +2555,8 @@ fn format_name(value: &dokime_domain::model::values::ValueFormat) -> &'static st
 
 fn transform_name(value: &DataTransform) -> &'static str {
     match value {
+        DataTransform::Scale { .. } => "scale",
+        DataTransform::Offset { .. } => "offset",
         DataTransform::Aggregate(_) => "aggregate",
         DataTransform::TimeBetween { .. } => "time_between",
         DataTransform::Detail { .. } => "detail",

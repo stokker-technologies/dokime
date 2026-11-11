@@ -28,6 +28,9 @@ pub(crate) mod frame;
 #[cfg(feature = "native")]
 pub mod input;
 
+mod limits;
+pub mod protobuf;
+
 #[cfg(feature = "native")]
 pub mod instance;
 
@@ -56,6 +59,8 @@ pub(crate) mod query;
 pub mod resolve;
 
 /* === Re-Exports === */
+
+pub use limits::DocumentLimits;
 
 pub use dokime_domain::model::document::*;
 pub use dokime_domain::model::expressions::RecordField;

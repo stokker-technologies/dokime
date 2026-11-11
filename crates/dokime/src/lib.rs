@@ -26,6 +26,9 @@ pub mod version;
 /* === Re-Exports === */
 
 pub use dokime_domain as domain;
+pub use dokime_protocol::builders as plot;
+pub use dokime_protocol::v1;
+pub use dokime_protocol::v1::{Document, FieldReference, Section, Summary};
 pub use dokime_runtime::*;
 
 #[cfg(feature = "client")]

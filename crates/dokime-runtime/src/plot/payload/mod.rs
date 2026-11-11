@@ -101,12 +101,14 @@ struct ZSample<'a> {
 enum ZIndex<'a> {
     None,
     Expression(&'a DataExpression),
+    Mapped { source: Box<ZIndex<'a>>, expression: &'a DataExpression },
     Primary { field: &'a str },
     Stream { samples: Vec<ZSample<'a>> },
 }
 
 #[derive(Clone, Copy)]
 enum XInput<'a> {
+    Number(f64),
     Missing,
     Timestamp(&'a str),
     Value(&'a Value),
@@ -119,6 +121,7 @@ enum XInput<'a> {
 impl ZIndex<'_> {
     fn resolve(&self, sample: &TelemetrySample) -> Option<f64> {
         match self {
+            Self::Mapped { source, expression } => map_numeric(source.resolve(sample), expression.transforms.iter()),
             Self::None => None,
             Self::Expression(expression) => expression_numeric_value(sample, expression),
             Self::Primary { field } => sample.values.get(*field).and_then(numeric_value),
@@ -342,7 +345,7 @@ pub(crate) fn aggregate_method(expression: &DataExpression) -> Option<Aggregate>
         // read off a record, and `per_case` widens which executions are
         // read, before any aggregate over the result.
         DataTransform::Detail { .. } => None,
-        DataTransform::PerCase => None,
+        DataTransform::PerCase | DataTransform::Scale { .. } | DataTransform::Offset { .. } => None,
     })
 }
 
@@ -494,7 +497,8 @@ fn request_z_index<'a>(telemetry: &'a [TelemetrySample], request: &'a PlotPayloa
     match request.z_expression.as_ref() {
         Some(expression) => match &expression.source {
             DataSource::Telemetry { stream, field } => {
-                self::z_index(telemetry, &request.stream, Some(stream), Some(field), request.scope.as_ref())
+                let source = self::z_index(telemetry, &request.stream, Some(stream), Some(field), request.scope.as_ref());
+                if expression.transforms.is_empty() { source } else { ZIndex::Mapped { source: Box::new(source), expression } }
             }
             _ => ZIndex::Expression(expression),
         },
@@ -628,14 +632,14 @@ fn telemetry_stream_for_expression(expression: Option<&DataExpression>) -> Optio
 
 fn is_row_expression(expression: &DataExpression) -> bool {
     matches!(expression.source, DataSource::Telemetry { .. } | DataSource::Dimension { .. } | DataSource::Parameter { .. })
-        && expression.transforms.is_empty()
+        && expression.transforms.iter().all(DataTransform::is_numeric)
 }
 
 fn expression_x_input<'a>(sample: &'a TelemetrySample, expression: Option<&DataExpression>, x_key: &str) -> XInput<'a> {
     let Some(expression) = expression else {
         return x_input(sample, x_key);
     };
-    match &expression.source {
+    let raw = match &expression.source {
         DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => {
             if field == "timestamp" {
                 XInput::Timestamp(sample.timestamp.as_str())
@@ -647,7 +651,16 @@ fn expression_x_input<'a>(sample: &'a TelemetrySample, expression: Option<&DataE
             sample_value(sample, name).map_or(XInput::Missing, XInput::Value)
         }
         _ => x_input(sample, x_key),
+    };
+    if expression.transforms.is_empty() {
+        return raw;
     }
+    let value = match raw {
+        XInput::Number(value) => Some(value),
+        XInput::Value(value) => numeric_value(value),
+        _ => None,
+    };
+    map_numeric(value, expression.transforms.iter()).map_or(XInput::Missing, XInput::Number)
 }
 
 fn point_instant(sample: &TelemetrySample, request: &PlotPayloadRequest) -> Option<String> {
@@ -655,7 +668,7 @@ fn point_instant(sample: &TelemetrySample, request: &PlotPayloadRequest) -> Opti
 }
 
 fn expression_numeric_value(sample: &TelemetrySample, expression: &DataExpression) -> Option<f64> {
-    match &expression.source {
+    let value = match &expression.source {
         DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => {
             sample_value(sample, field).and_then(series_value)
         }
@@ -664,7 +677,21 @@ fn expression_numeric_value(sample: &TelemetrySample, expression: &DataExpressio
         }
         DataSource::Telemetry { .. } => None,
         _ => None,
+    };
+    map_numeric(value, expression.transforms.iter().take_while(|transform| !matches!(transform, DataTransform::Aggregate(_))))
+}
+
+fn map_numeric<'a>(mut value: Option<f64>, transforms: impl Iterator<Item = &'a DataTransform>) -> Option<f64> {
+    for transform in transforms {
+        if transform.is_numeric() {
+            value = value.and_then(|value| transform.map_numeric(value));
+        }
     }
+    value
+}
+
+pub(super) fn aggregate_value(value: Option<f64>, expression: &DataExpression) -> Option<f64> {
+    map_numeric(value, expression.transforms.iter().skip_while(|transform| !matches!(transform, DataTransform::Aggregate(_))).skip(1))
 }
 
 fn expression_field_name(expression: &DataExpression) -> Option<&str> {
@@ -803,6 +830,68 @@ mod tests {
     use super::*;
     use crate::document::{DocumentSelection, Plot, plot_descriptor_for_definition, plot_input_for_definition};
     use dokime_domain::model::expressions::telemetry;
+
+    #[cfg(feature = "storage")]
+    mod canonical {
+        use super::*;
+
+        #[test]
+        fn canonical_contour_maps_reach_the_binned_payload() {
+            use crate::document::{DocumentCardBody, protobuf::IntoDocumentDefinition};
+            use dokime_protocol::{builders::Plot as Builder, v1};
+            let scan = v1::FieldReference::new("scan");
+            let source = v1::Document::new("Scan").section(
+                v1::Section::new("Map").plot(
+                    Builder::contour(scan.field("z").scale(2.0).offset(-1.0))
+                        .x(scan.field("x").scale(2.0))
+                        .y(scan.field("y").offset(1.0))
+                        .label("Surface"),
+                ),
+            );
+            let admitted = source.into_document_definition().unwrap();
+            let DocumentCardBody::Plot { plot } = &admitted.cards[0].body else { panic!("plot") };
+            let samples = [2.0, 6.0]
+                .into_iter()
+                .enumerate()
+                .map(|(index, z)| {
+                    let mut sample = TelemetrySample::new(
+                        crate::model::identity::new_id(),
+                        dokime_domain::model::identity::Identifier::new("scan").unwrap(),
+                        index as u64,
+                        dokime_domain::model::time::Timestamp::new("2026-01-01T00:00:00Z"),
+                        "scan",
+                    );
+                    sample.values.extend([
+                        ("x".into(), Value::Number(0.1)),
+                        ("y".into(), Value::Number(0.1)),
+                        ("z".into(), Value::Number(z)),
+                    ]);
+                    sample
+                })
+                .collect::<Vec<_>>();
+            let input = plot_input_for_definition(plot, &samples, 0, &DocumentSelection::default());
+            let descriptor = plot_descriptor_for_definition(input, plot.metadata.clone());
+            let mut request = plot_payload_request_for_descriptor(&descriptor, None, Some(100), None);
+            request.panel_width = Some(2);
+            request.panel_height = Some(2);
+            request.viewport = Some(PlotWindow { from: 0.0, to: 2.0 });
+            request.y_viewport = Some(PlotWindow { from: 0.0, to: 2.0 });
+            let context = PlotPayloadContext {
+                default_max_points: 100,
+                x_format: None,
+                series_format: None,
+                run_started_at: None,
+                cycle_started_at: None,
+            };
+            let payload =
+                project_retained_plot_payload(&samples, crate::records::view::View::default(), &request, "2026-01-01T00:00:00Z", &context)
+                    .unwrap();
+            let payload = finish_retained_plot_payload(payload, &request).unwrap();
+            let Some(PlotAnalysis::Contour { grid }) = &payload.analysis else { panic!("contour grid") };
+            assert_eq!(grid.valid, vec![false, false, true, false]);
+            assert_eq!(grid.values, vec![0.0, 0.0, 7.0, 0.0]);
+        }
+    }
 
     #[cfg(feature = "storage")]
     #[test]

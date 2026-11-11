@@ -387,7 +387,7 @@ fn build_aggregates(plan: &GroupRows<'_>, telemetry: &[TelemetrySample], request
         for group in &plan.groups {
             let mut values = vector(plan.count(group, Input::Expression(expression)))?;
             values.extend(plan.rows[group.clone()].iter().filter_map(|row| super::expression_numeric_value(row.sample, expression)));
-            let y = Series::from(values).aggregate(method);
+            let y = super::aggregate_value(Series::from(values).aggregate(method), expression);
             let last = &plan.rows[group.end - 1];
             points.push(PlotPoint {
                 instant: super::point_instant(last.sample, request),

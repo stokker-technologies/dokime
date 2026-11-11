@@ -89,8 +89,8 @@ impl Contour {
                 [current[0].min(bounds[0]), current[1].max(bounds[1]), current[2].min(bounds[2]), current[3].max(bounds[3])]
             }));
         }
-        for axis in 0..2 {
-            let width = self.width.expect("initialized width")[axis].max(other_width[axis]);
+        for (axis, other_width) in other_width.into_iter().enumerate() {
+            let width = self.width.expect("initialized width")[axis].max(other_width);
             while self.width.expect("initialized width")[axis] < width {
                 self.coarsen(axis, request.reduction.unwrap_or_default());
             }

@@ -59,6 +59,9 @@ pub(super) struct Plan<'a> {
     inner: Agg,
     measured: usize,
     outer: Option<Agg>,
+    post: Vec<DataTransform>,
+    inner_post: Vec<DataTransform>,
+    correlation_maps: Vec<DataTransform>,
 }
 
 pub(crate) struct Fold {
@@ -201,9 +204,19 @@ impl<'plan> Plan<'plan> {
         let transforms = &expression.transforms;
         let split = transforms.iter().position(|transform| matches!(transform, DataTransform::PerCase));
         let inner = &transforms[..split.unwrap_or(transforms.len())];
-        let outer = split.and_then(|index| transforms.get(index + 1)).map(agg);
-        let fold = inner.last().and_then(fold_of);
-        let selector = &inner[..inner.len() - usize::from(fold.is_some())];
+        let suffix = split.map(|index| &transforms[index + 1..]).unwrap_or_default();
+        let outer_index = suffix.iter().rposition(|transform| fold_of(transform).is_some());
+        let outer = outer_index.map(|index| agg(&suffix[index]));
+        let fold_index = inner.iter().rposition(|transform| fold_of(transform).is_some());
+        let fold = fold_index.and_then(|index| fold_of(&inner[index]));
+        let selector = &inner[..fold_index.unwrap_or(inner.len())];
+        let inner_maps = fold_index.map(|index| &inner[index + 1..]).unwrap_or_default();
+        let post =
+            if split.is_some() { outer_index.map(|index| suffix[index + 1..].to_vec()).unwrap_or_default() } else { inner_maps.to_vec() };
+        let mut inner_post = if split.is_some() { inner_maps.to_vec() } else { Vec::new() };
+        if let Some(index) = outer_index {
+            inner_post.extend_from_slice(&suffix[..index]);
+        }
         let join = match (&expression.source, selector.first()) {
             (DataSource::Record { .. }, Some(DataTransform::TimeBetween { previous_record_type })) => {
                 Join::Previous(previous_record_type.as_str())
@@ -226,6 +239,8 @@ impl<'plan> Plan<'plan> {
         let mut left = Columns::new();
         let mut right = Columns::new();
         let elapsed = matches!(join, Join::Previous(_));
+        let correlation_maps =
+            if elapsed { selector.iter().filter(|transform| transform.is_numeric()).cloned().collect::<Vec<_>>() } else { Vec::new() };
 
         // The Left Scan Measures Its Own Value Unless A Correlation Supplies It.
         let numeric = 1 + 2 * usize::from(kind == Kind::Numeric);
@@ -259,7 +274,8 @@ impl<'plan> Plan<'plan> {
         let shape = match (cases.is_some(), outer, kind) {
             (true, Some(Agg::Of(Aggregate::Count)), _) | (false, _, Kind::Presence | Kind::Occurrence) => Shape::Count,
             (true, _, Kind::Presence | Kind::Occurrence) => Shape::Numeric { flags: false },
-            _ if elapsed => Shape::Elapsed,
+            _ if elapsed && correlation_maps.is_empty() => Shape::Elapsed,
+            _ if elapsed => Shape::Numeric { flags: false },
             (_, _, Kind::Ordinal) => Shape::Original,
             _ => Shape::Numeric { flags: true },
         };
@@ -273,6 +289,9 @@ impl<'plan> Plan<'plan> {
             inner,
             measured,
             outer,
+            post,
+            inner_post,
+            correlation_maps,
         })
     }
     pub(super) fn evaluate<'a>(
@@ -531,7 +550,16 @@ impl<'plan> Plan<'plan> {
             let measured = match &correlation {
                 None => row.values[..self.measured].to_vec(),
                 Some((correlation, matched)) => match matched[index].map(|index| &correlation.rows[index]) {
-                    Some(matched) => vec![elapsed(&matched.values[2], &row.values[2])?],
+                    Some(matched) => {
+                        let value = elapsed(&matched.values[2], &row.values[2])?;
+                        let mut values = if self.correlation_maps.is_empty() {
+                            vec![value]
+                        } else {
+                            vec![seconds(value)?.as_ref().map(floating).transpose()?.unwrap_or(ScalarValue::Missing)]
+                        };
+                        map_scalars(&mut values, &self.correlation_maps)?;
+                        values
+                    }
                     None => vec![ScalarValue::Missing],
                 },
             };
@@ -545,6 +573,7 @@ impl<'plan> Plan<'plan> {
             for accumulator in fold {
                 values.push(accumulator.finish(&mut || Ok(())).map_err(reduction)?);
             }
+            map_scalars(&mut values, &self.inner_post)?;
             groups.push(values);
         }
         let outer = match self.outer {
@@ -574,7 +603,7 @@ impl<'plan> Plan<'plan> {
         if matches!(first, ScalarValue::Missing) {
             return Ok(Output::Value(None));
         }
-        Ok(match self.shape {
+        let output = match self.shape {
             Shape::Original => match first {
                 ScalarValue::Unsigned(ordinal) => Output::Left(Some(ordinal)),
                 ScalarValue::Null => Output::Value(Some(Value::Null)),
@@ -596,6 +625,16 @@ impl<'plan> Plan<'plan> {
                     .value()?,
                 )
             }
+        };
+        Ok(match output {
+            Output::Value(Some(value)) if !self.post.is_empty() && !matches!(value, Value::Null) => {
+                let mut number = dokime_domain::model::values::numeric_value(&value).ok_or_else(|| failure(NONNUMERIC))?;
+                for transform in &self.post {
+                    number = transform.map_numeric(number).ok_or_else(|| failure(NONNUMERIC))?;
+                }
+                Output::Value(Some(Value::Number(number)))
+            }
+            other => other,
         })
     }
 }
@@ -631,6 +670,9 @@ impl Fold {
             inner: compiled.inner,
             measured: compiled.measured,
             outer: compiled.outer,
+            post: compiled.post,
+            inner_post: compiled.inner_post,
+            correlation_maps: compiled.correlation_maps,
         };
         let floating = Accumulator::new(plan.inner);
         Ok(Self {
@@ -683,6 +725,7 @@ impl Fold {
         if self.has_float {
             values[0] = self.floating.finish(check).map_err(reduction)?;
         }
+        map_scalars(&mut values, &self.plan.inner_post)?;
         let outer = self
             .plan
             .outer
@@ -833,6 +876,30 @@ fn lookup_keys<'a>(side: &Side<'a>) -> (&'a str, &'a str) {
     (execution, attempt)
 }
 
+fn map_scalars(values: &mut [ScalarValue], transforms: &[DataTransform]) -> Result<()> {
+    if transforms.is_empty() {
+        return Ok(());
+    }
+    let Some(first) = values.first() else { return Ok(()) };
+    let mut value = match first {
+        ScalarValue::Null | ScalarValue::Missing => return Ok(()),
+        ScalarValue::Unsigned(value) => *value as f64,
+        ScalarValue::Signed(value) => *value as f64,
+        ScalarValue::Float(value) => *value,
+        ScalarValue::Exact(value) => float(*value),
+        _ => return Err(failure(NONNUMERIC)),
+    };
+    for transform in transforms {
+        value = transform.map_numeric(value).ok_or_else(|| failure(NONNUMERIC))?;
+    }
+    values[0] = ScalarValue::Float(value);
+    if values.len() >= 3 {
+        values[1] = ScalarValue::Bool(false);
+        values[2] = ScalarValue::Bool(true);
+    }
+    Ok(())
+}
+
 fn fold_of(transform: &DataTransform) -> Option<Agg> {
     match transform {
         DataTransform::Aggregate(aggregate) => Some(Agg::Of(*aggregate)),
@@ -939,6 +1006,33 @@ fn reduction(error: harmos::storage::Error) -> crate::Error {
 #[cfg(test)]
 mod streaming_tests {
     use super::*;
+
+    #[test]
+    fn numeric_maps_respect_aggregate_order() {
+        let samples = [2.0, 6.0]
+            .into_iter()
+            .enumerate()
+            .map(|(index, value)| {
+                let mut sample = crate::telemetry::TelemetrySample::new(
+                    dokime_domain::model::identity::TelemetrySampleId::from_seed(format!("map-{index}")),
+                    dokime_domain::model::identity::Identifier::new("scan").unwrap(),
+                    index as u64,
+                    dokime_domain::model::time::Timestamp::new("2026-01-01T00:00:00Z"),
+                    "scan",
+                );
+                sample.values.insert("value".into(), Value::Number(value));
+                sample
+            })
+            .collect::<Vec<_>>();
+        for expression in [
+            crate::expressions::telemetry("scan", "value").scale(3.0).offset(2.0).mean().scale(2.0).offset(-1.0),
+            crate::expressions::telemetry("scan", "value").mean().scale(6.0).offset(3.0),
+        ] {
+            let actual =
+                Plan::compile(&expression, None).unwrap().evaluate(&expression, Evidence::from(samples.as_slice()), &[], |_| true).unwrap();
+            assert_eq!(actual, Some(Value::Number(27.0)));
+        }
+    }
 
     #[test]
     fn streaming_statistics() {

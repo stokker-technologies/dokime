@@ -118,11 +118,7 @@ pub(super) struct TemplateSpec {
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct DocumentSpec {
-    pub label: String,
-    pub id: Option<String>,
-
-    #[serde(default)]
-    pub sections: Vec<dokime::document::DocumentSection>,
+    pub message: Vec<u8>,
 }
 
 #[derive(Clone, Deserialize)]

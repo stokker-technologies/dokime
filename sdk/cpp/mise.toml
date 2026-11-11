@@ -1,0 +1,28 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Settings === #
+
+# === Tools === #
+
+[tools]
+cmake = "4.1.2"
+
+# === Environment === #
+
+# === Variables === #
+
+# === Generate === #
+
+[tasks."test:builders"]
+description = "Test Canonical Document Builders"
+run = [
+  "cmake -S . -B ../../target/sdk/cpp -DCMAKE_BUILD_TYPE=Release",
+  "cmake --build ../../target/sdk/cpp --config Release --target dokime-plot-builders --parallel 2",
+  "ctest --test-dir ../../target/sdk/cpp -C Release --output-on-failure",
+]

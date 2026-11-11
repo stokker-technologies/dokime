@@ -2207,7 +2207,7 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
         )));
     }
 
-    if plot.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty()) {
+    if plot.z_expression.as_ref().is_some_and(|expression| expression.transforms.iter().any(|transform| !transform.is_numeric())) {
         return Err(error(format_args!("z expressions must select a row value without transforms")));
     }
 

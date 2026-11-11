@@ -21,9 +21,11 @@ from collections.abc import Callable, Generator, Mapping, Sequence
 from dataclasses import MISSING, dataclass, field
 from typing import Annotated, Any, Literal, NotRequired, Self, TypedDict, dataclass_transform, get_args, get_origin, get_type_hints
 
+from . import _native, plot
+
 # Third Party Imports
 # Local Imports
-from . import _native
+from .documents import Document, Section
 
 # Type Checking Imports
 
@@ -213,36 +215,14 @@ class StreamSelection:
         return self.into(self._row)
 
 
-class Document:
-    """Declare a document whose identifier derives from its label."""
-
-    def __init__(self, label: str) -> None:
-        self.label = label
-        self._identifier: str | None = None
-        self._sections: list[dict[str, Any]] = []
-
-    def id(self, identifier: str) -> None:
-        self._identifier = identifier
-
-    def section(self, identifier: str, label: str, *, cards: Sequence[Mapping[str, Any]] = ()) -> None:
-        self._sections.append({"metadata": _metadata(identifier, label), "cards": list(cards)})
-
-    def _definition(self) -> dict[str, Any]:
-        return {"label": self.label, "id": self._identifier, "sections": self._sections}
-
-
 class DocumentHandle:
-    """Document cards use native mappings: XY plots select ``plot_type="xy"``.
-
-    Their ``style`` defaults to ``"line"``; ``"points"`` uses density reduction,
-    while ``"line_points"`` and ``"step"`` retain the ordered envelope.
-    """
+    """Add A Declared Section To The Execution Document."""
 
     def __init__(self, context: "Context") -> None:
         self._context = context
 
-    async def section(self, identifier: str, label: str, *, cards: Sequence[Mapping[str, Any]] = ()) -> None:
-        await self._context._inner.command("section", _json({"metadata": _metadata(identifier, label), "cards": list(cards)}))
+    async def section(self, section: Section) -> None:
+        await self._context._inner.command("section", _json(section._definition()))
 
 
 class Context:
@@ -675,6 +655,8 @@ def _declare(kind: str, **metadata: Any) -> Callable[..., Any]:
         ):
             value = dataclasses.dataclass(value)
         value.__dokime__ = declaration
+        if kind == "stream":
+            value.field = classmethod(lambda cls, name: plot.field(_meta(cls, "stream")["id"], name))
         return value
 
     return decorate
