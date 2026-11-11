@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use super::{PlotPayloadRequest, XInput, expression_numeric_value, expression_x_input};
+use super::{PlotPayloadRequest, XInput, expression_x_input};
 use crate::document::{GridDefinition, Reduction};
 use crate::telemetry::TelemetrySample;
 use dokime_domain::model::plots::wire::{GridCell, GridFrame, GridFrames};
@@ -134,12 +134,15 @@ impl Frames {
                 frame.highlights.push(highlight);
             }
         }
-        let value = self
-            .request
-            .y_expressions
-            .first()
-            .and_then(|expression| expression_numeric_value(sample, expression))
-            .or_else(|| self.request.y_keys.first().and_then(|field| sample.values.get(field)).and_then(super::numeric_value));
+        let value = match expression_x_input(
+            sample,
+            self.request.y_expressions.first(),
+            self.request.y_keys.first().map(String::as_str).unwrap_or(""),
+        ) {
+            XInput::Number(value) => Some(value),
+            XInput::Value(value) => super::numeric_value(value),
+            _ => None,
+        };
         if let (Some(row), Some(column), Some(value)) = (row, column, value.filter(|value| value.is_finite())) {
             let cell = row * self.columns.len() + column;
             frame.values[cell] = match (self.request.reduction.expect("validated reducer"), counts[cell]) {
@@ -300,6 +303,8 @@ mod tests {
             sample.values.insert("value".into(), crate::Value::Number(value));
             frames.push(&sample).unwrap();
         }
+        sample.values.insert("value".into(), crate::Value::Bool(true));
+        frames.push(&sample).unwrap();
         sample.values.insert("column".into(), crate::Value::Text("right".into()));
         sample.values.insert("value".into(), crate::Value::Number(0.0));
         frames.push(&sample).unwrap();
@@ -319,6 +324,8 @@ mod tests {
                 sample.values.insert("value".into(), crate::Value::Number(value));
                 reduced.push(&sample).unwrap();
             }
+            sample.values.insert("value".into(), crate::Value::Bool(true));
+            reduced.push(&sample).unwrap();
             assert_eq!(reduced.finish().frames[0].values[0], expected);
             let mut other = Frames::new(&reduced_request, 100).unwrap();
             sample.values.insert("value".into(), crate::Value::Number(10.0));

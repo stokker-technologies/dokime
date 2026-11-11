@@ -355,6 +355,7 @@ pub(super) fn rows(
 
 pub(super) fn selected(sample: &TelemetrySample, request: &PlotPayloadRequest) -> bool {
     sample.stream.as_str() == request.stream
+        && payload::numeric_contour_sample(sample, request)
         && payload::sample_matches_scope(sample, request.scope.as_ref())
         && payload::sample_matches_filters(sample, &request.filters)
 }

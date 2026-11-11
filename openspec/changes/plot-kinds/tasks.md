@@ -37,7 +37,7 @@
 
 ## 8. Guides
 
-- [ ] 8.1 Update product guide, SDK guides/examples, maintained authoring guidance and affected README claims; document replacements, input shapes, no interpolation and loaded-data-only plot-local playback.
+- [x] 8.1 Update product guide, SDK guides/examples, maintained authoring guidance and affected README claims; document replacements, input shapes, no interpolation and loaded-data-only plot-local playback.
 
 ## 9. Final Validation
 

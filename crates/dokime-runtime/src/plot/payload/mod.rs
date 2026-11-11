@@ -401,6 +401,19 @@ pub(crate) fn sample_matches_filters(sample: &TelemetrySample, filters: &[Docume
     filters.iter().all(|filter| sample_matches_filter(sample, filter))
 }
 
+pub(super) fn numeric_contour_sample(sample: &TelemetrySample, request: &PlotPayloadRequest) -> bool {
+    if request.plot_type != Some(PlotType::Contour) {
+        return true;
+    }
+    let expression = request.y_expressions.first();
+    let field = request.y_keys.first().map(String::as_str).unwrap_or("");
+    match expression_x_input(sample, expression, field) {
+        XInput::Number(value) => value.is_finite(),
+        XInput::Value(value) => numeric_value(value).is_some_and(f64::is_finite),
+        _ => false,
+    }
+}
+
 pub(crate) fn dimension_context_for_scope(execution: &TestExecution) -> BTreeMap<String, Value> {
     let mut context = BTreeMap::new();
     visit_dimension_context(execution, |key, value| insert_context_value(&mut context, key, value));
@@ -850,7 +863,7 @@ mod tests {
             );
             let admitted = source.into_document_definition().unwrap();
             let DocumentCardBody::Plot { plot } = &admitted.cards[0].body else { panic!("plot") };
-            let samples = [2.0, 6.0]
+            let mut samples = [2.0, 6.0]
                 .into_iter()
                 .enumerate()
                 .map(|(index, z)| {
@@ -869,6 +882,12 @@ mod tests {
                     sample
                 })
                 .collect::<Vec<_>>();
+            for field in ["x", "y", "z"] {
+                let mut invalid = samples[0].clone();
+                invalid.values.insert(field.into(), Value::Bool(true));
+                invalid.values.insert("z".into(), if field == "z" { Value::Bool(true) } else { Value::Number(100.0) });
+                samples.push(invalid);
+            }
             let input = plot_input_for_definition(plot, &samples, 0, &DocumentSelection::default());
             let descriptor = plot_descriptor_for_definition(input, plot.metadata.clone());
             let mut request = plot_payload_request_for_descriptor(&descriptor, None, Some(100), None);

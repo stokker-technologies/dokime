@@ -229,10 +229,13 @@ pub struct TelemetrySummaryCondition {
 pub struct PlotDefinition {
     #[serde(default)]
     pub arrangement: Option<BarArrangement>,
+
     #[serde(default)]
     pub pareto: bool,
+
     #[serde(default)]
     pub hole: Option<f64>,
+
     #[serde(default)]
     pub xy_interval: Option<XyInterval>,
 
@@ -434,10 +437,13 @@ pub struct PlotDescriptor {
 pub struct PlotInput {
     #[serde(default)]
     pub arrangement: Option<BarArrangement>,
+
     #[serde(default)]
     pub pareto: bool,
+
     #[serde(default)]
     pub hole: Option<f64>,
+
     #[serde(default)]
     pub xy_interval: Option<XyInterval>,
 
@@ -2208,7 +2214,7 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
     }
 
     if plot.z_expression.as_ref().is_some_and(|expression| expression.transforms.iter().any(|transform| !transform.is_numeric())) {
-        return Err(error(format_args!("z expressions must select a row value without transforms")));
+        return Err(error(format_args!("z expressions support only numeric scale and offset transforms")));
     }
 
     if let Some(x_format) = &plot.x_format {

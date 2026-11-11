@@ -144,10 +144,11 @@ fn append(
     if !request.defer_statistics && analyses::summarizes(request) {
         payload.summaries.push(series.summary(request.summary_window)?);
     }
-    let invalid_z = request.z_expression.as_ref().is_some_and(|expression| !expression.transforms.is_empty());
+    let invalid_z =
+        request.z_expression.as_ref().is_some_and(|expression| expression.transforms.iter().any(|transform| !transform.is_numeric()));
     if invalid_z {
         payload.analysis = Some(PlotAnalysis::Error {
-            message: "Z expressions must select a scalar field without transforms".into(),
+            message: "Z expressions support only numeric scale and offset transforms".into(),
         });
     }
     if request.analysis.is_some() {
@@ -396,6 +397,7 @@ mod tests {
             (PlotType::TimeSeries, None),
             (PlotType::Xy, None),
             (PlotType::Trajectory, None),
+            (PlotType::Contour, None),
             (PlotType::Histogram, None),
             (PlotType::BoxPlot, None),
             (PlotType::Xy, Some(crate::document::XyInterval::Sigma)),
@@ -411,6 +413,14 @@ mod tests {
                         stream: "fixture.signal".into(),
                         x_key: Some("x".into()),
                         y_keys: vec!["y".into()],
+                        z_expression: (plot_type == PlotType::Contour).then(|| {
+                            let mut expression = crate::expressions::telemetry("fixture.signal", "y");
+                            expression.transforms = vec![
+                                crate::expressions::DataTransform::Scale { factor: 2.0 },
+                                crate::expressions::DataTransform::Offset { value: -1.0 },
+                            ];
+                            expression
+                        }),
                         series_by: grouped.then(|| "group".into()),
                         plot_type: Some(plot_type.clone()),
                         xy_interval,

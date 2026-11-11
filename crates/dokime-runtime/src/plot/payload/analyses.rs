@@ -113,7 +113,7 @@ pub enum PlotAnalysis {
 pub(super) fn analyze(series: &mut [PlotSeries], request: &PlotPayloadRequest) -> Option<PlotAnalysis> {
     if request.z_expression.as_ref().is_some_and(|expression| expression.transforms.iter().any(|transform| !transform.is_numeric())) {
         return Some(PlotAnalysis::Error {
-            message: "Z expressions must select a scalar field without transforms".into(),
+            message: "Z expressions support only numeric scale and offset transforms".into(),
         });
     }
     match request.plot_type.as_ref()? {

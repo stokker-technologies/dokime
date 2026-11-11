@@ -91,6 +91,7 @@ impl<'a> PlotSamples<'a> {
         self.telemetry.iter().filter(|sample| {
             let selected = stream_matches_alias(sample.stream.as_str(), &self.request.stream)
                 && sample_matches_scope(sample, self.request.scope.as_ref())
+                && super::payload::numeric_contour_sample(sample, self.request)
                 && super::payload::sample_matches_filters(sample, &self.request.filters);
             let visible = self.cutoff.is_none_or(|cutoff| parse_timestamp(sample.timestamp.as_str()).is_none_or(|time| time >= cutoff));
             selected && visible
@@ -104,7 +105,9 @@ impl<'a> RecordSampleLookup<'a> {
     ) -> crate::runtime::Result<Self> {
         let selected = indexed_samples(telemetry, stream, scope, keep);
         let mut samples = Vec::new();
-        samples.try_reserve_exact(selected.clone().count()).map_err(|_| lookup_memory())?;
+        samples
+            .try_reserve_exact(selected.clone().count())
+            .map_err(|_| harmos::Error::ResourceExhausted { resource: "record sample lookup" })?;
         samples.extend(selected);
         let lookup = Lookup::try_new(
             samples.iter().enumerate().map(|(ordinal, sample)| Side {
@@ -128,10 +131,6 @@ impl<'a> RecordSampleLookup<'a> {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-fn lookup_memory() -> crate::runtime::Error {
-    harmos::Error::ResourceExhausted { resource: "record sample lookup" }.into()
-}
 
 fn side(scope: Option<&RecordScope>, time: OffsetDateTime) -> Side<'_> {
     Side {
