@@ -1245,9 +1245,11 @@ async fn store() {
     assert!(!serves_startup(&client).await);
     let installation = install(&client, &bytes).await;
     let started = on_change(&mut changes, "the installed plugin starting", async || {
-        installations(&client).await.into_iter().find(|listed| {
-            listed.install_id == installation.install_id && listed.active && listed.restart == model::settings::wire::PluginRestart::Idle
-        })
+        let listed = installations(&client).await.into_iter().find(|listed| listed.install_id == installation.install_id);
+        if let Some(listed) = &listed {
+            assert!(!listed.boot_failed, "the installed plugin must start: {:?}", listed.last_boot);
+        }
+        listed.filter(|listed| listed.active && listed.restart == model::settings::wire::PluginRestart::Idle)
     })
     .await;
     assert_eq!(started.restart, model::settings::wire::PluginRestart::Idle);
@@ -1263,7 +1265,7 @@ async fn store() {
     assert!(serves_startup(&client).await);
     status_ready(&client).await;
 
-    // Scene: Removal Stops The Live Plugin, And The Next Boot Deletes It
+    // Removal Stops The Live Plugin And Removes Its Installation Without A Restart
     let mut changes = client.stream(contracts::observation::WatchRuntime::default()).await.unwrap();
     let removed = client
         .call(contracts::plugins::Remove {
@@ -1272,11 +1274,11 @@ async fn store() {
         .await
         .unwrap()
         .installation
-        .expect("a removed installation stays pending removal");
+        .expect("a running installation remains pending until its programs stop");
     assert_eq!(removed.state, model::plugins::wire::PluginInstallationState::RemovalPending);
     on_change(&mut changes, "the removed plugin stopping", async || {
-        let stopped = installations(&client).await.iter().all(|listed| !listed.active);
-        (stopped && !serves_startup(&client).await).then_some(())
+        let removed = installations(&client).await.is_empty();
+        (removed && !serves_startup(&client).await).then_some(())
     })
     .await;
     drop(changes);
