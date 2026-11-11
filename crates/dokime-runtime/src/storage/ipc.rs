@@ -393,6 +393,7 @@ pub(crate) fn recover(path: &Path, schema: SchemaRef, indices: &[BatchIndex], ch
 
 /* === Private Functions === */
 
+#[tracing::instrument(level = "debug", name = "telemetry.ipc.read", skip_all)]
 fn read_buffer(path: &Path, index: &BatchIndex) -> Result<Buffer> {
     let mut file = File::open(path)?;
     file.seek(SeekFrom::Start(index.offset))?;

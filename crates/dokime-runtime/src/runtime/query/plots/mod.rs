@@ -129,6 +129,7 @@ pub async fn query_plot_payloads(
     query_plot_payloads_with_context(&context, runtime, requests, &at, &session, true).await
 }
 
+#[tracing::instrument(level = "debug", name = "plot.query", skip_all)]
 pub async fn query_plot_payloads_at(
     runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, at: &harmos::storage::StorageCursor,
 ) -> crate::runtime::Result<Vec<harmos::storage::ReadBatch<PlotPayloadEnvelope>>> {
@@ -195,6 +196,7 @@ fn plot_payload_context<'a>(
     }
 }
 
+#[tracing::instrument(level = "debug", name = "plot.resolve", skip_all)]
 async fn query_plot_payloads_with_context(
     context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, requests: Vec<PlotPayloadRequest>, at: &harmos::storage::StorageCursor,
     session: &crate::storage::Manager, current_previews: bool,
@@ -276,6 +278,7 @@ async fn query_plot_payloads_with_context(
     Ok(completed)
 }
 
+#[tracing::instrument(level = "debug", name = "plot.materialize", skip_all)]
 async fn query_plot_payload(
     context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, request: PlotPayloadRequest, at: &harmos::storage::StorageCursor,
     session: &crate::storage::Manager, codecs: &[crate::storage::telemetry::TypedCodec],

@@ -302,6 +302,7 @@ pub(super) fn typed(
     })
 }
 
+#[tracing::instrument(level = "debug", name = "plot.arrow.projected", skip_all)]
 fn projected<T>(
     connection: &Connection, root: &Path, scan: &Scan, columns: Option<(&[&str], &[String])>,
     mut project: impl FnMut(

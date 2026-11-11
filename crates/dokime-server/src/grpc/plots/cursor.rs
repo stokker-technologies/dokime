@@ -59,6 +59,7 @@ const SERVER_PLOT_TRANSFORMS: u64 = 32;
 
 /* === Public Functions === */
 
+#[tracing::instrument(level = "debug", name = "plot.watch.decode", skip_all)]
 pub(super) fn decode_plot_requests(
     requests: Vec<dokime::domain::model::plots::wire::PlotRequest>,
 ) -> Result<(Vec<PlotPayloadRequest>, Vec<String>), Status> {

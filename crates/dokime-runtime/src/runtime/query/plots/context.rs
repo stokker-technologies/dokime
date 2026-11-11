@@ -51,6 +51,7 @@ pub(super) struct RuntimePlotEnvelopeContext {
 /* === Implementations === */
 
 impl RuntimePlotEnvelopeContext {
+    #[tracing::instrument(level = "debug", name = "plot.context", skip_all)]
     pub(super) async fn load_at(
         runtime: &RuntimeHandle, requests: &[PlotPayloadRequest], at: &harmos::storage::StorageCursor, session: &crate::storage::Manager,
     ) -> crate::runtime::Result<Self> {

@@ -59,6 +59,7 @@ pub(super) fn select_viewport(selection: &mut TelemetrySelection, request: &Plot
     Ok(())
 }
 
+#[tracing::instrument(level = "debug", name = "plot.window", skip_all)]
 pub(super) async fn query(
     context: &RuntimePlotEnvelopeContext, runtime: &RuntimeHandle, request: &PlotPayloadRequest, at: &StorageCursor,
     codecs: &[crate::storage::telemetry::TypedCodec],
@@ -301,6 +302,7 @@ pub(super) async fn query(
         for sample in tail_samples.iter() {
             append(sample.clone())?;
         }
+        let reduction = tracing::debug_span!("plot.window.reduce").entered();
         for bucket in buckets.values() {
             let key = (bucket.first.time as f64 / 1e9 / (width as f64 / 1e9)).floor() as i128;
             *bucket_counts.entry(key).or_insert(0) += bucket.count;
@@ -347,6 +349,7 @@ pub(super) async fn query(
             points,
             format: request.y_format.clone(),
         });
+        drop(reduction);
     }
     let (run, cycle) = context.run_and_cycle_start(request.scope.as_ref());
     let format = super::plot_payload_context(request, super::telemetry_contract(context, &request.stream), run, cycle, maximum);
@@ -366,7 +369,7 @@ pub(super) async fn query(
     }
     let mut frame_request = request.clone();
     frame_request.panel_width = None;
-    payload = crate::plot::finish_plot_frame(payload, &frame_request)?;
+    payload = tracing::debug_span!("plot.window.frame").in_scope(|| crate::plot::finish_plot_frame(payload, &frame_request))?;
     let diagnostics = crate::plot::plot_payload_diagnostics(&payload);
     Ok(Some(ReadBatch::new(PlotPayloadEnvelope {
         plot_id: request.plot_id.as_deref().unwrap_or(&request.stream).to_owned(),

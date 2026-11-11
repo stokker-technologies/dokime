@@ -113,6 +113,7 @@ pub(super) fn envelope(
         .try_map(|frame| Ok(frame.envelope.expect("constructed plot frame has envelope")))
 }
 
+#[tracing::instrument(level = "debug", name = "plot.wire.frame", skip_all)]
 pub(super) fn stream_frame(
     kind: PlotPayloadStreamKind, value: dokime::harmos::storage::ReadBatch<PlotPayloadEnvelope>, epoch: &str, selection: &str, limit: usize,
 ) -> Result<dokime::harmos::storage::ReadBatch<dokime::domain::model::plots::wire::PlotStreamUpdate>, FrameError> {

@@ -34,6 +34,7 @@ use dokime::harmos::{Context, Response};
 use futures_util::{Stream, StreamExt, stream};
 use tokio::time::Instant;
 use tonic::Status;
+use tracing::Instrument;
 
 // Local Imports
 use cursor::{decode_plot_requests, selection_for_plot};
@@ -143,6 +144,7 @@ impl Resources {
         result
     }
 
+    #[tracing::instrument(level = "debug", name = "plot.watch.snapshots", skip_all)]
     async fn query_snapshots(
         &self, requests: &[PlotPayloadRequest], at: &StorageCursor,
     ) -> Vec<Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>> {
@@ -189,6 +191,7 @@ impl Resources {
         (0..requests.len()).map(|index| results.remove(&index).expect("each plot has a query result")).collect()
     }
 
+    #[tracing::instrument(level = "debug", name = "plot.watch.frames", skip_all)]
     fn snapshot_frames(
         &self, requests: &mut Vec<PlotPayloadRequest>, current: &PlotPayloadRequest,
         result: Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>, frame: &FrameContext<'_>,
@@ -234,6 +237,7 @@ impl Resources {
         Ok((true, frames))
     }
 
+    #[tracing::instrument(level = "debug", name = "plot.watch.statistics", skip_all)]
     async fn statistics_at(
         &self, mut requests: Vec<PlotPayloadRequest>, at: StorageCursor,
     ) -> (Vec<PlotPayloadRequest>, Vec<Result<Vec<ReadBatch<PlotPayloadEnvelope>>, dokime::runtime::Error>>) {
@@ -247,6 +251,7 @@ impl Resources {
         (requests, results)
     }
 
+    #[tracing::instrument(level = "debug", name = "plot.watch.send", skip_all)]
     async fn send_revision(
         &self, output: &StreamOutput<dokime::domain::model::plots::wire::PlotStreamFrame>,
         updates: Vec<Response<dokime::domain::model::plots::wire::PlotStreamUpdate>>,
@@ -362,18 +367,20 @@ impl Serve<contract::Watch> for Resources {
                     request.defer_statistics = matches!(request.plot_type, None | Some(dokime::document::PlotType::TimeSeries));
                 }
                 // Live Plots Hold Their Streams; Streams Nobody Views Or Runs Stay Stopped.
-                let _viewing = runtime.view_plot_streams(&requests, "plots.watch").await;
+                let _viewing = runtime.view_plot_streams(&requests, "plots.watch").instrument(tracing::debug_span!("plot.watch.setup")).await;
                 let original = requests.clone();
                 let waiting = requests.clone();
                 self.send_pending(output, &waiting, &selections, &original, &epoch).await?;
 
                 // Subscribe Before Capturing The Read Cut So Publications Racing The Opening Read Are Followed.
+                let cut_span = tracing::debug_span!("plot.watch.cut").entered();
                 let mut states = runtime.watch_state();
                 let mut telemetry = runtime.watch_plot_telemetry();
                 let mut saved_observed = runtime.storage().cursor_saved();
                 let mut observed = saved_observed.clone();
                 observed.sequence = observed.sequence.max(*telemetry.borrow_and_update());
                 let initial = observed.clone();
+                drop(cut_span);
                 let mut dirty = BTreeSet::new();
                 let mut opened = BTreeSet::new();
                 let mut delivered = BTreeMap::new();

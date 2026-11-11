@@ -18,6 +18,30 @@
     | Retained Bucket-Delta Application | 7.047 ms | 6.976–7.154 ms | 19,484 Across Thirty Deltas |
 
   - These are after-change measurements on Windows only. Native estimates are under `target/benchmarks/criterion/` for `integration-plots`, group `plot_pipeline_three_days_thirty_plots`, cases `live_snapshot_21600s`, `zoom_snapshot_30s`, `decode` and `apply_delta`. Earlier local after-change calibration runs are not a pre-change baseline; native comparison percentages are not evidence of a pipeline speedup. Linux, the before-change run at the revision above and actual canvas redraw remain unmeasured, so task 1.1 remains open.
+  - Fixed-cost investigation, Windows, 2026-11-11: one live and one zoom request were profiled through the same benchmark fixture and local gRPC client. These are diagnostic single-request durations, not Criterion medians. Native product spans are in `target/benchmarks/plot-profile-before/`; the scope is the client call through the first drawing snapshot. The thirty-second viewport includes both endpoints (31 fixture samples).
+
+    | Request Stage | Six-Hour Live (ms) | Thirty-Second Zoom (ms) |
+    | --- | ---: | ---: |
+    | Stream Viewing Lease Setup | 0.030 | 0.013 |
+    | Saved/Admission Snapshot Cut | 0.002 | 0.002 |
+    | State Context Capture | 0.026 | 0.004 |
+    | Stream/Stored Schema Resolution | 0.626 | 0.475 |
+    | Latest-Time Preview Decode | 0.186 | 0.179 |
+    | Admission Tail Check | 0.541 | 0.390 |
+    | Preview Width Discovery, Twice | 101.256 | 95.414 |
+    | Window Bucket SQLite Read and Zlib/JSON Decode | 113.692 | 0.252 |
+    | Raw-Range Index Lookup, Excluding Width Discovery | 9.852 | 0.085 |
+    | Raw Edge/Detail Arrow Read and Sample Decode | 11.560 | 4.691 |
+    | Remaining Window Assembly, Reduction and Internal Awaits | 3.307 | 0.300 |
+    | Snapshot Frame Conversion and Protobuf Size Checks | 0.381 | 0.050 |
+    | Snapshot Enqueue | 0.076 | 0.014 |
+    | Remaining Dispatch, Encoding, Transport and Client Decode | 2.745 | 1.315 |
+    | **Client Call Through Drawing Snapshot** | **244.280** | **103.184** |
+
+  - The fixed cost was two `SELECT DISTINCT width` queries over every retained bucket for the selected execution/stream/field. The zoom was scanning its preview index history, not reading the entire Arrow stream. Actual detail reads were time-pruned by the Arrow batch catalog. Live drawing also decodes the 21,600 closed one-second buckets inside its requested window; this is window-proportional work. Exact statistics are spawned after drawing is enqueued and overlap client delivery; they are not awaited by the snapshot path and are excluded from the critical-path stage sums above. Encoding and transport are bounded by the drawing frame; the remaining row includes the final transport encoder and client decoder, which run outside the plot handler spans.
+  - Width discovery now seeks the next resolution using the existing `(execution,stream,field,width,bucket)` primary key. A deterministic regression counts SQLite VM instructions through both production window lookups while retained history grows 64-fold; it does not assert elapsed time. No schema, persisted bytes, limits or deadlines change.
+  - First repair, Windows Criterion medians per thirty-plot pass: width seeks reduce live snapshots from 6.537 s to 4.060 s (95% CI 4.031–4.131 s), and zoom snapshots from 3.283 s to 92.800 ms (90.600–105.845 ms). Drawing bodies remain 1,596,239 and 40,885 bytes respectively; timestamp text lengths can change these totals by a few bytes. Native estimates are preserved in `target/benchmarks/plot-fixed-cost-indexed/` and the original estimates in `target/benchmarks/plot-fixed-cost-before/`. Optional product tracing starts only after the query timing cases: set `DOKIME_PLOT_PROFILE=1` and `DOKIME_TEST_TRACE_DIR` to an owned directory when running the same bench task. The trace adds no exporter work to those query timing cases.
+  - Desktop transport audit: `crates/dokime-gui/src/plots/live-data.ts` calls finite `QuerySnapshots` once per plot, so the oversized thirty-plot unary reply is not its finite document path. Timed plots do share one `Watch`. The server divides the revision budget between its plots and fits each frame, preserving an explicit reduction warning. The benchmark's thirty-plot live watch succeeds with 596,679 drawing-body bytes and 21,421 retained points, with thirty warnings; density is lower than the independent-watch measurements. This is the existing transport-fitting behavior, not a transport-limit exception. No limits or client calls were changed.
 - [x] 1.2 Lock the source inventory: `crates/dokime-runtime/src/{plot,runtime/query/plots,storage/sqlite/data/telemetry}`, runtime signal kernels and their evidence, query and report consumers, the plot-bucket format check in `crates/dokime-runtime/src/storage/sqlite/data.rs`, plot contracts in `crates/dokime-domain/src/model/plots`, `crates/dokime-server/src/grpc/{plots,plots.rs}`, `crates/dokime-gui/src/{plots,components/document/PlotGroupGrid.tsx,stores/summary-window-store.ts,lib/api/native-plots.ts,lib/types}`, generated plot bindings, their focused tests and benches, Cargo dependencies, focused feature selection in `tools/python/` and `docs/tooling.md`, and affected plot documentation in `README.md` and `docs/`. Implement stored buckets, viewport queries, watch deltas, kernels, columnar wire and interface in that order. Preserve other workers' branding and remote access ownership. Final validation remains separate.
 
 ## 2. Backend

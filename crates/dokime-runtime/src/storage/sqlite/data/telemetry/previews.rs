@@ -392,6 +392,7 @@ impl Batch {
 
 /* === Public Functions === */
 
+#[tracing::instrument(level = "debug", name = "plot.preview.latest", skip_all)]
 pub(crate) fn latest_time(
     connection: &Connection, execution: &str, stream: &str, fields: &[String], at: u64,
 ) -> Result<Option<i128>, Error> {
@@ -414,12 +415,12 @@ pub(crate) fn latest_time(
 }
 
 // Indexed Empty Intervals Need No Raw Read; Only Partial Or Newer Buckets Do.
+#[tracing::instrument(level = "debug", name = "plot.preview.raw_ranges", skip_all)]
 pub(crate) fn window_raw_ranges(
     connection: &Connection, execution: &str, stream: &str, field: &str, range: std::ops::RangeInclusive<i128>, at: u64, target: i128,
 ) -> Result<Vec<(i128, i128)>, Error> {
     let (from, to) = range.into_inner();
-    let mut widths = connection.prepare("SELECT DISTINCT width FROM storage_plot_buckets WHERE execution=?1 AND stream=?2 AND field=?3")?;
-    let widths = widths.query_map(params![execution, stream, field], |row| row.get::<_, i64>(0))?.collect::<Result<Vec<_>, _>>()?;
+    let widths = window_widths(connection, execution, stream, field)?;
     let mut query = connection.prepare("SELECT bucket,through FROM storage_plot_buckets WHERE execution=?1 AND stream=?2 AND field=?3 AND width=?4 AND bucket>=?5 AND bucket<=?6 ORDER BY bucket")?;
     let mut ranges = Vec::new();
     for width in widths {
@@ -445,11 +446,11 @@ pub(crate) fn window_raw_ranges(
 }
 
 // Only Complete Buckets Inside The Window Are Reused; Callers Read Its Edges.
+#[tracing::instrument(level = "debug", name = "plot.preview.buckets", skip_all)]
 pub(crate) fn window_buckets(
     connection: &Connection, execution: &str, stream: &str, field: &str, from: i128, to: i128, at: u64,
 ) -> Result<Vec<(i128, i128, Bucket)>, Error> {
-    let mut widths = connection.prepare("SELECT DISTINCT width FROM storage_plot_buckets WHERE execution=?1 AND stream=?2 AND field=?3")?;
-    let widths = widths.query_map(params![execution, stream, field], |row| row.get::<_, i64>(0))?.collect::<Result<Vec<_>, _>>()?;
+    let widths = window_widths(connection, execution, stream, field)?;
     let mut query = connection.prepare(
         "SELECT bucket,through,state FROM storage_plot_buckets
          WHERE execution=?1 AND stream=?2 AND field=?3 AND width=?4 AND bucket>=?5 AND bucket<?6 ORDER BY bucket",
@@ -637,6 +638,22 @@ pub(crate) fn report_previews(
 }
 
 /* === Private Functions === */
+
+// Seek Past Each Resolution Instead Of Visiting Every Bucket In Its History.
+#[tracing::instrument(level = "debug", name = "plot.preview.widths", skip_all)]
+fn window_widths(connection: &Connection, execution: &str, stream: &str, field: &str) -> Result<Vec<i64>, Error> {
+    let mut query = connection.prepare_cached(
+        "SELECT width FROM storage_plot_buckets
+         WHERE execution=?1 AND stream=?2 AND field=?3 AND width>?4 ORDER BY width LIMIT 1",
+    )?;
+    let mut widths = Vec::new();
+    let mut previous = i64::MIN;
+    while let Some(width) = query.query_row(params![execution, stream, field, previous], |row| row.get::<_, i64>(0)).optional()? {
+        widths.push(width);
+        previous = width;
+    }
+    Ok(widths)
+}
 
 pub(crate) fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>, Error> {
     let encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
@@ -837,6 +854,66 @@ mod tests {
             assert_eq!(projection.envelope.buckets.values().map(|bucket| bucket.min.value).fold(f64::INFINITY, f64::min), -1e12);
             assert!(projection.envelope.buckets.len() <= settings.bucket_count.get());
         }
+    }
+
+    #[test]
+    fn narrow_window_seeks_resolutions_without_scanning_history() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(SCHEMA).unwrap();
+        let steps = Arc::new(AtomicUsize::new(0));
+        let mut measured = Vec::new();
+        let mut previous = 0;
+        for history in [64, 4096] {
+            // Grow Retained History Without Changing The Window Or Its Resolutions.
+            let mut insert = connection.prepare("INSERT INTO storage_plot_buckets VALUES (?1,?2,?3,?4,?5,?6,?7)").unwrap();
+            for width in [10, 20, 40] {
+                for bucket in previous..history {
+                    let point = Point {
+                        time: i128::from(bucket * width),
+                        position: bucket as u64 + 1,
+                        value: bucket as f64,
+                    };
+                    insert
+                        .execute(params![
+                            "execution",
+                            "stream",
+                            "value",
+                            width,
+                            bucket,
+                            super::super::super::position(1),
+                            encode(&Bucket::new(point)).unwrap()
+                        ])
+                        .unwrap();
+                }
+            }
+            previous = history;
+            drop(insert);
+
+            // Count SQLite Work, Including Width Discovery, Through The Product Lookups.
+            steps.store(0, Ordering::Relaxed);
+            let observed = steps.clone();
+            connection
+                .progress_handler(
+                    1,
+                    Some(move || {
+                        observed.fetch_add(1, Ordering::Relaxed);
+                        false
+                    }),
+                )
+                .unwrap();
+            let buckets = window_buckets(&connection, "execution", "stream", "value", 101, 139, 1).unwrap();
+            let ranges = window_raw_ranges(&connection, "execution", "stream", "value", 101..=139, 1, 8).unwrap();
+            connection.progress_handler(0, None::<fn() -> bool>).unwrap();
+            measured.push(steps.load(Ordering::Relaxed));
+            assert_eq!(buckets.iter().map(|(from, to, _)| (*from, *to)).collect::<Vec<_>>(), [(110, 120), (120, 130)]);
+            assert!(ranges.iter().all(|(from, to)| *from >= 101 && *to <= 140));
+        }
+        // A 64-Fold History Increase Must Not Turn An Indexed Window Into A Scan.
+        assert!(measured[1] <= measured[0] * 2, "SQLite steps grew with retained history: {measured:?}");
     }
 
     #[test]

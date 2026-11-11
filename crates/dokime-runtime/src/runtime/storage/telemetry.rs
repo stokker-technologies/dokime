@@ -648,6 +648,7 @@ pub(super) fn invalid(reason: &'static str) -> Error {
 /* === Private Functions === */
 
 // Visits Selected Rows With Their Schema Index And Storage Position; A Break Ends That Schema's Scan.
+#[tracing::instrument(level = "debug", name = "plot.raw.visit", skip_all)]
 async fn visit_positioned(
     session: &crate::storage::Manager, at: &harmos::storage::StorageCursor, selection: &crate::evidence_runtime::TelemetrySelection,
     settings: &harmos::config::SchemaSettings, options: ReadOptions<'_>, local: &crate::storage::sqlite::State,

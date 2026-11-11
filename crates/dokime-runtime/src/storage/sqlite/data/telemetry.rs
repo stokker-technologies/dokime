@@ -147,6 +147,7 @@ impl State {
         .await?
     }
 
+    #[tracing::instrument(level = "debug", name = "plot.schemas", skip_all)]
     pub(crate) async fn telemetry_schemas(
         &self, at: StorageCursor, streams: Vec<dokime_domain::model::identity::IdentifierPattern>,
     ) -> Result<Vec<(SchemaKey, Arc<harmos::schema::graph::Schema>)>, Error> {

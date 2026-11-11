@@ -174,6 +174,7 @@ impl Projection {
         &self.columns
     }
 
+    #[tracing::instrument(level = "debug", name = "telemetry.ipc.decode", skip_all)]
     pub(crate) fn decode(&self, buffer: &Buffer, index: &BatchIndex) -> Result<RecordBatch> {
         let metadata = index.metadata_bytes as usize;
         if metadata < 8
