@@ -120,7 +120,53 @@ pub fn wifi_channel_occupancy(label: impl Into<String>) -> PlotDefinition {
 
 pub fn sections(tracking_requested: bool) -> Vec<DocumentSection> {
     let streams = BTreeSet::from([HOST_SYSTEM, HOST_WIFI_LINK, HOST_WIFI_LATENCY, HOST_WIFI_SCAN, HOST_BLUETOOTH]);
-    vec![wifi_section(&streams), wifi_congestion_section(&streams, tracking_requested), bluetooth_section(), system_section()]
+    vec![
+        wifi_section(&streams),
+        wifi_congestion_section(&streams, tracking_requested),
+        section(
+            "hub.host.network_bluetooth",
+            "Network / Bluetooth",
+            vec![plot_card(plot(HostPlotSpec {
+                identifier: "hub.host.bluetooth.devices",
+                label: "Host Bluetooth",
+                description: "Host Bluetooth adapter and device counts captured during the execution.",
+                plot_type: PlotType::TimeSeries,
+                stream: HOST_BLUETOOTH,
+                x: Some("timestamp"),
+                y: &["bluetooth_adapter_count", "bluetooth_connected_device_count", "bluetooth_present_device_count"],
+                unit: None,
+                style: PlotStyle::Line,
+            }))],
+        ),
+        section(
+            "hub.host.system",
+            "System Performance",
+            vec![
+                plot_card(plot(HostPlotSpec {
+                    identifier: "hub.host.system.resources",
+                    label: "Host System",
+                    description: "Host CPU, memory pressure, battery, and power profile context captured during the execution.",
+                    plot_type: PlotType::TimeSeries,
+                    stream: HOST_SYSTEM,
+                    x: Some("timestamp"),
+                    y: &["cpu_load_percent", "memory_pressure_percent", "battery_percent"],
+                    unit: Some("%"),
+                    style: PlotStyle::Line,
+                })),
+                plot_card(plot(HostPlotSpec {
+                    identifier: "hub.host.system.memory",
+                    label: "Host Memory [GiB]",
+                    description: "Host used and total memory from the same snapshot as memory pressure.",
+                    plot_type: PlotType::TimeSeries,
+                    stream: HOST_SYSTEM,
+                    x: Some("timestamp"),
+                    y: &["memory_used_gib", "memory_total_gib"],
+                    unit: Some("GiB"),
+                    style: PlotStyle::Line,
+                })),
+            ],
+        ),
+    ]
 }
 
 /* === Private Functions === */
@@ -249,58 +295,9 @@ fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -
     section("hub.host.network_wifi_congestion", "Network / WiFi Congestion", cards)
 }
 
-fn bluetooth_section() -> DocumentSection {
-    section(
-        "hub.host.network_bluetooth",
-        "Network / Bluetooth",
-        vec![plot_card(plot(HostPlotSpec {
-            identifier: "hub.host.bluetooth.devices",
-            label: "Host Bluetooth",
-            description: "Host Bluetooth adapter and device counts captured during the execution.",
-            plot_type: PlotType::TimeSeries,
-            stream: HOST_BLUETOOTH,
-            x: Some("timestamp"),
-            y: &["bluetooth_adapter_count", "bluetooth_connected_device_count", "bluetooth_present_device_count"],
-            unit: None,
-            style: PlotStyle::Line,
-        }))],
-    )
-}
-
-fn system_section() -> DocumentSection {
-    section(
-        "hub.host.system",
-        "System Performance",
-        vec![
-            plot_card(plot(HostPlotSpec {
-                identifier: "hub.host.system.resources",
-                label: "Host System",
-                description: "Host CPU, memory pressure, battery, and power profile context captured during the execution.",
-                plot_type: PlotType::TimeSeries,
-                stream: HOST_SYSTEM,
-                x: Some("timestamp"),
-                y: &["cpu_load_percent", "memory_pressure_percent", "battery_percent"],
-                unit: Some("%"),
-                style: PlotStyle::Line,
-            })),
-            plot_card(plot(HostPlotSpec {
-                identifier: "hub.host.system.memory",
-                label: "Host Memory [GiB]",
-                description: "Host used and total memory from the same snapshot as memory pressure.",
-                plot_type: PlotType::TimeSeries,
-                stream: HOST_SYSTEM,
-                x: Some("timestamp"),
-                y: &["memory_used_gib", "memory_total_gib"],
-                unit: Some("GiB"),
-                style: PlotStyle::Line,
-            })),
-        ],
-    )
-}
-
 fn section(identifier_value: &str, label: &str, cards: Vec<DocumentCard>) -> DocumentSection {
     DocumentSection {
-        metadata: simple_metadata(identifier_value, label),
+        metadata: metadata(identifier_value, label, label),
         cards,
         repeat: None,
     }
@@ -358,10 +355,6 @@ fn plot(spec: HostPlotSpec<'_>) -> PlotDefinition {
     }
 }
 
-fn simple_metadata(identifier_value: &str, label: &str) -> Metadata {
-    metadata(identifier_value, label, label)
-}
-
 fn metadata(identifier_value: &str, label: &str, description: &str) -> Metadata {
     Metadata::definition(identifier(identifier_value), label, Some(description.to_owned()), std::iter::empty::<String>())
 }
@@ -380,16 +373,28 @@ mod tests {
     fn occupancy_contract_binding() {
         let plot = wifi_channel_occupancy("Occupancy");
         assert_eq!(plot.stream.as_deref(), Some(HostTelemetryStream::WifiScan.as_str()));
-        assert_eq!(plot.x.as_deref(), Some("timestamp"));
-        assert_eq!(plot.y, ["network_count"]);
-        assert_eq!(plot.series_by.as_deref(), Some("wifi_channel"));
-        assert_eq!(plot.z_field.as_deref(), Some("wifi_network_congestion_score"));
+        dokime_domain::model::document::validate_plot_definition(&plot).unwrap();
+        let grid = plot.grid.as_ref().unwrap();
         let contract = super::super::telemetry::host_telemetry_contract(HostTelemetryStream::WifiScan);
-        for field in
-            plot.y.iter().map(String::as_str).chain(plot.x.as_deref()).chain(plot.series_by.as_deref()).chain(plot.z_field.as_deref())
+        let mut fields = plot.y.iter().map(String::as_str).collect::<Vec<_>>();
+        for expression in grid
+            .row
+            .iter()
+            .chain(&grid.column)
+            .chain(&grid.frame)
+            .chain(grid.highlights.iter().flat_map(|highlight| [&highlight.row, &highlight.column]))
         {
+            let dokime_domain::model::expressions::DataSource::Telemetry { stream, field } = &expression.source else {
+                panic!("telemetry binding")
+            };
+            assert_eq!(stream, HostTelemetryStream::WifiScan.as_str());
+            fields.push(field);
+        }
+        for field in fields {
             assert!(contract.columns.iter().any(|column| column.metadata.identifier.as_str() == field), "{field}");
         }
+        assert!(grid.rows.iter().all(|row| !row.label.is_empty()));
+        assert!(grid.columns.iter().all(|column| column.group.is_some()));
         assert!(
             sections(false)
                 .iter()

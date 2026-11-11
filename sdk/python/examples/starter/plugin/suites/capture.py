@@ -45,7 +45,9 @@ class Confirm:
     connected: bool
 
 
-DOCUMENT = dokime.Document("Capture Measurements")
+DOCUMENT = dokime.Document("Capture Measurements").section(
+    dokime.Section("Readings").plot(dokime.plot.time_series(Row.field("voltage_v")).label("Voltage").unit("V"))
+)
 
 
 @dokime.template(
