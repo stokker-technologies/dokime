@@ -25,7 +25,6 @@ dokime-compliance-<version>.zip                       every SBOM, NOTICE, THIRD-
 release.json                                          one index: latest, downloads, plugins
 SHA256SUMS
 dokime-reports-<version>.zip                          Nightly only: benchmark and coverage results
-dokime-screenshots-<version>.zip                      the product screenshots captured from this build
 benchmarks.json                                       Nightly only: latest benchmark results, fixed name
 ```
 
@@ -64,10 +63,8 @@ unit, value, the baseline value and the revision. No history is kept in the repo
 
 ## Screenshots
 
-The committed product screenshots move to `docs/screenshots/`, where the README embeds
-them. A release and a Nightly attach `dokime-screenshots-<version>.zip` captured from that
-build by the `screenshots` task. A site that shows them reads the archive of the release it
-presents or the files under `docs/screenshots/`.
+The committed product screenshots move to `docs/screenshots/` (change `screenshots-task`). They
+are not release assets.
 
 ## What Stays
 
