@@ -2,171 +2,142 @@
 
 ## Why
 
-People already have measurements in MATLAB files, JSON and logs. Today they rig
-a script to make a plot. The script should load and post-process those files in
-its own language, shape the result into Dokime streams and records, and send a
-document definition. Dokime then stores a formal execution, seals it, generates
-its report and lets the script download it.
+Scripts already parse and process measurement files. They need to retain that
+evidence in Dokime and iterate on a report without impersonating a plugin or
+claiming Dokime evaluated the measurements. This is the locked target design,
+not implemented behavior.
 
 ## What Changes
 
-This is the locked target design, not implemented behavior.
-
-An import is an ordinary execution in the same store, inside the cycle the caller
-names; create that cycle if absent. It has resolved parameters and streams, no
-steps and no criteria. There is no dataset entity or fabricated plugin/test case.
-History, plots, statistics, documents and reports use their existing execution
-paths. Original source files may be attached as artifacts with verified hashes.
+An `Import` is the definition for filling an execution with existing evidence.
+The execution model, origin union, frozen schemas, attributed outcomes, backend
+capabilities and render/publish split belong to `grpc-plugins`, before its host
+execution manager is built. This change depends on that model rather than
+introducing another execution-definition type or a stored run.
 
 ```python
 imported = dokime.Import(cycle="Thermal Campaign", label="Run 42", key="run42")
 imported.attach("run42.mat")
-imported.stream("temperature", time=t, values={"inlet": inlet, "outlet": outlet})
-imported.record("ambient", {"humidity": 41.0})
+imported.stream("temperature", time=timestamps, values={"inlet": inlet, "outlet": outlet})
+imported.stream("pressure", start=recorded_at, elapsed_s=seconds, values={"line": line})
 imported.outcome(dokime.Outcome.PASSED)
-imported.document(dokime.Document("Thermal Run 42").plot(dokime.Plot("Temperatures").series("temperature.inlet").series("temperature.outlet")))
 
-execution = client.import_execution(imported)
+draft = client.import_execution(imported)     # staged, published atomically, unsealed
+draft.preview(document_v1).save("try1.html")  # nothing stored
+draft.preview(document_v2).save("try2.html")
+execution = draft.seal(document_v2)           # joins its cycle, report published
 execution.report.save("run42.html")
 ```
 
-Each SDK uses this value-composition shape in its language's idiom, including
-awaits where its client is asynchronous. No public API requires a context
-manager or an extra block. The document/plot conveniences build the existing
-`dokime.v1.Document`, sections, cards and typed field references; a series path
-resolves against the supplied stream schema before admission. They introduce no
-second document format or host expression parser.
+Rust, Python, C# and C++ expose this flat shape in their SDK idiom, with awaits
+where appropriate and explicit resource release. No block construct is required.
+Document builders produce the existing `dokime.v1.Document`; no second document
+format or expression parser is introduced.
 
-### Origin Contract First
+### Time and Columnar Evidence
 
-Add the origin union to `dokime.v1` before the `grpc-plugins` execution manager
-is built. The existing `TestCase.template`, `plugin` and `digest` move to
-`PluginRun`; `digest` identifies the materialized test case's catalog snapshot,
-as in the current protocol. Plugin start time comes from the connected plugin
-description. The execution owns provenance, and plugin calls receive it alongside
-the full case. Reserve the removed TestCase field numbers/names, retaining its
-parameters, steps, criteria and stream field numbers. No compatibility shim is
-needed for development storage.
+Each sample retains absolute UTC source time, host receipt time and durable
+position. Each stream declares its axis. Supply either absolute timestamps or a
+UTC start instant with exactly one elapsed-offset array: `elapsed_s`, `elapsed_ms`,
+`elapsed_us` or `elapsed_ns`. Neither, both, ambiguous local dates, incompatible
+lengths or unrepresentable nanoseconds are refused. Numeric time arguments name
+the unit; the wire carries integer nanoseconds. History places an import at its
+import time and separately exposes its measurement period, the UTC range of its
+data. Upload time never rewrites source time.
 
-Protobuf sketch (new field numbers on existing execution/call messages are
-assigned during protocol implementation):
+Imported stream tables use the same `dokime.v1` columnar-frame message as the
+plot pipeline: typed arrays, explicit null validity, row count and timestamps,
+preserving signed/unsigned 64-bit values and bytes. Arrow/dataframe support is an
+optional SDK layer. Import-local schemas come from the script and are frozen
+without plugin registration or overwriting any existing definitions.
 
-```proto
-package dokime.v1;
-// Uses google.protobuf.Timestamp and the existing Value and TestCase messages.
-message ExecutionOrigin {
-  oneof kind {
-    PluginRun plugin_run = 1;
-    ImportOrigin import = 2;
-  }
-}
-message PluginRun {
-  string plugin = 1;
-  string template = 2;
-  bytes digest = 3;
-  google.protobuf.Timestamp started_at = 4;
-}
-message ImportOrigin {
-  repeated ImportSource files = 1;
-  string client = 2; // Importing client identity.
-  google.protobuf.Timestamp imported_at = 3;
-}
-message ImportSource {
-  string name = 1;
-  bytes sha256 = 2;
-  optional string artifact = 3;
-}
-message TestCase {
-  reserved 1, 2, 3;
-  reserved "template", "plugin", "digest";
-  map<string, Value> parameters = 4;
-  repeated Step steps = 5;
-  repeated Criterion criteria = 6;
-  repeated string streams = 7;
-}
-// Execution gains ExecutionOrigin origin; plugin requests gain origin beside
-// test_case. Import executions have no plugin TestCase or plugin invocation.
-```
+### Staging and Drafts
 
-The import carries source-file names and hashes even when their bytes are not
-attached. When attached, the host verifies the bytes against their hashes. Import
-time is distinct from source measurement time. Origin is retained in the seal.
+`import_execution` is one SDK convenience over bounded, checksummed, resumable
+transfers followed by atomic publication of a validated manifest as an open,
+unsealed execution. It does not use live stream admission or partially accepted
+samples. The host owns limits and backpressure. Invalid or incomplete manifests
+publish no draft. Interrupted uploads retain only resumable staging, reclaimed
+by host policy if abandoned.
 
-### One Call and One Commit
+The draft is visible only through its handle. It is absent from cycle membership,
+other clients, history, search and ordinary exports until seal. Handle-scoped
+queries support preview at a fixed revision; evidence follows are finite at that
+revision's committed frontier. An upload is not a running execution.
 
-`client.import_execution(imported)` submits one composed value through the
-application interface that already runs cycles and executions. The Public
-`dokime.execution.import` operation owns upload, storage, sealing and report
-generation. Bulk input is one columnar table per stream, never a message per
-sample; its explicit source timestamps remain the time axis for plots and queries.
+`preview(document)` validates and renders that revision into a returned report
+without durable writes, report publication or mutation of the draft. It may be
+called repeatedly with different documents. Temporary output belongs to the
+renderer and is released on completion/cancellation. `seal(document)` freezes the
+final document and report and atomically publishes the seal, report and cycle
+membership. A render failure leaves the draft available and nothing published.
+`discard()` removes the draft and schedules reclamation of its storage unit.
 
-Extend that interface with four host operations, following the existing
-`dokime.execution.*` naming convention:
+Handles and preview results bind store identity, execution and draft revision.
+Replacement and seal require the expected revision; discard also checks it to
+avoid removing a replacement. Active previews pin their revision against expiry;
+replacement cannot change their snapshot. A stale preview cannot authorize a
+seal of newer evidence. The host owns unsealed-draft expiry, which is distinct
+from interrupted-run recovery. Draft attachments, columns, projections and
+metadata form an independently reclaimable unit; logical removal and completed
+reclamation are distinct, without promising a smaller shared database file.
 
-| Operation | Responsibility |
-| --- | --- |
-| `dokime.execution.import.begin` | Reserve the key and resolve or provision the named cycle in staging. |
-| `dokime.execution.import.write_stream` | Write one stream table with its schema and source timestamps. |
-| `dokime.execution.import.put` | Put parameters, records, source artifacts, document and optional declared outcome. |
-| `dokime.execution.import.seal` | Seal, generate the report and publish the execution atomically. |
+### Keys, Retries and Trust
 
-These four are transaction-scoped host steps of the single import call, not
-independently committed client round trips. Follow existing handler/resource and
-authorization boundaries; callers cannot publish a partial import. Report spool
-files remain with their existing owner. Stage all effects and publish only once
-the report is ready. Failure, cancellation or crash leaves no execution, added
-cycle membership, new cycle, artifact, report or consumed key behind; recovery
-removes abandoned staging without changing an existing cycle's prior contents.
-Independent storage writes are not assumed to be a cross-method transaction.
+An import key identifies the whole import within the backend store identity.
+Request identity identifies a retry of one mutation. Successful mutations retain
+durable receipts: replay of the same request and payload returns its original
+result, including after seal, rather than applying it to a newer draft. Reusing
+a request identity with different payload is a conflict. A new request with an
+existing unsealed key conditionally replaces its draft; a new request with a
+sealed key is refused naming the existing execution. Competing creates and stale
+revisions return explicit conflicts. Restart retains identity and receipts;
+a fresh store has a new key namespace and cannot prevent duplicates across roots.
 
-The caller supplies `key`. A repeated key for a sealed execution is refused with
-an error naming that execution, rather than returning it or duplicating it.
-Key reservation and publication must serialize competing uses in the same store.
-A failed call can be retried with its key after rollback; if a response was lost
-after commit, the duplicate error identifies the sealed execution to retrieve.
+Any connected client may call any operation under the agreed trust model.
+Importer labels and handles do not establish per-user ownership. Handle-only
+visibility is an API discovery boundary, not a new authentication system.
 
-An importer may declare passed or failed. This is stored and displayed as
-declared by the importer, never evaluated by Dokime. Absence of a declaration
-does not imply passed. No import criterion engine is added: criteria remain
-plugin operations. History, plots, documents, reports and seals visibly mark
-imported provenance, including the source hashes and declaration attribution.
+The host hashes uploaded bytes and verifies manifest checksums. Unattached source
+hashes are importer claims. Evidence exports carry origin, claimed importer and
+SDK version, source inventory/hashes, script-supplied processing description and
+declared outcome. Importer-supplied traceability is allowed and marked as such;
+step/attempt references and criteria are rejected. Import execution and cycle
+reports explain that sealing attests persistence, not measurement authenticity.
 
-### Flat Python References
-
-Python examples compose values and call operations without `with`. Resources
-use explicit `close()` (or an existing async reader's `aclose()`), awaited where
-needed; use `try/finally` when release must survive failure. Backend startup and
-owned cycle cleanup need public flat entry points rather than magic methods.
-Reference edits describe that target where source cannot yet support it.
-
-## What Stays
-
-Plugin execution ordering, retry policy, plugin-operated criteria and evaluated
-verdicts stay. Cycles retain their existing lifecycle responsibilities. Import
-uses the ordinary evidence, document and report mechanisms, storage identity
-policy and application authorization. Source parsing and post-processing belong
-to the importing script; Dokime adds no MATLAB/JSON/log parsers. Existing data
-is never silently deleted or reset; incompatible development storage uses an
-explicit fresh root, with schema/evidence baselines still v1.
-
-## Impact
-
-Protocol and generated bindings; execution persistence and call envelopes;
-application operations and runtime transaction/recovery; the columnar storage
-path; Rust, Python, C# and C++ client SDKs; history and plot interfaces; report
-and seal presentation; guides and SDK documentation. No source implementation,
-build or test is part of this specification task.
+Imports are whole submissions. A correction creates a new execution linked to
+its predecessor and uses a new key if the predecessor is sealed. Incremental
+imports and mutation of sealed evidence are out of scope.
 
 ## Dependencies
 
-- `grpc-plugins` adopts the origin union before its execution-manager work,
-  regenerates bindings and migrates materialization and plugin calls from the
-  start. Its SDK wave supplies all four client halves and shared documents.
-- Import implementation follows that SDK wave and `storage-interface`, which
-  starts after gRPC wave 5. Reuse its columnar path and staged file/durability
-  capabilities; do not replay imported data through live per-sample ingest.
-- `arrow-telemetry-storage` remains the columnar foundation; coordinate through
-  `storage-interface` without beginning or expanding its implementation here.
-- The flat API deltas below supersede context-manager requirements in
-  `python-client` and `python-backend` while those APIs exist. The gRPC wave still
-  removes the Python backend; this does not revive it or extend its lifetime.
+- `grpc-plugins` owns the execution model in its host wave, before manager
+  construction, and supplies the four SDK client halves. Import implementation
+  follows that SDK wave; the model is not deferred until imports are implemented.
+- `storage-interface` owns the persistence boundary used for staged publication,
+  conditional update and durable receipts. Import implementation must establish
+  the manifest commit boundary through that interface, not assume independent
+  backend writes compose into a transaction. Missing staged-publication support
+  is a dependency obligation before import implementation, not a local workaround.
+- The plot pipeline owns the shared `dokime.v1` columnar-frame message; reuse it
+  rather than fork a transport table. Columnar persistence follows the storage
+  interface, without starting other changes here.
+
+## Impact and Scope
+
+Protocol operations/bindings, storage and recovery, four SDKs, history and queries,
+desktop controls, reports/exports and affected README/guides require implementation
+and focused proof in tasks.md. This specification task changes only OpenSpec;
+it runs no builds or tests. Existing development data is never reset silently;
+incompatible storage requires an explicit fresh root and keeps the v1 baseline.
+
+The earlier automatic-seal import call, transaction-scoped four-operation sketch
+and cross-reference placing execution origins here are superseded. Broader Python
+backend/cycle context-manager rewrites are removed from this change; the gRPC SDK
+wave owns flat SDK lifecycle and removal of the embedded Python backend.
+
+## Open Decisions
+
+The locked model leaves review issues **4, 11, 12, 23, 24 and 26** partially open.
+Their exact questions, implementation gates and all 30 dispositions are in
+`design.md`. No unresolved policy is presented as an implemented guarantee.

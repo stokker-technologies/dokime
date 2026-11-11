@@ -19,9 +19,13 @@ and lets Dokime delete the plumbing in between.
   `Remote` (a URL the user adds). Both are the same gRPC connection.
 - The flow is `TestCaseTemplate` → expand (host) → `materialize` (plugin,
   pure) → `TestCase` → execute (host) → `Execution`.
-- Executions carry an origin union before the manager is built: PluginRun owns
-  plugin, template, digest and process start time; Import owns source hashes,
-  importing client and import time. TestCase identity fields move into PluginRun.
+- Executions are evidence containers (open, closed, sealed), with frozen schemas
+  and Origin containing the run's TestCase or the import's Import definition.
+  Run phases are manager-local live state, never a stored run or API type.
+- Outcomes distinguish not evaluated, evaluated and importer-declared. Cycles
+  fold only evaluated results and never report Passed without an evaluated result.
+- Backend capabilities govern desktop controls. Run recovery excludes import
+  drafts; report rendering is separate from publication for every execution.
 - A `TestCase` names its steps, criteria and streams. Steps, criteria,
   `initialize` and `cleanup` are plugin operations the host calls; the host
   owns ordering, retries, cancellation, cleanup and verdicts.
@@ -55,11 +59,13 @@ and lets Dokime delete the plumbing in between.
 - `materialize` is pure: no instrument access and no side effects.
 - `initialize`, `cleanup` and plugin state are per execution. Cycles only
   group executions.
-- A plugin restart during an execution seals the execution and its cycles.
+- A plugin restart interrupts its live run, closes its execution and finalizes
+  that execution and its affected cycles; import drafts are excluded.
   There is no resume. A dropped connection to the same process fails only the
   step in flight, which is retried when the step allows it.
-- Live plugin evidence is ordered by arrival at the host; imported tables retain
-  source timestamps under the later `imported-executions` change.
+- All samples retain source time, receipt time and durable position with a
+  declared stream axis. Live plugin evidence remains arrival-ordered; import
+  UTC normalization is owned by `imported-executions`.
 - A remote plugin is trusted by whoever adds its URL. Bundles keep the
   existing install path and security roadmap.
 - The host telemetry plugin stays a managed plugin.

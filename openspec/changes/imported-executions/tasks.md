@@ -1,45 +1,37 @@
 # Imported Executions Tasks
 
-## 1. Origin Protocol Before the Execution Manager
+## 1. Contracts Before Dependent Implementation
 
-- [ ] 1.1 In `proto/dokime/v1/execution.proto`, add ExecutionOrigin with PluginRun and Import variants and source-file hashes; move TestCase template/plugin/digest into PluginRun, reserve removed fields and retain parameters/steps/criteria/streams numbering.
-- [ ] 1.2 Update execution and plugin-call envelopes, generated protocol bindings, materialization producers/consumers and stored execution projections to carry origin; capture plugin start time and migrate every consumer before `grpc-plugins` execution-manager task 3.3.
-- [ ] 1.3 Prove both origin variants and plugin materialization/reconnect semantics with focused protocol/runtime tests during implementation; no source changes or tests belong to this authoring task.
+- [ ] 1.1 Adopt the grpc-plugins host execution model and render/publish split after its SDK wave; confirm storage-interface staged-manifest publication, conditional updates and durable receipts before host implementation. Lock producers, consumers, generated bindings, storage, recovery, UI, SDKs, exports, README/guides and focused proof inventory.
+- [ ] 1.2 Resolve review issue 4 with the owner: stable cycle selector, atomic label resolution/create, ambiguous labels, closed admission and the draft-to-seal close race; record requirement scenarios before implementing cycle admission.
+- [ ] 1.3 Resolve review issue 11 with the owner: disorder, timestamp ties, duplicate identity and gaps; record query/statistic scenarios before implementing ordering.
+- [ ] 1.4 Resolve review issue 12 with the owner: default import windows, wide coverage, future outliers and typed query-limit failures; record scenarios before plot integration.
+- [ ] 1.5 Resolve review issue 23 with the owner: validate arbitrary documents and select projection backfill or bounded raw-query preparation with explicit failure behavior before preview implementation.
+- [ ] 1.6 Resolve review issue 24 with the owner: reconcile materialization/performance contracts, preview cancellation, cache policy and host work/concurrency budgets before preview implementation.
+- [ ] 1.7 Resolve review issue 26 with the owner: units/calibration identity, quality counts, weighting, duplicates and first/last semantics before statistics integration.
 
-## 2. Host Operations After SDK and Storage Dependencies
+## 2. Host Admission and Storage
 
-- [ ] 2.1 After the `grpc-plugins` SDK wave and `storage-interface`, extend the application execution interface with the single import call and transaction-scoped begin, write_stream, put and seal/report operations described in proposal.md; preserve existing authorization.
-- [ ] 2.2 Implement named-cycle resolution/creation, Import origin, parameters, records, artifact hashes, document validation and optional importer-declared outcome; reject steps and criteria without adding a dataset model.
-- [ ] 2.3 Implement staged upload through report generation, atomic publication and recovery/rollback including new cycles, membership, files and keys; preserve existing cycle data on all failure paths.
-- [ ] 2.4 Serialize store-wide key reservation/publication and refuse repeated sealed keys naming the existing execution; cover concurrent submission, failed retries and lost responses with focused deterministic tests.
+- [ ] 2.1 Implement protocol/operation declarations, mappings and handlers for resumable bounded staging and atomic validated-manifest publication as an open draft; enforce checksums, limits and backpressure without live-stream admission or a run-queue entry. Prove incomplete/invalid manifest and concurrent upload behavior with deterministic focused cases.
+- [ ] 2.2 Freeze Import origin, import-local schemas, parameters, records, source inventory, claimed importer/SDK, processing description, declaration, marked traceability and predecessor link; host-hash uploaded bytes, distinguish unverified claims, reject steps/attempt references/criteria and preserve whole-import semantics.
+- [ ] 2.3 Implement store-scoped keys, revision-bound handles, conditional replacement/seal/discard and durable mutation receipts with request identity distinct from import key; prove lost responses, same-request replay after seal/restart, changed-payload conflicts, concurrent creation, stale revisions and sealed-key refusal naming the existing execution.
+- [ ] 2.4 Implement handle-only draft access and finite revision snapshots; atomically publish seal, final document/report and cycle membership under the resolved cycle policy. Hide drafts from other clients, ordinary history/search/queries/exports; preserve prior cycle contents and draft on failed rendering or sealing.
+- [ ] 2.5 Implement restart-safe staged transfer recovery, host-owned draft expiry pinned by active previews, discard and independent reclamation of all draft data/projections/attachments/metadata and orphan chunks; prove restart never invokes interrupted-run finalization on drafts and races cannot change pinned previews.
 
-## 3. Columnar Storage Path
+## 3. Time, Queries and Reports
 
-- [ ] 3.1 Use the storage interface's columnar path for one table per stream with captured schema and source timestamps; never reconstruct per-sample transport messages.
-- [ ] 3.2 Persist ordinary execution evidence, source artifacts, origin, declaration attribution and seal/report capture through existing owners; retain v1 baselines and explicit fresh-root refusal.
-- [ ] 3.3 Prove atomic failure/recovery and source-time plot/query/statistics behavior with focused deterministic storage and operation tests.
+- [ ] 3.1 Preserve source UTC, host receipt and durable positions with declared stream axes; validate absolute timestamps versus start plus exactly one elapsed_s/elapsed_ms/elapsed_us/elapsed_ns array, row lengths and exact integer-nanosecond conversion; reject absent/ambiguous clocks and overflow, retain measurement coverage apart from import-time history placement.
+- [ ] 3.2 Reuse the plot pipeline's dokime.v1 columnar-frame message and storage-interface native columnar path; validate typed arrays, explicit validity, row count and timestamps, preserving signed/unsigned 64-bit extremes and bytes across SDKs without mandatory Arrow/dataframe dependencies.
+- [ ] 3.3 Apply resolved ordering/gap/window/unit/statistical policies to queries, plots, summaries and finite draft follows; preserve fixed revision frontiers, expose source coverage and typed limit failures, and prevent cross-import name-based equivalence.
+- [ ] 3.4 Build preview(document) on snapshot rendering without durable writes or publication, allowing repeated documents; apply resolved validation/preparation/budget/cancellation policy and clean temporary output. Make seal(document) render the final document at the expected revision before atomic persistence/publication; prove render failure and replacement races.
 
-## 4. Client SDK Surface
+## 4. SDKs and Surfaces
 
-- [ ] 4.1 Rust: add the composed Import value, attachments, stream tables, records, document, optional outcome and one client call returning execution/report; stay protocol-only within the product graph.
-- [ ] 4.2 Python: implement the illustrated Import and import_execution shape with flat startup and explicit close; migrate Backend, DokimeClient.new_cycle, Cycle and finite-reader lifecycle APIs and stubs identified in design.md without requiring context managers.
-- [ ] 4.3 C#: expose the same composition and single-call semantics in the language's idiom with explicit resource release.
-- [ ] 4.4 C++: expose the same composition and single-call semantics in the language's idiom with explicit resource release.
-- [ ] 4.5 Prove equivalent evidence, report downloads and failure behavior across the four SDKs using focused tests; migrate affected examples, fixtures and superseded context-manager usage.
+- [ ] 4.1 Expose the locked flat Import -> import_execution -> draft.preview/seal/discard -> execution.report shape in Rust, Python, C# and C++; update history/search, desktop capabilities, measurement-period display and evaluated/declared/unevaluated cycle summaries while keeping drafts undiscoverable.
+- [ ] 4.2 Export structured provenance with evidence; mark importer traceability/declarations and put persistence-versus-authenticity explanations in execution and cycle reports. Review affected README claims, guides and examples; replace automatic-seal and conflated retry-key guidance.
+- [ ] 4.3 Add deterministic focused implementation proof for lifecycle/visibility/revision races, store identity/restart/fresh roots, shared-client conflicts, source clocks, columnar cross-language parity, provenance and corrections; respect all six open-decision gates.
 
-## 5. Report and Interface Marking
+## 5. Final Validation and Delivery
 
-- [ ] 5.1 Mark imports in history, plots, documents, report and seal with accessible origin/source hashes; retain artifact access through ordinary evidence paths.
-- [ ] 5.2 Show passed/failed as declared by the importer everywhere an outcome appears; preserve no-declaration state and plugin-evaluated outcomes without fabricating criteria.
-- [ ] 5.3 Verify all provenance surfaces and report failure rollback through focused behavior tests and qualitative review without asserting authored prose.
-
-## 6. Guides and References
-
-- [ ] 6.1 Update product, remote and SDK guides and affected README claims when implementation lands; demonstrate local parsing/post-processing, one-call import and saving its report in every SDK language.
-- [ ] 6.2 Finish source lifecycle migration identified in design.md, replacing context-manager-only public entry points and migrating consumers; retain cleanup under cancellation and original/cleanup failure grouping.
-- [ ] 6.3 Reconcile current Python lifecycle specs with the flat deltas here and the gRPC removal of the Python backend; do not reintroduce embedded hosting.
-
-## 7. Final Validation and Delivery
-
-- [ ] 7.1 After combined source closure and focused proof, validate this change strictly and perform required native/hosted validation through project tasks when authorized; report actual results.
-- [ ] 7.2 Review every acceptance scenario and deliver only with owner authorization; retire the implemented change through the normal lifecycle, not during this specification-only task.
+- [ ] 5.1 After all source work and targeted proof close, complete required format/language checks and native Windows/Linux validation through project tasks and authorized hosted CI; report pending proof truthfully.
+- [ ] 5.2 Review acceptance against all 30 dispositions, keep implementation obligations open until proved, and request delivery authorization if absent before any push or integration.

@@ -34,7 +34,7 @@ The host SHALL create the execution and SHALL invoke the plugin's initialize, st
 
 #### Scenario: Order
 
-- **WHEN** an execution runs
+- **WHEN** the manager drives a TestCase run for an execution
 - **THEN** the host calls initialize, each step in order, each criterion, then cleanup
 
 #### Scenario: Cleanup After Failure
@@ -55,7 +55,7 @@ The host SHALL create the execution and SHALL invoke the plugin's initialize, st
 #### Scenario: Plugin Restarted
 
 - **WHEN** the plugin process restarts during an execution
-- **THEN** the host seals the execution and its cycles
+- **THEN** the manager interrupts the active run, closes its execution and finalizes it and its affected cycles without touching import drafts
 
 ### Requirement: Host Operations Through the Context
 
@@ -78,8 +78,8 @@ A step or criterion SHALL reach Dokime only by calling host operations through i
 
 #### Scenario: Verdict
 
-- **WHEN** every criterion returns pass
-- **THEN** the execution passes, and it fails when any criterion returns fail
+- **WHEN** at least one criterion is evaluated and every evaluated criterion returns pass
+- **THEN** the execution has an evaluated Passed outcome, and an evaluated failure yields Failed
 
 ### Requirement: Host-Opened Execution Streams
 
@@ -137,12 +137,81 @@ Project creation, plugin packaging, installer packaging and proto export SHALL l
 - **WHEN** `--lang` names a language with no SDK
 - **THEN** the command fails, lists the supported languages and creates nothing
 
-### Requirement: Execution Origin Before Host Adoption
 
-Before execution-manager adoption, dokime.v1 SHALL define ExecutionOrigin with PluginRun and Import variants. PluginRun SHALL own template, plugin, digest and plugin start time, replacing TestCase identity fields. Execution persistence and plugin-call envelopes SHALL carry origin from the start.
+### Requirement: Evidence Container Before Host Adoption
 
-#### Scenario: Plugin Execution Created
+Before manager construction, Execution SHALL contain identity, cycle, origin, frozen schemas, evidence, attributed outcome and seal, with open/closed/sealed states and no step knowledge. Origin SHALL freeze PluginRun with TestCase, plugin/template/digest/start time or Import with its definition/manifest. There SHALL be no separate execution-definition type.
 
-- **WHEN** the host materializes and starts a plugin test case
-- **THEN** the execution stores PluginRun provenance and operation calls receive origin beside the full case
-- **AND** digest and restart checks read that origin without fabricated import plugin identity
+#### Scenario: Frozen Origin
+
+- **WHEN** the host creates an execution
+- **THEN** its origin freezes the corresponding TestCase or Import without a fabricated plugin/case for imports
+
+### Requirement: Ephemeral Run State
+
+A run SHALL be execution-manager live state for a TestCase only: queued, initializing, stepping, evaluating, cleaning up, then finished/cancelled/interrupted. It SHALL NOT be a stored object or API type. Cancel SHALL address an execution and SHALL be valid only while a run drives it.
+
+#### Scenario: Run Ends
+
+- **WHEN** the live run finishes, is cancelled or is interrupted
+- **THEN** the manager releases its live state while execution evidence remains
+
+#### Scenario: Cancel Import
+
+- **WHEN** a caller cancels an import execution with no live run
+- **THEN** the backend refuses the unsupported operation
+
+### Requirement: Origin-Specific Recovery
+
+Interrupted-run recovery SHALL close the affected executions and complete ordinary finalization without treating import drafts as interrupted runs. Plugin restart SHALL interrupt its active runs and finalize their executions and affected cycles; import drafts SHALL be excluded.
+
+#### Scenario: Recover Host
+
+- **WHEN** the host restarts with interrupted runs and import drafts
+- **THEN** only the interrupted runs have executions closed by run recovery
+
+### Requirement: Frozen Execution Schemas
+
+Every execution SHALL freeze all schemas it uses from the plugin catalog for a run or the script-local import catalog for an import. Import catalogs SHALL NOT register as plugins or overwrite existing definitions.
+
+#### Scenario: Catalog Changes
+
+- **WHEN** a plugin or script later changes a schema
+- **THEN** existing execution evidence retains its frozen schema
+
+### Requirement: Attributed Outcomes and Cycle Verdicts
+
+Outcome SHALL distinguish not evaluated, evaluated (Passed, Failed and existing evaluated kinds), and importer-declared. Imports SHALL NOT have criteria. Cycle headlines SHALL fold only evaluated results; summaries/reports SHALL count declared and unevaluated members separately. A cycle with no evaluated result SHALL NOT be Passed.
+
+#### Scenario: Declared-Only Cycle
+
+- **WHEN** a cycle has only declared Passed or unevaluated members
+- **THEN** its headline is not Passed and those member counts remain separate
+
+#### Scenario: Mixed Cycle
+
+- **WHEN** a cycle has evaluated and declared results
+- **THEN** only evaluated outcomes determine the headline and reports show declarations separately
+
+### Requirement: Backend Execution Capabilities
+
+The backend SHALL state supported start, rerun, cancel, inspect and export operations for each execution origin/state; desktop SHALL show only those. Imports SHALL NOT inherit start/rerun controls; cancel SHALL require a driving live run.
+
+#### Scenario: Desktop Opens Import
+
+- **WHEN** desktop displays an imported execution
+- **THEN** only backend-supported actions are offered and no plugin rerun is attempted
+
+### Requirement: Report Rendering and Publication
+
+Runs and imports SHALL separate rendering a document at a fixed execution snapshot into returned temporary output from durable report publication. Rendering SHALL NOT persist or publish reports/documents. Publication SHALL freeze the selected document/report with the execution under its durability contract.
+
+#### Scenario: Render Without Publish
+
+- **WHEN** a caller renders a snapshot and document
+- **THEN** it receives output without durable writes, publication or lifecycle mutation
+
+#### Scenario: Render Fails
+
+- **WHEN** rendering fails before final report publication
+- **THEN** no new report is published or seal invented
