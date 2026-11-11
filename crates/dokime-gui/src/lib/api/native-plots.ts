@@ -818,10 +818,10 @@ function mapNativeCartesianFrame(frame?: NativePlotFrame): PlotCartesianFrame | 
   let valid = true;
   const series = frame.series.map((column) => {
     const x = mode === "aligned" ? frame.time : column.x.map((value) => Number(nativeValueToJson(value)));
-    const y = new Array<number | null>(column.y.length);
-    if (x.length !== y.length) valid = false;
-    for (let row = 0; row < y.length; row += 1) {
-      y[row] = column.y[row].value ?? null;
+    const y: (number | null)[] = [];
+    if (x.length !== column.y.length) valid = false;
+    for (let row = 0; row < column.y.length; row += 1) {
+      y.push(column.y[row].value ?? null);
       if (!Number.isFinite(x[row])) valid = false;
     }
     return { x, y };
