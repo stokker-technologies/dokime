@@ -26,13 +26,10 @@ omit nominal cadence rather than advertise defaults as effective values.
 
 ## Ownership and Dependency Order
 
-Harmos integration: ../../harmos.wt/cadence, feat/runtime-observer-interval.
-Dokime integration: this worktree, feat/host-configurable-settings.
-Implementation Lead owns Harmos runtime, macros, consumers, tests and docs.
-The orchestrator owns Dokime source, both specifications, final checks and commits.
-Research And Review owns read-only migration inventory and final review.
-Research And Review additionally owns the disjoint lease runtime migration,
-lease/capture tests and finalization benchmark fixture cadence (task 1.7).
+The cadence implementation and released dependency are integrated on
+`feat/grpc-plugins`; the workspace pins Harmos 0.1.14 without a local override.
+The gRPC change owns subsequent host-clock and SDK migration; final native
+consumer proof remains in this change's task list.
 Lease admission recognizes authoritative owner observer output membership, while
 preserving existing explicit contract.interval publishers. Leases never choose
 or retain a sampling interval; the producer alone schedules collection.
@@ -42,10 +39,8 @@ or retain a sampling interval; the producer alone schedules collection.
 The existing SDK forces Observer::INTERVAL and Declared::ENTRY.interval into static
 artifact inventories; interval(S::INTERVAL) cannot consume plugin settings.
 The supported API cannot supply cadence at runtime. The approved upstream change
-adds the optional resource-based override above while retaining declared defaults. Use an ignored
-.cargo/config.toml patch for all resolved Harmos crates during development.
-Never commit the override or its path-based lock resolution. Publication and a
-verified published Harmos pin are deferred by the owner's commit-only instruction.
+adds the optional resource-based override above while retaining declared defaults. The candidate consumes the published dependency graph. No local override or
+path-resolved lockfile is part of the handoff.
 
 ## Acceptance
 

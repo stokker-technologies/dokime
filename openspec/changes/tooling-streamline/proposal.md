@@ -1,8 +1,7 @@
 # Tooling Streamline
 
-Status: direction agreed with the owner on 2026-11-10; the task table is a
-proposal until the CI audit is in. Implementation has not started and waits
-for the owner's go. Independent of `grpc-plugins`, which removes the things
+Status: entry-point dispatch, project-owned tooling and workflow matrices are
+implemented. Superseded task leaves and native-SDK jobs remain to be removed. Independent of `grpc-plugins`, which removes the things
 several tasks serve.
 
 ## Why
@@ -26,8 +25,8 @@ that carry their own logic beside the tasks.
   | `format` | `[--check] [--language rust\|python\|typescript\|toml]`; Format Selected Languages |
   | `lint` | `[--language rust\|python\|typescript]`; Lint Selected Languages |
   | `check` | `[--language rust\|python\|typescript\|toml] [--repository\|--bindings\|--supply\|--wasm] [--profile dev\|release]`; Format, Lint, Repository Checks and Generated Drift; Special Selections Run Only Their Check |
-  | `build` | `[--profile dev\|release] [--artifact product\|tests\|bench\|fixtures] [--package NAME [--check]] [--language rust\|python\|typescript] [--binary NAME]`; Build Products, Archives or One Cargo Package; Fixtures Selects Native Python Inputs |
-  | `test` | `[--language rust\|python\|typescript] [--layer unit\|integration\|acceptance\|system] [--package NAME --target lib\|TEST_TARGET [--exact NAME]] [--coverage] [--profile dev\|release] [--project sdk/python\|tools/python] [--select EXPRESSION] [--artifacts PATH] [--wheel [--bindings]] [--starter]`; Run Existing Lanes or One Cargo Target; Focused Cargo Tests Use Dev Context |
+  | `build` | `[--profile dev\|release] [--artifact product\|tests\|bench\|fixtures] [--package NAME [--check]] [--features FEATURES] [--language rust\|python\|typescript] [--binary NAME]`; Build Products, Archives or One Cargo Package; Fixtures Selects Native Python Inputs |
+  | `test` | `[--language rust\|python\|typescript] [--layer unit\|integration\|acceptance\|system] [--package NAME --target lib\|TEST_TARGET [--exact NAME]] [--features FEATURES] [--coverage] [--profile dev\|release] [--project sdk/python\|tools/python] [--select EXPRESSION] [--artifacts PATH] [--wheel [--bindings]] [--starter]`; Run Existing Lanes or One Cargo Target; Focused Cargo Tests Use Dev Context |
   | `bench` | `[--layer unit\|integration\|system] [--language rust\|python] [--binary NAME] [--select FILTER] [--refresh-baseline]`; Run Built Benchmarks |
   | `package` | `[--language rust\|python] [--profile dev\|release] [--target TARGET]`; Package Built Artifacts and Prepare Organization Resources |
   | `release:prepare` | Prepare the Release Branch |
@@ -115,10 +114,23 @@ check:
   no-default-features checks are dropped with the tasks that ran them.
 - The compiler cache stays for local builds. With incremental compilation on
   it still serves dependencies and fresh checkouts.
-- Duplicates and dead modules that came from the shared templates are fixed
-  there as well, so new projects do not start with them.
+- Compiler-cache wrappers, release scripts and CI helpers are project-owned
+  copies. Fix them in each project; Hub templates no longer own or render them.
+  No sibling checkout or Hub executable is a tooling dependency.
+
+## Remaining Integration
+
+The entry-point interface in the table is the target. Current `mise.toml` still
+contains language/layer leaves and native Python wheel, binding and fixture
+paths. Delete superseded leaves after their consumers migrate; pure Python jobs
+replace native-SDK jobs with `grpc-plugins`. Focused Cargo selection accepts
+`--features`. CI setup provisions Python before native bootstrap and guards
+Windows APIs by platform. The installable `uv` pin is 0.13.7; no temporary
+environment override is part of the contract. Linux product-build and all-platform
+entry-point proof remain open. A machine Hub check rejecting this task model is
+an upstream tooling obligation, not permission to restore the old model.
 
 ## Impact
 
-- `mise.toml`, `tools/python`, `.github/workflows`, `CONTRIBUTING.md` and the
+- `mise.toml`, `tools/python`, `.github/workflows`, `docs/CONTRIBUTING.md` and the
   tooling guide. No product behaviour changes.

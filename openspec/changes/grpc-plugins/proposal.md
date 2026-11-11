@@ -1,7 +1,7 @@
 # gRPC Plugins
 
-Status: locked by the owner on 2026-11-10; implementation has not started and
-waits for the owner's go. Replaces `remote-plugins`. The Harmos change `grpc-plugins` is
+Status: protocol definitions and host-source export are implemented. Runtime,
+SDK and catalog adoption remain open; follow the waves in `design.md`. Replaces `remote-plugins`. The Harmos change `grpc-plugins` is
 the protocol side.
 
 ## Why

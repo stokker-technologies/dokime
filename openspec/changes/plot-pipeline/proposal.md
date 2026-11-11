@@ -31,9 +31,8 @@ replacement, and the same data travels in two representations.
    bucket it falls in.
 4. **One columnar frame on the wire,** with a shared time column, in place of
    point series plus arrays.
-5. **Dokime owns the private signal kernels.** The kernels stay hand-maintained
-   and move into Dokime; `tsdownsample` was tried and dropped because it needs
-   nightly Rust. Copy only the FFT, statistics and downsampling kernels Dokime
+5. **Dokime owns the private signal kernels.** The FFT, statistics and downsampling kernels are hand-maintained private
+   Dokime modules. `tsdownsample` is excluded because it requires nightly Rust. Copy only the FFT, statistics and downsampling kernels Dokime
    calls from the former Harmos implementation, with their relevant tests.
 
 ## Memory
@@ -58,6 +57,13 @@ stays measured so that case is visible when it comes.
   code, tried in its own worktree and adopted only if build times stay
   acceptable.
 - A separate storage tier for old data.
+
+## Open Points
+
+### Awaiting Owner Confirmation
+
+- Keep FFT, statistics and downsampling as private hand-maintained Dokime
+  kernels and drop `tsdownsample`. This is implemented; confirmation is pending.
 
 ## Impact
 

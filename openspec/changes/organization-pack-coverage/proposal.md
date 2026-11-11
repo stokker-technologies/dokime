@@ -1,7 +1,7 @@
 # Organization Pack Coverage
 
-Status: locked by the owner on 2026-11-10; implementation has not started and
-waits for the owner's go. Independent of `grpc-plugins`.
+Status: implementation and documentation are integrated. Final packaged
+desktop/report proof remains open. Independent of `grpc-plugins`.
 
 ## Why
 

@@ -1,5 +1,18 @@
 # gRPC Plugins Design
 
+## Resuming
+
+Integrate every open change under `openspec/changes/` together on `feat/grpc-plugins`.
+Feature worktrees hand back local commits; this worktree is `feat/gp-organization-pack`.
+Use the single `grpc-plugins` implementation marker for the combined work.
+The Implementation Waves table below owns ordering and current completion.
+Give a worker one whole task, its specification section and explicit disjoint path ownership.
+Name the focused `mise run` build/test tasks and acceptance in that brief.
+Require format and the relevant language check through `mise run` before handoff.
+The handoff is at most ten lines: changed paths, result, focused proof and remaining work.
+Next work is the first unticked tasks in wave order; respect dependencies and owner decisions.
+A checked source task does not establish final validation or delivery.
+
 Status: locked by the owner on 2026-11-10. The initial protocol slice is
 implemented as recorded below; the remaining redesign is the intended target,
 not landed source. Exact names and field numbers are settled during
@@ -405,8 +418,8 @@ let template = template.document(document);
 | `dokime.v1` | Operations Dokime serves to clients and to plugins, and the messages for operations plugins serve (`TestCase`, `Step`, `Statistics`) |
 
 Visibility decides who may call an operation. `Public` operations may be
-called by everyone connected, plugins and clients alike; everything Dokime
-serves is `Public`. The step, criterion, materialize, initialize and cleanup
+called by everyone connected, plugins and clients alike; Dokime client and context
+operations are `Public`. The step, criterion, materialize, initialize and cleanup
 operations a plugin serves are `Private`, so only Dokime calls them.
 "Automation" names
 the activity of driving Dokime, not a package. The protos are attached to
@@ -496,7 +509,7 @@ dokime proto export
 
 - Each SDK's sample plugin builds from the `.proto` files alone, so the
   languages build in parallel and none waits for the host build.
-- One story runs against every language: the same suite, written once per
+- SDK system stories run in Nightly only. One story runs against every language: the same suite, written once per
   SDK, executed by the same host, with the same expected evidence. A
   difference between languages is a failure.
 - Tests at integration level and above follow a real user journey, one story
@@ -532,19 +545,41 @@ and cycle accounting (`transactions/provider*`, `provider_finish`).
 Kept for managed plugins: install, store, bundles, feeds and installer
 entries.
 
+## Operation and Dependency Boundaries
+
+Plugin operations accept one request and return one result. Streaming request and
+result operations remain host-native only; migrate the streamed sample operations
+to unary plugin calls. The streaming gRPC carrier does not make a plugin operation
+streaming. Operation policy includes `backoff`, a delay on the host clock between
+attempts. An unset policy means no deadline, zero cancellation grace and no retries.
+
+Observer control, storage file operations, `follow_objects`, `follow_stream`,
+`storage_status` and `write_schema` are Private. The Public rule above applies to
+Dokime's client/context operations, not these internal Harmos operations.
+`interval_setting` names a qualified protobuf catalog-section field of Duration
+type. `PlacementSettings.stream_window` is a required host setting. Refresh the
+vendored Harmos definitions when adopting the upstream revision; the current
+vendored stream-setting comment does not yet express this qualified-field contract.
+
+Client-only builds depend on protocol definitions without host runtime features.
+The server build script must use checked-in protocol output and definitions-only
+settings, without depending on the product facade. Both boundaries remain work.
+Splitting the largest crates is deferred until measurements after the removals;
+this supersedes the extraction schedule in `prototype-streamline`.
+
 ## Implementation Waves
 
-Every change on this branch is delivered together. Work proceeds in waves;
-within a wave each worker owns a disjoint set of paths, and a wave starts
-when the one before it builds and its focused tests pass.
+Every open change is part of this integration. A wave's source and focused proof
+precede dependent work; final native lanes remain separate. Existing archives are
+historical requirements, not new implementation slices.
 
-| Wave | Work | Owned Paths |
+| Wave | Work and State | Owned Paths |
 | --- | --- | --- |
-| 1, no dependency on Harmos | `organization-pack-coverage`; `remote-access-simplification`; `plot-pipeline`; `tooling-streamline`; the `dokime.v1` definitions (tasks 2.1, 2.3) | Desktop shell organization code and packaging; client, server remote access and the connection screen; plot query, previews, watch and the interface plot path; `mise.toml`, `tools/python`, `.github`; `proto/` |
-| 2 | Adopt the Harmos revision; migrate Dokime's operations, catalogs, transactions and messages off the Harmos macros | The whole workspace, one worker |
-| 3 | Execution manager, test case and materialization, host operations for plugins, stream ingest and statistics (tasks 2.2, 2.4, 2.5, 3.1 to 3.5); plugin entries and the settings page (3.6) | Runtime execution and domains; server operations; the settings interface |
-| 4 | SDKs for Rust, Python, C# and C++ with starters and the `dokime` commands (4.x); the host telemetry and OBC plugins; `domain-neutral-interface` | `sdk/`; `crates/dokime-cli`; `plugins/`; interface plot catalog and parameter editor |
-| 5 | Removals (5.x); `test-stories`; guides and README; final validation | Paths being deleted; test trees; documentation |
+| 1 | Organization source done; finish packaged proof. Remote source done except deferred recovery 2.4; finish connection proof. Plot source done; baseline 1.1 and comparison 4.1 open. Tooling partial: entry points and matrices landed, superseded leaves remain. Protocol definitions and host-source export done; release archive open. | Organization shell/packaging; remote client/server/connection UI; plot runtime/server/UI; `mise.toml`, `tools/python`, `.github`; `proto/`, protocol crate |
+| 2 | Next dependent source: adopt the Harmos gRPC revision and migrate operations, catalogs, transactions and messages; current dependency is registry Harmos 0.1.14. Refresh vendored definitions and resolve pending wire decisions. | Workspace dependencies and contract consumers, one owner |
+| 3 | Pending: execution manager, materialization, context operations, resource store, stream ingest/statistics and managed/remote settings entries (2.2–2.5, 3.2–3.6). | Runtime execution/domains; server operations; settings UI |
+| 4 | Pending: four SDKs, starters and CLI (4.x), built-in plugins and `domain-neutral-interface`. | `sdk/`, CLI, `plugins/`, domain/wire/runtime/UI grid and parameter owners |
+| 5 | Pending: removals (5.x), `test-stories`, guides, README and final native validation. Reconcile retained Arrow, identity, installer, cadence, marker and embedded-server proof tasks and `prototype-streamline` remaining work. `release-layout` and `dev-release-gates` own release/CI follow-through; `telemetry-at-record` remains deferred pending scheduling. | Removed paths, tests, docs, packaging/release/tooling and retained change owners |
 
 Between waves 2 and 4 the product does not run end to end. Each wave proves
 itself with focused builds and tests of what it changed; the system stories
@@ -566,10 +601,20 @@ Client access and its security are the separate change
 `remote-access-simplification`. Branding is the separate change
 `organization-pack-coverage`.
 
+### Awaiting Owner Confirmation
+
+- Unary-only plugin operations and adapting the streamed sample operations.
+- Private visibility for observer control, storage file operations,
+  `follow_objects`, `follow_stream`, `storage_status` and `write_schema`.
+- Unset operation policy: no deadline, zero cancellation grace, no retries.
+- `interval_setting` as a qualified protobuf section field holding a Duration.
+- Required host setting `PlacementSettings.stream_window`.
+- The `dokime.v1` wire choices in Initial Protocol Slice Decisions below.
+
 ## Initial Protocol Slice Decisions
 
-The owner authorized tasks 2.1 and the host-source export half of 2.3. The
-canonical definitions now live in repository-root `proto/dokime/v1/`, replacing
+The definitions and host-source export are implemented. The
+canonical definitions live in repository-root `proto/dokime/v1/`, replacing
 the drafts formerly below this change. This slice defines contracts; it does
 not serve new operations or migrate the existing catalog readers.
 
@@ -581,10 +626,9 @@ not serve new operations or migrate the existing catalog readers.
   identifiers. Steps, criteria and execution stream identifiers belong only to
   `TestCase`. Parameter expressions are recursive typed trees, including current
   ranges, references, dynamic defaults, arithmetic and expansion selections.
-- The draft execution messages retain existing field numbers while replacing
-  JSON values before first adoption. Initialize, step, criterion and cleanup
-  requests all carry the full case. This corrects the draft's assumption that
-  initialize always supplies it: initialize is optional, and even cleanup may
+- Execution messages retain their defined field numbers and use typed
+  values before first adoption. Initialize, step, criterion and cleanup
+  requests all carry the full case. Initialize is optional, and even cleanup may
   be the first call for a case without steps or criteria. The SDK can therefore
   create its execution instance on the first operation without depending on
   materialize retaining state. Step/criterion calls also carry their identifier,
@@ -627,7 +671,7 @@ not serve new operations or migrate the existing catalog readers.
   settings and secret-read messages are context operations for later host adoption.
   List/read replies are named `PluginEntries` and `SavedSettings` to avoid
   colliding with the existing `dokime.v1.Plugins` and `dokime.v1.Settings` services.
-- The Harmos source is a read-only copy from its `grpc-plugins` checkout and
+- The vendored Harmos source under `proto/harmos/` is a read-only copy and
   must be refreshed to match the revision adopted in wave 2. No unpublished
   Harmos crate is used. Rust generation uses the pinned vendored compiler, checks
   in both packages and declares their source files generated in project policy.

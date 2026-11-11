@@ -8,11 +8,13 @@
 
 ## 2. Protocol
 
-- [x] 2.1 Define `dokime.v1`: host operations for clients and plugins, `TestCase`, `Step`, `Criterion`, `Statistics`, with checked-in protos attached to releases.
+- [x] 2.1 Define and check in `dokime.v1` host operations, `TestCase`, `Step`, `Criterion` and `Statistics`; generate the protocol crate.
 - [ ] 2.2 Add the host operations plugins need that exist only as evidence-page fields today: progress, log, traceability, document parts, record reads and statistics.
-- [ ] 2.3 Replace the JSON catalog sections with `dokime.v1` messages and add `dokime proto export`.
+- [ ] 2.3 Replace JSON catalog readers and producers with `dokime.v1` messages; add running-host, plugin URL and bundle export sources. Embedded host-source export is tracked in 2.6.
 - [ ] 2.4 Serve settings as a host operation and delete settings injection at start and the applied-versus-saved comparison.
 - [ ] 2.5 Add the per-execution resource store (`ctx.set`, `ctx.get`) for Rust and remove template fields and `Own`.
+- [x] 2.6 Export embedded Dokime and Harmos protocol sources through `dokime proto export --out`, preserving package paths without opening storage.
+- [ ] 2.7 Attach the checked-in protocol sources to releases through the archive owned by `release-layout` task 2.3.
 
 ## 3. Host
 
@@ -22,6 +24,7 @@
 - [ ] 3.4 Open and close catalog and test case streams and ingest samples in arrival order.
 - [ ] 3.5 Compute stream statistics per execution and step range.
 - [ ] 3.6 Replace Settings › Plugins with managed and remote entries and their states.
+- [ ] 3.7 Adopt unary-only plugin operations, migrate streamed sample operations, apply internal visibility and unset-policy defaults, resolve Duration setting fields and require the placement stream window after owner confirmation; refresh vendored Harmos sources and verify descriptor parity.
 
 ## 4. SDKs
 
@@ -48,12 +51,15 @@
 
 - [ ] 6.1 Run focused runtime, server and desktop tests for plugin entries, materialization, execution order, retries, sealing, streams and criteria.
 - [ ] 6.2 Run the system stories with a managed plugin and with a Python script that serves and drives its own suite.
+- [ ] 6.3 Run the combined-tree Rust and settings/plot checks after all source handoffs; repair failures and retain native platform limitations.
 
 ## Workflow Follow-Up
 
 - Tell private plugin owners the migration once a published Nightly carries the change.
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - SDK system tests run in Nightly only, not on pull requests.
+- Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- Run only focused tasks until combined source closure; final native proof remains separate.
 
 ## Repository Root and Workflow Repairs
 
