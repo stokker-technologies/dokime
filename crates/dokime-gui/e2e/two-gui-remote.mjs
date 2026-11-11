@@ -46,8 +46,6 @@ import { call, invoke } from "./native-rpc.mjs";
 const { values: options } = parseArgs({ options: { profile: { type: "string", default: "dev" }, junit: { type: "string" } } });
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const target = `${process.platform === "win32" ? "windows" : "linux"}-${process.arch === "x64" ? "x86_64" : "aarch64"}`;
-const built = join(workspace, "target/build", options.profile, target);
-const cli = process.env.DOKIME_E2E_CLI ?? join(built, "bin", `dokime${process.platform === "win32" ? ".exe" : ""}`);
 const sessions = [];
 const started = performance.now();
 const work = await realpath(await mkdtemp(join(tmpdir(), "dokime-two-gui-")));

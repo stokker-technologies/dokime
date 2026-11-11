@@ -177,30 +177,28 @@ export function BackendsTable({
         columns={columns}
         onRowClick={(profile) => connect(profile.identifier)}
         actions={
-          <>
-            <Button
-              ref={importButton}
-              size="sm"
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                setError(undefined);
-                try {
-                  const imported = await preferencesCommands.desktopBackendImportPairing(null);
-                  if (imported) {
-                    setDocument(imported);
-                    onConnect?.();
-                  }
-                } catch (failure) {
-                  setError(failure);
-                } finally {
-                  setBusy(false);
+          <Button
+            ref={importButton}
+            size="sm"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError(undefined);
+              try {
+                const imported = await preferencesCommands.desktopBackendImportPairing(null);
+                if (imported) {
+                  setDocument(imported);
+                  onConnect?.();
                 }
-              }}
-            >
-              Import Remote
-            </Button>
-          </>
+              } catch (failure) {
+                setError(failure);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Import Remote
+          </Button>
         }
       />
       <Dialog

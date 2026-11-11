@@ -193,8 +193,7 @@ pub(super) async fn query(
                         &owner,
                         &stream,
                         &key,
-                        from,
-                        to,
+                        from..=to,
                         saved.sequence,
                         width,
                     )?;

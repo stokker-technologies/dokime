@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS storage_plot_buckets (
 type FieldProjections = BTreeMap<String, BTreeMap<String, BTreeMap<String, (u64, Projection)>>>;
 type StreamContexts = BTreeMap<(String, String), (u64, BTreeMap<String, dokime_domain::model::values::Value>)>;
 
+type WindowBuckets = BTreeMap<(String, String, String, i64, i64), (u64, Bucket)>;
+
 /* === Structs === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -107,7 +109,7 @@ pub(in crate::storage::sqlite) struct Batch {
     settings: crate::storage::sqlite::PreviewSettings,
     fields: FieldProjections,
     contexts: StreamContexts,
-    windows: BTreeMap<(String, String, String, i64, i64), (u64, Bucket)>,
+    windows: WindowBuckets,
 }
 
 /* === Enums === */
@@ -413,8 +415,9 @@ pub(crate) fn latest_time(
 
 // Indexed Empty Intervals Need No Raw Read; Only Partial Or Newer Buckets Do.
 pub(crate) fn window_raw_ranges(
-    connection: &Connection, execution: &str, stream: &str, field: &str, from: i128, to: i128, at: u64, target: i128,
+    connection: &Connection, execution: &str, stream: &str, field: &str, range: std::ops::RangeInclusive<i128>, at: u64, target: i128,
 ) -> Result<Vec<(i128, i128)>, Error> {
+    let (from, to) = range.into_inner();
     let mut widths = connection.prepare("SELECT DISTINCT width FROM storage_plot_buckets WHERE execution=?1 AND stream=?2 AND field=?3")?;
     let widths = widths.query_map(params![execution, stream, field], |row| row.get::<_, i64>(0))?.collect::<Result<Vec<_>, _>>()?;
     let mut query = connection.prepare("SELECT bucket,through FROM storage_plot_buckets WHERE execution=?1 AND stream=?2 AND field=?3 AND width=?4 AND bucket>=?5 AND bucket<=?6 ORDER BY bucket")?;

@@ -31,7 +31,6 @@ import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSect
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
 import { RemoteSection } from "@/features/settings/sections/RemoteSection";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
-import type { RuntimeSettingsFrame } from "@/features/settings/settings-contracts";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } from "@/features/settings/settings-sections";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { PanelHeader } from "@/shell/PageShell";
@@ -54,7 +53,6 @@ export function SettingsSurface({ section: selected }: SettingsSurfaceProps) {
   const section = selected ?? DEFAULT_SETTINGS_SECTION;
   const advanced = useUiStore((state) => state.showAdvancedSettings);
   const settings = useSettingsSections();
-  const frame = settings.frame;
 
   const actions = useMemo(() => <SettingsAdvancedSwitch />, []);
   usePageChrome({
@@ -89,7 +87,6 @@ export function SettingsSurface({ section: selected }: SettingsSurfaceProps) {
           <SettingsGrid>
             <SectionContent
               advanced={advanced}
-              frame={frame}
               loadError={settings.error}
               loadFailure={settings.failure}
               loading={settings.loading}
@@ -105,7 +102,6 @@ export function SettingsSurface({ section: selected }: SettingsSurfaceProps) {
 
 function SectionContent({
   advanced,
-  frame,
   loadError,
   loadFailure,
   loading,
@@ -113,7 +109,6 @@ function SectionContent({
   section,
 }: {
   advanced: boolean;
-  frame: RuntimeSettingsFrame | null;
   loadError: string | null;
   loadFailure?: unknown;
   loading: boolean;

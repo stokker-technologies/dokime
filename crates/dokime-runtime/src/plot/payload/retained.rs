@@ -185,11 +185,11 @@ pub(crate) fn time_indices(points: &[PlotPoint], viewport: Option<super::PlotWin
         let finite = bucket.iter().copied().filter(|index| points[*index].y.is_some_and(f64::is_finite)).collect::<Vec<_>>();
         let values = finite.iter().map(|index| points[*index].y.expect("finite value")).collect::<Vec<_>>();
         selected.extend(crate::signal::m4(&values).into_iter().map(|index| finite[index]));
-        let gaps = bucket.iter().copied().filter(|index| points[*index].y.is_none());
+        let mut gaps = bucket.iter().copied().filter(|index| points[*index].y.is_none());
         if let Some(index) = gaps.clone().next() {
             selected.push(index);
         }
-        if let Some(index) = gaps.last() {
+        if let Some(index) = gaps.next_back() {
             selected.push(index);
         }
     }

@@ -737,7 +737,7 @@ mod tests {
         assert_eq!(frame.time, vec![1.0, 2.0]);
         assert!(frame.series.iter().all(|column| column.x.is_empty() && column.z.is_empty()));
         assert_eq!(frame.series[0].y.iter().map(|value| value.value).collect::<Vec<_>>(), vec![Some(2.0), None]);
-        let frame = plot_frame(None, &[series.clone()]).unwrap();
+        let frame = plot_frame(None, std::slice::from_ref(&series)).unwrap();
         assert!(frame.time.is_empty());
         assert_eq!(frame.series[0].x.len(), 1);
         assert_eq!(frame.series[0].z[0].value, Some(7.0));
