@@ -152,7 +152,7 @@ fn cartesian_frame_from_series(mode: PlotCartesianMode, series: Vec<PlotCartesia
 fn cartesian_mode(plot_type: &PlotType) -> Option<PlotCartesianMode> {
     match plot_type {
         PlotType::TimeSeries | PlotType::FrequencySeries => Some(PlotCartesianMode::Aligned),
-        PlotType::Xy | PlotType::XyInterval | PlotType::Trajectory => Some(PlotCartesianMode::Faceted),
+        PlotType::Xy | PlotType::XyInterval => Some(PlotCartesianMode::Faceted),
         _ => None,
     }
 }
@@ -223,7 +223,7 @@ mod tests {
             points: [Some(1.0), None, Some(3.0)]
                 .into_iter()
                 .enumerate()
-                .map(|(x, y)| super::super::PlotPoint { x: serde_json::json!(x), y, z: None })
+                .map(|(x, y)| super::super::PlotPoint { instant: None, x: serde_json::json!(x), y, z: None })
                 .collect(),
         };
         let frame = cartesian_frame(&[series], Some(&PlotType::TimeSeries), &AxisScale::Linear, &AxisScale::Linear).unwrap().unwrap();

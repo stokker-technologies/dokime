@@ -298,7 +298,7 @@ mod tests {
             (9.5, Some(5.0)),
         ]
         .into_iter()
-        .map(|(x, y)| PlotPoint { x: serde_json::json!(x), y, z: None })
+        .map(|(x, y)| PlotPoint { instant: None, x: serde_json::json!(x), y, z: None })
         .collect::<Vec<_>>();
         let indices = time_indices(&points, Some(super::super::PlotWindow { from: 0.0, to: 10.0 }), 2);
         assert_eq!(indices, vec![0, 1, 2, 3, 4, 5, 6]);

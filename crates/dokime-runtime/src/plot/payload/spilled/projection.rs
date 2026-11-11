@@ -170,7 +170,7 @@ impl<'a> Projection<'a> {
                 Input::Field(_) => payload::x_input(sample, x_key),
                 Input::Expression(_) => payload::expression_x_input(sample, self.request.x_expression.as_ref(), x_key),
             };
-            let point = PlotPoint {
+            let point = PlotPoint { instant: payload::point_instant(sample, self.request),
                 x: payload::projection::x_value(x)?,
                 y,
                 z,
@@ -224,7 +224,7 @@ impl<'a> Projection<'a> {
                         Ok(())
                     })?;
                     let y = scalar_number(accumulator.finish(&mut || Ok(()))?);
-                    aggregates.push(PlotPoint { x: group.into(), y, z })?;
+                    aggregates.push(PlotPoint { instant: None, x: group.into(), y, z })?;
                 } else {
                     let mut points = Points::new()?;
                     rows(read, index, &group, |point, exact| points.push_exact(point, exact))?;
@@ -250,7 +250,7 @@ pub(super) fn reset(read: &Read<'_>) -> Result<()> {
             "DROP TABLE IF EXISTS projected;
          CREATE TABLE projected (
              ordinal INTEGER PRIMARY KEY, expression INTEGER NOT NULL, grp TEXT NOT NULL, group_number REAL,
-             sort BLOB NOT NULL, stamp TEXT NOT NULL, capture BLOB NOT NULL, x TEXT NOT NULL, y BLOB, z BLOB, exact TEXT
+             sort BLOB NOT NULL, stamp TEXT NOT NULL, capture BLOB NOT NULL, x TEXT NOT NULL, y BLOB, z BLOB, exact TEXT, instant TEXT
          );
          CREATE INDEX projected_order ON projected(expression,grp,sort,stamp,capture,ordinal);",
         )
@@ -290,7 +290,7 @@ pub(super) fn insert(read: &Read<'_>, row: Row<'_>) -> Result<()> {
     let z = point.z.map(f64::to_le_bytes);
     read.connection
         .execute(
-            "INSERT INTO projected(expression,grp,group_number,sort,stamp,capture,x,y,z,exact) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+            "INSERT INTO projected(expression,grp,group_number,sort,stamp,capture,x,y,z,exact,instant) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
             params![
                 expression as i64,
                 group,
@@ -301,7 +301,8 @@ pub(super) fn insert(read: &Read<'_>, row: Row<'_>) -> Result<()> {
                 x,
                 y.as_ref().map(|bytes| bytes.as_slice()),
                 z.as_ref().map(|bytes| bytes.as_slice()),
-                exact
+                exact,
+                point.instant,
             ],
         )
         .map_err(failure)?;
@@ -313,13 +314,13 @@ pub(super) fn rows(
 ) -> Result<()> {
     let mut statement = read
         .connection
-        .prepare("SELECT x,y,z,exact FROM projected WHERE expression=?1 AND grp=?2 ORDER BY sort,stamp,capture,ordinal")
+        .prepare("SELECT x,y,z,exact,instant FROM projected WHERE expression=?1 AND grp=?2 ORDER BY sort,stamp,capture,ordinal")
         .map_err(failure)?;
     let mut rows = statement.query(params![expression as i64, group]).map_err(failure)?;
     while let Some(row) = rows.next().map_err(failure)? {
         let x: String = row.get(0).map_err(failure)?;
         let x = serde_json::from_str(&x).map_err(failure)?;
-        let point = PlotPoint {
+        let point = PlotPoint { instant: row.get(4).map_err(failure)?,
             x,
             y: number(row.get(1).map_err(failure)?)?,
             z: number(row.get(2).map_err(failure)?)?,

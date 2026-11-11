@@ -74,6 +74,12 @@ pub(crate) struct Preview {
 
 #[derive(Serialize, Deserialize)]
 struct Trace {
+    #[serde(default)]
+    ordered: Vec<PlotPoint>,
+    #[serde(default)]
+    ordered_stride: usize,
+    #[serde(default)]
+    ordered_last: Option<PlotPoint>,
     template: PlotSeries,
     exact: Vec<PlotPoint>,
     envelope: Envelope,
@@ -211,7 +217,7 @@ impl Preview {
                         .expect("saved time")
                         .format(&time::format_description::well_known::Rfc3339)
                         .expect("saved timestamp");
-                    Some(PlotPoint {
+                    Some(PlotPoint { instant: None,
                         x: serde_json::Value::String(stamp),
                         y: Some(value),
                         z: None,
@@ -449,6 +455,7 @@ impl Preview {
                 break;
             }
             let trace = self.series.entry(series.key.clone()).or_insert_with(|| Trace {
+                ordered: Vec::new(), ordered_stride: 1, ordered_last: None,
                 template: PlotSeries { points: Vec::new(), ..series.clone() },
                 exact: Vec::new(),
                 envelope: Envelope {
@@ -465,6 +472,17 @@ impl Preview {
                 let Some(value) = point.y.filter(|value| value.is_finite()) else { continue };
                 trace.count += 1;
                 trace.moments.push(value);
+                if request.plot_type == Some(PlotType::Trajectory) {
+                    trace.ordered_stride = trace.ordered_stride.max(1);
+                    if (trace.count - 1).is_multiple_of(trace.ordered_stride) { trace.ordered.push(point.clone()); }
+                    trace.ordered_last = Some(point.clone());
+                    if trace.ordered.len() > limits.exact_points.max(1) {
+                        let mut index = 0;
+                        trace.ordered.retain(|_| { let keep = index % 2 == 0; index += 1; keep });
+                        trace.ordered_stride = trace.ordered_stride.saturating_mul(2);
+                    }
+                    continue;
+                }
                 if let Some(method) = aggregate {
                     let key = group_key(&point.x);
                     if !trace.groups.contains_key(&key) && trace.groups.len() >= limits.groups {
@@ -538,11 +556,22 @@ impl Preview {
         if self.reduced {
             payload.series.clear();
             for trace in self.series.values() {
-                let points = if let Some(method) = aggregate_for(request, &trace.template.key) {
+                let points = if request.plot_type == Some(PlotType::Trajectory) {
+                    let mut points = trace.ordered.clone();
+                    if let Some(last) = &trace.ordered_last && points.last() != Some(last) { points.push(last.clone()); }
+                    if points.len() > limits.exact_points.max(1) {
+                        let selected = super::payload::marker_indices(points.len(), limits.exact_points.max(1));
+                        points = points.into_iter().enumerate().filter_map(|(index, point)| selected.binary_search(&index).is_ok().then_some(point)).collect();
+                    }
+                    points.sort_by(|left, right| {
+                        left.instant.as_deref().and_then(super::parse_timestamp).cmp(&right.instant.as_deref().and_then(super::parse_timestamp))
+                    });
+                    points
+                } else if let Some(method) = aggregate_for(request, &trace.template.key) {
                     trace
                         .groups
                         .values()
-                        .map(|(x, moments)| PlotPoint {
+                        .map(|(x, moments)| PlotPoint { instant: None,
                             x: x.clone(),
                             y: moments.value(method),
                             z: None,
@@ -564,7 +593,7 @@ impl Preview {
                     }
                     grid.cells
                         .values()
-                        .map(|cell| PlotPoint {
+                        .map(|cell| PlotPoint { instant: None,
                             x: serde_json::json!(cell.x),
                             y: Some(cell.y),
                             z: Some(cell.count as f64),
@@ -588,7 +617,7 @@ impl Preview {
                             } else {
                                 serde_json::json!(x)
                             };
-                            PlotPoint { x, y: Some(point.value), z: None }
+                            PlotPoint { instant: None, x, y: Some(point.value), z: None }
                         })
                         .collect()
                 };
@@ -847,7 +876,7 @@ fn aggregate_for(request: &PlotPayloadRequest, key: &str) -> Option<harmos::Aggr
 }
 
 fn uses_density_grid(request: &PlotPayloadRequest) -> bool {
-    matches!(request.plot_type, Some(PlotType::Trajectory | PlotType::XyValueHeatmap))
+    matches!(request.plot_type, Some(PlotType::XyValueHeatmap))
         || (request.plot_type == Some(PlotType::Xy) && request.style == PlotStyle::Points)
 }
 
@@ -1121,6 +1150,32 @@ mod tests {
             .collect();
         assert_eq!(counts, BTreeMap::from([(1, 3), (6, 4)]));
         assert!(preview.reason.is_none());
+    }
+
+    #[test]
+    fn trajectory_retains_ordered_instants_after_checkpoint_reduction() {
+        let request = PlotPayloadRequest {
+            stream: "tracking".into(), plot_type: Some(PlotType::Trajectory),
+            x_expression: Some(telemetry("tracking", "easting")),
+            y_expressions: vec![telemetry("tracking", "northing")], ..Default::default()
+        };
+        let mut preview = Preview::default();
+        for position in [0, 2, 1].into_iter().chain(3..20) {
+            preview.sample(sample(position, (position % 4) as f64, position as f64), &request, limits()).unwrap();
+            preview = serde_json::from_slice(&serde_json::to_vec(&preview).unwrap()).unwrap();
+        }
+        let result = payload(&preview, &request);
+        assert!(result.cartesian.is_none());
+        let points = &result.series[0].points;
+        assert!(points.len() <= limits().exact_points);
+        assert_eq!(points.first().unwrap().y, Some(0.0));
+        assert_eq!(points.last().unwrap().y, Some(19.0));
+        let instants = points.iter().map(|point| super::super::parse_timestamp(point.instant.as_deref().unwrap()).unwrap().unix_timestamp()).collect::<Vec<_>>();
+        assert!(instants.windows(2).all(|pair| pair[0] <= pair[1]));
+        for (point, instant) in points.iter().zip(instants) {
+            assert_eq!(point.x.as_f64(), Some((instant % 4) as f64));
+            assert_eq!(point.y, Some(instant as f64));
+        }
     }
 
     fn event(sequence: u64, seconds: i64, kind: &str) -> RecordEntry {

@@ -359,7 +359,7 @@ fn build_series(plan: &GroupRows<'_>, telemetry: &[TelemetrySample], request: &P
                 if matches!(input, Input::Expression(_)) && y.is_none() {
                     continue;
                 }
-                points.push(PlotPoint {
+                points.push(PlotPoint { instant: super::point_instant(row.sample, request),
                     x: x_value(point_input(row.sample, input, request))?,
                     y,
                     z: z.resolve(row.sample),
@@ -387,7 +387,7 @@ fn build_aggregates(plan: &GroupRows<'_>, telemetry: &[TelemetrySample], request
             values.extend(plan.rows[group.clone()].iter().filter_map(|row| super::expression_numeric_value(row.sample, expression)));
             let y = Series::from(values).aggregate(method);
             let last = &plan.rows[group.end - 1];
-            points.push(PlotPoint {
+            points.push(PlotPoint { instant: super::point_instant(last.sample, request),
                 x: serde_json::Value::String(text(&last.key)?),
                 y,
                 z: z.resolve(last.sample),

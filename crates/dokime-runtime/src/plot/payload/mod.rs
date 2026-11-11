@@ -641,6 +641,10 @@ fn expression_x_input<'a>(sample: &'a TelemetrySample, expression: Option<&DataE
     }
 }
 
+fn point_instant(sample: &TelemetrySample, request: &PlotPayloadRequest) -> Option<String> {
+    (request.plot_type == Some(PlotType::Trajectory)).then(|| sample.timestamp.as_str().to_owned())
+}
+
 fn expression_numeric_value(sample: &TelemetrySample, expression: &DataExpression) -> Option<f64> {
     match &expression.source {
         DataSource::Telemetry { stream, field } if stream_matches_alias(sample.stream.as_str(), stream) => {

@@ -210,7 +210,7 @@ pub(crate) async fn materialize(
                 if !original.y_expressions.is_empty() && y.is_none() {
                     continue;
                 }
-                points.push(super::PlotPoint { x, y, z: None });
+                points.push(super::PlotPoint { instant: None, x, y, z: None });
             }
         }
         let mut single = request.clone();

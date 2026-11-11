@@ -76,7 +76,7 @@ fn plain_series(samples: &[&TelemetrySample], telemetry: &[TelemetrySample], req
         for key in &request.y_keys {
             let mut points = vector(samples.len())?;
             for sample in samples {
-                points.push(PlotPoint {
+                points.push(PlotPoint { instant: super::point_instant(sample, request),
                     x: x_value(super::x_input(sample, x_key))?,
                     y: sample.values.get(key).and_then(super::series_value),
                     z: z.resolve(sample),
@@ -92,7 +92,7 @@ fn plain_series(samples: &[&TelemetrySample], telemetry: &[TelemetrySample], req
         let mut points = vector(selected.clone().count())?;
         for sample in selected {
             let x = super::expression_x_input(sample, request.x_expression.as_ref(), x_key);
-            points.push(PlotPoint {
+            points.push(PlotPoint { instant: super::point_instant(sample, request),
                 x: x_value(x)?,
                 y: super::expression_numeric_value(sample, expression),
                 z: z.resolve(sample),

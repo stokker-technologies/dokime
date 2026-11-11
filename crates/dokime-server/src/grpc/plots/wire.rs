@@ -609,7 +609,11 @@ fn plot_frame(
                     series.points.iter().map(|point| point.z).collect(),
                 )
             };
+            let instants = if series.points.iter().any(|point| point.instant.is_some()) {
+                series.points.iter().map(|point| point.instant.clone().unwrap_or_default()).collect()
+            } else { Vec::new() };
             Ok(PlotColumn {
+                instants,
                 x: mapped(x, |x| canonical::encode_json(x, &mut Budget::new()?, 0))?,
                 y: y.into_iter().map(|value| NullableNumber { value }).collect(),
                 z: z.into_iter().map(|value| NullableNumber { value }).collect(),
@@ -687,7 +691,7 @@ mod tests {
             raw_points: 2,
             downsampled: false,
             format: None,
-            points: vec![PlotPoint {
+            points: vec![PlotPoint { instant: None,
                 x: serde_json::json!("Category"),
                 y: Some(2.0),
                 z: Some(7.0),

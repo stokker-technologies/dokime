@@ -316,7 +316,7 @@ pub(super) async fn query(
             .values()
             .flat_map(Bucket::points)
             .map(|point| {
-                Ok(PlotPoint {
+                Ok(PlotPoint { instant: None,
                     x: serde_json::Value::String(timestamp(point.time)?.to_string()),
                     y: Some(point.value),
                     z: None,

@@ -136,7 +136,7 @@ mod tests {
             key: "z".into(), label: "Z".into(), unit: None, raw_points: 5,
             downsampled: false, format: None,
             points: [(0.1, 0.1, 2.0), (0.2, 0.2, 6.0), (1.5, 1.5, 0.0), (0.1, 0.1, f64::NAN), (f64::INFINITY, 1.0, 7.0)]
-                .into_iter().map(|(x, y, z)| PlotPoint { x: serde_json::json!(x), y: Some(y), z: Some(z) }).collect(),
+                .into_iter().map(|(x, y, z)| PlotPoint { instant: None, x: serde_json::json!(x), y: Some(y), z: Some(z) }).collect(),
         }];
         let mut request = PlotPayloadRequest {
             panel_width: Some(2), panel_height: Some(2),

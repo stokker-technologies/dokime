@@ -9,7 +9,7 @@
 
 - [x] 2.1 Implement contour x/y viewport and panel-resolution binning, typed grid extents/values/validity, declared reduction and empty-bin gaps; preserve zero values and prove scattered/duplicate/invalid input behavior with focused tests.
 - [x] 2.2 Implement generic row/column/value/instant grid frames, ordered/grouped entries, reduction, labels, highlights and summaries; remove Wi-Fi analysis, disk-backed variants and obsolete wire paths with focused proof.
-- [ ] 2.3 Preserve trajectory ordering/timestamps and package available instants for both playback kinds using the existing plot transport; prove payload semantics without adding playback queries.
+- [x] 2.3 Preserve trajectory ordering/timestamps and package available instants for both playback kinds using the existing plot transport; prove payload semantics without adding playback queries.
 
 ## 3. Interface Kinds
 

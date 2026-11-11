@@ -320,6 +320,7 @@ pub struct PlotFrame {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotColumn {
+    pub instants: Vec<String>,
     pub x: Vec<Value>,
 
     #[row(description = "A message wrapper preserves null y values without a NaN sentinel.")]

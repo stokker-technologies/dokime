@@ -242,7 +242,7 @@ fn build(plans: &[ReadBatch<Plan<'_>>], request: &PlotPayloadRequest) -> Result<
                 values.extend(plan.rows[group.clone()].iter().map(|row| row.y));
                 let y = Series::from(values).aggregate(method);
                 let label = plan.rows[group.start].group.as_deref().unwrap_or("");
-                points.push(PlotPoint {
+                points.push(PlotPoint { instant: None,
                     x: JsonValue::String(text(label)?),
                     y,
                     z: None,
@@ -284,7 +284,7 @@ fn build(plans: &[ReadBatch<Plan<'_>>], request: &PlotPayloadRequest) -> Result<
 fn points(rows: &[Row<'_>]) -> Result<Vec<PlotPoint>> {
     let mut points = vector(rows.len())?;
     for row in rows {
-        points.push(PlotPoint {
+        points.push(PlotPoint { instant: None,
             x: JsonValue::String(text(row.x)?),
             y: Some(row.y),
             z: None,

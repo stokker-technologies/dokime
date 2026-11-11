@@ -132,7 +132,7 @@ impl Plan<'_> {
                 sort: 0.0,
                 stamp: "",
                 capture: ordinal,
-                point: PlotPoint {
+                point: PlotPoint { instant: None,
                     x: serde_json::Value::String(candidate.end.timestamp.as_str().into()),
                     y: Some(candidate.seconds),
                     z: None,
