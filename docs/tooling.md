@@ -48,6 +48,15 @@ Contributor and security guidance live in [Contributing](CONTRIBUTING.md) and
 [`docs/examples/.env.example`](examples/.env.example); published captures live in
 [`docs/screenshots/`](screenshots/README.md).
 
+`mise run screenshots` runs the fixed native desktop journey on fresh storage and
+captures all seven scenes in light and dark mode. `--scene cycle` limits output to
+one scene; `--check` validates all committed PNGs and their manifest without
+starting the application. Build development product artifacts and run
+`mise run prepare:desktop` first. Captures use real time until the host virtual
+clock is adopted; review the images and commit them as a chore. See the
+[screenshot guide](screenshots/README.md) for viewports and scene content.
+
+
 After changing Python dependencies, `mise run prepare -- --refresh-lock` refreshes
 the workspace `uv.lock` before the ordinary locked synchronization. The test group
 includes both optional dataframe libraries; focused tabular tests also block their

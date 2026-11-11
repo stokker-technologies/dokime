@@ -111,6 +111,7 @@ const { values: options } = parseArgs({
     release: { type: "boolean", default: false },
     profile: { type: "string" },
     workflow: { type: "string" },
+    scene: { type: "string" },
   },
 });
 const profile = options.profile ?? (options.release ? "release" : "dev");
@@ -493,7 +494,7 @@ async function startBackendMeasured(
   endpoint,
   label = "backend",
   launchPlugin = true,
-  { dataRoot = join(work, "data") } = {},
+  { dataRoot = join(work, "data"), environment = {} } = {},
 ) {
   for (const path of [backendBinary, cliBinary, hostBundle, ...(launchPlugin ? [pluginBundle] : [])]) {
     if (!existsSync(path)) throw new Error(`Missing backend artifact at ${path}. Use the same candidate's prepared artifacts.`);
@@ -522,6 +523,7 @@ async function startBackendMeasured(
       env: {
         ...process.env,
         DOKIME_TEST_HUB_OPERATOR: "Gate Operator",
+        ...environment,
         ...(!windows ? { HOME: work } : {}),
       },
       stdio: ["pipe", log.fd, log.fd],
@@ -5105,7 +5107,19 @@ async function main() {
 }
 
 /* Mechanical Native Fixture Shared By Independent Desktop Stories. */
-export { chooseNativeFile, startBackend, startSession, stopBackend, terminate, until, unusedPort };
+export {
+  chooseNativeFile,
+  startBackend,
+  startSession,
+  stopBackend,
+  terminate,
+  until,
+  unusedPort,
+  sizeViewport,
+  setDensity,
+  settle,
+  answerPendingPrompts,
+};
 
 export async function openNativeReport(path) {
   const reopened = await fetch(reportBrowser.endpoint, {

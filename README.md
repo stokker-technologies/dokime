@@ -24,7 +24,7 @@ Dokime turns hardware and software test procedures into operator workflows,
 live measurements and HTML reports. Define a procedure, run it across
 operating conditions, and review the evidence behind each result.
 
-![A charger test running in Dokime with live measurements and execution progress](docs/screenshots/cycle.png)
+![A charger test running in Dokime with live measurements and execution progress](docs/screenshots/cycle-light.png)
 
 ## Features
 
@@ -111,8 +111,8 @@ Click either to inspect the full message, failure causes and available technical
 
 #### Examples
 
-![Test templates and cases in the Dokime library](docs/screenshots/library.png)
-![Saved test history in Dokime](docs/screenshots/history.png)
+![Test templates and cases in the Dokime library](docs/screenshots/library-light.png)
+![Saved test history in Dokime](docs/screenshots/history-light.png)
 
 ### CLI
 

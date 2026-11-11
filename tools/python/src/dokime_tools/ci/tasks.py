@@ -37,7 +37,7 @@ from . import transport
 
 def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("format", "lint", "check", "build", "test", "bench", "package", "publish"))
+    parser.add_argument("operation", choices=("format", "lint", "check", "build", "test", "bench", "package", "publish", "screenshots"))
     parser.add_argument("--language", choices=("rust", "python", "typescript", "toml"))
     parser.add_argument("--layer", choices=("unit", "integration", "acceptance", "system"))
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
@@ -57,12 +57,20 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--dry", action="store_true")
     parser.add_argument("--stage", choices=("assets", "python", "finalize"))
     parser.add_argument("--project", choices=("sdk/python", "tools/python"))
+    parser.add_argument("--scene", choices=("cycle", "plots", "report", "history", "library", "cycles", "touch"))
     parser.add_argument("--select")
     parser.add_argument("--artifacts")
     parser.add_argument("--binary")
     parser.add_argument("--refresh-baseline", action="store_true")
     args = parser.parse_args(arguments)
     transport.receive()
+    if args.operation == "screenshots":
+        from ..screenshots.run import main as screenshots
+
+        options = ["--check"] if args.check else []
+        if args.scene:
+            options += ["--scene", args.scene]
+        return screenshots(options)
     supported = {
         "lint": {"rust", "python", "typescript"},
         "build": {"rust", "python", "typescript"},

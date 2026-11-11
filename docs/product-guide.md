@@ -1932,7 +1932,9 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 - [Compliance](compliance.md) — the compliance assessment and vulnerability reporting.
 - [Security](SECURITY.md) — vulnerability reporting and supply-chain policy.
 - [Environment Example](examples/.env.example) — optional environment overrides for a source checkout.
-- [Screenshots](screenshots/README.md) — the published product images and how to regenerate them.
+- [Screenshots](screenshots/README.md) — seven product scenes in light and dark mode.
+  Regenerate with `mise run screenshots`, select a scene with `--scene cycle`, or
+  validate the committed images without launching with `--check`.
 - [Plugin Starter](../crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Entry Library And Plugin SDK](../crates/dokime/src/lib.rs) — public entry point for authoring APIs.
 - [Client API](../crates/dokime-client/src/) — programmatic access to cycles and executions.

@@ -6,22 +6,22 @@
 #
 # ***
 
-"""Capture And Validate Flat Screenshots With Revision Metadata"""
+"""Capture The Desktop Journey Or Validate Its Published Images."""
 
 # === Imports === #
 
 # Standard Library Imports
+import argparse
 import json
 import re
 import struct
-from datetime import UTC, datetime
+import zlib
+from datetime import datetime
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-# isort: split
 from .. import policy
-from ..test import archive
 
 # Type Checking Imports
 
@@ -31,6 +31,8 @@ from ..test import archive
 
 PNG = b"\x89PNG\r\n\x1a\n"
 MAX_BYTES = 4 * 1024 * 1024
+SCENES = ("cycle", "plots", "report", "history", "library", "cycles", "touch")
+THEMES = ("light", "dark")
 
 # === Types === #
 
@@ -40,123 +42,104 @@ MAX_BYTES = 4 * 1024 * 1024
 
 
 def dimensions(data: bytes) -> tuple[int, int]:
-    if len(data) < 33 or data[:8] != PNG or data[12:16] != b"IHDR":
-        raise policy.ToolError("screenshot must contain a PNG IHDR")
-    return struct.unpack(">II", data[16:24])
+    """Validate PNG Chunk Boundaries And Checksums Before Reading Its Viewport."""
+    if data[:8] != PNG:
+        raise policy.ToolError("screenshot must be a PNG")
+    offset = 8
+    chunks = []
+    size = None
+    while offset < len(data):
+        if offset + 12 > len(data):
+            raise policy.ToolError("truncated PNG chunk")
+        length = struct.unpack(">I", data[offset : offset + 4])[0]
+        end = offset + 12 + length
+        if end > len(data):
+            raise policy.ToolError("truncated PNG payload")
+        kind = data[offset + 4 : offset + 8]
+        payload = data[offset + 8 : end - 4]
+        checksum = struct.unpack(">I", data[end - 4 : end])[0]
+        if zlib.crc32(kind + payload) != checksum:
+            raise policy.ToolError("invalid PNG checksum")
+        if not chunks:
+            if kind != b"IHDR" or length != 13:
+                raise policy.ToolError("screenshot must start with PNG IHDR")
+            size = struct.unpack(">II", payload[:8])
+        chunks.append(kind)
+        offset = end
+        if kind == b"IEND":
+            if length or offset != len(data):
+                raise policy.ToolError("invalid PNG end")
+            break
+    if not size or not all(size) or b"IDAT" not in chunks or chunks[-1:] != [b"IEND"]:
+        raise policy.ToolError("incomplete PNG image")
+    return size
 
 
 def check(directory: Path, _: str = "check") -> None:
-    settings = policy.policy(directory, "screenshots")
-    folder = policy.inside(directory, "docs/screenshots")
-    if not folder.is_dir():
-        raise policy.ToolError("docs/screenshots/ is missing")
-    readme = (folder / "README.md").read_text(encoding="utf-8")
-    manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
-    if not isinstance(manifest, list):
-        raise policy.ToolError("screenshot manifest must be an array")
-    entries = {}
-    for entry in manifest:
-        if not isinstance(entry, dict) or not all(
-            key in entry
-            for key in [
-                "image",
-                "surface",
-                "state",
-                "viewport",
-                "revision",
-                "captured_at",
-            ]
-        ):
-            raise policy.ToolError("screenshot manifest entry is incomplete")
-        image = entry["image"]
-        if image in entries or image != f"{entry['surface']}-{entry['state']}.png":
-            raise policy.ToolError(f"duplicate or inconsistent screenshot: {image}")
-        if not re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)+\.png", image):
-            raise policy.ToolError(f"invalid screenshot name: {image}")
-        entries[image] = entry
-    images = set()
-    for path in folder.iterdir():
-        if path.is_symlink() or not path.is_file():
-            raise policy.ToolError(f"screenshots must be flat regular files: {path.name}")
-        if path.name in ["README.md", "manifest.json"]:
-            continue
-        if path.suffix != ".png" or path.stat().st_size > MAX_BYTES:
-            raise policy.ToolError(f"screenshot must be PNG at most 4 MiB: {path.name}")
-        images.add(path.name)
-        if path.name not in entries or not re.search(r"\]\((?:\./)?" + re.escape(path.name) + r"\)", readme):
-            raise policy.ToolError(f"screenshot missing manifest or README reference: {path.name}")
-        entry = entries[path.name]
-        width, height = dimensions(path.read_bytes())
-        if entry["viewport"] != {"width": width, "height": height}:
-            raise policy.ToolError(f"screenshot viewport mismatch: {path.name}")
-        timestamp = datetime.fromisoformat(entry["captured_at"])
-        if timestamp.tzinfo is None:
-            raise policy.ToolError("captured_at requires a timezone")
-        revision = entry["revision"]
-        if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40,64}", revision):
-            raise policy.ToolError("revision requires a full commit hash")
-        branch = settings.get("integration_branch", "main")
-        if not isinstance(branch, str) or re.fullmatch(r"[A-Za-z0-9/._-]+", branch) is None:
-            raise policy.ToolError("invalid integration branch name")
-        policy.execute(
-            directory,
-            ["git", "merge-base", "--is-ancestor", revision, branch],
-            capture=True,
-        )
-        behind = int(
-            policy.execute(
-                directory,
-                ["git", "rev-list", "--count", f"{revision}..{branch}"],
-                capture=True,
-            )
-        )
-        limit = settings.get("max_commits_behind", 0)
-        if not isinstance(limit, int) or limit < 0 or behind > limit:
-            raise policy.ToolError(f"screenshot revision is {behind} commits behind {branch}: {path.name}")
-    if images != set(entries):
-        raise policy.ToolError("screenshot manifest contains missing images")
+    """Check The Complete Published Set Without Starting Any Processes."""
+    folder = directory / "docs/screenshots"
+    try:
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        if not isinstance(manifest, list):
+            raise policy.ToolError("screenshot manifest must be an array")
+        expected = {f"{scene}-{theme}.png" for scene in SCENES for theme in THEMES}
+        entries = {}
+        for entry in manifest:
+            if not isinstance(entry, dict):
+                raise policy.ToolError("invalid screenshot manifest entry")
+            scene, theme = entry["scene"], entry["theme"]
+            image = entry["image"]
+            if scene not in SCENES or theme not in THEMES or image != f"{scene}-{theme}.png" or image in entries:
+                raise policy.ToolError(f"duplicate or inconsistent screenshot: {image}")
+            viewport = (1920, 1200) if scene == "touch" else (1600, 1000)
+            density = "touch" if scene == "touch" else "comfortable"
+            if entry["viewport"] != dict(zip(("width", "height"), viewport, strict=True)) or entry["density"] != density:
+                raise policy.ToolError(f"invalid scene viewport or density: {image}")
+            if not re.fullmatch(r"[0-9a-f]{40,64}", entry["revision"]):
+                raise policy.ToolError("revision requires a full commit hash")
+            if datetime.fromisoformat(entry["captured_at"]).tzinfo is None:
+                raise policy.ToolError("captured_at requires a timezone")
+            target = folder / image
+            if target.is_symlink() or not target.is_file() or target.stat().st_size > MAX_BYTES:
+                raise policy.ToolError(f"screenshot must be a regular PNG at most 4 MiB: {image}")
+            if dimensions(target.read_bytes()) != viewport:
+                raise policy.ToolError(f"screenshot viewport mismatch: {image}")
+            entries[image] = entry
+        if set(entries) != expected:
+            raise policy.ToolError(f"missing screenshots in manifest: {sorted(expected - entries.keys())}")
+        unexpected = {path.name for path in folder.iterdir()} - expected - {"README.md", "manifest.json"}
+        if unexpected:
+            raise policy.ToolError(f"unexpected screenshot files: {sorted(unexpected)}")
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise policy.ToolError(f"invalid screenshot set: {error}") from error
+    print(f"screenshots: {len(entries)} images checked")
 
 
-def capture(directory: Path, _: str = "capture") -> None:
-    settings = policy.policy(directory, "screenshots")
-    scenes = settings.get("scenes", [])
-    if not isinstance(scenes, list) or not scenes:
-        raise policy.ToolError("screenshots.scenes must declare capture commands")
-    folder = policy.inside(directory, "docs/screenshots")
-    folder.mkdir(exist_ok=True)
-    revision = archive.revision(directory)
-    if revision is None:
-        raise policy.ToolError("cannot determine screenshot revision")
-    entries = []
-    for scene in scenes:
-        surface, state = scene["surface"], scene["state"]
-        image = f"{surface}-{state}.png"
-        if not re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)+\.png", image):
-            raise policy.ToolError(f"invalid scene name: {image}")
-        target = policy.inside(folder, image)
-        target.unlink(missing_ok=True)
-        arguments = policy.command(scene.get("command"), "screenshots.scenes.command")
-        policy.execute(directory, [part.replace("{output}", str(target)) for part in arguments])
-        width, height = dimensions(target.read_bytes())
-        entries.append(
-            {
-                "image": image,
-                "surface": surface,
-                "state": state,
-                "viewport": {"width": width, "height": height},
-                "revision": revision,
-                "captured_at": datetime.now(UTC).isoformat(),
-            }
-        )
-    policy.write_json(folder / "manifest.json", entries)
-    check(directory)
-
-
-def run(directory: Path, verb: str) -> None:
-    if verb == "capture":
-        capture(directory)
-    else:
+def capture(directory: Path, scene: str | None = None) -> None:
+    arguments = ["node", "crates/dokime-gui/e2e/screenshots.mjs"]
+    if scene:
+        arguments += ["--scene", scene]
+    policy.execute(directory, arguments)
+    if scene is None:
         check(directory)
+
+
+def main(arguments: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--scene", choices=SCENES)
+    parser.add_argument("--check", action="store_true")
+    options = parser.parse_args(arguments)
+    if options.check and options.scene:
+        parser.error("--check validates the complete set; omit --scene")
+    try:
+        directory = policy.root()
+        if options.check:
+            check(directory)
+        else:
+            capture(directory, options.scene)
+    except policy.ToolError as error:
+        parser.exit(1, f"screenshots: {error}\n")
+    return 0
 
 
 # === Private Functions === #
@@ -164,4 +147,4 @@ def run(directory: Path, verb: str) -> None:
 # === Entry Point === #
 
 if __name__ == "__main__":
-    raise SystemExit(policy.main("screenshots", ["capture", "check"], run))
+    raise SystemExit(main())

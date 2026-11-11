@@ -1,42 +1,43 @@
 # Screenshots
 
-These images are the product screenshots for Dokime. The public product page at
-[stokkertechnologies.ch](https://stokkertechnologies.ch) fetches them straight
-from this folder over GitHub's raw `main` URLs, and the repository README embeds
-them by relative path, so treat them as published assets: the file names are the
-contract, and replacing a file republishes it everywhere at once.
+Regenerate the published product images from the real desktop application:
 
-```text
-https://github.com/stokker-technologies/dokime/raw/refs/heads/main/docs/screenshots/<file>
+```sh
+mise run screenshots
+mise run screenshots -- --scene cycle
+mise run screenshots -- --check
 ```
 
-Every image is captured from the real desktop application driving a real backend
-with the `plugin-obc` AC testbench plugin loaded, in
-the application's own default theme, with no operating-system window
-chrome. The backend runs under a placeholder identity (`dokime-bench` /
-`Bench Operator`, no git configuration), so the captured traceability panels
-carry no personal account name, address or machine name.
+Capture requires the development desktop, CLI and bench plugin artifacts from
+`mise run build`, and native automation from `mise run prepare:desktop`.
+The task runs one fixed journey on fresh, temporary backend storage, with the
+`plugin-obc` AC testbench and the placeholder `dokime-bench` identity. It owns and
+stops its backend, desktop and report browser. Existing application data is untouched.
+Until the host virtual clock is adopted, timestamps and measurements use real time.
 
-## The Images
+For each scene it selects light and then dark mode, sets the webview viewport and
+density, waits for populated content and captures without operating-system chrome.
+The manifest records scene, theme, viewport, density, source revision and capture time.
+A selected scene replaces only its two images and metadata; the full journey still
+builds its prerequisites. `--check` starts nothing and validates all fourteen files,
+their PNG structure, dimensions, 4 MiB size cap and manifest entries. It compares no pixels.
+Review every regenerated image before committing it. CI does not capture or publish
+screenshots, and screenshots are not release assets.
 
-| File | What it shows |
-| --- | --- |
-| `cycles.png` | Cycles home: the fixed groups — Needs Attention, Active, Recent — with the finished cycles on their shared columns. |
-| `library.png` | The Library with a suite expanded: its templates on aligned rows, and the selected template's step timeline. |
-| `dialog.png` | The template dialog on step 1, Parameters: the label/value/reset grid every case is materialized through. |
-| `cycle.png` | The cycle workspace while a case runs: the sidebar's case rows, the header's run controls, and live telemetry in its plots. |
-| `history.png` | The History detail for a recorded cycle: each execution with its outcome, and one inspected checkpoint's records. |
-| `settings.png` | Settings: the two-column rows that autosave, with no Save buttons. |
-| `touch-cycle.png` | The same cycle workspace at touch density, captured at 1920x1200. |
+| Scene | Viewport | Content |
+| --- | --- | --- |
+| `cycle` | 1600×1000 | Running bench case, live measurements and controls |
+| `plots` | 1600×1000 | Finished execution plots, held zoom and trace statistics |
+| `report` | 1600×1000 | Generated HTML report, rendered in the desktop webview |
+| `history` | 1600×1000 | Recorded cycle and an inspected execution checkpoint |
+| `library` | 1600×1000 | Library and selected template presentation |
+| `cycles` | 1600×1000 | Finished and active cycles on the home surface |
+| `touch` | 1920×1200 | Running case at touch density |
 
-Every image but `touch-cycle.png` is captured at 1600x1000.
-
-The frozen HTML report is not published here. It is a file rather than a screen,
-and `crates/dokime-gui/e2e/native-desktop.mjs` writes one from the application
-and loads it back into the same WebView, which certifies what a picture of it
-only suggests.
-
-## Regenerating Them
-
-Capture replacements by hand from a `mise run build` desktop with the
-`plugin-obc` bundle loaded, following the rules above, and keep the file names.
+Each scene has `<scene>-light.png` and `<scene>-dark.png`. The README embeds the
+light images. The public product site must use these names under `docs/screenshots/`.
+The Library currently presents a flat template table and parameter dialog;
+the bench plugin currently declares no reference bands. Those requested scene
+prerequisites and the full workstation review remain open in the change task list.
+Capture currently fails during bench evidence admission at its 30-second operation
+deadline, followed by a backend shutdown timeout; no partial set is published.
