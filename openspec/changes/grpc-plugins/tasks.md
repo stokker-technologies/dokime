@@ -30,6 +30,9 @@
 - [ ] 2.9 Host-wave prerequisite owned here, before 3.2/3.3: define Origin with PluginRun containing frozen TestCase/plugin/template/digest/process start time and Import containing its definition/manifest; reserve removed TestCase identity fields, regenerate bindings and migrate persistence, materialization and plugin-call envelopes. No separate execution-definition or Run type.
 - [x] 2.9.1 Define frozen Origin/PluginRun/Import protobuf messages, reserve TestCase identity fields and add origin to every plugin execution-call envelope; regenerate and prove round trips and origin agreement.
 - [ ] 2.9.2 Migrate persisted execution definitions, catalog materialization and every execution-call consumer to the frozen origin; refuse incompatible development roots with explicit backup/reset guidance.
+- [ ] 2.9.2.1 Replace `dokime-domain/src/model/execution/snapshot.rs` case/template/plugin snapshots and their storage/finalization consumers with the frozen protocol origin; keep execution identity/cycle separate and preserve existing roots on refusal.
+- [ ] 2.9.2.2 Replace `model/definition/{suite,case_materialization}.rs` and runtime planning/catalog producers with parameter expansion plus pure plugin materialization; retain the returned case and provider digest/process identity together.
+- [ ] 2.9.2.3 Migrate runtime execution-call producers, SDK handlers and client/report projections to the same origin/case envelopes; remove superseded snapshots/conversions in the same cutover and prove storage round trips and mismatched-origin refusal.
 
 ## 3. Host
 
@@ -85,6 +88,7 @@
 - [ ] 6.1 Run focused operations, runtime and desktop tests for plugin entries, materialization, execution order, retries, sealing, streams and criteria; verify protobuf handler routing, retained server behavior and host-free SDK boundaries.
 - [ ] 6.2 Run the system stories with a managed plugin and with a Python script that serves and drives its own suite.
 - [ ] 6.3 Run the combined-tree Rust and settings/plot checks after all source handoffs; repair failures and retain native platform limitations.
+- [ ] 6.3.1 Rerun Python checking after the benchmark owner repairs import ordering in `tools/python/tests/integration/test_desktop_bench.py`; that path is outside this worker's ownership.
 
 ## Workflow Follow-Up
 

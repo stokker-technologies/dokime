@@ -761,6 +761,11 @@ bridges, startup settings injection, generation reload and dependency-ordered
 plugin startup. Python retains typed authoring and clients over gRPC; managed
 plugin restarts interrupt active runs rather than retaining generation state.
 Availability is an entry state, not admission of an entire dependency graph.
+The deltas also replace required Python cycle contexts and the old installer
+command names, while preserving finite queries, explicit close, traceability
+identity and installer integrity. When folding overlapping changes, these gRPC
+replacement deltas are authoritative over the earlier embedded-Python and
+`cargo dokime` requirements; retirement must not restore those older contracts.
 
 Client access and its security are the separate change
 `remote-access-simplification`. Branding is the separate change
@@ -795,6 +800,12 @@ plugin/template/digest/process identity for execution calls. Import origins are
 valid execution evidence but never plugin-call envelopes. An envelope's TestCase
 must equal its frozen origin case. Import carries provenance only here; admission,
 draft handles and stream publication remain owned by imported-executions.
+
+The frozen Import uses metadata, named sources with SHA-256 and attached/claimed
+attribution, claimed importer/SDK version, processing description, import timestamp,
+store-scoped whole-import key and optional predecessor identity. It has no plugin
+or TestCase. Plugin-call origin fields use the next free tag in each existing
+envelope, and interrupted cleanup has an explicit termination value.
 
 ### Harmos Native Semantics Inventory
 
