@@ -410,17 +410,21 @@ impl Serve<contract::Watch> for Resources {
                 let mut retry_delay = Duration::from_millis(SERVER_PLOT_RETRY_INITIAL_MS);
                 let mut last_flush = Instant::now() - throttle;
                 let mut next_flush = (!dirty.is_empty()).then(|| Instant::now() + retry_delay);
-                let mut statistics = futures_util::stream::FuturesUnordered::new();
+                let mut statistics = tokio::task::JoinSet::new();
                 let mut statistics_at = Some(initial.clone());
                 loop {
                     if statistics.is_empty() && let Some(at) = statistics_at.take() {
-                        statistics.push(resources.statistics_at(requests.clone(), at));
+                        // Statistics Must Keep Releasing Storage Reads While A Redraw Is Awaited.
+                        let resources = Resources { runtime: resources.runtime.clone(), maximum: resources.maximum };
+                        let requests = requests.clone();
+                        statistics.spawn(async move { resources.statistics_at(requests, at).await });
                     }
                     if requests.is_empty() {
                         return Ok(().into());
                     }
                     tokio::select! {
-                        Some((served, results)) = statistics.next(), if !statistics.is_empty() => {
+                        Some(result) = statistics.join_next(), if !statistics.is_empty() => {
+                            let (served, results) = result.map_err(|error| Status::internal(format!("plot statistics task failed: {error}")))?;
                             let mut frames = Vec::new();
                             for (current, result) in served.iter().zip(results) {
                                 let key = plot_key(current);
