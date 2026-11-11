@@ -2,7 +2,8 @@
 
 ## Resuming
 
-Integrate every open change under `openspec/changes/` together on `feat/grpc-plugins`.
+Integrate the gRPC-wave changes under `openspec/changes/` together on `feat/grpc-plugins`.
+`storage-interface` starts separately after wave 5, not in this integration.
 Feature worktrees hand back local commits; the integration checkout is `feat/grpc-plugins`.
 Use the single `grpc-plugins` implementation marker for the combined work.
 The Implementation Waves table below owns ordering and current completion.
@@ -33,7 +34,7 @@ Execution: initialize → steps → criteria → cleanup, each an operation call
 | Stage | Owner | Notes |
 | --- | --- | --- |
 | Template, parameter definitions, files, document | Plugin catalog | `dokime.suites` section; no steps or criteria |
-| Expand dimensions, filters, overrides, case cap | Host | One implementation, `dokime-domain` |
+| Expand dimensions, filters, overrides, case cap | Host | The planning operation owns expansion |
 | `materialize(parameters)` | Plugin | Pure; the host may call it for preview and validation |
 | `Execution`, ordering, retries, cancel, verdict | Host | The execution manager |
 | Step, criterion, initialize, cleanup bodies | Plugin | Ordinary operations |
@@ -158,7 +159,7 @@ class ThermalCycle:
 ```
 
 ```rust
-use dokime::{Context, Criterion, Observer, Plugin, Result, Step, Stream, Suite, Template};
+use dokime::prelude::*;
 
 #[derive(dokime::Message)]
 struct Temperature { celsius: f64 }
@@ -448,8 +449,8 @@ async with dokime.serve(ThermalCycle, address="127.0.0.1:7001") as plugin:
 
 - Every operation Dokime serves to clients appears in every language's client
   through generation; a check keeps the stubs in step with the protos.
-- Rust's client half is `dokime-client`, already used by the CLI and the
-  desktop.
+- Rust absorbs `dokime-client` into the `dokime` SDK's client half; migrate
+  CLI and desktop consumers and delete the separate client crate.
 - Python is a pure Python package over `grpcio`: one wheel, no native build,
   `Remote` only. It does not start Dokime.
 - Authoring parity across languages and between sidecar and guest is a soft
@@ -460,7 +461,7 @@ async with dokime.serve(ThermalCycle, address="127.0.0.1:7001") as plugin:
 
 | Language | Folder | Plugin Placement | Distribution |
 | --- | --- | --- | --- |
-| Rust | `sdk/rust` | Managed and remote | Crate; `dokime-client` is its client half |
+| Rust | `sdk/rust` | Managed and remote | `dokime` crate with plugin and client halves |
 | Python | `sdk/python` | Remote | One pure wheel |
 | C# | `sdk/csharp` | Managed and remote | NuGet package |
 | C++ | `sdk/cpp` | Managed and remote | Source archive with CMake |
@@ -479,8 +480,6 @@ dokime plugin bundle --executable build/thermal.exe --out thermal.dokime
 
 ## One Command-Line Tool and Starters
 
-Folded from the former `dokime-sdk` and `dokime-sdk-cpp` changes.
-
 ```sh
 dokime new my-plugin --lang rust|python|csharp|cpp
 dokime plugin bundle | dev | inspect            # managed bundles
@@ -490,8 +489,8 @@ dokime proto export
 
 - `cargo dokime` is removed and `crates/cargo-dokime` is deleted. Every
   language uses the one `dokime` tool, and none but Rust needs Cargo.
-- `dokime-sdk` at `sdk/rust` holds Rust authoring and has no dependency on
-  `dokime-runtime`, so a plugin never compiles the host.
+- `dokime` at `sdk/rust` holds Rust authoring and the client, with protocol-only
+  product dependencies, so a plugin or client never compiles the host.
 - A starter is an ordinary project in its language, with a mise task that
   wraps its build. `dokime new` fails for a language without an SDK and lists
   the supported ones.
@@ -500,7 +499,7 @@ dokime proto export
 
 | Language | Install |
 | --- | --- |
-| Rust | `cargo add dokime-sdk` |
+| Rust | `cargo add dokime` |
 | Python | `uv add dokime` or `pip install dokime` |
 | C# | `dotnet add package Dokime` |
 | C++ | CMake `FetchContent` of the versioned source archive, pinned by URL and hash; gRPC and protobuf through a vcpkg manifest in the starter |
@@ -561,25 +560,105 @@ type. `PlacementSettings.stream_window` is a required host setting. Refresh the
 vendored Harmos definitions when adopting the upstream revision; the current
 vendored stream-setting comment does not yet express this qualified-field contract.
 
-Client-only builds depend on protocol definitions without host runtime features.
-The server build script must use checked-in protocol output and definitions-only
-settings, without depending on the product facade. Both boundaries remain work.
-Splitting the largest crates is deferred until measurements after the removals;
-this supersedes the extraction schedule in `prototype-streamline`.
+SDK builds depend on protocol definitions without host runtime features. Build
+scripts consume checked-in protocol output and definitions-only settings without
+the product SDK facade. Storage extraction starts only after wave 5, through
+`storage-interface`; it supersedes the extraction schedule in `prototype-streamline`.
+
+## Crate Structure
+
+This is the locked target, not a claim that the source has reached it. Arrows
+below mean "depends on"; lower layers never depend on higher ones.
+
+```text
+proto/dokime/v1/ + proto/harmos/        authoritative contracts
+        |
+        v
+dokime-protocol                        generated definitions + light helpers
+        ^
+        +--- dokime [sdk/rust]          plugin authoring + client half
+        |
+dokime-storage                        application persistence (after wave 5)
+        ^
+dokime-operations                     declaration + handler per operation
+        ^
+dokime-runtime                        host library, main.rs, listener module
+        ^
+        +--- dokime-cli                commands, hosts through runtime library
+        +--- dokime-gui                desktop
+
+harmos-protocol <--- harmos [sdk/rust] plugin authoring + client half
+       ^
+harmos-domain                         native semantics, not wire mirrors
+       ^
+harmos-storage <--- harmos-operations <--- harmos-runtime
+
+dokime-storage ---> Harmos storage interface
+dokime-runtime ---> harmos-runtime
+dokime-tracing                        small development support
+```
+
+The Dokime host direction is protocol → storage → operations → runtime → CLI
+and desktop, from foundation to consumer; a layer may use earlier layers directly.
+The SDK's only dependency within the product crate graph is protocol. Ordinary
+transport libraries and authoring derives do not introduce host dependencies.
+
+| Crate | Target Ownership |
+| --- | --- |
+| `dokime` at `sdk/rust` | The product SDK itself, not `dokime-sdk` or another facade. `use dokime::prelude::*;` exposes plugin authoring and the client. Absorb `dokime-client` as its client half, then delete that separate crate. No host, operations or storage dependencies. Harmos uses the same `harmos` identity at `sdk/rust`. |
+| `dokime-protocol` | Generated definitions and descriptors from the proto contracts, plus light constructors, operators, `Display` and conversions on those types for product code. No second definition model. Semantics needed by authors in other languages are specified in words and implemented in each SDK. |
+| `dokime-operations` | Every host operation's declaration, gRPC mapping, Rust callee policy and handler together, one file per operation. Requests and replies are protocol messages. Handlers use narrow resource interfaces; they never import runtime. Admission validation, parameter expansion and expression evaluation live with the operations applying them. |
+| `dokime-runtime` | The host: execution manager, transactions, state, cycle transitions, effects, managed/remote plugin entries, listener and `main.rs`. Transactions, state and cycle transitions remain together. Runtime composes resources and registers handlers directly. Host embedders depend on this library. |
+| `dokime-storage` | Both `crates/dokime-runtime/src/storage/` and `src/runtime/storage/` merge here after wave 5, through the Harmos storage interface. Persisted shapes belong here; lifecycle decisions remain in runtime. The `storage-interface` change owns capabilities, exceptions, cycle cuts and benchmark proof. |
+| `dokime-cli`, `dokime-gui` | Product commands and desktop composition respectively. The CLI embeds the runtime library, not its binary or a server facade. |
+| `dokime-tracing` | Small shared development subscriber and trace-export support; remains independent. |
+
+`dokime-domain` dissolves: definitions become protocol messages, host rules move
+to their operations, and persisted shapes move to storage. Before storage
+extraction, those shapes stay beside the existing storage implementation, never
+in a replacement domain crate. `harmos-domain` retains only native state identity,
+state/recovery contracts, storage query/schema semantics and validation that are
+not wire mirrors; wire definitions and their light helpers belong to protocol.
+
+The separate operations-contract role dissolves. SDKs use protocol, so once no
+consumer needs a contract-only surface, remove the operations `runtime` feature.
+Harmos's built-in operations retain their declaration-and-handler arrangement;
+Dokime migrates area by area, deleting `hosted!` and `hosting::{Host, Serve}`
+forwarding for each migrated area. Narrow resources expose owned inputs and
+capabilities, not a renamed `RuntimeHandle` or callback into the whole runtime.
+Deadlines, backoff and retries remain Rust policy owned by the callee.
+
+There is no `dokime-server` crate or per-service adapter layer in the target.
+In wave 2, extend Harmos's client-facing gRPC declarations/codecs to accept
+generated protobuf request/reply types with authoritative descriptors, preserving
+decoding-memory admission, cancellation, backpressure and streaming envelopes.
+This keystone removes `Portable` wire projections, not operation behavior.
+
+In wave 3, migrate `crates/dokime-server/src/grpc/` behavior to ordinary operations:
+logs and trace replay/filtering, support bundles, bounded transfers and upload
+commit/abort/digests, snapshot paging/frontier closure, watches, plot deltas and
+reduction, diagnostics and redaction. Preserve their meaningful tests. Remote
+access uses listener configuration and the one client authorization hook;
+pairing/key persistence, certificate rotation, settings changes and shutdown
+remain implemented responsibilities. Move `host/` startup into runtime `main.rs`
+and the listener module; the reusable runtime library owns host lifecycle.
+Delete the server crate, its generation/build dependencies and dead conversions
+in wave 5 after CLI and desktop consumers have moved.
 
 ## Implementation Waves
 
-Every open change is part of this integration. A wave's source and focused proof
-precede dependent work; final native lanes remain separate. Existing archives are
-historical requirements, not new implementation slices.
+The gRPC-wave changes integrate together; `storage-interface` starts afterward.
+A wave's source and focused proof precede dependent work; final native lanes
+remain separate. Existing archives are historical requirements, not new slices.
 
 | Wave | Work and State | Owned Paths |
 | --- | --- | --- |
 | 1 | Organization source done; finish packaged proof. Remote source done except deferred recovery 2.4; finish connection proof. Plot source done; baseline 1.1 and comparison 4.1 open. Tooling partial: entry points and matrices landed, superseded leaves remain. Protocol definitions and host-source export done; release archive open. | Organization shell/packaging; remote client/server/connection UI; plot runtime/server/UI; `mise.toml`, `tools/python`, `.github`; `proto/`, protocol crate |
-| 2 | Next dependent source: adopt the Harmos gRPC revision and migrate operations, catalogs, transactions and messages; current dependency is registry Harmos 0.1.14. Refresh vendored definitions and resolve pending wire decisions. | Workspace dependencies and contract consumers, one owner |
-| 3 | Pending: execution manager, materialization, context operations, resource store, stream ingest/statistics and managed/remote settings entries (2.2–2.5, 3.2–3.6). | Runtime execution/domains; server operations; settings UI |
-| 4 | Pending: four SDKs, starters and CLI (4.x), built-in plugins and `domain-neutral-interface`. | `sdk/`, CLI, `plugins/`, domain/wire/runtime/UI grid and parameter owners |
-| 5 | Pending: removals (5.x), `test-stories`, guides, README and final native validation. Reconcile retained Arrow, identity, installer, cadence, marker and embedded-server proof tasks and `prototype-streamline` remaining work. `release-layout` and `dev-release-gates` own release/CI follow-through; `telemetry-at-record` remains deferred pending scheduling. | Removed paths, tests, docs, packaging/release/tooling and retained change owners |
+| 2 | Pending: adopt Harmos and first extend its client-facing gRPC declarations/codecs for generated protobuf types and descriptors (3.8). Migrate catalogs, transactions and messages; refresh vendored definitions. Establish proto/helper and Harmos native-domain ownership (2.8). | Harmos declarations/codecs and SDK consumers; workspace dependency and protocol consumers |
+| 3 | Pending: execution manager, materialization, context operations, resource store, stream ingest/statistics and plugin entries (2.2–2.5, 3.2–3.6). Move declarations and protocol-message handlers together into operations with narrow resources; register directly and remove forwarding per area (3.9). Move server behavior into operations, remote access into listener/configuration and one authorization hook, startup into runtime; retain transactions/state/cycles together (3.10–3.11). | Operations; runtime execution, resources and listener; former server behavior; settings UI |
+| 4 | Pending: four SDKs and starters (4.x); `sdk/rust` is `dokime` with plugin and client halves, matching `harmos`. CLI and desktop host through runtime; replace build-script facade imports with protocol (4.8–4.9). Migrate built-in plugins and `domain-neutral-interface`. | `sdk/`, CLI, desktop host composition, build scripts, plugins and protocol consumers |
+| 5 | Pending: removals (5.x), including server, client crate, domain, dead conversions and operations contract-only feature. Keep tracing small. Complete `test-stories`, guides, README and final native validation. Reconcile retained Arrow, identity, installer, cadence, marker and embedded-server proof tasks and `prototype-streamline` work. `release-layout` and `dev-release-gates` own release/CI follow-through; `telemetry-at-record` remains deferred. | Removed crates/features, manifests, tests, docs, packaging and retained change owners |
+| After 5 | Separate `storage-interface` change: before-and-after benchmarks including multi-day data; design and implement five generic capabilities in Harmos first, then break Dokime storage cycles and extract one `dokime-storage`. Not part of a gRPC implementation wave. | Harmos storage contracts/backends; Dokime storage, queries and consumers |
 
 Between waves 2 and 4 the product does not run end to end. Each wave proves
 itself with focused builds and tests of what it changed; the system stories
@@ -663,11 +742,11 @@ not serve new operations or migrate the existing catalog readers.
   second schema. Existing effects retain their request fields and protobuf bytes
   for inverse requests. Execution fields must match the inherited call scope.
 - Sleep and clock reads remain `harmos.clock.sleep` and `harmos.clock.now`.
-  Existing client gRPC services generated from `crates/dokime-operations` stay
-  where they are: Appearance, Backend, Catalog, Content, Documents, Evidence,
+  Client gRPC service contracts retain their service paths while declarations
+  and handlers move to protocol-message operations: Appearance, Backend, Catalog, Content, Documents, Evidence,
   Execution, Health, History, Media, Notes, Observation, Planning, Plots, Plugins,
-  Prompts, Query, Remote, Reports, Runtime, Secrets, Settings and Telemetry. This slice
-  neither duplicates those services nor changes their consumers. The new saved
+  Prompts, Query, Remote, Reports, Runtime, Secrets, Settings and Telemetry. The protocol
+  slice does not duplicate those services; waves 2–5 migrate their consumers. The new saved
   settings and secret-read messages are context operations for later host adoption.
   List/read replies are named `PluginEntries` and `SavedSettings` to avoid
   colliding with the existing `dokime.v1.Plugins` and `dokime.v1.Settings` services.

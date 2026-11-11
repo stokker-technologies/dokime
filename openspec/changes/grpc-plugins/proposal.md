@@ -30,6 +30,14 @@ and lets Dokime delete the plumbing in between.
   serves and the messages for the operations plugins serve.
 - Each `sdk/<language>` has two halves: provide plugins, and drive Dokime.
   The pilot covers Rust, Python, C# and C++.
+- `sdk/rust` is the `dokime` crate itself, with plugin and client halves and
+  protocol-only product dependencies; host embedding uses `dokime-runtime`.
+- Protocol messages replace the domain model. Host operations co-locate their
+  declarations, gRPC mappings and handlers; runtime owns host composition.
+- Harmos accepts generated protobuf types in client-facing operation declarations.
+  Server behavior moves into operations and the server crate is deleted.
+- After the last gRPC wave, `storage-interface` extends Harmos storage first and
+  extracts application persistence into `dokime-storage`, with benchmark proof.
 - Python becomes a pure Python package, `Remote` only.
 - Removed: `<template>.run` and `.signal`, the signal and evidence-page
   protocol, the execution hand-off layer, embedded plugins, the PyO3 SDK and

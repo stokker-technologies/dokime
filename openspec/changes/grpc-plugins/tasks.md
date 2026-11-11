@@ -15,6 +15,7 @@
 - [ ] 2.5 Add the per-execution resource store (`ctx.set`, `ctx.get`) for Rust and remove template fields and `Own`.
 - [x] 2.6 Export embedded Dokime and Harmos protocol sources through `dokime proto export --out`, preserving package paths without opening storage.
 - [ ] 2.7 Attach the checked-in protocol sources to releases through the archive owned by `release-layout` task 2.3.
+- [ ] 2.8 Wave 2: make proto files authoritative, put generated definitions and light helpers in protocol, document cross-language semantics for each SDK, and inventory Harmos native state/recovery/storage semantics retained in `harmos-domain`; move wire mirrors out.
 
 ## 3. Host
 
@@ -25,16 +26,22 @@
 - [ ] 3.5 Compute stream statistics per execution and step range.
 - [ ] 3.6 Replace Settings › Plugins with managed and remote entries and their states.
 - [ ] 3.7 Adopt unary-only plugin operations, migrate streamed sample operations, apply internal visibility and unset-policy defaults, resolve Duration setting fields and require the placement stream window after owner confirmation; refresh vendored Harmos sources and verify descriptor parity.
+- [ ] 3.8 Wave 2: extend Harmos client-facing operation declarations/codecs to accept generated protobuf types and descriptors before adoption; preserve bounded decoding, cancellation, backpressure, service paths and streaming envelopes, then pin the published revision.
+- [ ] 3.9 Wave 3: move every host operation declaration and handler together, one file per operation in `dokime-operations`, with protocol requests/replies and Rust callee-owned deadlines/retries; define narrow resources without runtime dependencies, register directly, and delete `hosted!` and `Host`/`Serve` forwarding area by area.
+- [ ] 3.10 Wave 3: move server logs/trace replay, support bundles, transfers/upload transactions, paging/frontier closure, watches, plot deltas/reduction, diagnostics and redaction into ordinary operations with their meaningful behavior tests.
+- [ ] 3.11 Wave 3: put startup `main.rs`, listener configuration and the one client authorization hook in runtime; preserve pairing/key persistence, rotation, settings and shutdown; retain execution manager, effects, plugin entries, transactions, state and cycle transitions under the runtime host owner.
 
 ## 4. SDKs
 
-- [ ] 4.1 Rust: extract authoring into `sdk/rust` as `dokime-sdk` with no dependency on `dokime-runtime`, over the Harmos SDK, with generated step and criterion operations and derived `materialize`; `dokime-client` as the client half.
+- [ ] 4.1 Wave 4, Rust: make `sdk/rust` the `dokime` product crate with `use dokime::prelude::*;`, plugin authoring and the absorbed client half, generated step/criterion operations and derived `materialize`; product dependencies stop at protocol and compile no host. Align Harmos's `sdk/rust` entry point as `harmos`.
 - [ ] 4.2 Move the plugin, installer and proto commands into `dokime`, add `dokime new --lang`, and delete `crates/cargo-dokime`.
 - [ ] 4.3 Python: pure package with the plugin half and the generated client half; rewrite the starter and `dokime new --lang python`.
 - [ ] 4.4 C#: `sdk/csharp` with both halves, a starter and `dokime new --lang csharp`.
 - [ ] 4.5 C++: `sdk/cpp` with both halves, a starter and `dokime new --lang cpp`.
 - [ ] 4.6 Migrate the host telemetry and OBC plugins and the samples.
 - [ ] 4.7 Add `dokime plugin bundle` for any executable and build each SDK's sample plugin in parallel in CI, running one shared story against all of them.
+- [ ] 4.8 Wave 4: redirect CLI hosting and desktop embedding from the server/facade to the runtime library; keep remote commands on the SDK client half and migrate host/distribution facade helpers to their owners.
+- [ ] 4.9 Wave 4: replace server/desktop build-script facade imports with checked-in protocol output and definitions-only settings; remove build-time host compilation.
 
 ## 5. Removal
 
@@ -44,12 +51,15 @@
 - [ ] 5.4 Delete leases, sample and record delivery, replay and restart recovery during an execution.
 - [ ] 5.5 Remove or rework the tests tied to the old loop; update the README, guides and authoring guidance.
 - [ ] 5.6 Delete the template, step, criterion, suite, catalog and plugin macros and their tests; keep derives for messages, rows, records, parameters and settings.
-- [ ] 5.7 Make a client-only build free of the host runtime: `dokime-client` and the SDK client halves depend on the protocol definitions, not on a Harmos feature that enables the runtime.
-- [ ] 5.8 Remove the server build script's dependency on the product facade: protocol output comes from the checked-in definitions, and settings definitions get a definitions-only home.
+- [ ] 5.7 Wave 5: delete the separate `dokime-client` crate after its consumers use the SDK client half; remove host-enabling SDK features and prove both plugin/client dependency trees stop at protocol within the product graph.
+- [ ] 5.8 Wave 5: delete `dokime-server`, per-service adapters, superseded generation/build dependencies and dead wire conversions after all behavior and consumers move.
+- [ ] 5.9 Wave 5: dissolve `dokime-domain`; migrate definitions to protocol messages, admission/expansion/expression rules to their operations and persisted shapes beside storage, migrating all consumers and deleting duplicate models and superseded guidance.
+- [ ] 5.10 Wave 5: remove the operations contract-only surface and `runtime` feature once no consumer needs them; preserve Harmos built-in declaration/handler co-location and enforce protocol → storage → operations → runtime → CLI/desktop dependencies without reverse edges.
+- [ ] 5.11 Wave 5: retain `dokime-tracing` as small development support and reconcile manifests, examples, README and guides with the target crate ownership.
 
 ## 6. Final Validation
 
-- [ ] 6.1 Run focused runtime, server and desktop tests for plugin entries, materialization, execution order, retries, sealing, streams and criteria.
+- [ ] 6.1 Run focused operations, runtime and desktop tests for plugin entries, materialization, execution order, retries, sealing, streams and criteria; verify protobuf handler routing, retained server behavior and host-free SDK boundaries.
 - [ ] 6.2 Run the system stories with a managed plugin and with a Python script that serves and drives its own suite.
 - [ ] 6.3 Run the combined-tree Rust and settings/plot checks after all source handoffs; repair failures and retain native platform limitations.
 
@@ -59,6 +69,7 @@
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
 - SDK system tests run in Nightly only, not on pull requests.
 - Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- Start `storage-interface` only after wave 5: benchmark before/after with multi-day data, extend Harmos storage first, then extract `dokime-storage`; no storage extension or extraction in the gRPC waves.
 - Run only focused tasks until combined source closure; final native proof remains separate.
 
 ## Repository Root and Workflow Repairs
