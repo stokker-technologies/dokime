@@ -7,12 +7,22 @@ Define canonical parallel native compilation, preserved local extended coverage 
 
 ### Requirement: Canonical Native Configuration
 
-Ordinary Product and Tests SHALL use canonical configurations per platform and profile. Independent feature sets are permitted; compatible compiler outputs MAY be reused without widening the shipped feature graph. Build, test, bench, fixture and focused compilation tasks SHALL NOT run Clippy implicitly. Clippy SHALL run with warnings denied only through `lint:rust`, included by `check:rust` and gated by CI Check / Rust; an explicit focused `clippy` operation MAY invoke it deliberately. Necessary fault-injection instrumentation SHALL remain local extended coverage and SHALL NOT enter provider CI or shipping binaries. Local installers SHALL NOT build tests by default.
+Ordinary Product and Tests SHALL use canonical configurations per platform and profile. Independent feature sets are permitted; compatible compiler outputs MAY be reused without widening the shipped feature graph. Necessary fault-injection instrumentation SHALL remain local extended coverage and SHALL NOT enter provider CI or shipping binaries. Local installers SHALL NOT build tests by default.
 
 #### Scenario: Ordinary Review
 
 - **WHEN** an ordinary review requests Product and Tests
 - **THEN** separate parallel Product and Tests jobs per platform produce their exports, and downstream Test and Package consume required exports without rebuilding
+
+### Requirement: Explicit Clippy Ownership
+
+Build, test, bench, fixture and focused compilation tasks SHALL NOT run Clippy implicitly. Clippy SHALL run with warnings denied only through `lint:rust`, included by `check:rust` and gated by CI Check / Rust; an explicit focused `clippy` operation MAY invoke it deliberately.
+
+#### Scenario: Lint the Canonical Configuration
+
+- **WHEN** Rust checking selects the canonical configuration
+- **THEN** the lint task runs Clippy with warnings denied
+- **AND** ordinary compilation does not run Clippy
 
 ### Requirement: Compatibility Coverage
 

@@ -1,7 +1,7 @@
 # windows-deployment Specification
 
 ## Purpose
-TBD - created by archiving change windows-signing. Update Purpose after archive.
+Define verified Windows signing and explicit installation scope for reproducible user and machine deployments.
 
 ## Requirements
 
