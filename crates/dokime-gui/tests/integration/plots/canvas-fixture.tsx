@@ -26,7 +26,7 @@ import { PlotInteractionProvider } from "@/plots/interaction";
 import { HistogramChart } from "@/components/HistogramChart";
 import { BarPlot } from "@/plots/catalog/BarPlot";
 import { BoxSummarySeriesPlot } from "@/plots/catalog/BoxSummaryPlot";
-import { WifiChannelOccupancyPlot } from "@/plots/catalog/WifiChannelOccupancyPlot";
+import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
 import type { PlotCardSpec } from "@/plots/types";
 import "@/styles.css";
 
@@ -140,28 +140,18 @@ function startCanvasFixture() {
           createElement("div", { "data-plot-kind": "box" }, createElement(BoxSummarySeriesPlot, { plot })),
           createElement(
             "div",
-            { "data-plot-kind": "wifi" },
-            createElement(WifiChannelOccupancyPlot, {
+            { "data-plot-kind": "grid" },
+            createElement(GridChartPlot, {
               plot: {
                 ...plot,
                 analysis: {
-                  kind: "wifi_occupancy",
-                  channels: [1, 6],
-                  occupied_channels: [1, 6],
-                  bands: [{ band: "2.4 GHz", occupied_channels: 2 }],
-                  scans: [
-                    {
-                      time: "2026-01-01T00:00:00Z",
-                      channels: [
-                        { channel: 1, count: 2 },
-                        { channel: 6, count: 3 },
-                      ],
-                      bands: [{ band: "2.4 GHz", occupied_channels: 2, total_networks: 5, peak_count: 3 }],
-                      occupied_channels: 2,
-                      total_networks: 5,
-                      peak_count: 3,
-                    },
-                  ],
+                  kind: "grid_chart",
+                  data: {
+                    rows: [{key: "sensor", label: "Sensor", order: 0}],
+                    columns: [{key: "left", label: "Left", order: 0}, {key: "right", label: "Right", order: 1}],
+                    frames: [{instant: "2026-01-01T00:00:00Z", values: [2, 3], valid: [true, true], highlights: []}],
+                    summary_label: "Readings",
+                  },
                 },
               },
             }),

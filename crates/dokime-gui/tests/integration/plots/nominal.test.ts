@@ -50,6 +50,8 @@ import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
 import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
+import { ContourPlot } from "@/plots/catalog/ContourPlot";
+import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyPlot } from "@/plots/catalog/XyPlot";
@@ -1762,46 +1764,6 @@ test("Pan Listener Ownership", () => {
   assert.equal(onPan.mock.calls.length, 2);
 });
 
-test("Declared Occupancy Context", () => {
-  const plot: DocumentViewPlot = {
-    plot_id: "occupancy",
-    title: "Occupancy",
-    stream: "fixture.scan",
-    plot_type: "wifi_channel_occupancy",
-    style: "points",
-    x_scale: "linear",
-    y_scale: "linear",
-    fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
-    x: "timestamp",
-    y: ["network_count"],
-  };
-  const telemetry = {
-    "fixture.scan": {
-      stream: "fixture.scan",
-      summary: {},
-      samples: [{ active_wifi_channel: 36, active_wifi_band: "5 GHz", active_wifi_ssid: "scan" }],
-      max_samples: 1,
-      total_samples: 1,
-      dropped_samples: 0,
-      updated_at: "2026-10-29T00:00:00Z",
-    },
-    "host.wifi.link": {
-      stream: "host.wifi.link",
-      summary: {},
-      samples: [{ wifi_channel: 6, wifi_ssid: "link" }],
-      max_samples: 1,
-      total_samples: 1,
-      dropped_samples: 0,
-      updated_at: "2026-10-29T00:00:00Z",
-    },
-  };
-  const spec = documentPlotSpec({ plot, telemetry, payload: null });
-  assert.deepEqual(spec.context, { active_wifi_channel: 36, active_wifi_band: "5 GHz", active_wifi_ssid: "scan" });
-  delete (telemetry as Partial<typeof telemetry>)["fixture.scan"];
-  const absent = documentPlotSpec({ plot, telemetry, payload: null });
-  assert.deepEqual(absent.context, {});
-});
-
 test("Bounded Report Envelopes", () => {
   for (const values of [
     [[3]],
@@ -2047,4 +2009,53 @@ test("Generated Plot Series Labels Respect Word Positions", () => {
     plot.series.map((series) => series.label),
     ["Number of Rows", "Wait Until Chamber Is Ready", "Log In", "Turn Off the Heater"],
   );
+});
+
+
+test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", () => {
+  const declaration = {
+    plot_id: "surface", title: "Sensor Values", stream: "readings", plot_type: "contour", y: ["value"],
+  } as DocumentViewPlot;
+  const payload: PlotPayload = {
+    stream: "readings", x_key: "x", series: [], max_points: 4, generated_at: "2026-01-01T00:00:00Z",
+    analysis: {kind: "contour", grid: {columns: 2, rows: 2, x_edges: [0, 1, 2], y_edges: [0, 1, 2], values: [0, 0, 0, 4], valid: [true, false, false, true]}},
+  };
+  const plot = documentPlotSpec({plot: declaration, payload});
+  const host = document.createElement("div");
+  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, {plot}));
+  assert.equal(host.querySelectorAll("rect[data-bin]").length, 2);
+  assert.ok(host.querySelector('rect[data-bin="0"]')?.getAttribute("fill"));
+  assert.equal(host.querySelector('rect[data-bin="1"]'), null);
+  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, {plot: {...plot, render: "bands"}}));
+  assert.ok(host.querySelectorAll("[data-contour-mask] path").length > 0);
+  assert.equal(host.querySelectorAll("clipPath rect").length, 2);
+  assert.equal(host.querySelector('clipPath rect[data-valid-bin="1"]'), null);
+
+  const grid: PlotPayload = {
+    ...payload,
+    analysis: {kind: "grid_chart", data: {
+      rows: [{key: "sensor", label: "Sensor", order: 0, group: "North"}],
+      columns: [{key: "left", label: "Left", order: 0}, {key: "right", label: "Right", order: 1}],
+      frames: [{instant: "2026-01-01T00:00:00Z", values: [0, 0], valid: [true, false], highlights: [{row: 0, column: 0, label: "Selected"}]}],
+      summary_label: "Readings",
+    }},
+  };
+  const cellPlot = documentPlotSpec({plot: {...declaration, plot_type: "grid_chart"}, payload: grid});
+  host.innerHTML = renderToStaticMarkup(createElement(GridChartPlot, {plot: cellPlot}));
+  const populated = host.querySelector('[data-cell="sensor/left"]');
+  const absent = host.querySelector('[data-cell="sensor/right"]');
+  assert.equal(populated?.textContent, "0");
+  assert.equal(populated?.getAttribute("data-valid"), "true");
+  assert.equal(populated?.getAttribute("data-highlight"), "true");
+  assert.equal(absent?.textContent, "");
+  assert.equal(absent?.getAttribute("data-valid"), "false");
+  assert.equal(absent?.getAttribute("style"), null);
+  const field = (name: string) => ({source: {type: "telemetry", stream: "readings", field: name}, transforms: []});
+  const request = toNativePlotRequest({
+    stream: "readings", yKeys: ["value"], plotType: "grid_chart", reduction: "max",
+    grid: {row: field("row"), column: field("column"), frame: field("timestamp"), rows: grid.analysis.kind === "grid_chart" ? grid.analysis.data.rows : [], columns: grid.analysis.kind === "grid_chart" ? grid.analysis.data.columns : [], highlights: [], summary_label: "Readings"},
+  });
+  assert.equal(request.reduction?.HarmosVariant.case, "Max");
+  assert.equal(request.grid?.frame?.source?.HarmosVariant.case, "Telemetry");
+  assert.equal(request.grid?.rows[0].key, "sensor");
 });

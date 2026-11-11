@@ -169,6 +169,9 @@ export type Metadata = {
 export type PlotAxisKind = { kind: "wall_time" } | { kind: "elapsed"; unit: string };
 
 export type PlotDefinition = {
+  reduction?: "mean" | "min" | "max" | null;
+  render?: "cells" | "bands";
+  grid?: import("./types/plot").GridDefinition | null;
   metadata: Metadata;
   plot_type: PlotType;
   stream?: string | null;
@@ -210,6 +213,9 @@ export type PlotDescriptor = {
 };
 
 export type PlotInput = {
+  reduction?: "mean" | "min" | "max" | null;
+  render?: "cells" | "bands";
+  grid?: import("./types/plot").GridDefinition | null;
   plot_id: Identifier;
   scope: RecordScope;
   plot_type: PlotType;
@@ -260,9 +266,8 @@ export type PlotType =
   | "xy"
   | "xy_interval"
   | "trajectory"
-  | "heatmap"
-  | "xy_value_heatmap"
-  | "wifi_channel_occupancy"
+  | "contour"
+  | "grid_chart"
   | "frequency_series"
   | "histogram"
   | "box_summary"

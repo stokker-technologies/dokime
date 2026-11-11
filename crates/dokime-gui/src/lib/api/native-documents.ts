@@ -506,6 +506,16 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
       sigma: interval?.sigma,
       clip_to_observed: interval?.clipToObserved,
     },
+    reduction: request.reduction ? (request.reduction.HarmosVariant.case?.toLowerCase() as "mean" | "min" | "max") : null,
+    render: request.render?.HarmosVariant.case === "Bands" ? "bands" : "cells",
+    grid: request.grid ? {
+      row: mapNativeExpression(request.grid.row), column: mapNativeExpression(request.grid.column), frame: mapNativeExpression(request.grid.frame),
+      rows: request.grid.rows.map((entry) => ({ ...entry })), columns: request.grid.columns.map((entry) => ({ ...entry })),
+      highlights: request.grid.highlights.map((highlight) => ({
+        row: mapNativeExpression(highlight.row) ?? invalid("grid highlight row is missing"),
+        column: mapNativeExpression(highlight.column) ?? invalid("grid highlight column is missing"), label: highlight.label,
+      })), summary_label: request.grid.summaryLabel,
+    } : null,
     histogram: {
       bins: histogram?.bins === undefined ? undefined : Number(histogram.bins),
       ...(histogram?.unit === undefined ? {} : { unit: histogram.unit }),
@@ -599,12 +609,11 @@ function mapNativePlotType(value: PlotType | undefined): DocumentViewCard["plots
       return "xy_interval";
     case "Trajectory":
       return "trajectory";
+    case "Contour": return "contour";
+    case "GridChart": return "grid_chart";
     case "Heatmap":
-      return "heatmap";
-    case "XyValueHeatmap":
-      return "xy_value_heatmap";
-    case "WifiChannelOccupancy":
-      return "wifi_channel_occupancy";
+    case "XyValueHeatmap": throw new Error("Retired heatmap kind: use CONTOUR");
+    case "WifiChannelOccupancy": throw new Error("WIFI_CHANNEL_OCCUPANCY: use GRID_CHART");
     case "FrequencySeries":
       return "frequency_series";
     case "Histogram":

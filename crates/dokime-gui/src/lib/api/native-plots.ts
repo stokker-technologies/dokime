@@ -76,16 +76,8 @@ type AxisScale = NonNullable<PlotRequest["xScale"]>;
 type DownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 type FilterOperator = NonNullable<PlotRequest["filters"][number]["operator"]>;
 type PlotCartesianMode = NonNullable<NativePlotFrame["mode"]>;
-const AnalysisSelectionSchema = plotWire.Row15Schema;
-const DataExpressionSchema = plotWire.Row9Schema;
-const DataTransformSchema = plotWire.Row48Schema;
 
-const PlotFftOptionsSchema = plotWire.Row12Schema;
-const PlotFilterSchema = plotWire.Row8Schema;
-const PlotHistogramOptionsSchema = plotWire.Row14Schema;
-const PlotIntervalOptionsSchema = plotWire.Row13Schema;
 const PlotRequestSchema = plotWire.Row3Schema;
-const PlotWindowSchema = plotWire.Row16Schema;
 type PlotStreamFrame = Wire<WatchFrame>;
 type PlotStreamUpdate = PlotStreamFrame["updates"][number];
 type PlotStreamKind = PlotStreamUpdate["kind"];
@@ -109,6 +101,11 @@ export type PlotPayloadRequestInput = {
   filters?: DocumentViewPlot["filters"];
   xKey?: string | null;
   plotType?: DocumentPlotType | null;
+  reduction?: "mean" | "min" | "max" | null;
+  render?: "cells" | "bands";
+  grid?: DocumentViewPlot["grid"];
+  panelHeight?: number;
+  yViewport?: { from: number; to: number };
   style?: DocumentViewPlot["style"];
   xScale?: DocumentAxisScale | null;
   yScale?: DocumentAxisScale | null;
@@ -171,9 +168,23 @@ export type NativePlotWatchOptions = NativePlotReadOptions;
 export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest {
   const nativeScope = nativeEvidenceScope(input.scope);
   return create(PlotRequestSchema, {
+    render: { HarmosVariant: { case: input.render === "bands" ? "Bands" : "Cells", value: {} } },
+    reduction: input.reduction ? { HarmosVariant: { case: ({mean: "Mean", min: "Min", max: "Max"} as const)[input.reduction], value: {} } } : undefined,
+    grid: input.grid ? {
+      row: input.grid.row ? dataExpression(input.grid.row) : undefined,
+      column: input.grid.column ? dataExpression(input.grid.column) : undefined,
+      frame: input.grid.frame ? dataExpression(input.grid.frame) : undefined,
+      rows: input.grid.rows.map((entry) => ({ ...entry, group: entry.group ?? undefined })),
+      columns: input.grid.columns.map((entry) => ({ ...entry, group: entry.group ?? undefined })),
+      highlights: input.grid.highlights.map((highlight) => ({ row: dataExpression(highlight.row), column: dataExpression(highlight.column), label: highlight.label })),
+      summaryLabel: input.grid.summary_label,
+    } : undefined,
+    panelHeight: input.panelHeight,
+    yViewport: input.yViewport,
+
     ...(input.plotId == null ? {} : { plotId: input.plotId }),
     analysis: input.analysis
-      ? create(AnalysisSelectionSchema, {
+      ? ( {
           id: input.analysis.id,
           version: input.analysis.version,
           parameters: jsonToNativeValue(input.analysis.parameters),
@@ -192,7 +203,7 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     ...(input.fft == null
       ? {}
       : {
-          fft: create(PlotFftOptionsSchema, {
+          fft: ( {
             sampleRateHz: input.fft.sample_rate_hz ?? undefined,
             window:
               input.fft.window === "rectangular"
@@ -216,7 +227,7 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     ...(input.interval == null
       ? {}
       : {
-          interval: create(PlotIntervalOptionsSchema, {
+          interval: ( {
             binWidth: input.interval.bin_width,
             sigma: input.interval.sigma,
             clipToObserved: input.interval.clip_to_observed,
@@ -225,7 +236,7 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     ...(input.histogram == null
       ? {}
       : {
-          histogram: create(PlotHistogramOptionsSchema, {
+          histogram: ( {
             bins: boundedUint64(input.histogram.bins, "histogram bins"),
             unit: input.histogram.unit ?? undefined,
           }),
@@ -244,8 +255,8 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     ...(input.unit == null ? {} : { unit: input.unit }),
     ...(input.maxPoints == null ? {} : { maxPoints: boundedPlotPoints(input.maxPoints) }),
     ...(input.windowS == null ? {} : { windowS: boundedWindow(input.windowS) }),
-    ...(input.summaryWindow == null ? {} : { summaryWindow: create(PlotWindowSchema, summaryWindow(input.summaryWindow)) }),
-    ...(input.viewport == null ? {} : { viewport: create(PlotWindowSchema, summaryWindow(input.viewport)) }),
+    ...(input.summaryWindow == null ? {} : { summaryWindow: ( summaryWindow(input.summaryWindow)) }),
+    ...(input.viewport == null ? {} : { viewport: ( summaryWindow(input.viewport)) }),
     ...(input.panelWidth == null ? {} : { panelWidth: boundedPanelWidth(input.panelWidth) }),
     ...(nativeScope ? { scope: nativeScope } : {}),
     technique: downsampleTechnique(input.technique),
@@ -474,7 +485,7 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
   if (transforms.length > MAX_PLOT_TRANSFORMS) {
     throw new NativeApiLimitError("Plots expression", `more than ${MAX_PLOT_TRANSFORMS} transforms`);
   }
-  return create(DataExpressionSchema, { source: { HarmosVariant: wireSource }, transforms });
+  return ( { source: { HarmosVariant: wireSource }, transforms });
 }
 
 function dataTransform(value: unknown): DataTransform {
@@ -482,7 +493,7 @@ function dataTransform(value: unknown): DataTransform {
   const kind = requiredText(input.type, "data transform type");
   switch (kind) {
     case "aggregate":
-      return create(DataTransformSchema, {
+      return ( {
         kind: {
           HarmosVariant: {
             case: "Aggregate",
@@ -493,7 +504,7 @@ function dataTransform(value: unknown): DataTransform {
         },
       });
     case "time_between":
-      return create(DataTransformSchema, {
+      return ( {
         kind: {
           HarmosVariant: {
             case: "TimeBetween",
@@ -510,8 +521,8 @@ function dataTransform(value: unknown): DataTransform {
   }
 }
 
-function plotFilter(value: NonNullable<DocumentViewPlot["filters"]>[number]) {
-  return create(PlotFilterSchema, {
+function plotFilter(value: NonNullable<DocumentViewPlot["filters"]>[number]): PlotRequest["filters"][number] {
+  return ( {
     expression: dataExpression(value.expression),
     operator: filterOperator(value.operator),
     ...(value.value === undefined ? {} : { value: jsonToNativeValue(value.value) }),
@@ -533,12 +544,8 @@ function plotType(value?: DocumentPlotType | null): PlotType {
       return { HarmosVariant: { case: "XyInterval" as const, value: {} } };
     case "trajectory":
       return { HarmosVariant: { case: "Trajectory" as const, value: {} } };
-    case "heatmap":
-      return { HarmosVariant: { case: "Heatmap" as const, value: {} } };
-    case "xy_value_heatmap":
-      return { HarmosVariant: { case: "XyValueHeatmap" as const, value: {} } };
-    case "wifi_channel_occupancy":
-      return { HarmosVariant: { case: "WifiChannelOccupancy" as const, value: {} } };
+    case "contour": return { HarmosVariant: { case: "Contour", value: {} } };
+    case "grid_chart": return { HarmosVariant: { case: "GridChart", value: {} } };
     case "frequency_series":
       return { HarmosVariant: { case: "FrequencySeries" as const, value: {} } };
     case "histogram":
@@ -617,6 +624,7 @@ function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
           x: nativeValueToJson(x) ?? null,
           y: column?.y[row]?.value ?? null,
           z: column?.z[row]?.value ?? null,
+          instant: column?.instants[row] ?? null,
         })),
       };
     }),
@@ -717,34 +725,16 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
           raw_points: safeNumber(series.rawPoints, "interval raw_points"),
         })),
       };
-    case "WifiOccupancy": {
-      const occupancy = result.value.field0;
-      if (!occupancy) throw new Error("Native plot analysis is missing its result.");
-      return {
-        kind: "wifi_occupancy",
-        channels: occupancy.channels.map((channel) => safeNumber(channel, "wifi channel")),
-        occupied_channels: occupancy.occupiedChannels.map((channel) => safeNumber(channel, "wifi occupied channel")),
-        bands: occupancy.bands.map((band) => ({
-          band: band.band,
-          occupied_channels: safeNumber(band.occupiedChannels, "wifi band occupied channels"),
-        })),
-        scans: occupancy.scans.map((scan) => ({
-          time: scan.time,
-          channels: scan.channels.map((entry) => ({
-            channel: safeNumber(entry.channel, "wifi scan channel"),
-            count: safeNumber(entry.count, "wifi scan count"),
-          })),
-          bands: scan.bands.map((band) => ({
-            band: band.band,
-            occupied_channels: safeNumber(band.occupiedChannels, "wifi scan band occupied"),
-            total_networks: safeNumber(band.totalNetworks, "wifi scan band networks"),
-            peak_count: safeNumber(band.peakCount, "wifi scan band peak"),
-          })),
-          occupied_channels: safeNumber(scan.occupiedChannels, "wifi scan occupied channels"),
-          total_networks: safeNumber(scan.totalNetworks, "wifi scan networks"),
-          peak_count: safeNumber(scan.peakCount, "wifi scan peak"),
-        })),
-      };
+    case "Contour": {
+      const grid = result.value.field0;
+      return { kind: "contour", grid: { columns: grid.columns, rows: grid.rows, x_edges: grid.xEdges, y_edges: grid.yEdges, values: grid.values, valid: grid.valid } };
+    }
+    case "GridChart": {
+      const data = result.value.field0;
+      return { kind: "grid_chart", data: {
+        rows: data.rows.map((entry) => ({...entry})), columns: data.columns.map((entry) => ({...entry})), summary_label: data.summaryLabel,
+        frames: data.frames.map((frame) => ({instant: frame.instant, values: frame.values, valid: frame.valid, highlights: frame.highlights.map((cell) => ({...cell}))})),
+      } };
     }
   }
 }

@@ -89,6 +89,9 @@ export type DocumentViewPlot = {
   title: string;
   stream: string;
   plot_type: DocumentPlotType;
+  reduction?: "mean" | "min" | "max" | null;
+  render?: "cells" | "bands";
+  grid?: import("./plot").GridDefinition | null;
   style: DocumentPlotStyle;
   x_scale: DocumentAxisScale;
   y_scale: DocumentAxisScale;

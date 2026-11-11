@@ -46,6 +46,7 @@ export type PlotCardSpec = {
   /** When the execution asked and the operator answered; time series only. */
   promptMarkers?: PromptMarker[];
   plotType: DocumentPlotType;
+  render?: "cells" | "bands";
   style: DocumentPlotStyle;
   xScale: DocumentAxisScale;
   yScale: DocumentAxisScale;

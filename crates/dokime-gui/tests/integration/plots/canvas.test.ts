@@ -267,7 +267,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
             histogram: 'button > span',
             bar: 'div[style*="background-color"]',
             box: 'span[style*="right"]',
-            wifi: '[role="img"]:has(span)',
+            grid: '[data-valid="true"]',
           };
           return Object.entries(selectors).map(([kind, selector]) => {
             const chart = document.querySelector('[data-plot-kind="' + kind + '"]');
@@ -304,7 +304,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
               ],
             },
             {
-              kind: "wifi",
+              kind: "grid",
               marks: [
                 { area: true, filled: true },
                 { area: true, filled: true },

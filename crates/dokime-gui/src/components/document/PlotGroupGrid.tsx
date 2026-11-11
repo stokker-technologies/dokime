@@ -21,11 +21,11 @@ import { AnalysisResult } from "@/plots/AnalysisResult";
 import { BarPlot } from "@/plots/catalog/BarPlot";
 import { BoxSummarySeriesPlot } from "@/plots/catalog/BoxSummaryPlot";
 import { FrequencySeriesPlot } from "@/plots/catalog/FrequencySeriesPlot";
-import { HeatmapPlot } from "@/plots/catalog/HeatmapPlot";
+import { ContourPlot } from "@/plots/catalog/ContourPlot";
 import { HistogramSeriesPlot } from "@/plots/catalog/HistogramPlot";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
-import { WifiChannelOccupancyPlot } from "@/plots/catalog/WifiChannelOccupancyPlot";
+import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyPlot } from "@/plots/catalog/XyPlot";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
@@ -262,7 +262,7 @@ const LivePlotCard = memo(function LivePlotCard({
 
 function plotCardClassName(plot: PlotCardSpec): string {
   const baseClassName = "min-w-0 max-w-full overflow-hidden";
-  if (plot.plotType === "wifi_channel_occupancy") {
+  if (plot.plotType === "grid_chart") {
     return `${baseClassName} min-h-0`;
   }
   if (plot.plotType === "bar") {
@@ -295,11 +295,11 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   if (plot.analysis?.kind === "error") {
     return <PlotPlaceholder title={plot.title} {...plotUnavailableText(plot.analysis.message)} />;
   }
-  if (plot.plotType === "wifi_channel_occupancy") {
-    return <WifiChannelOccupancyPlot plot={plot} />;
+  if (plot.plotType === "grid_chart") {
+    return <GridChartPlot plot={plot} />;
   }
-  if (plot.plotType === "xy_value_heatmap" || plot.plotType === "heatmap") {
-    return <HeatmapPlot plot={plot} />;
+  if (plot.plotType === "contour") {
+    return <ContourPlot plot={plot} />;
   }
   if (plot.plotType === "bar") {
     return <BarPlot plot={plot} />;
@@ -408,6 +408,8 @@ function isChartLikePlot(plot: PlotCardSpec): boolean {
     plot.plotType === "xy_interval" ||
     plot.plotType === "trajectory" ||
     plot.plotType === "frequency_series" ||
-    plot.plotType === "box_summary"
+    plot.plotType === "box_summary" ||
+    plot.plotType === "contour" ||
+    plot.plotType === "grid_chart"
   );
 }

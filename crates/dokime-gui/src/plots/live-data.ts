@@ -66,6 +66,7 @@ export function useLivePlotPayloads({
   // Zoom And Width Changes Request Detail While The Previous Frame Stays Visible.
   const summaryWindows = useSummaryWindowStore((store) => store.windows);
   const panelWidths = useSummaryWindowStore((store) => store.widths);
+  const panelHeights = useSummaryWindowStore((store) => store.heights);
   const scopeFields = useMemo(
     () => ({
       test_case_id: scope?.test_case_id ?? null,
@@ -105,8 +106,8 @@ export function useLivePlotPayloads({
     () => JSON.stringify(Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, summaryWindows[plot.plot_id]]))),
     [requestPlots, summaryWindows],
   );
-  const widthKey = JSON.stringify(Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, panelWidths[plot.plot_id]])));
-  const requestedWidths = useMemo(() => JSON.parse(widthKey) as Record<string, number | undefined>, [widthKey]);
+  const widthKey = JSON.stringify(Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, [panelWidths[plot.plot_id], panelHeights[plot.plot_id]]])));
+  const requestedWidths = useMemo(() => JSON.parse(widthKey) as Record<string, [number | null, number | null] | undefined>, [widthKey]);
   const requestedSummaryWindows = useMemo(() => JSON.parse(summaryKey) as Record<string, SummaryWindow | undefined>, [summaryKey]);
   const requestDataKey = automatic ? dataKey : `${requestPlots.map(documentPlotRequestKey).join(";")}|${scopeWindowKey}`;
   const requestKey = automatic ? `${dataKey}|${summaryKey}|${widthKey}` : `${scopeWindowKey}|${summaryKey}|${widthKey}`;
@@ -177,7 +178,8 @@ export function useLivePlotPayloads({
         scope: requestScope,
         windowS,
         summaryWindow: requestedSummaryWindows[plot.plot_id] ?? null,
-        panelWidth: requestedWidths[plot.plot_id],
+        panelWidth: requestedWidths[plot.plot_id]?.[0] ?? undefined,
+        panelHeight: requestedWidths[plot.plot_id]?.[1] ?? undefined,
       }),
     );
     let active = true;
@@ -436,6 +438,7 @@ export function plotRequestForDocumentPlot(
     windowS?: number | null;
     summaryWindow?: SummaryWindow | null;
     panelWidth?: number;
+    panelHeight?: number;
   },
 ): PlotPayloadRequestInput {
   const maximum = displayPointBudget(plot.display_points);
@@ -447,6 +450,9 @@ export function plotRequestForDocumentPlot(
     filters: plot.filters ?? [],
     xKey: plot.x ?? undefined,
     plotType: plot.plot_type,
+    reduction: plot.reduction,
+    render: plot.render,
+    grid: plot.grid,
     style: plot.style ?? "line",
     xScale: plot.x_scale ?? "linear",
     yScale: plot.y_scale ?? "linear",
@@ -470,6 +476,7 @@ export function plotRequestForDocumentPlot(
     summaryWindow: options.summaryWindow ?? null,
     viewport: options.summaryWindow ?? null,
     panelWidth: options.panelWidth,
+    panelHeight: options.panelHeight,
     scope: options.scope,
   };
 }

@@ -122,6 +122,9 @@ function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBin
             parameters: serializedValueObjectToJson(input.analysis.parameters),
           }
         : null,
+      reduction: input.reduction,
+      render: input.render,
+      grid: input.grid,
       interval: input.interval,
       histogram: input.histogram,
       y: input.series_fields,
@@ -190,9 +193,8 @@ function mapPlotType(value: string): DocumentPlotType {
     value === "xy" ||
     value === "xy_interval" ||
     value === "trajectory" ||
-    value === "heatmap" ||
-    value === "xy_value_heatmap" ||
-    value === "wifi_channel_occupancy" ||
+    value === "contour" ||
+    value === "grid_chart" ||
     value === "frequency_series" ||
     value === "histogram" ||
     value === "box_summary"
