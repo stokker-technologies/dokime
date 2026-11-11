@@ -139,7 +139,14 @@ pub(super) async fn rendered_cycle_out() {
     let mut input = fixture_input("WiFi Cycle");
     let document = fixture_wifi_document(input.cycle.test_cycle_id.clone());
     insert_report_document(&mut input, "default", document);
-    input.plots.insert("wifi.channel_occupancy".to_owned(), fixture_plot_payload("host.wifi.scan", "6", 4.0, 1));
+    input.plots.insert("wifi.channel_occupancy".to_owned(), dokime_runtime::report::value::Value::from_serializable(&serde_json::json!({
+        "stream": "host.wifi.scan", "x_key": "timestamp", "series": [], "max_points": 2048, "generated_at": "2026-01-01T00:00:00Z",
+        "analysis": { "kind": "grid_chart", "data": {
+            "rows": [{ "key": "2.4GHz", "label": "2.4 GHz", "order": 0 }],
+            "columns": [{ "key": "6", "label": "6", "order": 0 }],
+            "frames": [{ "instant": "2026-01-01T00:00:00Z", "values": [4.0], "valid": [true], "highlights": [] }], "summary_label": "Networks"
+        } }
+    }), 512_usize).unwrap());
 
     let html = render(&input).await;
     let payload = parse(&html);
@@ -147,8 +154,8 @@ pub(super) async fn rendered_cycle_out() {
     let case_run = &payload["case_runs"][0];
 
     assert_eq!(cycle_plot["stream"], "host.wifi.scan");
-    assert_eq!(cycle_plot["series"][0]["key"], "6");
-    assert_eq!(cycle_plot["series"][0]["points"][0]["y"], 4.0);
+    assert_eq!(cycle_plot["analysis"]["kind"], "grid_chart");
+    assert_eq!(cycle_plot["analysis"]["data"]["frames"][0]["values"][0], 4.0);
     assert_eq!(case_run["documents"].as_object().unwrap().len(), 0);
     assert!(case_run["plots"]["wifi.channel_occupancy"].is_null());
 }
@@ -219,7 +226,7 @@ pub(super) async fn rendered_case_plots() {
         documents: BTreeMap::from([(document_id("default"), report_document(fixture_tracking_case_document(scope.clone())))]),
         plots: BTreeMap::from([(
             "tracking.distance".to_owned(),
-            fixture_plot_payload("plt400.ract.tracking.tracking", "distance_m", 7.5, 1),
+            fixture_plot_payload("tracking", "distance_m", 7.5, 1),
         )]),
     }];
 
@@ -231,7 +238,7 @@ pub(super) async fn rendered_case_plots() {
     assert_eq!(case_run["queue_item_id"], case_run["case_id"]);
     assert_eq!(case_run["test_execution_id"], test_execution_id.to_string());
     assert_eq!(case_run["documents"]["default"]["definition"]["metadata"]["label"], "Tracking Case Document");
-    assert_eq!(case_plot["stream"], "plt400.ract.tracking.tracking");
+    assert_eq!(case_plot["stream"], "tracking");
     assert_eq!(case_plot["series"][0]["points"][0]["y"], 7.5);
     assert!(case_run["plots"]["cycle.telemetry"].is_null());
 
@@ -1147,7 +1154,10 @@ fn fixture_test_execution(
 
 fn fixture_plot_input(plot_id: Identifier, scope: RecordScope, plot_type: PlotType) -> PlotInput {
     PlotInput {
-        arrangement: None, pareto: false, hole: None, xy_interval: None,
+        arrangement: None,
+        pareto: false,
+        hole: None,
+        xy_interval: None,
         grid: None,
         reduction: None,
         render: Default::default(),
@@ -1303,7 +1313,26 @@ fn fixture_wifi_document(test_cycle_id: dokime_runtime::TestCycleId) -> Document
             input: PlotInput {
                 series_fields: vec!["network_count".to_owned()],
                 stream: Some("host.wifi.scan".to_owned()),
-                series_by: Some("wifi_channel".to_owned()),
+                reduction: Some(dokime_runtime::document::Reduction::Max),
+                grid: Some(dokime_runtime::document::GridDefinition {
+                    row: Some(dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_band")),
+                    column: Some(dokime_runtime::expressions::telemetry("host.wifi.scan", "wifi_channel")),
+                    frame: Some(dokime_runtime::expressions::telemetry("host.wifi.scan", "timestamp")),
+                    rows: vec![dokime_runtime::document::GridAxisEntry {
+                        key: "2.4GHz".into(),
+                        label: "2.4 GHz".into(),
+                        order: 0,
+                        group: None,
+                    }],
+                    columns: vec![dokime_runtime::document::GridAxisEntry {
+                        key: "6".into(),
+                        label: "6".into(),
+                        order: 0,
+                        group: None,
+                    }],
+                    summary_label: "Networks".into(),
+                    ..Default::default()
+                }),
                 available_streams: vec![Identifier::new("host.wifi.scan").unwrap()],
                 ..fixture_plot_input(plot_id, scope.clone(), PlotType::GridChart)
             },
@@ -1327,9 +1356,9 @@ fn fixture_tracking_case_document(scope: RecordScope) -> DocumentPayload {
             plot_type: PlotType::TimeSeries,
             input: PlotInput {
                 series_fields: vec!["distance_m".to_owned()],
-                stream: Some("plt400.ract.tracking.tracking".to_owned()),
+                stream: Some("tracking".to_owned()),
                 unit: Some("m".to_owned()),
-                available_streams: vec![Identifier::new("plt400.ract.tracking.tracking").unwrap()],
+                available_streams: vec![Identifier::new("tracking").unwrap()],
                 ..fixture_plot_input(plot_id, scope.clone(), PlotType::TimeSeries)
             },
         },

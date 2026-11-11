@@ -26,8 +26,7 @@ pub use payload::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, PlotCartesianFrame,
     PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
     PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotPoint, PlotSeries, PlotSeriesSummary,
-    PlotWindow, SigmaBin, SigmaSeries, declared_plot_request,
-    plot_payload_request_for_descriptor,
+    PlotWindow, SigmaBin, SigmaSeries, declared_plot_request, plot_payload_request_for_descriptor,
 };
 pub(crate) use payload::{
     PlotPayloadContext, canonical_plot_query, dimension_context_for_scope, enrich_plot_samples_with_cycle_context,

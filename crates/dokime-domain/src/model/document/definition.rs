@@ -641,12 +641,17 @@ pub enum PlotType {
 #[harmos::message]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BarArrangement { Grouped, Stacked }
+pub enum BarArrangement {
+    Grouped,
+    Stacked,
+}
 
 #[harmos::message]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum XyInterval { Sigma }
+pub enum XyInterval {
+    Sigma,
+}
 
 #[harmos::message]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1674,7 +1679,10 @@ impl PlotAxisKind {
 impl PartialEq for PlotDefinition {
     fn eq(&self, other: &Self) -> bool {
         let Self {
-            arrangement, pareto, hole, xy_interval,
+            arrangement,
+            pareto,
+            hole,
+            xy_interval,
             grid,
             reduction,
             render,
@@ -1710,7 +1718,10 @@ impl PartialEq for PlotDefinition {
             display_points,
             downsample,
         } = self;
-        arrangement == &other.arrangement && pareto == &other.pareto && hole == &other.hole && xy_interval == &other.xy_interval
+        arrangement == &other.arrangement
+            && pareto == &other.pareto
+            && hole == &other.hole
+            && xy_interval == &other.xy_interval
             && grid == &other.grid
             && reduction == &other.reduction
             && render == &other.render
@@ -1753,7 +1764,10 @@ impl PlotDefinition {
         let identifier = identifier_from_label(&label);
 
         Self {
-            arrangement: None, pareto: false, hole: None, xy_interval: None,
+            arrangement: None,
+            pareto: false,
+            hole: None,
+            xy_interval: None,
             grid: None,
             reduction: None,
             render: ContourRender::Cells,
@@ -2073,16 +2087,30 @@ pub fn resolve_document_plot_axes(document: &mut DocumentDefinition, contracts: 
 }
 
 pub fn validate_plot_options(
-    kind: &PlotType, arrangement: Option<BarArrangement>, pareto: bool, hole: Option<f64>,
-    xy_interval: Option<XyInterval>, has_series: bool,
+    kind: &PlotType, arrangement: Option<BarArrangement>, pareto: bool, hole: Option<f64>, xy_interval: Option<XyInterval>,
+    has_series: bool,
 ) -> Result<(), &'static str> {
-    if arrangement.is_some() && *kind != PlotType::Bar { return Err("arrangement is a BAR option"); }
-    if pareto && *kind != PlotType::Bar { return Err("pareto is a BAR option"); }
-    if hole.is_some() && *kind != PlotType::Pie { return Err("hole is a PIE option"); }
-    if xy_interval.is_some() && *kind != PlotType::Xy { return Err("interval=sigma is an XY option"); }
-    if arrangement.is_some() && !has_series { return Err("grouped and stacked BAR require a series binding"); }
-    if pareto && (arrangement.is_some() || has_series) { return Err("Pareto cannot have an arrangement or series binding"); }
-    if hole.is_some_and(|hole| !hole.is_finite() || !(0.0..1.0).contains(&hole)) { return Err("PIE hole must be finite and in [0, 1)"); }
+    if arrangement.is_some() && *kind != PlotType::Bar {
+        return Err("arrangement is a BAR option");
+    }
+    if pareto && *kind != PlotType::Bar {
+        return Err("pareto is a BAR option");
+    }
+    if hole.is_some() && *kind != PlotType::Pie {
+        return Err("hole is a PIE option");
+    }
+    if xy_interval.is_some() && *kind != PlotType::Xy {
+        return Err("interval=sigma is an XY option");
+    }
+    if arrangement.is_some() && !has_series {
+        return Err("grouped and stacked BAR require a series binding");
+    }
+    if pareto && (arrangement.is_some() || has_series) {
+        return Err("Pareto cannot have an arrangement or series binding");
+    }
+    if hole.is_some_and(|hole| !hole.is_finite() || !(0.0..1.0).contains(&hole)) {
+        return Err("PIE hole must be finite and in [0, 1)");
+    }
     Ok(())
 }
 
@@ -2096,10 +2124,16 @@ pub(crate) fn plot_validation_issue_bytes(plot: &PlotDefinition) -> Option<usize
 
 pub(crate) fn plot_type_label(plot_type: &PlotType) -> &'static str {
     match plot_type {
-        PlotType::TimeSeries => "time_series", PlotType::FrequencySeries => "frequency_series",
-        PlotType::Xy => "xy", PlotType::Trajectory => "trajectory", PlotType::Contour => "contour",
-        PlotType::GridChart => "grid_chart", PlotType::Bar => "bar", PlotType::Pie => "pie",
-        PlotType::Histogram => "histogram", PlotType::BoxPlot => "box_plot",
+        PlotType::TimeSeries => "time_series",
+        PlotType::FrequencySeries => "frequency_series",
+        PlotType::Xy => "xy",
+        PlotType::Trajectory => "trajectory",
+        PlotType::Contour => "contour",
+        PlotType::GridChart => "grid_chart",
+        PlotType::Bar => "bar",
+        PlotType::Pie => "pie",
+        PlotType::Histogram => "histogram",
+        PlotType::BoxPlot => "box_plot",
     }
 }
 
@@ -2107,10 +2141,16 @@ impl TryFrom<String> for PlotType {
     type Error = String;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Ok(match value.as_str() {
-            "time_series" => Self::TimeSeries, "frequency_series" => Self::FrequencySeries,
-            "xy" => Self::Xy, "trajectory" => Self::Trajectory, "contour" => Self::Contour,
-            "grid_chart" => Self::GridChart, "bar" => Self::Bar, "pie" => Self::Pie,
-            "histogram" => Self::Histogram, "box_plot" => Self::BoxPlot,
+            "time_series" => Self::TimeSeries,
+            "frequency_series" => Self::FrequencySeries,
+            "xy" => Self::Xy,
+            "trajectory" => Self::Trajectory,
+            "contour" => Self::Contour,
+            "grid_chart" => Self::GridChart,
+            "bar" => Self::Bar,
+            "pie" => Self::Pie,
+            "histogram" => Self::Histogram,
+            "box_plot" => Self::BoxPlot,
             "grouped_bar" => return Err("GROUPED_BAR: use BAR with arrangement=grouped".into()),
             "stacked_bar" => return Err("STACKED_BAR: use BAR with arrangement=stacked".into()),
             "pareto" => return Err("PARETO: use BAR with pareto=true".into()),
@@ -2128,7 +2168,14 @@ impl TryFrom<String> for PlotType {
 /* === Private Functions === */
 
 fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::fmt::Arguments<'_>) -> E) -> Result<(), E> {
-    if let Err(message) = validate_plot_options(&plot.plot_type, plot.arrangement, plot.pareto, plot.hole, plot.xy_interval, plot.series_by.is_some() || plot.series_by_expression.is_some()) {
+    if let Err(message) = validate_plot_options(
+        &plot.plot_type,
+        plot.arrangement,
+        plot.pareto,
+        plot.hole,
+        plot.xy_interval,
+        plot.series_by.is_some() || plot.series_by_expression.is_some(),
+    ) {
         return Err(error(format_args!("plot {}: {message}", plot.metadata.label)));
     }
     if (plot.plot_type == PlotType::Pie || plot.pareto) && plot.y.len() + plot.y_expressions.len() != 1 {
@@ -2203,9 +2250,7 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
                 return Err(error(format_args!("bar plots must declare at least one y field or y expression")));
             }
         }
-        PlotType::Xy => {
-            validate_xy_axes(plot, error)?
-        }
+        PlotType::Xy => validate_xy_axes(plot, error)?,
         PlotType::Trajectory => validate_xy_axes(plot, error)?,
         PlotType::Contour => {
             validate_xy_axes(plot, error)?;
@@ -2214,11 +2259,17 @@ fn validate_plot_definition_with<E>(plot: &PlotDefinition, error: &impl Fn(std::
             }
         }
         PlotType::GridChart => {
-            if plot.reduction.is_none() { return Err(error(format_args!("GRID_CHART requires an explicit reducer"))); }
+            if plot.reduction.is_none() {
+                return Err(error(format_args!("GRID_CHART requires an explicit reducer")));
+            }
             let Some(grid) = &plot.grid else { return Err(error(format_args!("GRID_CHART requires a grid definition"))) };
-            if let Err(message) = grid.validate() { return Err(error(format_args!("{message}"))); }
-            if plot.y.len() + plot.y_expressions.len() != 1 { return Err(error(format_args!("GRID_CHART requires exactly one numeric value expression"))); }
-        },
+            if let Err(message) = grid.validate() {
+                return Err(error(format_args!("{message}")));
+            }
+            if plot.y.len() + plot.y_expressions.len() != 1 {
+                return Err(error(format_args!("GRID_CHART requires exactly one numeric value expression")));
+            }
+        }
         PlotType::Histogram => validate_histogram_axes(plot, error)?,
         PlotType::BoxPlot => {
             if plot.y.len() != 1 && plot.y_expressions.len() != 1 {
@@ -2340,12 +2391,7 @@ fn resolve_card_body_plot_axis(body: &mut DocumentCardBody, contracts: &[Telemet
 fn plot_has_number_x_axis(plot_type: &PlotType) -> bool {
     matches!(
         plot_type,
-        PlotType::Bar
-            | PlotType::Histogram
-            | PlotType::Xy
-            | PlotType::Trajectory
-            | PlotType::Contour
-            | PlotType::FrequencySeries
+        PlotType::Bar | PlotType::Histogram | PlotType::Xy | PlotType::Trajectory | PlotType::Contour | PlotType::FrequencySeries
     )
 }
 

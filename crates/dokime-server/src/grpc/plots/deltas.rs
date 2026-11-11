@@ -132,7 +132,8 @@ mod tests {
                     format: None,
                     points: points
                         .iter()
-                        .map(|(x, y)| PlotPoint { instant: None,
+                        .map(|(x, y)| PlotPoint {
+                            instant: None,
                             x: serde_json::json!(x),
                             y: Some(*y),
                             z: None,

@@ -41,9 +41,18 @@ use crate::document::{PlotType, validate_plot_options};
 
 pub(super) fn validate(series: &[PlotSeries], request: &PlotPayloadRequest) -> Result<(), String> {
     let Some(kind) = &request.plot_type else { return Ok(()) };
-    validate_plot_options(kind, request.arrangement, request.pareto, request.hole, request.xy_interval,
-        request.series_by.is_some() || request.series_by_expression.is_some()).map_err(str::to_owned)?;
-    if *kind != PlotType::Pie && !request.pareto { return Ok(()) }
+    validate_plot_options(
+        kind,
+        request.arrangement,
+        request.pareto,
+        request.hole,
+        request.xy_interval,
+        request.series_by.is_some() || request.series_by_expression.is_some(),
+    )
+    .map_err(str::to_owned)?;
+    if *kind != PlotType::Pie && !request.pareto {
+        return Ok(());
+    }
     if request.y_keys.len() + request.y_expressions.len() != 1 {
         return Err("PIE and Pareto require one numeric total per category".into());
     }
@@ -55,7 +64,9 @@ pub(super) fn validate(series: &[PlotSeries], request: &PlotPayloadRequest) -> R
             Value::Bool(value) => value.to_string(),
             _ => return Err("PIE and Pareto require a category for every total".into()),
         };
-        if !categories.insert(category.clone()) { return Err(format!("duplicate category total {category}; aggregate samples explicitly")); }
+        if !categories.insert(category.clone()) {
+            return Err(format!("duplicate category total {category}; aggregate samples explicitly"));
+        }
         if !point.y.is_some_and(|value| value.is_finite() && value >= 0.0) {
             return Err(format!("category {category} requires a finite nonnegative total"));
         }
@@ -69,18 +80,33 @@ pub(super) fn validate(series: &[PlotSeries], request: &PlotPayloadRequest) -> R
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::PlotPoint;
+    use super::*;
     use crate::document::BarArrangement;
 
     #[test]
     fn category_totals_refuse_duplicates_invalid_values_and_conflicting_options() {
-        let mut request = PlotPayloadRequest { plot_type: Some(PlotType::Pie), y_keys: vec!["total".into()], ..Default::default() };
+        let mut request = PlotPayloadRequest {
+            plot_type: Some(PlotType::Pie),
+            y_keys: vec!["total".into()],
+            ..Default::default()
+        };
         let mut series = vec![PlotSeries {
-            key: "total".into(), label: "Total".into(), unit: None, points: vec![], raw_points: 0, downsampled: false, format: None,
+            key: "total".into(),
+            label: "Total".into(),
+            unit: None,
+            points: vec![],
+            raw_points: 0,
+            downsampled: false,
+            format: None,
         }];
         for value in [0.0, 2.0] {
-            series[0].points = vec![PlotPoint { x: "a".into(), y: Some(value), z: None, instant: None }];
+            series[0].points = vec![PlotPoint {
+                x: "a".into(),
+                y: Some(value),
+                z: None,
+                instant: None,
+            }];
             validate(&series, &request).unwrap();
         }
         for value in [-1.0, f64::NAN, f64::INFINITY] {

@@ -22,7 +22,7 @@ use super::*;
 use crate::service_support::plots::{plot_query_suite, register_plot_suite, wifi_request};
 use dokime_runtime::runtime::query::{
     DownsampleTechnique, PlotAnalysis, PlotDomain, PlotPayloadRequest, PlotSeriesSummary, PlotWindow, RuntimePlotQueryMode,
-    };
+};
 
 /* === Constants === */
 
@@ -232,9 +232,16 @@ async fn declared_grid_frames() {
     runtime.storage().flush().await.unwrap();
     use dokime_runtime::document::{GridAxisEntry, GridDefinition, PlotType, Reduction};
     use dokime_runtime::expressions::telemetry;
-    let entries = [1, 6, 36, 1005].into_iter().enumerate().map(|(order, key)| GridAxisEntry {
-        key: key.to_string(), label: key.to_string(), order: order as i32, group: None,
-    }).collect::<Vec<_>>();
+    let entries = [1, 6, 36, 1005]
+        .into_iter()
+        .enumerate()
+        .map(|(order, key)| GridAxisEntry {
+            key: key.to_string(),
+            label: key.to_string(),
+            order: order as i32,
+            group: None,
+        })
+        .collect::<Vec<_>>();
     let mut request = wifi_request(None, Some(0));
     request.plot_type = Some(PlotType::GridChart);
     request.reduction = Some(Reduction::Max);
@@ -242,7 +249,10 @@ async fn declared_grid_frames() {
         row: Some(telemetry("host.wifi.scan", "wifi_channel")),
         column: Some(telemetry("host.wifi.scan", "wifi_channel")),
         frame: Some(telemetry("host.wifi.scan", "timestamp")),
-        rows: entries.clone(), columns: entries, summary_label: "Readings".into(), ..Default::default()
+        rows: entries.clone(),
+        columns: entries,
+        summary_label: "Readings".into(),
+        ..Default::default()
     });
     let envelopes = runtime.query_plot_payloads(vec![request.clone()]).await.unwrap();
     let Some(PlotAnalysis::GridChart { data }) = &envelopes[0].payload.analysis else { panic!("grid frames missing") };

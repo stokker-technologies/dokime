@@ -22,8 +22,7 @@ pub use crate::plot::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, PlotCartesianFrame,
     PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
     PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind, PlotPoint, PlotSeries, PlotSeriesSummary,
-    PlotWindow, SigmaBin, SigmaSeries, declared_plot_request,
-    plot_payload_request_for_descriptor,
+    PlotWindow, SigmaBin, SigmaSeries, declared_plot_request, plot_payload_request_for_descriptor,
 };
 pub(crate) use analysis::definitions as analysis_definitions;
 pub(crate) use request::{request_record_types, request_telemetry_streams};

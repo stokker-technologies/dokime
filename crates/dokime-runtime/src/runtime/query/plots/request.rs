@@ -48,7 +48,10 @@ pub(super) fn canonical_plot_request(mut request: PlotPayloadRequest, telemetry_
         request.stream = stream.as_str().to_owned();
     }
 
-    if let Some(width) = request.panel_width.filter(|_| !matches!(request.plot_type, Some(crate::document::PlotType::Contour | crate::document::PlotType::GridChart))) {
+    if let Some(width) = request
+        .panel_width
+        .filter(|_| !matches!(request.plot_type, Some(crate::document::PlotType::Contour | crate::document::PlotType::GridChart)))
+    {
         request.max_points = Some((width as usize).saturating_mul(4).min(request.max_points.unwrap_or(usize::MAX)));
     }
     crate::plot::canonical_plot_query(request)
@@ -135,8 +138,13 @@ fn request_expressions(request: &PlotPayloadRequest) -> impl Iterator<Item = &Da
         .chain(request.z_expression.iter())
         .chain(request.series_by_expression.iter())
         .chain(request.filters.iter().map(|filter| &filter.expression))
-        .chain(request.grid.iter().flat_map(|grid| grid.row.iter().chain(grid.column.iter()).chain(grid.frame.iter())
-            .chain(grid.highlights.iter().flat_map(|highlight| [&highlight.row, &highlight.column]))))
+        .chain(request.grid.iter().flat_map(|grid| {
+            grid.row
+                .iter()
+                .chain(grid.column.iter())
+                .chain(grid.frame.iter())
+                .chain(grid.highlights.iter().flat_map(|highlight| [&highlight.row, &highlight.column]))
+        }))
 }
 
 fn expression_needs_dimension_context(expression: &DataExpression) -> bool {

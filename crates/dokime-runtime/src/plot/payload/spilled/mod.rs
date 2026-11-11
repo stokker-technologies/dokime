@@ -69,13 +69,16 @@ pub(crate) fn project(
             };
             let mut latest = None;
             read.samples(|sample| {
-                if projection::selected(&sample, request) { latest = latest.max(super::parse_timestamp(sample.timestamp.as_str())); }
+                if projection::selected(&sample, request) {
+                    latest = latest.max(super::parse_timestamp(sample.timestamp.as_str()));
+                }
                 Ok(())
             })?;
             let cutoff = latest.and_then(|latest| super::plot_window_cutoff(latest, request.window_s));
             let mut error = None;
             read.samples(|sample| {
-                let visible = cutoff.is_none_or(|cutoff| super::parse_timestamp(sample.timestamp.as_str()).is_some_and(|time| time >= cutoff));
+                let visible =
+                    cutoff.is_none_or(|cutoff| super::parse_timestamp(sample.timestamp.as_str()).is_some_and(|time| time >= cutoff));
                 if projection::selected(&sample, request) && visible && error.is_none() {
                     error = frames.push(&sample).err();
                 }
@@ -390,9 +393,13 @@ mod tests {
             cycle_started_at: None,
         };
         for (plot_type, xy_interval) in [
-            (PlotType::TimeSeries, None), (PlotType::Xy, None), (PlotType::Trajectory, None),
-            (PlotType::Histogram, None), (PlotType::BoxPlot, None),
-            (PlotType::Xy, Some(crate::document::XyInterval::Sigma)), (PlotType::FrequencySeries, None),
+            (PlotType::TimeSeries, None),
+            (PlotType::Xy, None),
+            (PlotType::Trajectory, None),
+            (PlotType::Histogram, None),
+            (PlotType::BoxPlot, None),
+            (PlotType::Xy, Some(crate::document::XyInterval::Sigma)),
+            (PlotType::FrequencySeries, None),
         ] {
             for grouped in [false, true] {
                 for technique in [

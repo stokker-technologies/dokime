@@ -48,7 +48,9 @@ pub(crate) fn project(
         let mut payload = super::payload_from_series(&selected, records, request, generated_at, context, Vec::new());
         let result = (|| {
             let mut frames = super::grid::Frames::new(request, payload.max_points)?;
-            for sample in selected { frames.push(sample)?; }
+            for sample in selected {
+                frames.push(sample)?;
+            }
             Ok::<_, String>(frames.finish())
         })();
         payload.analysis = Some(match result {
@@ -98,13 +100,16 @@ pub(crate) fn frame(payload: ReadBatch<PlotPayload>, request: &PlotPayloadReques
 pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest) -> Result<PlotPayload> {
     if let Err(message) = super::totals::validate(&payload.series, request) {
         payload.analysis = Some(super::PlotAnalysis::Error { message });
-        payload.series.clear(); payload.cartesian = None;
+        payload.series.clear();
+        payload.cartesian = None;
         return Ok(payload);
     }
     if request.plot_type == Some(PlotType::Pie) || request.pareto {
         let count = payload.series.iter().map(|series| series.points.len()).sum::<usize>();
         if payload.max_points > 0 && count > payload.max_points {
-            payload.analysis = Some(super::PlotAnalysis::Error { message: "Category totals exceed the display budget; aggregate samples explicitly".into() });
+            payload.analysis = Some(super::PlotAnalysis::Error {
+                message: "Category totals exceed the display budget; aggregate samples explicitly".into(),
+            });
             payload.series.clear();
         }
         payload.cartesian = None;
@@ -313,7 +318,12 @@ mod tests {
             (9.5, Some(5.0)),
         ]
         .into_iter()
-        .map(|(x, y)| PlotPoint { instant: None, x: serde_json::json!(x), y, z: None })
+        .map(|(x, y)| PlotPoint {
+            instant: None,
+            x: serde_json::json!(x),
+            y,
+            z: None,
+        })
         .collect::<Vec<_>>();
         let indices = time_indices(&points, Some(super::super::PlotWindow { from: 0.0, to: 10.0 }), 2);
         assert_eq!(indices, vec![0, 1, 2, 3, 4, 5, 6]);

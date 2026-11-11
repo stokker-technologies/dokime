@@ -300,6 +300,27 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     for (const dark of [false, true]) {
       for (const touch of [false, true]) {
         await evaluate(`window.canvasFixture.summaries(${dark}, ${touch})`);
+        assert.deepEqual(
+          await evaluate(
+            `(() => [...document.querySelectorAll('[data-testid="contour-plot"]')].map(chart => ({bins:chart.querySelectorAll('rect[data-bin]').length,gaps:chart.querySelectorAll('rect[data-bin="1"],rect[data-bin="2"]').length})))()`,
+          ),
+          [
+            { bins: 2, gaps: 0 },
+            { bins: 2, gaps: 0 },
+          ],
+        );
+        assert.equal(
+          await evaluate(
+            `document.querySelectorAll('[data-testid="grouped-bar-plot"] rect[data-category], [data-testid="stacked-bar-plot"] rect[data-category]').length`,
+          ),
+          12,
+        );
+        assert.deepEqual(
+          await evaluate(
+            `(() => [...document.querySelectorAll('[data-testid="pareto-plot"] circle[data-percent]')].map(node => Number(node.getAttribute('data-percent'))))()`,
+          ),
+          [37.5, 75, 100],
+        );
         const interiors = await evaluate(`(() => [...document.querySelectorAll('[data-pie-hole]')].map(chart => {
           const svg = chart.querySelector('svg');
           const box = svg.viewBox.baseVal;

@@ -223,7 +223,17 @@ impl Analysis for Fft {
             key: "spectrum".into(),
             label: "Spectrum".into(),
             unit: Some(samples.unit.clone()),
-            points: samples.axis.iter().zip(&samples.values).map(|(&x, &y)| PlotPoint { instant: None, x: x.into(), y: Some(y), z: None }).collect(),
+            points: samples
+                .axis
+                .iter()
+                .zip(&samples.values)
+                .map(|(&x, &y)| PlotPoint {
+                    instant: None,
+                    x: x.into(),
+                    y: Some(y),
+                    z: None,
+                })
+                .collect(),
             raw_points: samples.values.len(),
             downsampled: false,
             format: None,

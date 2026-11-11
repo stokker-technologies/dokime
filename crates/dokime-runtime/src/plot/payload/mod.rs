@@ -28,14 +28,12 @@ mod retained;
 
 #[cfg(feature = "storage")]
 pub(crate) mod spilled;
-mod types;
 mod totals;
+mod types;
 
 /* === Re-Exports === */
 
-pub use analyses::{
-    BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, SigmaBin, SigmaSeries,
-    };
+pub use analyses::{BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, SigmaBin, SigmaSeries};
 
 #[cfg(feature = "storage")]
 pub(crate) use retained::{
@@ -478,8 +476,13 @@ fn visit_plot_streams(request: &PlotPayloadRequest, mut visit: impl FnMut(&str))
         .chain(&request.series_by_expression)
         .chain(&request.z_expression)
         .chain(request.filters.iter().map(|filter| &filter.expression))
-        .chain(request.grid.iter().flat_map(|grid| grid.row.iter().chain(grid.column.iter()).chain(grid.frame.iter())
-            .chain(grid.highlights.iter().flat_map(|highlight| [&highlight.row, &highlight.column]))));
+        .chain(request.grid.iter().flat_map(|grid| {
+            grid.row
+                .iter()
+                .chain(grid.column.iter())
+                .chain(grid.frame.iter())
+                .chain(grid.highlights.iter().flat_map(|highlight| [&highlight.row, &highlight.column]))
+        }));
     for expression in expressions {
         if let DataSource::Telemetry { stream, .. } = &expression.source {
             visit(stream);

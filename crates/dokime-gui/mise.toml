@@ -1,0 +1,22 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Settings === #
+
+# === Tools === #
+
+# === Environment === #
+
+# === Variables === #
+
+# === Generate === #
+
+[tasks."generate:report"]
+hide = true
+description = "Generate the Embedded Report"
+run = "pnpm run build:report"

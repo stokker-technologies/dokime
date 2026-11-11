@@ -23,8 +23,8 @@
 
 ## 5. Report
 
-- [ ] 5.1 Update the frozen HTML template, capture payload and bundled kind renderers/assets; embed available instants and reuse the playback implementation without network dependencies.
-- [ ] 5.2 Prove contour gaps, generic grid frames, trajectory and all agreed options in saved reports with networking disabled; preserve the existing captured-evidence boundary and preview budgets.
+- [x] 5.1 Update the frozen HTML template, capture payload and bundled kind renderers/assets; embed available instants and reuse the playback implementation without network dependencies.
+- [x] 5.2 Prove contour gaps, generic grid frames, trajectory and all agreed options in saved reports with networking disabled; preserve the existing captured-evidence boundary and preview budgets.
 
 ## 6. SDK Builders
 

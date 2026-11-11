@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod contour;
 pub(crate) mod index;
 
 /* === Re-Exports === */
@@ -53,6 +54,8 @@ pub(crate) struct Limits {
 
 #[derive(Default, Serialize, Deserialize)]
 pub(crate) struct Preview {
+    contour: contour::Contour,
+    grid_frames: Option<super::payload::grid::Frames>,
     samples: Vec<TelemetrySample>,
     records: Vec<RecordEntry>,
     reduced: bool,
@@ -76,6 +79,7 @@ pub(crate) struct Preview {
 struct Trace {
     #[serde(default)]
     ordered: Vec<PlotPoint>,
+    categories: BTreeMap<String, (PlotPoint, usize)>,
     #[serde(default)]
     ordered_stride: usize,
     #[serde(default)]
@@ -217,7 +221,8 @@ impl Preview {
                         .expect("saved time")
                         .format(&time::format_description::well_known::Rfc3339)
                         .expect("saved timestamp");
-                    Some(PlotPoint { instant: None,
+                    Some(PlotPoint {
+                        instant: None,
                         x: serde_json::Value::String(stamp),
                         y: Some(value),
                         z: None,
@@ -245,6 +250,14 @@ impl Preview {
     }
 
     pub(crate) fn merge(&mut self, other: Self, request: &PlotPayloadRequest, limits: Limits) -> Result<()> {
+        self.contour.merge(other.contour, request, limits);
+        if let Some(frames) = other.grid_frames {
+            if let Some(current) = &mut self.grid_frames {
+                current.merge(frames);
+            } else {
+                self.grid_frames = Some(frames);
+            }
+        }
         self.marker_records.extend(self.last_marker.take());
         self.marker_records.extend(other.marker_records);
         self.marker_records.extend(other.last_marker);
@@ -298,6 +311,32 @@ impl Preview {
                     trace.envelope.push(point, limits.buckets)?;
                 }
             }
+            if request.plot_type == Some(PlotType::Trajectory) {
+                trace.ordered.extend(other.ordered);
+                trace.ordered.extend(trace.ordered_last.take());
+                trace.ordered.extend(other.ordered_last);
+                trace.ordered.sort_by_key(|point| point.instant.as_deref().and_then(super::parse_timestamp));
+                trace.ordered.dedup();
+                let selected = super::payload::marker_indices(trace.ordered.len(), limits.exact_points.max(1));
+                trace.ordered = std::mem::take(&mut trace.ordered)
+                    .into_iter()
+                    .enumerate()
+                    .filter_map(|(index, point)| selected.binary_search(&index).is_ok().then_some(point))
+                    .collect();
+                trace.ordered_last = trace.ordered.last().cloned();
+            }
+            for (key, (point, order)) in other.categories {
+                if let Some((current, _)) = trace.categories.get_mut(&key) {
+                    if request.plot_type == Some(PlotType::Pie) || request.pareto {
+                        self.reason = Some(format!("duplicate category total {key}; aggregate samples explicitly"));
+                    }
+                    *current = point;
+                } else if trace.categories.len() < limits.groups {
+                    trace.categories.insert(key, (point, trace.count.saturating_add(order)));
+                } else {
+                    self.reason = Some("Category totals exceed the configured preview group limit".into());
+                }
+            }
             trace.count += other.count;
             trace.moments.merge(other.moments);
             trace.exact.extend(other.exact);
@@ -346,6 +385,21 @@ impl Preview {
             self.bound(limits);
         }
         if !super::stream_matches_alias(sample.stream.as_str(), &request.stream) || record_plot(request) {
+            return Ok(());
+        }
+        if request.plot_type == Some(PlotType::GridChart) && self.reason.is_none() {
+            if self.grid_frames.is_none() {
+                match super::payload::grid::Frames::new(request, limits.exact_points) {
+                    Ok(frames) => self.grid_frames = Some(frames),
+                    Err(message) => {
+                        self.reason = Some(message);
+                        return Ok(());
+                    }
+                }
+            }
+            if let Err(message) = self.grid_frames.as_mut().expect("initialized frames").push(&sample) {
+                self.reason = Some(message);
+            }
             return Ok(());
         }
         self.project(std::slice::from_ref(&sample), &[], request, limits)
@@ -447,6 +501,12 @@ impl Preview {
         };
         let payload = super::project_retained_plot_payload(samples, records.into(), &raw, "", &context)?;
         self.context.extend(payload.context.clone());
+        if request.plot_type == Some(PlotType::Contour) {
+            for point in payload.series.iter().flat_map(|series| &series.points) {
+                self.contour.push(point, request, limits);
+            }
+            return Ok(());
+        }
         let scatter = uses_density_grid(request);
         for series in &payload.series {
             let aggregate = aggregate_for(request, &series.key);
@@ -455,7 +515,10 @@ impl Preview {
                 break;
             }
             let trace = self.series.entry(series.key.clone()).or_insert_with(|| Trace {
-                ordered: Vec::new(), ordered_stride: 1, ordered_last: None,
+                ordered: Vec::new(),
+                categories: BTreeMap::new(),
+                ordered_stride: 1,
+                ordered_last: None,
                 template: PlotSeries { points: Vec::new(), ..series.clone() },
                 exact: Vec::new(),
                 envelope: Envelope {
@@ -469,16 +532,27 @@ impl Preview {
                 groups: BTreeMap::new(),
             });
             for point in &series.points {
+                let strict = request.plot_type == Some(PlotType::Pie) || request.pareto;
+                if strict && !point.y.is_some_and(|value| value.is_finite() && value >= 0.0) {
+                    self.reason = Some("Category totals must be finite and nonnegative".into());
+                    continue;
+                }
                 let Some(value) = point.y.filter(|value| value.is_finite()) else { continue };
                 trace.count += 1;
                 trace.moments.push(value);
                 if request.plot_type == Some(PlotType::Trajectory) {
                     trace.ordered_stride = trace.ordered_stride.max(1);
-                    if (trace.count - 1).is_multiple_of(trace.ordered_stride) { trace.ordered.push(point.clone()); }
+                    if (trace.count - 1).is_multiple_of(trace.ordered_stride) {
+                        trace.ordered.push(point.clone());
+                    }
                     trace.ordered_last = Some(point.clone());
                     if trace.ordered.len() > limits.exact_points.max(1) {
                         let mut index = 0;
-                        trace.ordered.retain(|_| { let keep = index % 2 == 0; index += 1; keep });
+                        trace.ordered.retain(|_| {
+                            let keep = index % 2 == 0;
+                            index += 1;
+                            keep
+                        });
                         trace.ordered_stride = trace.ordered_stride.saturating_mul(2);
                     }
                     continue;
@@ -493,6 +567,20 @@ impl Preview {
                     moments.push(value);
                     if moments.value(method).is_none() && self.reduced {
                         self.reason = Some(format!("{} needs more exact values than the configured preview limit.", method.name()));
+                    }
+                    continue;
+                }
+                if matches!(request.plot_type, Some(PlotType::Bar | PlotType::Pie)) {
+                    let key = group_key(&point.x);
+                    if let Some((current, _)) = trace.categories.get_mut(&key) {
+                        if strict {
+                            self.reason = Some(format!("duplicate category total {key}; aggregate samples explicitly"));
+                        }
+                        *current = point.clone();
+                    } else if trace.categories.len() < limits.groups {
+                        trace.categories.insert(key, (point.clone(), trace.count));
+                    } else {
+                        self.reason = Some("Category totals exceed the configured preview group limit".into());
                     }
                     continue;
                 }
@@ -539,6 +627,21 @@ impl Preview {
         let raw = if self.reduced { self.latest.values().cloned().collect::<Vec<_>>() } else { self.samples.clone() };
         let records = if self.reduced { &[][..] } else { &self.records[..] };
         let mut payload = super::project_retained_plot_payload(&raw, records.into(), request, generated_at, context)?.as_ref().clone();
+        if request.plot_type == Some(PlotType::Contour) || request.plot_type == Some(PlotType::GridChart) {
+            payload.context.extend(self.context.clone());
+            payload.series.clear();
+            payload.cartesian = None;
+            payload.analysis = Some(if let Some(reason) = &self.reason {
+                super::PlotAnalysis::Error { message: reason.clone() }
+            } else if request.plot_type == Some(PlotType::Contour) {
+                super::PlotAnalysis::Contour { grid: self.contour.grid(request) }
+            } else if let Some(frames) = &self.grid_frames {
+                super::PlotAnalysis::GridChart { data: frames.finish() }
+            } else {
+                return Ok(payload);
+            });
+            return Ok(payload);
+        }
         let mut markers = self.marker_records.clone();
         if let Some(last) = &self.last_marker
             && markers.last().is_none_or(|record| record.record_id != last.record_id)
@@ -558,25 +661,41 @@ impl Preview {
             for trace in self.series.values() {
                 let points = if request.plot_type == Some(PlotType::Trajectory) {
                     let mut points = trace.ordered.clone();
-                    if let Some(last) = &trace.ordered_last && points.last() != Some(last) { points.push(last.clone()); }
+                    if let Some(last) = &trace.ordered_last
+                        && points.last() != Some(last)
+                    {
+                        points.push(last.clone());
+                    }
                     if points.len() > limits.exact_points.max(1) {
                         let selected = super::payload::marker_indices(points.len(), limits.exact_points.max(1));
-                        points = points.into_iter().enumerate().filter_map(|(index, point)| selected.binary_search(&index).is_ok().then_some(point)).collect();
+                        points = points
+                            .into_iter()
+                            .enumerate()
+                            .filter_map(|(index, point)| selected.binary_search(&index).is_ok().then_some(point))
+                            .collect();
                     }
                     points.sort_by(|left, right| {
-                        left.instant.as_deref().and_then(super::parse_timestamp).cmp(&right.instant.as_deref().and_then(super::parse_timestamp))
+                        left.instant
+                            .as_deref()
+                            .and_then(super::parse_timestamp)
+                            .cmp(&right.instant.as_deref().and_then(super::parse_timestamp))
                     });
                     points
                 } else if let Some(method) = aggregate_for(request, &trace.template.key) {
                     trace
                         .groups
                         .values()
-                        .map(|(x, moments)| PlotPoint { instant: None,
+                        .map(|(x, moments)| PlotPoint {
+                            instant: None,
                             x: x.clone(),
                             y: moments.value(method),
                             z: None,
                         })
                         .collect()
+                } else if matches!(request.plot_type, Some(PlotType::Bar | PlotType::Pie)) {
+                    let mut points = trace.categories.values().collect::<Vec<_>>();
+                    points.sort_by_key(|(_, order)| *order);
+                    points.into_iter().map(|(point, _)| point.clone()).collect()
                 } else if trace.count <= limits.exact_points {
                     trace.exact.clone()
                 } else if !trace.grid.cells.is_empty() {
@@ -593,7 +712,8 @@ impl Preview {
                     }
                     grid.cells
                         .values()
-                        .map(|cell| PlotPoint { instant: None,
+                        .map(|cell| PlotPoint {
+                            instant: None,
                             x: serde_json::json!(cell.x),
                             y: Some(cell.y),
                             z: Some(cell.count as f64),
@@ -617,7 +737,12 @@ impl Preview {
                             } else {
                                 serde_json::json!(x)
                             };
-                            PlotPoint { instant: None, x, y: Some(point.value), z: None }
+                            PlotPoint {
+                                instant: None,
+                                x,
+                                y: Some(point.value),
+                                z: None,
+                            }
                         })
                         .collect()
                 };
@@ -672,10 +797,8 @@ impl Preview {
         if let Some(reason) = &self.reason {
             payload.analysis = Some(super::PlotAnalysis::Error { message: reason.clone() });
         } else if self.reduced
-            && (matches!(
-                request.plot_type,
-                Some(PlotType::FrequencySeries | PlotType::Histogram | PlotType::BoxPlot)
-            ) || (request.plot_type == Some(PlotType::Xy) && request.xy_interval.is_some()))
+            && (matches!(request.plot_type, Some(PlotType::FrequencySeries | PlotType::Histogram | PlotType::BoxPlot))
+                || (request.plot_type == Some(PlotType::Xy) && request.xy_interval.is_some()))
         {
             payload.analysis = Some(super::PlotAnalysis::Error {
                 message: "This analysis needs more exact samples than the configured preview limit.".into(),
@@ -956,6 +1079,77 @@ mod tests {
     }
 
     #[test]
+    fn contour_and_grid_captures_keep_bounded_values_and_instants() {
+        let request = PlotPayloadRequest {
+            stream: "tracking".into(),
+            plot_type: Some(PlotType::Contour),
+            x_key: Some("easting".into()),
+            y_keys: vec!["northing".into()],
+            z_field: Some("z".into()),
+            ..Default::default()
+        };
+        let mut preview = Preview::default();
+        for index in 0..30 {
+            let mut row = sample(index, if index % 3 == 0 { 3.0 } else { 1.0 }, if index % 3 == 0 { 3.0 } else { 1.0 });
+            row.values.insert(
+                "z".into(),
+                Value::Number(match index % 3 {
+                    0 => 0.0,
+                    1 => 2.0,
+                    _ => 6.0,
+                }),
+            );
+            preview.sample(row, &request, limits()).unwrap();
+            preview = serde_json::from_slice(&serde_json::to_vec(&preview).unwrap()).unwrap();
+        }
+        assert!(preview.samples.is_empty());
+        let result = payload(&preview, &request);
+        let Some(super::super::PlotAnalysis::Contour { grid }) = result.analysis else { panic!("contour capture") };
+        assert_eq!(grid.valid.iter().filter(|valid| **valid).count(), 2);
+        assert!(grid.valid.iter().any(|valid| !valid));
+        assert!(grid.values.iter().any(|value| (*value - 4.0).abs() < 1e-12), "mean bins: {:?}", grid.values);
+        assert!(grid.values.iter().zip(&grid.valid).any(|(value, valid)| *valid && *value == 0.0));
+        let entry = |key: &str, order| crate::document::GridAxisEntry {
+            key: key.into(),
+            label: key.into(),
+            order,
+            group: None,
+        };
+        let request = PlotPayloadRequest {
+            stream: "tracking".into(),
+            plot_type: Some(PlotType::GridChart),
+            reduction: Some(crate::document::Reduction::Max),
+            y_keys: vec!["northing".into()],
+            grid: Some(crate::document::GridDefinition {
+                row: Some(telemetry("tracking", "row")),
+                column: Some(telemetry("tracking", "column")),
+                frame: Some(telemetry("tracking", "timestamp")),
+                rows: vec![entry("sensor", 0)],
+                columns: vec![entry("left", 0), entry("right", 1)],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let mut preview = Preview::default();
+        for index in 0..20 {
+            for value in [2.0, 6.0] {
+                let mut row = sample(index, 0.0, value);
+                row.values.insert("row".into(), "sensor".into());
+                row.values.insert("column".into(), "left".into());
+                preview.sample(row, &request, limits()).unwrap();
+            }
+            preview = serde_json::from_slice(&serde_json::to_vec(&preview).unwrap()).unwrap();
+        }
+        let result = payload(&preview, &request);
+        let Some(super::super::PlotAnalysis::GridChart { data }) = result.analysis else { panic!("grid capture") };
+        assert_eq!(data.frames.len(), 2);
+        assert_eq!(data.frames.first().unwrap().instant, "1970-01-01T00:00:00Z");
+        assert_eq!(data.frames.last().unwrap().instant, "1970-01-01T00:00:19Z");
+        assert!(data.frames.iter().all(|frame| frame.values == [6.0, 0.0] && frame.valid == [true, false]));
+        assert!(preview.samples.is_empty());
+    }
+
+    #[test]
     fn exact_analysis() {
         for plot_type in [PlotType::Histogram, PlotType::BoxPlot] {
             let request = PlotPayloadRequest {
@@ -1154,9 +1348,11 @@ mod tests {
     #[test]
     fn trajectory_retains_ordered_instants_after_checkpoint_reduction() {
         let request = PlotPayloadRequest {
-            stream: "tracking".into(), plot_type: Some(PlotType::Trajectory),
+            stream: "tracking".into(),
+            plot_type: Some(PlotType::Trajectory),
             x_expression: Some(telemetry("tracking", "easting")),
-            y_expressions: vec![telemetry("tracking", "northing")], ..Default::default()
+            y_expressions: vec![telemetry("tracking", "northing")],
+            ..Default::default()
         };
         let mut preview = Preview::default();
         for position in [0, 2, 1].into_iter().chain(3..20) {
@@ -1169,7 +1365,10 @@ mod tests {
         assert!(points.len() <= limits().exact_points);
         assert_eq!(points.first().unwrap().y, Some(0.0));
         assert_eq!(points.last().unwrap().y, Some(19.0));
-        let instants = points.iter().map(|point| super::super::parse_timestamp(point.instant.as_deref().unwrap()).unwrap().unix_timestamp()).collect::<Vec<_>>();
+        let instants = points
+            .iter()
+            .map(|point| super::super::parse_timestamp(point.instant.as_deref().unwrap()).unwrap().unix_timestamp())
+            .collect::<Vec<_>>();
         assert!(instants.windows(2).all(|pair| pair[0] <= pair[1]));
         for (point, instant) in points.iter().zip(instants) {
             assert_eq!(point.x.as_f64(), Some((instant % 4) as f64));

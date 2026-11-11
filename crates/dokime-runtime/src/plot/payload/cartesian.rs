@@ -223,7 +223,12 @@ mod tests {
             points: [Some(1.0), None, Some(3.0)]
                 .into_iter()
                 .enumerate()
-                .map(|(x, y)| super::super::PlotPoint { instant: None, x: serde_json::json!(x), y, z: None })
+                .map(|(x, y)| super::super::PlotPoint {
+                    instant: None,
+                    x: serde_json::json!(x),
+                    y,
+                    z: None,
+                })
                 .collect(),
         };
         let frame = cartesian_frame(&[series], Some(&PlotType::TimeSeries), &AxisScale::Linear, &AxisScale::Linear).unwrap().unwrap();

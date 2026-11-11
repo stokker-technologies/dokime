@@ -956,7 +956,9 @@ impl Plot {
         if let Some(analysis) = &value.analysis {
             bytes = bytes.saturating_add(super::analysis::Selection::encoding_memory(analysis)?);
         }
-        if let Some(grid) = &value.grid { bytes = bytes.saturating_add(Grid::encoding_memory(grid)?); }
+        if let Some(grid) = &value.grid {
+            bytes = bytes.saturating_add(Grid::encoding_memory(grid)?);
+        }
         Ok(bytes)
     }
 
@@ -1003,7 +1005,9 @@ impl Plot {
         if let Some(analysis) = &self.analysis {
             bytes = bytes.saturating_add(analysis.projection_memory()?);
         }
-        if let Some(grid) = &self.grid { bytes = bytes.saturating_add(grid.projection_memory()?); }
+        if let Some(grid) = &self.grid {
+            bytes = bytes.saturating_add(grid.projection_memory()?);
+        }
         Ok(bytes)
     }
 }
@@ -1017,8 +1021,11 @@ impl Grid {
             bytes = bytes.saturating_add(Data::encoding_memory(expression)?);
         }
         for highlight in &value.highlights {
-            bytes = bytes.saturating_add(std::mem::size_of::<GridHighlight>()).saturating_add(highlight.label.len())
-                .saturating_add(Data::encoding_memory(&highlight.row)?).saturating_add(Data::encoding_memory(&highlight.column)?);
+            bytes = bytes
+                .saturating_add(std::mem::size_of::<GridHighlight>())
+                .saturating_add(highlight.label.len())
+                .saturating_add(Data::encoding_memory(&highlight.row)?)
+                .saturating_add(Data::encoding_memory(&highlight.column)?);
         }
         Ok(bytes)
     }
@@ -1033,7 +1040,8 @@ impl Grid {
         for highlight in &self.highlights {
             bytes = bytes.saturating_add(std::mem::size_of::<crate::document::GridHighlight>()).saturating_add(highlight.label.capacity());
             for expression in [&highlight.row, &highlight.column] {
-                bytes = bytes.saturating_add(expression.as_ref().ok_or(Error::Invalid("grid highlight binding is missing"))?.projection_memory()?);
+                bytes = bytes
+                    .saturating_add(expression.as_ref().ok_or(Error::Invalid("grid highlight binding is missing"))?.projection_memory()?);
             }
         }
         Ok(bytes)
@@ -1043,14 +1051,25 @@ impl Grid {
 impl TryFrom<&crate::document::GridDefinition> for Grid {
     type Error = Error;
     fn try_from(value: &crate::document::GridDefinition) -> Result<Self> {
-        let highlights = value.highlights.iter().map(|highlight| Ok(GridHighlight {
-            row: Some(Data::try_from(&highlight.row)?), column: Some(Data::try_from(&highlight.column)?), label: highlight.label.clone(),
-        })).collect::<Result<Vec<_>>>()?;
+        let highlights = value
+            .highlights
+            .iter()
+            .map(|highlight| {
+                Ok(GridHighlight {
+                    row: Some(Data::try_from(&highlight.row)?),
+                    column: Some(Data::try_from(&highlight.column)?),
+                    label: highlight.label.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
         Ok(Self {
             row: value.row.as_ref().map(Data::try_from).transpose()?,
             column: value.column.as_ref().map(Data::try_from).transpose()?,
             frame: value.frame.as_ref().map(Data::try_from).transpose()?,
-            rows: value.rows.clone(), columns: value.columns.clone(), highlights, summary_label: value.summary_label.clone(),
+            rows: value.rows.clone(),
+            columns: value.columns.clone(),
+            highlights,
+            summary_label: value.summary_label.clone(),
         })
     }
 }
@@ -1058,13 +1077,24 @@ impl TryFrom<&crate::document::GridDefinition> for Grid {
 impl TryFrom<Grid> for crate::document::GridDefinition {
     type Error = Error;
     fn try_from(value: Grid) -> Result<Self> {
-        let highlights = value.highlights.into_iter().map(|highlight| Ok(crate::document::GridHighlight {
-            row: highlight.row.ok_or(Error::Invalid("grid highlight row is missing"))?.try_into()?,
-            column: highlight.column.ok_or(Error::Invalid("grid highlight column is missing"))?.try_into()?, label: highlight.label,
-        })).collect::<Result<Vec<_>>>()?;
+        let highlights = value
+            .highlights
+            .into_iter()
+            .map(|highlight| {
+                Ok(crate::document::GridHighlight {
+                    row: highlight.row.ok_or(Error::Invalid("grid highlight row is missing"))?.try_into()?,
+                    column: highlight.column.ok_or(Error::Invalid("grid highlight column is missing"))?.try_into()?,
+                    label: highlight.label,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
         Ok(Self {
-            row: value.row.map(TryInto::try_into).transpose()?, column: value.column.map(TryInto::try_into).transpose()?,
-            frame: value.frame.map(TryInto::try_into).transpose()?, rows: value.rows, columns: value.columns, highlights,
+            row: value.row.map(TryInto::try_into).transpose()?,
+            column: value.column.map(TryInto::try_into).transpose()?,
+            frame: value.frame.map(TryInto::try_into).transpose()?,
+            rows: value.rows,
+            columns: value.columns,
+            highlights,
             summary_label: value.summary_label,
         })
     }
@@ -1105,7 +1135,10 @@ impl TryFrom<&crate::document::PlotDefinition> for Plot {
             metadata: Some(metadata::Row::try_from(&value.metadata)?),
             plot_type: name(&value.plot_type),
             grid: value.grid.as_ref().map(Grid::try_from).transpose()?,
-            arrangement: value.arrangement, pareto: value.pareto, hole: value.hole, xy_interval: value.xy_interval,
+            arrangement: value.arrangement,
+            pareto: value.pareto,
+            hole: value.hole,
+            xy_interval: value.xy_interval,
             reduction: value.reduction,
             render: value.render,
             stream: value.stream.as_deref().map(str::to_owned),
@@ -1174,7 +1207,10 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
         Ok(Self {
             automatic_id: false,
             grid: row.grid.map(TryInto::try_into).transpose()?,
-            arrangement: row.arrangement, pareto: row.pareto, hole: row.hole, xy_interval: row.xy_interval,
+            arrangement: row.arrangement,
+            pareto: row.pareto,
+            hole: row.hole,
+            xy_interval: row.xy_interval,
             reduction: row.reduction,
             render: row.render,
             metadata: row.metadata.ok_or(Error::Invalid("plot metadata is missing"))?.try_into()?,
@@ -2521,7 +2557,8 @@ fn name<T: serde::Serialize>(value: &T) -> String {
 }
 
 fn parse_plot_type(value: &str) -> Result<crate::document::PlotType> {
-    crate::document::PlotType::try_from(value.to_owned()).map_err(|message| Error::Json(<serde_json::Error as serde::de::Error>::custom(message)))
+    crate::document::PlotType::try_from(value.to_owned())
+        .map_err(|message| Error::Json(<serde_json::Error as serde::de::Error>::custom(message)))
 }
 
 fn parse<T: serde::de::DeserializeOwned>(value: &str, invalid: &'static str) -> Result<T> {

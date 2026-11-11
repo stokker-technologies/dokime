@@ -96,7 +96,10 @@ impl Points {
     pub(super) fn push_exact(&mut self, point: PlotPoint, exact: Option<crate::Value>) -> Result<()> {
         let exact = exact.as_ref().map(serde_json::to_string).transpose().map_err(failure)?;
         let json = serde_json::to_string(&point.x).map_err(failure)?;
-        let bytes = json.len().saturating_add(64).saturating_add(exact.as_ref().map_or(0, String::len))
+        let bytes = json
+            .len()
+            .saturating_add(64)
+            .saturating_add(exact.as_ref().map_or(0, String::len))
             .saturating_add(point.instant.as_ref().map_or(0, String::len));
         if !self.json.is_empty() && (self.json.len() == PAGE_ROWS || self.bytes.saturating_add(bytes) > PAGE_BYTES) {
             self.flush()?;
@@ -129,7 +132,8 @@ impl Points {
         let z = Float64Array::from(std::mem::take(&mut self.z));
         let exact = StringArray::from(std::mem::take(&mut self.exact));
         let instant = StringArray::from(std::mem::take(&mut self.instant));
-        let arrays: Vec<Arc<dyn Array>> = vec![Arc::new(json), Arc::new(axis), Arc::new(y), Arc::new(z), Arc::new(exact), Arc::new(instant)];
+        let arrays: Vec<Arc<dyn Array>> =
+            vec![Arc::new(json), Arc::new(axis), Arc::new(y), Arc::new(z), Arc::new(exact), Arc::new(instant)];
         let page = RecordBatch::try_new(self.schema.clone(), arrays).map_err(failure)?;
         self.writer.push(&page, &mut || Ok(()))?;
         self.bytes = 0;

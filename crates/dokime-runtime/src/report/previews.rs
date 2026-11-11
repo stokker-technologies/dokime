@@ -181,7 +181,8 @@ pub(crate) fn plot(
                     let time = time::OffsetDateTime::from_unix_timestamp_nanos(point.time)
                         .map_err(|_| super::query::invalid("invalid envelope time"))?;
                     let stamp = time.format(&time::format_description::well_known::Rfc3339).map_err(crate::storage::Error::from)?;
-                    points.push(PlotPoint { instant: None,
+                    points.push(PlotPoint {
+                        instant: None,
                         x: serde_json::Value::String(stamp),
                         y: Some(point.value),
                         z: None,

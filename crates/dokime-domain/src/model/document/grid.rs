@@ -68,9 +68,14 @@ impl GridDefinition {
         if self.row.is_none() || self.column.is_none() || self.frame.is_none() {
             return Err("GRID_CHART requires row, column and timestamp frame expressions".into());
         }
-        if self.row.iter().chain(self.column.iter()).chain(self.frame.iter())
+        if self
+            .row
+            .iter()
+            .chain(self.column.iter())
+            .chain(self.frame.iter())
             .chain(self.highlights.iter().flat_map(|highlight| [&highlight.row, &highlight.column]))
-            .any(|expression| !expression.transforms.is_empty()) {
+            .any(|expression| !expression.transforms.is_empty())
+        {
             return Err("GRID_CHART identity and frame bindings must select scalar fields without transforms".into());
         }
         for (label, entries) in [("rows", &self.rows), ("columns", &self.columns)] {

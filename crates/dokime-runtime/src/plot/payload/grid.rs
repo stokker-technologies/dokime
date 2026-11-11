@@ -14,8 +14,8 @@
 /* === Imports === */
 
 // Standard Library Imports
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use serde::{Serialize, Deserialize};
 
 // Third Party Imports
 
@@ -64,11 +64,16 @@ impl Frames {
         rows.sort_by_key(|entry| entry.order);
         columns.sort_by_key(|entry| entry.order);
         let cells = rows.len().checked_mul(columns.len()).ok_or("GRID_CHART dimensions overflow")?;
-        if maximum > 0 && cells > maximum { return Err("GRID_CHART declared cells exceed the display budget".into()); }
+        if maximum > 0 && cells > maximum {
+            return Err("GRID_CHART declared cells exceed the display budget".into());
+        }
         Ok(Self {
-            definition: definition.clone(), request: request.clone(),
+            definition: definition.clone(),
+            request: request.clone(),
             maximum: if maximum == 0 { 0 } else { (maximum / cells.max(1)).max(1) },
-            stride: 1, first: None, last: None,
+            stride: 1,
+            first: None,
+            last: None,
             rows: rows.into_iter().enumerate().map(|(index, entry)| (entry.key.clone(), index)).collect(),
             columns: columns.into_iter().enumerate().map(|(index, entry)| (entry.key.clone(), index)).collect(),
             frames: BTreeMap::new(),
@@ -78,33 +83,62 @@ impl Frames {
     pub(crate) fn push(&mut self, sample: &TelemetrySample) -> Result<(), String> {
         let instant = key(sample, self.definition.frame.as_ref().expect("validated frame"))?;
         let time = super::parse_timestamp(&instant).ok_or("GRID_CHART frame must be a timestamp")?.unix_timestamp_nanos();
-        let row = key(sample, self.definition.row.as_ref().expect("validated row")).ok()
-            .map(|key| self.rows.get(&key).copied().ok_or_else(|| format!("GRID_CHART unknown row key {key}"))).transpose()?;
-        let column = key(sample, self.definition.column.as_ref().expect("validated column")).ok()
-            .map(|key| self.columns.get(&key).copied().ok_or_else(|| format!("GRID_CHART unknown column key {key}"))).transpose()?;
+        let row = key(sample, self.definition.row.as_ref().expect("validated row"))
+            .ok()
+            .map(|key| self.rows.get(&key).copied().ok_or_else(|| format!("GRID_CHART unknown row key {key}")))
+            .transpose()?;
+        let column = key(sample, self.definition.column.as_ref().expect("validated column"))
+            .ok()
+            .map(|key| self.columns.get(&key).copied().ok_or_else(|| format!("GRID_CHART unknown column key {key}")))
+            .transpose()?;
         let mut highlights = Vec::new();
         for highlight in &self.definition.highlights {
             let Ok(row) = key(sample, &highlight.row) else { continue };
             let Ok(column) = key(sample, &highlight.column) else { continue };
             let row = *self.rows.get(&row).ok_or_else(|| format!("GRID_CHART unknown highlight row {row}"))? as u32;
             let column = *self.columns.get(&column).ok_or_else(|| format!("GRID_CHART unknown highlight column {column}"))? as u32;
-            highlights.push(GridCell { row, column, label: highlight.label.clone() });
+            highlights.push(GridCell {
+                row,
+                column,
+                label: highlight.label.clone(),
+            });
         }
         self.first = Some(self.first.map_or(time, |first| first.min(time)));
         self.last = Some(self.last.map_or(time, |last| last.max(time)));
         let endpoint = Some(time) == self.last || (self.maximum != 1 && Some(time) == self.first);
-        let selected = self.maximum == 0 || endpoint || self.frames.contains_key(&time) || (self.maximum > 1 && self.stride > 0 && frame_hash(time).is_multiple_of(self.stride));
-        if !selected { return Ok(()); }
+        let selected = self.maximum == 0
+            || endpoint
+            || self.frames.contains_key(&time)
+            || (self.maximum > 1 && self.stride > 0 && frame_hash(time).is_multiple_of(self.stride));
+        if !selected {
+            return Ok(());
+        }
         let cells = self.rows.len() * self.columns.len();
-        let (frame, counts) = self.frames.entry(time).or_insert_with(|| (GridFrame {
-            instant, values: vec![0.0; cells], valid: vec![false; cells], highlights: Vec::new(),
-        }, vec![0; cells]));
+        let (frame, counts) = self.frames.entry(time).or_insert_with(|| {
+            (
+                GridFrame {
+                    instant,
+                    values: vec![0.0; cells],
+                    valid: vec![false; cells],
+                    highlights: Vec::new(),
+                },
+                vec![0; cells],
+            )
+        });
         for highlight in highlights {
-            if !frame.highlights.iter().any(|cell| cell.row == highlight.row && cell.column == highlight.column && cell.label == highlight.label) {
+            if !frame
+                .highlights
+                .iter()
+                .any(|cell| cell.row == highlight.row && cell.column == highlight.column && cell.label == highlight.label)
+            {
                 frame.highlights.push(highlight);
             }
         }
-        let value = self.request.y_expressions.first().and_then(|expression| expression_numeric_value(sample, expression))
+        let value = self
+            .request
+            .y_expressions
+            .first()
+            .and_then(|expression| expression_numeric_value(sample, expression))
             .or_else(|| self.request.y_keys.first().and_then(|field| sample.values.get(field)).and_then(super::numeric_value));
         if let (Some(row), Some(column), Some(value)) = (row, column, value.filter(|value| value.is_finite())) {
             let cell = row * self.columns.len() + column;
@@ -125,9 +159,65 @@ impl Frames {
         while self.maximum > 0 && self.frames.len() > self.maximum {
             self.stride = self.stride.checked_mul(2).unwrap_or(0);
             self.frames.retain(|time, _| {
-                Some(*time) == self.last || (self.maximum > 1 && (Some(*time) == self.first || (self.stride > 0 && frame_hash(*time).is_multiple_of(self.stride))))
+                Some(*time) == self.last
+                    || (self.maximum > 1
+                        && (Some(*time) == self.first || (self.stride > 0 && frame_hash(*time).is_multiple_of(self.stride))))
             });
         }
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.first = self.first.into_iter().chain(other.first).min();
+        self.last = self.last.into_iter().chain(other.last).max();
+        self.stride = if self.stride == 0 || other.stride == 0 { 0 } else { self.stride.max(other.stride) };
+        self.frames.retain(|time, _| {
+            self.maximum == 0
+                || Some(*time) == self.last
+                || (self.maximum > 1 && (Some(*time) == self.first || (self.stride > 0 && frame_hash(*time).is_multiple_of(self.stride))))
+        });
+        let reduction = self.request.reduction.expect("validated reducer");
+        for (time, (other, other_counts)) in other.frames {
+            let selected = self.maximum == 0
+                || Some(time) == self.last
+                || (self.maximum > 1 && (Some(time) == self.first || (self.stride > 0 && frame_hash(time).is_multiple_of(self.stride))));
+            if !selected {
+                continue;
+            }
+            if let Some((frame, counts)) = self.frames.get_mut(&time) {
+                for (index, count) in other_counts.into_iter().enumerate() {
+                    if count == 0 {
+                        continue;
+                    }
+                    let total = counts[index].saturating_add(count);
+                    frame.values[index] = if counts[index] == 0 {
+                        other.values[index]
+                    } else {
+                        match reduction {
+                            Reduction::Mean => {
+                                frame.values[index] * (counts[index] as f64 / total as f64)
+                                    + other.values[index] * (count as f64 / total as f64)
+                            }
+                            Reduction::Min => frame.values[index].min(other.values[index]),
+                            Reduction::Max => frame.values[index].max(other.values[index]),
+                        }
+                    };
+                    counts[index] = total;
+                    frame.valid[index] = true;
+                }
+                for cell in other.highlights {
+                    if !frame
+                        .highlights
+                        .iter()
+                        .any(|current| current.row == cell.row && current.column == cell.column && current.label == cell.label)
+                    {
+                        frame.highlights.push(cell);
+                    }
+                }
+            } else {
+                self.frames.insert(time, (other, other_counts));
+            }
+        }
+        self.bound();
     }
 
     pub(crate) fn finish(&self) -> GridFrames {
@@ -135,9 +225,13 @@ impl Frames {
         let mut columns = self.definition.columns.clone();
         rows.sort_by_key(|entry| entry.order);
         columns.sort_by_key(|entry| entry.order);
-        GridFrames { rows, columns, frames: self.frames.values().map(|(frame, _)| frame.clone()).collect(), summary_label: self.definition.summary_label.clone() }
+        GridFrames {
+            rows,
+            columns,
+            frames: self.frames.values().map(|(frame, _)| frame.clone()).collect(),
+            summary_label: self.definition.summary_label.clone(),
+        }
     }
-
 }
 
 /* === Public Functions === */
@@ -172,25 +266,33 @@ mod tests {
     use super::*;
     use crate::document::GridAxisEntry;
     use crate::expressions::telemetry;
-    use dokime_domain::model::{identity::Identifier, time::Timestamp};
     use crate::model::identity::new_id;
+    use dokime_domain::model::{identity::Identifier, time::Timestamp};
 
     #[test]
     fn generic_frames_reduce_duplicates_and_refuse_unknown_keys() {
-        let entry = |key: &str, order| GridAxisEntry { key: key.into(), label: key.into(), order, group: Some("Sensors".into()) };
+        let entry = |key: &str, order| GridAxisEntry {
+            key: key.into(),
+            label: key.into(),
+            order,
+            group: Some("Sensors".into()),
+        };
         let mut request = PlotPayloadRequest {
             reduction: Some(Reduction::Max),
             y_expressions: vec![telemetry("readings", "value")],
             grid: Some(GridDefinition {
-                row: Some(telemetry("readings", "row")), column: Some(telemetry("readings", "column")),
+                row: Some(telemetry("readings", "row")),
+                column: Some(telemetry("readings", "column")),
                 frame: Some(telemetry("readings", "timestamp")),
-                rows: vec![entry("b", 1), entry("a", 0)], columns: vec![entry("left", 0), entry("right", 1)],
+                rows: vec![entry("b", 1), entry("a", 0)],
+                columns: vec![entry("left", 0), entry("right", 1)],
                 ..Default::default()
             }),
             ..Default::default()
         };
         let mut frames = Frames::new(&request, 100).unwrap();
-        let mut sample = TelemetrySample::new(new_id(), Identifier::new("readings").unwrap(), 0, Timestamp::new("2026-10-01T00:00:01Z"), "fixture");
+        let mut sample =
+            TelemetrySample::new(new_id(), Identifier::new("readings").unwrap(), 0, Timestamp::new("2026-10-01T00:00:01Z"), "fixture");
         sample.values.insert("row".into(), crate::Value::Text("a".into()));
         sample.values.insert("column".into(), crate::Value::Text("left".into()));
         for value in [2.0, 6.0, f64::NAN] {
@@ -209,10 +311,24 @@ mod tests {
         sample.values.insert("row".into(), crate::Value::Text("a".into()));
         sample.values.insert("column".into(), crate::Value::Text("left".into()));
         for (reduction, expected) in [(Reduction::Mean, 4.0), (Reduction::Min, 2.0), (Reduction::Max, 6.0)] {
-            let mut reduced_request = request.clone(); reduced_request.reduction = Some(reduction);
+            let mut reduced_request = request.clone();
+            reduced_request.reduction = Some(reduction);
             let mut reduced = Frames::new(&reduced_request, 100).unwrap();
-            for value in [2.0, 6.0] { sample.values.insert("value".into(), crate::Value::Number(value)); reduced.push(&sample).unwrap(); }
+            for value in [2.0, 6.0] {
+                sample.values.insert("value".into(), crate::Value::Number(value));
+                reduced.push(&sample).unwrap();
+            }
             assert_eq!(reduced.finish().frames[0].values[0], expected);
+            let mut other = Frames::new(&reduced_request, 100).unwrap();
+            sample.values.insert("value".into(), crate::Value::Number(10.0));
+            other.push(&sample).unwrap();
+            reduced.merge(other);
+            let expected = match reduction {
+                Reduction::Mean => 6.0,
+                Reduction::Min => 2.0,
+                Reduction::Max => 10.0,
+            };
+            assert!((reduced.finish().frames[0].values[0] - expected).abs() < 1e-12);
         }
         let mut bounded = Frames::new(&request, 12).unwrap();
         for second in 0..20 {

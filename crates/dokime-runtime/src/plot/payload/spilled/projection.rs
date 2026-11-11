@@ -159,18 +159,32 @@ impl<'a> Projection<'a> {
         let z = z_value(read, sample, self.request)?;
         let x_key = self.request.x_key.as_deref().unwrap_or("timestamp");
         let time_order = self.request.analysis.is_some()
-            || matches!(self.request.plot_type, Some(crate::document::PlotType::Trajectory | crate::document::PlotType::FrequencySeries | crate::document::PlotType::Bar | crate::document::PlotType::Pie));
+            || matches!(
+                self.request.plot_type,
+                Some(
+                    crate::document::PlotType::Trajectory
+                        | crate::document::PlotType::FrequencySeries
+                        | crate::document::PlotType::Bar
+                        | crate::document::PlotType::Pie
+                )
+            );
         let sort = if time_order || x_key == "timestamp" { 0.0 } else { payload::x_sort_value(sample, x_key) };
         for (index, input) in self.inputs.iter().copied().enumerate() {
             let y = input.value(sample);
-            if !self.aggregate && matches!(input, Input::Expression(_)) && y.is_none() && self.request.plot_type != Some(crate::document::PlotType::Pie) && !self.request.pareto {
+            if !self.aggregate
+                && matches!(input, Input::Expression(_))
+                && y.is_none()
+                && self.request.plot_type != Some(crate::document::PlotType::Pie)
+                && !self.request.pareto
+            {
                 continue;
             }
             let x = match input {
                 Input::Field(_) => payload::x_input(sample, x_key),
                 Input::Expression(_) => payload::expression_x_input(sample, self.request.x_expression.as_ref(), x_key),
             };
-            let point = PlotPoint { instant: payload::point_instant(sample, self.request),
+            let point = PlotPoint {
+                instant: payload::point_instant(sample, self.request),
                 x: payload::projection::x_value(x)?,
                 y,
                 z,
@@ -320,7 +334,8 @@ pub(super) fn rows(
     while let Some(row) = rows.next().map_err(failure)? {
         let x: String = row.get(0).map_err(failure)?;
         let x = serde_json::from_str(&x).map_err(failure)?;
-        let point = PlotPoint { instant: row.get(4).map_err(failure)?,
+        let point = PlotPoint {
+            instant: row.get(4).map_err(failure)?,
             x,
             y: number(row.get(1).map_err(failure)?)?,
             z: number(row.get(2).map_err(failure)?)?,

@@ -148,8 +148,15 @@ fn display_scale_refuses_other_axes() {
     use model::document::{PlotAxisKind, PlotType};
 
     for plot_type in [
-        PlotType::Bar, PlotType::Pie, PlotType::Xy, PlotType::Trajectory, PlotType::Contour,
-        PlotType::GridChart, PlotType::FrequencySeries, PlotType::Histogram, PlotType::BoxPlot,
+        PlotType::Bar,
+        PlotType::Pie,
+        PlotType::Xy,
+        PlotType::Trajectory,
+        PlotType::Contour,
+        PlotType::GridChart,
+        PlotType::FrequencySeries,
+        PlotType::Histogram,
+        PlotType::BoxPlot,
     ] {
         let mut plot = PlotDefinition::with_type("Unsupported Axis", plot_type);
         plot.scale(1e3);
@@ -255,16 +262,27 @@ fn box_keeps_y() {
     assert!(message.contains("box_summary plots must declare exactly one y field or y expression"), "{message}");
 }
 
-
 #[test]
 fn catalog_options_and_retired_names() {
     use model::document::{BarArrangement, PlotType, XyInterval};
-    for (name, replacement) in [("xy_interval", "XY with interval=sigma"), ("heatmap", "CONTOUR"), ("xy_value_heatmap", "CONTOUR"), ("wifi_channel_occupancy", "GRID_CHART"), ("grouped_bar", "BAR with arrangement=grouped"), ("stacked_bar", "BAR with arrangement=stacked"), ("pareto", "BAR with pareto=true"), ("donut", "PIE with hole=0.5"), ("box_summary", "BOX_PLOT"), ("aggregate_table", "Summary card")] {
+    for (name, replacement) in [
+        ("xy_interval", "XY with interval=sigma"),
+        ("heatmap", "CONTOUR"),
+        ("xy_value_heatmap", "CONTOUR"),
+        ("wifi_channel_occupancy", "GRID_CHART"),
+        ("grouped_bar", "BAR with arrangement=grouped"),
+        ("stacked_bar", "BAR with arrangement=stacked"),
+        ("pareto", "BAR with pareto=true"),
+        ("donut", "PIE with hole=0.5"),
+        ("box_summary", "BOX_PLOT"),
+        ("aggregate_table", "Summary card"),
+    ] {
         let error = serde_json::from_value::<PlotType>(serde_json::json!(name)).unwrap_err();
         assert!(error.to_string().contains(replacement), "{error}");
     }
     let mut plot = PlotDefinition::with_type("Totals", PlotType::Bar);
-    plot.x = Some("category".into()); plot.y = vec!["value".into()];
+    plot.x = Some("category".into());
+    plot.y = vec!["value".into()];
     plot.arrangement = Some(BarArrangement::Grouped);
     assert!(validate_plot_definition(&plot).is_err());
     plot.series_by = Some("group".into());
@@ -277,10 +295,19 @@ fn catalog_options_and_retired_names() {
     assert!(validate_plot_definition(&plot).is_err());
     plot.series_by = None;
     validate_plot_definition(&plot).unwrap();
-    plot.pareto = false; plot.plot_type = PlotType::Pie;
-    for hole in [None, Some(0.0), Some(0.5)] { plot.hole = hole; validate_plot_definition(&plot).unwrap(); }
-    for hole in [-0.1, 1.0, f64::NAN, f64::INFINITY] { plot.hole = Some(hole); assert!(validate_plot_definition(&plot).is_err()); }
-    plot.hole = None; plot.plot_type = PlotType::Xy; plot.xy_interval = Some(XyInterval::Sigma);
+    plot.pareto = false;
+    plot.plot_type = PlotType::Pie;
+    for hole in [None, Some(0.0), Some(0.5)] {
+        plot.hole = hole;
+        validate_plot_definition(&plot).unwrap();
+    }
+    for hole in [-0.1, 1.0, f64::NAN, f64::INFINITY] {
+        plot.hole = Some(hole);
+        assert!(validate_plot_definition(&plot).is_err());
+    }
+    plot.hole = None;
+    plot.plot_type = PlotType::Xy;
+    plot.xy_interval = Some(XyInterval::Sigma);
     validate_plot_definition(&plot).unwrap();
     let encoded = serde_json::to_value(&plot).unwrap();
     let decoded = serde_json::from_value::<PlotDefinition>(encoded).unwrap();

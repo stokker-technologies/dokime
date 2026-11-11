@@ -147,16 +147,28 @@ pub(crate) fn plot_filter_wire(filter: &DocumentFilter) -> Result<dokime::domain
     })
 }
 
-pub(crate) fn grid_definition_wire(value: &dokime::document::GridDefinition) -> Result<dokime::domain::model::plots::wire::GridDefinition, Status> {
+pub(crate) fn grid_definition_wire(
+    value: &dokime::document::GridDefinition,
+) -> Result<dokime::domain::model::plots::wire::GridDefinition, Status> {
     use dokime::domain::model::plots::wire;
     Ok(wire::GridDefinition {
         row: value.row.as_ref().map(data_expression_wire).transpose()?,
         column: value.column.as_ref().map(data_expression_wire).transpose()?,
         frame: value.frame.as_ref().map(data_expression_wire).transpose()?,
-        rows: value.rows.clone(), columns: value.columns.clone(), summary_label: value.summary_label.clone(),
-        highlights: value.highlights.iter().map(|highlight| Ok(wire::GridHighlight {
-            row: Some(data_expression_wire(&highlight.row)?), column: Some(data_expression_wire(&highlight.column)?), label: highlight.label.clone(),
-        })).collect::<Result<_, Status>>()?,
+        rows: value.rows.clone(),
+        columns: value.columns.clone(),
+        summary_label: value.summary_label.clone(),
+        highlights: value
+            .highlights
+            .iter()
+            .map(|highlight| {
+                Ok(wire::GridHighlight {
+                    row: Some(data_expression_wire(&highlight.row)?),
+                    column: Some(data_expression_wire(&highlight.column)?),
+                    label: highlight.label.clone(),
+                })
+            })
+            .collect::<Result<_, Status>>()?,
     })
 }
 
@@ -582,7 +594,6 @@ fn plot_analysis(value: dokime::runtime::query::PlotAnalysis) -> Result<dokime::
                 })
             })?,
         }),
-
     };
     Ok(wire::PlotAnalysis { result: Some(result) })
 }
@@ -616,7 +627,9 @@ fn plot_frame(
             };
             let instants = if series.points.iter().any(|point| point.instant.is_some()) {
                 series.points.iter().map(|point| point.instant.clone().unwrap_or_default()).collect()
-            } else { Vec::new() };
+            } else {
+                Vec::new()
+            };
             Ok(PlotColumn {
                 instants,
                 x: mapped(x, |x| canonical::encode_json(x, &mut Budget::new()?, 0))?,
@@ -696,7 +709,8 @@ mod tests {
             raw_points: 2,
             downsampled: false,
             format: None,
-            points: vec![PlotPoint { instant: None,
+            points: vec![PlotPoint {
+                instant: None,
                 x: serde_json::json!("Category"),
                 y: Some(2.0),
                 z: Some(7.0),

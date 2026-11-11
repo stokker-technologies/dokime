@@ -74,10 +74,7 @@ impl v1::PlotKind {
         if let Some(name) = retired {
             return Err(format!("{name}: use {}", retired_plot_kind(name).expect("retired kind has a replacement")));
         }
-        Self::try_from(number)
-            .ok()
-            .filter(|kind| *kind != Self::Unspecified)
-            .ok_or_else(|| format!("unknown plot kind number {number}"))
+        Self::try_from(number).ok().filter(|kind| *kind != Self::Unspecified).ok_or_else(|| format!("unknown plot kind number {number}"))
     }
 }
 

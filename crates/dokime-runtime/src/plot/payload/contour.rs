@@ -41,7 +41,9 @@ use dokime_domain::model::plots::wire::ContourGrid;
 pub(super) fn bin(series: &[PlotSeries], request: &PlotPayloadRequest) -> Result<ContourGrid, String> {
     let columns = request.panel_width.unwrap_or(36);
     let rows = request.panel_height.unwrap_or(28);
-    let count = columns.checked_mul(rows).filter(|count| *count > 0 && *count <= 262_144)
+    let count = columns
+        .checked_mul(rows)
+        .filter(|count| *count > 0 && *count <= 262_144)
         .ok_or("contour panel dimensions exceed the display budget or are zero")? as usize;
     let points = series.iter().flat_map(|series| &series.points).filter_map(|point| {
         let x = transformed(point.x.as_f64()?, &request.x_scale)?;
@@ -117,29 +119,43 @@ fn index(value: f64, bounds: PlotWindow, bins: u32) -> Option<u32> {
 }
 
 fn edges(bounds: PlotWindow, bins: u32, scale: &AxisScale) -> Vec<f64> {
-    (0..=bins).map(|index| {
-        let value = bounds.from + (bounds.to - bounds.from) * f64::from(index) / f64::from(bins);
-        if *scale == AxisScale::Log { value.exp() } else { value }
-    }).collect()
+    (0..=bins)
+        .map(|index| {
+            let value = bounds.from + (bounds.to - bounds.from) * f64::from(index) / f64::from(bins);
+            if *scale == AxisScale::Log { value.exp() } else { value }
+        })
+        .collect()
 }
 
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::PlotPoint;
+    use super::*;
 
     #[test]
     fn sparse_duplicates_invalid_samples_and_zero() {
         let series = vec![PlotSeries {
-            key: "z".into(), label: "Z".into(), unit: None, raw_points: 5,
-            downsampled: false, format: None,
+            key: "z".into(),
+            label: "Z".into(),
+            unit: None,
+            raw_points: 5,
+            downsampled: false,
+            format: None,
             points: [(0.1, 0.1, 2.0), (0.2, 0.2, 6.0), (1.5, 1.5, 0.0), (0.1, 0.1, f64::NAN), (f64::INFINITY, 1.0, 7.0)]
-                .into_iter().map(|(x, y, z)| PlotPoint { instant: None, x: serde_json::json!(x), y: Some(y), z: Some(z) }).collect(),
+                .into_iter()
+                .map(|(x, y, z)| PlotPoint {
+                    instant: None,
+                    x: serde_json::json!(x),
+                    y: Some(y),
+                    z: Some(z),
+                })
+                .collect(),
         }];
         let mut request = PlotPayloadRequest {
-            panel_width: Some(2), panel_height: Some(2),
+            panel_width: Some(2),
+            panel_height: Some(2),
             viewport: Some(PlotWindow { from: 0.0, to: 2.0 }),
             y_viewport: Some(PlotWindow { from: 0.0, to: 2.0 }),
             ..Default::default()

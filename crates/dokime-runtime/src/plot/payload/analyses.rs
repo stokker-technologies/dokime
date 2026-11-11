@@ -9,8 +9,6 @@
 
 /* === Modules === */
 
-
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -267,7 +265,8 @@ pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Resul
             // Voltage amplitude into the conventional 50-ohm reference load.
             FrequencyLevelUnit::Dbm => 10.0 * (rms * rms / 0.05).max(f64::MIN_POSITIVE).log10(),
         };
-        points.push(PlotPoint { instant: None,
+        points.push(PlotPoint {
+            instant: None,
             x: frequency.into(),
             y: Some(level),
             z: None,
@@ -520,7 +519,16 @@ mod tests {
             key: "spectrum".into(),
             label: "Spectrum".into(),
             unit: Some("V".into()),
-            points: samples.iter().enumerate().map(|(index, &value)| PlotPoint { instant: None, x: index.into(), y: Some(value), z: None }).collect(),
+            points: samples
+                .iter()
+                .enumerate()
+                .map(|(index, &value)| PlotPoint {
+                    instant: None,
+                    x: index.into(),
+                    y: Some(value),
+                    z: None,
+                })
+                .collect(),
             raw_points: samples.len(),
             downsampled: false,
             format: None,
@@ -613,16 +621,42 @@ mod interval_tests {
             label: "Interval".into(),
             unit: None,
             points: vec![
-                PlotPoint { instant: None, x: (-0.1).into(), y: Some(1.0), z: None },
-                PlotPoint { instant: None, x: 0.0.into(), y: Some(2.0), z: None },
-                PlotPoint { instant: None, x: 0.9.into(), y: Some(4.0), z: None },
-                PlotPoint { instant: None, x: 1.0.into(), y: Some(10.0), z: None },
-                PlotPoint { instant: None,
+                PlotPoint {
+                    instant: None,
+                    x: (-0.1).into(),
+                    y: Some(1.0),
+                    z: None,
+                },
+                PlotPoint {
+                    instant: None,
+                    x: 0.0.into(),
+                    y: Some(2.0),
+                    z: None,
+                },
+                PlotPoint {
+                    instant: None,
+                    x: 0.9.into(),
+                    y: Some(4.0),
+                    z: None,
+                },
+                PlotPoint {
+                    instant: None,
+                    x: 1.0.into(),
+                    y: Some(10.0),
+                    z: None,
+                },
+                PlotPoint {
+                    instant: None,
                     x: 2.0.into(),
                     y: Some(f64::INFINITY),
                     z: None,
                 },
-                PlotPoint { instant: None, x: 3.0.into(), y: None, z: None },
+                PlotPoint {
+                    instant: None,
+                    x: 3.0.into(),
+                    y: None,
+                    z: None,
+                },
             ],
             raw_points: 6,
             downsampled: false,

@@ -27,6 +27,8 @@ import { HistogramChart } from "@/components/HistogramChart";
 import { PiePlot } from "@/plots/catalog/PiePlot";
 import { BarPlot } from "@/plots/catalog/BarPlot";
 import { BoxPlot } from "@/plots/catalog/BoxPlot";
+import { ContourPlot } from "@/plots/catalog/ContourPlot";
+import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { documentPlotSpec } from "@/plots/grouping";
 import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
@@ -220,6 +222,85 @@ function startCanvasFixture() {
               },
             }),
           ),
+          ...["cells", "bands"].map((render) =>
+            createElement(ContourPlot, {
+              key: render,
+              plot: documentPlotSpec({
+                plot: {
+                  plot_id: `contour.${render}`,
+                  title: "Surface",
+                  stream: "readings",
+                  plot_type: "contour",
+                  y: ["y"],
+                  render,
+                } as DocumentViewPlot,
+                payload: {
+                  stream: "readings",
+                  x_key: "x",
+                  series: [],
+                  max_points: 4,
+                  generated_at: "2026-01-01T00:00:00Z",
+                  analysis: {
+                    kind: "contour",
+                    grid: {
+                      columns: 2,
+                      rows: 2,
+                      x_edges: [0, 1, 2],
+                      y_edges: [0, 1, 2],
+                      values: [0, 0, 0, 4],
+                      valid: [true, false, false, true],
+                    },
+                  },
+                },
+              }),
+            }),
+          ),
+          ...["grouped", "stacked", "pareto"].map((option) =>
+            createElement(BarPlot, {
+              key: option,
+              plot: {
+                ...plot,
+                plotType: "bar",
+                arrangement: option === "pareto" ? null : (option as "grouped" | "stacked"),
+                pareto: option === "pareto",
+                analysis: null,
+                series: (option === "pareto" ? [0] : [0, 1]).map((index) => ({
+                  key: `series${index}`,
+                  label: `Series ${index}`,
+                  raw_points: 3,
+                  downsampled: false,
+                  points: [
+                    { x: "a", y: 2 + index },
+                    { x: "b", y: 3 + index },
+                    { x: "c", y: 3 + index },
+                  ],
+                })),
+              },
+            }),
+          ),
+          createElement(XyIntervalPlot, {
+            plot: documentPlotSpec({
+              plot: {
+                plot_id: "interval",
+                title: "Interval",
+                stream: "readings",
+                plot_type: "xy",
+                xy_interval: "sigma",
+                y: ["value"],
+              } as DocumentViewPlot,
+              payload: {
+                stream: "readings",
+                x_key: "x",
+                max_points: 10,
+                generated_at: "2026-01-01T00:00:00Z",
+                series: [],
+                analysis: {
+                  kind: "sigma_interval",
+                  series: [{ key: "value", raw_points: 5, bins: [{ x: 1, count: 5, mean: 4, lower: 2, upper: 6 }] }],
+                },
+              },
+            }),
+          }),
           ...[0, 0.5].map((hole) =>
             createElement(
               "div",
