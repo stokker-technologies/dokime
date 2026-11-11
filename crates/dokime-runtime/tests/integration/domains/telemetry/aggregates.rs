@@ -94,6 +94,7 @@ impl ExecutionFixture for NumericFixture {
                     (
                         "host.wifi.scan",
                         std::collections::BTreeMap::from([
+                            ("wifi_band".into(), Value::from("2.4GHz")),
                             ("wifi_channel".into(), Value::Integer(1)),
                             ("network_count".into(), Value::Integer(scan + 1)),
                         ]),
@@ -101,6 +102,7 @@ impl ExecutionFixture for NumericFixture {
                     (
                         "host.wifi.scan",
                         std::collections::BTreeMap::from([
+                            ("wifi_band".into(), Value::from("2.4GHz")),
                             ("wifi_channel".into(), Value::Integer(6)),
                             ("network_count".into(), Value::Integer(scan + 2)),
                         ]),
@@ -204,7 +206,7 @@ async fn exact_numeric_outputs() {
     let mut reconnect = dokime_runtime::document::Plot::time_series("Time to Reconnect Tool");
     reconnect.y(dokime_runtime::expressions::record("tool.connection.acquired").time_between("tool.connection.lost"));
     section.plot(reconnect);
-    let occupancy = plugin_host::domain::document::wifi_channel_occupancy("Wi-Fi Channel Occupancy");
+    let occupancy = plugin_host::domain::document::wifi_channel_grid("Wi-Fi Channel Occupancy");
     section.plot(occupancy);
     let mut rssi = dokime_runtime::document::Plot::time_series("Wi-Fi RSSI");
     rssi.y(dokime_runtime::expressions::telemetry("host.wifi.link", "wifi_rssi_dbm").label("fixture.signal"));
@@ -281,10 +283,19 @@ async fn exact_numeric_outputs() {
         vec![1.0, 2.0, 3.0]
     );
     assert_eq!(reconnect["cartesian"]["mode"], "aligned");
-    let occupancy = plots.values().find(|plot| plot["analysis"]["kind"] == "wifi_occupancy").unwrap();
-    assert_eq!(occupancy["analysis"]["channels"], serde_json::json!([1, 6]));
-    assert_eq!(occupancy["analysis"]["scans"].as_array().unwrap().last().unwrap()["total_networks"], 7);
-    assert_eq!(occupancy["series"].as_array().unwrap().iter().map(|series| series["raw_points"].as_u64().unwrap()).sum::<u64>(), 6);
+    let occupancy = plots.values().find(|plot| plot["analysis"]["kind"] == "grid_chart").unwrap();
+    let grid = &occupancy["analysis"]["data"];
+    let frames = grid["frames"].as_array().unwrap();
+    assert_eq!(frames.len(), 3);
+    let width = grid["columns"].as_array().unwrap().len();
+    let row = grid["rows"].as_array().unwrap().iter().position(|entry| entry["key"] == "2.4GHz").unwrap();
+    for (key, value) in [("1", 3.0), ("6", 4.0)] {
+        let column = grid["columns"].as_array().unwrap().iter().position(|entry| entry["key"] == key).unwrap();
+        let cell = row * width + column;
+        assert_eq!(frames.last().unwrap()["values"][cell], value);
+        assert_eq!(frames.last().unwrap()["valid"][cell], true);
+    }
+    assert_eq!(frames.iter().flat_map(|frame| frame["valid"].as_array().unwrap()).filter(|value| value.as_bool() == Some(true)).count(), 6);
     assert_eq!(plot["series"][0]["raw_points"], VALUES.len());
     let points = plot["series"][0]["points"].as_array().unwrap();
     assert_eq!(points.iter().map(|point| point["y"].as_f64().unwrap()).fold(f64::INFINITY, f64::min), -7.0);

@@ -13,8 +13,8 @@
 
 ## 3. Interface Kinds
 
-- [x] 3.1 Replace heatmap dispatch/interpolation with contour cells and d3 filled bands/isolines masked to valid bins; render generic grid frames without domain code and prove gaps/zero distinction.
-- [x] 3.2 Implement the agreed bar, pie, XY interval and box-plot catalog/options, route aggregate summaries to existing cards, migrate adapters and remove superseded kinds/renderers/tests; prove each advertised kind/option.
+- [ ] 3.1 Replace heatmap dispatch/interpolation with contour cells and d3 filled bands/isolines masked to valid bins; render generic grid frames without domain code and prove gaps/zero distinction.
+- [ ] 3.2 Implement the agreed bar, pie, XY interval and box-plot catalog/options, route aggregate summaries to existing cards, migrate adapters and remove superseded kinds/renderers/tests; prove each advertised kind/option.
 
 ## 4. Shared Playback Control
 
@@ -28,7 +28,7 @@
 
 ## 6. SDK Builders
 
-- [x] 6.1 Regenerate message builders for all SDK languages and implement thin expression-chain conveniences/options, matching Python and Rust examples; remove retired constructors and provide replacement diagnostics.
+- [ ] 6.1 Regenerate message builders for all SDK languages and implement thin expression-chain conveniences/options, matching Python and Rust examples; remove retired constructors and provide replacement diagnostics.
 
 ## 7. Plugin Documents and Scenes
 
