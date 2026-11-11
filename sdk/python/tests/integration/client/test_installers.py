@@ -64,6 +64,10 @@ def test_installer_keeps_compiled_trust_and_organization_owned_sources(tmp_path:
 def test_organization_generation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assets = tmp_path / "organization"
     shutil.copytree(organization.BRAND, assets)
+    manifest = assets / "organization.toml"
+    authored = manifest.read_text(encoding="utf-8")
+    authored = re.sub(r"(?m)^sm = .*", 'sm = "0.375rem"', authored)
+    manifest.write_text(authored, encoding="utf-8")
     config = tmp_path / "crates/dokime-gui/src-tauri/tauri.conf.json"
     config.parent.mkdir(parents=True)
     compiled = {"identifier": "com.example.fixed", "app": {"windows": [{"create": False, "title": "Compiled Title"}]}}
@@ -86,7 +90,7 @@ def test_organization_generation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     fonts = re.findall(r'url\("data:font/woff2,([^\"]+)"\)', stylesheet)
     assert sorted(unquote_to_bytes(font) for font in fonts) == sorted(path.read_bytes() for path in (assets / "fonts").glob("*.woff2"))
     assert 'url("fonts/' not in stylesheet
-    assert "--brand-radius-sm: 0.0625rem" in stylesheet
+    assert "--brand-radius-sm: 0.375rem" in stylesheet
 
 
 def test_organization_resources_include_sidebar_image(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
