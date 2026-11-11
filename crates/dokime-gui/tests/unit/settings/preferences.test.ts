@@ -20,11 +20,12 @@ import assert from "node:assert/strict";
 import type { SettingsSnapshot } from "@generated/application-settings";
 import defaults from "@generated/application-settings.json";
 // Third Party Imports
-import { act, createElement } from "react";
+import { act, type ComponentProps, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, onTestFinished, test, vi } from "vitest";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
+import { InstalledPluginSettingsForm } from "@/features/settings/installed-plugins/InstalledPluginSettingsForm";
 import { preferencesKey, usePreferences, useSavePreferences } from "@/features/settings/application-preferences";
 import { createDebouncedWriter } from "@/features/settings/settings-autosave";
 
@@ -110,7 +111,18 @@ vi.mock("@tanstack/react-query", () => ({
   },
   useMutation: (options: (typeof fixture.mutations)[number]) => {
     fixture.mutations.push(options);
-    return { mutateAsync: vi.fn(), reset: vi.fn(), mutate: vi.fn(), isPending: false, error: fixture.saveError, isSuccess: false };
+    return {
+      mutateAsync: async (input: Parameters<typeof options.mutationFn>[0]) => {
+        const saved = await options.mutationFn(input);
+        options.onSuccess(saved);
+        return saved;
+      },
+      reset: vi.fn(),
+      mutate: vi.fn(),
+      isPending: false,
+      error: fixture.saveError,
+      isSuccess: false,
+    };
   },
   useQueryClient: () => ({ setQueryData: fixture.cache, invalidateQueries: fixture.invalidate }),
 }));
@@ -386,4 +398,131 @@ test("Preference Choices Keep Their Values and Keyboard Selection", async () => 
     assert.equal(native.value, next);
     assert.equal(trigger.getAttribute("aria-expanded"), "false");
   }
+});
+
+test("Numeric Preferences Preserve Typing While Earlier Autosaves Complete", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.useFakeTimers();
+  fixture.cache.mockImplementation((_key, saved) => {
+    fixture.snapshot = saved;
+  });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  onTestFinished(async () => {
+    await act(async () => root.unmount());
+    host.remove();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+  const render = () =>
+    act(async () =>
+      root.render(
+        createElement(
+          "div",
+          null,
+          createElement(ApplicationPreferences, { advanced: true }),
+          createElement(ApplicationPreferences, { advanced: true, section: "plugins" }),
+        ),
+      ),
+    );
+  await render();
+  const inputs = [...host.querySelectorAll<HTMLInputElement>('input[type="number"]')];
+  assert.ok(inputs.length > 0);
+  let revision = 7;
+  for (const input of inputs) {
+    let finish: ((saved: SettingsSnapshot) => void) | undefined;
+    fixture.update.mockImplementationOnce(
+      () =>
+        new Promise<SettingsSnapshot>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fixture.update.mockImplementation((_scope, request) => ({ revision: ++revision, settings: request.settings }));
+    input.focus();
+    for (const value of ["", "2", "25", "250", "2500"]) {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      if (value === "2") await act(async () => vi.advanceTimersByTimeAsync(100));
+      if (value === "25") {
+        const complete = finish;
+        assert.ok(complete, "the earlier draft is saving");
+        const request = fixture.update.mock.calls.at(-1)?.[1];
+        assert.ok(request);
+        const saved = { revision: ++revision, settings: request.settings };
+        fixture.snapshot = saved;
+        await act(async () => complete(saved));
+      }
+      await render();
+      assert.equal(document.getElementById(input.id), input);
+      assert.equal(document.activeElement, input);
+      assert.equal(input.value, value, input.id);
+    }
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    assert.equal(input.value, "2500", input.id);
+    const [group, key] = input.id.slice(input.id.indexOf("-") + 1).split(".");
+    const request = fixture.update.mock.calls.at(-1)?.[1];
+    assert.ok(request);
+    const settings = request.settings;
+    assert.equal((settings[group] as Record<string, unknown>)[key], 2500);
+  }
+});
+
+test("Plugin Numeric Settings Preserve Incomplete Edits", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.useFakeTimers();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  onTestFinished(async () => {
+    await act(async () => root.unmount());
+    host.remove();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+  const save = vi.fn(async (): Promise<void> => {});
+  let finish: (() => void) | undefined;
+  save.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const props: ComponentProps<typeof InstalledPluginSettingsForm> = {
+    schema: {
+      contributions: [{ kind: "number", id: "budget", title: "Budget", description: "", default: 1000, min: 1000, max: 10000, step: 1 }],
+    },
+    values: { budget: 1000 },
+    discovered: {},
+    onSubmit: save,
+  };
+  await act(async () => root.render(createElement(InstalledPluginSettingsForm, props)));
+  const input = host.querySelector<HTMLInputElement>('input[type="number"]');
+  assert.ok(input);
+  input.focus();
+  for (const value of ["", "2", "25", "250", "2500", "250", "", "2", "25", "250", "2500"]) {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    assert.equal(input.value, value);
+    assert.equal(document.activeElement, input);
+    if (value === "250") await act(async () => vi.advanceTimersByTimeAsync(100));
+    assert.equal(save.mock.calls.length, 0);
+  }
+  await act(async () => vi.advanceTimersByTimeAsync(100));
+  assert.deepEqual(save.mock.calls, [[{ budget: 2500 }]]);
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "3000");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => root.render(createElement(InstalledPluginSettingsForm, { ...props, values: { budget: 2500 } })));
+  const complete = finish;
+  assert.ok(complete);
+  await act(async () => complete());
+  assert.equal(input.value, "3000", "an earlier save cannot replace the newer edit");
+  await act(async () => vi.advanceTimersByTimeAsync(100));
+  assert.deepEqual(save.mock.calls, [[{ budget: 2500 }], [{ budget: 3000 }]]);
 });

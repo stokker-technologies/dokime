@@ -228,7 +228,7 @@ function PreferencesForm({
   const saveRef = useRef(save.mutateAsync);
   saveRef.current = save.mutateAsync;
   useEffect(() => {
-    if (edited.size === 0 && !writing.current) {
+    if (edited.size === 0 && !writing.current && snapshot.revision >= baseline.current.revision) {
       baseline.current = snapshot;
       setDraft(structuredClone(snapshot.settings));
     }

@@ -25,6 +25,7 @@ export type AutosaveState =
 export type Autosave<T> = {
   /** Writes after the debounce; use for text and number inputs. */
   change: (value: T) => void;
+  cancel: () => void;
   retry: () => void;
   state: AutosaveState;
 };
@@ -74,7 +75,13 @@ export function useAutosave<T>(
     }
   }, []);
 
-  return { change, retry, state };
+  const cancel = useCallback(() => {
+    writer.current?.cancel();
+    last.current = null;
+    setState({ kind: "idle" });
+  }, []);
+
+  return { change, cancel, retry, state };
 }
 
 /** Serialize Debounced Writes And Keep The Latest Edit While A Write Is In Flight. */

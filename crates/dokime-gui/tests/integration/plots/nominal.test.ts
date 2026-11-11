@@ -1623,6 +1623,7 @@ test("Plot Edits Survive Presentation Changes", async () => {
     );
   };
   let renders = 0;
+  const submit = vi.fn(async () => undefined);
   function Editor(props: ComponentProps<typeof PlotSettingsButton>) {
     renders += 1;
     return createElement(PlotSettingsButton, props);
@@ -1657,7 +1658,7 @@ test("Plot Edits Survive Presentation Changes", async () => {
             documentPlots: [descriptor],
             liveStates: { pulse: state },
             title: "Signals",
-            onPlotSettingsChange: async () => undefined,
+            onPlotSettingsChange: submit,
           }),
         ),
       ),
@@ -1671,13 +1672,22 @@ test("Plot Edits Survive Presentation Changes", async () => {
   await act(async () => trigger.click());
   const input = document.querySelector<HTMLInputElement>("[role=dialog] input[type=number]");
   assert.ok(input);
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "2500");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
   const payload = hostFrame([0, 1], [[2, 3]]);
   const ready = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, payload)]);
   const failed = applyPlotMessages(ready, [{ ...streamMessage("error", 1, payload), warnings: ["fixture"] }]);
+  input.focus();
+  for (const value of ["", "2", "25", "250", "2500"]) {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await render(ready);
+    assert.equal(document.querySelector("[role=dialog] input[type=number]"), input);
+    assert.equal(document.activeElement, input);
+    assert.equal(input.value, value);
+    assert.equal(submit.mock.calls.length, 0, "typing does not submit plot settings");
+  }
+  await render();
   await show(false);
   const pausedRenders = renders;
   for (const state of [ready, failed, ready]) {

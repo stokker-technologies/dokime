@@ -96,10 +96,23 @@ function SettingField({
 }) {
   const id = useId();
   const [fieldValue, setFieldValue] = useState(value);
-  useEffect(() => setFieldValue(value), [value]);
+  const [numberText, setNumberText] = useState(String(value ?? (field.kind === "number" ? (field.default ?? "") : "")));
+  const edited = useRef(false);
+  const version = useRef(0);
+  useEffect(() => {
+    if (edited.current) return;
+    setFieldValue(value);
+    if (field.kind === "number") setNumberText(String(value ?? field.default ?? ""));
+  }, [value, field]);
   const [invalid, setInvalid] = useState(false);
-  const autosave = useAutosave<SettingValues[string] | undefined>(onSave);
+  const autosave = useAutosave<SettingValues[string] | undefined>(async (next) => {
+    const saving = version.current;
+    await onSave(next);
+    if (saving === version.current) edited.current = false;
+  });
   const onChange = (next: SettingValues[string] | undefined) => {
+    edited.current = true;
+    version.current++;
     setFieldValue(next);
     autosave.change(next);
   };
@@ -138,10 +151,14 @@ function SettingField({
           min={field.min ?? undefined}
           max={field.max ?? undefined}
           step={field.step ?? "any"}
-          value={typeof fieldValue === "number" ? fieldValue : (field.default ?? "")}
+          value={numberText}
           onChange={(event) => {
+            edited.current = true;
+            version.current++;
+            setNumberText(event.target.value);
             if (!event.currentTarget.validity.valid || !Number.isFinite(event.target.valueAsNumber)) {
               setInvalid(true);
+              autosave.cancel();
               return;
             }
             setInvalid(false);

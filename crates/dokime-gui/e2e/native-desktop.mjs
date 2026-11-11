@@ -847,7 +847,6 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   };
   session.type = async (element, value) => {
     const key = element["element-6066-11e4-a52e-4f735466cecf"];
-    const numeric = await session.execute("return arguments[0].type === 'number'", [element]);
     await session.click(element);
     await session.request("POST", "/actions", {
       actions: [
@@ -866,11 +865,8 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       ],
     });
     await session.request("DELETE", "/actions");
-    // Let Each Native Number Edit Settle Before Delivering The Next Character.
-    if (numeric) {
-      for (const character of value) await session.key(character);
-      return;
-    }
+    // Send One Native Text Sequence To The Element, Including Number Inputs.
+    // Keep Native Caret Handling Within One WebDriver Operation.
     if (value.length) await session.request("POST", `/element/${key}/value`, { text: value, value: [...value] });
   };
 
@@ -3304,15 +3300,16 @@ async function remoteAccessJourney(recoveredReports) {
   const importPicker = { window: null };
   await until("native pairing import", () => chooseNativeFile(importPicker, second), WAIT_MS);
   const importedIdentifier = JSON.parse(await readFile(second, "utf8")).backend_identifier;
-  await session.connected();
-  await session.execute(
-    "return window.__TAURI_INTERNALS__.invoke('desktop_session_select', {selection: {kind: 'attach', request: {target: {kind: 'local', endpoint: arguments[0]}, expectedBackendId: null}}})",
-    [backend.endpoint],
+  await until("imported remote connection", () =>
+    session.execute(`return window.__TAURI_INTERNALS__.invoke('desktop_session_status').then(snapshot =>
+      snapshot.connection.phase === 'connected' && snapshot.connection.remote);`),
   );
+  await session.connected();
+
+  // Reload Restores The Launch Endpoint Through The UI Session Owner.
   await session.goto("/settings/remote", { reload: true });
 
   // A Failed Bind Preserves The Existing Listener.
-  await session.goto("/settings/remote", { reload: true });
   const occupied = net.createServer();
   occupied.listen(0, "127.0.0.1");
   await once(occupied, "listening");
