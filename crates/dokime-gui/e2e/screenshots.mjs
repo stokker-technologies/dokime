@@ -97,12 +97,6 @@ async function capture(scene, ready, prepare) {
       session.execute("return document.documentElement.classList.contains('dark') === arguments[0]", [theme === "dark"]),
     );
     await prepare(theme);
-    if (["cycle", "touch"].includes(scene)) {
-      const window = await session.find("css selector", '[role="slider"][aria-label$="Window"]');
-      await session.execute("arguments[0].focus()", [window]);
-      await session.key("End");
-      await session.clickNamed("button", "Refresh");
-    }
     await until(`${scene} ready`, async () => {
       if (["cycle", "touch"].includes(scene)) await answerPendingPrompts(session);
       return ready();
@@ -112,6 +106,22 @@ async function capture(scene, ready, prepare) {
         session.execute(`
         const count = document.querySelector('table[aria-label="Trace Statistics"] tbody tr td:nth-child(4)')?.innerText;
         return Number(count?.replaceAll(',', '')) >= 32;
+      `),
+      );
+    }
+    if (["cycle", "touch"].includes(scene)) {
+      const window = await session.find("css selector", '[role="slider"][aria-label$="Window"]');
+      await session.execute("arguments[0].focus()", [window]);
+      await session.key("End");
+      await session.clickNamed("button", "Refresh");
+    }
+    if (["cycle", "touch"].includes(scene)) {
+      await until("complete evidence range refreshed", () =>
+        session.execute(`
+        const section = document.querySelector('[data-execution-section=Report]');
+        const refresh = [...section.querySelectorAll('button')].find(node => node.innerText === 'Refresh');
+        const loading = [...section.querySelectorAll('[data-testid=plot-placeholder]')].some(node => { const r = node.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; });
+        return refresh?.getAttribute('aria-busy') === 'false' && !loading;
       `),
       );
     }

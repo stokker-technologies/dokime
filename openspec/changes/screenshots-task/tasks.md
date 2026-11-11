@@ -19,6 +19,9 @@
   finalization: `dokime.execution.evidence` exceeds its 30-second operation deadline.
   Backend shutdown subsequently exceeds its 25-second runtime stop deadline. The
   smaller finite journey reproduces this; no incomplete image set is published.
+- The rendered histogram has populated bins with positive heights but zero-width
+  bar spans. The journey rejects these invisible bars instead of publishing an
+  empty chart. This is in the GUI histogram presentation, outside capture ownership.
 - Task 1.3 remains open: the current bench plugin declares no reference bands, and
   the current Library is a flat template table with a parameter dialog, without
   the specified expanded suite and template step timeline. These product owners

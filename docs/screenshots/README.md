@@ -39,5 +39,6 @@ light images. The public product site must use these names under `docs/screensho
 The Library currently presents a flat template table and parameter dialog;
 the bench plugin currently declares no reference bands. Those requested scene
 prerequisites and the full workstation review remain open in the change task list.
-Capture currently fails during bench evidence admission at its 30-second operation
-deadline, followed by a backend shutdown timeout; no partial set is published.
+Windows capture attempts found invisible histogram bars and bench evidence
+admission exceeding its 30-second operation deadline, followed by a backend
+shutdown timeout. The journey rejects these failures and publishes no partial set.
