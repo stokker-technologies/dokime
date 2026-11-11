@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { Button } from "@/components/ui/button";
 import { ErrorCard } from "@/components/ErrorCard";
 import type { NotificationFailure } from "@/lib/notification-details";
 import { failureOf } from "@/lib/notification-details";
@@ -852,10 +853,11 @@ export const CartesianPlot = memo(function CartesianPlot({
           {actions}
           {!placeholder ? (
             <>
-              <button
+              <Button
+                variant="outline"
+                size="xs"
                 type="button"
                 aria-pressed={following}
-                className="plot-follow rounded-lg border px-2 py-1 text-xs hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
                 onClick={() => {
                   heldRangeRef.current = null;
                   setFollowing(true);
@@ -868,7 +870,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                 }}
               >
                 {zoom ? "Reset Zoom" : "Follow"}
-              </button>
+              </Button>
               <span className="text-xs text-muted-foreground">
                 {renderedPointCount} Points
                 {downsampledLabel(renderedSeries)}

@@ -48,7 +48,7 @@ export function materializeThemeFamilyVariables(
     ...themeCornerRadiusVariables(theme.corner_radii),
   };
   // Keyboard Focus Is Independent Of The Brand And Destructive Palettes.
-  variables["focus-ring"] ||= mode === "dark" ? "#93c5fd" : "#00205b";
+  variables["focus-ring"] ||= mode === "dark" ? "#93c5fd" : "#001b4a";
   variant.plot_palette?.forEach((color, index) => {
     if (color.trim()) {
       variables[`chart-${index + 1}`] = color;

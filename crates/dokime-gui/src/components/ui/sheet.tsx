@@ -61,7 +61,7 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed inset-y-0 z-40 flex w-full max-w-100 flex-col gap-0 bg-popover text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-150 outline-none",
+          "fixed inset-y-0 z-40 flex w-full max-w-100 flex-col gap-0 bg-popover text-sm text-popover-foreground ring-1 ring-border duration-150 outline-none",
           side === "left"
             ? "left-0 data-open:slide-in-from-left data-closed:slide-out-to-left"
             : "right-0 data-open:slide-in-from-right data-closed:slide-out-to-right",
@@ -90,7 +90,7 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
 
 function SheetTitle({ className, ...props }: React.ComponentProps<typeof SheetPrimitive.Title>) {
   return (
-    <SheetPrimitive.Title data-slot="sheet-title" className={cn("font-heading text-base leading-none font-medium", className)} {...props} />
+    <SheetPrimitive.Title data-slot="sheet-title" className={cn("font-sans text-base leading-none font-medium", className)} {...props} />
   );
 }
 

@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -13,9 +14,11 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { createElement } from "react";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { test } from "vitest";
+import { onTestFinished, test, vi } from "vitest";
+import { EditableOperatorNotes } from "@/components/document/OperatorNotesView";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
 import { MediaGalleryView } from "@/components/MediaGalleryView";
 import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@/components/media-gallery-model";
@@ -574,4 +577,45 @@ test("Media Cards and Tree Share Live Uploads", () => {
   const tree = buildArtifactTree([image, audio, video]);
   assert.equal(tree.folders[0].path, "media");
   assert.equal(tree.folders[0].files.find((file) => file.artifact_id === "image")?.fileName, name);
+});
+
+test("Note Preview Preserves the Draft and Submits It", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  const submit = vi.fn();
+  onTestFinished(() => {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  });
+  await act(async () =>
+    root.render(
+      createElement(EditableOperatorNotes, {
+        notes: [],
+        pending: false,
+        failure: null,
+        onReset: vi.fn(),
+        onSubmit: submit,
+      }),
+    ),
+  );
+  await act(async () => host.querySelector<HTMLButtonElement>("button")?.click());
+  const editor = host.querySelector("textarea");
+  assert.ok(editor);
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(editor, "**fixture**");
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const tabs = host.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+  await act(async () => tabs[1].dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  assert.equal(tabs[1].getAttribute("aria-selected"), "true");
+  const preview = document.getElementById(tabs[1].getAttribute("aria-controls") ?? "");
+  assert.equal(preview?.querySelector("strong")?.textContent, "fixture");
+  await act(async () => tabs[0].dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  assert.equal(host.querySelector("textarea")?.value, "**fixture**");
+  const buttons = host.querySelectorAll<HTMLButtonElement>("button");
+  await act(async () => buttons[buttons.length - 1].click());
+  assert.deepEqual(submit.mock.calls[0][0], { kind: "create", markdown: "**fixture**" });
 });

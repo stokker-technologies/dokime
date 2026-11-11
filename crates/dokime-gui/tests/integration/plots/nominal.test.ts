@@ -927,7 +927,7 @@ test("Boolean State Plots", () => {
   assert.equal(formatBooleanState(0.5), "--");
   for (const zoom of [false, true]) {
     const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom }, createElement(TimeSeriesPlot, { plot })));
-    assert.match(html, /plot-follow/);
+    assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
     assert.doesNotMatch(html, /<table\b/);
   }
   columns[0].value_type = "number";
@@ -1307,7 +1307,7 @@ test("XY Styles Reach the Native Request", () => {
     const spec = documentPlotSpec({ plot, payload: hostFrame([1, 2], [[3, 4]]) });
     assert.equal(spec.style, style);
     const html = renderToStaticMarkup(createElement(PlotInteractionProvider, { zoom: false }, createElement(XyPlot, { plot: spec })));
-    assert.match(html, /plot-follow/);
+    assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
   }
 });
 
@@ -1337,11 +1337,11 @@ test("Plot Statistics", () => {
     assert.match(time, /<thead\b/);
     for (const Component of [XyPlot, TrajectoryPlot]) {
       const xy = render(createElement(Component, { plot: { ...plot, timeAxis: false } }));
-      assert.match(xy, /plot-follow/);
+      assert.match(xy, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
       assert.doesNotMatch(xy, /<table\b/);
     }
     const xy = render(createElement(XyIntervalPlot, { plot: interval }));
-    assert.match(xy, /plot-follow/);
+    assert.match(xy, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
     assert.doesNotMatch(xy, /<table\b/);
   }
 });
@@ -1813,11 +1813,11 @@ test("Bounded Report Envelopes", () => {
         contextSummary: "fixture-network / radio-2 / 6",
       }),
     );
-    assert.ok(html.includes("plot-follow"));
+    assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
     assert.ok(html.includes("[dBm]"));
     assert.ok(html.includes("fixture-network / radio-2 / 6"));
     const missingFrame = renderToStaticMarkup(createElement(CartesianPlot, { title: "Signal", series }));
-    assert.ok(!missingFrame.includes("plot-follow"));
+    assert.doesNotMatch(missingFrame, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
     assert.deepEqual(windowIndices(x, values, null, 640, true), null);
   }
 });
@@ -1858,7 +1858,7 @@ test("Report Metadata Subtitles", () => {
       contextSummary: spec.contextSummary,
     }),
   );
-  assert.ok(html.includes("plot-follow"));
+  assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
   assert.ok(html.includes("fixture-network"));
 });
 

@@ -7,6 +7,7 @@
  * ***
  */
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import type { Row6 as GeneratedHistoryIssue } from "@generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
@@ -17,7 +18,7 @@ import type {
 import type { Row2 as GeneratedNativeCheckpointEvidence } from "@generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
 import type { Row2 as GeneratedCheckpointTelemetryPage } from "@generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
@@ -170,6 +171,7 @@ function Records({ checkpoint, session }: SessionProps) {
 }
 
 function Telemetry({ checkpoint, session }: SessionProps) {
+  const streamId = useId();
   const query = useCheckpointEvidence(session, checkpoint);
   const [selected, setSelected] = useState<string | null>(null);
   if (query.isPending)
@@ -186,19 +188,20 @@ function Telemetry({ checkpoint, session }: SessionProps) {
         <p>No telemetry streams at this checkpoint.</p>
       ) : (
         <>
-          <label className="grid gap-1 text-sm">
+          <label htmlFor={streamId} className="grid gap-1 text-sm">
             Stream
-            <select
-              className="max-w-full rounded border bg-background p-2"
-              value={table}
-              onChange={(event) => setSelected(event.target.value)}
-            >
-              {query.data.telemetryTables.map((item) => (
-                <option key={item.table} value={item.table}>
-                  {item.schema?.metadata?.label || item.schema?.stream || item.table}
-                </option>
-              ))}
-            </select>
+            <Select value={table} onValueChange={setSelected}>
+              <SelectTrigger id={streamId} aria-label="Stream" className="max-w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {query.data.telemetryTables.map((item) => (
+                  <SelectItem key={item.table} value={item.table}>
+                    {item.schema?.metadata?.label || item.schema?.stream || item.table}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <TelemetryRows checkpoint={checkpoint} session={session} table={table} />
         </>

@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { Button } from "@/components/ui/button";
 import { Clipboard, ExternalLink } from "lucide-react";
 
 /* === Local Imports === */
@@ -29,7 +30,7 @@ type PathPillProps = {
 /* === Components === */
 
 export function PathPill({ value, align = "left", copy = true, compact = false, onOpen }: PathPillProps) {
-  const action = `${compact ? "size-4" : "size-5"} grid shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40`;
+  const action = `${compact ? "size-4" : "size-5"} text-muted-foreground hover:bg-background hover:text-foreground`;
 
   async function copyPath() {
     await navigator.clipboard?.writeText(value);
@@ -37,12 +38,14 @@ export function PathPill({ value, align = "left", copy = true, compact = false, 
 
   return (
     <span
-      className={`inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden rounded-full border bg-muted/60 py-1 pl-2 pr-1 font-mono text-foreground ring-1 ring-border/40 ${compact ? "w-full text-xs leading-4" : "text-xs leading-5"} ${align === "right" ? "justify-self-end" : ""}`}
+      className={`inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden rounded-none border bg-muted/60 py-1 pl-2 pr-1 font-mono text-foreground ring-1 ring-border/40 ${compact ? "w-full text-xs leading-4" : "text-xs leading-5"} ${align === "right" ? "justify-self-end" : ""}`}
       title={value}
     >
       <span className="min-w-0 truncate">{compactPath(value)}</span>
       {copy ? (
-        <button
+        <Button
+          variant="plain"
+          size="inline"
           aria-label="Copy Full Path"
           className={action}
           title="Copy Full Path"
@@ -53,10 +56,12 @@ export function PathPill({ value, align = "left", copy = true, compact = false, 
           }}
         >
           <Clipboard size={12} />
-        </button>
+        </Button>
       ) : null}
       {onOpen ? (
-        <button
+        <Button
+          variant="plain"
+          size="inline"
           aria-label="Open with Default Application"
           className={action}
           title="Open with Default Application"
@@ -67,7 +72,7 @@ export function PathPill({ value, align = "left", copy = true, compact = false, 
           }}
         >
           <ExternalLink size={12} />
-        </button>
+        </Button>
       ) : null}
     </span>
   );

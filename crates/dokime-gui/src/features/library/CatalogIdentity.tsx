@@ -14,6 +14,7 @@
 
 /* === External Imports === */
 
+import { Button } from "@/components/ui/button";
 import { failureOf } from "@/lib/notification-details";
 import { Clipboard } from "lucide-react";
 import { Fragment } from "react";
@@ -65,9 +66,11 @@ export function CatalogIdentifier({ className, subject, value }: CatalogIdentifi
           </Fragment>
         ))}
       </span>
-      <button
+      <Button
+        variant="plain"
+        size="inline"
         aria-label={`Copy ${subject} Identifier ${value}`}
-        className="grid size-4 shrink-0 place-items-center rounded-lg hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="grid size-4 shrink-0 place-items-center rounded-lg hover:bg-muted hover:text-foreground"
         onClick={(event) => {
           event.stopPropagation();
           void copyIdentifier(value);
@@ -76,7 +79,7 @@ export function CatalogIdentifier({ className, subject, value }: CatalogIdentifi
         type="button"
       >
         <Clipboard aria-hidden className="size-3" />
-      </button>
+      </Button>
     </span>
   );
 }

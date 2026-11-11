@@ -60,7 +60,7 @@ test.each(["light", "dark"] as const)("Red Organization Palettes Keep %s Focus D
     assert.equal(variables.destructive, destructive);
     assert.equal(variables.primary, palette.primary);
 
-    const surfaces = mode === "dark" ? ["#1b1915", "#24211b"] : ["#ffffff", "#f2ebdd", "#fbf8f0"];
+    const surfaces = mode === "dark" ? ["#111111", "#1a1a1a"] : ["#efecdf", "#d9d4be"];
     for (const surface of surfaces) {
       assert.ok(focusContrast(focus, surface, 1) >= 3);
       assert.ok(focusContrast(focus, surface, 0.5) >= 3);

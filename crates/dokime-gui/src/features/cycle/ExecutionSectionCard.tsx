@@ -45,11 +45,11 @@ export function ExecutionSectionCard({ title, action, children, className, descr
   return (
     <section
       aria-labelledby={titleId}
-      className={cn("grid min-w-0 gap-3 rounded-lg border bg-card p-4", className)}
+      className={cn("grid min-w-0 gap-3 border-t bg-transparent p-4", className)}
       data-execution-section={title}
     >
       <header className="grid min-h-8 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
-        <h2 className="truncate font-heading text-base leading-6 font-semibold" id={titleId}>
+        <h2 className="truncate font-sans text-base leading-6 font-semibold" id={titleId}>
           {title}
         </h2>
         {action ? <div className="grid auto-cols-max grid-flow-col items-center">{action}</div> : <span />}

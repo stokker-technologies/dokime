@@ -22,6 +22,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
+import { Button } from "@/components/ui/button";
 import { failureOf } from "@/lib/notification-details";
 
 /* === Re-Exports === */
@@ -99,7 +100,7 @@ function record(index: number) {
 function buttonIn(node: ReactNode): ReactElement<{ onClick: () => void; type: string; "aria-haspopup": string }> | undefined {
   if (Array.isArray(node)) return node.map(buttonIn).find(Boolean);
   if (!isValidElement<{ children?: ReactNode }>(node)) return undefined;
-  if (node.type === "button") return node as ReturnType<typeof buttonIn>;
+  if (node.type === "button" || node.type === Button) return node as ReturnType<typeof buttonIn>;
   return buttonIn(node.props.children);
 }
 

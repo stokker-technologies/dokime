@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -19,9 +20,10 @@ import assert from "node:assert/strict";
 import type { SettingsSnapshot } from "@generated/application-settings";
 import defaults from "@generated/application-settings.json";
 // Third Party Imports
-import { createElement } from "react";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, test, vi } from "vitest";
+import { beforeEach, onTestFinished, test, vi } from "vitest";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
 import { preferencesKey, usePreferences, useSavePreferences } from "@/features/settings/application-preferences";
 import { createDebouncedWriter } from "@/features/settings/settings-autosave";
@@ -83,6 +85,8 @@ function snapshot(): SettingsSnapshot {
 }
 
 /* === Entry Point === */
+
+vi.mock("@/lib/notifications", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("@/components/NotificationMessage", () => ({
   NotificationMessage: (props: unknown) => {
@@ -155,7 +159,6 @@ test("Advanced Reveals Additional Preference Fields", () => {
   }
   for (const value of ["fixture", "3210", "1234", "5678", "42", "127.0.0.1:9876", "fixture.local, 127.0.0.1"])
     assert.ok(advanced.includes(`value="${value}"`), value);
-  for (const value of ["dark", "compact", "lttb"]) assert.ok(advanced.includes(`value="${value}" selected=""`), value);
 });
 
 test("Plugins Section Edits Only the Backend Plugin Budgets", () => {
@@ -347,5 +350,40 @@ test("Advanced View Persists per Viewer in Desktop and Browser Storage", async (
     }
   } finally {
     vi.unstubAllGlobals();
+  }
+});
+
+test("Preference Choices Keep Their Values and Keyboard Selection", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  onTestFinished(() => {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  });
+  await act(async () => root.render(createElement("form", null, createElement(ApplicationPreferences, { advanced: true }))));
+  for (const [id, value, next] of [
+    ["local-appearance.theme_mode", "dark", "system"],
+    ["local-appearance.density", "compact", "comfortable"],
+    ["backend-report.plot_downsample", "lttb", "auto"],
+  ]) {
+    const trigger = document.getElementById(id) as HTMLButtonElement;
+    assert.equal(trigger.getAttribute("role"), "combobox");
+    const label = trigger.closest("label") ?? host.querySelector(`label[for="${id}"]`);
+    assert.ok(label);
+    await act(async () => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+    const selected = document.querySelector<HTMLElement>('[role="option"][aria-selected="true"]');
+    assert.ok(selected);
+    assert.equal(selected.dataset.state, "checked");
+    const native = trigger.parentElement?.querySelector("select");
+    assert.ok(native);
+    assert.equal(native.value, value);
+    const first = document.querySelector<HTMLElement>('[role="option"]');
+    assert.ok(first);
+    await act(async () => first.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    assert.equal(native.value, next);
+    assert.equal(trigger.getAttribute("aria-expanded"), "false");
   }
 });

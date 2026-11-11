@@ -54,7 +54,9 @@ export function SidebarFrame({ children }: { children: ReactNode }) {
         ) : null}
       </div>
       {mode === "desktop" && !collapsed ? (
-        <button
+        <Button
+          variant="plain"
+          size="inline"
           type="button"
           aria-label="Resize Sidebar"
           className="absolute inset-y-0 right-0 z-10 w-1 cursor-col-resize touch-none hover:bg-primary"

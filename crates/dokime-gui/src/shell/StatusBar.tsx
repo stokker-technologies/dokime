@@ -9,6 +9,8 @@
 
 /* === External Imports === */
 
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SquareTerminal } from "lucide-react";
@@ -53,7 +55,7 @@ import { type FrozenCycleStatus, FrozenStatusBar, StatusBarFrame } from "./Statu
 /* === Constants === */
 
 const statusItemClassName =
-  "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-lg px-2 focus-visible:ring-2 focus-visible:ring-ring";
 
 const CONNECTION_LABEL = {
   connected: "Connected",
@@ -122,7 +124,9 @@ function ConsoleItem() {
   const unseen = cycleId ? consoleAttentionCount(records.data ?? [], drawer.lastOpenedAt) : 0;
 
   return (
-    <button
+    <Button
+      variant="plain"
+      size="inline"
       aria-label={drawer.open ? "Close Console" : "Open Console"}
       className={cn(statusItemClassName, "gap-2", unseen > 0 ? "text-warning" : null)}
       onClick={() => setConsoleState(drawer.open ? { open: false } : { lastOpenedAt: Date.now(), open: true })}
@@ -135,7 +139,7 @@ function ConsoleItem() {
           {unseen}
         </Badge>
       ) : null}
-    </button>
+    </Button>
   );
 }
 
@@ -196,25 +200,11 @@ export function OperationsItem() {
 function OperationBar({ operation }: { operation: BackendOperation }) {
   const percent = operationPercent(operation);
   return (
-    <span
-      aria-valuemax={100}
-      aria-valuemin={0}
-      aria-valuenow={percent ?? undefined}
-      className="relative h-1 w-full self-center overflow-hidden rounded-full bg-muted"
-      role="progressbar"
-    >
-      {percent === null && operation.status === "running" ? (
-        <span className="absolute inset-y-0 w-2/5 animate-progress-indeterminate rounded-full bg-primary motion-reduce:animate-none" />
-      ) : (
-        <span
-          className={cn(
-            "absolute inset-y-0 left-0 rounded-full transition-[width]",
-            operation.status === "failed" ? "bg-destructive" : "bg-primary",
-          )}
-          style={{ width: `${operation.status === "running" ? (percent ?? 0) : 100}%` }}
-        />
-      )}
-    </span>
+    <Progress
+      aria-label={operation.label}
+      value={operation.status === "running" ? percent : 100}
+      className={cn("self-center", operation.status === "failed" && "[&_[data-slot=progress-indicator]]:bg-destructive")}
+    />
   );
 }
 
@@ -235,7 +225,9 @@ function BackendItem() {
             : "neutral";
   const state = stopping === "visible" ? "Stopping…" : CONNECTION_LABEL[status.connection];
   return (
-    <button
+    <Button
+      variant="plain"
+      size="inline"
       aria-label="Open Backends"
       className={cn(statusItemClassName, "gap-2", toneClassName(tone))}
       onClick={() => void navigate({ params: { section: "backends" }, to: "/settings/$section" })}
@@ -244,7 +236,7 @@ function BackendItem() {
     >
       <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
       {label} · {state}
-    </button>
+    </Button>
   );
 }
 
@@ -325,7 +317,9 @@ export function ActiveCycleItem() {
   const active = useActiveCycle();
   return (
     <>
-      <button
+      <Button
+        variant="plain"
+        size="inline"
         aria-label={active.cycle ? `Active Cycle: ${active.cycle.label}, ${active.cycle.statusLabel}` : "Choose Active Cycle"}
         className={cn(statusItemClassName, "min-w-0 max-w-96 gap-2")}
         data-testid="status-active-cycle"
@@ -337,7 +331,7 @@ export function ActiveCycleItem() {
         ) : (
           <span>{active.cycles.length ? "Choose Active Cycle" : "No Open Cycles"}</span>
         )}
-      </button>
+      </Button>
       <ActiveCyclePicker />
     </>
   );

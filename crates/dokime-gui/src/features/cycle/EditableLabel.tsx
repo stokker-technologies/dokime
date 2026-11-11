@@ -47,7 +47,7 @@ export type EditableLabelProps = {
 
 /* === Constants === */
 
-const TITLE_CLASS = "font-heading text-lg leading-7 font-semibold";
+const TITLE_CLASS = "font-sans text-lg leading-7 font-semibold";
 
 /* === Components === */
 

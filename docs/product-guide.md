@@ -1949,7 +1949,7 @@ Native Windows installer styling also belongs in `organization.toml`:
 
 ```toml
 [installer]
-sidebar_color = "#1B1915"
+sidebar_color = "#111111"
 # Optional PNG, relative to the organization pack root:
 # sidebar_image = "installer/sidebar.png"
 ```

@@ -11,6 +11,7 @@
 
 import { PathPill } from "@/components/PathPill";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
 import { isPathLike } from "@/lib/path-display";
 import type { MetricState } from "@/lib/types";
@@ -33,7 +34,7 @@ export function Metric({ label, value, rawValue, detail, presentation = "value",
   const progress = presentation === "progress" ? progressValue(rawValue, value) : null;
 
   return (
-    <Card className={cn("min-h-18 min-w-0 rounded-lg bg-muted/35 py-2", stateClass(state))} size="sm">
+    <Card className={cn("min-h-18 min-w-0 py-2", stateClass(state))} size="sm">
       <CardContent className="grid min-w-0 grid-rows-[--spacing(5)_minmax(--spacing(6),auto)_--spacing(3)] gap-1 px-3">
         <span className="min-w-0 self-end truncate text-xs font-bold leading-tight text-muted-foreground" title={label}>
           {label}
@@ -58,9 +59,7 @@ export function Metric({ label, value, rawValue, detail, presentation = "value",
 function ProgressValue({ percent, state }: { percent: number; state?: MetricState | null }) {
   return (
     <div className="grid min-w-0 gap-1 self-center">
-      <div className="h-2 overflow-hidden rounded-full bg-background ring-1 ring-border">
-        <div className={cn("h-full rounded-full transition-[width] duration-500", progressClass(state))} style={{ width: `${percent}%` }} />
-      </div>
+      <Progress aria-label="Progress" value={percent} className={cn("h-2 bg-background ring-1 ring-border", progressClass(state))} />
       <span className="text-xs font-semibold tabular-nums">{percent.toFixed(0)}%</span>
     </div>
   );
@@ -131,9 +130,9 @@ function stateClass(state?: MetricState | null): string {
 }
 
 function progressClass(state?: MetricState | null): string {
-  if (state === "ok") return "bg-success";
-  if (state === "warning") return "bg-warning";
-  if (state === "critical") return "bg-destructive";
-  if (state === "muted") return "bg-muted-foreground";
-  return "bg-primary";
+  if (state === "ok") return "[&_[data-slot=progress-indicator]]:bg-success";
+  if (state === "warning") return "[&_[data-slot=progress-indicator]]:bg-warning";
+  if (state === "critical") return "[&_[data-slot=progress-indicator]]:bg-destructive";
+  if (state === "muted") return "[&_[data-slot=progress-indicator]]:bg-muted-foreground";
+  return "[&_[data-slot=progress-indicator]]:bg-primary";
 }

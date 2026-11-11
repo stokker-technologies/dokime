@@ -124,7 +124,7 @@ function PromptQueueCard({ open, prompt, steps }: { open: boolean; prompt: Promp
         <OpenPrompt prompt={prompt} />
       ) : (
         <div className="grid min-w-0 gap-1">
-          <p className="font-heading text-sm font-semibold [overflow-wrap:anywhere]">{prompt.title}</p>
+          <p className="font-sans text-sm font-semibold [overflow-wrap:anywhere]">{prompt.title}</p>
           {prompt.message ? <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{prompt.message}</p> : null}
           <p className="text-xs text-muted-foreground">Opens once the prompt above is answered.</p>
         </div>

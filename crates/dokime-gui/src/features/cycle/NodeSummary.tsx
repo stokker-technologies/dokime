@@ -51,7 +51,7 @@ export function NodeSummary({ description, live, onRename, prefix, progress, sta
   return (
     <section className="grid min-w-0 gap-2" aria-label={`${subject} Status`}>
       {!live ? (
-        <h2 className="font-heading text-lg font-semibold">
+        <h2 className="font-sans text-lg font-semibold">
           {prefix}
           {title}
         </h2>

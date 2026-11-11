@@ -138,6 +138,7 @@
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+  --color-link: var(--link, var(--primary));
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -155,7 +156,7 @@
   --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
-  --color-ring: var(--focus-ring, light-dark(#00205b, #93c5fd));
+  --color-ring: var(--focus-ring, light-dark(#001b4a, #93c5fd));
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -246,8 +247,7 @@
   --list-row-height: 2.5rem;
   /* One pill: 22px tall, 10px of horizontal air, 12px text on a 20px line
      inside the 1px border, and one column wide enough for the longest status
-     word this app can print — "Disconnected", measured at 75px in IBM Plex
-     Sans 500 at 12px — so no status ever clips or crowds its own edges. */
+     word this app can print — "Disconnected" — so no status ever clips or crowds its own edges. */
   --pill-height: 1.5rem;
   --pill-pad-x: 0.5rem;
   --pill-text: 0.75rem;
@@ -343,36 +343,6 @@
     --page-bar-height: 4rem;
     --shell-inset: 1rem;
   }
-  [role="menuitem"],
-  [role="option"],
-  [data-slot="dropdown-menu-trigger"] {
-    min-height: var(--control-height);
-  }
-  [data-slot="checkbox"],
-  [data-slot="switch"] {
-    position: relative;
-  }
-  [data-slot="checkbox"]::after,
-  [data-slot="switch"]::after {
-    content: "";
-    position: absolute;
-    inset: -0.75rem;
-  }
-}
-[data-slot="button"],
-[data-slot="input"],
-[data-slot="select-trigger"],
-[data-slot="toggle-group-item"] {
-  height: var(--control-height);
-}
-[data-slot="button"][data-size^="icon"] {
-  width: var(--control-height);
-}
-[data-slot="card"],
-[data-slot="dialog-content"],
-[data-slot="input"],
-[data-slot="select-trigger"] {
-  border-radius: var(--radius-lg);
 }
 
 /* === Base Styles === */
@@ -390,13 +360,16 @@
     @apply min-h-screen bg-background text-foreground antialiased;
   }
 
-  h1,
+  h1 {
+    @apply font-heading;
+  }
+
   h2,
   h3,
   h4,
   h5,
   h6 {
-    @apply font-heading;
+    @apply font-sans;
   }
 
   button:not(:disabled),
@@ -410,41 +383,6 @@
 }
 
 /* === Layout === */
-
-/* Touch control sizing. Unlayered so it wins over the utility-layer heights the
-   primitives ship with, while an explicit `h-[...]`/`size-[...]` on a control —
-   the 56px primary run controls — still opts out. Feature code does not need a
-   local `[data-density=touch]` override. */
-:root[data-density="touch"] [data-slot="button"]:not([class*="h-["]) {
-  height: var(--control-height);
-}
-
-:root[data-density="touch"] [data-slot="button"][data-size^="icon"]:not([class*="size-["]) {
-  height: var(--control-height);
-  width: var(--control-height);
-}
-
-:root[data-density="touch"] :is([data-slot="input"], [data-slot="select-trigger"], [data-slot="toggle-group-item"]):not([class*="h-["]) {
-  height: var(--control-height);
-}
-
-/* A checkbox stays a box, but at touch it grows to 28px and its hit area to
-   44px around it, so a tablet operator can tick a prompt field. */
-:root[data-density="touch"] [data-slot="checkbox"] {
-  position: relative;
-  width: 1.75rem;
-  height: 1.75rem;
-}
-
-:root[data-density="touch"] [data-slot="checkbox"]::after {
-  content: "";
-  position: absolute;
-  inset: -0.5rem;
-}
-
-:root[data-density="touch"] [data-slot="textarea"] {
-  min-height: calc(var(--control-height) * 2);
-}
 
 /* Touch typography. The v2 pass grew the containers but not the text: at
    1920x1200 a 12px caption beside a 48px control still reads as desktop. The
@@ -478,33 +416,6 @@
   line-height: 1.35;
 }
 
-/* 20-24px icons wherever a control ships the 16px default. */
-:root[data-density="touch"] [data-slot="button"] svg:not([class*="size-["]),
-:root[data-density="touch"] [data-slot="select-trigger"] svg:not([class*="size-["]) {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-/* The slider's hit area, not just its 4px track: a live plot window that
-   cannot be grabbed with a thumb is not a touch control. */
-:root[data-density="touch"] [data-slot="slider"] {
-  height: var(--control-height);
-  touch-action: none;
-}
-
-:root[data-density="touch"] [data-slot="slider"] [data-slot="slider-thumb"] {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-/* The plot Follow / Reset Zoom control is a bare button inside the canvas
-   card, so the `[data-slot="button"]` rule above never reaches it. */
-:root[data-density="touch"] .plot-follow {
-  min-height: var(--control-height);
-  padding-inline: 0.75rem;
-  font-size: 1rem;
-}
-
 /* The rail stacks its icon over its label below the desktop breakpoint. The
    frozen-report shell still uses it; the live sidebar has its own width. */
 @media (max-width: 1279px) {
@@ -536,7 +447,7 @@
   }
 
   .u-title {
-    font-family: var(--brand-font-heading);
+    font-family: var(--brand-font-sans);
     font-size: var(--brand-text-xl);
     font-weight: 600;
     text-align: center;
@@ -915,34 +826,6 @@
 }
 
 /* === Animations === */
-
-/* Shared Card And Table Rhythm. */
-[data-slot="table-head"] {
-  height: var(--list-row-height);
-}
-[data-slot="table-row"] {
-  height: var(--list-row-height);
-}
-[data-slot="card-header"],
-[data-slot="card-content"],
-[data-slot="card-footer"] {
-  padding: calc(var(--spacing) * 4);
-}
-[data-slot="button"] svg,
-[data-slot="select-trigger"] svg {
-  width: calc(var(--spacing) * 4);
-  height: calc(var(--spacing) * 4);
-}
-@media (max-width: 1023px) {
-  [data-slot="button"][data-size^="icon"] {
-    width: var(--control-height);
-    height: var(--control-height);
-  }
-  button:not([data-slot]),
-  select:not([data-slot]) {
-    min-height: var(--control-height);
-  }
-}
 
 /* Shared Brand Composition; Organization Themes Override These Variables. */
 .brand {

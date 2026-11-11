@@ -74,14 +74,15 @@ function BuildVersion({ build }: { build: BuildIdentity }) {
       {commit ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
+            <Button
+              variant="link"
+              size="inline"
               aria-label={`Copy Commit ${commit} to Clipboard`}
-              className="underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => void copyTraceabilityText(commit)}
               type="button"
             >
               {label.revision}
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent className="break-all" side="top">{`Copy: ${commit}`}</TooltipContent>
         </Tooltip>

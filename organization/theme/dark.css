@@ -1,21 +1,20 @@
-/* Warm ink and gilt for low-light work. */
-
 .dark {
   color-scheme: dark;
-  --background: #1b1915;
-  --foreground: #e9e1d2;
-  --card: #24211b;
-  --card-foreground: #e9e1d2;
-  --popover: #24211b;
-  --popover-foreground: #e9e1d2;
-  --primary: #d0aa63;
-  --primary-foreground: #251d11;
-  --secondary: #302c24;
-  --secondary-foreground: #e9e1d2;
-  --muted: #2b2821;
-  --muted-foreground: #aaa192;
-  --accent: #3d3323;
-  --accent-foreground: #f0e5d2;
+  --background: #111111;
+  --foreground: #ddd9c8;
+  --card: #111111;
+  --card-foreground: #ddd9c8;
+  --popover: #111111;
+  --popover-foreground: #ddd9c8;
+  --link: #c9714f;
+  --primary: #ddd9c8;
+  --primary-foreground: #111111;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ddd9c8;
+  --muted: #1a1a1a;
+  --muted-foreground: color-mix(in srgb, #ddd9c8 70%, #111111);
+  --accent: #1a1a1a;
+  --accent-foreground: #ddd9c8;
   --destructive: #dc7770;
   --success: #a7b178;
   --success-foreground: #1b1915;
@@ -23,8 +22,8 @@
   --warning-foreground: #1b1915;
   --info: #b7ae9a;
   --info-foreground: #1b1915;
-  --border: #413a2f;
-  --input: #4a4235;
+  --border: color-mix(in srgb, #ddd9c8 21%, transparent);
+  --input: color-mix(in srgb, #ddd9c8 30%, transparent);
   --ring: #d0aa63;
   --chart-1: #d67069;
   --chart-2: #eeaf6e;

@@ -17,12 +17,13 @@ function Progress({ className, value, ...props }: React.ComponentProps<typeof Pr
     <ProgressPrimitive.Root
       data-slot="progress"
       className={cn("relative flex h-1 w-full items-center overflow-x-hidden rounded-full bg-muted", className)}
+      value={value}
       {...props}
     >
       <ProgressPrimitive.Indicator
         data-slot="progress-indicator"
-        className="size-full flex-1 bg-primary transition-all"
-        style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+        className="size-full flex-1 bg-primary transition-transform data-[state=indeterminate]:w-2/5 data-[state=indeterminate]:flex-none data-[state=indeterminate]:animate-progress-indeterminate motion-reduce:animate-none"
+        style={value == null ? undefined : { transform: `translateX(-${100 - value}%)` }}
       />
     </ProgressPrimitive.Root>
   );

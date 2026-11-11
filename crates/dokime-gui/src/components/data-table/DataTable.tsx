@@ -19,9 +19,11 @@
 
 import { type RowData, useTable } from "@tanstack/react-table";
 import { ArrowRight, ChevronLeft, ChevronRight, Eye, type LucideIcon, MoreHorizontal } from "lucide-react";
-import { Children, type MouseEvent, type ReactNode, useMemo, useState } from "react";
+import { Children, type MouseEvent, type ReactNode, useId, useMemo, useState } from "react";
 
 /* === Local Imports === */
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { type ActiveFilter, DataTableToolbar } from "@/components/data-table/DataTableToolbar";
@@ -77,6 +79,7 @@ export function DataTable<TData extends RowData>({
   selection,
   title,
 }: DataTableProps<TData>) {
+  const pageSizeId = useId();
   const [inspectedId, setInspectedId] = useState<string | null>(null);
   // Resolve Columns
   const resolvedColumns = useMemo(() => {
@@ -251,13 +254,15 @@ export function DataTable<TData extends RowData>({
                       key={cell.id}
                     >
                       {meta?.primary && onRowClick ? (
-                        <button
-                          className="block min-h-[var(--control-height)] w-full min-w-0 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        <Button
+                          variant="plain"
+                          size="inline"
+                          className="block min-h-[var(--control-height)] w-full min-w-0 rounded-lg text-left"
                           onClick={() => onRowClick(row.original)}
                           type="button"
                         >
                           {content}
-                        </button>
+                        </Button>
                       ) : meta?.truncate ? (
                         <div
                           className="truncate"
@@ -286,44 +291,29 @@ export function DataTable<TData extends RowData>({
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t px-[var(--table-inset)] py-3 text-sm text-muted-foreground">
         <span className="tabular-nums">{table.getFilteredRowModel().rows.length} Rows</span>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2">
+          <label htmlFor={pageSizeId} className="flex items-center gap-2">
             Rows per Page
-            <select
-              aria-label="Rows per Page"
-              data-testid="table-page-size"
-              className="h-[var(--control-height)] rounded-lg border bg-background px-2"
-              value={table.state.pagination.pageSize}
-              onChange={(event) => table.setPageSize(Number(event.target.value))}
-            >
-              {[10, 25, 50, 100].map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
+            <Select value={String(table.state.pagination.pageSize)} onValueChange={(value) => table.setPageSize(Number(value))}>
+              <SelectTrigger id={pageSizeId} aria-label="Rows per Page" data-testid="table-page-size">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 25, 50, 100].map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
-          <Button
-            className="h-[var(--control-height)]"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
+          <Button disabled={!table.getCanPreviousPage()} onClick={() => table.previousPage()} size="sm" type="button" variant="outline">
             <ChevronLeft data-icon="inline-start" />
             Previous
           </Button>
           <span className="tabular-nums">
             {table.state.pagination.pageIndex + 1} / {Math.max(1, table.getPageCount())}
           </span>
-          <Button
-            className="h-[var(--control-height)]"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
+          <Button disabled={!table.getCanNextPage()} onClick={() => table.nextPage()} size="sm" type="button" variant="outline">
             Next
             <ChevronRight data-icon="inline-end" />
           </Button>

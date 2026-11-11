@@ -9,8 +9,9 @@
 
 /* === Imports === */
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { failureOf } from "@/lib/notification-details";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 // Standard Library Imports
 // Third Party Imports
 import { NotificationMessage } from "@/components/NotificationMessage";
@@ -32,6 +33,8 @@ type DesktopUpdateDialogProps = { open: boolean; onOpenChange: (open: boolean) =
 /* === Components === */
 
 export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogProps) {
+  const modeId = useId();
+  const sourceId = useId();
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [update, setUpdate] = useState<UpdateCheck | null>(null);
   const [busy, setBusy] = useState(false);
@@ -84,38 +87,46 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
         </DialogHeader>
         {status ? (
           <div className="grid gap-4 text-sm">
-            <label className="grid gap-1">
+            <label htmlFor={modeId} className="grid gap-1">
               Update Checks
-              <select
-                aria-label="Update Checks"
-                className="rounded border bg-background p-2"
+              <Select
                 value={status.mode}
                 disabled={busy}
-                onChange={(event) => void perform(() => configure(event.target.value as UpdateMode, status.source))}
+                onValueChange={(value) => void perform(() => configure(value as UpdateMode, status.source))}
               >
-                <option value="disabled">Disabled</option>
-                <option value="manual">Manual</option>
-                <option value="automatic_check">Automatic Check</option>
-              </select>
+                <SelectTrigger id={modeId} className="w-full" aria-label="Update Checks">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="disabled">Disabled</SelectItem>
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="automatic_check">Automatic Check</SelectItem>
+                </SelectContent>
+              </Select>
             </label>
-            <label className="grid gap-1">
+            <label htmlFor={sourceId} className="grid gap-1">
               Release Source
-              <select
-                aria-label="Release Source"
-                className="rounded border bg-background p-2"
-                value={status.source ?? ""}
+              <Select
+                value={status.source === null ? "none" : String(status.sources.indexOf(status.source))}
                 disabled={busy}
-                onChange={(event) => void perform(() => configure(status.mode, event.target.value || null))}
+                onValueChange={(value) =>
+                  void perform(() => configure(status.mode, value === "none" ? null : status.sources[Number(value)]))
+                }
               >
-                <option value="" disabled={status.mode !== "disabled"}>
-                  No Source
-                </option>
-                {status.sources.map((source) => (
-                  <option key={source} value={source}>
-                    {source}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id={sourceId} className="w-full" aria-label="Release Source">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" disabled={status.mode !== "disabled"}>
+                    No Source
+                  </SelectItem>
+                  {status.sources.map((source, index) => (
+                    <SelectItem key={source} value={String(index)}>
+                      {source}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
             {update ? (
               <div className="rounded border p-3">

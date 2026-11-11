@@ -18,6 +18,7 @@
 // Third Party Imports
 
 // Local Imports
+import { Button } from "@/components/ui/button";
 import { useQueries } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
@@ -98,9 +99,11 @@ export function RunIndicator() {
   }
   const destination = runDestination(focus);
   return (
-    <button
+    <Button
+      variant="plain"
+      size="inline"
       type="button"
-      className="flex min-w-0 flex-1 items-center gap-2 text-left text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-w-0 flex-1 items-center gap-2 text-left text-foreground"
       onClick={() => {
         if (destination) void navigate(destination);
       }}
@@ -111,7 +114,7 @@ export function RunIndicator() {
         {first.percent === null ? runElapsed(elapsedMinutes(first.execution.started_at, now)) : `${first.percent}%`}
       </span>
       {focus.length > 1 ? <span className="shrink-0">+{focus.length - 1}</span> : null}
-    </button>
+    </Button>
   );
 }
 

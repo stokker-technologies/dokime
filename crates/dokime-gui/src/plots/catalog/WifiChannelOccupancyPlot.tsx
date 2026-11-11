@@ -9,6 +9,7 @@
 
 /* === External Imports === */
 
+import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
@@ -294,14 +295,16 @@ function ScanSlider({
       />
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span className="truncate">{scans[0]?.label ?? ""}</span>
-        <button
-          className="text-xs font-semibold text-primary disabled:text-muted-foreground"
+        <Button
+          variant="link"
+          size="inline"
+          className="text-xs font-semibold disabled:text-muted-foreground"
           disabled={followLatest}
           type="button"
           onClick={onLatest}
         >
           Latest
-        </button>
+        </Button>
         <span className="truncate text-right">{scans[latestIndex]?.label ?? ""}</span>
       </div>
     </div>

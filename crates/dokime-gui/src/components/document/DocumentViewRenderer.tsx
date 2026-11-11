@@ -279,7 +279,7 @@ function DocumentSectionBlock({
 }) {
   if (chrome === "card") {
     return (
-      <Card className="rounded-lg bg-muted/20 py-0">
+      <Card>
         <CardHeader className="border-b px-4 py-3">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <CardTitle className="text-base">{section.metadata.label}</CardTitle>

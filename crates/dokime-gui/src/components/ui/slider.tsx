@@ -33,7 +33,10 @@ function Slider({ className, defaultValue, value, min = 0, max = 100, ...props }
       value={value}
       min={min}
       max={max}
-      className={cn("relative flex w-full touch-none items-center select-none data-disabled:opacity-50", className)}
+      className={cn(
+        "[[data-density=touch]_&]:h-(--control-height) relative flex w-full touch-none items-center select-none data-disabled:opacity-50",
+        className,
+      )}
       {...props}
     >
       <SliderPrimitive.Track data-slot="slider-track" className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-muted">
@@ -50,7 +53,7 @@ function Slider({ className, defaultValue, value, min = 0, max = 100, ...props }
           // step. Thumb count is fixed per slider, so the index is stable.
           // biome-ignore lint/suspicious/noArrayIndexKey: positional identity is the correct key for a fixed set of slider thumbs (see above).
           key={index}
-          className="block size-4 rounded-full border border-primary bg-background shadow-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+          className="[[data-density=touch]_&]:size-6 block size-4 rounded-full border border-primary bg-background shadow-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
         />
       ))}
     </SliderPrimitive.Root>

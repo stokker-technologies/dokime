@@ -23,6 +23,7 @@
 
 /* === External Imports === */
 
+import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
@@ -177,7 +178,9 @@ export function RecordTimeline({
                   aria-posinset={rowWindow.window.first + index + 1}
                   aria-setsize={visibleRecords.length}
                 >
-                  <button
+                  <Button
+                    variant="plain"
+                    size="inline"
                     aria-haspopup="dialog"
                     className={cn(
                       RECORD_ROW_COLUMNS,
@@ -195,7 +198,7 @@ export function RecordTimeline({
                     <span className="truncate text-muted-foreground">{record.source}</span>
                     <span className="min-w-0 truncate">{recordLine(record)}</span>
                     <span className="truncate text-muted-foreground">{record.record_type}</span>
-                  </button>
+                  </Button>
                 </li>
               );
             })}

@@ -11,6 +11,7 @@
 
 /* === Imports === */
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import type { ApplicationSettings, SettingsScope, SettingsSnapshot } from "@generated/application-settings";
@@ -146,8 +147,6 @@ const FIELDS: PreferenceField[] = [
     advanced: true,
   },
 ];
-const SELECT_CLASS =
-  "h-[var(--control-height)] w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring";
 
 /* === Components === */
 
@@ -342,19 +341,18 @@ function PreferencesForm({
         {field.kind === "boolean" ? (
           <Switch id={`${scope}-${name}`} aria-label={label} checked={Boolean(value)} onCheckedChange={change} />
         ) : field.options ? (
-          <select
-            id={`${scope}-${name}`}
-            className={SELECT_CLASS}
-            aria-label={label}
-            value={String(value)}
-            onChange={(event) => change(event.target.value)}
-          >
-            {field.options.map((option) => (
-              <option key={option} value={option}>
-                {option === "lttb" ? "LTTB" : option.replaceAll("_", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase())}
-              </option>
-            ))}
-          </select>
+          <Select value={String(value)} onValueChange={change}>
+            <SelectTrigger className="w-full" id={`${scope}-${name}`} aria-label={label}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {field.options.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option === "lttb" ? "LTTB" : option.replaceAll("_", " ").replace(/\b[a-z]/g, (letter) => letter.toUpperCase())}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         ) : (
           <div className="flex w-full items-center gap-2">
             <Input

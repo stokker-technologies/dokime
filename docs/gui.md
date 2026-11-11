@@ -119,6 +119,22 @@ Reports produce their initial head from the captured appearance.
 There is no runtime pack import, promotion or overlay. Old active and pending pack
 folders in the application data root are ignored and preserved.
 
+## Default Appearance
+
+The bundled pack uses carbon ink on paper in light mode and paper ink on carbon
+in dark mode, with plate surfaces for secondary controls. Primary actions invert
+ink and ground; links use the readable terracotta token. Cards are transparent
+ruled surfaces. Shared primitives own control geometry and read the density
+variables for desktop and touch sizes; status, trace, reference and focus colors
+retain their independent roles.
+
+Roboto carries working UI and card, dialog and sheet headings. Roboto Slab is
+reserved for display headings and the wordmark; Roboto Mono carries technical
+values. The offline Latin variable faces in `organization/fonts/` come from the
+pinned `@fontsource-variable/roboto`, `roboto-slab` and `roboto-mono` production
+packages in the GUI's pnpm lock. Their license texts accompany the bundled files;
+the production dependency notice collector includes them in packaged notices.
+
 ## Keyboard Focus and Theme Colors
 
 Keyboard focus uses the optional `--focus-ring` token, independently of `--primary`,
@@ -130,7 +146,7 @@ Organization packs may set `--focus-ring` in `theme/light.css` and `theme/dark.c
 theme families may supply `focus-ring` in their shared or mode-specific variable
 maps, with the mode taking precedence. Organization materialization retains these
 custom properties. Without an explicit focus color, both the desktop and report
-renderer use deep blue `#00205b` in light mode and pale blue `#93c5fd` in dark mode,
+renderer use deep blue `#001b4a` in light mode and pale blue `#93c5fd` in dark mode,
 even when the brand primary, palette ring and destructive colors are red.
 
 Custom focus colors must remain visually distinct from destructive/error colors

@@ -18,9 +18,10 @@
 // Local Imports
 import { failureOf } from "@/lib/notification-details";
 import { MoreHorizontal } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 // Third Party Imports
 import { NotificationMessage } from "@/components/NotificationMessage";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -45,6 +46,7 @@ type Props = { session: SessionIdentity; catalog: SecretCatalog; onImported: (ca
 /* === Components === */
 
 export function SecretTransfer({ session, catalog, onImported }: Props) {
+  const fieldId = useId();
   const [mode, setMode] = useState<"export" | "import" | null>(null);
   const [generation, setGeneration] = useState(catalog.generation);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -161,11 +163,16 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
               <fieldset className="grid gap-2" disabled={busy}>
                 <legend className="mb-2 text-sm font-medium">Identifiers To Export</legend>
                 {catalog.entries.map((entry) => (
-                  <label key={entry.metadata.identifier} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
+                  <label
+                    htmlFor={`${fieldId}-${entry.metadata.identifier}`}
+                    key={entry.metadata.identifier}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      id={`${fieldId}-${entry.metadata.identifier}`}
+                      disabled={busy}
                       checked={selected.has(entry.metadata.identifier)}
-                      onChange={(event) => select(entry.metadata.identifier, event.target.checked)}
+                      onCheckedChange={(checked) => select(entry.metadata.identifier, checked === true)}
                     />
                     {entry.metadata.identifier}
                   </label>
@@ -213,11 +220,16 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
                   <fieldset className="grid gap-2" disabled={busy}>
                     <legend className="mb-2 text-sm font-medium">Review Every Identifier</legend>
                     {preview.entries.map((entry) => (
-                      <label key={entry.metadata.identifier} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
+                      <label
+                        htmlFor={`${fieldId}-${entry.metadata.identifier}`}
+                        key={entry.metadata.identifier}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <Checkbox
+                          id={`${fieldId}-${entry.metadata.identifier}`}
+                          disabled={busy}
                           checked={selected.has(entry.metadata.identifier)}
-                          onChange={(event) => select(entry.metadata.identifier, event.target.checked)}
+                          onCheckedChange={(checked) => select(entry.metadata.identifier, checked === true)}
                         />
                         {entry.exists ? "Replace" : "Import"} {entry.metadata.identifier} ({entry.metadata.label})
                       </label>

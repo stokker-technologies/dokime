@@ -328,7 +328,7 @@ function MediaGalleryCard({
       <div className="flex aspect-video min-w-0 flex-col overflow-hidden bg-muted/45">
         <div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden">
           {showImagePreview ? (
-            <button aria-label={title} className="absolute inset-0" type="button" onClick={onInspect}>
+            <Button variant="plain" size="inline" aria-label={title} className="absolute inset-0" type="button" onClick={onInspect}>
               <img
                 alt={title}
                 className="h-full w-full object-cover"
@@ -337,7 +337,7 @@ function MediaGalleryCard({
                 src={artifact.href ?? undefined}
                 onError={() => setFailedImageHref(artifact.href)}
               />
-            </button>
+            </Button>
           ) : artifact.href && artifact.kind === "audio" ? (
             // biome-ignore lint/a11y/useMediaCaption: operator recordings have no caption sidecars.
             <audio aria-label={title} className="w-full min-w-0 px-2" controls preload="metadata" src={artifact.href} />
@@ -350,7 +350,9 @@ function MediaGalleryCard({
             </span>
           )}
         </div>
-        <button
+        <Button
+          variant="plain"
+          size="inline"
           className="flex shrink-0 items-center justify-end gap-1 px-2 py-1 text-xs font-semibold"
           title={artifact.displayPath}
           type="button"
@@ -358,7 +360,7 @@ function MediaGalleryCard({
         >
           <Search size={12} />
           Inspect
-        </button>
+        </Button>
       </div>
       <div className="grid min-w-0 gap-1 px-2 py-2">
         <div className="flex min-w-0 items-start gap-2">
