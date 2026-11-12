@@ -302,9 +302,9 @@ mise -C sdk/python run sdk:starter
 mise run test -- --language python --wheel
 ```
 
-Wheel outputs retain `target/build/<profile>/<native-target>/python/` for the
-existing artifact interface, but the wheel itself is platform independent.
-Packaging copies it without compilation. The fresh-wheel proof creates an
+Python outputs use `target/build/<profile>/any/python/` and contain one
+platform-independent wheel and one source distribution.
+Packaging copies the pair without compilation. The fresh-wheel proof creates an
 isolated environment outside the checkout, installs the wheel and its pinned
 Harmos dependency, copies the starter there, and runs the starter's own story.
 
@@ -576,9 +576,9 @@ operation, URL, attempt count and last cause.
 
 Packaging generates complete product notices at
 `target/notices/THIRD-PARTY-NOTICES` and copies the authored `NOTICE` beside them.
-Python-only notices live under `target/notices/python/`. Installer staging copies
-these generated inputs into the distribution and appends them to its installed
-`LICENSE`; archives and wheel license directories retain their existing notice names.
+Installer staging copies these generated inputs into the distribution and
+appends them to its installed `LICENSE`; native archives retain their existing
+notice names. The pure SDK includes its own LICENSE and NOTICE at build time.
 No generated notices are tracked in the source root.
 
 Git-cliff reads `tools/config/cliff.toml` for version selection and per-release
@@ -635,3 +635,21 @@ For focused consumer lint use
 `mise run check -- --language rust --package dokime-packaging` (or `dokime-gui`).
 Clippy remains owned by the lint task. Full Linux/Windows release rehearsal and
 live Nightly validation require hosted artifacts and publication authorization.
+
+## Pure Python Release Assets
+
+`mise run build:python` builds the SDK once from `sdk/python`, including generated
+modules from `proto/`, into `target/build/<profile>/any/python/`. The pair is
+`dokime-<version>-py3-none-any.whl` and `dokime-<version>.tar.gz`.
+`mise run package -- --language python` verifies package identity, pure wheel
+metadata, generated modules and source hashes, absence of native extensions and
+source distribution protocol inputs, then copies the pair to
+`target/package/<profile>/any/python/` without rebuilding.
+
+CI and Nightly use one Linux Python producer and one shared package job. Both
+native platforms consume the same Python artifact. Release staging copies each
+Python distribution once to `target/release-assets/any/`; `release.json` and
+`SHA256SUMS` list each once. Stable registry publication uploads the pair in one
+command, using PyPI Trusted Publishing on GitHub. Nightly includes the same pair
+in its release downloads. Stable release rejection of git dependencies remains
+unchanged.

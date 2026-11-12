@@ -226,7 +226,7 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         REVIEW_RELEASE: 'true'
-        REVIEW_PACKAGES: '["package-PROFILE-python-unix","package-PROFILE-python-windows","package-PROFILE-rust-unix","package-PROFILE-rust-windows"]'
+        REVIEW_PACKAGES: '["package-PROFILE-python-any","package-PROFILE-rust-unix","package-PROFILE-rust-windows"]'
         REVIEW_BUILDS: '["build-cli-PROFILE-windows","build-generator-PROFILE-windows","build-gui-PROFILE-windows","build-packaging-PROFILE-windows","build-plugins-PROFILE-windows"]'
         REVIEW_REQUIRED: 'true'
     permissions:

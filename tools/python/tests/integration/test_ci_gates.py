@@ -51,7 +51,7 @@ LATER = "c" * 40
 
 class ReleaseTagTests(unittest.TestCase):
     def test_workflow_artifact_arguments(self):
-        archives = [Path(f"target/ci/package-release-python-{platform}.tar.zst") for platform in ("unix", "windows")]
+        archives = [Path("target/ci/package-release-python-any.tar.zst")]
         for entry, arguments in ((tasks.main, ["publish"]), (workflow.main, ["release-verify"])):
             with (
                 self.subTest(arguments=arguments),
@@ -65,8 +65,8 @@ class ReleaseTagTests(unittest.TestCase):
                 self.assertEqual(entry(arguments), 0)
                 self.assertEqual(extract.call_args_list, [call(ROOT, archive) for archive in archives])
 
-    def test_publication_skips_python_registry_unless_explicit(self):
-        for arguments, stages in (([], ["assets", "finalize"]), (["--stage", "python"], ["python"])):
+    def test_publication_includes_python_registry_once(self):
+        for arguments, stages in (([], ["assets", "python", "finalize"]), (["--stage", "python"], ["python"])):
             with (
                 self.subTest(arguments=arguments),
                 patch.dict(os.environ, {}, clear=True),

@@ -361,3 +361,8 @@ manifest versions; protocol regeneration; tooling, execution-host and SDK guidan
 - [x] Pass Windows format, repository/Rust/Python checks (125 tooling tests), the complete Tests producer (53 archived binaries, 16 compile contracts), eight protocol drift/routing stories, all four SDK checks and locked offline metadata. All fifteen execution-host stories pass twice with no skips, including managed/remote C# and C++ equivalence. No old-host check failures remain in this candidate. Native Linux and hosted runs remain unverified; the pre-existing named C# record-only descriptor assertion still awaits Harmos support.
 
 - [x] Refresh the generated C# fixture lock when republishing the locally rebuilt development SDK. Reproduce NU1403 across committed checkpoints and pass the same publisher with native restore graph re-evaluation; preserve package hash validation and keep the lock in the fixture output. The complete producer and both fifteen-story runs pass after this repair.
+
+## PR 411 Pure Python Release Packaging
+
+- [x] Replace native Python release packaging with one pure wheel and source distribution, shared across Release and Nightly, with generated protocol validation and one registry upload.
+- [x] Pass focused release-layout (15), plugin packaging (2), CI gates (25) and supply tooling (16) tests, Python build/package, format, Python and repository checks (128 tooling tests in the final Python check). Local dry publication reuses the integration checkout's native packages, stages the shared Python pair once, and stops at the unchanged git-dependency rejection. Keep commits local; Linux execution proof remains hosted.

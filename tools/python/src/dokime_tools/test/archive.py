@@ -128,13 +128,12 @@ def require(directory: Path, profile: str) -> Path:
     return path
 
 
-def install_wheels(directory: Path, profile: str, native: str | None = None) -> None:
-    targets = [native or paths.target()]
-    roots = [paths.output(directory, "build", profile, target) / "python" for target in targets]
+def install_wheels(directory: Path, profile: str) -> None:
+    roots = [paths.output(directory, "build", profile, "any") / "python"]
     wheels = sorted(path for root in roots for path in root.glob("*.whl"))
     names = [path.name.split("-", 1)[0].replace("_", "-").lower() for path in wheels]
     if len(names) != len(set(names)):
-        raise policy.TestError("ambiguous built wheels in the native output")
+        raise policy.TestError("ambiguous built wheels in the shared output")
     if any(root.is_dir() for root in roots) and not wheels:
         raise policy.TestError("missing built wheels in the selected profile/target")
     if wheels:
@@ -207,11 +206,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate Existing Test Inputs")
     parser.add_argument("--profile", choices=policy.PROFILES, default="dev")
     parser.add_argument("--install-wheels", action="store_true")
-    parser.add_argument("--target")
     options = parser.parse_args(arguments)
     try:
         if options.install_wheels:
-            install_wheels(policy.root(), options.profile, options.target)
+            install_wheels(policy.root(), options.profile)
             return 0
         print(require(policy.root(), options.profile))
         return 0

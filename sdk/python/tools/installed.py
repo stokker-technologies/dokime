@@ -35,7 +35,7 @@ from dokime_tools.process import spawn_flags
 
 def main():
     root = Path(__file__).resolve().parents[3]
-    wheels = list((output(root, "build", "dev") / "python").glob("*.whl"))
+    wheels = list((output(root, "build", "dev", "any") / "python").glob("*.whl"))
     if len(wheels) != 1:
         raise ValueError("Build exactly one SDK wheel first")
     subprocess.run(

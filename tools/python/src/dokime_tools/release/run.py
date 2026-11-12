@@ -29,7 +29,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from ..build import paths
+from ..build import paths, wheel
 from ..process import spawn_flags
 
 # isort: split
@@ -138,10 +138,6 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
         if not source.is_file() or source.is_symlink():
             raise policy.ToolError(f"missing regular release asset: {source}")
         result.append({"name": name, "path": relative, "target": selected})
-    wheels = sorted((paths.output(directory, "package", profile, selected) / "python").glob("*.whl"))
-    if len(wheels) != 1 or "-cp313-abi3-" not in wheels[0].name:
-        raise policy.ToolError(f"expected one native abi3 wheel for {selected}")
-    result.append({"name": wheels[0].name, "path": wheels[0].relative_to(directory).as_posix(), "target": selected})
     return result
 
 
@@ -178,7 +174,13 @@ def stage(
     shared.mkdir(parents=True)
     for name, content in packaged_notices.items():
         (shared / name).write_bytes(content)
+    python = paths.output(directory, "package", profile, SHARED) / "python"
+    selected_python = wheel.distributions(directory, python, tag[1:])
     files = []
+    for source in selected_python:
+        destination = shared / source.name
+        shutil.copyfile(source, destination)
+        files.append(_describe(root, destination))
     updater = {"version": tag[1:], "platforms": {}}
     plugins = layout.plugins(directory, settings, tag, targets, profile)
     for selected in targets:
@@ -250,7 +252,9 @@ def stage(
                     continue
                 desktop = source.name.startswith("dokime-distribution-") or source.name.endswith(("-setup.exe", ".deb", ".rpm"))
                 inventories = [*rust, shell_inventory] if desktop else rust
-                destination = sbom.artifact(directory, source, root / selected, inventories)
+                if source.parent == shared and source.name.endswith((".whl", ".tar.gz")):
+                    inventories = []
+                destination = sbom.artifact(directory, source, source.parent, inventories)
                 archive.write(destination, "artifacts/" + destination.name)
     files.append(_describe(root, compliance))
     if channel == "nightly":

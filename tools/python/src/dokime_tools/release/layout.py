@@ -222,8 +222,8 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
     if name == "CHANGELOG.md":
         return {"kind": "changelog", "os": "any", "arch": "any", "format": "md"}
     os_name, arch = _platform(name)
-    if format_ == "whl":
-        return {"kind": "sdk-python", "os": os_name, "arch": arch, "format": "whl"}
+    if format_ == "whl" or name.startswith("dokime-") and re.fullmatch(r"dokime-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz", name):
+        return {"kind": "sdk-python", "os": os_name, "arch": arch, "format": format_}
     if format_ == "deb" and name.startswith(f"{product}_"):
         return {"kind": "installer", "os": "linux", "arch": "x86_64" if name.endswith("_amd64.deb") else arch, "format": "deb"}
     if format_ == "rpm" and name.startswith(f"{product}-"):
@@ -311,28 +311,11 @@ def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
 
 
 def _platform(name: str) -> tuple[str, str]:
-    """OS And Architecture From A Rust Target Triple Or Wheel Platform Tag In The Name; Neither Means Any."""
+    """OS And Architecture From A Rust Target Triple; Shared SDK Assets Mean Any."""
     lowered = name.lower()
     triple = re.search(r"(x86_64|aarch64)-[a-z0-9_]+-(windows|linux|darwin)", lowered)
     if triple:
         return {"darwin": "macos"}.get(triple[2], triple[2]), triple[1]
-    if lowered.endswith(".whl"):
-        platform_tag = lowered.removesuffix(".whl").rsplit("-", 1)[-1]
-        if platform_tag == "any":
-            return "any", "any"
-        os_name = (
-            "windows"
-            if platform_tag.startswith("win")
-            else "linux"
-            if "linux" in platform_tag
-            else "macos"
-            if platform_tag.startswith("macosx")
-            else "any"
-        )
-        arch = (
-            "x86_64" if platform_tag.endswith(("x86_64", "amd64")) else "aarch64" if platform_tag.endswith(("aarch64", "arm64")) else "any"
-        )
-        return os_name, arch
     if lowered.endswith(".rpm"):
         return "linux", lowered.removesuffix(".rpm").rsplit(".", 1)[-1]
     return "any", "any"

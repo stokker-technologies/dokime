@@ -25,9 +25,9 @@ env:
   GIT_CONFIG_VALUE_0: 'true'
 jobs:
   build_python:
-    name: Build / Python (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
+    name: Build / Python (Any)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -40,8 +40,8 @@ jobs:
     - run: mise run build -- --language python --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}
-        path: target/ci/build-product-python-${{ env.PROFILE }}-${{ matrix.platform }}.tar.zst
+        name: build-product-python-${{ env.PROFILE }}-any
+        path: target/ci/build-product-python-${{ env.PROFILE }}-any.tar.zst
         if-no-files-found: error
         retention-days: 7
         compression-level: 0
@@ -83,18 +83,4 @@ jobs:
       SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
       CI_TRANSPORT: 'true'
-      CI_OUTPUTS: ${{ matrix.outputs }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          inputs: ''
-          outputs: '[{"archive":"target/ci/build-product-python-{profile}-{platform}.tar.zst","paths":["target/build/{profile}/{target}/python"]}]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          inputs: ''
-          outputs: '[{"archive":"target/ci/build-product-python-{profile}-{platform}.tar.zst","paths":["target/build/{profile}/{target}/python"]}]'
+      CI_OUTPUTS: '[{"archive":"target/ci/build-product-python-{profile}-any.tar.zst","paths":["target/build/{profile}/any/python"]}]'

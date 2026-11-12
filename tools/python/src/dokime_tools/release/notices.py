@@ -12,8 +12,6 @@
 
 # Standard Library Imports
 import argparse
-import base64
-import csv
 import email.parser
 import hashlib
 import http.client
@@ -235,32 +233,17 @@ def stage(directory: Path, destination: Path) -> None:
 
 
 def archive(directory: Path, source: Path) -> None:
-    """Add Notices Before Release Hashing, Preserving Executable Modes and Wheel RECORD."""
+    """Add Notices Before Release Hashing, Preserving Executable Modes."""
     notices = {name: (directory / name).read_bytes() for name in ("NOTICE", "THIRD-PARTY-NOTICES")}
     with tempfile.TemporaryDirectory(prefix="dokime-notices-") as temporary:
         result = Path(temporary) / source.name
-        if source.name.endswith((".zip", ".whl")):
+        if source.name.endswith(".zip"):
             with zipfile.ZipFile(source) as original, zipfile.ZipFile(result, "w", compression=zipfile.ZIP_DEFLATED) as output:
-                wheel = source.suffix == ".whl"
-                record = next((name for name in original.namelist() if name.endswith(".dist-info/RECORD")), None) if wheel else None
-                if wheel and record is None:
-                    raise policy.ToolError("wheel has no RECORD")
-                prefix = record.rsplit("/", 1)[0] + "/licenses/" if record else ""
-                added = {prefix + name: data for name, data in notices.items()}
                 for entry in original.infolist():
-                    if entry.filename not in {*added, record}:
+                    if entry.filename not in notices:
                         output.writestr(entry, original.read(entry))
-                for name, data in added.items():
+                for name, data in notices.items():
                     output.writestr(name, data)
-                if record:
-                    rows = [row for row in csv.reader(io.StringIO(original.read(record).decode("utf-8"))) if row[0] not in {*added, record}]
-                    for name, data in added.items():
-                        digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).decode().rstrip("=")
-                        rows.append([name, "sha256=" + digest, str(len(data))])
-                    rows.append([record, "", ""])
-                    contents = io.StringIO(newline="")
-                    csv.writer(contents).writerows(rows)
-                    output.writestr(record, contents.getvalue())
         elif source.name.endswith(".tar.gz"):
             with tarfile.open(source) as original, tarfile.open(result, "w:gz") as output:
                 for entry in original.getmembers():
@@ -276,7 +259,7 @@ def archive(directory: Path, source: Path) -> None:
         shutil.copyfile(result, source)
 
 
-def generate(directory: Path, *, python: bool = False) -> dict:
+def generate(directory: Path) -> dict:
     """Resolve Approved Licenses, Then Collect Actual Copyright and License Text."""
     output = directory / "target/notices"
     output.mkdir(parents=True, exist_ok=True)
@@ -330,17 +313,15 @@ def generate(directory: Path, *, python: bool = False) -> dict:
     )
     rust = json.loads((output / "rust.json").read_text(encoding="utf-8"))
     crates = {(item["crate"]["name"], item["crate"]["version"]) for license_ in rust["licenses"] for item in license_["used_by"]}
-    shell_text, shell_count = "", 0
-    if not python:
-        if not (directory / "crates/dokime-gui/node_modules").is_dir():
-            raise policy.ToolError("missing shell dependencies; run pnpm install in crates/dokime-gui")
-        shell = json.loads(
-            policy.execute(directory, ["pnpm", "--dir", "crates/dokime-gui", "licenses", "list", "--prod", "--json"], capture=True)
-        )
-        shell_text, shell_count = shell_notices(shell)
+    if not (directory / "crates/dokime-gui/node_modules").is_dir():
+        raise policy.ToolError("missing shell dependencies; run pnpm install in crates/dokime-gui")
+    shell = json.loads(
+        policy.execute(directory, ["pnpm", "--dir", "crates/dokime-gui", "licenses", "list", "--prod", "--json"], capture=True)
+    )
+    shell_text, shell_count = shell_notices(shell)
     python_text, python_count = python_notices(tomllib.loads((directory / "uv.lock").read_text(encoding="utf-8")))
     text = (output / "rust.txt").read_text(encoding="utf-8") + "\n\n" + shell_text + "\n\n" + python_text + "\n"
-    destination = output / "python" if python else output
+    destination = output
     destination.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(directory / "NOTICE", destination / "NOTICE")
     (destination / "THIRD-PARTY-NOTICES").write_text(text, encoding="utf-8", newline="\n")
@@ -353,28 +334,17 @@ def generate(directory: Path, *, python: bool = False) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", type=Path)
-    parser.add_argument("--archives", type=Path)
-    parser.add_argument("--python", action="store_true")
     parser.add_argument("--profile", choices=("dev", "release"))
     parser.add_argument("--target", default="native")
     options = parser.parse_args()
     directory = policy.root()
-    generate(directory, python=options.python)
+    generate(directory)
     destination = options.stage
     if options.profile:
         target = paths.target() if options.target == "native" else options.target
-        if options.python:
-            options.archives = paths.output(directory, "package", options.profile, target) / "python"
-        else:
-            destination = paths.output(directory, "build", options.profile, target) / "product/installer-distribution"
+        destination = paths.output(directory, "build", options.profile, target) / "product/installer-distribution"
     if destination:
         stage(directory, destination)
-    if options.archives:
-        wheels = sorted(options.archives.glob("*.whl"))
-        if not wheels:
-            raise policy.ToolError(f"no packaged wheels in {options.archives}")
-        for source in wheels:
-            archive(directory / "target/notices/python" if options.python else directory / "target/notices", source)
     return 0
 
 

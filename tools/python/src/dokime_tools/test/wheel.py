@@ -45,7 +45,7 @@ def main() -> None:
     parser.add_argument("--stubs", action="store_true")
     options = parser.parse_args()
     root = Path.cwd()
-    wheels = list((paths.output(root, "build", options.profile) / "python").glob("*.whl"))
+    wheels = list((paths.output(root, "build", options.profile, "any") / "python").glob("*.whl"))
     if len(wheels) != 1:
         raise ValueError("build:python must export exactly one Python wheel")
     environment = dict(os.environ)

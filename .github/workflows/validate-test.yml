@@ -71,9 +71,9 @@ jobs:
         bootstrap: ${{ inputs.bootstrap }}
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        name: build-product-python-${{ env.PROFILE }}-${{ inputs.platform }}
+        name: build-product-python-${{ env.PROFILE }}-any
         path: target/ci
-      if: contains(fromJSON(inputs.archives), 'target/ci/build-product-python-{profile}-{platform}.tar.zst')
+      if: contains(fromJSON(inputs.archives), 'target/ci/build-product-python-{profile}-any.tar.zst')
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: build-cli-${{ env.PROFILE }}-${{ inputs.platform }}
