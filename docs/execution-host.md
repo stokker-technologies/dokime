@@ -62,6 +62,7 @@ starting its replacement fails. Removing an entry preserves execution evidence.
 An installation deadline cancels pending startup and settles rollback before
 reporting failure: the owned child is stopped and reaped, its installation is
 removed, and a previous installation is restored when present.
+A commit that wins cancellation is acknowledged with its durable result.
 Remote entries retain URL identity and descriptions while unavailable, and
 reload reconnects them without taking ownership of the remote process. Plugin,
 catalog and health reads probe connected entries on demand, retaining stopped or

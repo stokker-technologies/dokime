@@ -119,10 +119,11 @@ pub async fn handle(
         Err(_) => {
             let _ = cancel.send(());
             match task.await.map_err(|_| invalid("Refresh the Installation List After Interrupted Rollback"))? {
-                Ok(_) | Err(Error::Cancelled(_)) => {}
-                Err(error) => return Err(error),
+                // A Completed Commit Wins Cancellation; Report Its Durable Result
+                Ok(reply) => Ok(reply),
+                Err(Error::Cancelled(_)) => Err(Error::Deadline(ID.into())),
+                Err(error) => Err(error),
             }
-            Err(Error::Deadline(ID.into()))
         }
     }
 }
