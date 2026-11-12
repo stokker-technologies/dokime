@@ -105,10 +105,9 @@ The host compares the complete frozen origin/test case, ordered evidence and
 samples (including source time, sequence, position and exact payload), outcome
 and cycle counts. Only run-specific execution identity, plugin digest/start time
 and receipt timestamps are excluded. Sealed evidence must reopen unchanged.
-Python and C++ also decode Door from retained schemas. C# cannot yet register a
-record-only descriptor through the pinned Harmos API; its named
-`csharp_frozen_record_schema_decodes_door` assertion is pending upstream support,
-tracked under Requests to Harmos in the gRPC change design.
+Python and C++ also decode Door from retained schemas. C# registers record-only descriptors through Harmos Message<T>(); its named
+`csharp_frozen_record_schema_decodes_door` assertion now decodes Door from the
+frozen catalog at the exact de07fc54 Harmos revision.
 
 Build the shared fixtures and install the Python wheel with the tasks above.
 `build:host-fixtures` invokes each compiled SDK's own tasks and exports the

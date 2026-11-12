@@ -19,7 +19,7 @@ license = "Apache-2.0"
 dependencies = [
   "grpcio>=1.85.1,<2",
   "protobuf>=7.35.1,<8",
-  "harmos-plugin @ git+https://github.com/stokker-technologies/harmos@a7583836e721c8dc8b135af40a78860ea5945ec6#subdirectory=sdk/python",
+  "harmos-plugin @ git+https://github.com/stokker-technologies/harmos@de07fc54f38ece9fcd660af3146876aaf651fe3c#subdirectory=sdk/python",
 ]
 
 [tool.hatch.metadata]

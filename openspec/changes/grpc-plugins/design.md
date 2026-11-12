@@ -790,6 +790,10 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+All Harmos git consumers pin `de07fc54f38ece9fcd660af3146876aaf651fe3c`; native legacy hosts retain registry 0.1.14.
+The protocol dispatcher binds Request.scope directly; SDK execution validation reads Context::scope(), and native Harmos callers use Scope/with_scope when adopted.
+Harmos storage adoption will replace dokime-storage's direct SQLite transactions, Arrow batch persistence and hand-owned projection/index queries; it is a separate task.
+
 Every SDK generates private step and criterion operation names by declaration position; stable evidence identifiers remain independent of handler names.
 The shared thermal suite uses plugin `thermal`, template `thermal.cycle`, `limit = 85`, two steps, one Door record and three controlled Temperature samples at 0, 1 and 2 seconds.
 Cross-language proof compares the frozen origin/test case and every ordered evidence/sample field, excluding only execution identities, plugin digest/start time and receipt timestamps; each sealed snapshot must reopen byte-for-byte.
@@ -875,7 +879,9 @@ operation, plugin, stream or catalog wire mirrors in its domain crate.
 
 #### C# Record-Only Descriptor Registration
 
-Pending Assertion: `csharp_frozen_record_schema_decodes_door`.
+Answered at `de07fc54f38ece9fcd660af3146876aaf651fe3c`: `Record<T>` registers `Message<T>()`; `csharp_frozen_record_schema_decodes_door` now decodes the retained descriptor.
+
+Original Reproduction:
 At pinned revision `a7583836e721c8dc8b135af40a78860ea5945ec6`, the real-host
 thermal story seals a correct `thermal.v1.Door { closed: true }` record, but
 `DescriptorPool::get_message_by_name("thermal.v1.Door")` on the frozen catalog
@@ -928,6 +934,8 @@ missing client allocation admission described below.
 
 #### Generated Client Memory Admission
 
+Answered at `de07fc54f38ece9fcd660af3146876aaf651fe3c`; the original request below is retained as rationale.
+
 At the selected revision, `sdk/rust/src/client.rs::ClientSettings` provides only
 wire-message bytes and outgoing queue item/byte bounds. `Client::transport` sets
 Tonic's encoded-message limits. `client/codec.rs::Decode::decode` calls
@@ -962,6 +970,8 @@ the revision supplying it. This follow-up does not precede or block 2.8.3, 3.1,
 handwritten protobuf client codecs or compatibility facades.
 
 #### Execution Scope on gRPC Plugin Invocations
+
+Answered at `de07fc54f38ece9fcd660af3146876aaf651fe3c`; the original request below is retained as rationale.
 
 At the selected revision, `harmos-runtime/src/plugin/grpc/invoke.rs::invoke`
 always constructs `harmos.v1.Request` with `scope: String::new()`. The native

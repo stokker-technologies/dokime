@@ -39,7 +39,7 @@ Context context(harmos::Context &transport, const Q &request, const std::string 
   const bool same_case = google::protobuf::util::MessageDifferencer::Equals(request.test_case(), origin.plugin_run().test_case());
   const bool same_plugin = origin.plugin_run().plugin() == plugin_id;
   const bool same_template = origin.plugin_run().template_() == template_id;
-  if (request.execution().empty() || transport.scope != request.execution() || !origin.has_plugin_run() || !same_case || !same_template ||
+  if (request.execution().empty() || transport.scope() != request.execution() || !origin.has_plugin_run() || !same_case || !same_template ||
       !same_plugin)
     throw std::invalid_argument("Execution Scope, Template and Frozen Origin Must Agree");
   auto resources = executions->open(request.execution());
@@ -139,7 +139,14 @@ Plugin &Plugin::suite(Suite suite) {
     native_.operation(harmos::Operation<v1::MaterializeRequest, v1::TestCase>(
         id + ".materialize",
         [id, test_case, materialize = std::move(value.materialize)](harmos::Context &transport, v1::MaterializeRequest request) {
-          if (!transport.scope.empty() || request.template_() != id)
+          try {
+            transport.scope();
+            throw std::invalid_argument("Materialize Requires No Execution Scope");
+          } catch (const harmos::Failure &failure) {
+            if (failure.value.code() != "scope_required")
+              throw;
+          }
+          if (request.template_() != id)
             throw std::invalid_argument("Materialize Requires Its Template and No Execution Scope");
           auto result = test_case;
           *result.mutable_parameters() = request.parameters();
