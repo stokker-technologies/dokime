@@ -4,6 +4,7 @@ Status: locked by the owner on 2026-11-12
 Boundary, managers and nested resources locked by the owner on 2026-11-12
 Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
 Separation by audience locked by the owner on 2026-11-12
+Three visibility levels locked by the owner on 2026-11-12
 
 Target decisions are Owner.
 Current-source observations are not target decisions.
@@ -181,14 +182,26 @@ reuse a client request/response as a context contract or generate a context
 client by exposing all client services. The duplicate declarations required by
 this product are listed below the per-face inventories.
 
-Faces do not replace visibility. A face controls the wire caller; visibility is
-explicit on **each operation a plugin serves**, in its catalog carried by
-Instance.Get and invoked through Instance.Invoke. **Private means the declaring
-plugin and the host. Public means everyone connected: other plugins and the
-host's clients.** All four SDKs require an explicit visibility argument with no
-default; unspecified visibility is rejected at admission. The host keeps one
-operation registry, checking catalog descriptors/digest, visibility, declared
-requirement fingerprints and provider admission; no registry per face is added.
+Faces do not replace visibility. A face controls the wire caller; an operation's
+explicit visibility controls who may invoke it. The three levels are locked:
+
+| Level | Permitted Callers and Route | Catalog and gRPC Binding |
+| --- | --- | --- |
+| Private | Only the declaring plugin, in its own process; the SDK executes it locally with ordinary policy, retries, deadlines and cancellation. A host's own Private built-in likewise executes only inside that host. | Never declared in a catalog, never on any wire, including host-to-plugin; no gRPC method or endpoint association. |
+| Protected | Declaring plugin and its host only; host-to-plugin calls use Instance.Invoke. | Catalogued; never bound to a client-facing gRPC method; other plugins and clients are refused. |
+| Public | Declaring plugin, host, other plugins by declared requirement through the host, and clients through the host. | Catalogued; may bind to a client-facing gRPC method. |
+
+Owner intent: "a private operation never appears on the wire, is consumed only
+internally by the plugin and does not allow association to a grpc endpoint";
+"a plugin should be able to call another operation in another plugin if exposed".
+Protected replaces the earlier two-level meaning of Private; it does not replace
+Public or its cross-plugin routing. All four SDKs require explicit visibility with
+no default. Unspecified visibility, a catalog containing Private, and a
+client-facing binding on Private or Protected fail admission. Private declaration
+metadata remains local to the SDK and is filtered before descriptor/catalog export.
+The host keeps one operation registry for exposed declarations, checking
+catalog descriptors/digest, visibility, requirement fingerprints and provider
+admission; no registry per face is added.
 
 A plugin may invoke another plugin's Public operation that it declared as a
 requirement. The path is calling plugin -> host -> providing plugin: its context
@@ -197,8 +210,8 @@ host resolves that entry in its one registry, checks visibility, the declared
 fingerprint and that a provider is admitted, and opens Instance.Invoke on that
 provider. The caller's scope is inherited unchanged across the hop. Cancellation
 cancels the child and reaches the provider; its result or structured failure
-propagates back through the host. Private cross-plugin calls fail with an error
-naming the action; declaring a requirement does not grant access. A client uses
+propagates back through the host. Protected cross-plugin calls fail with an error
+naming the action; Private is not a wire target at all; declaring a requirement does not grant access. A client uses
 `harmos.v1.Invocations.Invoke` for the same host-mediated Public-operation path.
 Other plugins and clients never connect directly to an instance, even for a
 Public operation. Client credentials do not authorize context calls, and plugin
@@ -231,10 +244,11 @@ message OperationContract {
 }
 enum Visibility {
   VISIBILITY_UNSPECIFIED = 0;
-  VISIBILITY_PRIVATE = 1; // Declaring plugin and host.
-  VISIBILITY_PUBLIC = 2;  // Everyone connected, through the host.
+  VISIBILITY_PRIVATE = 1;   // Local-only; forbidden in a wire catalog.
+  VISIBILITY_PUBLIC = 2;    // Exposed through the host.
+  VISIBILITY_PROTECTED = 3; // Declaring plugin and host; no client gRPC binding.
 }
-// InstanceGetResponse.catalog contains operations, declared requirements,
+// InstanceGetResponse.catalog contains Protected/Public operations, requirements,
 // streams, settings declarations, descriptors and digest for admission.
 ```
 
@@ -244,6 +258,44 @@ StepsExecuteResponse for the catalog operation
 `service Steps` RPC. Context wrappers similarly describe child payloads rather
 than new network entry methods. Counts below distinguish these logical service
 namespaces from wire gRPC services and exclude supporting payload/control frames.
+
+### Built-In Visibility Mapping
+
+This mapping is decided, closing the earlier built-in mapping question. Levels
+apply to host-declared operations too; audience, requirements and product policy
+still constrain a Public operation. Public context declarations do not become
+client services. The earlier `grpc-plugins` use of Private for host requests is
+superseded by Protected here; its files are outside this documentation delivery.
+
+| Existing Built-In or Family | Locked Level | Reason |
+| --- | --- | --- |
+| Plugin TestCases.Materialize, Executions.Initialize/Cleanup, Steps.Execute, Criteria.Evaluate, including generated template-local bindings | Protected | Only the host application may request plugin lifecycle work; these must cross the carrier and cannot be Private. |
+| Observer control and listener callbacks | Protected | The host drives plugin lifecycle; peers and clients cannot drive it. |
+| Storage file internals: abandon_file, append_file, capture_file, create_file, delete_file, finish_file, follow_file, follow_production, hash_file, list_directory, read_file, resume_file, watch_directory, write_file | Protected | Host-owned file machinery is not an exposed operation or a plugin/client upload API. |
+| Storage follow_objects, follow_stream, storage_status, write_schema | Protected | Internal observation, schema and storage administration belong to the host. |
+| Storage capabilities, compare_exchange, write_objects, write_records, write_streams, follow_records, query, scan_arrow, scan_index, register_index, register_projection, advance_projection, inspect_projection, read_projection, open_snapshot, release_snapshot | Public | Generic storage capabilities remain usable by admitted callers, subject to product policy and scope; scans, projections and conditional updates stay distinct. |
+| Host catalog, invocation status/cancel/watch, Time.Get/Sleep | Public | Discovery, observation, invocation control and time are intended caller capabilities, constrained by face and authorization. |
+| New Storage transfer declarations on context/client faces: CreateFileProduction, GetFileProduction, CreateFileWriter, AppendFileBytes, PublishFileProduction, DeleteFileProduction, GetFileBytes, WatchFileBytes | Public | Explicit exposed transfer API, distinct from Protected file internals; each face has its own contract and authority. |
+| Product host context: Prompts.Create; Records.Append/List; Evidence.Statistics; Artifacts.Create; Progress.Get/Set; Logs.Append; Traceability.Get/Set; Documents.AppendParts; Files.Capture; Captures.Start/Stop; Backend.Environment; Effects.Create/Get/Set; library HostValues.Get | Public | Plugins must call these host operations during an admitted invocation, with inherited scope; context audience still refuses clients. Current settings/secret reads map to HostValues.Get. |
+| Implementation-only helpers inside the host or plugin, with no external caller | Private | Keep local implementation callable under ordinary policy without advertising it or adding a wire path. |
+
+The mapping names operation declarations, not helpers such as storage registration,
+exchange and snapshot support modules. No default visibility is introduced.
+
+### Current SDK Dispatch Audit
+
+Audited against the library revision pinned in Cargo.toml and the product wrappers:
+
+| SDK | Current Child-Call Implementation | Current Own-Operation Route | Locked Work |
+| --- | --- | --- | --- |
+| Rust | Library sdk/rust/src/context.rs::operation_with; product sdk/rust/src/context.rs | Declared requirement becomes ChildRequest through the host, including own operations; no local-handler branch. | Add local Private dispatch with the same policy/cancellation pipeline. |
+| Python | Library sdk/python/src/harmos/context.py::Context.operation; product sdk/python/src/dokime/context.py | Queues a ChildRequest to the host; no local-handler branch. | Add local Private dispatch with the same policy/cancellation pipeline. |
+| C# | Library sdk/csharp/Harmos/Context.cs::CallAsync; product sdk/csharp/Dokime/Context.cs | Emits a ChildRequest to the host; no local-handler branch. | Add local Private dispatch with the same policy/cancellation pipeline. |
+| C++ | Library sdk/cpp/src/context.cpp::Context::send; product sdk/cpp/include/dokime/context.hpp | Emits a child frame to the host; no local-handler branch. | Add local Private dispatch with the same policy/cancellation pipeline. |
+
+Direct calls to a language function are not SDK operation dispatch and do not prove
+policy parity. Today Rust, C# and C++ default to Private and Python to Public.
+These are two-level implementations, not implementation of the three-level lock.
 
 ### Generated Client Names
 
@@ -1132,8 +1184,8 @@ checkout named by its report:
 
 The new host must serve every host operation plugins already declare: settings,
 secrets, artifact upload, traceability, document parts, file copy/capture, effect
-prepare/confirm, environment and clock-now. Only the seven dispatches listed
-above exist now. Do not hide these gaps by deleting SDK requirements. The desktop
+prepare/confirm, environment and clock-now. Nine host declarations/dispatches exist in crates/dokime-operations-next/src/lib.rs;
+that implementation still lacks the remaining SDK-required capabilities. Do not hide these gaps by deleting SDK requirements. The desktop
 must move from its older generated contracts to the canonical new host, including
 plugin entry/remove shapes and published-report support, once in the combined
 cutover. The service-level named UNIMPLEMENTED list in `grpc-plugins/tasks.md`

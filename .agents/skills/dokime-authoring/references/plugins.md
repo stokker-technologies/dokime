@@ -1,25 +1,16 @@
 # Dokime Plugin
 
-A Dokime plugin is a native process launched and supervised by the host over piped stdio.
+Read [Architecture](../../../../docs/architecture.md) for process ownership,
+visibility, host-mediated calls, layers and retained evidence. It is the source of
+invariants; the locked three-level contract supersedes earlier Private/Host
+terminology. Use the [SDK guides](../../../../docs/product-guide.md#documentation)
+for the selected authoring surface.
 
-Embed the product runtime through the product entry library by default. Declare its handler catalog in the plugin's `const CATALOGS`; the plugin owns suites, templates, observers, listeners and its own records and streams.
+## Existing Native Authoring Surface
 
-When crash isolation or a native library requires a separate process, host that runtime as a sidecar on the same machine with the same operation contracts. The plugin requires those operations and consumes that product's portable contract crates, beside its Dokime authoring dependency. Dokime data contracts live in `dokime-domain`; its operation declarations live in `dokime-operations` without the `runtime` feature.
-
-Stream row revisions derive automatically from their schema. Changing fields needs
-only a rebuild and plugin Reload, with no author version bump or backend restart.
-Saved rows retain their definitions. Documents and queries select stream ids and
-columns; absent columns contribute no values and incompatible columns are named
-on affected bindings without discarding readable evidence. Record revisions also
-derive from their declared fields; never author a record schema version. Rebuild
-plugins against the matching Harmos SDK. Plugin-owned records, stored objects and
-system facts retain their stored definitions, including when the plugin is absent;
-unknown plugin objects use `ObjectRetention::All`. Only unreadable Dokime-owned
-persistent state can require a fresh root.
-
-Declare records, streams, prompts and settings once in their domain owner. Dokime declares each operation, its policy and family catalog in `dokime-operations`; its `runtime`-gated implementation dispatches through host-provided resources. Plugin-provided operations follow their own operation families and one definition per operation. Public visibility permits another provider to satisfy a requirement; ambiguous providers are refused.
-
-A template lists its calls in its `requires` catalog. Its plugin's own `Private` or `Public` operations can answer without a plugin-level requirement. Calls to another plugin require a `Public` operation and a declared plugin requirement. `Host` operations cannot satisfy a template call.
+The native macro examples below belong to the old runtime. They remain relevant
+only to consumers still using that surface; they do not describe the additive
+host or override locked remote SDK direction.
 
 Use `ctx.operation(request).await?` on every authoring surface. Await returns
 `Response<T>`: read it through Deref, or call `into_owned()` to move the value.
@@ -35,17 +26,11 @@ plugin. Rebuild carrier artifacts together for operation envelope v2.
 
 Contributions name only populated catalogs: `Suites`, `Records`, `Evidence`, `RunStart` and `Settings`. Template records, prompts and streams belong to their template declarations; plugin contributions cover evidence outside those declarations. Observers publish evidence; listeners receive their declared record types.
 
-The plugin declaration implements `dokime::Plugin`; resource ownership implements the shared `dokime::harmos::Lifecycle` separately. Its async `prepare(config, &mut Setup<Self>)` registers shared resources and prepares suites with `dokime::execution::prepare::<Self, Suites>(setup)`. `initialize` activates those resources, followed by serving, `stop` and `cleanup`. Mutable resources use `Arc<tokio::sync::Mutex<T>>` or `Arc<tokio::sync::RwLock<T>>`. Observers acquire measurements through operations using their execution context. Process observers require `#[dokime::observer(interval_ms = …)]` (a constant expression of at least 1 ms). They may implement `fn interval(resources: &ExecutionContext) -> Result<Duration, Error>` beside `observe` to override the declared initial interval; otherwise the declaration applies. Harmos resolves the interval once at activation before initialization and sampling. Manual generic observers declare `Observer::INTERVAL` and inherit the same fallback. Host observer defaults and settings defaults share constants in `settings.rs`. Cadence is absent from static observer inventories. Template-local observer functions keep their separate `interval_ms` declaration.
+For ownership and operation-boundary decisions, follow
+[Architecture](../../../../docs/architecture.md); do not infer final SDK contracts
+from these existing native examples.
 
-## Operation Boundaries
-
-Templates and observers import only operations, `domain`, Dokime and the standard
-library; they never import driver or library crates. Wrap driver or library work
-in an operation and import that operation. Steps sequence operations and may use
-returned values for records and criteria; criteria decide from captured evidence.
-
-Keep operations thin and fast. Observers read through operations; return batches
-when the acquisition rate needs them so fast streams remain viable.
+## Native Operation Files
 
 Each `operations/<domain>/<operation>.rs` is a self-contained vertical slice:
 request, response, policy, handler and private helpers live together. It may
@@ -61,10 +46,6 @@ and retain them on the plugin through `Lifecycle`, register the same shared stat
 with `Setup::resource`, and retrieve it in handlers with `ctx.resource::<T>()`.
 Use the existing mechanism; if it cannot reach the needed plugin-owned state,
 stop and report rather than inventing an API.
-
-Operation calls form a linear tree without cycles: higher-level operations call
-lower-level operations, never the reverse. These are authoring conventions, not
-a Hub rule or project check.
 
 ## Hand-Authored Steps
 

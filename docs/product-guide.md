@@ -1923,6 +1923,8 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 
 ## Documentation
 
+- [Architecture](architecture.md) — invariants, reasons, implementation status and guarding proof.
+
 - [Remote OBC Walkthrough](remote/overview.md) — candidate installation, host setup, second-PC scripts and SQLite evidence.
 - [OBC Plugin](plugin-obc.md) — the charger simulation and complete test templates.
 - [Plugins](plugins.md) — the host telemetry plugin, plugin lifecycle, bundles and installation.

@@ -220,6 +220,7 @@ plugin.serve();
 Dokime is pre-1.0. Pin matching application, client and plugin revisions;
 public APIs and development storage formats may change. See the
 [product guide](docs/product-guide.md) for the detailed model and limitations.
+Read the [architecture contract](docs/architecture.md) before proposing architecture, protocol or public API changes.
 
 CLI and authoring-tool releases use target-specific ZIP (Windows) or tar.gz
 (Unix) archives. See [Install Tools With Mise](docs/product-guide.md#install-tools-with-mise)

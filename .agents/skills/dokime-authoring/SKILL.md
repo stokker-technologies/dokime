@@ -5,6 +5,10 @@ description: Author Dokime plugins, suites, steps, criteria, evidence and docume
 
 # Dokime Authoring
 
+Read [Architecture](../../../docs/architecture.md) for invariants and the distinction
+between the existing authoring surface and locked SDK direction. The examples below
+that use native macros describe the existing surface, not the final gRPC SDK API.
+
 - [Plugins](references/plugins.md): runtime ownership, hosting and contribution layout.
 - [Suites](references/suites.md): declarations, lifecycle capabilities and shared handles.
 
