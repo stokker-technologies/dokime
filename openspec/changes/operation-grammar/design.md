@@ -126,7 +126,7 @@ Vocabulary sections. Product-specific meanings belong in the next section.
 - **Streaming (Owner):** never generate twins automatically. Server streaming is
   reserved for Watch; the plugin protocol retains its own carriers. A managed
   stream exists only for an actual cooperative final-result promise after
-  cancellation, replacing the ordinary route. Native gRPC cancellation abandons
+  cancellation, replacing the ordinary gRPC method. Native gRPC cancellation abandons
   observation and cannot promise that final response; admitted durable work
   survives observer loss. Downloads, documents and diagnostics use bounded unary
   replies, with content bytes read through ranged GetContent.
@@ -307,7 +307,7 @@ partial content. Chunk and range maxima are configuration-owned limits.
 GetContent returns a bounded range, repeated by the caller to resume downloads.
 The content identity and digest bind every range to the same representation,
 including a scoped evidence archive at a returned cut. There is no separate
-streaming archive download route. Measure large-file upload/download throughput
+streaming archive download gRPC method. Measure large-file upload/download throughput
 in the Nightly benchmark set before deleting the superseded streaming transfers;
 throughput is a benchmark measurement, never a correctness-test assertion.
 
@@ -392,15 +392,15 @@ report's description of an encrypted transfer is corrected below.
 ## Complete Product Mapping
 
 The table below inventories every ordinary method in current `client_*.proto`.
-Each also has `Run<Method>`: all 132 twins are **removed** as separate routes and
+Each also has `Run<Method>`: all 132 twins are **removed** as separate gRPC methods and
 map to the same destination as their ordinary method. This explicit rule covers
-all 264 present routes, including twins of watches and uploads. No current product
+all 264 present gRPC methods, including twins of watches and uploads. No current product
 twin demonstrates a cooperative final-result promise; see `client/conversation.rs`.
 
 Disposition: **kept** retains method meaning/name (service moves are stated);
 **renamed** changes a name or shape without another inventoried method collapsing
-into it; **merged** joins overlapping routes, whole writable values, selectors or resource workflows;
-**removed** applies to obsolete routes, not lost capability. Every row retains
+into it; **merged** joins overlapping gRPC methods, whole writable values, selectors or resource workflows;
+**removed** applies to obsolete gRPC methods, not lost capability. Every row retains
 the report's caller evidence by category; dynamic and generated use also exists.
 `G` = desktop/native bridge, `C` = CLI/client, `S` = SDK convenience/new-host story,
 `T` = authored integration story, `N` = no named production caller found, not dead.
@@ -525,8 +525,8 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | `Reports.DownloadCycleReport` | `Reports.GetReport` + `Content.GetContent` + `Reports.CreateReport` | Merged: Published bytes or explicit preview creation. | GCS |
 | `Reports.DownloadExecutionReport` | `Reports.GetReport` + `Content.GetContent` + `Reports.CreateReport` | Merged: Published bytes or explicit preview creation. | GCS |
 | `Reports.MaterializeReport` | `Reports.CreateReport` | Merged: Render only, no publication. | N |
-| `Runtime.GetHealth` | `Backend.GetHealth` | Removed: Remove duplicate health route. | C |
-| `Runtime.GetIdentity` | `Backend.GetIdentity` | Removed: Remove duplicate identity route. | C |
+| `Runtime.GetHealth` | `Backend.GetHealth` | Removed: Remove duplicate health gRPC method. | C |
+| `Runtime.GetIdentity` | `Backend.GetIdentity` | Removed: Remove duplicate identity gRPC method. | C |
 | `Secrets.Export` | `Secrets.ExportSecrets` | Renamed: Existing Base64 JSON transfer, not encryption. | G |
 | `Secrets.Import` | `Secrets.ImportSecrets` | Merged: Preserve choices and generation conflict. | G |
 | `Secrets.List` | `Secrets.ListSecrets` | Renamed: Bounded metadata, not secret values. | G |
@@ -568,10 +568,10 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | Queries | 1 | `GetAggregate` |
 
 The 132 ordinary mapping rows classify as 24 kept, 35 renamed,
-71 merged and 2 duplicate routes removed. All 132 Run routes are
-additionally removed. The locked client set has 17 services and 120 operations/routes,
-compared with 23 services and 264 routes today: 144 fewer routes. This is a
-locked target inventory, not a claim that every route is already served. Watches,
+71 merged and 2 duplicate gRPC methods removed. All 132 Run gRPC methods are
+additionally removed. The locked client set has 17 services and 120 operations/gRPC methods,
+compared with 23 services and 264 gRPC methods today: 144 fewer gRPC methods. This is a
+locked target inventory, not a claim that every gRPC method is already served. Watches,
 shared uploads and split content/report resources account for added destinations.
 
 The mapping reaches 100 distinct destinations; 20 added companion operations
@@ -582,13 +582,13 @@ The 120 locked client methods require 240 named request/response messages. Remov
 authoring definitions and unreachable payloads still require field-level review.
 All content downloads are bounded unary GetContent ranges; document/diagnostic
 output is bounded unary, and only Watch uses ordinary server streaming. A proven
-managed-settlement exception replaces its ordinary route, retaining the same
-operation and route count.
+managed-settlement exception replaces its ordinary gRPC method, retaining the same
+operation and gRPC method count.
 
 ## Plugin-Facing Mapping
 
 These operations are logically unary over the duplex library invocation carrier;
-publication has its own carrier. Counts are separate from client routes and do
+publication has its own carrier. Counts are separate from client gRPC methods and do
 not multiply dynamic step/criterion instances or count protocol control frames.
 
 | Present Operation or Family | Locked Operation | Disposition and Preserved Behavior |
@@ -627,7 +627,7 @@ be split by identified setting or entry into sub-resources with their own Get/Se
 and revision, rather than replacing an unbounded aggregate. The client inventory
 counts method templates, not instances of these sub-resources.
 The shared client upload workflow expands one producer call to several operations;
-do not add 24 to the client total or treat this as a fixed generated-route count.
+do not add 24 to the client total or treat this as a fixed generated-gRPC method count.
 
 ## Source Verification and Report Corrections
 
@@ -702,7 +702,7 @@ these contracts or claim implementation.
 4. **Deletion:** settle deletion while readers hold data across backends,
    including in-progress ranged downloads and retained-cut invalidation.
 5. **Managed cancellation:** identify which operations actually promise a
-   cooperative final result and require one replacement managed route. Preserve
+   cooperative final result and require one replacement managed gRPC method. Preserve
    the plugin protocol's own carriers and proven settlement; current product
    twins establish no such promise.
 

@@ -25,7 +25,7 @@ effect that an ordinary verb would hide. Clock waiting SHALL be named Sleep.
 #### Scenario: Domain Action
 
 - **WHEN** an operation performs Start, Stop, Cancel, Restart, Seal, Publish, Import, Export, Invoke, Advance, Capture, Finish, Abandon or a plugin lifecycle action
-- **THEN** its declaration states the single lifecycle or side-effect meaning and does not offer a redundant generic Set-status route
+- **THEN** its declaration states the single lifecycle or side-effect meaning and does not offer a redundant generic Set-status gRPC method
 
 ### Requirement: Position-Resolved Resource Reads
 
@@ -175,19 +175,19 @@ the original outcome; changed payload SHALL conflict.
 The protocol SHALL NOT automatically generate streaming twins. Durable work SHALL
 use unary operations with resource Get/Watch. Only a method promising a cooperative
 final result after cancellation SHALL use a canonical managed stream replacing
-its ordinary route. Ordinary server streaming SHALL be reserved for Watch;
+its ordinary gRPC method. Ordinary server streaming SHALL be reserved for Watch;
 the plugin protocol SHALL retain its own carriers. Content transfers SHALL use
-bounded unary ranges, never streaming download routes.
+bounded unary ranges, never streaming download gRPC methods.
 
 #### Scenario: Getter Projection
 
 - **WHEN** contracts for GetExecution or ListRecords are generated
-- **THEN** no RunGetExecution or RunListRecords route is generated
+- **THEN** no RunGetExecution or RunListRecords gRPC method is generated
 
 #### Scenario: Promised Cooperative Settlement
 
 - **WHEN** a reviewed method promises a typed final result after cooperative cancellation
-- **THEN** one managed method preserves that settlement and no parallel ordinary route is generated
+- **THEN** one managed method preserves that settlement and no parallel ordinary gRPC method is generated
 - **AND** cancelling an ordinary observer does not cancel already admitted durable resource work
 
 ### Requirement: Execution Stop and Cancel
@@ -248,7 +248,7 @@ complete bytes, length and digest before visibility; Delete SHALL abandon.
 
 Clients and plugins SHALL download through repeated unary GetContent calls with
 offset and maximum bytes. Each reply SHALL state total length, content digest
-and resolved_at. Configuration SHALL bound range sizes. Streaming download routes
+and resolved_at. Configuration SHALL bound range sizes. Streaming download gRPC methods
 SHALL be removed in favor of ranged Get reads.
 
 #### Scenario: Download Resume and Bounds

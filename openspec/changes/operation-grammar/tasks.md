@@ -21,7 +21,7 @@ files during implementation without dropping any mapped capability.
 
 ## 2. Complete Proto Inventory
 
-- [ ] 2.1 Declare the complete locked inventory: 17 client services, 120 operations/routes and 240 named request/response messages, the 24 present plugin/context mapping rows and their expanded destinations, including plugin-only GetEffect. Review supporting/nested payloads to establish their exact total before generation; do not confuse method-message counts with all protobuf messages.
+- [ ] 2.1 Declare the complete locked inventory: 17 client services, 120 operations/gRPC methods and 240 named request/response messages, the 24 present plugin/context mapping rows and their expanded destinations, including plugin-only GetEffect. Review supporting/nested payloads to establish their exact total before generation; do not confuse method-message counts with all protobuf messages.
 - [ ] 2.2 Give every method its response wrapper, remove automatic Run generation, and declare only explicit Watch streams, plugin carriers and managed replacements with an actual cooperative final-result promise. Make every Get/Set an exact whole-writable-value/revision mirror, splitting large settings/traceability into separately revisioned sub-resources where necessary. Declare AppendUploadBytes and bounded ranged GetContent; preserve all mapped capabilities and update protocol/query examples.
 - [ ] 2.3 Regenerate canonical outputs for all four SDKs, descriptors, lifecycle IDs, fingerprints and requirements together; verify focused generation/drift/routing proof. The old desktop uses its existing separate projection until section 6, with no new compatibility adapter.
 
@@ -62,7 +62,7 @@ files during implementation without dropping any mapped capability.
 - [ ] 8.2 When returned-position reads are reached, settle how long a returned position stays valid and behavior across restart, including retained mutable context and explicit unavailability.
 - [ ] 8.3 When Watch handlers are reached, settle exact opening/follow, progress, gap/resynchronization, bounded delivery and actual feed semantics under the locked position/durable-visibility rule.
 - [ ] 8.4 When deletion is reached, settle behavior while readers hold data, including ranged downloads and retained-cut invalidation across backends.
-- [ ] 8.5 When cancellation routes are reached, identify which operations promise a cooperative final result and therefore need a single managed replacement; preserve plugin carriers and ordinary resource ownership after observer loss.
+- [ ] 8.5 When cancellation gRPC methods are reached, identify which operations promise a cooperative final result and therefore need a single managed replacement; preserve plugin carriers and ordinary resource ownership after observer loss.
 
 ## 9. Final Validation After Source Closure
 

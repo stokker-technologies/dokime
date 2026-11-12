@@ -4,7 +4,7 @@ Status: locked by the owner on 2026-11-12
 
 ## Why
 
-The client protocol has 132 logical operations and 264 routes, while overlapping
+The client protocol has 132 logical operations and 264 gRPC methods, while overlapping
 read families and older desktop contracts give the same resources different
 names and guarantees. Agree the shared operation grammar before the desktop
 moves to the new host, so consumers migrate once.
@@ -29,14 +29,14 @@ not landed behavior.
 | Execution cancellation | Owner | Cancel only running executions; refuse queued cancellation with an error naming the action. Stop finishes at a safe boundary; Cancel interrupts. |
 | Execution rename | Owner | Rename one execution, never every attempt of its case. |
 | Transfers | Owner | One unary, ranged, resumable mechanism for clients and plugins: CreateUpload, AppendUploadBytes at ordered offsets, GetUpload, PublishUpload and DeleteUpload; bounded GetContent ranges return total length and digest. Identical chunk replay succeeds; different bytes at an accepted offset conflict. Configuration bounds chunks and ranges. Benchmark large-file throughput in Nightly before deleting streaming transfers. |
-| Streaming twins | Owner | Never generate automatically; server streaming is reserved for Watch and the plugin protocol retains its own carriers. A managed stream replaces the ordinary route only where a cooperative final result after cancellation is promised. |
+| Streaming twins | Owner | Never generate automatically; server streaming is reserved for Watch and the plugin protocol retains its own carriers. A managed stream replaces the ordinary gRPC method only where a cooperative final result after cancellation is promised. |
 | Shared primitives | Owner | One bounded paging shape, `(history, sequence)` positions, protobuf Timestamp/Duration, Failure, retry policy, and accepted/durable receipts. |
 | SDK ownership | Owner | Other products will host plugins on the library: it retains language SDKs, and product SDKs build on them. Protocol, SDKs and conformance remain self-sufficient and free of product vocabulary. Only four-language plugin parity and generic managed-client coverage remain open under SDKs. |
 
 **BREAKING:** replace the old operation names, requests and reply carriers; remove
-all 132 automatic Run routes, duplicate Runtime identity/health, separate
+all 132 automatic Run gRPC methods, duplicate Runtime identity/health, separate
 History/checkpoint paths, streaming transfers and superseded generated DTOs.
-Preserve the capabilities behind these routes: frozen context, seals, bounded
+Preserve the capabilities behind these gRPC methods: frozen context, seals, bounded
 evidence, preview versus publication, interactive commands, scoped access and
 replay protection. “No named caller found” is not deletion evidence.
 
