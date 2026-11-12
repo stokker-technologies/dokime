@@ -27,6 +27,7 @@ members = [
   "plugins/sidecars/obc",
   "plugins/sidecars/obc/runtime",
   "sdk/python",
+  "sdk/rust",
 ]
 # Native Python Is Built Only By Its Explicit Producer.
 default-members = [
@@ -91,7 +92,7 @@ tracing-flame = { version = "0.2.0" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
-harmos = { version = "=0.1.14" }
+harmos = { git = "https://github.com/stokker-technologies/harmos", rev = "a7583836e721c8dc8b135af40a78860ea5945ec6" }
 harmos-packaging = { version = "=0.1.14" }
 harmos-sdk = { version = "=0.1.14" }
 hmac = { version = "0.13.0" }
