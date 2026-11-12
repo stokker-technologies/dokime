@@ -323,114 +323,11 @@ impl Control {
             }
             Ok(request)
         };
-        let message_bytes = self.settings.message_bytes;
         let cancellation = CancellationToken::new();
         let shutdown = cancellation.clone();
         active.task = Some(tokio::spawn(async move {
-            tonic::transport::Server::builder()
-                .tls_config(tls)?
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::plugins_server::PluginsServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::catalog_server::CatalogServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::planning_server::PlanningServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::execution_server::ExecutionServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::observation_server::ObservationServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::prompts_server::PromptsServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::query_server::QueryServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::evidence_server::EvidenceServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::telemetry_server::TelemetryServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::reports_server::ReportsServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::health_server::HealthServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::backend_server::BackendServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::runtime_server::RuntimeServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::appearance_server::AppearanceServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::settings_server::SettingsServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::secrets_server::SecretsServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
-                .add_service(tonic::service::interceptor::InterceptedService::new(
-                    v1::remote_server::RemoteServer::new(services.clone())
-                        .max_decoding_message_size(message_bytes)
-                        .max_encoding_message_size(message_bytes),
-                    authenticate.clone(),
-                ))
+            let builder = tonic::transport::Server::builder().tls_config(tls)?.layer(tonic::service::InterceptorLayer::new(authenticate));
+            super::routes(builder, services)
                 .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown.cancelled_owned())
                 .await
         }));

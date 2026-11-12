@@ -134,7 +134,7 @@ pub async fn serve_with_diagnostics(
     endpoint: SocketAddr, root: &Path, host_settings: HostSettings, settings: ClientSettings, diagnostics: Diagnostics,
 ) -> Result<Server> {
     if !endpoint.ip().is_loopback() {
-        return Err(Error::Invalid("Serve the New Host on a Local Endpoint Until Remote Authentication Is Implemented".into()));
+        return Err(Error::Invalid("Use the Authenticated Remote Listener for Non-Loopback Access".into()));
     }
     if settings.read_timeout.is_zero()
         || settings.mutation_timeout.is_zero()
@@ -196,7 +196,6 @@ pub async fn serve_with_diagnostics(
         identity,
         progress: Mutex::new(std::collections::HashMap::new()),
     };
-    let message_bytes = settings.message_bytes;
     let close_timeout = settings.mutation_timeout;
     let context = dokime_operations_next::client::Context {
         administration,
@@ -210,92 +209,7 @@ pub async fn serve_with_diagnostics(
     let cancellation = CancellationToken::new();
     let shutdown = cancellation.clone();
     let task = tokio::spawn(async move {
-        tonic::transport::Server::builder()
-            .add_service(
-                v1::plugins_server::PluginsServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::catalog_server::CatalogServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::planning_server::PlanningServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::execution_server::ExecutionServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::observation_server::ObservationServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::prompts_server::PromptsServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::query_server::QueryServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::evidence_server::EvidenceServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::telemetry_server::TelemetryServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::reports_server::ReportsServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::health_server::HealthServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::backend_server::BackendServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::runtime_server::RuntimeServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::appearance_server::AppearanceServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::settings_server::SettingsServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::secrets_server::SecretsServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
-            .add_service(
-                v1::remote_server::RemoteServer::new(services.clone())
-                    .max_decoding_message_size(message_bytes)
-                    .max_encoding_message_size(message_bytes),
-            )
+        routes(tonic::transport::Server::builder(), services)
             .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown.cancelled_owned())
             .await
     });
@@ -310,5 +224,95 @@ pub async fn serve_with_diagnostics(
 }
 
 /* === Private Functions === */
+
+fn routes<L: Clone>(mut builder: tonic::transport::Server<L>, services: Services) -> tonic::transport::server::Router<L> {
+    let message_bytes = services.context.settings.message_bytes;
+    builder
+        .add_service(
+            v1::appearance_server::AppearanceServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::backend_server::BackendServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::catalog_server::CatalogServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::evidence_server::EvidenceServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::execution_server::ExecutionServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::health_server::HealthServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::observation_server::ObservationServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::planning_server::PlanningServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::plugins_server::PluginsServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::prompts_server::PromptsServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::query_server::QueryServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::remote_server::RemoteServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::reports_server::ReportsServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::runtime_server::RuntimeServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::secrets_server::SecretsServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::settings_server::SettingsServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::telemetry_server::TelemetryServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+}
 
 /* === Tests === */

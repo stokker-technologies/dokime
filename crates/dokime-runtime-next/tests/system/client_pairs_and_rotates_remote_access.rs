@@ -69,6 +69,23 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         let identity = backend.get_identity(request).await?.into_inner();
         assert_eq!(identity.backend_id, first.backend_identifier);
 
+        // The Same Authorization Protects Settings and Plugin Pages
+        let mut settings = v1::settings_client::SettingsClient::new(channel.clone());
+        assert_eq!(
+            settings.read_application_settings(v1::SettingsReadApplicationSettingsRequest {}).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated,
+        );
+        let mut request = tonic::Request::new(v1::SettingsReadApplicationSettingsRequest {});
+        request.metadata_mut().insert("authorization", format!("Bearer {}", first.access_key.as_ref().unwrap()).parse()?);
+        assert!(settings.read_application_settings(request).await?.into_inner().settings.is_some());
+        let mut plugins = v1::plugins_client::PluginsClient::new(channel.clone());
+        assert_eq!(plugins.list(v1::ListPlugins {}).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let mut request = tonic::Request::new(v1::ListPlugins {});
+        request.metadata_mut().insert("authorization", format!("Bearer {}", first.access_key.as_ref().unwrap()).parse()?);
+        assert!(plugins.list(request).await?.into_inner().plugins.is_empty());
+        drop(settings);
+        drop(plugins);
+
         // A New Export Invalidates the Old Key on an Already Open Channel
         let second = remote
             .create_pairing(v1::RemoteCreatePairingRequest { label: "Replacement Desktop".into() })

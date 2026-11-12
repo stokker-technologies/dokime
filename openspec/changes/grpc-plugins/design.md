@@ -790,6 +790,8 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+- Local and remote listeners share one client-service route composer; the remote listener applies one bearer-key authorization layer to every route.
+
 - Each managed or remote connection reads the saved PluginPreferences for startup and stop grace; client operation deadlines remain owned by ClientSettings.
 
 - Availability is refreshed on demand through bounded fresh-connection Describe handshakes, serialized with registry mutations; stopped or changed processes remain visible while admitted catalogs exclude them.
