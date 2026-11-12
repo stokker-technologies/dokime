@@ -308,8 +308,16 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
             } else {
                 repository.join("target/debug/examples")
             };
-            folder.join(format!("content_fixture{}", std::env::consts::EXE_SUFFIX))
+            let exported = folder.join(format!("content_fixture{}", std::env::consts::EXE_SUFFIX));
+            if exported.is_file() {
+                exported
+            } else {
+                repository.join("target/debug/examples").join(format!("content_fixture{}", std::env::consts::EXE_SUFFIX))
+            }
         });
+        if !fixture.is_file() {
+            return Err("Build content_fixture Through the Documented Mise Task or Set DOKIME_CONTENT_PLUGIN".into());
+        }
         let settings = super::support::settings();
         let mut plugin = dokime_runtime_next::PluginProcess::start(&fixture, true, &settings.placement).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
