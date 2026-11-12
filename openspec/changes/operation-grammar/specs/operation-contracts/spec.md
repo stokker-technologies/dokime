@@ -4,7 +4,8 @@
 
 Give product callers one predictable operation grammar and consistent resource,
 position, mutation and upload behavior across clients and plugins.
-This is a proposed target awaiting owner lock, not implemented behavior.
+Status: locked by the owner on 2026-11-12. These are target requirements,
+not implemented behavior.
 
 ## ADDED Requirements
 
@@ -58,15 +59,15 @@ positions or the seal; unavailable or arbitrary earlier positions SHALL fail.
 ### Requirement: Payload-Size-Independent Durable Lag
 
 The newest durable position SHALL trail the newest accepted data by no more than
-a stated bound at the 95th percentile, independent of payload size. The proposed
-bound is 250 ms; the owner SHALL set the final number. Latest-durable/no-wait
-reads are an owner decision conditional on meeting that measured bound.
+250 ms at the 95th percentile, independent of payload size, proven by the
+Nightly benchmark case under small, multi-megabyte and mixed loads.
+Latest-durable/no-wait reads SHALL NOT wait for unsaved accepted data.
 The flush cadence alone SHALL NOT count as proof.
 
 #### Scenario: Nightly Measurement Across Payload Sizes
 
 - **WHEN** the durable-lag benchmark case runs in the Nightly benchmark set under the stable case naming convention used by the storage benches
-- **THEN** it reports p50, p95 and maximum durable lag separately for small samples at a high rate, multi-megabyte batches and a mix, comparing each p95 with the owner-set bound
+- **THEN** it reports p50, p95 and maximum durable lag separately for small samples at a high rate, multi-megabyte batches and a mix, comparing each p95 with the 250 ms p95 bound
 - **AND** a consumer can reuse the case against its own backend, including the independent product store, without wall-clock assertions in correctness tests
 
 #### Scenario: Deterministic Flush Bounds
@@ -77,7 +78,7 @@ The flush cadence alone SHALL NOT count as proof.
 
 #### Scenario: Measured Bound Is Missed
 
-- **WHEN** any benchmark load misses the owner-set p95 bound
+- **WHEN** any benchmark load misses the 250 ms p95 bound
 - **THEN** smaller flush pieces and flushing as soon as a size threshold is reached, rather than only on the cadence, are tried first and measured again
 - **AND** if those measures are insufficient, reads resolving against a snapshot of accepted data are the named fallback; that fallback is not built now
 
@@ -126,27 +127,34 @@ bounds independent of physical work limits.
 - **THEN** it receives the next page at the original cut in stable order with identifier tie-breaking
 - **AND** changing the selection or using an expired token fails explicitly
 
-### Requirement: Masked Set with Revision Guard
+### Requirement: Whole-Value Set with Revision Guard
 
-Set SHALL accept an optional field mask; an absent mask SHALL replace the whole
-writable value. Resources with revisions SHALL enforce the expected revision.
-Read-only fields SHALL remain runtime-owned. An invalid or explicitly empty mask
-SHALL fail without mutation.
+Set SHALL carry the whole writable value and the expected revision returned by
+its matching Get. Get SHALL return that same writable value and revision,
+separately from runtime-owned facts. If whole-value replacement is unreasonable,
+the writable part SHALL be split into separately settable sub-resources, each
+with its own Get, Set and revision. Read-only fields SHALL remain runtime-owned.
 
-#### Scenario: Whole Value and Partial Value
+#### Scenario: Exact Get and Set Mirrors
 
-- **WHEN** a caller Sets a value without a mask and with the correct expected revision
-- **THEN** all writable fields are replaced consistently
-- **AND** when a nonempty valid mask is supplied only those writable fields change
+- **WHEN** a caller Gets an execution and Sets its whole small writable value with that revision, changing only the label
+- **THEN** label, pause and archive values are replaced together under that revision guard and runtime-owned facts remain unchanged
+- **AND** the response is a SetExecutionResponse wrapper with the new writable value, revision and receipt
 
 #### Scenario: Revision Conflict
 
-- **WHEN** another mutation has changed the expected revision
+- **WHEN** another mutation has changed the revision returned by Get
 - **THEN** Set refuses the stale write with the shared conflict failure and leaves the value unchanged
+- **AND** the failure names the action: get again and retry
+
+#### Scenario: Large Writable Resource
+
+- **WHEN** plugin settings or traceability would require an unreasonable whole-value replacement
+- **THEN** the resource is split by identified setting or entry into separately revisioned Get/Set sub-resources
 
 ### Requirement: Append Ordered Immutable Data
 
-Ordered immutable records, samples, log lines and document contributions SHALL
+Ordered immutable records, samples, log lines, upload bytes and document contributions SHALL
 use Append with mutation receipts. Create SHALL allocate lifecycle resources.
 Retrying an Append with the same mutation key and normalized payload SHALL replay
 the original outcome; changed payload SHALL conflict.
@@ -167,7 +175,9 @@ the original outcome; changed payload SHALL conflict.
 The protocol SHALL NOT automatically generate streaming twins. Durable work SHALL
 use unary operations with resource Get/Watch. Only a method promising a cooperative
 final result after cancellation SHALL use a canonical managed stream replacing
-its ordinary route. Bounded response streaming SHALL NOT imply another route.
+its ordinary route. Ordinary server streaming SHALL be reserved for Watch;
+the plugin protocol SHALL retain its own carriers. Content transfers SHALL use
+bounded unary ranges, never streaming download routes.
 
 #### Scenario: Getter Projection
 
@@ -209,23 +219,55 @@ scope consistently.
 - **WHEN** a caller Sets the label of one of two executions for the same case
 - **THEN** only the selected execution's label changes and the sibling label remains unchanged
 
-### Requirement: Shared Unary Upload Sessions
+### Requirement: Shared Unary Resumable Uploads
 
-Clients and plugins SHALL use the same resumable unary upload sessions. Sessions
-SHALL expose creation, status, chunk setting, deletion and publication. Publication
-SHALL verify complete bytes, length and digest before immutable content becomes
-available to artifact or plugin creation.
+Clients and plugins SHALL share unary CreateUpload, AppendUploadBytes, GetUpload,
+PublishUpload and DeleteUpload. Append SHALL accept ordered chunks at stated
+offsets; identical replay SHALL succeed and different bytes at an accepted offset
+SHALL conflict. Configuration SHALL bound chunk sizes. Publish SHALL verify
+complete bytes, length and digest before visibility; Delete SHALL abandon.
 
 #### Scenario: Resume After Lost Reply
 
 - **WHEN** an upload chunk reply is lost and the caller reconnects
-- **THEN** GetUpload reports committed ranges and an identical SetUploadChunk can replay safely
-- **AND** conflicting bytes for the same range fail
+- **THEN** GetUpload reports the accepted offset and an identical AppendUploadBytes replays safely
+- **AND** different bytes at an accepted offset conflict without changing content
 
 #### Scenario: Partial Upload and Expiry
 
 - **WHEN** publication is requested with missing bytes, a wrong digest or an expired session
 - **THEN** it fails explicitly without publishing partial content or silently creating a replacement session
+
+#### Scenario: Ordered and Bounded Chunks
+
+- **WHEN** a new chunk starts after the next accepted offset or exceeds the configured chunk bound
+- **THEN** AppendUploadBytes refuses it without changing session data
+- **AND** GetUpload exposes the accepted offset, length, digest and session state to resume
+
+### Requirement: Shared Unary Ranged Downloads
+
+Clients and plugins SHALL download through repeated unary GetContent calls with
+offset and maximum bytes. Each reply SHALL state total length, content digest
+and resolved_at. Configuration SHALL bound range sizes. Streaming download routes
+SHALL be removed in favor of ranged Get reads.
+
+#### Scenario: Download Resume and Bounds
+
+- **WHEN** a client or plugin resumes a content download at its next offset with a maximum byte count
+- **THEN** the unary response returns a configuration-bounded range with total length, content digest and resolved_at
+- **AND** subsequent ranges preserve the content representation and returned cut
+
+### Requirement: Transfer Throughput Benchmark Before Removal
+
+Large-file upload and download throughput SHALL be measured by a benchmark case
+in the Nightly set before superseded streaming transfers are deleted. Throughput
+SHALL NOT be a correctness-test assertion.
+
+#### Scenario: Measure Before Streaming Removal
+
+- **WHEN** replacement transfers are ready for deletion of the old streaming paths
+- **THEN** the Nightly benchmark case measures large-file upload and download throughput for the shared client/plugin mechanism before those paths are deleted
+- **AND** throughput remains a benchmark measurement rather than a correctness-test assertion
 
 ### Requirement: Shared Failures and Retry Policy
 
