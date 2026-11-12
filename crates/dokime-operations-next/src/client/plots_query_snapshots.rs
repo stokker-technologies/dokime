@@ -128,7 +128,7 @@ pub fn snapshot_at(
         .ok_or_else(|| Error::Invalid(format!("Query Plot: Select a Declared Stream {}", request.stream)))?;
     let descriptor =
         pool.get_message_by_name(&stream.row).ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Row Descriptor".into()))?;
-    let mut fields = request.y_keys.clone();
+    let mut fields = if request.y_expressions.is_empty() { request.y_keys.clone() } else { Vec::new() };
     let mut aggregate = None;
     for expression in &request.y_expressions {
         match expression.kind.as_ref() {
@@ -142,7 +142,12 @@ pub fn snapshot_at(
                     return Err(Error::Invalid("Query Plot: Select Columns from One Stream".into()));
                 }
                 fields.push(reference.field.clone());
-                aggregate = v1::Aggregate::try_from(expression.kind).ok();
+                let reducer = v1::Aggregate::try_from(expression.kind)
+                    .map_err(|_| Error::Invalid("Query Plot Aggregate: Select a Declared Reducer".into()))?;
+                if aggregate.is_some_and(|previous| previous != reducer) {
+                    return Err(Error::Invalid("Query Plot Aggregate: Use One Reducer per Plot or Split the Series".into()));
+                }
+                aggregate = Some(reducer);
             }
             _ => return Err(Error::Invalid("Query Plot: Select Numeric Columns from the Requested Stream".into())),
         }
@@ -191,6 +196,14 @@ pub fn snapshot_at(
         return Err(Error::Invalid("Query Plot: Supply Positive Panel Dimensions".into()));
     }
     let kind = v1::PlotKind::try_from(request.plot_type).map_err(|_| Error::Invalid("Query Plot: Select a Declared Plot Kind".into()))?;
+    if aggregate.is_some()
+        && (!matches!(kind, v1::PlotKind::Bar | v1::PlotKind::Pie)
+            || request.y_expressions.iter().any(|expression| !matches!(expression.kind, Some(v1::data_expression::Kind::Aggregate(_)))))
+    {
+        return Err(Error::Invalid(
+            "Query Plot Aggregate: Select Only Aggregate Expressions in a Bar or Pie Plot Until Other Aggregate Variants Are Served".into(),
+        ));
+    }
     let field_reference = |expression: Option<&v1::DataExpression>, fallback: Option<&str>| -> Result<Option<String>> {
         match expression.and_then(|expression| expression.kind.as_ref()) {
             Some(v1::data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => Ok(Some(reference.field.clone())),

@@ -184,6 +184,10 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         assert_eq!(payload.series[0].label,"Adjusted");
         assert!(payload.frame.as_ref().unwrap().series[0].y.iter().all(|value|value.value.unwrap()>=34.0));
 
+        // Refuse Aggregate Variants That Have No Connected Renderer Instead of Returning Raw Values
+        let unsupported=v1::PlotRequest {stream:"cells".into(),scope:scope.clone(),plot_type:v1::PlotKind::TimeSeries as i32,y_expressions:vec![v1::DataExpression {kind:Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {input:Some(Box::new(v1::FieldReference::new("cells").field("max"))),kind:v1::Aggregate::Mean as i32,..Default::default()}))),..Default::default()}],..Default::default()};
+        assert_eq!(plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![unsupported]}).await.unwrap_err().code(),tonic::Code::InvalidArgument);
+
         // Separate Summary and Viewport Windows with Bounded Event Markers
         let request=v1::PlotRequest {stream:"cells".into(),scope:scope.clone(),plot_type:v1::PlotKind::TimeSeries as i32,y_keys:vec!["max".into()],viewport:Some(v1::PlotWindow {from:16.0,to:31.0}),summary_window:Some(v1::PlotWindow {from:0.0,to:7.0}),marker_record_types:vec!["event".into()],max_points:Some(128),..Default::default()};
         let reply=plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![request]}).await?.into_inner();
