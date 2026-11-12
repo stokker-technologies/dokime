@@ -170,7 +170,10 @@ The native runtime creates `dokime-evidence-*` spools in
 `crates/dokime-runtime/src/execution/evidence_rows.rs` and `dokime-output-*` files
 in `crates/dokime-runtime/src/runtime/storage/native_outputs.rs`. Their Rust
 destructors cannot reclaim scratch after process termination; the enclosing
-desktop task owns that cleanup.
+desktop task owns that cleanup. Direct walkthrough and screenshot entry points
+also scope their native children to owned system-temp scratch and reclaim their
+workspace on failure. Desktop logs and screenshots remain in the target report;
+`DOKIME_KEEP_EVIDENCE=1` copies the full workspace/scratch there before removal.
 Native launch is checked before admitting history, and admission completes before
 timing starts. The fixture host declares its checkpoint shutdown budget from the
 existing mutation policy. The result folder retains the producer's fixture stamp

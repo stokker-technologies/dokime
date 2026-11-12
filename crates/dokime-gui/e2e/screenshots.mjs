@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,7 +68,6 @@ const environment = {
 let session;
 let backend;
 let cleanup;
-let failed = true;
 let failure;
 const cleanupErrors = [];
 
@@ -581,13 +580,15 @@ try {
       await call(session, "Execution", "SealCycle", { cycleId: active.cycleId });
     }
   }
-  failed = false;
 } catch (error) {
+  failure = error;
+  const view = session ? await session.text().catch(() => "Webview unavailable") : "Webview not started";
+  await writeFile(join(evidence, "failure.txt"), `${error.stack ?? String(error)}\n\n${view}`).catch((captureError) =>
+    cleanupErrors.push(captureError),
+  );
   if (session) {
-    await writeFile(join(evidence, "failure.txt"), await session.text().catch(() => "Webview unavailable"));
     await session.screenshot("failure").catch(() => {});
   }
-  failure = error;
 } finally {
   // Stop Only Processes Started By This Journey; Preserve Failure Evidence.
   for (const [label, stop] of [
@@ -617,7 +618,17 @@ try {
       cleanupErrors.push(new Error(`${label}: ${error.message}`, { cause: error }));
     }
   }
-  if (!failed && !cleanupErrors.length) await rm(work, { recursive: true, force: true });
+  const logs = join(work, "shell/application/logs");
+  for (const name of await readdir(logs).catch(() => [])) {
+    if (!name.endsWith(".log")) continue;
+    await copyFile(join(logs, name), join(evidence, `desktop-${name}`)).catch((error) => cleanupErrors.push(error));
+  }
+  try {
+    if (process.env.DOKIME_KEEP_EVIDENCE === "1") await cp(work, join(evidence, "fixture"), { recursive: true });
+    await rm(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
   process.stdout.write(`Screenshot diagnostics: ${evidence}\n`);
 }
 // Preserve Ready Scenes Even When A Later Product Operation Fails.

@@ -228,7 +228,6 @@ const releaseValidation = options.release;
 const windows = process.platform === "win32";
 let reportBrowser;
 let nativePickerWorker;
-let reportBrowserClosed = false;
 const walkthroughStarted = performance.now();
 const results = [];
 const timings = [];
@@ -257,6 +256,8 @@ let driverProcess;
 let backend;
 
 let work;
+let nativeScratch;
+let scratchEnvironment = {};
 
 let evidence;
 
@@ -301,7 +302,9 @@ function listening(endpoint) {
 
 async function executeFile(command, args, options) {
   const category = command === cliBinary ? "cli" : command === "python" ? "fixture-preparation" : "native-process";
-  return measured(category, basename(command), () => promisify(execFile)(command, args, options));
+  return measured(category, basename(command), () =>
+    promisify(execFile)(command, args, { ...options, env: { ...process.env, ...options?.env, ...scratchEnvironment } }),
+  );
 }
 
 async function measured(category, name, run) {
@@ -524,6 +527,7 @@ async function startBackendMeasured(
         ...process.env,
         DOKIME_TEST_HUB_OPERATOR: "Gate Operator",
         ...environment,
+        ...scratchEnvironment,
         ...(!windows ? { HOME: work } : {}),
       },
       stdio: ["pipe", log.fd, log.fd],
@@ -597,6 +601,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       windowsHide: true,
       env: {
         ...process.env,
+        ...scratchEnvironment,
         TAURI_WEBVIEW_AUTOMATION: "true",
         DOKIME_AUTOMATION_REPORT_OPENER: reportBrowser.endpoint,
         DOKIME_APPLICATION_ROOT: distribution ? "" : applicationRoot,
@@ -5021,6 +5026,8 @@ async function main() {
   await mkdir(reportsRoot, { recursive: true });
   evidence = await mkdtemp(join(reportsRoot, "native-desktop-e2e-"));
   work = await mkdtemp(join(tmpdir(), "dokime-native-desktop-"));
+  nativeScratch = await mkdtemp(join(tmpdir(), "dokime-native-scratch-"));
+  scratchEnvironment = { TEMP: nativeScratch, TMP: nativeScratch, TMPDIR: nativeScratch };
   process.stdout.write(`Evidence: ${evidence}\n`);
   if (releaseValidation && !windows) throw new Error("Installed release validation currently requires Windows.");
   if (process.env.DOKIME_E2E_DEV_URL)
@@ -5185,12 +5192,29 @@ export async function prepareNativeFixture(root, output) {
         : "google-chrome");
   reportBrowser = await ReportBrowser.start(work, chrome, WAIT_MS);
   await startSecretService();
+  nativeScratch = await mkdtemp(join(tmpdir(), "dokime-native-scratch-"));
+  scratchEnvironment = { TEMP: nativeScratch, TMP: nativeScratch, TMPDIR: nativeScratch };
   return async () => {
-    await reportBrowser.close();
-    await stopNativePicker();
-    await terminate(driverProcess);
-    for (const child of [secretKeyring, secretBus]) await terminate(child);
+    const errors = [];
+    for (const close of [
+      () => reportBrowser.close(),
+      stopNativePicker,
+      () => terminate(driverProcess),
+      () => terminate(secretKeyring),
+      () => terminate(secretBus),
+      async () => {
+        if (process.env.DOKIME_KEEP_EVIDENCE === "1") await cp(nativeScratch, join(evidence, "native-scratch"), { recursive: true });
+        await rm(nativeScratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      },
+    ]) {
+      try {
+        await close();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
     await writeFile(join(evidence, "timings.json"), JSON.stringify(timings, null, 2));
+    if (errors.length) throw new AggregateError(errors, "Native fixture cleanup failed");
   };
 }
 
@@ -5210,7 +5234,6 @@ async function runDesktopWalkthrough() {
         "report browser cleanup",
         async () => {
           await reportBrowser?.close();
-          reportBrowserClosed = true;
         },
       ],
       ["native picker cleanup", stopNativePicker],
@@ -5266,10 +5289,18 @@ async function runDesktopWalkthrough() {
       await rm(join(work, "secrets"), { force: true, recursive: true }).catch(() =>
         failures.push({ kind: "failure", name: "secret cleanup", reason: "Private temporary secret removal failed" }),
       );
-    if (work && reportBrowserClosed && !failures.length)
-      await rm(work, { force: true, recursive: true }).catch((error) =>
-        failures.push({ kind: "failure", name: "workspace cleanup", reason: error.message }),
-      );
+    for (const [name, directory] of [
+      ["workspace", work],
+      ["native-scratch", nativeScratch],
+    ]) {
+      if (!directory) continue;
+      try {
+        if (process.env.DOKIME_KEEP_EVIDENCE === "1") await cp(directory, join(evidence, name), { recursive: true });
+        await rm(directory, { force: true, recursive: true, maxRetries: 5, retryDelay: 200 });
+      } catch (error) {
+        failures.push({ kind: "failure", name: `${name} cleanup`, reason: error.message });
+      }
+    }
     if (evidence) {
       await writeFile(join(evidence, "timings.json"), JSON.stringify(timings, null, 2));
       const totals = {};
