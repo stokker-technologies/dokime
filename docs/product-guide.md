@@ -37,7 +37,7 @@ Release downloads include native installers, CLI and authoring-tool archives,
 `dokime-distribution-<version>-<Rust-target>.zip` distributor inputs and
 `dokime-plugins-<version>-<Rust-target>.zip` (Windows) or `.tar.gz` (Unix).
 Each plugins archive contains shipping native plugins as unversioned `.dokime`
-members. Native Python wheels and `cargo-dokime` archives remain downloads until
+members. Python wheels and `cargo-dokime` archives remain downloads until
 replaced by their owning SDK and CLI changes.
 
 `dokime-proto-<version>.zip` contains the `dokime/v1/` and `harmos/v1/` definitions
@@ -115,24 +115,21 @@ environment `release`, before the first publication under this workflow.
 
 ## Start a Python Project
 
-Install the native SDK with [uv](../sdk/python/README.md#install), using the same
-candidate revision as the backend or desktop. The Git install builds with uv
-and Rust supplied by mise; native wheels require no compiler. The provisional
-package is `dokime-python`, importing `dokime`.
+Use the pure [Python SDK](../sdk/python/README.md) with Python 3.13 or newer.
+Python serves remote plugins; start Dokime separately.
 
 ```sh
 dokime new bench --lang python
 cd bench
-uv add /path/to/dokime_python-0.1.2-cp313-abi3-win_amd64.whl
-uv run python main.py
+uv add /path/to/dokime-0.1.5-py3-none-any.whl
+mise run test
+mise run serve
 ```
 
-Use the platform's matching wheel. The [starter](../sdk/python/examples/starter/)
-keeps `main.py`, plugin composition, instrument operations and suites separate.
-Import its generated pairing file into the desktop and run **Bench / Capture**.
-The prompt confirms connections before simulated voltage acquisition. See
-[plugin authoring](plugins.md#python-projects) for the operation boundary and
-[remote Python](remote/python.md) to control an existing backend instead.
+The [starter source](../sdk/python/examples/starter/) contains the suite and its
+in-process host test. CLI embedding and real-host execution need the integration
+work recorded in the [SDK guide](../sdk/python/README.md#validate). Generated
+client calls await authoritative service definitions in `proto/dokime/v1`.
 
 ## The Test Domain
 
@@ -371,42 +368,10 @@ The folder is `$XDG_CONFIG_HOME/dokime/remotes` (or `$HOME/.config/dokime/remote
 on Linux, `$APPDATA/dokime/remotes` on Windows, and
 `$HOME/Library/Application Support/dokime/remotes` on macOS.
 
-Python constructs a client without opening a channel, then uses its normal
-asynchronous connection lifecycle. The flat lifecycle target below adds public
-`cycle.close()`; current source still exposes cycle cleanup through context
-entry/exit. See the [follow-up inventory](../openspec/changes/imported-executions/design.md):
-
-```python
-import asyncio
-from pathlib import Path
-from dokime import DokimeClient
-
-async def main() -> int:
-    client = DokimeClient.from_pairing("examples/lab.pair")
-    await client.connect()
-    cycle = await client.create_cycle(label="Example Lab Tracking")
-    run = await cycle.start("example.demo.tracking", duration_min=10)
-    async for record in run.records("example.tool.connected", "example.tool.disconnected"):
-        print(record.type)
-    await cycle.close()
-    await cycle.save(Path("target/reports/tracking") / run.id, report="cycle.summary")
-    await client.close()
-    return run.outcome.exit_code
-
-
-raise SystemExit(asyncio.run(main()))
-```
-
-The example requires the corresponding installed template. With the OBC fixture,
-use `cycle.start("obc.checks.pulse", sample_count=8)`. Explicit `cycle.close()` seals and drains owned work. Use `try/finally` to
-retain cleanup on exceptions and cancellation, including Ctrl+C; cleanup failures
-remain grouped with the original failure in the target API. Await a run directly for its saved outcome.
-Terminal record/sample iterators accept positional filters and provide `.to_json()`.
-The outcome's exit code is 0 for passed, 1 for nonpassing, 130 for interrupted or
-cancelled. A template expansion returns an ordered tuple of all execution handles.
-`cycle.save` writes per-execution ZIPs, cycle.zip, optional report.html and a
-manifest.json with relative paths, byte sizes and SHA-256 digests. Existing files
-are refused. See the [Python client guide](../sdk/python/README.md#creating-cycles).
+Python uses `await dokime.connect(...)` and `await client.close()`.
+The generated service stubs and thin client layer replace the native lifecycle
+and dataframe APIs. Its current service-definition prerequisite is recorded in
+the [Python SDK guide](../sdk/python/README.md#connect-a-client).
 
 Clients try endpoint candidates in their listed order. A failed connection leaves
 the pairing file available for retry. Certificate trust and expected backend
@@ -840,11 +805,11 @@ The [Remote CLI Workflows](remote/cli.md) include
 linear device, test and confirmation exercises for POSIX shell, PowerShell 7.3+ and
 Command Prompt. Edit their connection, execution, observation and file globals,
 then run without arguments. Their names, grouping and meanings match the
-[Python examples](../sdk/python/examples/remote/python/control-test.py).
+[Python starter](../sdk/python/examples/starter/).
 The scripts require the matching CLI and simulated OBC plugin; a matching
 first-party release combination and native workflow validation remain pending.
 The [candidate walkthrough](remote/overview.md) explains
-how to obtain matching native CI artifacts and prepare a local Python wheel from the same revision.
+how to obtain matching CI artifacts and prepare a pure Python wheel from the same revision.
 
 `--parameters-json` supplies single template parameter values as a plain
 JSON object. The default pulse has no prompt. To require one confirmation,
@@ -1423,44 +1388,15 @@ Later evidence cannot change the sealed statistics or repeated sections.
 
 ## Finite Evidence Queries
 
-The Python client discovers executions and cycles in the connected backend's
-local retained history, then selects records or projected telemetry at one fixed
-snapshot. These reads never start, stop, seal or follow an execution. Existing
-`records()`/`samples()` still replay and follow through the execution seal.
-
-```python
-from dokime import DokimeClient
-
-client = DokimeClient.from_pairing("examples/lab.pair")
-await client.connect()
-async for execution in client.executions(template="example.measurement", status="failed"):
-    samples = execution.telemetry("example.stream", fields=["counter"])
-    frame = await samples.to_polars(max_rows=10_000)
-    metadata = samples.metadata
-    assert metadata is not None
-    print(frame, metadata.schema, samples.snapshot, samples.complete)
-    await samples.aclose()
-await client.close()
-```
-
-The selected template/stream must be installed. Install the optional helper from
-the same matching wheel, for example
-`uv add ./dokime_python-0.1.2-cp313-abi3-win_amd64.whl --extra polars`; use `--extra pandas`
-and `to_pandas(max_rows=...)` for Pandas. Iteration and `collect` need neither extra.
-The [client guide](../sdk/python/README.md#optional-dataframes) describes
-declared nullable dtypes, exact large integers, UTC timestamps and metadata access.
-
-Factories are lazy; `pages()` pulls on demand and exposes effective limits,
-captured schema, snapshot and completeness. Sparse empty pages can continue.
-`at=reader.snapshot` reuses a compatible cut after the first response; windows are
-half-open UTC intervals. Collections and dataframe helpers default to finite
-client `QuerySettings.max_rows` and decoded `max_bytes`; exceeding either or
-losing a later page raises without returning a partial materialization.
-Close abandoned readers with their explicit `aclose()`.
+The pure Python SDK generates its client surface from `proto/dokime/v1`.
+Finite-query service definitions have not yet moved there; the native client's
+readers and dataframe adapters were removed with PyO3. The host query semantics
+below remain the target for generated clients. See the
+[SDK integration prerequisites](../sdk/python/README.md#connect-a-client).
 
 The same five operations support [CLI first/next-page requests](query-api.md#transport-access-and-cli-paging).
 Keep the returned continuation unchanged, including after an empty page, until
-`complete=true` with no continuation. The [remote Python guide](remote/python.md#query-retained-evidence)
+`complete=true` with no continuation. The [remote Python guide](remote/python.md)
 covers snapshot reuse, server statistics and optional wheel installs.
 
 ## CLI Reference
@@ -2253,7 +2189,7 @@ cargo dokime bindings proto --output target/contracts/proto
 The output contains `.proto` files, `descriptors.bin`, `contracts.json` and their manifest.
 
 The server contract producer generates descriptors from every canonical public
-operation. Regenerate all tracked Python/TypeScript contracts and catalog
+operation. Regenerate tracked TypeScript contracts and catalog
 snapshots together through the task-owned compiler preflight:
 
 ```sh
@@ -2261,13 +2197,12 @@ mise run prepare:bindings
 ```
 
 This task builds the contract generator and server export with the dev compiler
-profile, selects `cargo-dokime` from those compiler messages, exports Python from
-the server contracts and runs `bindings proto` before the TypeScript generator.
+profile, selects `cargo-dokime` from those compiler messages, runs `bindings proto` before the TypeScript generator.
 The `prepare:generated` prerequisite and the Product frontend build check tracked
 clients for drift while preparing their message modules. Client descriptors and
 fingerprints match the server export; application settings come from that same
-build-script export. Wheel and source-package installation use tracked files
-and need no Rust compiler.
+build-script export. Python wheel builds generate their entire message and service surface directly
+from repository `proto/` and need no Rust compiler.
 
 The desktop WebView never talks to the network. Every call from the generated
 client crosses one opaque IPC bridge into the shell, which forwards the

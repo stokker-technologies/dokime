@@ -43,7 +43,7 @@ from . import paths
 def build(
     directory: Path,
     extra: Sequence[str] = (),
-    selection: Sequence[str] = ("--workspace", "--exclude", "dokime-python", "--bins", "--benches"),
+    selection: Sequence[str] = ("--workspace", "--bins", "--benches"),
     *,
     require_benchmark: bool = True,
 ) -> Path:

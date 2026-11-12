@@ -153,7 +153,7 @@ def main(arguments: list[str] | None = None) -> int:
             tasks += [("check:typescript:generated", profile)] if "typescript" in languages else []
     elif args.operation == "build":
         if args.artifact == "fixtures":
-            tasks = [("build:python:fixtures", profile)]
+            parser.error("native Python client fixtures were removed; use the pure SDK's focused stories")
         elif args.artifact == "bench":
             tasks = [("build:rust:bench", ["--binary", args.binary] if args.binary else [])]
         elif args.artifact == "tests":
@@ -182,6 +182,8 @@ def main(arguments: list[str] | None = None) -> int:
                 for language in languages:
                     for layer in layers:
                         if language == "typescript" and layer == "acceptance":
+                            continue
+                        if language == "python" and not (Path("sdk/python/tests") / layer).is_dir():
                             continue
                         options = profile.copy()
                         if args.select:

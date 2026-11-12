@@ -1,0 +1,51 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Prepare === #
+
+[tasks."sdk:prepare"]
+description = "Prepare the Shared Python Environment"
+usage = 'flag "--refresh-lock"'
+run = ["uv sync --locked --project ../.. --all-groups", "uv lock {% if not usage.refresh_lock %}--check{% endif %}"]
+
+# === Build === #
+
+[tasks."sdk:build"]
+description = "Build the Pure Python SDK Wheel"
+run = "mise -C ../.. run build:python"
+
+[tasks."sdk:source"]
+description = "Build a Source Distribution With Authoritative Protos"
+run = "uv build --out-dir ../../target/build/dev/any/python ."
+
+# === Test === #
+
+[tasks."sdk:install"]
+description = "Install the Built SDK and Its Pinned Harmos Dependency"
+run = "uv run --no-sync --project ../../tools/python python tools/installed.py install"
+
+[tasks."sdk:test"]
+description = "Run Focused In-Process SDK Stories"
+run = "uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/integration -v"
+
+[tasks."sdk:conformance"]
+description = "Run the Harmos Reference Host Against the Python Plugin"
+run = "uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/system -p test_harmos_conformance.py -v"
+
+[tasks."sdk:starter"]
+description = "Run the Starter's Own In-Process Story"
+dir = "examples/starter"
+run = "uv run --no-sync --project ../../../../tools/python python -m unittest discover -s tests -v"
+
+[tasks."sdk:generated"]
+description = "Check Installed Generated Messages and Service Stubs Against Protos"
+run = "uv run --no-sync --project ../../tools/python python tools/generated.py"
+
+[tasks."sdk:wheel"]
+description = "Install the Wheel in a Fresh Environment and Test the Starter"
+run = "mise -C ../.. run test:python:wheel"

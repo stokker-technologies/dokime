@@ -152,7 +152,7 @@ run = [
   "{{vars.python}} ruff check sdk/python",
   "{{vars.python}} ruff check tools/python",
   "{{vars.python}} ty check --project tools/python",
-  "{{vars.python}} ruff check --no-force-exclude tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/wheel.py tools/python/src/dokime_tools/test/stubs.py",
+  "{{vars.python}} ruff check --no-force-exclude tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/wheel.py",
   '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py',
 
 ]
@@ -190,7 +190,7 @@ run = [{ task = "format:python --check" }, { task = "lint:python" }, { task = "t
 
 [tasks."check:python:bindings"]
 hide = true
-description = "Check Built Python Bindings And Stubs"
+description = "Check Built Python Messages and Generated Service Stubs"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.python}} ty check --project sdk/python --exit-zero-on-warning",
@@ -249,15 +249,9 @@ run = [
 
 [tasks."build:python"]
 hide = true
-description = "Build The Native Python Wheel"
+description = "Build the Pure Python SDK Wheel"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.release.sbom --auditable {{usage.profile}} -- python -m dokime_tools.build.python --profile {{usage.profile}}"
-
-[tasks."build:python:fixtures"]
-hide = true
-description = "Build Native Python Client Fixtures"
-usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.tools}} dokime_tools.build.python_fixtures --profile {{usage.profile}}"
+run = "{{vars.tools}} dokime_tools.build.python --profile {{usage.profile}}"
 
 [tasks."build:rust"]
 hide = true
@@ -328,22 +322,8 @@ flag "--prepared"
 '''
 depends = [
   "test:python:integration --profile {{usage.profile}} --project tools/python{% if usage.prepared %} --prepared{% endif %}",
-  "test:python:unit --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:python:integration --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
-  "test:python:acceptance --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:python:system --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
-]
-
-[tasks."test:python:unit"]
-hide = true
-description = "Test Unit Python"
-usage = '''
-flag "--profile <profile>" default="dev"
-flag "--prepared"
-flag "--select <select>"
-'''
-run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category unit --language python{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category unit {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
 ]
 
 [tasks."test:python:integration"]
@@ -357,19 +337,6 @@ flag "--select <select>"
 '''
 run = [
   '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language python --project {{usage.project}}{% elif usage.project == "tools/python" %}{{vars.python}} python -m unittest discover -s tools/python/tests/integration {% if usage.select %}-k "{{usage.select}}"{% endif %}{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
-]
-
-[tasks."test:python:acceptance"]
-hide = true
-description = "Test Acceptance Python"
-usage = '''
-flag "--profile <profile>" default="dev"
-flag "--prepared"
-flag "--artifacts <artifacts>" help="Use An Explicit Native Client Fixture Root"
-flag "--select <select>" help="Run Matching Installed-Wheel Stories"
-'''
-run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category acceptance --language python{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category acceptance -- --build-profile {{usage.profile}} {% if usage.artifacts %}--artifacts "{{usage.artifacts}}"{% endif %} {% if usage.select %}-k "{{usage.select}}"{% endif %}{% endif %}''',
 ]
 
 [tasks."test:python:system"]
@@ -387,7 +354,7 @@ run = [
 
 [tasks."test:python:coverage"]
 hide = true
-description = "Measure Python Coverage of the SDK Python Modules; Native PyO3 Code Is Excluded"
+description = "Measure Python SDK Coverage"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [
   "{{vars.tools}} dokime_tools.test.archive --profile {{usage.profile}} --install-wheels",
@@ -396,10 +363,10 @@ run = [
 
 [tasks."test:python:wheel"]
 hide = true
-description = "Import The Installed Native Wheel"
+description = "Install the Pure Wheel and Run the Starter"
 usage = '''
 flag "--profile <profile>" default="dev"
-flag "--stubs" help="Check All Shipped Stubs Against The Installed Extension"
+flag "--stubs" help="Check Generated Messages and Service Stubs Against Protos"
 '''
 run = "{{vars.tools}} dokime_tools.test.wheel --profile {{usage.profile}}{% if usage.stubs %} --stubs{% endif %}"
 
@@ -547,18 +514,6 @@ run = [
 [tasks.bench]
 description = "Measure Benchmark Layers"
 run = "{{vars.tools}} dokime_tools.ci.tasks bench"
-
-[tasks."bench:python:system"]
-hide = true
-usage = """
-flag "--refresh-baseline"
-flag "--select <select>"
-"""
-description = "Measure Python Batch Publication"
-run = [
-  "{{vars.tools}} dokime_tools.test.archive --profile dev --install-wheels",
-  '''{{vars.tools}} dokime_tools.test.run bench --language python --category system --project sdk/python{% if usage.refresh_baseline %} --refresh-baseline{% endif %} -- -s{% if usage.select %} -k "{{usage.select}}"{% endif %}''',
-]
 
 [tasks."bench:rust:unit"]
 hide = true
