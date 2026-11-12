@@ -42,6 +42,9 @@ impl Store {
     pub fn sampled_time_series_window(
         &self, window: NumericWindow<'_>, technique: v1::Downsample, limit: usize,
     ) -> Result<(v1::PlotColumn, v1::PlotSeriesSummary, u64)> {
+        if limit == 0 || technique == v1::Downsample::Lttb && limit < 3 {
+            return Err(crate::Error::Invalid("Query Sampled Plot: Supply a Positive Raw Limit or at Least Three LTTB Vertices".into()));
+        }
         if !matches!(technique, v1::Downsample::Raw | v1::Downsample::Lttb) {
             return self.time_series_window(window);
         }

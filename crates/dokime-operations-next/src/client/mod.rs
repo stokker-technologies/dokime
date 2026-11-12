@@ -42,6 +42,7 @@ pub mod notes_list_notes;
 mod notes_selection;
 pub mod observation_watch_execution_progress;
 pub mod planning_materialize_template;
+pub mod plot_analysis;
 pub mod plots_list_analyses;
 pub mod plots_query_snapshots;
 pub mod plots_watch;
@@ -199,6 +200,7 @@ pub trait Host: Send + Sync {
     fn retain_report(&self, file: std::fs::File, reference: v1::FileReference) -> Result<()>;
     fn temporary_report(&self, identifier: &str) -> Result<Option<(std::fs::File, v1::FileReference)>>;
     fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report>;
+    async fn analyze(&self, plugin: &str, operation: &str, request: v1::AnalysisRequest) -> Result<v1::AnalysisResponse>;
     async fn add_remote(&self, url: &str) -> Result<v1::Plugin>;
     fn plugins(&self) -> Result<Vec<v1::Plugin>>;
     fn suites(&self) -> Result<Vec<(String, v1::Suite)>>;

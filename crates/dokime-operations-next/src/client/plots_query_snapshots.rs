@@ -50,16 +50,28 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
     super::declaration::<v1::PlotsQuerySnapshotsRequest, v1::PlotSnapshotsReply>(ID, settings.read_timeout)
 }
 pub async fn handle(context: &Context, request: v1::PlotsQuerySnapshotsRequest) -> Result<v1::PlotSnapshotsReply> {
-    super::complete(ID,context.settings.read_timeout,async {
-        let mut reply=v1::PlotSnapshotsReply::default();
+    super::complete(ID, context.settings.read_timeout, async {
+        let count = request.requests.len();
+        let mut budget = context.clone();
+        budget.settings.message_bytes = context.settings.message_bytes.saturating_sub(count.saturating_mul(16)) / count.max(1);
+        let mut reply = v1::PlotSnapshotsReply::default();
         for request in request.requests {
-            reply.envelopes.push(query_one(context,request).await?);
-            if reply.encoded_len()>context.settings.message_bytes {return Err(Error::Invalid("Query Plot Snapshots: Lower the Resolution or Split the Batch to Fit One Message; Use Watch for Visible-First Delivery".into()));}
+            reply.envelopes.push(query_one(&budget, request).await?);
+        }
+        if reply.encoded_len() > context.settings.message_bytes {
+            return Err(Error::Invalid("Query Plot Snapshots: Split the Batch to Fit Its Irreducible Message Budget".into()));
         }
         Ok(reply)
-    }).await
+    })
+    .await
 }
 pub(super) async fn query_one(context: &Context, request: v1::PlotRequest) -> Result<v1::PlotEnvelope> {
+    if request.analysis.is_some() {
+        return super::plot_analysis::query(context, request).await;
+    }
+    query_base(context, request).await
+}
+pub(super) async fn query_base(context: &Context, request: v1::PlotRequest) -> Result<v1::PlotEnvelope> {
     let (store, _cancel_on_drop) = context.host.store().read_session()?;
     let context = context.clone();
     tokio::task::spawn_blocking(move || {
@@ -75,7 +87,23 @@ pub(super) async fn query_one(context: &Context, request: v1::PlotRequest) -> Re
             }
             cut.frontier = at.sequence;
         }
-        snapshot_at(&store, &cut, &request, context.settings.page_items, context.host.now_ns(), &context.host.identity().epoch)
+        let selection = Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        let mut request = request;
+        loop {
+            let mut envelope =
+                snapshot_at(&store, &cut, &request, context.settings.page_items, context.host.now_ns(), &context.host.identity().epoch)?;
+            envelope.selection = selection.clone();
+            if envelope.encoded_len().saturating_add(32) <= context.settings.message_bytes {
+                return Ok(envelope);
+            }
+            let points = request.max_points.unwrap_or(context.settings.page_items as u64).min(context.settings.page_items as u64);
+            if points <= 4 || request.technique == v1::Downsample::Raw as i32 {
+                return Err(Error::Invalid(
+                    "Query Plot: Narrow the Raw Window or Split the Batch to Fit Its Irreducible Message Budget".into(),
+                ));
+            }
+            request.max_points = Some((points / 2).max(4));
+        }
     })
     .await
     .map_err(|error| Error::Invalid(format!("Query Plot: Retry After the Query Worker Failed: {error}")))?
@@ -557,8 +585,10 @@ pub fn snapshot_at(
         frame.point_count
     };
     let temporal = matches!(kind, v1::PlotKind::Unspecified | v1::PlotKind::TimeSeries | v1::PlotKind::Xy | v1::PlotKind::Trajectory);
-    if !temporal {
+    if !temporal || matches!(technique, v1::Downsample::Raw | v1::Downsample::Lttb) {
         payload.bucket_width_s = None;
+    }
+    if !temporal {
         payload.bucket_window = None;
     }
     let label = |key: &str| {
@@ -624,7 +654,7 @@ pub fn snapshot_at(
             max_points: display as u64,
             window_s: request.window_s,
             examined_rows: examined,
-            resolution_nanos: if temporal { resolution } else { 0 },
+            resolution_nanos: if temporal && !matches!(technique, v1::Downsample::Raw | v1::Downsample::Lttb) { resolution } else { 0 },
         }),
         payload: Some(payload),
         warnings: Vec::new(),

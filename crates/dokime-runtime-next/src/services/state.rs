@@ -188,6 +188,9 @@ impl ClientHost for State {
         let output = self.host.render_document(&snapshot, document, self.render_settings).map_err(convert)?;
         self.host.publish_report(&output).map_err(convert)
     }
+    async fn analyze(&self, plugin: &str, operation: &str, request: v1::AnalysisRequest) -> Result<v1::AnalysisResponse> {
+        self.host.analyze(plugin, operation, request).await.map_err(convert)
+    }
     async fn add_remote(&self, url: &str) -> Result<v1::Plugin> {
         let entry = self.host.add_remote(url).await.map_err(convert)?;
         lock(&self.urls).map_err(convert)?.insert(entry.clone(), url.into());

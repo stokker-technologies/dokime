@@ -103,6 +103,20 @@ message AggregateReply {
 }
 
 // Source: crates/dokime-domain/src/model/plots/wire.rs
+// Unary analysis operations use the analysis metadata identifier as their operation ID.
+// Input is one bounded raw scalar series; output must match every declared output.
+message AnalysisRequest {
+  AnalysisSamples samples = 1;
+  MapValue parameters = 2;
+}
+message AnalysisSamples {
+  repeated double axis = 1;
+  repeated double values = 2;
+  string axis_unit = 3;
+  string unit = 4;
+}
+message AnalysisResponse { repeated AnalysisValues outputs = 1; }
+
 message AnalysisComputation {
   Analysis definition = 1;
   AnalysisSelection selection = 2;

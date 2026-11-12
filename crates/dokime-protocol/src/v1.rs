@@ -5315,6 +5315,34 @@ pub struct AggregateReply {
     pub complete: bool,
 }
 /// Source: crates/dokime-domain/src/model/plots/wire.rs
+/// Unary analysis operations use the analysis metadata identifier as their operation ID.
+/// Input is one bounded raw scalar series; output must match every declared output.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AnalysisRequest {
+    #[prost(message, optional, tag = "1")]
+    pub samples: ::core::option::Option<AnalysisSamples>,
+    #[prost(message, optional, tag = "2")]
+    pub parameters: ::core::option::Option<MapValue>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AnalysisSamples {
+    #[prost(double, repeated, tag = "1")]
+    pub axis: ::prost::alloc::vec::Vec<f64>,
+    #[prost(double, repeated, tag = "2")]
+    pub values: ::prost::alloc::vec::Vec<f64>,
+    #[prost(string, tag = "3")]
+    pub axis_unit: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub unit: ::prost::alloc::string::String,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AnalysisResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub outputs: ::prost::alloc::vec::Vec<AnalysisValues>,
+}
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnalysisComputation {

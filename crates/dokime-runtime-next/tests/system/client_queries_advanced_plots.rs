@@ -23,6 +23,7 @@
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::{encoding::Message, v1};
 use dokime_storage::{Execution, Sample, Store};
+use harmos_protocol::v1 as h;
 
 /* === Constants === */
 
@@ -32,11 +33,65 @@ use dokime_storage::{Execution, Sample, Store};
 
 /* === Structs === */
 
+#[derive(Clone)]
+struct AnalysisProvider {
+    description: h::Description,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+#[tonic::async_trait]
+impl h::plugin_server::Plugin for AnalysisProvider {
+    async fn describe(&self, _: tonic::Request<h::DescribeRequest>) -> Result<tonic::Response<h::Description>, tonic::Status> {
+        Ok(tonic::Response::new(self.description.clone()))
+    }
+    type InvokeStream = tokio_stream::Iter<std::vec::IntoIter<Result<h::PluginFrame, tonic::Status>>>;
+    async fn invoke(
+        &self, request: tonic::Request<tonic::Streaming<h::HostFrame>>,
+    ) -> Result<tonic::Response<Self::InvokeStream>, tonic::Status> {
+        let mut input = request.into_inner();
+        let Some(h::host_frame::Frame::Request(request)) = input.message().await?.and_then(|frame| frame.frame) else {
+            return Err(tonic::Status::invalid_argument("Supply One Unary Request"));
+        };
+        assert!(request.scope.is_empty());
+        let request =
+            v1::AnalysisRequest::decode(request.payload.as_slice()).map_err(|error| tonic::Status::invalid_argument(error.to_string()))?;
+        let factor = match request.parameters.unwrap().values["factor"].kind {
+            Some(v1::value::Kind::Number(value)) => value,
+            _ => panic!("Expected a Numeric Factor"),
+        };
+        let samples = request.samples.unwrap();
+        let output = v1::AnalysisValues {
+            key: "scaled".into(),
+            axis_unit: "s".into(),
+            axis: samples.axis,
+            values: samples.values.into_iter().map(|value| value * factor).collect(),
+            ..Default::default()
+        };
+        let result = v1::AnalysisResponse {
+            outputs: if factor == 3.0 { vec![output.clone(), output] } else { vec![output] },
+        };
+        let response = h::Response {
+            result: Some(h::response::Result::Payload(result.encode_to_vec())),
+        };
+        Ok(tonic::Response::new(tokio_stream::iter(vec![Ok(h::PluginFrame {
+            frame: Some(h::plugin_frame::Frame::Response(response)),
+        })])))
+    }
+    type PublishStream = tokio_stream::Iter<std::vec::IntoIter<Result<h::Samples, tonic::Status>>>;
+    async fn publish(
+        &self, _: tonic::Request<tonic::Streaming<h::PublishFrame>>,
+    ) -> Result<tonic::Response<Self::PublishStream>, tonic::Status> {
+        Err(tonic::Status::unimplemented("This Fixture Has No Streams"))
+    }
+    async fn stop(&self, _: tonic::Request<h::StopRequest>) -> Result<tonic::Response<h::StopResponse>, tonic::Status> {
+        Ok(tonic::Response::new(h::StopResponse {}))
+    }
+}
 
 /* === Public Functions === */
 
@@ -81,6 +136,44 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         }
         let request=v1::PlotRequest {stream:"cells".into(),scope:scope.clone(),y_keys:vec!["max".into()],technique:v1::Downsample::Raw as i32,max_points:Some(8),..Default::default()};
         assert_eq!(plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![request]}).await.unwrap_err().code(),tonic::Code::FailedPrecondition);
+
+        // Coarsen Complete Buckets to Fit the Encoded Batch Without Truncating Vertices
+        let budget_request=v1::PlotRequest {plot_id:Some("p".repeat(418_500)),stream:"cells".into(),scope:scope.clone(),y_keys:vec!["max".into()],max_points:Some(128),..Default::default()};
+        let single=plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![budget_request.clone()]}).await?.into_inner();
+        let original_points=single.envelopes[0].diagnostics.as_ref().unwrap().point_count;
+        let batch=plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![budget_request;10]}).await?.into_inner();
+        assert_eq!(batch.envelopes.len(),10);
+        assert!(batch.envelopes.iter().all(|envelope|envelope.diagnostics.as_ref().unwrap().point_count<original_points));
+        assert!(batch.envelopes.iter().all(|envelope|envelope.payload.as_ref().unwrap().frame.as_ref().unwrap().series[0].y.last().unwrap().value==Some(32.0)));
+
+        // Invoke a Declared Unary Analysis with Bounded Raw Input and Typed Defaults
+        let definition=v1::Analysis {metadata:Some(v1::Metadata {identifier:"analysis.scale".into(),..Default::default()}),version:1,max_samples:16,max_output_values:16,parameters:vec![v1::Parameter {metadata:Some(v1::Metadata {identifier:"factor".into(),..Default::default()}),r#type:v1::ValueType::Number as i32,min:Some(0.0),max:Some(4.0),expression:Some(v1::ParameterExpression {kind:Some(v1::parameter_expression::Kind::Literal(v1::Value {kind:Some(v1::value::Kind::Number(2.0))}))}),..Default::default()}],outputs:vec![v1::AnalysisOutput {metadata:Some(v1::Metadata {identifier:"scaled".into(),..Default::default()}),axis:"time".into(),axis_unit:"s".into(),..Default::default()}]};
+        let types=prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?;
+        let mut operation=h::OperationContract {id:"analysis.scale".into(),request:"dokime.v1.AnalysisRequest".into(),response:"dokime.v1.AnalysisResponse".into(),visibility:h::Visibility::Private as i32,policy:Some(h::OperationPolicy {timeout:Some(prost_types::Duration::try_from(super::support::settings().placement.connect_timeout)?),..Default::default()}),..Default::default()};
+        operation.fingerprint=harmos_protocol::schema::fingerprint(&operation.id,&types,&operation.request,&operation.response)?;
+        let mut analysis_catalog=h::Catalog {types:Some(types),operations:vec![operation],sections:vec![h::Section {r#type:"dokime.v1.Suites".into(),payload:v1::Suites::default().encode_to_vec()},h::Section {r#type:"dokime.v1.Analyses".into(),payload:v1::Analyses {analyses:vec![definition]}.encode_to_vec()}],..Default::default()};
+        analysis_catalog.digest=harmos_protocol::schema::catalog_digest(&analysis_catalog);
+        let provider=AnalysisProvider {description:h::Description {id:"analysis_fixture".into(),started_at:Some(prost_types::Timestamp::default()),revision:1,catalog:Some(analysis_catalog),..Default::default()}};
+        let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let endpoint=format!("http://{}",listener.local_addr()?);
+        let (stop,stopped)=tokio::sync::oneshot::channel::<()>();
+        let provider_task=tokio::spawn(async move{tonic::transport::Server::builder().add_service(h::plugin_server::PluginServer::new(provider)).serve_with_incoming_shutdown(tokio_stream::wrappers::TcpListenerStream::new(listener),async {let _=stopped.await;}).await});
+        let channel=tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
+        let client=dokime::client::HostClient::new(channel);
+        client.plugins.add(endpoint).await?;
+        assert_eq!(plots.list_analyses(v1::PlotsListAnalysesRequest::default()).await?.into_inner().definitions.len(),1);
+        let analysis_request=v1::PlotRequest {stream:"cells".into(),scope:scope.clone(),plot_type:v1::PlotKind::TimeSeries as i32,y_keys:vec!["max".into()],viewport:Some(v1::PlotWindow {from:0.0,to:15.0}),analysis:Some(v1::AnalysisSelection {id:"analysis.scale".into(),version:1,parameters:None}),max_points:Some(5),..Default::default()};
+        let reply=plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![analysis_request.clone()]}).await?.into_inner();
+        let computed=reply.envelopes[0].payload.as_ref().unwrap().computed.as_ref().unwrap();
+        assert_eq!(computed.series[0].input_samples,16);
+        assert_eq!(computed.series[0].outputs[0].values,(1..=16).map(|value|value as f64*2.0).collect::<Vec<_>>());
+        assert_eq!(computed.series[0].outputs[0].display_indices,vec![0,3,7,11,15]);
+        let mut oversized=analysis_request.clone();oversized.viewport=None;
+        assert!(plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![oversized]}).await.is_err());
+        let mut malformed=analysis_request;malformed.analysis.as_mut().unwrap().parameters=Some(v1::MapValue {values:std::collections::HashMap::from([("factor".into(),v1::Value {kind:Some(v1::value::Kind::Number(3.0))})])});
+        assert_eq!(plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![malformed]}).await.unwrap_err().code(),tonic::Code::InvalidArgument);
+        client.close();
+
 
         // Filter Stored Units Before Scaling the Selected Value
         let scaled=v1::DataExpression {label:"Adjusted".into(),kind:Some(v1::data_expression::Kind::Transform(Box::new(v1::TransformExpression {input:Some(Box::new(v1::FieldReference::new("cells").field("max"))),kind:Some(v1::transform_expression::Kind::Scale(2.0))})))};
@@ -127,6 +220,7 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         let reply=plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![request]}).await?.into_inner();
         assert!(matches!(reply.envelopes[0].payload.as_ref().unwrap().analysis.as_ref().unwrap().result.as_ref().unwrap().kind.as_ref(),Some(v1::plot_analysis_result::Kind::GridChart(grid)) if grid.frames[0].highlights.len()==1));
         process.close().await?;
+        let _=stop.send(());provider_task.await??;
         Ok::<_,Box<dyn std::error::Error>>(())
     }).await?
 }
