@@ -1,0 +1,140 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Workspace === #
+
+[workspace]
+
+# === Workspace Package === #
+
+# === Workspace Dependencies === #
+
+# === Package === #
+
+[package]
+name = "dokime-rust-stories"
+description = "External-consumer compilation and focused Rust SDK journeys."
+version = "0.0.0"
+edition = "2024"
+autotests = false
+publish = false
+
+# === Package Targets === #
+
+[[bin]]
+name = "dokime-rust-thermal"
+path = "../../examples/thermal.rs"
+
+[[bin]]
+name = "dokime-sdk-consumer"
+path = "src/main.rs"
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime = { path = "../.." }
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+[dev-dependencies]
+# Local
+
+# Git
+harmos-protocol = { git = "https://github.com/stokker-technologies/harmos", rev = "a7583836e721c8dc8b135af40a78860ea5945ec6" }
+harmos-runtime = { git = "https://github.com/stokker-technologies/harmos", rev = "a7583836e721c8dc8b135af40a78860ea5945ec6", default-features = false, features = [
+  "grpc",
+] }
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+prost = { version = "0.14.4" }
+prost-reflect = { version = "0.16.5" }
+prost-types = { version = "0.14.4" }
+tonic-prost = { version = "0.14.8" }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+futures-util = { version = "0.3.34" }
+tokio = { version = "1.50.0", features = ["io-util", "macros", "net", "process", "rt", "sync", "test-util"] }
+tokio-stream = { version = "0.1.19", features = ["net"] }
+
+# Networking
+tonic = { version = "0.14.8", features = ["codegen", "router", "transport"] }
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+[[test]]
+name = "integration"
+path = "../integration/main.rs"
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

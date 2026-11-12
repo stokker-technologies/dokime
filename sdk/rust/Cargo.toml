@@ -1,0 +1,133 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime"
+description = "Rust plugin authoring and typed clients over the Dokime gRPC protocol."
+autotests = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# === Package Targets === #
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime-derive = { version = "0.1.5", path = "derive" }
+dokime-protocol = { workspace = true }
+
+# Git
+harmos = { workspace = true }
+harmos-protocol = { workspace = true }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+
+# Utilities
+
+# Serialization
+prost = { workspace = true, features = ["derive", "std"] }
+prost-reflect = { workspace = true }
+prost-types = { workspace = true, features = ["std"] }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+tonic = { workspace = true, features = ["codegen", "transport"] }
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+[dev-dependencies]
+# Local
+
+# Git
+harmos-runtime = { git = "https://github.com/stokker-technologies/harmos", rev = "a7583836e721c8dc8b135af40a78860ea5945ec6", default-features = false, features = [
+  "grpc",
+] }
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+tonic-prost = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+futures-util = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "process", "rt", "sync", "test-util"] }
+tokio-stream = { workspace = true, features = ["net"] }
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+[lints]
+workspace = true
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

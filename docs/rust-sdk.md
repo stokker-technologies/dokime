@@ -1,0 +1,272 @@
+# Rust SDK
+
+The `dokime` crate at `sdk/rust` contains plugin authoring and a typed client.
+Its product dependencies stop at Dokime/Harmos protocol, SDK and derive support;
+plugins and clients compile no host. It uses Harmos at
+`a7583836e721c8dc8b135af40a78860ea5945ec6`.
+The module layout follows Harmos's Rust SDK: a curated `prelude`, value composition,
+context, data contracts, streams and the separate `client` namespace.
+
+## Use the SDK
+
+Until the combined crate cutover lands, use an explicit path dependency in an
+ordinary external Cargo project:
+
+```toml
+[dependencies]
+dokime = { path = "../dokime/sdk/rust" }
+```
+
+```rust
+use dokime::prelude::*;
+
+#[derive(dokime::Row)]
+#[harmos(package = "thermal.v1")]
+struct Temperature { celsius: f64 }
+
+#[derive(dokime::Parameters)]
+struct Parameters { limit: f64 }
+
+async fn sample(ctx: &Context) -> Result<Temperature> {
+    Ok(Temperature { celsius: ctx.parameter::<f64>("limit")? - 1.0 })
+}
+
+fn main() -> Result<()> {
+    let temperature = Stream::<Temperature>::new("thermal.temperature", "Temperature [°C]");
+    let observer = Observer::new(&temperature, sample).every_ms(1000);
+    let template = Template::new("thermal.cycle", "Thermal Cycle")
+        .parameters(Parameters { limit: 85.0 })
+        .stream(temperature)
+        .observer(observer);
+    let suite = Suite::new("thermal", "Thermal").template(template);
+    Plugin::new("thermal", "1.0.0").suite(suite).serve()
+}
+```
+
+The complete runnable [thermal suite](../sdk/rust/examples/thermal.rs) declares
+its parameter defaults, steps, criterion, prompt, record and host requirements.
+`Message`, `Row`, `Record`, `Parameters` and `Settings` are field-reading protobuf
+derives. Suite, template, step, criterion, observer, operation, prompt, record and
+stream registration use owned values, with no declaration macros.
+The data derive is local to the SDK so an author needs only `dokime`.
+
+Scalar, optional, repeated, nested message and byte fields use protobuf encoding.
+`#[harmos(tag = 3)]` pins a field tag; `package`, `file` and `name` set its descriptor
+identity. Explicit tags are useful for shared cross-language contracts. Parameters
+and settings are data messages; `.parameters(defaults)` and `.settings(defaults)`
+build their catalogs. Typed parameter reads retain integer signedness, check narrow
+integer ranges and reject unknown fields and nonfinite numbers. Settings catalog
+number defaults use `f64`, matching the protocol's `NumberSetting`; use `.setting(...)`
+for choices, paths, secrets or other explicit metadata. `.parameter(...)`, `.file(...)`,
+`.document(...)`, `.tag(...)` and `.parameter_group(...)` accept the generated catalog
+values directly. Document/plot builders are available as `dokime::builders`.
+
+## Compose a Plugin
+
+Step, criterion, initialize and cleanup bodies have the fixed `&Context` signature:
+
+```rust
+use dokime::prelude::*;
+
+struct Bench { limit: f64 }
+
+async fn initialize(ctx: &Context) -> Result<()> {
+    ctx.set(Bench { limit: ctx.parameter("limit")? });
+    Ok(())
+}
+
+async fn ramp(ctx: &Context) -> Result<()> {
+    let bench = ctx.get::<Bench>()?;
+    ctx.progress(1, 2, format!("Target {} °C", bench.limit)).await
+}
+
+async fn acceptable(ctx: &Context) -> Result<bool> {
+    let stats = ctx.statistics("thermal.temperature", "celsius", "hold").await?;
+    Ok(stats.count > 0 && stats.max <= ctx.get::<Bench>()?.limit)
+}
+```
+
+`ctx.set(value)` replaces by Rust type; `ctx.get::<T>()` returns an `Arc<T>` or a
+missing-resource error naming the type. A suite shares one store across its
+initialize, steps, observers, criteria and cleanup, isolated by execution identity.
+Use synchronization inside a resource when it needs shared mutation. A generic
+operation joins an existing local suite store when its inherited scope matches;
+otherwise its resources last for that invocation. Plugin-wide publication has its
+own unscoped store. No resource is serialized or retained by materialization.
+
+The SDK generates private `<template>.materialize`, optional
+`<template>.initialize`, `<template>.step.<index>`, `<template>.criterion.<index>` and
+`<template>.cleanup` operations. Step/criterion evidence identifiers are separate
+from operation identifiers; `.identifier(...)` overrides their label-derived defaults.
+`.retries(n)` advertises host retry policy; it does not retry inside the plugin.
+`.policy(...)` accepts Harmos's full operation policy.
+An execution stream also gets a no-op initialize operation when there is no author
+hook, so its case is available before the first observer tick.
+The SDK always advertises cleanup, even without an author hook, to release the
+execution store. Cleanup releases resources after success, failure or cancellation;
+`ctx.termination()` exposes the host's termination value. Plugin Stop also clears stores.
+
+Materialize copies the resolved parameters into a `dokime.v1.TestCase` assembled
+from the registered steps, criteria and streams. `.materialize(|case, parameters| ...)`
+can customize that value synchronously without a Context or execution resources.
+It may select, repeat or reorder registered operations; each resulting evidence
+identifier must be unique. It cannot reference undeclared operations/streams or
+change the host's resolved parameter set. Duplicate identifiers fail catalog
+construction before serving. All execution calls must include the frozen case and
+matching `PluginRun` origin, and their execution must equal inherited Harmos scope.
+
+Ordinary typed operations compose through `Operation::new` with
+`(&Context, Request) -> Result<Response>`. `OperationRequest` connects a message to
+its response and stable operation identifier. `.operation(...)` serves it;
+`.requires::<Request>()` declares a child-call dependency. Such calls run through
+`ctx.operation(request)` and retain Harmos cancellation and failure behavior.
+
+## Host Calls and Evidence
+
+Generated Dokime messages bind through `dokime::host::Call<T>`:
+
+```rust
+use dokime::{host, prelude::*, v1};
+
+async fn note(ctx: &Context) -> Result<()> {
+    ctx.operation(host::Call(v1::WriteLog {
+        execution: ctx.execution_id().into(),
+        severity: v1::Severity::Info as i32,
+        message: "Measurement Started".into(),
+        at: None,
+    })).await?;
+    Ok(())
+}
+```
+
+Declare `.requires_host::<v1::WriteLog>()` on the plugin for that call.
+`ctx.host(request)` accepts the generated request directly and returns its generated
+reply. `prompt`, `record`, `records`, `statistics`, `progress`, `log`, `secret`,
+`settings` and `typed_settings` are thin conveniences. Artifact, file capture,
+traceability, document-part, environment and effect calls use `ctx.host(...)` with
+the generated messages and their declared requirements.
+`ctx.sleep` and `ctx.now` require `dokime::clock::Sleep` and `dokime::clock::Now`;
+all waits and clock reads go to the host.
+
+`Record::<Door>::new(id, label)` names a derived record message. Pass the record
+value to `.record(...)` on Plugin and `ctx.record(&contract, value)` to publish it.
+Publication waits for the host receipt. The record type accumulator is inferred;
+it contributes record descriptors to the one `dokime.v1.RecordContracts` section.
+`Prompt::new(...).field(...).action(...)` composes a catalog prompt;
+`ctx.prompt(v1::OperatorQuestion { ... })` uses its identifier or an inline definition.
+
+`Observer::new(&stream, handler).every_ms(...)` answers host ticks with rows stamped
+by Harmos using the tick time. `.interval_setting(...)` selects a saved cadence.
+A device-driven stream uses `.publish_on(handler)` and `Publisher::publish` or
+`publish_at`; demand closure cancels the producer. Template-owned stream names are
+included in the TestCase. `.uses_stream(id)` subscribes without declaring another
+producer; Plugin-level `.stream(...)` declares a plugin-wide stream.
+
+Managed placement is the default. `plugin.remote().serve()` uses the same gRPC
+service and remains available after Stop. Both honor `HARMOS_ADDRESS` and announce
+`harmos listening <address>` when ready. `into_harmos()` finishes composition for
+Harmos tooling without opening a socket; `catalog()` validates and returns its catalog.
+
+## Use the Client
+
+The client accepts a configured Tonic channel or `harmos::Client`. Callers own TLS,
+endpoint selection and wire/queue bounds. Authentication and per-call metadata
+are forwarded through Harmos; operation policy stays with the server.
+
+```rust
+use dokime::{Client, client::{Catalog, CatalogKind}, v1};
+
+async fn health(client: &Client) -> Result<v1::BackendHealth, tonic::Status> {
+    let page = client.catalog(Catalog {
+        kind: CatalogKind::Operations as i32,
+        rows: Some(64),
+        bytes: Some(1_048_576),
+        ..Default::default()
+    }).await?.into_inner();
+    let contract = page.operations.into_iter()
+        .filter_map(|entry| entry.contract)
+        .find(|contract| contract.id == "dokime.backend.health")
+        .ok_or_else(|| tonic::Status::not_found("Discover the Backend Health Operation"))?;
+    let method = client.method::<v1::GetBackendHealth, v1::BackendHealth>(contract)?;
+    Ok(client.call(&method, v1::GetBackendHealth {}).await?.into_inner())
+}
+```
+
+Follow catalog cursors until the desired contract is found. `Method` checks public
+visibility, request/reply names, descriptors and fingerprints. `.with_input::<T>()`
+and `.with_output::<T>()` bind declared streaming directions; `client.start(...)`
+returns Harmos's managed call with `send`, `finish_input`, `next`, `join` and
+cancellation. `take_input` separates concurrent input from output draining.
+No SDK transport codec, retry loop or host policy duplicates Harmos.
+
+The current protocol crate has messages and reflection but no `dokime.v1` client
+service declarations/stubs, and many existing CLI/desktop service messages still
+live outside it. Generated service-specific coverage must be completed by the
+protocol owner. This SDK currently binds available generated messages to the
+host's discovered contracts. It does not absorb the old client's native DTOs,
+raw transport or host dependencies.
+
+## Focused Proof
+
+Run these tasks from the repository root:
+
+```sh
+mise -C sdk/rust run sdk:build
+mise -C sdk/rust run sdk:test
+mise -C sdk/rust run sdk:tree
+```
+
+The external consumer in `sdk/rust/tests/consumer` compiles the SDK from its actual
+path and builds the sample plugin. Its standalone lock isolates SDK proof from the
+concurrent host/facade cutover; `.prepare` refreshes that consumer's dependency lock
+with `mise -C sdk/rust run sdk:prepare`. All artifacts share the repository target.
+`cargo tree` checks normal/build product edges and excludes test-only host dependencies.
+
+The thermal story admits and materializes the plugin through the pinned Harmos
+runtime, then drives scoped calls through `harmos.v1`, following the reference
+conformance protocol. That Harmos revision sends empty scopes for runtime plugin
+invocations; scoped suite execution therefore uses the protocol driver. The client
+story uses an in-process fake gRPC server for authentication, discovery, schema
+binding/refusal, unary results, managed output/final results and response bounds.
+Other focused stories cover catalog/data construction and interleaved execution
+resource isolation. Tests never assert elapsed time or sleep on the wall clock.
+
+## Shared Cross-Language System Suite
+
+The runnable Rust suite is [thermal.rs](../sdk/rust/examples/thermal.rs), built as
+`dokime-rust-thermal` by the external consumer. Run it managed or with `--remote`.
+It is ready for the same host-owned Nightly journey as the other SDKs:
+
+| Input or Action | Expected Evidence |
+| --- | --- |
+| Materialize `thermal.cycle` with `limit = 85.0` | Steps `ramp`, `hold`; criterion `within_limit`; stream `thermal.temperature` |
+| Initialize | Execution-local Bench resource; one acknowledged log |
+| Run `ramp` | Progress 1 of 2 |
+| Run `hold`; answer prompt `thermal.door` with accepted action `yes` | One `thermal.door` record, protobuf `thermal.v1.Door { closed: true }`; host sleep of 1 s; progress 2 of 2 |
+| Tick the observer at a literal host time | `thermal.v1.Temperature { celsius: 84.0 }`, carrying that tick time |
+| Evaluate `within_limit` | Statistics for `thermal.temperature.celsius` and records for `thermal.door`, both filtered to `hold`; Passed only with samples, maximum ≤ 85.0 and a closed-door record |
+| Cleanup, close and seal | Cleanup log; resources released; streams closed; host-persisted execution and report evidence |
+
+The host must register the sample's catalog requirements, serve materialization,
+freeze the returned case and complete PluginRun origin, and carry execution identity
+in Harmos Request/Publish scope. It must initialize before ticking resource-using
+observers, schedule ticks inside the hold step, acknowledge records before responding,
+serve statistics/record reads scoped to execution and step, and own retries, cancellation,
+cleanup, stream closure, evidence durability and report sealing. Its virtual clock
+must advance sleep and observer ticks deterministically. The shared Nightly driver
+must compare persisted evidence across SDKs; the SDK transport tests do not establish
+that proof. Full host/client service contracts are needed before that driver can be
+written against generated Dokime services.
+
+## Consumer Cutover
+
+| Owner | Adoption Work |
+| --- | --- |
+| Workspace/host | Retire or relocate the existing `crates/dokime` facade identity and point the workspace `dokime` dependency to `sdk/rust`; keep host helpers under runtime/operations/storage. Add canonical SDK build/test selection to owned tooling. |
+| CLI | Use `dokime::client` and generated messages for remote commands; carry pairing, endpoint/TLS policy and authorization into the configured channel/client. Move embedded hosting to `dokime-runtime`. |
+| Desktop | Use SDK typed calls and managed watches; convert presentation data at the GUI boundary. Embed runtime explicitly and keep pairing/identity handling with its current owner. |
+| Existing plugins and samples | Replace declaration macros with builder values and data derives, move shared suite state to `ctx.set/get`, declare host requirements, and serve Harmos gRPC. |
+| Old `dokime-client` | Migrate pairing/Target, discovery, cycle/execution handles, paging/follow and transfers to generated-message consumers as their protocol contracts land; delete its raw/native transport and the crate after consumers move. |
+
+These migrations belong to the host/consumer owner. The Rust SDK adds no host-enabling
+features and leaves those existing crates and plugins untouched.

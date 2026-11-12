@@ -177,37 +177,18 @@ retains the complete setup and runnable lifecycle examples.
 
 ### Rust
 
-The Rust SDK defines plugins, test templates, equipment operations and typed
-evidence. Dokime builds on [Harmos](https://github.com/stokker-technologies/harmos)
-([workspace dependency pin](Cargo.toml))
-for contracts and managed plugin lifecycles.
+The new `dokime` crate at [`sdk/rust`](sdk/rust) provides composed plugin authoring
+and a typed client over Harmos gRPC, with protocol-only product dependencies.
+See the [Rust SDK guide](docs/rust-sdk.md) for host calls, execution resources,
+managed/remote placement and the remaining host/consumer cutover.
 
 #### Examples
 
-The test-only [OBC plugin](docs/plugin-obc.md) simulates a charger without physical
-hardware. Follow its [procedure and measurement examples](docs/product-guide.md#run-the-procedure-and-capture-evidence)
-to see the public authoring API in context.
-
-Use the starter's `dokime` dependency with the `plugin-sidecar` feature. Authoring
-macros and contracts come through that facade. For example, the
-[capture template](plugins/sidecars/obc/src/suites/benchmarks/capture.rs) declares
-validated parameters and cartesian expansion with:
-
-```rust
-#[dokime::parameters]
-pub struct Parameters {
-    #[parameter(label = "Rows", default = 100_000, min = 1, max = 200_000)]
-    pub rows: u64,
-
-    #[parameter(label = "Member", default = 0, expansion = "cartesian")]
-    pub member: u64,
-}
-```
-
-The same plugin uses `#[dokime::observer]` for its
-[system measurements](plugins/sidecars/obc/src/observers/system.rs) and
-`#[dokime::criterion]` for its
-[pulse acceptance check](plugins/sidecars/obc/src/suites/checks/pulse.rs).
+The [thermal suite](sdk/rust/examples/thermal.rs) composes a template, steps,
+observer, criterion, prompt and record with `use dokime::prelude::*;`.
+Build the SDK and sample with `mise -C sdk/rust run sdk:build`;
+its [focused proof](docs/rust-sdk.md#focused-proof) runs independently of the host.
+Existing plugins and starters still use their current authoring API until migrated.
 
 Custom installers can declare `[installer] identifier = "com.example.testhub"` to
 keep their installation and storage separate from plain Dokime. They include
