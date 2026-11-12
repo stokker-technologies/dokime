@@ -65,7 +65,8 @@ impl Project {
                 pending.extend(node.deps.iter().map(|dependency| dependency.pkg.clone()));
             }
         }
-        let sdks = metadata.packages.iter().filter(|package| package.name == "dokime" && seen.contains(&package.id)).collect::<Vec<_>>();
+        let sdks =
+            metadata.packages.iter().filter(|package| package.name == "dokime-facade" && seen.contains(&package.id)).collect::<Vec<_>>();
         if sdks.len() != 1 {
             return Err(Error::Invalid("selected plugin must resolve exactly one Dokime SDK dependency".into()));
         }
