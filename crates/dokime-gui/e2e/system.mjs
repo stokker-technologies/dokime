@@ -46,7 +46,14 @@ const workflows = {
   "desktop-ownership": "ownership",
 };
 const stories = [...Object.keys(workflows), "two-gui-remote"];
-const selected = options.select ? [options.select.replace(/^e2e[/\\]/, "").replace(/\.(mjs|js)$/, "")] : stories;
+const selected = options.select
+  ? options.select.split(",").map((name) =>
+      name
+        .trim()
+        .replace(/^e2e[/\\]/, "")
+        .replace(/\.(mjs|js)$/, ""),
+    )
+  : stories;
 for (const name of selected) assert.ok(stories.includes(name), `Unknown system story: ${name}`);
 const scratch = await mkdtemp(join(tmpdir(), "dokime-desktop-junit-"));
 const suites = [];
