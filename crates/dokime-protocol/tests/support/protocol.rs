@@ -147,18 +147,17 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     for path in [&python, &csharp, &cpp] {
         fs::create_dir_all(path)?;
     }
-    let (compiler, includes) = self::compiler(root)?;
-    let proto = root.join("proto");
-    let document_messages = output.join("document-messages");
-    fs::create_dir_all(&document_messages)?;
+    // Prove the Complete Source Set Is Consumable by Every SDK Toolchain.
+    let sdk_messages = output.join("sdk-messages");
+    fs::create_dir_all(&sdk_messages)?;
     let mut config = prost_build::Config::new();
     config.protoc_executable(compiler);
-    config.out_dir(document_messages);
-    config.file_descriptor_set_path(python.join("documents.pb"));
-    config.skip_source_info();
+    config.out_dir(sdk_messages);
+    config.protoc_arg(format!("--python_out={}", python.display()));
     config.protoc_arg(format!("--csharp_out={}", csharp.display()));
     config.protoc_arg(format!("--cpp_out={}", cpp.display()));
-    config.compile_protos(&[proto.join("dokime/v1/values.proto"), proto.join("dokime/v1/documents.proto")], &[proto, includes])?;
+    inputs.push(proto.join("harmos/v1/plugin.proto"));
+    config.compile_protos(&inputs, &[proto, includes])?;
     Ok(())
 }
 

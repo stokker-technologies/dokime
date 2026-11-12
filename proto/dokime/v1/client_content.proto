@@ -1,0 +1,303 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/appearance.proto";
+import "dokime/v1/client_types.proto";
+
+message ContentDownloadAppearanceAssetRequest {
+  AppearanceAssetReference reference = 1;
+}
+
+message ContentDownloadAppearanceAssetOutput {
+  oneof value {
+    AppearanceAssetFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ContentDownloadAppearanceAssetRunInput {
+  oneof value {
+    ContentDownloadAppearanceAssetRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ContentDownloadAppearanceAssetRunOutput {
+  oneof value {
+    AppearanceAssetFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ContentDownloadArtifactRequest {
+  string artifact_id = 1;
+}
+
+message ContentDownloadArtifactOutput {
+  oneof value {
+    ArtifactFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ContentDownloadArtifactRunInput {
+  oneof value {
+    ContentDownloadArtifactRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ContentDownloadArtifactRunOutput {
+  oneof value {
+    ArtifactFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ContentDownloadEvidenceRequest {
+  EvidenceSubject subject = 1;
+}
+
+message ContentDownloadEvidenceOutput {
+  oneof value {
+    EvidenceExportFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ContentDownloadEvidenceRunInput {
+  oneof value {
+    ContentDownloadEvidenceRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ContentDownloadEvidenceRunOutput {
+  oneof value {
+    EvidenceExportFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ContentDownloadExecutionFileRequest {
+  string execution_id = 1;
+  string relative_path = 2;
+}
+
+message ContentDownloadExecutionFileOutput {
+  oneof value {
+    ExecutionFileDownloadFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ContentDownloadExecutionFileRunInput {
+  oneof value {
+    ContentDownloadExecutionFileRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ContentDownloadExecutionFileRunOutput {
+  oneof value {
+    ExecutionFileDownloadFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ContentFollowExecutionFileRequest {
+  string execution_id = 1;
+  string relative_path = 2;
+  ExecutionFileIdentity identity = 3;
+  uint64 offset = 4;
+  uint32 max_bytes = 5;
+}
+
+message ContentFollowExecutionFileOutput {
+  oneof value {
+    ExecutionFileFollowFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ContentFollowExecutionFileRunInput {
+  oneof value {
+    ContentFollowExecutionFileRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ContentFollowExecutionFileRunOutput {
+  oneof value {
+    ExecutionFileFollowFrame item = 1;
+    ClientEmpty response = 2;
+  }
+}
+
+message ContentListArtifactsRequest {
+  uint32 limit = 1;
+  string after_artifact_id = 2;
+  ArtifactCursor cursor = 3;
+}
+
+message ContentListArtifactsRunInput {
+  oneof value {
+    ContentListArtifactsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ContentListArtifactsRunOutput {
+  oneof value {
+    ListArtifactsReply response = 2;
+  }
+}
+
+message ContentListExecutionFilesRequest {
+  string execution_id = 1;
+  uint32 limit = 2;
+  string after_path = 3;
+  ExecutionFilesCursor cursor = 4;
+}
+
+message ContentListExecutionFilesRunInput {
+  oneof value {
+    ContentListExecutionFilesRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ContentListExecutionFilesRunOutput {
+  oneof value {
+    ListExecutionFilesReply response = 2;
+  }
+}
+
+message ContentReadExecutionFileRequest {
+  string execution_id = 1;
+  string relative_path = 2;
+  uint64 offset = 3;
+  uint32 max_bytes = 4;
+}
+
+message ContentReadExecutionFileRunInput {
+  oneof value {
+    ContentReadExecutionFileRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ContentReadExecutionFileRunOutput {
+  oneof value {
+    ExecutionFileWindow response = 2;
+  }
+}
+
+message ContentUploadArtifactRequest {
+
+}
+
+message ContentUploadArtifactInput {
+  oneof value {
+    ContentUploadArtifactRequest request = 1;
+    UploadArtifactFrame item = 2;
+  }
+}
+
+message ContentUploadArtifactRunInput {
+  oneof value {
+    ContentUploadArtifactRequest request = 1;
+    UploadArtifactFrame item = 2;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ContentUploadArtifactRunOutput {
+  oneof value {
+    ArtifactMetadata response = 2;
+  }
+}
+
+service Content {
+  // Public. dokime.content.download_appearance_asset. Output items precede the final response; require successful
+  // final status. Cancelling this call does not undo committed mutations or cancel an admitted execution. At most
+  // 8 MiB per registered appearance asset. Capture and verify before streaming: one metadata frame, contiguous
+  // <=64 KiB chunks, completion and OK final status. A changed/missing reference requires refreshing
+  // GetAppearance.
+  rpc DownloadAppearanceAsset (.dokime.v1.ContentDownloadAppearanceAssetRequest)
+      returns (stream .dokime.v1.ContentDownloadAppearanceAssetOutput);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunDownloadAppearanceAsset (stream .dokime.v1.ContentDownloadAppearanceAssetRunInput)
+      returns (stream .dokime.v1.ContentDownloadAppearanceAssetRunOutput);
+  // Public. dokime.content.download_artifact. Output items precede the final response; require successful final
+  // status. Cancelling this call does not undo committed mutations or cancel an admitted execution.
+  rpc DownloadArtifact (.dokime.v1.ContentDownloadArtifactRequest) returns (stream .dokime.v1.ContentDownloadArtifactOutput);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunDownloadArtifact (stream .dokime.v1.ContentDownloadArtifactRunInput) returns (stream .dokime.v1.ContentDownloadArtifactRunOutput);
+  // Public. dokime.content.download_evidence. Output items precede the final response; require successful final
+  // status. Cancelling this call does not undo committed mutations or cancel an admitted execution.
+  rpc DownloadEvidence (.dokime.v1.ContentDownloadEvidenceRequest) returns (stream .dokime.v1.ContentDownloadEvidenceOutput);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunDownloadEvidence (stream .dokime.v1.ContentDownloadEvidenceRunInput) returns (stream .dokime.v1.ContentDownloadEvidenceRunOutput);
+  // Public. dokime.content.download_execution_file. Output items precede the final response; require successful
+  // final status. Cancelling this call does not undo committed mutations or cancel an admitted execution. Opens
+  // one admitted output on its original saved view or active producer inode. Saved reads verify the frozen
+  // descriptor length and digest. Live reads stop at the observed prefix; producer rewrites may make that read
+  // fail. Each original charged chunk is encoded before the next read. Completion describes bytes actually
+  // delivered. Consumers verify offsets, size, digest and final OK status.
+  rpc DownloadExecutionFile (.dokime.v1.ContentDownloadExecutionFileRequest) returns (stream .dokime.v1.ContentDownloadExecutionFileOutput);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunDownloadExecutionFile (stream .dokime.v1.ContentDownloadExecutionFileRunInput)
+      returns (stream .dokime.v1.ContentDownloadExecutionFileRunOutput);
+  // Public. dokime.content.follow_execution_file. Output items precede the final response; require successful
+  // final status. Cancelling this call does not undo committed mutations or cancel an admitted execution. Follow
+  // the original registered production from a locally committed offset. A nonzero offset requires the identity
+  // returned by the first metadata frame. Reader cancellation never cancels the producer. Producer session
+  // generations may change without changing this retained-content identity.
+  rpc FollowExecutionFile (.dokime.v1.ContentFollowExecutionFileRequest) returns (stream .dokime.v1.ContentFollowExecutionFileOutput);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunFollowExecutionFile (stream .dokime.v1.ContentFollowExecutionFileRunInput)
+      returns (stream .dokime.v1.ContentFollowExecutionFileRunOutput);
+  // Public. dokime.content.list_artifacts. Follow the returned continuation with unchanged filters/order and its
+  // captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution. Metadata-only inventory for operator views. Entries are ordered by artifact ID.
+  // A continuation is valid only while the runtime epoch and complete metadata fingerprint remain unchanged.
+  rpc ListArtifacts (.dokime.v1.ContentListArtifactsRequest) returns (.dokime.v1.ListArtifactsReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListArtifacts (stream .dokime.v1.ContentListArtifactsRunInput) returns (stream .dokime.v1.ContentListArtifactsRunOutput);
+  // Public. dokime.content.list_execution_files. Follow the returned continuation with unchanged filters/order and
+  // its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
+  // mutations or cancel an admitted execution. Files currently owned by an execution in this runtime. These
+  // logical names select registered outputs; they never resolve arbitrary filesystem paths. Listings are ordered
+  // by relative_path. A continuation binds to execution, runtime epoch and metadata fingerprint; changed listings
+  // require a restart.
+  rpc ListExecutionFiles (.dokime.v1.ContentListExecutionFilesRequest) returns (.dokime.v1.ListExecutionFilesReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListExecutionFiles (stream .dokime.v1.ContentListExecutionFilesRunInput)
+      returns (stream .dokime.v1.ContentListExecutionFilesRunOutput);
+  // Public. dokime.content.read_execution_file. Cancelling this call does not undo committed mutations or cancel
+  // an admitted execution. A bounded read for live previews/tailing, not an immutable full-file download. A native
+  // producer may rewrite/truncate a streaming file between or during reads. Each window reports its actual offset
+  // and observed length. An offset past the current end is clamped to that end. max_bytes defaults to 64 KiB and
+  // must not exceed 64 KiB. No EOF/finality is implied by an empty streaming window.
+  rpc ReadExecutionFile (.dokime.v1.ContentReadExecutionFileRequest) returns (.dokime.v1.ExecutionFileWindow);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunReadExecutionFile (stream .dokime.v1.ContentReadExecutionFileRunInput)
+      returns (stream .dokime.v1.ContentReadExecutionFileRunOutput);
+  // Public. dokime.content.upload_artifact. Send one request first, then input items in order; half-close to
+  // finish input. Cancelling this call does not undo committed mutations or cancel an admitted execution. Uploads
+  // one immutable artifact into the runtime's active execution. The first frame is a header and the remaining
+  // frames are contiguous chunks; end of stream commits the runtime upload.
+  rpc UploadArtifact (stream .dokime.v1.ContentUploadArtifactInput) returns (.dokime.v1.ArtifactMetadata);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunUploadArtifact (stream .dokime.v1.ContentUploadArtifactRunInput) returns (stream .dokime.v1.ContentUploadArtifactRunOutput);
+}

@@ -1,0 +1,200 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/client_types.proto";
+
+message SettingsGetPluginSettingsRequest {
+  string plugin_id = 1;
+}
+
+message SettingsGetPluginSettingsRunInput {
+  oneof value {
+    SettingsGetPluginSettingsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message SettingsGetPluginSettingsRunOutput {
+  oneof value {
+    PluginRuntimeSettings response = 2;
+  }
+}
+
+message SettingsGetSettingsRequest {
+
+}
+
+message SettingsGetSettingsRunInput {
+  oneof value {
+    SettingsGetSettingsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message SettingsGetSettingsRunOutput {
+  oneof value {
+    SettingsFrame response = 2;
+  }
+}
+
+message SettingsListStorageSourcesRequest {
+
+}
+
+message SettingsListStorageSourcesRunInput {
+  oneof value {
+    SettingsListStorageSourcesRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message SettingsListStorageSourcesRunOutput {
+  oneof value {
+    StorageSources response = 2;
+  }
+}
+
+message SettingsReadApplicationSettingsRequest {
+
+}
+
+message SettingsReadApplicationSettingsRunInput {
+  oneof value {
+    SettingsReadApplicationSettingsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message SettingsReadApplicationSettingsRunOutput {
+  oneof value {
+    SettingsSnapshot response = 2;
+  }
+}
+
+message SettingsReorderStorageSourcesRequest {
+  repeated string identifiers = 1;
+}
+
+message SettingsReorderStorageSourcesRunInput {
+  oneof value {
+    SettingsReorderStorageSourcesRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message SettingsReorderStorageSourcesRunOutput {
+  oneof value {
+    StorageSources response = 2;
+  }
+}
+
+message SettingsSetStorageSourceEnabledRequest {
+  string identifier = 1;
+  bool enabled = 2;
+}
+
+message SettingsSetStorageSourceEnabledRunInput {
+  oneof value {
+    SettingsSetStorageSourceEnabledRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message SettingsSetStorageSourceEnabledRunOutput {
+  oneof value {
+    StorageSources response = 2;
+  }
+}
+
+message SettingsUpdateApplicationSettingsRequest {
+  UpdateSettings update = 1;
+}
+
+message SettingsUpdateApplicationSettingsRunInput {
+  oneof value {
+    SettingsUpdateApplicationSettingsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message SettingsUpdateApplicationSettingsRunOutput {
+  oneof value {
+    SettingsSnapshot response = 2;
+  }
+}
+
+message SettingsUpdatePluginSettingsRequest {
+  string plugin_id = 1;
+  MapValue values = 2;
+}
+
+message SettingsUpdatePluginSettingsRunInput {
+  oneof value {
+    SettingsUpdatePluginSettingsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message SettingsUpdatePluginSettingsRunOutput {
+  oneof value {
+    PluginRuntimeSettings response = 2;
+  }
+}
+
+service Settings {
+  // Public. dokime.settings.get_plugin_settings. Cancelling this call does not undo committed mutations or cancel
+  // an admitted execution.
+  rpc GetPluginSettings (.dokime.v1.SettingsGetPluginSettingsRequest) returns (.dokime.v1.PluginRuntimeSettings);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetPluginSettings (stream .dokime.v1.SettingsGetPluginSettingsRunInput)
+      returns (stream .dokime.v1.SettingsGetPluginSettingsRunOutput);
+  // Public. dokime.settings.get_settings. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc GetSettings (.dokime.v1.SettingsGetSettingsRequest) returns (.dokime.v1.SettingsFrame);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetSettings (stream .dokime.v1.SettingsGetSettingsRunInput) returns (stream .dokime.v1.SettingsGetSettingsRunOutput);
+  // Public. dokime.settings.list_storage_sources. Cancelling this call does not undo committed mutations or cancel
+  // an admitted execution.
+  rpc ListStorageSources (.dokime.v1.SettingsListStorageSourcesRequest) returns (.dokime.v1.StorageSources);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListStorageSources (stream .dokime.v1.SettingsListStorageSourcesRunInput)
+      returns (stream .dokime.v1.SettingsListStorageSourcesRunOutput);
+  // Public. dokime.settings.read_application_settings. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc ReadApplicationSettings (.dokime.v1.SettingsReadApplicationSettingsRequest) returns (.dokime.v1.SettingsSnapshot);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunReadApplicationSettings (stream .dokime.v1.SettingsReadApplicationSettingsRunInput)
+      returns (stream .dokime.v1.SettingsReadApplicationSettingsRunOutput);
+  // Public. dokime.settings.reorder_storage_sources. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc ReorderStorageSources (.dokime.v1.SettingsReorderStorageSourcesRequest) returns (.dokime.v1.StorageSources);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunReorderStorageSources (stream .dokime.v1.SettingsReorderStorageSourcesRunInput)
+      returns (stream .dokime.v1.SettingsReorderStorageSourcesRunOutput);
+  // Public. dokime.settings.set_storage_source_enabled. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc SetStorageSourceEnabled (.dokime.v1.SettingsSetStorageSourceEnabledRequest) returns (.dokime.v1.StorageSources);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunSetStorageSourceEnabled (stream .dokime.v1.SettingsSetStorageSourceEnabledRunInput)
+      returns (stream .dokime.v1.SettingsSetStorageSourceEnabledRunOutput);
+  // Public. dokime.settings.update_application_settings. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc UpdateApplicationSettings (.dokime.v1.SettingsUpdateApplicationSettingsRequest) returns (.dokime.v1.SettingsSnapshot);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunUpdateApplicationSettings (stream .dokime.v1.SettingsUpdateApplicationSettingsRunInput)
+      returns (stream .dokime.v1.SettingsUpdateApplicationSettingsRunOutput);
+  // Public. dokime.settings.update_plugin_settings. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc UpdatePluginSettings (.dokime.v1.SettingsUpdatePluginSettingsRequest) returns (.dokime.v1.PluginRuntimeSettings);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunUpdatePluginSettings (stream .dokime.v1.SettingsUpdatePluginSettingsRunInput)
+      returns (stream .dokime.v1.SettingsUpdatePluginSettingsRunOutput);
+}

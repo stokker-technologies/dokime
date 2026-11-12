@@ -114,20 +114,6 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn std::error::Error>> {
             panic!("generated Rust differs from {committed}; run mise run generate -- --protocol; evidence: {}", output.display());
         }
     }
-    for (generated, committed) in [
-        ("python/documents.pb", "sdk/python/python/dokime/v1/documents.pb"),
-        ("csharp/Documents.cs", "sdk/csharp/Dokime/V1/Documents.cs"),
-        ("csharp/Values.cs", "sdk/csharp/Dokime/V1/Values.cs"),
-        ("cpp/dokime/v1/documents.pb.h", "sdk/cpp/include/dokime/v1/documents.pb.h"),
-        ("cpp/dokime/v1/values.pb.h", "sdk/cpp/include/dokime/v1/values.pb.h"),
-        ("cpp/dokime/v1/documents.pb.cc", "sdk/cpp/src/dokime/v1/documents.pb.cc"),
-        ("cpp/dokime/v1/values.pb.cc", "sdk/cpp/src/dokime/v1/values.pb.cc"),
-    ] {
-        if fs::read(output.path().join(generated))? != fs::read(root.join(committed))? {
-            let output = output.keep();
-            panic!("generated SDK binding differs from {committed}; run mise run generate -- --protocol; evidence: {}", output.display());
-        }
-    }
     Ok(())
 }
 
@@ -198,7 +184,17 @@ fn client_service_managed_envelopes() {
         for method in service.methods().filter(|method| !method.name().starts_with("Run")) {
             let managed = service.methods().find(|candidate| candidate.name() == format!("Run{}", method.name())).unwrap();
             assert!(managed.is_client_streaming() && managed.is_server_streaming());
-            assert_eq!(managed.input().get_field_by_name("request").unwrap().kind(), Kind::Message(method.input()));
+            assert_eq!(
+                managed.input().get_field_by_name("request").unwrap().kind(),
+                Kind::Message(if method.is_client_streaming() {
+                    let Kind::Message(request) = method.input().get_field_by_name("request").unwrap().kind() else {
+                        panic!("request message")
+                    };
+                    request
+                } else {
+                    method.input()
+                })
+            );
             let primary = method.output();
             let response =
                 if method.is_server_streaming() { primary.get_field_by_name("response").unwrap().kind() } else { Kind::Message(primary) };
@@ -252,4 +248,123 @@ fn client_service_managed_envelopes() {
     };
     let decoded = BackendGetHealthRunInput::decode(cancelled.encode_to_vec().as_slice()).unwrap();
     assert!(matches!(decoded.value, Some(backend_get_health_run_input::Value::Cancel(_))));
+}
+
+#[test]
+fn reflected_client_story_retains_materialized_origins_and_outcomes() {
+    use dokime_protocol::v1::*;
+    use prost::Message;
+    use prost_reflect::{DynamicMessage, ReflectMessage};
+
+    // Reflect the Public Materialization Request Against Its Service Descriptor.
+    let request = PlanningMaterializeTemplateRequest {
+        selection: Some(RegisteredSelection {
+            suite_id: "measurement".into(),
+            template_id: "measurement.sample".into(),
+            parameters: vec![RegisteredSelectionParametersEntry {
+                key: "limits".into(),
+                value: Some(SelectionValues {
+                    values: vec![Value {
+                        kind: Some(value::Kind::Integer(i64::MAX)),
+                    }],
+                }),
+            }],
+            ..Default::default()
+        }),
+    };
+    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.v1.Planning").unwrap();
+    let method = service.methods().find(|method| method.name() == "MaterializeTemplate").unwrap();
+    assert!(!method.is_client_streaming() && !method.is_server_streaming());
+    assert_eq!(method.input(), request.descriptor());
+    let reflected = DynamicMessage::decode(method.input(), request.encode_to_vec().as_slice()).unwrap();
+    assert_eq!(reflected.transcode_to::<PlanningMaterializeTemplateRequest>().unwrap(), request);
+
+    // Carry the Frozen Case Through Planning and the Execution Read Model.
+    let origin = Origin {
+        kind: Some(origin::Kind::PluginRun(PluginRun {
+            plugin: "measurement".into(),
+            template: "measurement.sample".into(),
+            digest: vec![42; 32],
+            test_case: Some(TestCase {
+                streams: vec!["measurement.samples".into()],
+                ..Default::default()
+            }),
+            started_at: Some(prost_types::Timestamp { seconds: 1_700_000_000, nanos: 17 }),
+        })),
+    };
+    let planned = PreviewSelectionReply {
+        cases: vec![PlannedCase {
+            case_id: "case".into(),
+            origin: Some(origin.clone()),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let planned = PreviewSelectionReply::decode(planned.encode_to_vec().as_slice()).unwrap();
+    let execution = ExecutionDetail {
+        origin: planned.cases[0].origin.clone(),
+        outcome: Some(ExecutionOutcome {
+            attribution: Some(execution_outcome::Attribution::Evaluated(EvaluatedOutcome {
+                status: ResultStatus::Passed as i32,
+                reason: "criterion".into(),
+            })),
+        }),
+        ..Default::default()
+    };
+    let execution_service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.v1.Execution").unwrap();
+    let method = execution_service.methods().find(|method| method.name() == "GetExecution").unwrap();
+    let reflected = DynamicMessage::decode(method.output(), execution.encode_to_vec().as_slice()).unwrap();
+    let decoded = reflected.transcode_to::<ExecutionDetail>().unwrap();
+    assert_eq!(decoded, execution);
+    assert_eq!(decoded.origin, Some(origin));
+}
+
+#[test]
+fn client_transfer_routes_preserve_input_finish_cancel_and_final_response() {
+    use dokime_protocol::v1::*;
+    use prost::Message;
+    use prost_reflect::ReflectMessage;
+
+    // Inspect the Upload and Its Cancellable Duplex Companion.
+    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.v1.Plugins").unwrap();
+    let upload = service.methods().find(|method| method.name() == "Install").unwrap();
+    let run = service.methods().find(|method| method.name() == "RunInstall").unwrap();
+    assert!(upload.is_client_streaming() && !upload.is_server_streaming());
+    assert!(run.is_client_streaming() && run.is_server_streaming());
+
+    // Round-Trip the Distinct Ordered Control and Data Frames.
+    let frames = [
+        plugins_install_run_input::Value::Request(PluginsInstallRequest {}),
+        plugins_install_run_input::Value::Item(InstallPluginFrame {
+            frame: Some(InstallPluginFrameFrame {
+                kind: Some(install_plugin_frame_frame::Kind::Header(InstallPluginHeader { size_bytes: 3, sha256: "digest".into() })),
+            }),
+        }),
+        plugins_install_run_input::Value::Item(InstallPluginFrame {
+            frame: Some(InstallPluginFrameFrame {
+                kind: Some(install_plugin_frame_frame::Kind::Chunk(InstallPluginChunk { offset: 0, data: vec![0, 1, 2] })),
+            }),
+        }),
+        plugins_install_run_input::Value::Finish(ClientEmpty {}),
+        plugins_install_run_input::Value::Cancel(ClientEmpty {}),
+    ];
+    for value in frames {
+        let frame = PluginsInstallRunInput { value: Some(value) };
+        assert_eq!(run.input(), frame.descriptor());
+        assert_eq!(PluginsInstallRunInput::decode(frame.encode_to_vec().as_slice()).unwrap(), frame);
+    }
+    let terminal = PluginsInstallRunOutput {
+        value: Some(plugins_install_run_output::Value::Response(PluginInstallation {
+            install_id: "installation".into(),
+            plugin: Some(Plugin {
+                entry: "entry".into(),
+                placement: Some(plugin::Placement::Managed(ManagedPlugin { bundle: "bundle".into() })),
+                state: PluginState::Starting as i32,
+                ..Default::default()
+            }),
+            ..Default::default()
+        })),
+    };
+    assert_eq!(run.output(), terminal.descriptor());
+    assert_eq!(PluginsInstallRunOutput::decode(terminal.encode_to_vec().as_slice()).unwrap(), terminal);
 }

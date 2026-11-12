@@ -6,6 +6,10 @@ message Metadata {
   string identifier = 1;
   string label = 2;
   string description = 3;
+  repeated string tags = 4;
+  map<string, Value> attributes = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
 }
 
 // A resolved parameter, setting or evidence scalar. No JSON encoding or object bag.

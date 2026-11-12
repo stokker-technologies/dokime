@@ -1,0 +1,100 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/client_types.proto";
+
+message RemoteCreatePairingRequest {
+  string label = 1;
+}
+
+message RemoteCreatePairingRunInput {
+  oneof value {
+    RemoteCreatePairingRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message RemoteCreatePairingRunOutput {
+  oneof value {
+    CreatedPairing response = 2;
+  }
+}
+
+message RemoteReadListenerRequest {
+
+}
+
+message RemoteReadListenerRunInput {
+  oneof value {
+    RemoteReadListenerRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message RemoteReadListenerRunOutput {
+  oneof value {
+    RemoteListenerStatus response = 2;
+  }
+}
+
+message RemoteRegenerateCertificateRequest {
+  repeated string certificate_names = 1;
+}
+
+message RemoteRegenerateCertificateRunInput {
+  oneof value {
+    RemoteRegenerateCertificateRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message RemoteRegenerateCertificateRunOutput {
+  oneof value {
+    RemoteListenerStatus response = 2;
+  }
+}
+
+message RemoteUpdateListenerRequest {
+  RemoteListenerSettings settings = 1;
+}
+
+message RemoteUpdateListenerRunInput {
+  oneof value {
+    RemoteUpdateListenerRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message RemoteUpdateListenerRunOutput {
+  oneof value {
+    RemoteListenerStatus response = 2;
+  }
+}
+
+service Remote {
+  // Public. dokime.remote.create_pairing. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc CreatePairing (.dokime.v1.RemoteCreatePairingRequest) returns (.dokime.v1.CreatedPairing);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunCreatePairing (stream .dokime.v1.RemoteCreatePairingRunInput) returns (stream .dokime.v1.RemoteCreatePairingRunOutput);
+  // Public. dokime.remote.read_listener. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc ReadListener (.dokime.v1.RemoteReadListenerRequest) returns (.dokime.v1.RemoteListenerStatus);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunReadListener (stream .dokime.v1.RemoteReadListenerRunInput) returns (stream .dokime.v1.RemoteReadListenerRunOutput);
+  // Public. dokime.remote.regenerate_certificate. Cancelling this call does not undo committed mutations or cancel
+  // an admitted execution.
+  rpc RegenerateCertificate (.dokime.v1.RemoteRegenerateCertificateRequest) returns (.dokime.v1.RemoteListenerStatus);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunRegenerateCertificate (stream .dokime.v1.RemoteRegenerateCertificateRunInput)
+      returns (stream .dokime.v1.RemoteRegenerateCertificateRunOutput);
+  // Public. dokime.remote.update_listener. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc UpdateListener (.dokime.v1.RemoteUpdateListenerRequest) returns (.dokime.v1.RemoteListenerStatus);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunUpdateListener (stream .dokime.v1.RemoteUpdateListenerRunInput) returns (stream .dokime.v1.RemoteUpdateListenerRunOutput);
+}

@@ -1,0 +1,183 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/client_types.proto";
+import "dokime/v1/execution.proto";
+
+message QueryAggregateRequest {
+  QuerySource source = 1;
+  repeated QueryFilter filters = 2;
+  repeated string group_by = 3;
+  repeated QueryAggregate aggregates = 4;
+  uint32 limit = 5;
+}
+
+message QueryAggregateRunInput {
+  oneof value {
+    QueryAggregateRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message QueryAggregateRunOutput {
+  oneof value {
+    AggregateReply response = 2;
+  }
+}
+
+message QueryAggregateSamplesRequest {
+  string execution_id = 1;
+  string stream = 2;
+  repeated uint32 versions = 3;
+  Window between = 4;
+  repeated Output outputs = 5;
+  SnapshotRef at = 6;
+}
+
+message QueryAggregateSamplesRunInput {
+  oneof value {
+    QueryAggregateSamplesRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message QueryAggregateSamplesRunOutput {
+  oneof value {
+    Statistics response = 2;
+  }
+}
+
+message QueryListCyclesRequest {
+  CycleSelection selection = 1;
+  PageRequest page = 2;
+  SnapshotRef at = 3;
+}
+
+message QueryListCyclesRunInput {
+  oneof value {
+    QueryListCyclesRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message QueryListCyclesRunOutput {
+  oneof value {
+    CyclePage response = 2;
+  }
+}
+
+message QueryListExecutionsRequest {
+  ExecutionSelection selection = 1;
+  PageRequest page = 2;
+  SnapshotRef at = 3;
+}
+
+message QueryListExecutionsRunInput {
+  oneof value {
+    QueryListExecutionsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message QueryListExecutionsRunOutput {
+  oneof value {
+    ExecutionPage response = 2;
+  }
+}
+
+message QueryListRecordsRequest {
+  RecordScope scope = 1;
+  string record_type = 2;
+  repeated uint32 versions = 3;
+  Window between = 4;
+  PageRequest page = 5;
+  SnapshotRef at = 6;
+}
+
+message QueryListRecordsRunInput {
+  oneof value {
+    QueryListRecordsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message QueryListRecordsRunOutput {
+  oneof value {
+    RecordPage response = 2;
+  }
+}
+
+message QueryListSamplesRequest {
+  string execution_id = 1;
+  string stream = 2;
+  repeated uint32 versions = 3;
+  repeated string fields = 4;
+  Window between = 5;
+  BucketRequest bucket = 6;
+  PageRequest page = 7;
+  SnapshotRef at = 8;
+}
+
+message QueryListSamplesRunInput {
+  oneof value {
+    QueryListSamplesRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message QueryListSamplesRunOutput {
+  oneof value {
+    SamplePage response = 2;
+  }
+}
+
+service Query {
+  // Public. dokime.query.aggregate. Follow the returned continuation with unchanged filters/order and its captured
+  // cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or cancel
+  // an admitted execution. Read-only and idempotent. Requires the read role; no permission beyond the one every
+  // other read method uses. Replies are bounded by `limit` and by a server ceiling of 10,000 rows, and
+  // additionally by the negotiated gRPC message limit — a reply that would exceed it fails with ResourceExhausted
+  // rather than being silently truncated. Safe to retry: the call has no effect, and repeating it observes the
+  // original saved frontier selected for that call.  Coverage: objects contribute their latest logical revision at
+  // this call's original saved frontier. Steps use each execution's frozen case snapshot; records retain their
+  // original journal sequence and process identity. Staged evidence is absent until saved. Planned executions with
+  // no saved revision and executions retired by deletion are absent. Page decode, reduction, outcome projection
+  // and canonical response encoding share the original query's configured decoded allowance and active-time
+  // budget. The response retains its original loan through transport encoding. A zero limit means the server
+  // ceiling of 10,000 rows. Larger values are clamped to it rather than rejected. `group_by` may be empty, which
+  // aggregates the whole filtered selection into a single row. `aggregates` must name at least one output.
+  rpc Aggregate (.dokime.v1.QueryAggregateRequest) returns (.dokime.v1.AggregateReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunAggregate (stream .dokime.v1.QueryAggregateRunInput) returns (stream .dokime.v1.QueryAggregateRunOutput);
+  // Public. dokime.query.aggregate_samples. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. Active Work Uses Runtime Query Configuration Within The Declared Outer Ceiling.
+  rpc AggregateSamples (.dokime.v1.QueryAggregateSamplesRequest) returns (.dokime.v1.Statistics);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunAggregateSamples (stream .dokime.v1.QueryAggregateSamplesRunInput) returns (stream .dokime.v1.QueryAggregateSamplesRunOutput);
+  // Public. dokime.query.list_cycles. Cancelling this call does not undo committed mutations or cancel an admitted
+  // execution. Active Work Uses Runtime Query Configuration Within The Declared Outer Ceiling.
+  rpc ListCycles (.dokime.v1.QueryListCyclesRequest) returns (.dokime.v1.CyclePage);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListCycles (stream .dokime.v1.QueryListCyclesRunInput) returns (stream .dokime.v1.QueryListCyclesRunOutput);
+  // Public. dokime.query.list_executions. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. Active Work Uses Runtime Query Configuration Within The Declared Outer Ceiling.
+  rpc ListExecutions (.dokime.v1.QueryListExecutionsRequest) returns (.dokime.v1.ExecutionPage);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListExecutions (stream .dokime.v1.QueryListExecutionsRunInput) returns (stream .dokime.v1.QueryListExecutionsRunOutput);
+  // Public. dokime.query.list_records. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. Active Work Uses Runtime Query Configuration Within The Declared Outer Ceiling.
+  rpc ListRecords (.dokime.v1.QueryListRecordsRequest) returns (.dokime.v1.RecordPage);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListRecords (stream .dokime.v1.QueryListRecordsRunInput) returns (stream .dokime.v1.QueryListRecordsRunOutput);
+  // Public. dokime.query.list_samples. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. Active Work Uses Runtime Query Configuration Within The Declared Outer Ceiling.
+  rpc ListSamples (.dokime.v1.QueryListSamplesRequest) returns (.dokime.v1.SamplePage);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListSamples (stream .dokime.v1.QueryListSamplesRunInput) returns (stream .dokime.v1.QueryListSamplesRunOutput);
+}

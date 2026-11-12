@@ -99,23 +99,3 @@ enum AppearanceFailureKind {
   APPEARANCE_FAILURE_KIND_INVALID_REFERENCE = 4;
   APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE = 5;
 }
-
-// Managed calls use the same payloads and allow explicit cancellation and input finish.
-service Appearance {
-  rpc GetAppearance(.dokime.v1.GetAppearance) returns (.dokime.v1.AppearanceSnapshot);
-  rpc RunGetAppearance(stream .dokime.v1.AppearanceGetAppearanceRunInput) returns (stream .dokime.v1.AppearanceGetAppearanceRunOutput);
-}
-
-message AppearanceGetAppearanceCancellation {}
-message AppearanceGetAppearanceRunInput {
-  oneof value {
-    GetAppearance request = 1;
-    AppearanceGetAppearanceCancellation cancel = 3;
-    AppearanceGetAppearanceCancellation finish = 4;
-  }
-}
-message AppearanceGetAppearanceRunOutput {
-  oneof value {
-    AppearanceSnapshot response = 2;
-  }
-}

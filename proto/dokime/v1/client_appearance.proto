@@ -1,0 +1,29 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/appearance.proto";
+import "dokime/v1/client_types.proto";
+
+message AppearanceGetAppearanceRunInput {
+  oneof value {
+    GetAppearance request = 1;
+    AppearanceGetAppearanceCancellation cancel = 3;
+    AppearanceGetAppearanceCancellation finish = 4;
+  }
+}
+
+message AppearanceGetAppearanceRunOutput {
+  oneof value {
+    AppearanceSnapshot response = 2;
+  }
+}
+
+message AppearanceGetAppearanceCancellation {}
+
+service Appearance {
+  // Public. dokime.appearance.get_appearance. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc GetAppearance (.dokime.v1.GetAppearance) returns (.dokime.v1.AppearanceSnapshot);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetAppearance (stream .dokime.v1.AppearanceGetAppearanceRunInput) returns (stream .dokime.v1.AppearanceGetAppearanceRunOutput);
+}
