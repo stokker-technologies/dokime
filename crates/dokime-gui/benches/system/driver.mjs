@@ -13,6 +13,7 @@ import { setTimeout as delay } from "node:timers/promises";
 process.argv = [process.execPath, fileURLToPath(import.meta.url), "--profile", "bench"];
 const { startSession, prepareNativeFixture, terminate } = await import("../../e2e/native-desktop.mjs");
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
+const DRAW_WAIT_MS = 600000;
 const native = `${process.platform === "win32" ? "windows" : "linux"}-${process.arch === "x64" ? "x86_64" : "aarch64"}`;
 const output = resolve(process.env.CRITERION_HOME, "desktop");
 const fixtureRoot = join(root, "target/desktop-bench-fixtures");
@@ -134,8 +135,7 @@ async function waitReady() {
   }
 }
 
-async function waitDrawing(count, condition) {
-  const deadline = performance.now() + 600000;
+async function waitDrawing(count, condition, deadline = performance.now() + DRAW_WAIT_MS) {
   while (true) {
     const observation = await desktop.execute("return desktopResult(true)");
     if (!observation) throw new Error(`${count}/${condition}: native benchmark window closed before drawing completed`);
@@ -270,6 +270,8 @@ try {
       await command("drain");
       let resourceStart = Date.now();
       let started = performance.now();
+      let drawingDeadline;
+      const operations = [];
       const to = fixture.end_s + 600;
       const from = fixture.origin_s;
       const continuous = count === 30 && ["live", "late", "stalled"].includes(condition);
@@ -281,23 +283,57 @@ try {
         if (initial.loadedPlots > 0) {
           continuousReady = continuous && initial.loadedPlots === count ? `${count}/${condition}` : undefined;
           await command("drain");
+          if (condition === "stalled") {
+            await desktop.execute(`
+              const bench = globalThis.__desktopBench;
+              let duration = 0;
+              let until = 0;
+              bench.stallStartedAt = 0;
+              Object.defineProperty(bench, 'stallUntil', {
+                configurable: true,
+                get() {
+                  if (duration > 0 && until === 0 && bench.queueDepth > 0) {
+                    bench.stallStartedAt = performance.now();
+                    until = bench.stallStartedAt + duration;
+                  }
+                  return until;
+                },
+                set(value) {
+                  duration = Math.max(0, value - performance.now());
+                  until = 0;
+                  bench.stallStartedAt = 0;
+                },
+              });`);
+          }
           resourceStart = Date.now();
           started = performance.now();
           await desktop.execute("desktopAction(...arguments)", [condition, fixture.end_s - 150, fixture.end_s - 120]);
-          if (["live", "late", "stalled"].includes(condition)) await command(condition === "late" ? "late" : "live");
+          if (["live", "late", "stalled"].includes(condition)) operations.push(await command(condition === "late" ? "late" : "live"));
           if (condition === "stalled") {
-            for (let batch = 0; batch < 12; batch++) {
-              await command("live");
+            drawingDeadline = started + DRAW_WAIT_MS;
+            let status;
+            while (true) {
+              status = await desktop.execute(
+                "return {paused: Boolean(__desktopBench.stallStartedAt), refused: __desktopBench.failedPlots === arguments[0] && __desktopBench.loadedPlots === 0}",
+                [count],
+              );
+              if (!status) throw new Error("Native benchmark window closed before the queued-frame pause");
+              if (status.paused || status.refused) break;
+              if (performance.now() > drawingDeadline) throw new Error("No plot frame arrived for the stalled consumer");
+              await delay(25);
+            }
+            for (let batch = 0; status.paused && batch < 12; batch++) {
+              operations.push(await command("live"));
               await delay(100);
             }
           }
         }
       }
       if (count === 100 && ["live", "late", "stalled"].includes(condition)) {
-        await command(condition === "late" ? "late" : "live");
+        operations.push(await command(condition === "late" ? "late" : "live"));
         if (condition === "stalled") {
           for (let batch = 0; batch < 12; batch++) {
-            await command("live");
+            operations.push(await command("live"));
             await delay(100);
           }
         }
@@ -306,9 +342,16 @@ try {
         resizeWidth = resizeWidth === 1920 ? 1600 : 1920;
         await desktop.resize(resizeWidth, 1000);
       }
-      const observation = await waitDrawing(count, condition);
+      const observation = await waitDrawing(count, condition, drawingDeadline);
       if (observation.errors.length) continuousReady = undefined;
-      const queries = await command("drain");
+      operations.push(await command("drain"));
+      const stages = {};
+      for (const operation of operations) {
+        for (const [stage, values] of Object.entries(operation.stages)) {
+          stages[stage] ??= [];
+          stages[stage].push(...values);
+        }
+      }
       const durationMs = performance.now() - started;
       elapsed += durationMs / 1000;
       await resourceBoundary(Date.now());
@@ -324,8 +367,8 @@ try {
         fixture: { ...fixture },
         ...observation,
         durationMs,
-        queryMs: queries.stages["plot.query"] ?? [],
-        backendStages: queries.stages,
+        queryMs: stages["plot.query"] ?? [],
+        backendStages: stages,
         peakMemoryBytes: samples.length ? Math.max(...samples.map((sample) => sample.memory_bytes)) : null,
         cpuSeconds: samples.length > 1 ? Math.max(0, samples.at(-1).cpu_s - samples[0].cpu_s) : null,
         outcome: observation.errors.length ? (observation.loadedPlots > 0 ? "partial" : "refused") : "drawn",
@@ -370,6 +413,7 @@ try {
       errors.push(String(error));
     }
   }
+  await writeFile(join(output, "observations.json"), JSON.stringify({ fixture: fixture ?? null, native, results, resources }, null, 2));
   await writeFile(
     join(output, "completion.json"),
     JSON.stringify({
