@@ -175,19 +175,7 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(positions)
     }
-    pub(crate) fn sample_batches(&self, execution: &str) -> Result<Vec<crate::SampleBatch>> {
-        let connection = self.lock()?;
-        let mut query = connection.prepare("SELECT position,stream,payload FROM sample_batches WHERE execution=?1 ORDER BY position")?;
-        Ok(query
-            .query_map([execution], |row| {
-                Ok(crate::SampleBatch {
-                    position: row.get::<_, i64>(0)? as u64,
-                    stream: row.get(1)?,
-                    payload: row.get(2)?,
-                })
-            })?
-            .collect::<std::result::Result<_, _>>()?)
-    }
+
     pub fn stream_names(&self, execution: &str) -> Result<Vec<String>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT stream FROM streams WHERE execution=?1 ORDER BY stream")?;

@@ -77,7 +77,7 @@ impl Store {
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
             let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-            if tables != ["evidence", "executions", "notes", "plugins", "reports", "sample_batches", "sample_fields", "samples", "streams"] {
+            if tables != ["artifact_calls", "artifact_transfers", "content_chunks", "content_objects", "evidence", "executions", "notes", "plugins", "reports", "sample_batches", "sample_fields", "samples", "streams"] {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -91,6 +91,11 @@ impl Store {
                 CREATE TABLE sample_batches(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE sample_fields(execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,stream,field,position));
                 CREATE INDEX sample_fields_time ON sample_fields(execution,stream,field,source_ns,position,number);
+                CREATE TABLE artifact_transfers(execution TEXT NOT NULL REFERENCES executions(id), transfer TEXT NOT NULL, object TEXT NOT NULL, sequence INTEGER NOT NULL, terminal INTEGER NOT NULL, PRIMARY KEY(execution,transfer));
+                CREATE TABLE artifact_calls(execution TEXT NOT NULL, transfer TEXT NOT NULL, sequence INTEGER NOT NULL, fingerprint BLOB NOT NULL, receipt BLOB NOT NULL, PRIMARY KEY(execution,transfer,sequence));
+                CREATE TABLE content_objects(id TEXT PRIMARY KEY, execution TEXT NOT NULL REFERENCES executions(id), path TEXT NOT NULL, artifact INTEGER NOT NULL, metadata BLOB NOT NULL, length INTEGER NOT NULL, sha256 TEXT NOT NULL, phase INTEGER NOT NULL);
+                CREATE TABLE content_chunks(object TEXT NOT NULL REFERENCES content_objects(id), offset INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(object,offset));
+                CREATE INDEX content_path ON content_objects(execution,path);
                 CREATE TABLE notes(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, execution TEXT, receipt BLOB NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));"))?;
@@ -163,20 +168,11 @@ impl Store {
         Ok(())
     }
     pub fn export(&self, execution: &str) -> Result<Vec<u8>> {
-        let snapshot = self.read(execution)?;
-        if snapshot.state != ExecutionState::Sealed {
-            return Err(Error::Invalid("Export Execution: Seal the Execution First".into()));
-        }
-        let archive = crate::ExecutionArchive {
-            execution: Some(snapshot.execution),
-            evidence: snapshot.evidence,
-            samples: snapshot.samples,
-            seal: snapshot.seal,
-            reports: self.reports(execution)?.into_iter().map(|report| report.encode_to_vec()).collect(),
-            sample_batches: self.sample_batches(execution)?,
-        };
-        Ok(archive.encode_to_vec())
+        let mut bytes=Vec::new();
+        self.write_execution_archive(execution,&mut bytes)?;
+        Ok(bytes)
     }
+
     pub fn require_run_open(&self, execution: &str) -> Result<()> {
         let connection = self.lock()?;
         require_open(&connection, execution)?;

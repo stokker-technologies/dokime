@@ -16,6 +16,15 @@ pub mod backend_get_health;
 pub mod backend_get_identity;
 pub mod catalog_get_suite;
 pub mod catalog_list_suites;
+pub mod content_download_artifact;
+pub mod content_download_evidence;
+pub mod content_download_execution_file;
+pub mod content_follow_execution_file;
+pub mod content_list_artifacts;
+pub mod content_list_execution_files;
+pub mod content_read_execution_file;
+mod content_transfer;
+pub mod content_upload_artifact;
 pub mod evidence_get_captured_record_schema;
 pub mod evidence_list_records;
 mod evidence_selection;
@@ -71,6 +80,22 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Backend/GetIdentity",
     "/dokime.v1.Catalog/GetSuite",
     "/dokime.v1.Catalog/ListSuites",
+    "/dokime.v1.Content/DownloadArtifact",
+    "/dokime.v1.Content/DownloadEvidence",
+    "/dokime.v1.Content/DownloadExecutionFile",
+    "/dokime.v1.Content/FollowExecutionFile",
+    "/dokime.v1.Content/ListArtifacts",
+    "/dokime.v1.Content/ListExecutionFiles",
+    "/dokime.v1.Content/ReadExecutionFile",
+    "/dokime.v1.Content/RunDownloadArtifact",
+    "/dokime.v1.Content/RunDownloadEvidence",
+    "/dokime.v1.Content/RunDownloadExecutionFile",
+    "/dokime.v1.Content/RunFollowExecutionFile",
+    "/dokime.v1.Content/RunListArtifacts",
+    "/dokime.v1.Content/RunListExecutionFiles",
+    "/dokime.v1.Content/RunReadExecutionFile",
+    "/dokime.v1.Content/RunUploadArtifact",
+    "/dokime.v1.Content/UploadArtifact",
     "/dokime.v1.Evidence/GetCapturedRecordSchema",
     "/dokime.v1.Evidence/ListRecords",
     "/dokime.v1.Evidence/RunGetCapturedRecordSchema",
@@ -191,6 +216,7 @@ pub async fn complete<T>(action: &str, timeout: Duration, work: impl Future<Outp
 }
 pub fn status(error: Error) -> tonic::Status {
     match error {
+        Error::Cancelled => tonic::Status::cancelled(error.to_string()),
         Error::Deadline(action) => tonic::Status::deadline_exceeded(format!("{action}: Operation Deadline Expired")),
         Error::Storage(_) => tonic::Status::failed_precondition(error.to_string()),
         _ => tonic::Status::invalid_argument(error.to_string()),

@@ -33,6 +33,9 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("Operation Cancelled by the Client")]
+    Cancelled,
+
     #[error("{0}: Operation Deadline Expired")]
     Deadline(String),
 

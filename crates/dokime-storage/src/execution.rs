@@ -130,6 +130,12 @@ pub struct ExecutionArchive {
 
     #[prost(message, repeated, tag = "6")]
     pub sample_batches: Vec<SampleBatch>,
+
+    #[prost(message, repeated, tag = "7")]
+    pub content: Vec<crate::ArchivedContent>,
+
+    #[prost(message, repeated, tag = "8")]
+    pub content_chunks: Vec<crate::ArchivedContentChunk>,
 }
 
 #[derive(Clone, PartialEq, Message)]

@@ -302,7 +302,7 @@ Source inventory (data-service worker; continuation adds Content, Notes, Documen
 - [x] Serve base paths for the ten landed plot kinds through QuerySnapshots/Watch and their Run envelopes; use storage reduction, explicit resolution and a counted two-million-sample, forty-plot story.
 - [ ] Complete bounded cancellation of blocking plot workers, plot filters and expression transforms/joins, grouped distribution/time-series reductions, logarithmic contour bins, XY sigma intervals, grid highlights, plugin analyses and live bucket deltas. Unsupported request variants return actionable refusals; live Watch still emits snapshots. Marker selection and separate summary windows also remain open. Retired operations: none.
 - [ ] Serve Documents and Reports from fixed snapshots, explicit publication and downloads with client proof.
-- [ ] Serve Content with durable storage and client proof.
+- [x] Serve Content artifact uploads/downloads, evidence archives and execution-file list/window/download/follow with durable chunk storage and client proof; unary plugin artifacts enforce sequences, replay fingerprints, explicit terminal, abort and replacement.
 - [x] Serve Notes create/edit/list and Run envelopes, idempotent mutations, ownership and cursor validation, restart durability and sealed-owner refusal.
 - [ ] Media: held for the owner’s client API decision; keep capture operations refusing by name.
 - [x] Run format once, each owned story twice, existing fifteen stories, three new-crate check builds and repository checking; hand back local commits without pushing. Windows proof includes nineteen host stories, all three scoped Rust language checks and eight protocol checks; native Linux and hosted proof remain with integration.
@@ -329,8 +329,8 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [x] Telemetry: all direct and Run methods served; no named refusals remain.
   - [x] Plots: ListAnalyses, RunListAnalyses, QuerySnapshots, RunQuerySnapshots, Watch, RunWatch are routed; unsupported option variants remain in the data-service inventory above.
   - [ ] Documents: CaptureCurrentDocument, RunCaptureCurrentDocument, UpdatePlotSettings, RunUpdatePlotSettings are not registered.
-  - [ ] Content: DownloadAppearanceAsset, RunDownloadAppearanceAsset, DownloadArtifact, RunDownloadArtifact, DownloadEvidence, RunDownloadEvidence, DownloadExecutionFile, RunDownloadExecutionFile, FollowExecutionFile, RunFollowExecutionFile, ListArtifacts, RunListArtifacts, ListExecutionFiles, RunListExecutionFiles, ReadExecutionFile, RunReadExecutionFile, UploadArtifact, RunUploadArtifact are not registered.
-  - [ ] Media: AudioRecording, RunAudioRecording, CameraRecording, RunCameraRecording, Photo, RunPhoto, ScreenRecording, RunScreenRecording, Screenshot, RunScreenshot are not registered.
+  - [ ] Content: DownloadAppearanceAsset and RunDownloadAppearanceAsset refuse by name pending appearance asset storage; all artifact, evidence and execution-file direct and Run methods are served.
+  - [ ] Media: AudioRecording, RunAudioRecording, CameraRecording, RunCameraRecording, Photo, RunPhoto, ScreenRecording, RunScreenRecording, Screenshot, RunScreenshot are registered with named refusals and held for the owner’s client API capture decision.
   - [x] Notes: all direct and Run methods served; no named refusals remain.
   - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport, RunPublishExecutionReport. Direct PublishExecutionReport is served explicitly; downloading never publishes.
   - [ ] Health: RunListHealth.

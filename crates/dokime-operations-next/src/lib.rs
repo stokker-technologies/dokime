@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+pub mod artifact;
 pub mod client;
 mod error;
 pub mod log;
@@ -62,6 +63,7 @@ pub fn declarations() -> Result<&'static [h::OperationContract]> {
     let declarations = DECLARATIONS.get_or_init(|| {
         let declarations = || -> Result<Vec<h::OperationContract>> {
             Ok(vec![
+                artifact::declaration()?,
                 log::declaration()?,
                 progress::declaration()?,
                 record::declaration()?,
@@ -87,6 +89,7 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
     resources.check_action_scope(&resources.execution, &request.operation)?;
     let payload = request.payload.as_slice();
     match request.operation.as_str() {
+        artifact::ID => Ok(artifact::handle(resources, v1::PublishArtifact::decode(payload)?).await?.encode_to_vec()),
         log::ID => Ok(log::handle(resources, v1::WriteLog::decode(payload)?).await?.encode_to_vec()),
         progress::ID => Ok(progress::handle(resources, v1::ReportProgress::decode(payload)?).await?.encode_to_vec()),
         record::ID => Ok(record::handle(resources, v1::PublishRecord::decode(payload)?).await?.encode_to_vec()),

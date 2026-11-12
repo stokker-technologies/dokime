@@ -790,6 +790,10 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+- Content stages client uploads until explicit size/digest completion and input finish; cancellation removes only staged bytes. Unary plugin transfers preserve ordered sequence, exact replay, in-transfer replacement and explicit abort.
+- Execution files use retained SQLite chunk identities; replacing a logical name starts a new identity, and resumed follows retain the original production.
+- Evidence exports stream v1 protobuf execution archives (cycle exports repeat execution archives at field 1), including content metadata and 64 KiB chunks; rendering does not publish.
+
 - Notes use the loopback listener’s single `local-client` principal; remote authentication remains with its owner. Notes bind to execution or cycle, since planned cases were replaced by frozen origins.
 - Notes persist in the v1 baseline and refuse closed owners; incompatible roots require backup and explicit reset, with no migration.
 

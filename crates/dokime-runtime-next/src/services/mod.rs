@@ -14,9 +14,11 @@
 mod backend;
 mod catalog;
 mod clock;
+mod content;
 mod evidence;
 mod execution;
 mod health;
+mod media;
 mod notes;
 mod observation;
 mod planning;
@@ -171,6 +173,8 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     let shutdown = cancellation.clone();
     let task = tokio::spawn(async move {
         tonic::transport::Server::builder()
+            .add_service(v1::media_server::MediaServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes))
+            .add_service(v1::content_server::ContentServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes))
             .add_service(v1::notes_server::NotesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes))
             .add_service(
                 v1::plots_server::PlotsServer::new(services.clone())

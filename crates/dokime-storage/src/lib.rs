@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod client_reads;
+mod content;
 mod error;
 mod execution;
 mod notes;
@@ -26,6 +27,7 @@ mod streams;
 
 /* === Re-Exports === */
 
+pub use content::{ArchivedContent,ArchivedContentChunk,CycleArchive,CONTENT_CHUNK_BYTES, ContentEntry};
 pub use error::Error;
 pub use execution::{Evidence, Execution, ExecutionArchive, ExecutionSnapshot, ExecutionState, Sample, SampleBatch};
 pub use outcome::OutcomeCounts;

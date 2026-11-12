@@ -184,6 +184,30 @@ Storage remains at v1. An unrecognized nonempty root is refused with instruction
 to back it up and choose fresh storage or explicitly reset it. No migration,
 implicit reset or deletion occurs.
 
+## Content and Notes
+
+Content serves ordered artifact transfers, execution/cycle evidence exports and
+registered execution-file inventory, bounded windows, downloads and follows.
+Client uploads require an explicit SHA-256 completion before input finish;
+cancelling a staged upload publishes nothing. Plugin artifact calls are unary
+and preserve sequence, exact retry, prefix replacement and terminal abort.
+File names select retained content identities, never arbitrary filesystem paths.
+A resumed follow requires the original identity and committed offset.
+Notes support create/edit/list and Run envelopes, durable idempotent creation,
+selection-bound paging and closed-owner refusal. The loopback listener uses one
+local client principal until remote authentication lands.
+
+Build the content-story fixture before its client journey:
+
+```sh
+mise run build -- --cargo build --package dokime-runtime-next --example content_fixture
+mise run test -- --package dokime-runtime-next --target system --exact client_transfers_execution_content::client_transfers_execution_content
+mise run test -- --package dokime-runtime-next --target system --exact client_keeps_execution_notes::client_keeps_execution_notes
+```
+
+Appearance asset downloads and Media capture return named refusals pending their
+owning API/storage decisions. Query remains at its previously served surface.
+
 ## Cutover
 
 CLI and desktop still use the old host. The integration cutover must migrate
