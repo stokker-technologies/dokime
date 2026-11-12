@@ -48,7 +48,10 @@ pub mod execution_stop_execution;
 pub mod execution_submit_execution_command;
 pub mod execution_update_cycle_policy;
 pub mod health_list_health;
+pub mod observation_get_runtime_shell;
+pub mod observation_get_traceability;
 pub mod observation_watch_execution_progress;
+pub mod observation_watch_runtime;
 mod paging;
 mod planning;
 pub mod planning_materialize_template;
@@ -153,7 +156,14 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Execution/SubmitExecutionCommand",
     "/dokime.v1.Execution/UpdateCyclePolicy",
     "/dokime.v1.Health/ListHealth",
+    "/dokime.v1.Observation/GetRuntimeShell",
+    "/dokime.v1.Observation/GetTraceability",
+    "/dokime.v1.Observation/RunGetRuntimeShell",
+    "/dokime.v1.Observation/RunGetTraceability",
+    "/dokime.v1.Observation/RunWatchExecutionProgress",
+    "/dokime.v1.Observation/RunWatchRuntime",
     "/dokime.v1.Observation/WatchExecutionProgress",
+    "/dokime.v1.Observation/WatchRuntime",
     "/dokime.v1.Planning/MaterializeTemplate",
     "/dokime.v1.Planning/PreviewSelection",
     "/dokime.v1.Planning/RegisterSelection",

@@ -39,6 +39,7 @@ use dokime_protocol::v1;
 
 #[derive(Default)]
 struct State {
+    phase: String,
     interactive: bool,
     paused: bool,
     stopping: bool,
@@ -97,6 +98,17 @@ impl RunControl {
 }
 
 impl Host {
+    pub(crate) fn run_phase(&self, execution: &str) -> Result<String> {
+        let active = lock(&self.inner.active)?;
+        let Some(active) = active.get(execution) else { return Ok("finished".into()); };
+        let state = lock(&active.control.state)?;
+        Ok(if state.paused { "paused".into() } else if state.phase.is_empty() { "queued".into() } else { state.phase.clone() })
+    }
+    pub(crate) fn set_run_phase(&self, execution: &str, phase: &str) -> Result<()> {
+        if let Some(active) = lock(&self.inner.active)?.get(execution) { lock(&active.control.state)?.phase = phase.into(); }
+        self.signal_change();
+        Ok(())
+    }
     pub fn execution_controls(&self, execution: &str) -> Result<v1::ExecutionControls> {
         let capabilities = self.capabilities(execution)?;
         let active = lock(&self.inner.active)?;

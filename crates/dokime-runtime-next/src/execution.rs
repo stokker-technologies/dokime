@@ -243,6 +243,7 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
         clock: host.inner.settings.clock.clone(),
     };
     states.push(RunState::Initializing);
+    host.set_run_phase(&execution,"initializing")?;
     let mut initialized = template.initialize.is_none();
     let mut evaluated = Vec::new();
     let result: Result<()> = async {
@@ -263,6 +264,7 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
             initialized = true;
         }
         states.push(RunState::Stepping);
+        host.set_run_phase(&execution,"stepping")?;
         while let Some((index, command)) = control.next(case, &dispatch.cancellation).await? {
             let step = &case.steps[index];
             if let Some(mut command) = command.clone() {
@@ -286,6 +288,7 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
                 )
                 .await;
             dispatch.resources.as_ref().unwrap().evidence("step:end", Vec::new(), None)?;
+            if result.is_err() { dispatch.resources.as_ref().unwrap().evidence("step:failure", Vec::new(), None)?; }
             if let Some(mut command) = command {
                 command.phase = if result.is_ok() { v1::ExecutionCommandPhase::Completed } else { v1::ExecutionCommandPhase::Failed } as i32;
                 command.detail = result.as_ref().err().map(ToString::to_string);
@@ -297,6 +300,7 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
         }
         dispatch.resources.as_mut().unwrap().step.clear();
         states.push(RunState::Evaluating);
+        host.set_run_phase(&execution,"evaluating")?;
         for criterion in &case.criteria {
             let identifier = criterion
                 .metadata
@@ -332,6 +336,7 @@ async fn drive(host: Host, execution: String, origin: v1::Origin, entry: Arc<Ent
         Err(_) => v1::Termination::Interrupted,
     };
     states.push(RunState::CleaningUp);
+    host.set_run_phase(&execution,"cleaning_up")?;
     dispatch.cancellation = CancellationToken::new();
     dispatch.resources.as_mut().unwrap().step.clear();
     if initialized && let Some(operation) = &template.cleanup {

@@ -82,6 +82,13 @@ Cycle/execution detail, ordered steps, parameter pages and case lists expose
 backend-owned capabilities. Labels and archives remain editable presentation
 without altering seals. `client_controls_execution_lifecycle` proves the journey.
 
+Observation serves runtime shells, scoped traceability, runtime invalidations and
+execution progress through both call forms. Runtime watches resynchronize first,
+reject another epoch or a future revision, and settle on graceful shutdown.
+Execution progress follows manager transitions and questions; each execution
+settles independently. Cancelling either watch leaves its run active.
+`client_observes_runtime_state` proves these contracts.
+
 Materialization returns frozen origins; CreateCycle admits and starts the
 explicit origin list with `continue_automatically`, returning execution IDs.
 Progress streams expose queued/prompt/finished events and end with a terminal

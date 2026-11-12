@@ -299,7 +299,7 @@ methods and alphabetical registration lines. Old crates stay unchanged.
 - [x] Complete Prompts catalog, pending paging, retained answers and all Run methods; prove the real-process operator journey.
 - [x] Complete Planning preview, registration and materialization with ordered bounded expansion; prove the real-process planning journey.
 - [x] Complete Execution lifecycle, controls, listing/detail and case reads; prove the real-process lifecycle journey.
-- [ ] Complete Observation runtime/progress watches and traceability reads; prove the real-process observation journey.
+- [x] Complete Observation runtime/progress watches and traceability reads; prove the real-process observation journey.
 - [ ] Complete History saved cycles/executions and checkpoint reads; prove the real-process history journey.
 - [ ] Pass format, owned stories twice, fifteen existing stories, three new-crate check builds and repository checking; commit locally without pushing.
 
@@ -318,7 +318,7 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [ ] Catalog: GetRecordSchema, RunGetRecordSchema, RunGetSuite, GetTelemetrySchema, RunGetTelemetrySchema, ListRecordSchemas, RunListRecordSchemas, RunListSuites, ListTelemetrySchemas, RunListTelemetrySchemas.
   - [x] Planning: all three operations and their Run forms are served; the parameter-selection journey proves ordered duplicate selections, bounds, key conflicts and restart resolution.
   - [x] Execution: all 28 operations and their Run forms are served; the lifecycle journey proves explicit admission, interactive steps, pause/resume, seal, metadata/archive changes, rerun and cancellation.
-  - [ ] Observation: GetRuntimeShell, RunGetRuntimeShell, GetTraceability, RunGetTraceability, RunWatchExecutionProgress, WatchRuntime, RunWatchRuntime.
+  - [x] Observation: all four operations and their Run forms are served; the state journey proves resynchronization, cursor validation, shell counts, progress, watch cancellation and graceful shutdown.
   - [x] Prompts: all five operations and their Run forms are served; the operator journey proves catalog reads, invalid actions, answer settlement and restart resolution.
   - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
   - [ ] Evidence: GetCapturedRecordSchema, RunGetCapturedRecordSchema, RunListRecords, WatchRecords, RunWatchRecords.

@@ -80,6 +80,35 @@ pub async fn map_stream<A: Send + 'static, B: Send + 'static>(context: &Context,
     tokio_stream::wrappers::ReceiverStream::new(receiver)
 }
 
+pub async fn streaming<I, Q, A, O, F>(context: Context, mut input: tonic::Streaming<I>, decode: impl Fn(I) -> Option<Input<Q>> + Send + 'static, encode: impl Fn(A) -> O + Send + 'static, handle: impl Fn(Context,Q) -> F + Send + 'static) -> Result<Output<O>,tonic::Status>
+where I: Send + 'static, Q: Send + 'static, A: Send + 'static, O: Send + 'static, F: Future<Output=crate::Result<Output<A>>> + Send + 'static {
+    let first = tokio::time::timeout(context.settings.read_timeout,input.message()).await.map_err(|_| tonic::Status::deadline_exceeded("Send the Request Before the Read Deadline"))??;
+    let Some(Input::Request(request)) = first.and_then(&decode) else { return Err(tonic::Status::invalid_argument("Send Exactly One Request First")); };
+    let capacity = context.settings.stream_buffer;
+    let mut output = handle(context,request).await.map_err(super::status)?;
+    let (sender,receiver) = tokio::sync::mpsc::channel(capacity);
+    tokio::spawn(async move {
+        let mut finished = false;
+        loop {
+            tokio::select! {
+                biased;
+                _ = sender.closed() => break,
+                message = input.message(), if !finished => match message {
+                    Ok(Some(message)) => match decode(message) {
+                        Some(Input::Finish) => finished = true,
+                        Some(Input::Cancel) => { let _ = sender.send(Err(tonic::Status::cancelled("Watch Cancelled; Execution Continues"))).await; break; },
+                        _ => { let _ = sender.send(Err(tonic::Status::invalid_argument("Send Finish or Cancel After the Request"))).await; break; },
+                    },
+                    Ok(None) => finished = true,
+                    Err(error) => { let _ = sender.send(Err(error)).await; break; },
+                },
+                frame = output.next() => match frame { Some(frame) => if sender.send(frame.map(&encode)).await.is_err() { break; }, None => break },
+            }
+        }
+    });
+    Ok(tokio_stream::wrappers::ReceiverStream::new(receiver))
+}
+
 /* === Private Functions === */
 
 /* === Tests === */

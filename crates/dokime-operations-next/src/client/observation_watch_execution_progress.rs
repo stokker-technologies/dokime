@@ -57,20 +57,22 @@ pub async fn handle(
         let mut receiver = context.host.progress(&request.test_execution_id)?;
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
         let identifier = request.test_execution_id;
-        let store = context.host.store();
+        let context = context.clone();
         let timeout = context.settings.watch_timeout;
         tokio::spawn(async move {
             let work = async {
+                let mut initial = true;
                 loop {
                     let progress = receiver.borrow_and_update().clone();
                     if let Some(failure) = progress.failure { let _ = sender.send(Err(tonic::Status::internal(format!("WatchExecutionProgress: {failure}")))).await; return; }
-                    let snapshot = match store.read(&identifier) { Ok(snapshot) => snapshot, Err(error) => { let _ = sender.send(Err(tonic::Status::internal(format!("WatchExecutionProgress: {error}")))).await; return; } };
+                    let snapshot = match super::execution_state::evidence(&context,&identifier) { Ok(snapshot) => snapshot, Err(error) => { let _ = sender.send(Err(tonic::Status::internal(format!("WatchExecutionProgress: {error}")))).await; return; } };
                     let saved = snapshot.progress().ok().and_then(|progress| progress.last().cloned()).unwrap_or_default();
-                    let frame = v1::ExecutionProgressFrame { revision: progress.revision,
+                    let frame = v1::ExecutionProgressFrame { revision: progress.revision, resynchronized: initial, cleared: progress.finished,
                         progress: Some(v1::ExecutionProgress { test_execution_id: identifier.clone(), phase: progress.phase,
                             completed: saved.completed, total: saved.total, ..Default::default() }), ..Default::default() };
                     let frame = v1::ObservationWatchExecutionProgressOutput { value: Some(v1::observation_watch_execution_progress_output::Value::Item(frame)) };
                     if sender.send(Ok(frame)).await.is_err() { return; }
+                    initial = false;
                     if progress.finished {
                         let frame = v1::ObservationWatchExecutionProgressOutput { value: Some(v1::observation_watch_execution_progress_output::Value::Response(v1::ClientEmpty {})) };
                         let _ = sender.send(Ok(frame)).await;

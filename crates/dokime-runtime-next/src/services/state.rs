@@ -192,12 +192,17 @@ impl State {
             let host = self.host.clone();
             let identifier = execution.clone();
             let prompt_sender = sender.clone();
+            let mut changes = host.changes();
             let prompt_task = tokio::spawn(async move {
-                if host.next_prompt(&identifier).await.is_ok() {
-                    prompt_sender.send_modify(|progress| {
-                        progress.revision += 1;
-                        progress.phase = "prompt".into();
-                    });
+                loop {
+                    changes.borrow_and_update();
+                    let Ok(cut) = host.inner.store.cut(&identifier) else { return; };
+                    let finished = cut.state == ExecutionState::Sealed;
+                    let pending = host.pending_prompts().is_ok_and(|prompts| prompts.iter().any(|(execution,_)| execution == &identifier));
+                    let phase = if finished { "finished".into() } else if pending { "prompt".into() } else { host.run_phase(&identifier).unwrap_or_else(|_| "interrupted".into()) };
+                    prompt_sender.send_modify(|progress| { progress.revision += 1; progress.phase = phase; progress.finished = finished; });
+                    if finished { return; }
+                    if changes.changed().await.is_err() { return; }
                 }
             });
             senders.push((sender, prompt_task));
