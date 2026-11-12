@@ -70,6 +70,14 @@ impl Dispatch {
         let mut attempt = 0;
         loop {
             attempt += 1;
+            let resources = self.resources.clone().map(|mut resources| {
+                resources.operation = operation.into();
+                resources.attempt = attempt;
+                resources
+            });
+            if let Some(resources) = &resources {
+                resources.evidence("attempt:start", Vec::new(), None)?;
+            }
             let attempt_ns = duration_ns(policy.attempt_timeout.as_ref())?.and_then(|duration| self.clock.now_ns().checked_add(duration));
             let deadline = total_ns.into_iter().chain(attempt_ns).min();
             let result = tokio::select! {
@@ -77,6 +85,10 @@ impl Dispatch {
                 _ = reached(&self.clock, deadline) => Err(Error::Invalid(format!("Operation {operation} Reached Its Deadline; Inspect Evidence Before Retrying"))),
                 result = self.attempt(operation, payload.clone(), attempt) => result,
             };
+            if let Some(resources) = &resources {
+                let payload = result.as_ref().err().map_or_else(Vec::new, |error| error.to_string().into_bytes());
+                resources.evidence(if result.is_ok() { "attempt:succeeded" } else { "attempt:failed" }, payload, None)?;
+            }
             let retryable = matches!(&result, Err(Error::Plugin(failure)) if failure.classification == h::Classification::Transient as i32)
                 || matches!(&result, Err(Error::Status(status)) if status.code() == tonic::Code::Unavailable);
             if !retryable || attempt >= policy.attempts.max(1) {

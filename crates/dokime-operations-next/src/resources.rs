@@ -68,6 +68,11 @@ impl Resources {
         }
         Ok(())
     }
+    pub fn check_action_scope(&self, execution: &str, action: &str) -> Result<()> {
+        self.check_scope(execution).map_err(|error| Error::Invalid(format!("{action}: {error}")))?;
+        self.store.require_run_open(execution).map_err(|error| Error::Invalid(format!("{action}: {error}")))?;
+        Ok(())
+    }
     pub fn evidence(&self, kind: &str, payload: Vec<u8>, source_ns: Option<i64>) -> Result<u64> {
         self.check_scope(&self.execution)?;
         let receipt_ns = self.clock.now_ns();

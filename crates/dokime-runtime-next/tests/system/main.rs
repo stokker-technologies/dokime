@@ -14,6 +14,12 @@
 mod cancelling_a_thermal_step_runs_cleanup;
 mod client_runs_thermal_suite_over_grpc;
 mod python_client_runs_thermal_suite_over_grpc;
+mod documents_and_reports;
+mod execution_capabilities;
+mod execution_isolation;
+mod execution_outcomes;
+mod process_interruption;
+mod step_failure_and_retries;
 #[path = "../support/mod.rs"]
 mod support;
 mod thermal_suite_survives_host_restart;

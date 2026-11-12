@@ -45,6 +45,7 @@ pub fn declaration() -> Result<h::OperationContract> {
     crate::declaration::<h::Sleep, h::SleepResponse>(ID, harmos_protocol::clock::catalog_types())
 }
 pub async fn handle(resources: &Resources, request: h::Sleep) -> Result<h::SleepResponse> {
+    resources.check_action_scope(&resources.execution, ID)?;
     let duration = request.duration.ok_or_else(|| Error::Invalid("Supply the Duration to Sleep".into()))?;
     let duration_ns = duration
         .seconds

@@ -33,7 +33,7 @@
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Cannot read this evidence root: {0}. Back it up and choose a fresh root or explicitly reset it")]
+    #[error("Cannot Open Evidence Root: {0}. Make a backup and choose a fresh root or explicitly reset it")]
     Incompatible(String),
 
     #[error("Evidence storage failed; check the storage root and retry: {0}")]

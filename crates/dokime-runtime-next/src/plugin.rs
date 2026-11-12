@@ -82,7 +82,13 @@ pub enum EntryState {
 
 impl PluginProcess {
     pub async fn start(executable: &Path, remote: bool, settings: &PlacementSettings) -> Result<Self> {
+        Self::start_with_environment(executable, remote, settings, &[]).await
+    }
+    pub async fn start_with_environment(
+        executable: &Path, remote: bool, settings: &PlacementSettings, environment: &[(String, String)],
+    ) -> Result<Self> {
         let mut command = Command::from(crate::process::command(executable));
+        command.envs(environment.iter().cloned());
         if remote {
             command.arg("--remote");
         }

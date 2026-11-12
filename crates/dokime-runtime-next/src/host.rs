@@ -25,6 +25,7 @@ use std::{
 // Third Party Imports
 use async_trait::async_trait;
 use harmos_protocol::v1 as h;
+use prost::Message;
 use tokio::sync::{Notify, oneshot};
 use tokio_util::sync::CancellationToken;
 
@@ -85,7 +86,7 @@ impl Host {
         let store = Store::open(root)?;
         // Recover Only Executions Driven by a Plugin Run
         for identifier in store.identifiers()? {
-            let snapshot = store.read(&identifier)?;
+            let snapshot = store.cut(&identifier)?;
             let is_run =
                 snapshot.execution.origin.as_ref().is_some_and(|origin| matches!(origin.kind, Some(v1::origin::Kind::PluginRun(_))));
             if snapshot.state == ExecutionState::Open && is_run {
@@ -133,6 +134,7 @@ impl Host {
             return Err(Error::Invalid(format!("Remove the Existing Plugin Entry {identifier} Before Adding It Again")));
         }
         tracing::info!(plugin = %identifier, "Admitted Plugin Entry");
+        self.inner.store.save_plugin(&identifier, &entry.description.encode_to_vec())?;
         plugins.insert(identifier.clone(), Arc::new(entry));
         Ok(identifier)
     }
@@ -143,13 +145,30 @@ impl Host {
             .ok_or_else(|| Error::Invalid(format!("Connect the Plugin {identifier} Before Starting Its Test Cases")))
     }
     pub fn catalog(&self, identifier: &str) -> Result<v1::Suites> {
-        Ok(self.entry(identifier)?.suites.clone())
+        if let Some(entry) = lock(&self.inner.plugins)?.get(identifier) {
+            return Ok(entry.suites.clone());
+        }
+        let description = self.description(identifier)?;
+        let catalog = description.catalog.ok_or_else(|| Error::Invalid("Inspect Plugin Catalog: Reconnect the Plugin".into()))?;
+        let section = catalog
+            .sections
+            .iter()
+            .find(|section| section.r#type == "dokime.v1.Suites")
+            .ok_or_else(|| Error::Invalid("Inspect Plugin Catalog: Reconnect the Plugin with Its Suites".into()))?;
+        Ok(v1::Suites::decode(section.payload.as_slice())?)
     }
     pub fn description(&self, identifier: &str) -> Result<h::Description> {
-        Ok(self.entry(identifier)?.description.clone())
+        if let Some(entry) = lock(&self.inner.plugins)?.get(identifier) {
+            return Ok(entry.description.clone());
+        }
+        Ok(h::Description::decode(self.inner.store.plugin(identifier)?.as_slice())?)
     }
     pub fn entry_state(&self, identifier: &str) -> Result<crate::EntryState> {
-        Ok(self.entry(identifier)?.state)
+        if let Some(entry) = lock(&self.inner.plugins)?.get(identifier) {
+            return Ok(entry.state);
+        }
+        self.inner.store.plugin(identifier)?;
+        Ok(crate::EntryState::Unavailable)
     }
     pub async fn remove_plugin(&self, identifier: &str) -> Result<()> {
         if lock(&self.inner.active)?.values().any(|active| active.plugin == identifier) {
@@ -158,6 +177,7 @@ impl Host {
         let entry = self.entry(identifier)?;
         entry.close(&self.inner.settings.placement).await?;
         lock(&self.inner.plugins)?.remove(identifier);
+        self.inner.store.remove_plugin(identifier)?;
         Ok(())
     }
     pub async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, v1::Value>) -> Result<v1::Origin> {
@@ -215,6 +235,21 @@ impl Host {
     pub fn executions(&self) -> Result<Vec<String>> {
         Ok(self.inner.store.identifiers()?)
     }
+    pub fn cycle_counts(&self, cycle: &str) -> Result<dokime_storage::OutcomeCounts> {
+        let outcomes = self.inner.store.cycle_outcomes(cycle)?;
+        Ok(dokime_storage::OutcomeCounts::from_outcomes(&outcomes))
+    }
+    pub fn plugin_entries(&self) -> Result<Vec<(String, crate::EntryState)>> {
+        self.inner
+            .store
+            .plugin_identifiers()?
+            .into_iter()
+            .map(|identifier| {
+                let state = self.entry_state(&identifier)?;
+                Ok((identifier, state))
+            })
+            .collect()
+    }
     pub fn streams_closed(&self, identifier: &str) -> Result<bool> {
         Ok(self.inner.store.streams_closed(identifier)?)
     }
@@ -225,7 +260,8 @@ impl Host {
                 return Ok(pending.question.clone());
             }
             if !lock(&self.inner.active)?.contains_key(execution) {
-                return Err(Error::Invalid("Start an Active Execution Before Waiting for Its Prompt".into()));
+                let outcome = self.inner.store.cut(execution)?.execution.outcome;
+                return Err(Error::Invalid(format!("Wait for Execution Prompt {execution}: Start an Active Run; Outcome: {outcome:?}")));
             }
             changed.await;
         }
@@ -265,7 +301,8 @@ impl Host {
         }
         let identifiers: Vec<_> = lock(&self.inner.plugins)?.keys().cloned().collect();
         for identifier in identifiers {
-            self.remove_plugin(&identifier).await?;
+            self.entry(&identifier)?.close(&self.inner.settings.placement).await?;
+            lock(&self.inner.plugins)?.remove(&identifier);
         }
         Ok(())
     }

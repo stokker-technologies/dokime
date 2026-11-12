@@ -50,7 +50,7 @@ pub fn declaration() -> Result<h::OperationContract> {
     )
 }
 pub async fn handle(resources: &Resources, request: v1::PublishRecord) -> Result<v1::RecordReceipt> {
-    resources.check_scope(&request.execution)?;
+    resources.check_action_scope(&request.execution, ID)?;
     let source = request.at.as_ref().map(crate::resources::timestamp_ns).transpose()?;
     let position = resources.evidence(&format!("record:{}", request.kind), request.encode_to_vec(), source)?;
     let snapshot = resources.store.read(&resources.execution)?;

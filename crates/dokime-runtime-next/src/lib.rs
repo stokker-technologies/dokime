@@ -11,8 +11,10 @@
 
 /* === Modules === */
 
+mod capabilities;
 mod clock;
 mod dispatch;
+mod documents;
 mod error;
 mod execution;
 mod host;
@@ -23,7 +25,9 @@ mod streams;
 
 /* === Re-Exports === */
 
+pub use capabilities::ExecutionCapabilities;
 pub use clock::{ControlledClock, SchedulerClock};
+pub use documents::{FixedSnapshot, RenderSettings, RenderedDocument};
 pub use error::Error;
 pub use execution::{Cycle, CycleResult, RunState};
 pub use host::{Host, HostSettings};

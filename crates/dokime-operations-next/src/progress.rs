@@ -50,7 +50,7 @@ pub fn declaration() -> Result<h::OperationContract> {
     )
 }
 pub async fn handle(resources: &Resources, request: v1::ReportProgress) -> Result<v1::ReportProgressResponse> {
-    resources.check_scope(&request.execution)?;
+    resources.check_action_scope(&request.execution, ID)?;
     if request.completed > request.total {
         return Err(crate::Error::Invalid("Keep Completed Progress Within Its Total".into()));
     }

@@ -1,0 +1,122 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+// Published Execution Reports
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+use prost::Message;
+use rusqlite::params;
+use sha2::{Digest, Sha256};
+
+// Local Imports
+use crate::{Error, Result, Store, store};
+use dokime_protocol::v1;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+#[derive(Clone, PartialEq, Message)]
+pub struct Report {
+    #[prost(string, tag = "1")]
+    pub execution: String,
+
+    #[prost(string, tag = "2")]
+    pub identifier: String,
+
+    #[prost(bytes = "vec", tag = "3")]
+    pub execution_seal: Vec<u8>,
+
+    #[prost(message, optional, tag = "4")]
+    pub document: Option<v1::Document>,
+
+    #[prost(bytes = "vec", tag = "5")]
+    pub html: Vec<u8>,
+
+    #[prost(bytes = "vec", tag = "6")]
+    pub seal: Vec<u8>,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+impl Store {
+    pub fn publish_report(&self, execution: &str, execution_seal: &[u8], document: v1::Document, html: Vec<u8>) -> Result<Report> {
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction()?;
+        let (state, seal): (i32, Vec<u8>) =
+            transaction.query_row("SELECT state,seal FROM executions WHERE id=?1", [execution], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        if state != 2 || seal != execution_seal || store::digest(&transaction, execution)? != seal {
+            return Err(Error::Invalid("Publish Report: Render a Fixed Snapshot of This Sealed Execution".into()));
+        }
+        let mut report = Report {
+            execution: execution.into(),
+            execution_seal: seal,
+            document: Some(document),
+            html,
+            ..Default::default()
+        };
+        report.seal = report_digest(&report);
+        report.identifier = report.seal.iter().map(|byte| format!("{byte:02x}")).collect();
+        transaction.execute(
+            "INSERT INTO reports VALUES (?1,?2,?3) ON CONFLICT(execution,id) DO NOTHING",
+            params![execution, report.identifier, report.encode_to_vec()],
+        )?;
+        transaction.commit()?;
+        Ok(report)
+    }
+    pub fn reports(&self, execution: &str) -> Result<Vec<Report>> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare("SELECT payload FROM reports WHERE execution=?1 ORDER BY id")?;
+        let bytes = statement.query_map([execution], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
+        bytes
+            .iter()
+            .map(|bytes| {
+                let report = Report::decode(bytes.as_slice())?;
+                let identifier: String = report.seal.iter().map(|byte| format!("{byte:02x}")).collect();
+                if report.execution != execution || report.seal != report_digest(&report) || report.identifier != identifier {
+                    return Err(Error::Invalid("Read Report: Restore a Valid Backup of the Published Report".into()));
+                }
+                let seal: Vec<u8> = connection.query_row("SELECT seal FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+                if report.execution_seal != seal || store::digest(&connection, execution)? != seal {
+                    return Err(Error::Invalid("Read Report: Restore the Execution Matching the Published Snapshot".into()));
+                }
+                Ok(report)
+            })
+            .collect()
+    }
+}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+fn report_digest(report: &Report) -> Vec<u8> {
+    let mut content = report.clone();
+    content.identifier.clear();
+    content.seal.clear();
+    Sha256::digest(content.encode_to_vec()).to_vec()
+}
+
+/* === Tests === */

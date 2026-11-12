@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::{
+    collections::HashMap,
     path::Path,
     sync::{Arc, Mutex, MutexGuard},
 };
@@ -38,11 +39,14 @@ const APPLICATION_ID: i32 = 0x444b4e58;
 
 /* === Type Aliases === */
 
+type StatisticsCache = HashMap<(String, String, String, u64), (u64, crate::StatisticsRead)>;
+
 /* === Structs === */
 
 #[derive(Clone)]
 pub struct Store {
     connection: Arc<Mutex<Connection>>,
+    pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
 }
 
 /* === Enums === */
@@ -68,22 +72,45 @@ impl Store {
             if identity != APPLICATION_ID || version != 1 {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
+            let mut statement =
+                connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
+            let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
+            if tables != ["evidence", "executions", "plugins", "reports", "samples", "streams"] {
+                return Err(Error::Incompatible(root.display().to_string()));
+            }
         } else {
             connection.execute_batch(&format!("PRAGMA application_id={APPLICATION_ID}; PRAGMA user_version=1;
                 CREATE TABLE executions(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, state INTEGER NOT NULL, payload BLOB NOT NULL, seal BLOB NOT NULL);
                 CREATE TABLE evidence(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE samples(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
-                CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));"))?;
+                CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
+                CREATE INDEX samples_stream_position ON samples(execution,stream,position);
+                CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
+                CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));"))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
+            statistics: Arc::new(Mutex::new(HashMap::new())),
         })
     }
-    fn lock(&self) -> Result<MutexGuard<'_, Connection>> {
+    pub(crate) fn lock(&self) -> Result<MutexGuard<'_, Connection>> {
         self.connection.lock().map_err(|_| Error::Invalid("Restart the Host After the Evidence Store Lock Failed".into()))
     }
     pub fn create(&self, execution: &Execution) -> Result<()> {
+        if execution.identifier.trim().is_empty() || execution.cycle.trim().is_empty() {
+            return Err(Error::Invalid("Create Execution: Supply Execution and Cycle Identities".into()));
+        }
+        match execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
+            Some(v1::origin::Kind::PluginRun(run)) => {
+                run.validate().map_err(|error| Error::Invalid(format!("Create Execution: {error}")))?
+            }
+            Some(v1::origin::Kind::Import(_)) => (),
+            None => return Err(Error::Invalid("Create Execution: Supply a Frozen PluginRun or Import Origin".into())),
+        }
+        if execution.outcome.is_some() || execution.termination != v1::Termination::Unspecified as i32 {
+            return Err(Error::Invalid("Create Execution: Attribute Its Outcome When Closing Evidence".into()));
+        }
         let connection = self.lock()?;
         connection.execute(
             "INSERT INTO executions VALUES (?1,?2,0,?3,X'')",
@@ -95,6 +122,62 @@ impl Store {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT id FROM executions ORDER BY rowid")?;
         Ok(statement.query_map([], |row| row.get(0))?.collect::<std::result::Result<_, _>>()?)
+    }
+    pub fn save_plugin(&self, identifier: &str, description: &[u8]) -> Result<()> {
+        self.lock()?.execute(
+            "INSERT INTO plugins VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+            params![identifier, description],
+        )?;
+        Ok(())
+    }
+    pub fn plugin(&self, identifier: &str) -> Result<Vec<u8>> {
+        Ok(self.lock()?.query_row("SELECT payload FROM plugins WHERE id=?1", [identifier], |row| row.get(0))?)
+    }
+    pub fn plugin_identifiers(&self) -> Result<Vec<String>> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare("SELECT id FROM plugins ORDER BY id")?;
+        Ok(statement.query_map([], |row| row.get(0))?.collect::<std::result::Result<_, _>>()?)
+    }
+    pub fn cycle_outcomes(&self, cycle: &str) -> Result<Vec<v1::ExecutionOutcome>> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare("SELECT payload FROM executions WHERE cycle=?1 ORDER BY id")?;
+        let bytes = statement.query_map([cycle], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let mut outcomes = Vec::new();
+        for payload in bytes {
+            let execution = Execution::decode(payload.as_slice())?;
+            if let Some(outcome) = execution.outcome {
+                outcomes.push(outcome);
+            }
+        }
+        Ok(outcomes)
+    }
+    pub fn remove_plugin(&self, identifier: &str) -> Result<()> {
+        self.lock()?.execute("DELETE FROM plugins WHERE id=?1", [identifier])?;
+        Ok(())
+    }
+    pub fn export(&self, execution: &str) -> Result<Vec<u8>> {
+        let snapshot = self.read(execution)?;
+        if snapshot.state != ExecutionState::Sealed {
+            return Err(Error::Invalid("Export Execution: Seal the Execution First".into()));
+        }
+        let archive = crate::ExecutionArchive {
+            execution: Some(snapshot.execution),
+            evidence: snapshot.evidence,
+            samples: snapshot.samples,
+            seal: snapshot.seal,
+            reports: self.reports(execution)?.into_iter().map(|report| report.encode_to_vec()).collect(),
+        };
+        Ok(archive.encode_to_vec())
+    }
+    pub fn require_run_open(&self, execution: &str) -> Result<()> {
+        let connection = self.lock()?;
+        require_open(&connection, execution)?;
+        let payload: Vec<u8> = connection.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+        let execution = Execution::decode(payload.as_slice())?;
+        if !matches!(execution.origin.and_then(|origin| origin.kind), Some(v1::origin::Kind::PluginRun(_))) {
+            return Err(Error::Invalid("Use a Live PluginRun Execution for This Host Call".into()));
+        }
+        Ok(())
     }
     pub fn append(&self, execution: &str, mut evidence: Evidence) -> Result<u64> {
         let mut connection = self.lock()?;
@@ -153,10 +236,21 @@ impl Store {
         }
         let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
         let mut value = Execution::decode(payload.as_slice())?;
+        let imported = matches!(value.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(v1::origin::Kind::Import(_)));
+        if imported && matches!(outcome.attribution, Some(v1::execution_outcome::Attribution::Evaluated(_))) {
+            return Err(Error::Invalid("Close Import: Use an Importer-Declared or Not-Evaluated Outcome".into()));
+        }
+        if !imported && matches!(outcome.attribution, Some(v1::execution_outcome::Attribution::Declared(_))) {
+            return Err(Error::Invalid("Close PluginRun: Use a Host-Evaluated or Not-Evaluated Outcome".into()));
+        }
         value.termination = termination as i32;
         value.outcome = Some(outcome);
         transaction.execute("UPDATE executions SET state=1,payload=?2 WHERE id=?1", params![execution, value.encode_to_vec()])?;
         transaction.commit()?;
+        self.statistics
+            .lock()
+            .map_err(|_| Error::Invalid("Close Execution: Restart After the Statistics Cache Failed".into()))?
+            .retain(|(identifier, _, _, _), _| identifier != execution);
         Ok(())
     }
     pub fn seal(&self, execution: &str) -> Result<()> {
@@ -215,10 +309,10 @@ fn require_open(connection: &Connection, execution: &str) -> Result<()> {
     }
     Ok(())
 }
-fn next_position(connection: &Connection, execution: &str) -> Result<u64> {
+pub(crate) fn next_position(connection: &Connection, execution: &str) -> Result<u64> {
     Ok(connection.query_row("SELECT COALESCE(MAX(position),0)+1 FROM (SELECT position FROM evidence WHERE execution=?1 UNION ALL SELECT position FROM samples WHERE execution=?1)", [execution], |row| row.get::<_,i64>(0))? as u64)
 }
-fn digest(connection: &Connection, execution: &str) -> Result<Vec<u8>> {
+pub(crate) fn digest(connection: &Connection, execution: &str) -> Result<Vec<u8>> {
     let mut hash = Sha256::new();
     let payload: Vec<u8> = connection.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
     hash.update((payload.len() as u64).to_le_bytes());
