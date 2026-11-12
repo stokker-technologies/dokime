@@ -105,7 +105,6 @@ struct Gate {
 
 enum Action {
     Interrupt(Client),
-    InterruptOnSample(Client),
     Disconnect(Client, oneshot::Sender<()>),
     InterruptAt { reached: CancellationToken, released: CancellationToken },
 }
@@ -284,25 +283,20 @@ pub async fn scripts(client: &Client, endpoint: &str, root: &Path, extension: &s
     let (other_cycle, other_execution) = Box::pin(waiting_execution(client)).await;
     Box::pin(scenario(client, endpoint, root, extension, "test")).await;
     Box::pin(scenario(client, endpoint, root, extension, "prompt")).await;
-    if extension != "py" {
-        Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Append)).await;
-        Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Start)).await;
-    }
+    Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Append)).await;
+    Box::pin(mutation_interruption(client, endpoint, root, extension, Boundary::Start)).await;
     let summary = other_execution.snapshot().await.unwrap();
     assert!(!summary.summary.unwrap().sealed, "another client's execution must survive every script interrupt");
     assert_eq!(other_cycle.snapshot().await.unwrap().phase, CyclePhase::Active);
     other_cycle.seal().await.unwrap();
     let saved = other_execution.wait(None, None).await.unwrap();
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
-    if extension == "py" {
-        Box::pin(partial_capture(client, endpoint, root)).await;
-    }
 }
 
 pub async fn disconnections(client: &Client, endpoint: &str, root: &Path) {
     std::fs::create_dir_all(root).unwrap();
     let (other_cycle, other_execution) = Box::pin(waiting_execution(client)).await;
-    let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat", "py"] } else { &["sh", "py"] };
+    let extensions: &[&str] = if cfg!(windows) { &["ps1", "bat"] } else { &["sh"] };
     for extension in extensions {
         Box::pin(disconnected(client, endpoint, root, extension, "test")).await;
         Box::pin(disconnected(client, endpoint, root, extension, "prompt")).await;
@@ -457,10 +451,9 @@ async fn scenario(client: &Client, endpoint: &str, root: &Path, extension: &str,
     let command = terminal_command(command, extension == "bat");
     // The CLI announces a wait once its interrupt handler is armed. A Ctrl+C sent
     // earlier can land between two commands or on one with no handler yet, so
-    // nothing cancels the execution; Python handles it anywhere in its process.
-    let armed = match (extension, workflow) {
-        ("py", _) => "Execution: ",
-        (_, "prompt") => "Waiting For Prompt: ",
+    // nothing cancels the execution.
+    let armed = match workflow {
+        "prompt" => "Waiting For Prompt: ",
         _ => "Waiting For Saved Outcome: ",
     };
     let selected = client.clone();
@@ -527,49 +520,6 @@ async fn disconnected(client: &Client, endpoint: &str, root: &Path, extension: &
     assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
 }
 
-async fn partial_capture(client: &Client, endpoint: &str, root: &Path) {
-    eprintln!("Remote Interruption: Partial Capture");
-    let directory = root.join("partial Python capture");
-    // The Operator Prompt Holds The Second Half Until This Terminal Is Interrupted.
-    let command = super::configured_command(
-        "py",
-        "test",
-        endpoint,
-        &directory,
-        &[
-            ("TEMPLATE", "obc.charger.startup.sequence"),
-            ("PARAMETERS", r#"{"duration_s":0.064,"sample_interval_s":0.001}"#),
-            ("STREAMS", r#"["obc.charger.startup.samples"]"#),
-            ("EXECUTION_COUNT", "1"),
-        ],
-    )
-    .await;
-    let command = terminal_command(command.as_std(), false);
-    let selected = client.clone();
-    let outcome = tokio::task::spawn_blocking(move || run(command, "Execution: ", Action::InterruptOnSample(selected))).await.unwrap();
-    assert!(outcome.triggered && !outcome.success, "partial capture was not interrupted:\n{}", outcome.text);
-    let cycles = super::identities(&outcome.text, "Cycle: ");
-    let executions = super::identities(&outcome.text, "Execution: ");
-    assert_eq!(cycles.len(), 1);
-    assert_eq!(executions.len(), 1);
-    let id = TestExecutionId::from_uuid(&executions[0]).unwrap();
-    let execution = client.execution(id);
-    let saved = execution.wait(None, None).await.unwrap();
-    let context = execution.context_at(saved.checkpoint.as_ref().unwrap()).await.unwrap();
-    let phase = context.cycle.unwrap().cycle.unwrap().phase;
-    assert_eq!(saved.document.unwrap().execution.unwrap().result.unwrap().status, ResultStatus::Cancelled);
-
-    let execution_file = directory.join("execution-1.zip");
-    recovery_saved(&execution_file, &outcome.text);
-    let samples = super::archive(&execution_file, &cycles[0], &executions, phase, "cancelled", "obc.charger.startup.samples");
-    assert!(samples[&executions[0]] > 0 && samples[&executions[0]] < 64, "the saved bundle must retain a partial capture");
-    let cycle_file = directory.join("cycle.zip");
-    let cycle_samples =
-        super::archive(&cycle_file, &cycles[0], &executions, CyclePhase::Sealed, "cancelled", "obc.charger.startup.samples");
-    assert_eq!(samples, cycle_samples);
-    assert!(!outcome.text.contains("Drained Evidence:"), "an interrupted listener cannot claim a completed final drain");
-}
-
 fn assert_aborted(extension: &str, outcome: &Outcome) {
     // cmd.exe Continues After The Native Command: Its Final Exit Is Not The
     // Operation Verdict. The Saved State And Evidence Checks Remain Required.
@@ -587,10 +537,6 @@ fn recovery_saved(file: &Path, output: &str) {
 fn recovered(extension: &str, workflow: &str, directory: &Path, cycle: &str, execution: &str) -> (PathBuf, PathBuf) {
     let native = directory.join("recovery").join(format!("execution-{execution}.zip"));
     if extension == "sh" && !native.exists() {
-        let filename = if workflow == "test" { "execution-1.zip" } else { "execution.zip" };
-        return (directory.join(filename), directory.join("cycle.zip"));
-    }
-    if extension == "py" {
         let filename = if workflow == "test" { "execution-1.zip" } else { "execution.zip" };
         return (directory.join(filename), directory.join("cycle.zip"));
     }
@@ -793,12 +739,6 @@ fn read_terminal(
                             admitted(&client, execution.unwrap()).await?;
                             None
                         }
-                        Action::InterruptOnSample(client) => {
-                            let id = execution.unwrap();
-                            admitted(&client, id.clone()).await?;
-                            first_sample(&client, id).await?;
-                            None
-                        }
                         Action::Disconnect(client, disconnect) => {
                             admitted(&client, execution.unwrap()).await?;
                             Some(disconnect)
@@ -902,27 +842,6 @@ fn terminal_output(bytes: &[u8]) -> TerminalOutput {
         batch_prompt: text.rsplit_once("Terminate batch job (Y/N)?").is_some_and(|(_, response)| response.trim().is_empty()),
         text,
     }
-}
-
-async fn first_sample(client: &Client, id: TestExecutionId) -> std::io::Result<()> {
-    // The Tutorial Prints Only After Draining; Observe Live Evidence Before Interrupting It.
-    let execution = client.execution(id);
-    let samples = execution
-        .samples(vec!["obc.charger.startup.samples".into()], true, 64)
-        .map_err(|error| std::io::Error::other(format!("sample listener failed: {error:?}")))?;
-    let waiting = async {
-        while let Some(page) = samples.message().await.map_err(|error| std::io::Error::other(format!("sample read failed: {error:?}")))? {
-            if !page.samples.is_empty() {
-                return Ok(());
-            }
-        }
-        Err(std::io::Error::other("the execution must publish a sample before finishing"))
-    };
-    let result = tokio::time::timeout(crate::support::budgets::settings::STORY_BOUND, waiting)
-        .await
-        .map_err(|_| std::io::Error::other("the execution must begin its capture"));
-    samples.close().await;
-    result?
 }
 
 async fn admitted(client: &Client, id: TestExecutionId) -> std::io::Result<()> {

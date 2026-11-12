@@ -166,6 +166,13 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 - [ ] 5.1 Delete `<template>.run` and `.signal`, the signal and evidence-page protocol, the plugin walker and their transport.
 - [ ] 5.2 Delete the execution hand-off layer and rename what remains as the execution manager.
 - [ ] 5.3 Delete embedded plugins, the PyO3 SDK, the Python backend, stubs and wheel tasks.
+  - [x] Remove the Python variant of `plugin::remote_scripts`; The designated new-host replacement is `python_client_runs_thermal_suite_over_grpc` (not present in this checkout yet). CLI variants remain.
+  - [x] Remove `plugin::interruptions_python`; The designated new-host replacement is `process_interruption` (not present in this checkout yet).
+  - [x] Remove the Python variants of `plugin::disconnections::disconnections`; client disconnection during a run has no new-host replacement story yet. CLI variants remain.
+  - [x] Remove `matrix::python_runs_matrix`; The designated new-host replacement is `python_client_runs_thermal_suite_over_grpc` (not present in this checkout yet). The desktop matrix remains.
+  - [ ] Implement the designated new-host replacement stories `python_client_runs_thermal_suite_over_grpc` and `process_interruption`; neither exists at this checkout head.
+  - [ ] Add a new-host client-disconnection-during-run story proving retained admission and independent client survival.
+  - [ ] Add a new-host partial-capture interruption story proving saved partial evidence and no completed drain claim; the deleted Python-only helper has no equivalent replacement story yet.
 - [ ] 5.4 Delete leases, sample and record delivery, replay and restart recovery during an execution.
 - [ ] 5.5 Remove or rework the tests tied to the old loop; update the README, guides and authoring guidance.
 - [ ] 5.6 Delete the template, step, criterion, suite, catalog and plugin macros and their tests; keep derives for messages, rows, records, parameters and settings.
