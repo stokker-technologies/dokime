@@ -48,7 +48,10 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
 
         // Save a Secret by Identifier and Reject Stale Edits
         let root = tempfile::tempdir()?;
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let storage = root.path().join("storage");
+        let credentials = super::support::CredentialStore::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
         let mut secrets = v1::secrets_client::SecretsClient::connect(process.url.clone()).await?;
         let initial = secrets.list(v1::SecretsListRequest {}).await?.into_inner();
         let saved = secrets
@@ -98,7 +101,8 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
         process.close().await?;
 
         // Reopen Protected Storage and Round-Trip an Explicit Import
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
         let mut secrets = v1::secrets_client::SecretsClient::connect(process.url.clone()).await?;
         assert_eq!(
             secrets

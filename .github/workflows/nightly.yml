@@ -367,7 +367,7 @@ jobs:
       runner: ${{ matrix.runner }}
       work: Rust / System / Execution Host
       command: test -- --artifact tests --package dokime-runtime-next --target system
-      bootstrap: '[]'
+      bootstrap: '${{ matrix.platform == ''unix'' && ''["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'' || ''[]'' }}'
       archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-rust-{profile}-{platform}.tar.zst", "target/ci/build-host-python-{profile}-{platform}.tar.zst", "target/ci/build-host-csharp-{profile}-{platform}.tar.zst", "target/ci/build-host-cpp-{profile}-{platform}.tar.zst"]'
       minutes: 120
       suite: execution-host

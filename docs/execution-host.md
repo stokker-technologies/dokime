@@ -59,6 +59,9 @@ portable regular-file paths, matching size/digest inventory and a compatible
 `dokime.json`. Managed entries start on restart; disabled installations stay
 disabled. Replacement retains that state and restores the previous entry when
 starting its replacement fails. Removing an entry preserves execution evidence.
+An installation deadline cancels pending startup and settles rollback before
+reporting failure: the owned child is stopped and reaped, its installation is
+removed, and a previous installation is restored when present.
 Remote entries retain URL identity and descriptions while unavailable, and
 reload reconnects them without taking ownership of the remote process. Plugin,
 catalog and health reads probe connected entries on demand, retaining stopped or

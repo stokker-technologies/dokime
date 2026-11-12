@@ -29,6 +29,7 @@
 
 /* === Structs === */
 
+#[cfg(not(target_os = "linux"))]
 #[derive(Clone, PartialEq, prost::Message)]
 struct Cleanup {
     #[prost(string, tag = "3")]
@@ -54,7 +55,10 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
 
         // Export a Pairing File and Connect Through Its Pinned Certificate
         let root = tempfile::tempdir()?;
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let storage = root.path().join("storage");
+        let credentials = super::support::CredentialStore::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
         let mut remote = v1::remote_client::RemoteClient::connect(process.url.clone()).await?;
         assert!(!remote.read_listener(v1::RemoteReadListenerRequest {}).await?.into_inner().settings.unwrap().enabled);
         let first =
@@ -154,7 +158,8 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         process.close().await?;
 
         // Restart Retains the Access Key and Certificate, Then Rotate the Certificate
-        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start(root.path()).await?;
+        let process =
+            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&storage, &credentials.environment).await?;
         let mut remote = v1::remote_client::RemoteClient::connect(process.url.clone()).await?;
         let status = remote.read_listener(v1::RemoteReadListenerRequest {}).await?.into_inner();
         assert!(status.key_configured);
@@ -188,9 +193,12 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         process.close().await?;
 
         // Remove Only This Disposable Story's Protected TLS Key
-        let store = dokime_storage::Store::open(root.path())?;
-        let security: Cleanup = store.administration("remote-security")?.unwrap();
-        keyring::Entry::new("dokime.remote-tls", &format!("{}:{}", identity.backend_id, security.key_slot))?.delete_credential()?;
+        #[cfg(not(target_os = "linux"))]
+        {
+            let store = dokime_storage::Store::open(&storage)?;
+            let security: Cleanup = store.administration("remote-security")?.unwrap();
+            keyring::Entry::new("dokime.remote-tls", &format!("{}:{}", identity.backend_id, security.key_slot))?.delete_credential()?;
+        }
         Ok::<(), Box<dyn std::error::Error>>(())
     })
     .await?

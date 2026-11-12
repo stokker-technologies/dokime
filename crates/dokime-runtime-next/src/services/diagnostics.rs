@@ -51,7 +51,8 @@ pub struct Diagnostics {
 }
 struct Tail {
     sequence: u64,
-    events: VecDeque<v1::TraceEvent>,
+    events: VecDeque<(v1::TraceEvent, usize)>,
+    bytes: usize,
     dropped: HashMap<String, u64>,
 }
 #[derive(Default)]
@@ -72,6 +73,7 @@ impl Diagnostics {
             inner: Arc::new(Mutex::new(Tail {
                 sequence: 0,
                 events: VecDeque::new(),
+                bytes: 0,
                 dropped: HashMap::new(),
             })),
             changes,
@@ -87,7 +89,7 @@ impl Diagnostics {
             Some(v1::trace_scope::Kind::Execution(id)) => format!("execution:{id}"),
             _ => "instance".into(),
         };
-        (tail.events.iter().cloned().collect(), tail.sequence, tail.dropped.get(&key).copied().unwrap_or_default())
+        (tail.events.iter().map(|(event, _)| event.clone()).collect(), tail.sequence, tail.dropped.get(&key).copied().unwrap_or_default())
     }
     pub(super) fn changes(&self) -> broadcast::Receiver<()> {
         self.changes.subscribe()
@@ -151,15 +153,19 @@ where
         };
         // One Event Cannot Consume the Entire Configured Tail.
         use prost::Message;
-        if output.encoded_len() > self.bytes {
+        let mut bytes = output.encoded_len();
+        if bytes > self.bytes {
             output.message = "Diagnostic Event Exceeded Its Byte Budget; Reduce the Logged Fields".into();
             output.fields.clear();
+            bytes = output.encoded_len();
         }
-        tail.events.push_back(output);
-        while tail.events.len() > self.items || tail.events.iter().map(Message::encoded_len).sum::<usize>() > self.bytes {
-            let Some(evicted) = tail.events.pop_front() else {
+        tail.events.push_back((output, bytes));
+        tail.bytes += bytes;
+        while tail.events.len() > self.items || tail.bytes > self.bytes {
+            let Some((evicted, bytes)) = tail.events.pop_front() else {
                 break;
             };
+            tail.bytes -= bytes;
             *tail.dropped.entry("instance".into()).or_default() += 1;
             if let Some(id) = evicted.cycle_id {
                 *tail.dropped.entry(format!("cycle:{id}")).or_default() += 1;
@@ -185,3 +191,33 @@ where
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use prost::Message;
+    use std::num::NonZeroUsize;
+    use tracing_subscriber::prelude::*;
+
+    #[test]
+    fn tail_accounts_for_evicted_bytes_and_scope_counts() {
+        let diagnostics =
+            Diagnostics::new(Arc::new(crate::ControlledClock::new(0)), NonZeroUsize::new(3).unwrap(), NonZeroUsize::new(1024).unwrap());
+        let subscriber = tracing_subscriber::registry().with(diagnostics.clone());
+        tracing::subscriber::with_default(subscriber, || {
+            for value in 0..8 {
+                tracing::info!(execution = "fixture", value, payload = "x".repeat(400));
+            }
+        });
+        let scope = v1::TraceScope {
+            kind: Some(v1::trace_scope::Kind::Execution("fixture".into())),
+        };
+        let (events, sequence, dropped) = diagnostics.snapshot(Some(&scope));
+        assert_eq!(sequence, 8);
+        assert_eq!(events.last().unwrap().fields["value"], "7");
+        assert_eq!(events.len() as u64 + dropped, sequence);
+        let bytes = events.iter().map(Message::encoded_len).sum::<usize>();
+        assert!(bytes <= diagnostics.bytes);
+        assert_eq!(diagnostics.inner.lock().unwrap().bytes, bytes);
+    }
+}

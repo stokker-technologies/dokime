@@ -3648,7 +3648,8 @@ async function settingsJourney(session, notes) {
         access_key: null,
       }),
     );
-    await session.openPicker(await session.named("button", "Import Remote"));
+    const importButton = await until("pairing import available", () => session.named("button", "Import Remote"));
+    await session.openPicker(importButton);
     const picker = { window: null };
     await until("native pairing import", () => chooseNativeFile(picker, pairing), WAIT_MS);
     await until("import settles", async () => {

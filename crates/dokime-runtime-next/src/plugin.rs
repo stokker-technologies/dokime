@@ -23,7 +23,7 @@ use harmos_protocol::v1::{self as h, plugin_client::PluginClient};
 use prost::Message;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
-    process::{Child, Command},
+    process::ChildStdout,
     task::JoinHandle,
 };
 use tonic::transport::Channel;
@@ -51,11 +51,13 @@ pub struct PlacementSettings {
 
 pub struct PluginProcess {
     endpoint: String,
-    child: Child,
+    child: OwnedChild,
     drain: JoinHandle<()>,
     remote: bool,
     settings: PlacementSettings,
 }
+
+struct OwnedChild(std::process::Child);
 
 pub(crate) struct Entry {
     pub client: PluginClient<Channel>,
@@ -87,20 +89,16 @@ impl PluginProcess {
     pub async fn start_with_environment(
         executable: &Path, remote: bool, settings: &PlacementSettings, environment: &[(String, String)],
     ) -> Result<Self> {
-        let mut command = Command::from(crate::process::command(executable));
+        let mut command = crate::process::command(executable);
         command.envs(environment.iter().cloned());
         if remote {
             command.arg("--remote");
         }
-        let mut child = command
-            .env("HARMOS_ADDRESS", "127.0.0.1:0")
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .kill_on_drop(true)
-            .spawn()?;
-        let output = child.stdout.take().ok_or_else(|| Error::Invalid("Start the Plugin with a Readiness Output Pipe".into()))?;
-        let mut lines = BufReader::new(output).lines();
+        let mut child = OwnedChild(
+            command.env("HARMOS_ADDRESS", "127.0.0.1:0").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn()?,
+        );
+        let output = child.0.stdout.take().ok_or_else(|| Error::Invalid("Start the Plugin with a Readiness Output Pipe".into()))?;
+        let mut lines = BufReader::new(ChildStdout::from_std(output)?).lines();
         let line = tokio::time::timeout(settings.connect_timeout, lines.next_line())
             .await
             .map_err(|_| Error::Invalid("Plugin Did Not Announce Readiness; Check Its Startup Logs".into()))??
@@ -126,22 +124,44 @@ impl PluginProcess {
         &self.endpoint
     }
     pub async fn close(&mut self) -> Result<()> {
-        let mut client = connect(&self.endpoint, &self.settings).await?;
-        let stopped =
-            tokio::time::timeout(self.settings.stop_grace, client.stop(h::StopRequest { reason: "Host Removed the Entry".into() })).await;
-        if self.remote || !matches!(stopped, Ok(Ok(_))) {
-            self.child.kill().await?;
+        let stopped = tokio::time::timeout(self.settings.stop_grace, async {
+            let mut client = connect(&self.endpoint, &self.settings).await?;
+            client.stop(h::StopRequest { reason: "Host Removed the Entry".into() }).await?;
+            Ok::<(), Error>(())
+        })
+        .await;
+        let force = self.remote || !matches!(stopped, Ok(Ok(_)));
+        if force && self.child.0.try_wait()?.is_none() {
+            self.child.0.kill()?;
         }
-        match tokio::time::timeout(self.settings.stop_grace, self.child.wait()).await {
+        let exited = async {
+            loop {
+                if self.child.0.try_wait()?.is_some() {
+                    return Ok::<(), std::io::Error>(());
+                }
+                tokio::time::sleep(self.settings.reconnect_delay).await;
+            }
+        };
+        match tokio::time::timeout(self.settings.stop_grace, exited).await {
             Ok(status) => {
                 status?;
             }
             Err(_) => {
-                self.child.kill().await?;
-                self.child.wait().await?;
+                self.child.0.kill()?;
+                self.child.0.wait()?;
             }
         }
         Ok(())
+    }
+}
+impl Drop for OwnedChild {
+    fn drop(&mut self) {
+        // Reap Before Installation Rollback Removes the Executable, Including on Cancellation
+        if matches!(self.0.try_wait(), Ok(Some(_))) {
+            return;
+        }
+        let _ = self.0.kill();
+        let _ = self.0.wait();
     }
 }
 impl Drop for PluginProcess {

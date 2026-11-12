@@ -330,6 +330,9 @@ inside that pinned dependency revision; other paths resolve in this repository.
 23. **Placement Changes Only Process Ownership.** Managed versus remote decides
     who starts/supervises a process and how its channel is obtained; materialization,
     execution and evidence above the channel use the same contracts.
+     Pending managed installation cancellation reaps its child before removing
+     the installation files and restoring a previous entry. The install operation
+     waits for rollback before reporting its deadline failure.
     **Why:** Hosting convenience must not fork plugin semantics.
     **Where:** [plugin entry](../crates/dokime-runtime-next/src/plugin.rs),
     [process owner](../crates/dokime-runtime-next/src/process/mod.rs),

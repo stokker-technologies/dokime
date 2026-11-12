@@ -423,7 +423,7 @@ pub trait Host: Send + Sync {
     async fn refresh_plugin_states(&self) -> Result<()>;
     async fn restore_managed_plugins(&self) -> Result<()>;
     fn installations(&self) -> Result<Vec<v1::PluginInstallation>>;
-    async fn install_plugin_bundle(&self, bytes: Vec<u8>) -> Result<v1::PluginInstallation>;
+    async fn install_plugin_bundle(&self, bytes: Vec<u8>, cancelled: tokio::sync::oneshot::Receiver<()>) -> Result<v1::PluginInstallation>;
     async fn set_plugin_enabled(&self, identifier: &str, enabled: bool) -> Result<v1::PluginInstallation>;
     async fn remove_plugin_entry(&self, identifier: &str) -> Result<()>;
     async fn reload_plugin_entry(&self, identifier: &str) -> Result<()>;

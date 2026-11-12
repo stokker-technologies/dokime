@@ -146,8 +146,8 @@ impl ClientHost for State {
     fn installations(&self) -> Result<Vec<v1::PluginInstallation>> {
         self.list_installations()
     }
-    async fn install_plugin_bundle(&self, bytes: Vec<u8>) -> Result<v1::PluginInstallation> {
-        self.install_bundle(bytes).await
+    async fn install_plugin_bundle(&self, bytes: Vec<u8>, cancelled: tokio::sync::oneshot::Receiver<()>) -> Result<v1::PluginInstallation> {
+        self.install_bundle(bytes, cancelled).await
     }
     async fn set_plugin_enabled(&self, identifier: &str, enabled: bool) -> Result<v1::PluginInstallation> {
         self.enable_managed(identifier, enabled).await

@@ -39,6 +39,13 @@ separately built wheel, installed before archived system execution. Stories
 consume those fixtures and never compile plugins. Missing fixtures fail with
 the language and build prerequisite; no language is silently skipped.
 
+On Linux, the secret-storage and remote-pairing host stories start their own
+session bus and unlocked keyring under each story's temporary directory before
+starting the host. They stop the owned daemons and remove that directory after
+the host exits. Install `dbus` and `gnome-keyring` locally; the hosted Execution
+Host job installs them through `bootstrap.py --gui-runtime`. Windows and macOS
+use their operating system credential stores.
+
 Pull requests build Rust fixtures and the pure Python wheel and explicitly select
 the Rust and Python execution-host stories on Linux and Windows; C# and C++ equivalence run
 in Nightly, as the PR summary records. Nightly builds each SDK fixture in parallel

@@ -180,7 +180,7 @@ jobs:
           minutes: 120
           work: Rust / System / Execution Host
           command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence) or test(cpp_plugin_matches_rust_thermal_evidence))"
-          bootstrap: '[]'
+          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
           archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-any.tar.zst"]'
         - platform: windows
           runner: windows-latest

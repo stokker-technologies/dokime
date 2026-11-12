@@ -49,7 +49,13 @@ pub(super) struct HostProcess {
 
 impl HostProcess {
     pub(super) async fn start(root: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::start_with_environment(root, &[]).await
+    }
+    pub(super) async fn start_with_environment(
+        root: &std::path::Path, environment: &[(&str, std::ffi::OsString)],
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let mut child = Command::from(dokime_runtime_next::process::command(super::support::host_fixture()?))
+            .envs(environment.iter().cloned())
             .args(["--endpoint", "127.0.0.1:0", "--storage"])
             .arg(root)
             .arg("--controlled-clock")

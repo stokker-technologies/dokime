@@ -55,7 +55,8 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 pub async fn handle(
     context: &Context, mut input: impl Stream<Item = std::result::Result<Upload, tonic::Status>> + Unpin,
 ) -> Result<v1::PluginInstallation> {
-    super::complete(ID, context.settings.mutation_timeout, async {
+    let deadline = tokio::time::Instant::now() + context.settings.mutation_timeout;
+    let bytes = super::complete(ID, context.settings.mutation_timeout, async {
         let Some(Upload::Request(_)) = input.next().await.transpose().map_err(|_| invalid("Send One Request First"))? else {
             return Err(invalid("Send One Request First"));
         };
@@ -97,16 +98,33 @@ pub async fn handle(
         if bytes.len() as u64 != header.size_bytes || digest != header.sha256.to_ascii_lowercase() {
             return Err(invalid("Retry the Upload with Its Complete Size and Matching SHA-256"));
         }
-        let host = context.host.clone();
-        let administration = context.administration.clone();
-        tokio::spawn(async move {
-            let _guard = administration.lock().await;
-            host.install_plugin_bundle(bytes).await
-        })
-        .await
-        .map_err(|_| invalid("Refresh the Installation List Before Retrying After an Uncertain Acknowledgement"))?
+        Ok(bytes)
     })
-    .await
+    .await?;
+
+    // Keep the Original Deadline and Settle Rollback Before Returning Its Failure
+    let host = context.host.clone();
+    let administration = context.administration.clone();
+    let (cancel, mut cancelled) = tokio::sync::oneshot::channel();
+    let mut task = tokio::spawn(async move {
+        let _guard = tokio::select! {
+            biased;
+            _ = &mut cancelled => return Err(Error::Cancelled(ID.into())),
+            guard = administration.lock() => guard,
+        };
+        host.install_plugin_bundle(bytes, cancelled).await
+    });
+    match tokio::time::timeout_at(deadline, &mut task).await {
+        Ok(result) => result.map_err(|_| invalid("Refresh the Installation List Before Retrying After an Uncertain Acknowledgement"))?,
+        Err(_) => {
+            let _ = cancel.send(());
+            match task.await.map_err(|_| invalid("Refresh the Installation List After Interrupted Rollback"))? {
+                Ok(_) | Err(Error::Cancelled(_)) => {}
+                Err(error) => return Err(error),
+            }
+            Err(Error::Deadline(ID.into()))
+        }
+    }
 }
 
 /* === Private Functions === */

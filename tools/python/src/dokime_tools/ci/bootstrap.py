@@ -62,6 +62,8 @@ GUI_PACKAGES = (
     "libclang-dev",
 )
 GUI_RUNTIME_PACKAGES = (
+    "dbus",
+    "gnome-keyring",
     "libwebkit2gtk-4.1-0",
     "libgtk-3-0t64",
     "libayatana-appindicator3-1",
