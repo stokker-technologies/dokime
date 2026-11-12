@@ -47,6 +47,7 @@ type StatisticsCache = HashMap<(String, String, String, u64), (u64, crate::Stati
 pub struct Store {
     connection: Arc<Mutex<Connection>>,
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
+    pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub(crate) changed: tokio::sync::watch::Sender<u64>,
 }
 
@@ -76,7 +77,7 @@ impl Store {
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
             let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-            if tables != ["evidence", "executions", "plugins", "reports", "sample_fields", "samples", "streams"] {
+            if tables != ["evidence", "executions", "plugins", "reports", "sample_batches", "sample_fields", "samples", "streams"] {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -87,8 +88,9 @@ impl Store {
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
                 CREATE INDEX samples_stream_position ON samples(execution,stream,position);
                 CREATE INDEX samples_stream_time ON samples(execution,stream,source_ns,position);
+                CREATE TABLE sample_batches(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE sample_fields(execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,stream,field,position));
-                CREATE INDEX sample_fields_time ON sample_fields(execution,stream,field,source_ns,position);
+                CREATE INDEX sample_fields_time ON sample_fields(execution,stream,field,source_ns,position,number);
                 CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));"))?;
         }
@@ -96,6 +98,7 @@ impl Store {
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             statistics: Arc::new(Mutex::new(HashMap::new())),
+            verified: Arc::new(Mutex::new(HashMap::new())),
             changed: tokio::sync::watch::channel(0).0,
         })
     }
@@ -169,6 +172,7 @@ impl Store {
             samples: snapshot.samples,
             seal: snapshot.seal,
             reports: self.reports(execution)?.into_iter().map(|report| report.encode_to_vec()).collect(),
+            sample_batches: self.sample_batches(execution)?,
         };
         Ok(archive.encode_to_vec())
     }
@@ -251,6 +255,10 @@ impl Store {
         let digest = digest(&transaction, execution)?;
         transaction.execute("UPDATE executions SET state=2,seal=?2 WHERE id=?1", params![execution, digest])?;
         transaction.commit()?;
+        self.verified
+            .lock()
+            .map_err(|_| Error::Invalid("Seal Execution: Restart After Seal Verification Failed".into()))?
+            .insert(execution.into(), digest);
         Ok(())
     }
     pub fn read(&self, execution: &str) -> Result<ExecutionSnapshot> {
@@ -298,7 +306,7 @@ fn require_open(connection: &Connection, execution: &str) -> Result<()> {
     Ok(())
 }
 pub(crate) fn next_position(connection: &Connection, execution: &str) -> Result<u64> {
-    Ok(connection.query_row("SELECT COALESCE(MAX(position),0)+1 FROM (SELECT position FROM evidence WHERE execution=?1 UNION ALL SELECT position FROM samples WHERE execution=?1)", [execution], |row| row.get::<_,i64>(0))? as u64)
+    Ok(connection.query_row("SELECT MAX(COALESCE((SELECT MAX(position) FROM evidence WHERE execution=?1),0),COALESCE((SELECT MAX(position) FROM samples WHERE execution=?1),0))+1", [execution], |row| row.get::<_,i64>(0))? as u64)
 }
 pub(crate) fn digest(connection: &Connection, execution: &str) -> Result<Vec<u8>> {
     let mut hash = Sha256::new();
@@ -313,6 +321,15 @@ pub(crate) fn digest(connection: &Connection, execution: &str) -> Result<Vec<u8>
         hash.update(kind.as_bytes());
         hash.update((bytes.len() as u64).to_le_bytes());
         hash.update(bytes);
+    }
+    let mut batches = connection.prepare("SELECT position,stream,payload FROM sample_batches WHERE execution=?1 ORDER BY position")?;
+    for row in batches.query_map([execution], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Vec<u8>>(2)?)))? {
+        let (position, stream, payload) = row?;
+        hash.update(position.to_le_bytes());
+        hash.update((stream.len() as u64).to_le_bytes());
+        hash.update(stream.as_bytes());
+        hash.update((payload.len() as u64).to_le_bytes());
+        hash.update(payload);
     }
     Ok(hash.finalize().to_vec())
 }

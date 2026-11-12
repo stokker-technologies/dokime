@@ -790,10 +790,17 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+Bulk sample ingestion retains one Arrow IPC batch per supplied stream batch and atomically indexes exact protobuf rows and numeric fields; all remain sealed together at storage v1.
+Time-series windows consume an indexed source-time range once and retain only first/minimum/maximum/last buckets at the requested resolution; diagnostics count consumed rows and return resolution nanoseconds.
+Plot snapshot batches have only the configured transport bound, while watches deliver one plot in request order and isolate per-plot failures; all ten kind base paths use storage-owned bounded reducers.
+Frequency transforms refuse windows exceeding the configured input bound rather than silently resampling the signal; histogram and box summaries compute exact ranks in storage.
+Immutable execution cuts cache seals verified at startup or sealing; complete evidence reads still verify their full digest, and client metadata reads do not rehash retained streams.
+
 Telemetry pages use indexed source-time and durable-position bounds; per-stream continuations advance only delivered rows, while event-driven watches drain pages before waiting.
+Scoped evidence frontiers stop at the selected execution or cycle so unrelated writes and host restart do not change a sealed page.
 Numeric stream fields are indexed atomically with retained Arrow evidence for storage-owned plot reduction; the changed development table shape remains v1 and rejects older roots.
 
-Evidence cursors bind the backend boot epoch and encoded selection; captured structured records remain the default and persisted logs are selected as `dokime.log`.
+Evidence cursors bind the storage-root backend identity and encoded selection; captured structured records remain the default and persisted logs are selected as `dokime.log`.
 Storage notifications wake evidence watches after committed writes; query metadata reads avoid rehashing streams already verified at host startup.
 
 Every SDK generates private step and criterion operation names by declaration position; stable evidence identifiers remain independent of handler names.
@@ -815,7 +822,7 @@ Reports download a read-only snapshot or an already published report with ordere
 `Reports.PublishExecutionReport` explicitly renders a selected document from a sealed execution and publishes only after rendering succeeds; downloads never publish.
 Execution detail and listing expose host-owned controls, attributed outcomes and separate evaluated, not-evaluated and declared counts; only evaluated outcomes set the headline verdict.
 Persisted plugin descriptions project their actual entry state after restart, and interrupted executions remain readable over the same services.
-The merged system target has twelve stories, each guarded by the one support-owned `SYSTEM_HANG_GUARD` setting.
+The system target retains the original fifteen stories and four additional data-service client stories, each guarded by the support-owned `SYSTEM_HANG_GUARD` setting.
 
 Executions run concurrently within and across cycles; each unary invocation inherits only its execution's resources and persists operation/attempt evidence.
 Exhausted plugin-operation retries attribute an evaluated Failed outcome after cleanup; cancellation, interruption and empty criterion sets stay not-evaluated.

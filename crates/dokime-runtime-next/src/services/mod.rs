@@ -19,6 +19,7 @@ mod execution;
 mod health;
 mod observation;
 mod planning;
+mod plots;
 mod plugins;
 mod prompts;
 mod query;
@@ -169,6 +170,11 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     let shutdown = cancellation.clone();
     let task = tokio::spawn(async move {
         tonic::transport::Server::builder()
+            .add_service(
+                v1::plots_server::PlotsServer::new(services.clone())
+                    .max_decoding_message_size(message_bytes)
+                    .max_encoding_message_size(message_bytes),
+            )
             .add_service(
                 v1::plugins_server::PluginsServer::new(services.clone())
                     .max_decoding_message_size(message_bytes)

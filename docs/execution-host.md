@@ -53,6 +53,13 @@ DownloadExecutionReport/PublishExecutionReport; Health ListHealth; and Backend i
 availability. Backend availability advertises only these methods. Other methods
 return `UNIMPLEMENTED` naming the action; the owning OpenSpec task lists them.
 Requests using unserved filter/cursor variants are explicitly refused.
+Evidence additionally serves captured-schema lookup and record watches, with
+selection-bound cursors, explicit `dokime.log` reads and Run envelopes. Telemetry
+serves bounded forward/tail pages, source-time windows and event-driven watches,
+including Run envelopes. Plots serves ListAnalyses, QuerySnapshots and Watch with
+Run envelopes. Its ten kind base paths reduce in storage; advanced expressions,
+filters, grouped distributions, XY intervals and live bucket deltas remain open
+in the owning change's tasks.
 
 Materialization returns frozen origins; CreateCycle admits and starts the
 explicit origin list with `continue_automatically`, returning execution IDs.
@@ -92,7 +99,7 @@ generated clients reexported by `sdk/rust`'s `dokime` package. The Python story 
 `DOKIME_PYTHON` selects another explicitly prepared interpreter. Neither story
 builds artifacts, polls, or sleeps on the wall clock. The Rust journey also starts
 two executions in one cycle, answers their prompts differently and independently
-reads their records through the client. The system target contains fifteen stories,
+reads their records through the client. The system target contains nineteen stories,
 including publication, interrupted recovery and three language-equivalence stories.
 Every story uses `SYSTEM_HANG_GUARD` from `tests/support/settings.rs`; operation
 policies retain their own deadlines.
@@ -116,7 +123,7 @@ fixtures under `target/build/<profile>/<target>/fixtures/host/`. C# includes its
 runtime. C++ builds Harmos's pinned dependencies; `HARMOS_SOURCE` and
 `DOKIME_HARMOS_CACHE` can select existing workstation inputs. Tests never compile
 fixtures. Tests Build includes the same producer; the Linux and Windows pull
-request and Nightly jobs consume its exports and run all fifteen stories.
+request and Nightly jobs consume its exports and run all execution-host stories.
 
 ```sh
 mise run test -- --package dokime-runtime-next --target system --exact python_plugin_matches_rust_thermal_evidence::python_plugin_matches_rust_thermal_evidence
@@ -128,6 +135,33 @@ Python runs remote; C# and C++ run remote and managed. Set
 `DOKIME_CSHARP_THERMAL_PLUGIN` or `DOKIME_CPP_THERMAL_PLUGIN` for a prepared
 executable outside the exported fixture path. `DOKIME_PYTHON` selects the
 interpreter with the built wheel installed.
+
+## Bounded Client Reads
+
+`Store::metadata`, `evidence_frontier`, `execution_evidence_frontier`,
+`cycle_evidence_frontier`, `evidence_entries` and `subscribe` supply
+metadata and committed evidence pages without decoding streams. Evidence cursors
+bind the storage-root backend identity and exact selection; sealed scoped pages survive restart unchanged. Structured records remain the default;
+select `dokime.log` explicitly for retained execution logs. Captured schema lookup
+uses frozen descriptors even when the producing plugin is disconnected.
+
+`Store::sample_batch` commits Arrow batches, exact protobuf row indexes and numeric
+field indexes together. `stream_names` and `sample_window` read bounded pages;
+`numeric_bounds`, `numeric_bins`, `time_series_window`, `numeric_statistics`,
+`histogram_window`, `box_window`, `cartesian_window`, `category_window`,
+`contour_window`, `grid_window` and `spectrum_window` own plot reductions.
+Time-series windows examine each matching indexed row once and retain only the
+requested buckets. The reply states `examined_rows` and `resolution_nanos`.
+Frequency transforms require a source-time window within the configured input
+bound. Snapshot batches fit one configured message; Watch emits one plot per
+frame in request order, with no fixed plot-count ceiling.
+
+`client_browses_execution_evidence`, `client_reads_bounded_telemetry`,
+`client_queries_plot_kinds` and `client_queries_plot_windows` are focused Rust SDK
+journeys against the real host process. The plot-window fixture retains 2,000,003
+samples and requests forty plots. Each selected window consumes 1,000 source rows,
+for a counted 40,000 rows per snapshot batch; zoom requests report their finer
+resolution. These assertions measure work rather than elapsed time.
 
 ## Evidence and Recovery
 

@@ -15,6 +15,8 @@ mod client_reads;
 mod error;
 mod execution;
 mod outcome;
+mod plot_kinds;
+mod plot_windows;
 mod query;
 mod report;
 mod store;
@@ -24,12 +26,13 @@ mod streams;
 /* === Re-Exports === */
 
 pub use error::Error;
-pub use execution::{Evidence, Execution, ExecutionArchive, ExecutionSnapshot, ExecutionState, Sample};
+pub use execution::{Evidence, Execution, ExecutionArchive, ExecutionSnapshot, ExecutionState, Sample, SampleBatch};
 pub use outcome::OutcomeCounts;
+pub use plot_kinds::{CartesianRead, KindWindow};
 pub use query::{ExecutionCut, StatisticsRead};
 pub use report::Report;
 pub use store::Store;
-pub use stream_windows::{SampleWindow, NumericBin, NumericWindow};
+pub use stream_windows::{NumericBin, NumericWindow, SampleWindow};
 
 /* === Imports === */
 

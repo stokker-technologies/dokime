@@ -25,6 +25,9 @@ pub mod execution_get_execution;
 pub mod health_list_health;
 pub mod observation_watch_execution_progress;
 pub mod planning_materialize_template;
+pub mod plots_list_analyses;
+pub mod plots_query_snapshots;
+pub mod plots_watch;
 pub mod plugins_add;
 pub mod plugins_list;
 mod projection;
@@ -59,34 +62,40 @@ use dokime_storage::Store;
 /* === Constants === */
 
 pub const METHODS: &[&str] = &[
-    "/dokime.v1.Plugins/List",
-    "/dokime.v1.Plugins/Add",
+    "/dokime.v1.Backend/GetAvailability",
+    "/dokime.v1.Backend/GetHealth",
+    "/dokime.v1.Backend/GetIdentity",
     "/dokime.v1.Catalog/GetSuite",
     "/dokime.v1.Catalog/ListSuites",
-    "/dokime.v1.Planning/MaterializeTemplate",
+    "/dokime.v1.Evidence/GetCapturedRecordSchema",
+    "/dokime.v1.Evidence/ListRecords",
+    "/dokime.v1.Evidence/RunGetCapturedRecordSchema",
+    "/dokime.v1.Evidence/RunListRecords",
+    "/dokime.v1.Evidence/RunWatchRecords",
+    "/dokime.v1.Evidence/WatchRecords",
     "/dokime.v1.Execution/CreateCycle",
     "/dokime.v1.Execution/GetExecution",
+    "/dokime.v1.Health/ListHealth",
     "/dokime.v1.Observation/WatchExecutionProgress",
+    "/dokime.v1.Planning/MaterializeTemplate",
+    "/dokime.v1.Plots/ListAnalyses",
+    "/dokime.v1.Plots/QuerySnapshots",
+    "/dokime.v1.Plots/RunListAnalyses",
+    "/dokime.v1.Plots/RunQuerySnapshots",
+    "/dokime.v1.Plots/RunWatch",
+    "/dokime.v1.Plots/Watch",
+    "/dokime.v1.Plugins/Add",
+    "/dokime.v1.Plugins/List",
     "/dokime.v1.Prompts/GetPrompt",
     "/dokime.v1.Prompts/ListPending",
     "/dokime.v1.Prompts/Respond",
     "/dokime.v1.Query/ListExecutions",
-    "/dokime.v1.Evidence/GetCapturedRecordSchema",
-    "/dokime.v1.Evidence/ListRecords",
-    "/dokime.v1.Evidence/WatchRecords",
-    "/dokime.v1.Evidence/RunGetCapturedRecordSchema",
-    "/dokime.v1.Evidence/RunListRecords",
-    "/dokime.v1.Evidence/RunWatchRecords",
-    "/dokime.v1.Telemetry/ListSamples",
-    "/dokime.v1.Telemetry/WatchSamples",
-    "/dokime.v1.Telemetry/RunListSamples",
-    "/dokime.v1.Telemetry/RunWatchSamples",
     "/dokime.v1.Reports/DownloadExecutionReport",
     "/dokime.v1.Reports/PublishExecutionReport",
-    "/dokime.v1.Health/ListHealth",
-    "/dokime.v1.Backend/GetAvailability",
-    "/dokime.v1.Backend/GetHealth",
-    "/dokime.v1.Backend/GetIdentity",
+    "/dokime.v1.Telemetry/ListSamples",
+    "/dokime.v1.Telemetry/RunListSamples",
+    "/dokime.v1.Telemetry/RunWatchSamples",
+    "/dokime.v1.Telemetry/WatchSamples",
 ];
 
 /* === Macros === */
@@ -166,7 +175,7 @@ pub fn declaration<Q: prost_reflect::ReflectMessage + Default, R: prost_reflect:
 pub async fn complete<T>(action: &str, timeout: Duration, work: impl Future<Output = Result<T>>) -> Result<T> {
     match tokio::time::timeout(timeout, work).await {
         Ok(Ok(reply)) => Ok(reply),
-        Ok(Err(error)) => Err(Error::Invalid(format!("{action}: {error}"))),
+        Ok(Err(error)) => Err(error),
         Err(_) => Err(Error::Deadline(action.into())),
     }
 }

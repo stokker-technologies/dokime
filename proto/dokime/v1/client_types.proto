@@ -2437,6 +2437,10 @@ message PlotPayload {
 
 // Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotPayloadDiagnostics {
+  // Number of retained source rows consumed by this window reduction.
+  uint64 examined_rows = 7;
+  // Actual temporal bucket resolution, in nanoseconds; zero for raw points.
+  uint64 resolution_nanos = 8;
   uint64 series_count = 1;
   uint64 point_count = 2;
   uint64 raw_point_count = 3;

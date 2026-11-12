@@ -99,10 +99,18 @@ impl Store {
             2 => ExecutionState::Sealed,
             _ => return Err(Error::Incompatible("Invalid Execution State".into())),
         };
-        if (state != ExecutionState::Sealed && !seal.is_empty())
-            || (state == ExecutionState::Sealed && store::digest(&connection, execution)? != seal)
-        {
+        if state != ExecutionState::Sealed && !seal.is_empty() {
             return Err(Error::Invalid("Inspect Execution: Seal Does Not Match Evidence; Restore a Valid Backup".into()));
+        }
+        if state == ExecutionState::Sealed {
+            let mut verified =
+                self.verified.lock().map_err(|_| Error::Invalid("Inspect Execution: Restart After Seal Verification Failed".into()))?;
+            if verified.get(execution) != Some(&seal) {
+                if store::digest(&connection, execution)? != seal {
+                    return Err(Error::Invalid("Inspect Execution: Seal Does Not Match Evidence; Restore a Valid Backup".into()));
+                }
+                verified.insert(execution.into(), seal.clone());
+            }
         }
         let frontier = store::next_position(&connection, execution)?.saturating_sub(1);
         Ok(ExecutionCut {

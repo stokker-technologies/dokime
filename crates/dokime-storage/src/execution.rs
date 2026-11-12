@@ -127,6 +127,21 @@ pub struct ExecutionArchive {
 
     #[prost(bytes = "vec", repeated, tag = "5")]
     pub reports: Vec<Vec<u8>>,
+
+    #[prost(message, repeated, tag = "6")]
+    pub sample_batches: Vec<SampleBatch>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct SampleBatch {
+    #[prost(uint64, tag = "1")]
+    pub position: u64,
+
+    #[prost(string, tag = "2")]
+    pub stream: String,
+
+    #[prost(bytes = "vec", tag = "3")]
+    pub payload: Vec<u8>,
 }
 
 /* === Enums === */

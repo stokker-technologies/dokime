@@ -296,8 +296,11 @@ SDK export lists in `sdk/python/python/dokime/{plot.py,v1/__init__.py}`, shared
 Source inventory (data-service worker): owned Query, Evidence, Telemetry, Plots, Documents, Reports, Content, Media and Notes service files; their operation files and client stories; additive storage and Host methods; alphabetical registration lines; required protocol additions and generated bindings; this inventory and implementation decisions. Old crates remain read-only.
 
 - [x] Serve Evidence schema lookup, filtered cursor pages including logs, and event-driven watches with real-process client proof.
-- [ ] Serve bounded Telemetry pages and watches, Query pages, aggregates and statistics with real-process client proof.
-- [ ] Serve every landed plot kind using storage window reduction, no plot-count cap, explicit resolution and counted million-sample stories.
+- [x] Retire Evidence selector variants for sessions, planned cases and opaque attempt IDs because the new model owns execution/cycle scopes and frozen step/criterion identifiers. Keep shared proto fields while other consumers use them; no RPC is retired.
+- [x] Serve bounded Telemetry pages and watches, including Run envelopes, with real-process client proof.
+- [ ] Complete Query pages, aggregates and statistics; default execution listing uses metadata rather than loading streams, while its paging/time/archive variants and remaining methods are still refused.
+- [x] Serve base paths for the ten landed plot kinds through QuerySnapshots/Watch and their Run envelopes; use storage reduction, explicit resolution and a counted two-million-sample, forty-plot story.
+- [ ] Complete bounded cancellation of blocking plot workers, plot filters and expression transforms/joins, grouped distribution/time-series reductions, logarithmic contour bins, XY sigma intervals, grid highlights, plugin analyses and live bucket deltas. Unsupported request variants return actionable refusals; live Watch still emits snapshots. Marker selection and separate summary windows also remain open. Retired operations: none.
 - [ ] Serve Documents and Reports from fixed snapshots, explicit publication and downloads with client proof.
 - [ ] Serve Content, Media and Notes with durable storage and client proof.
 - [ ] Run format once, each owned story twice, existing fifteen stories, three new-crate check builds and repository checking; hand back local commits without pushing.
@@ -312,7 +315,7 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
 - [x] Pass focused Windows proof: whole-tree format, `client_runs_thermal_suite_over_grpc` three consecutive runs, `python_client_runs_thermal_suite_over_grpc`, both existing host stories, three new-crate check builds, operations package language checking and protocol generation drift. Python evidence decoding loads the frozen descriptor dependency graph before decoding exact payloads.
 - [x] Complete `mise run check -- --language rust --package dokime-runtime-next`: the language worker repaired `clippy::let_and_return` in `sdk/rust/src/stream.rs` and both the SDK lint and new-runtime package check pass on Windows. Native Linux and hosted validation remain integration proof.
 
-- [ ] Integration handoff: serve the following explicitly refused methods when their host features land (the current listener returns named `UNIMPLEMENTED`):
+- [ ] Integration handoff: serve the following explicitly refused methods when their host features land (registered unserved methods return named `UNIMPLEMENTED`; unregistered services are identified explicitly below):
   - [ ] Plugins: GetInstallation, RunGetInstallation, Install, RunInstall, ListAdmittedPlugins, RunListAdmittedPlugins, ListInstallations, RunListInstallations, Reload, RunReload, Remove, RunRemove, SetEnabled, RunSetEnabled, RunList, RunAdd.
   - [ ] Catalog: GetRecordSchema, RunGetRecordSchema, RunGetSuite, GetTelemetrySchema, RunGetTelemetrySchema, ListRecordSchemas, RunListRecordSchemas, RunListSuites, ListTelemetrySchemas, RunListTelemetrySchemas.
   - [ ] Planning: RunMaterializeTemplate, PreviewSelection, RunPreviewSelection, RegisterSelection, RunRegisterSelection.
@@ -322,6 +325,11 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
   - [x] Evidence: all direct and Run methods served; no named refusals remain.
   - [x] Telemetry: all direct and Run methods served; no named refusals remain.
+  - [x] Plots: ListAnalyses, RunListAnalyses, QuerySnapshots, RunQuerySnapshots, Watch, RunWatch are routed; unsupported option variants remain in the data-service inventory above.
+  - [ ] Documents: CaptureCurrentDocument, RunCaptureCurrentDocument, UpdatePlotSettings, RunUpdatePlotSettings are not registered.
+  - [ ] Content: DownloadAppearanceAsset, RunDownloadAppearanceAsset, DownloadArtifact, RunDownloadArtifact, DownloadEvidence, RunDownloadEvidence, DownloadExecutionFile, RunDownloadExecutionFile, FollowExecutionFile, RunFollowExecutionFile, ListArtifacts, RunListArtifacts, ListExecutionFiles, RunListExecutionFiles, ReadExecutionFile, RunReadExecutionFile, UploadArtifact, RunUploadArtifact are not registered.
+  - [ ] Media: AudioRecording, RunAudioRecording, CameraRecording, RunCameraRecording, Photo, RunPhoto, ScreenRecording, RunScreenRecording, Screenshot, RunScreenshot are not registered.
+  - [ ] Notes: CreateNote, RunCreateNote, EditNote, RunEditNote, ListNotes, RunListNotes are not registered.
   - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport, RunPublishExecutionReport. Direct PublishExecutionReport is served explicitly; downloading never publishes.
   - [ ] Health: RunListHealth.
   - [ ] Backend: CollectDiagnostics, RunCollectDiagnostics, RunGetAvailability, RunGetHealth, RunGetIdentity, WatchLogs, RunWatchLogs, WatchTrace, RunWatchTrace.

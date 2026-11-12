@@ -20,7 +20,7 @@ mise run check -- --repository
 with `--package`, forwarding the list unchanged to Cargo with defaults enabled.
 Rust formatting and `check --language rust --package <name>` select only that package.
 
-The execution host's fifteen stories belong to its `system` target. Select a
+The execution host's nineteen stories belong to its `system` target. Select a
 story, the complete target, or affected paths explicitly:
 
 ```sh

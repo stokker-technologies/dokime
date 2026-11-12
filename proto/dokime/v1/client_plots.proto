@@ -74,8 +74,9 @@ service Plots {
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunListAnalyses (stream .dokime.v1.PlotsListAnalysesRunInput) returns (stream .dokime.v1.PlotsListAnalysesRunOutput);
   // Public. dokime.plots.query_snapshots. Cancelling this call does not undo committed mutations or cancel an
-  // admitted execution. The native bridge and server reject a request with more than 32 plots. The reply contains
+  // admitted execution. The reply contains
   // repeated envelopes in one bounded message; callers must lower max_points or split a batch on exhaustion.
+  // There is no fixed plot-count limit; Watch delivers each requested plot independently in request order.
   rpc QuerySnapshots (.dokime.v1.PlotsQuerySnapshotsRequest) returns (.dokime.v1.PlotSnapshotsReply);
   // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
   rpc RunQuerySnapshots (stream .dokime.v1.PlotsQuerySnapshotsRunInput) returns (stream .dokime.v1.PlotsQuerySnapshotsRunOutput);
