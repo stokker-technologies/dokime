@@ -155,35 +155,6 @@ pub(super) fn schemas(snapshot: &ExecutionSnapshot) -> Result<v1::FrozenSchemas>
         .collect();
     Ok(v1::FrozenSchemas { catalog: Some(catalog), records, streams })
 }
-pub(super) fn records(snapshot: &ExecutionSnapshot, kinds: &[String], step: Option<&str>) -> Result<Vec<v1::CapturedRecord>> {
-    let mut records = Vec::new();
-    for evidence in &snapshot.evidence {
-        let Some(kind) = evidence.kind.strip_prefix("record:") else {
-            continue;
-        };
-        if !kinds.is_empty() && !kinds.iter().any(|selected| selected == kind) {
-            continue;
-        }
-        if !snapshot.step_contains(step.unwrap_or_default(), evidence.position) {
-            continue;
-        }
-        let record = v1::PublishRecord::decode(evidence.payload.as_slice())?;
-        let mut scope = scope(snapshot);
-        scope.step_id = Some(evidence.step.clone());
-        records.push(v1::CapturedRecord {
-            record_id: format!("{}:{}", snapshot.execution.identifier, evidence.position),
-            sequence: evidence.position,
-            timestamp: record.at,
-            received_at: Some(timestamp(evidence.receipt_ns)),
-            record_type: record.kind,
-            payload: record.payload,
-            schema_version: 1,
-            scope: Some(scope),
-            ..Default::default()
-        });
-    }
-    Ok(records)
-}
 pub(super) fn samples(snapshot: &ExecutionSnapshot, streams: &[String], step: Option<&str>) -> Result<Vec<v1::TelemetrySample>> {
     let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
     let pool = DescriptorPool::from_file_descriptor_set(

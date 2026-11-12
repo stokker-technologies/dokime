@@ -16,7 +16,10 @@ pub mod backend_get_health;
 pub mod backend_get_identity;
 pub mod catalog_get_suite;
 pub mod catalog_list_suites;
+pub mod evidence_get_captured_record_schema;
 pub mod evidence_list_records;
+mod evidence_selection;
+pub mod evidence_watch_records;
 pub mod execution_create_cycle;
 pub mod execution_get_execution;
 pub mod health_list_health;
@@ -31,6 +34,7 @@ pub mod prompts_respond;
 pub mod query_list_executions;
 pub mod reports_download_execution_report;
 pub mod reports_publish_execution_report;
+pub mod run_call;
 pub mod telemetry_list_samples;
 
 /* === Re-Exports === */
@@ -66,7 +70,12 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Prompts/ListPending",
     "/dokime.v1.Prompts/Respond",
     "/dokime.v1.Query/ListExecutions",
+    "/dokime.v1.Evidence/GetCapturedRecordSchema",
     "/dokime.v1.Evidence/ListRecords",
+    "/dokime.v1.Evidence/WatchRecords",
+    "/dokime.v1.Evidence/RunGetCapturedRecordSchema",
+    "/dokime.v1.Evidence/RunListRecords",
+    "/dokime.v1.Evidence/RunWatchRecords",
     "/dokime.v1.Telemetry/ListSamples",
     "/dokime.v1.Reports/DownloadExecutionReport",
     "/dokime.v1.Reports/PublishExecutionReport",

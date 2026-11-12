@@ -54,6 +54,7 @@ prost = { workspace = true }
 # Concurrency
 
 # Async
+tokio = { workspace = true, features = ["sync"] }
 
 # Networking
 

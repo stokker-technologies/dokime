@@ -47,6 +47,7 @@ type StatisticsCache = HashMap<(String, String, String, u64), (u64, crate::Stati
 pub struct Store {
     connection: Arc<Mutex<Connection>>,
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
+    pub(crate) changed: tokio::sync::watch::Sender<u64>,
 }
 
 /* === Enums === */
@@ -92,6 +93,7 @@ impl Store {
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             statistics: Arc::new(Mutex::new(HashMap::new())),
+            changed: tokio::sync::watch::channel(0).0,
         })
     }
     pub(crate) fn lock(&self) -> Result<MutexGuard<'_, Connection>> {
@@ -185,6 +187,7 @@ impl Store {
         transaction
             .execute("INSERT INTO evidence VALUES (?1,?2,?3)", params![execution, evidence.position as i64, evidence.encode_to_vec()])?;
         transaction.commit()?;
+        self.changed.send_modify(|revision| *revision += 1);
         Ok(evidence.position)
     }
     pub fn open_stream(&self, execution: &str, stream: &str) -> Result<()> {
@@ -211,6 +214,7 @@ impl Store {
             params![execution, sample.position as i64, sample.stream, streams::encode(&sample)?],
         )?;
         transaction.commit()?;
+        self.changed.send_modify(|revision| *revision += 1);
         Ok(sample.position)
     }
     pub fn close_streams(&self, execution: &str) -> Result<()> {
@@ -245,6 +249,7 @@ impl Store {
         value.outcome = Some(outcome);
         transaction.execute("UPDATE executions SET state=1,payload=?2 WHERE id=?1", params![execution, value.encode_to_vec()])?;
         transaction.commit()?;
+        self.changed.send_modify(|revision| *revision += 1);
         self.statistics
             .lock()
             .map_err(|_| Error::Invalid("Close Execution: Restart After the Statistics Cache Failed".into()))?

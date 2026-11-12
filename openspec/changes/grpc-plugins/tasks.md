@@ -291,6 +291,17 @@ SDK export lists in `sdk/python/python/dokime/{plot.py,v1/__init__.py}`, shared
 
 ## Client-Driven New Host Serving
 
+### Query and Content Service Completion
+
+Source inventory (data-service worker): owned Query, Evidence, Telemetry, Plots, Documents, Reports, Content, Media and Notes service files; their operation files and client stories; additive storage and Host methods; alphabetical registration lines; required protocol additions and generated bindings; this inventory and implementation decisions. Old crates remain read-only.
+
+- [x] Serve Evidence schema lookup, filtered cursor pages including logs, and event-driven watches with real-process client proof.
+- [ ] Serve bounded Telemetry pages and watches, Query pages, aggregates and statistics with real-process client proof.
+- [ ] Serve every landed plot kind using storage window reduction, no plot-count cap, explicit resolution and counted million-sample stories.
+- [ ] Serve Documents and Reports from fixed snapshots, explicit publication and downloads with client proof.
+- [ ] Serve Content, Media and Notes with durable storage and client proof.
+- [ ] Run format once, each owned story twice, existing fifteen stories, three new-crate check builds and repository checking; hand back local commits without pushing.
+
 Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/manifest and client-driven `tests/system/` plus test support; the single `Host::pending_prompts` accessor in `src/host.rs` and public visibility for the existing console-free `src/process/` constructor; `crates/dokime-operations-next/src/client/`, its library/error/manifest; additive fields in `proto/dokime/v1/{client_execution,client_types}.proto` and regenerated `crates/dokime-protocol/src/{v1.rs,descriptors.bin,sources.rs}`; Cargo lock, the execution-host guide and its README link. Existing execution/dispatch/streams/storage source stays with the host-feature owner.
 
 - [x] Implement the real-process Rust SDK journey `client_runs_thermal_suite_over_grpc`, including URL admission, catalog, materialization, execution, progress, prompt, evidence, samples, report and sealed restart reads.
@@ -309,7 +320,7 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [ ] Observation: GetRuntimeShell, RunGetRuntimeShell, GetTraceability, RunGetTraceability, RunWatchExecutionProgress, WatchRuntime, RunWatchRuntime.
   - [ ] Prompts: GetDefinition, RunGetDefinition, RunGetPrompt, ListDefinitions, RunListDefinitions, RunListPending, RunRespond.
   - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
-  - [ ] Evidence: GetCapturedRecordSchema, RunGetCapturedRecordSchema, RunListRecords, WatchRecords, RunWatchRecords.
+  - [x] Evidence: all direct and Run methods served; no named refusals remain.
   - [ ] Telemetry: RunListSamples, WatchSamples, RunWatchSamples.
   - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport, RunPublishExecutionReport. Direct PublishExecutionReport is served explicitly; downloading never publishes.
   - [ ] Health: RunListHealth.

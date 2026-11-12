@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod client_reads;
 mod error;
 mod execution;
 mod outcome;
