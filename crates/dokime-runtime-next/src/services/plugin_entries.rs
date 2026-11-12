@@ -42,6 +42,7 @@ impl State {
     }
     pub(super) fn save_entries(&self, entries: &v1::PluginEntries) -> Result<()> {
         self.host.inner.store.save_administration("plugin-entries", entries)?;
+        self.host.signal_change();
         Ok(())
     }
     pub(super) async fn connect_entry(&self, mut entry: v1::Plugin) -> Result<v1::Plugin> {

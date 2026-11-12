@@ -176,6 +176,7 @@ impl State {
         };
         installations.installations.push(installation);
         self.host.inner.store.save_plugin_administration(&entries, &installations, &executables)?;
+        self.host.signal_change();
         if let Some(previous) = &previous {
             let previous_entry = self.saved_entries()?.plugins.into_iter().find(|entry| entry.entry == previous.install_id);
             if let Some(description) = previous_entry.as_ref().and_then(|entry| entry.description.as_ref()) {
@@ -228,6 +229,7 @@ impl State {
         installation.state = if enabled { v1::PluginInstallationState::Installed } else { v1::PluginInstallationState::Disabled } as i32;
         let entry = entry.clone();
         self.host.inner.store.save_plugin_administration(&entries, &installations, &self.managed_executables()?)?;
+        self.host.signal_change();
         if enabled {
             let _ = self.connect_entry(entry).await?;
         }
@@ -283,6 +285,7 @@ impl State {
         let mut executables = self.managed_executables()?;
         executables.values.remove(identifier);
         self.host.inner.store.save_plugin_administration(&entries, &installations, &executables)?;
+        self.host.signal_change();
         Ok(())
     }
 }

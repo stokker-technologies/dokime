@@ -809,7 +809,7 @@ Execution admission matches a frozen PluginRun to the ready entry's described pl
 Execution and planning precondition failures retain FAILED_PRECONDITION; administration revision/generation conflicts retain ABORTED.
 Execution detail and execution-service lists join Store::execution_presentation; the Query owner adopts that same case/archive join at integration for explicitly bound executions.
 Sealed execution detail has no boot-scoped observation cursor, preserving exact restart reads; runtime observation and live detail carry process cursors separately.
-- Local and remote listeners share one client-service route composer; the remote listener applies one bearer-key authorization layer to every route.
+- Local and remote listeners share one client-service route composer; the remote listener applies one bearer-key authorization layer to every route. Durable remote and managed plugin-entry commits advance the same runtime revision so existing observation streams wake after administration changes.
 
 - Each managed or remote connection reads the saved PluginPreferences for startup and stop grace; client operation deadlines remain owned by ClientSettings.
 
