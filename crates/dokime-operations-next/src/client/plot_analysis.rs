@@ -66,7 +66,10 @@ pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result
         if plugin.state != v1::PluginState::Ready as i32 {
             continue;
         }
-        for section in plugin.description.and_then(|description| description.catalog).into_iter().flat_map(|catalog| catalog.sections) {
+        let Some(description) = plugin.description else {
+            continue;
+        };
+        for section in description.catalog.into_iter().flat_map(|catalog| catalog.sections) {
             if section.r#type != "dokime.v1.Analyses" {
                 continue;
             }
@@ -74,7 +77,7 @@ pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result
                 if definition.metadata.as_ref().is_some_and(|metadata| metadata.identifier == selection.id)
                     && definition.version == selection.version
                 {
-                    providers.push((plugin.entry.clone(), definition));
+                    providers.push((description.id.clone(), definition));
                 }
             }
         }

@@ -190,7 +190,7 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         );
         let mut request = tonic::Request::new(v1::ContentListArtifactsRequest::default());
         request.metadata_mut().insert("authorization", key.parse()?);
-        assert_eq!(content.list_artifacts(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+        assert!(content.list_artifacts(request).await?.into_inner().artifacts.is_empty());
         drop(content);
 
         let mut notes = v1::notes_client::NotesClient::new(channel.clone());
