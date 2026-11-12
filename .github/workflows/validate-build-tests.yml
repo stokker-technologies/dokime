@@ -77,7 +77,7 @@ jobs:
         key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
         path: ${{ steps.setup.outputs.sccache-path }}
     env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,cmake,dotnet,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G

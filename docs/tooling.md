@@ -20,6 +20,30 @@ mise run check -- --repository
 with `--package`, forwarding the list unchanged to Cargo with defaults enabled.
 Rust formatting and `check --language rust --package <name>` select only that package.
 
+The execution host's fifteen stories belong to its `system` target. Select a
+story, the complete target, or affected paths explicitly:
+
+```sh
+mise run test -- --package dokime-runtime-next --target system --story cpp_plugin_matches_rust_thermal_evidence
+mise run test -- --package dokime-runtime-next --target system --artifact tests
+mise run test -- --changed crates/dokime-runtime-next/tests/system/client_runs_thermal_suite_over_grpc.rs
+```
+
+Tests Build runs `build:host-fixtures`, which uses the Rust, C# and C++ SDK tasks
+and exports the compiled thermal and execution fixtures under
+`target/build/<profile>/<target>/fixtures/host/`. C# carries its runtime; C++ uses
+the Harmos-pinned native dependencies. On a workstation, `HARMOS_SOURCE` and
+`DOKIME_HARMOS_CACHE` may select an existing Harmos source and read-only Windows
+dependency cache. Neither belongs in project configuration. Python uses the
+separately built wheel, installed before archived system execution. Stories
+consume those fixtures and never compile plugins. Missing fixtures fail with
+the language and build prerequisite; no language is silently skipped.
+
+Pull requests and Nightly each run the execution-host system target on Linux
+and Windows, independently of the existing Rust system lane. Nightly runs all
+fifteen stories, including Python, C# and C++ evidence equivalence.
+
+
 Focused Rust tests use nextest, compiling only the selected Cargo target and its
 dependencies; no Tests archive or unrelated fixture build is required. `--exact`
 selects one test, `--story` selects an integration module (use `--target` for another

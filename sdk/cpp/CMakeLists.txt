@@ -1,12 +1,19 @@
 cmake_minimum_required(VERSION 3.24)
 project(DokimeCpp VERSION 0.1.0 LANGUAGES C CXX)
 include(FetchContent)
-include(cmake/Dependencies.cmake)
+option(DOKIME_FETCH_DEPENDENCIES "Build the Harmos-Pinned Native Dependencies" OFF)
+if(NOT DOKIME_FETCH_DEPENDENCIES OR DOKIME_HARMOS_CACHE)
+  include(cmake/Dependencies.cmake)
+endif()
 FetchContent_Declare(harmos
   GIT_REPOSITORY https://github.com/stokker-technologies/harmos.git
   GIT_TAG a7583836e721c8dc8b135af40a78860ea5945ec6
   SOURCE_SUBDIR sdk/cpp)
 FetchContent_MakeAvailable(harmos)
+if(DOKIME_FETCH_DEPENDENCIES AND NOT DOKIME_HARMOS_CACHE)
+  FetchContent_GetProperties(grpc)
+  set(DOKIME_PROTOBUF_INCLUDE "${grpc_SOURCE_DIR}/third_party/protobuf/src")
+endif()
 set(DOKIME_PROTO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../proto" CACHE PATH "Authoritative Dokime Protocol Sources")
 set(DOKIME_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${DOKIME_GENERATED}")

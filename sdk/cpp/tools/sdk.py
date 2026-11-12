@@ -52,8 +52,9 @@ def main() -> None:
         ],
     )
     parser.add_argument("--build-dir", type=Path)
-    parser.add_argument("--harmos-source", type=Path)
-    parser.add_argument("--harmos-cache", type=Path)
+    parser.add_argument("--harmos-source", type=Path, default=os.environ.get("HARMOS_SOURCE"))
+    parser.add_argument("--harmos-cache", type=Path, default=os.environ.get("DOKIME_HARMOS_CACHE"))
+    parser.add_argument("--fetch-dependencies", action="store_true")
     parser.add_argument("--host", type=Path)
     parser.add_argument("--version", default="0.1.0")
     parser.add_argument("--sdk-archive", type=Path)
@@ -106,6 +107,8 @@ def main() -> None:
             command += [f"-DFETCHCONTENT_SOURCE_DIR_HARMOS={args.harmos_source.resolve()}"]
         if args.harmos_cache:
             command += [f"-DDOKIME_HARMOS_CACHE={args.harmos_cache.resolve()}"]
+        if args.fetch_dependencies:
+            command += ["-DDOKIME_FETCH_DEPENDENCIES=ON"]
     elif args.action == "build":
         command = [
             "cmake",

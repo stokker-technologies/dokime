@@ -207,6 +207,10 @@ def main(arguments: list[str] | None = None) -> int:
                 selection += ["--", "--exact", args.exact]
             elif args.story or args.select:
                 selection += [args.story or args.select]
+            if category == "system":
+                from ..test import archive
+
+                archive.install_wheels(Path.cwd(), args.profile)
             return run.test(Path.cwd(), category, "rust", ".", args.profile, selection)
         operation = "check" if args.operation == "build" and args.check else args.operation
         command = ["--locked", "--package", args.package]

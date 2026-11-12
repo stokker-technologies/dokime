@@ -203,7 +203,7 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 
 - Tell private plugin owners the migration once a published Nightly carries the change.
 - Delivery uses targeted validation and merges to dev without waiting for CI; breakage is fixed in follow-ups.
-- SDK system tests run in Nightly only, not on pull requests.
+- SDK transport conformance runs in Nightly; the shared execution-host system target runs on pull requests and in Nightly on Linux and Windows.
 - Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
 - This change owns the execution model before manager construction; imported-executions depends on it and follows the SDK wave and storage-interface for admission, draft publication and SDK/report integration.
 - Start `storage-interface` only after wave 5: benchmark before/after with multi-day data, extend Harmos storage first, then extract `dokime-storage`; no storage extension or extraction in the gRPC waves.
@@ -341,3 +341,14 @@ Source inventory: `sdk/python/{src/dokime/{__init__,authoring,client}.py,example
 - [x] Prove the combined repair and speed-tooling candidate on Windows: format, repository/Rust/Python checks, Tests artifact build, all 125 tooling tests, CLI Python scaffold, relocated GUI/Arrow fixture stories, the admit_bundle_metadata packaging selector and locked offline Cargo metadata pass. The SDK's five journeys run through its separate consumer workspace, not the repository Tests archive. Native Linux and real Dokime-host SDK proof remain separate.
 - [ ] Host/client owner: migrate the old GUI acceptance matrix's removed Python client API and deleted execution-matrix driver together. This runtime-only dependency cannot be repaired by relocating the script; old execution-loop semantics are outside the bounded build/reference repair. No acceptance lane was run or claimed here.
 
+
+## Execution Host Integration Handoff
+
+Source inventory: the language and integration merges; new-host system support;
+root and SDK build tasks, fixture exports and hosted test matrices; Rust consumer
+manifest versions; protocol regeneration; tooling and execution-host guidance.
+
+- [x] Merge the language branch and current integration branch, preserving all fifteen stories and regenerating protocol output through its task.
+- [x] Keep all three new crates in the workspace, retain SDK dependency versions, share the story hang guard and expose package/story/changed-path selection.
+- [x] Build shared language fixtures through SDK tasks, export portable fixture bytes with Tests and select the new-host system target separately on pull requests and Nightly for Linux and Windows.
+- [ ] Run the requested final Windows checks, Tests producer, protocol drift, four SDK checks, fifteen stories twice and committed-head locked offline metadata; report old-host failures and pending Linux/hosted proof separately.

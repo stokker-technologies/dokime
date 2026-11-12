@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 #[tokio::test]
 async fn python_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std::error::Error>> {
-    tokio::time::timeout(std::time::Duration::from_secs(120), async {
+    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Run the Rust Reference and Each SDK Placement with the Same Controlled Inputs
         let mut reference = None;
         for placement in [None].into_iter().chain([false].into_iter().map(Some)) {

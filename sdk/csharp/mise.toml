@@ -109,6 +109,11 @@ run = [
   '"{{tools.dotnet.path}}/dotnet" build tests/SystemPlugin/SystemPlugin.csproj --configuration Release --no-restore',
 ]
 
+[tasks."publish:system"]
+description = "Publish the Self-Contained Shared System Story Suite"
+usage = 'arg "output"'
+run = '"{{tools.dotnet.path}}/dotnet" publish tests/SystemPlugin/SystemPlugin.csproj --configuration Release --self-contained true --output "{{usage.output}}" -p:NuGetLockFilePath="{{usage.output}}/packages.lock.json" --configfile NuGet.Config --packages obj/consumer-packages'
+
 
 [tasks.clean]
 description = "Clean C# Compiler Outputs with MSBuild"

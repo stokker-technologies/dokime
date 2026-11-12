@@ -90,20 +90,16 @@ impl PythonPlugin {
 /* === Public Functions === */
 
 pub fn thermal_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let path = std::env::var_os("DOKIME_THERMAL_PLUGIN").map(PathBuf::from).unwrap_or_else(|| {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/debug")
-            .join(format!("dokime-rust-thermal{}", std::env::consts::EXE_SUFFIX))
-    });
+    let path = std::env::var_os("DOKIME_THERMAL_PLUGIN")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| fixture_root().join(format!("dokime-rust-thermal{}", std::env::consts::EXE_SUFFIX)));
     if !path.is_file() {
         return Err("Build the Shared Thermal Example Before Running the Host Stories".into());
     }
     Ok(path)
 }
 pub fn execution_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/debug")
-        .join(format!("dokime-rust-execution{}", std::env::consts::EXE_SUFFIX));
+    let path = fixture_root().join(format!("dokime-rust-execution{}", std::env::consts::EXE_SUFFIX));
     if !path.is_file() {
         return Err("Build the Execution Example with the SDK Task Before Running the Host Stories".into());
     }
@@ -138,7 +134,7 @@ pub fn answer(
 
 pub fn host_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let executable = std::env::var_os("NEXTEST_BIN_EXE_dokime-host-next")
-        .or_else(|| option_env!("CARGO_BIN_EXE_dokime-host-next").map(Into::into))
+        .or_else(|| std::env::var_os("CARGO_BIN_EXE_dokime-host-next"))
         .ok_or("Build the New Host Binary Before Running Its Client Stories")?;
     Ok(PathBuf::from(executable))
 }
@@ -153,7 +149,14 @@ pub fn language_fixture(language: &str) -> Result<PathBuf, Box<dyn std::error::E
         "cpp" => "target/sdk/cpp/tests/dokime-system-suite",
         _ => return Err("Select a Compiled SDK Fixture".into()),
     };
-    let path = std::env::var_os(variable).map(PathBuf::from).unwrap_or_else(|| repository.join(default));
+    let path = std::env::var_os(variable).map(PathBuf::from).unwrap_or_else(|| {
+        if std::env::var_os("TEST_PROFILE").is_some() {
+            let name = if language == "csharp" { "csharp/dokime-system-story" } else { "dokime-system-suite" };
+            fixture_root().join(format!("{name}{}", std::env::consts::EXE_SUFFIX))
+        } else {
+            repository.join(default)
+        }
+    });
     if !path.is_file() {
         return Err(format!("Build the {language} Thermal Fixture Through Its SDK Mise Task: {}", path.display()).into());
     }
@@ -168,5 +171,12 @@ pub fn python() -> PathBuf {
 }
 
 /* === Private Functions === */
+
+fn fixture_root() -> PathBuf {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
+    let target = if cfg!(windows) { "windows-x86_64" } else { "linux-x86_64" };
+    repository.join("target/build").join(profile).join(target).join("fixtures/host")
+}
 
 /* === Tests === */

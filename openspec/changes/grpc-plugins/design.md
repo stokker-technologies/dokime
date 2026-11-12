@@ -598,7 +598,7 @@ dokime proto export
 
 - Each SDK's sample plugin builds from the `.proto` files alone, so the
   languages build in parallel and none waits for the host build.
-- SDK system stories run in Nightly only. One story runs against every language: the same suite, written once per
+- SDK transport conformance stories run in Nightly only. The shared execution-host system target runs on pull requests and in Nightly on Linux and Windows. One story runs against every language: the same suite, written once per
   SDK, executed by the same host, with the same expected evidence. A
   difference between languages is a failure.
 - Tests at integration level and above follow a real user journey, one story

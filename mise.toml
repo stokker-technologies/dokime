@@ -286,8 +286,15 @@ description = "Build Independent Test Archive and Compile Contracts"
 usage = 'flag "--profile <profile>" default="dev"; flag "--timings"'
 run = [
   "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}}{% if usage.timings %} --timings{% endif %}",
+  { task = "build:host-fixtures --profile {{usage.profile}}" },
   { task = "build:rust:contracts --profile {{usage.profile}}" },
 ]
+
+[tasks."build:host-fixtures"]
+hide = true
+description = "Build and Export Execution Host SDK Fixtures"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "{{vars.tools}} dokime_tools.build.host_fixtures --profile {{usage.profile}}"
 
 [tasks."build:typescript"]
 hide = true
