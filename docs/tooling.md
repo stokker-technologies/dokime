@@ -184,6 +184,9 @@ and stalled-consumer cases. Cold opens a closed history copy with a fresh backen
 and desktop; it does not claim an empty OS disk cache. Warm preloads that history
 and retains the host and storage caches. Live scenarios use a new active fixture.
 Live and late cases publish through the real runtime and saved telemetry path.
+Live, late and stalled trials retain their active workspace/watch between
+publications, so untimed setup does not remount and requery the document before
+every sample. A new condition or native host prepares its own initial view.
 The receive queue is stalled for 1.5 seconds while ingestion continues. Native
 Windows needs the same interactive account, WebView2 and matching prepared Edge
 driver as desktop system stories; Linux needs WebKitWebDriver and an X11 session.

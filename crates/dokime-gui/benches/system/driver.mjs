@@ -38,6 +38,7 @@ let seedRoot;
 let backendMode;
 let epoch = 0;
 let warmReady;
+let continuousReady;
 let resizeWidth = 1920;
 
 async function command(line) {
@@ -202,6 +203,7 @@ async function startNative(mode) {
   fixture = metadata;
   backendMode = mode;
   warmReady = undefined;
+  continuousReady = undefined;
   epoch += 1;
   desktop = await startSession(nativeRoot, fixture.endpoint, output, undefined, { startLocal: false });
   await waitReady();
@@ -270,11 +272,14 @@ try {
       let started = performance.now();
       const to = fixture.end_s + 600;
       const from = fixture.origin_s;
-      await desktop.execute("desktopCase(...arguments)", [count, "warm", fixture.execution, fixture.cycle, from, to]);
+      const continuous = count === 30 && ["live", "late", "stalled"].includes(condition);
+      const retained = continuous && continuousReady === `${count}/${condition}`;
+      if (!retained) await desktop.execute("desktopCase(...arguments)", [count, "warm", fixture.execution, fixture.cycle, from, to]);
       // Live And Late Publications Cross The Same Runtime Admission And Save Path.
       if (count === 30 && ["live", "late", "stalled", "zoom", "resize", "navigation"].includes(condition)) {
-        const initial = await waitDrawing(count, "prepare");
+        const initial = retained ? await desktop.execute("return desktopResult(true)") : await waitDrawing(count, "prepare");
         if (initial.loadedPlots > 0) {
+          continuousReady = continuous && initial.loadedPlots === count ? `${count}/${condition}` : undefined;
           await command("drain");
           resourceStart = Date.now();
           started = performance.now();
@@ -302,6 +307,7 @@ try {
         await desktop.resize(resizeWidth, 1000);
       }
       const observation = await waitDrawing(count, condition);
+      if (observation.errors.length) continuousReady = undefined;
       const queries = await command("drain");
       const durationMs = performance.now() - started;
       elapsed += durationMs / 1000;
