@@ -297,9 +297,19 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn std::error::
         while resumed.message().await?.is_some() {}
 
         // Run Unary Plugin Artifact Calls with Replacement, Replay and Abort
-        let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/debug/examples")
-            .join(format!("content_fixture{}", std::env::consts::EXE_SUFFIX));
+        let repository = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let fixture = std::env::var_os("DOKIME_CONTENT_PLUGIN").map(std::path::PathBuf::from).unwrap_or_else(|| {
+            let folder = if let Ok(profile) = std::env::var("TEST_PROFILE") {
+                repository
+                    .join("target/build")
+                    .join(profile)
+                    .join(if cfg!(windows) { "windows-x86_64" } else { "linux-x86_64" })
+                    .join("fixtures/host")
+            } else {
+                repository.join("target/debug/examples")
+            };
+            folder.join(format!("content_fixture{}", std::env::consts::EXE_SUFFIX))
+        });
         let settings = super::support::settings();
         let mut plugin = dokime_runtime_next::PluginProcess::start(&fixture, true, &settings.placement).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
