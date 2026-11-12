@@ -321,7 +321,7 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
   - [ ] Prompts: GetDefinition, RunGetDefinition, RunGetPrompt, ListDefinitions, RunListDefinitions, RunListPending, RunRespond.
   - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
   - [x] Evidence: all direct and Run methods served; no named refusals remain.
-  - [ ] Telemetry: RunListSamples, WatchSamples, RunWatchSamples.
+  - [x] Telemetry: all direct and Run methods served; no named refusals remain.
   - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport, RunPublishExecutionReport. Direct PublishExecutionReport is served explicitly; downloading never publishes.
   - [ ] Health: RunListHealth.
   - [ ] Backend: CollectDiagnostics, RunCollectDiagnostics, RunGetAvailability, RunGetHealth, RunGetIdentity, WatchLogs, RunWatchLogs, WatchTrace, RunWatchTrace.

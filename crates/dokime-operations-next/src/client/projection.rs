@@ -82,12 +82,6 @@ pub(super) fn execution_scope(scope: Option<&v1::EvidenceScope>) -> Result<&str>
         .filter(|identifier| !identifier.is_empty())
         .ok_or_else(|| Error::Invalid("Read Requires an Execution Identifier".into()))
 }
-pub(super) fn check_scope(scope: &v1::EvidenceScope, snapshot: &ExecutionSnapshot) -> Result<()> {
-    if scope.cycle_id.as_ref().is_some_and(|cycle| cycle != &snapshot.execution.cycle) {
-        return Err(Error::Invalid("Read Requires an Execution in the Selected Cycle".into()));
-    }
-    Ok(())
-}
 pub(super) fn prompt_definition(snapshot: &ExecutionSnapshot, question: &v1::OperatorQuestion) -> Result<v1::Prompt> {
     if let Some(definition) = &question.definition {
         return Ok(definition.clone());

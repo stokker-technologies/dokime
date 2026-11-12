@@ -30,6 +30,7 @@ publish.workspace = true
 dokime-protocol = { workspace = true }
 
 # Git
+harmos-protocol = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -44,6 +45,7 @@ arrow-array = { workspace = true }
 arrow-ipc = { workspace = true }
 arrow-schema = { workspace = true }
 prost = { workspace = true }
+prost-reflect = { workspace = true }
 
 # Configuration
 

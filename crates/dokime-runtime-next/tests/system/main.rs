@@ -14,6 +14,7 @@
 mod cancelling_a_thermal_step_runs_cleanup;
 mod client_browses_execution_evidence;
 mod client_publishes_execution_report;
+mod client_reads_bounded_telemetry;
 mod client_reads_interrupted_execution;
 mod client_runs_thermal_suite_over_grpc;
 mod cpp_plugin_matches_rust_thermal_evidence;

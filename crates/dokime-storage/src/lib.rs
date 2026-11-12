@@ -18,6 +18,7 @@ mod outcome;
 mod query;
 mod report;
 mod store;
+mod stream_windows;
 mod streams;
 
 /* === Re-Exports === */
@@ -28,6 +29,7 @@ pub use outcome::OutcomeCounts;
 pub use query::{ExecutionCut, StatisticsRead};
 pub use report::Report;
 pub use store::Store;
+pub use stream_windows::{SampleWindow, NumericBin, NumericWindow};
 
 /* === Imports === */
 

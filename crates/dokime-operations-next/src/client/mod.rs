@@ -36,6 +36,7 @@ pub mod reports_download_execution_report;
 pub mod reports_publish_execution_report;
 pub mod run_call;
 pub mod telemetry_list_samples;
+pub mod telemetry_watch_samples;
 
 /* === Re-Exports === */
 
@@ -77,6 +78,9 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Evidence/RunListRecords",
     "/dokime.v1.Evidence/RunWatchRecords",
     "/dokime.v1.Telemetry/ListSamples",
+    "/dokime.v1.Telemetry/WatchSamples",
+    "/dokime.v1.Telemetry/RunListSamples",
+    "/dokime.v1.Telemetry/RunWatchSamples",
     "/dokime.v1.Reports/DownloadExecutionReport",
     "/dokime.v1.Reports/PublishExecutionReport",
     "/dokime.v1.Health/ListHealth",

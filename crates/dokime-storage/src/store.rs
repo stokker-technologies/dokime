@@ -76,16 +76,19 @@ impl Store {
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
             let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-            if tables != ["evidence", "executions", "plugins", "reports", "samples", "streams"] {
+            if tables != ["evidence", "executions", "plugins", "reports", "sample_fields", "samples", "streams"] {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
             connection.execute_batch(&format!("PRAGMA application_id={APPLICATION_ID}; PRAGMA user_version=1;
                 CREATE TABLE executions(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, state INTEGER NOT NULL, payload BLOB NOT NULL, seal BLOB NOT NULL);
                 CREATE TABLE evidence(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
-                CREATE TABLE samples(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
+                CREATE TABLE samples(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, source_ns INTEGER NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
                 CREATE INDEX samples_stream_position ON samples(execution,stream,position);
+                CREATE INDEX samples_stream_time ON samples(execution,stream,source_ns,position);
+                CREATE TABLE sample_fields(execution TEXT NOT NULL, stream TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,stream,field,position));
+                CREATE INDEX sample_fields_time ON sample_fields(execution,stream,field,source_ns,position);
                 CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));"))?;
         }
@@ -196,26 +199,8 @@ impl Store {
         connection.execute("INSERT INTO streams VALUES (?1,?2,0)", params![execution, stream])?;
         Ok(())
     }
-    pub fn sample(&self, execution: &str, mut sample: Sample) -> Result<u64> {
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        require_open(&transaction, execution)?;
-        let closed: i32 = transaction.query_row(
-            "SELECT closed FROM streams WHERE execution=?1 AND stream=?2",
-            params![execution, sample.stream],
-            |row| row.get(0),
-        )?;
-        if closed != 0 {
-            return Err(Error::Invalid("Open an Execution Stream Before Publishing Samples".into()));
-        }
-        sample.position = next_position(&transaction, execution)?;
-        transaction.execute(
-            "INSERT INTO samples VALUES (?1,?2,?3,?4)",
-            params![execution, sample.position as i64, sample.stream, streams::encode(&sample)?],
-        )?;
-        transaction.commit()?;
-        self.changed.send_modify(|revision| *revision += 1);
-        Ok(sample.position)
+    pub fn sample(&self, execution: &str, sample: Sample) -> Result<u64> {
+        Ok(self.sample_batch(execution, &[sample])?[0])
     }
     pub fn close_streams(&self, execution: &str) -> Result<()> {
         self.lock()?.execute("UPDATE streams SET closed=1 WHERE execution=?1", [execution])?;

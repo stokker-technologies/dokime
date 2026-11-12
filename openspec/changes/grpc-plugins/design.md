@@ -790,6 +790,9 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+Telemetry pages use indexed source-time and durable-position bounds; per-stream continuations advance only delivered rows, while event-driven watches drain pages before waiting.
+Numeric stream fields are indexed atomically with retained Arrow evidence for storage-owned plot reduction; the changed development table shape remains v1 and rejects older roots.
+
 Evidence cursors bind the backend boot epoch and encoded selection; captured structured records remain the default and persisted logs are selected as `dokime.log`.
 Storage notifications wake evidence watches after committed writes; query metadata reads avoid rehashing streams already verified at host startup.
 
