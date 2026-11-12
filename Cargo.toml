@@ -65,7 +65,7 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Local
-dokime = { version = "0.1.5", path = "crates/dokime" }
+dokime = { package = "dokime-facade", version = "0.1.5", path = "crates/dokime" }
 dokime-client = { version = "0.1.5", path = "crates/dokime-client" }
 dokime-domain = { version = "0.1.5", path = "crates/dokime-domain" }
 dokime-macros = { version = "0.1.5", path = "crates/dokime-macros" }

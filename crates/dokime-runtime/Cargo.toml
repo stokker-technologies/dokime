@@ -101,7 +101,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # Utilities
-harmos = { workspace = true, features = ["plugin"] }
+harmos = { version = "=0.1.14", features = ["plugin"] }
 harmos-packaging = { workspace = true }
 hmac = { workspace = true, optional = true }
 keyring = { workspace = true, optional = true }
@@ -180,7 +180,7 @@ plugin-host = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Utilities
-harmos = { workspace = true, features = ["sidecar"] }
+harmos = { version = "=0.1.14", features = ["sidecar"] }
 harmos-sdk = { workspace = true }
 sysinfo = { workspace = true }
 

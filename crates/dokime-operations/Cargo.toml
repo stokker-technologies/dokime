@@ -38,7 +38,7 @@ dokime-domain = { workspace = true }
 # Logging
 
 # Utilities
-harmos = { workspace = true }
+harmos = { version = "=0.1.14" }
 
 # Serialization
 serde = { workspace = true }

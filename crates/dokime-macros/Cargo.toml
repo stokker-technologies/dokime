@@ -78,7 +78,7 @@ syn = { workspace = true }
 # Local
 dokime-tracing = { path = "../dokime-tracing" }
 plugin-host = { workspace = true }
-sdk = { package = "dokime", path = "../dokime", features = ["plugin-sidecar"] }
+sdk = { package = "dokime-facade", path = "../dokime", features = ["plugin-sidecar"] }
 
 # Git
 

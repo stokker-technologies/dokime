@@ -41,7 +41,7 @@ thiserror = { workspace = true }
 tracing-error = { workspace = true, optional = true }
 
 # Utilities
-harmos = { workspace = true }
+harmos = { version = "=0.1.14" }
 semver = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }

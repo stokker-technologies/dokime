@@ -36,7 +36,7 @@ thiserror = { workspace = true }
 # Logging
 
 # Utilities
-harmos = { workspace = true, features = ["grpc"] }
+harmos = { version = "=0.1.14", features = ["grpc"] }
 harmos-sdk = { workspace = true, features = ["grpc"] }
 sha2 = { workspace = true }
 zeroize = { workspace = true }

@@ -1165,7 +1165,7 @@ name = "cargo-dokime"
 version = "0.1.5"
 dependencies = [
  "clap",
- "dokime",
+ "dokime-facade",
  "dokime-packaging",
  "dokime-tracing",
  "dotenvy",
@@ -2384,23 +2384,19 @@ dependencies = [
 name = "dokime"
 version = "0.1.5"
 dependencies = [
- "anstream",
- "anstyle",
- "clap",
- "dokime-client",
- "dokime-domain",
+ "dokime-derive",
  "dokime-protocol",
- "dokime-runtime",
- "flate2",
- "harmos-packaging",
- "indicatif",
- "serde_json",
- "sha2 0.11.1",
- "tar",
- "thiserror 2.0.21",
+ "futures-util",
+ "harmos 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6)",
+ "harmos-protocol",
+ "harmos-runtime 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6)",
+ "prost",
+ "prost-reflect",
+ "prost-types",
  "tokio",
- "tracing",
- "zip",
+ "tokio-stream",
+ "tonic",
+ "tonic-prost",
 ]
 
 [[package]]
@@ -2409,7 +2405,7 @@ version = "0.1.5"
 dependencies = [
  "base64 0.23.1",
  "clap",
- "dokime",
+ "dokime-facade",
  "dokime-protocol",
  "dokime-server",
  "dokime-tracing",
@@ -2437,7 +2433,7 @@ dependencies = [
  "dokime-operations",
  "dokime-tracing",
  "futures-util",
- "harmos",
+ "harmos 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-sdk",
  "prost",
  "prost-reflect",
@@ -2456,12 +2452,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "dokime-derive"
+version = "0.1.5"
+dependencies = [
+ "proc-macro-crate 3.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "dokime-domain"
 version = "0.1.5"
 dependencies = [
  "base64 0.23.1",
  "dokime-tracing",
- "harmos",
+ "harmos 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-sdk-derive",
  "semver",
  "serde",
@@ -2473,13 +2479,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "dokime-facade"
+version = "0.1.5"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "clap",
+ "dokime-client",
+ "dokime-domain",
+ "dokime-protocol",
+ "dokime-runtime",
+ "flate2",
+ "harmos-packaging",
+ "indicatif",
+ "serde_json",
+ "sha2 0.11.1",
+ "tar",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "zip",
+]
+
+[[package]]
 name = "dokime-gui"
 version = "0.1.5"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
  "criterion",
- "dokime",
+ "dokime-facade",
  "dokime-server",
  "dokime-tracing",
  "harmos-packaging",
@@ -2518,7 +2547,7 @@ dependencies = [
 name = "dokime-macros"
 version = "0.1.5"
 dependencies = [
- "dokime",
+ "dokime-facade",
  "dokime-tracing",
  "plugin-host",
  "proc-macro-crate 3.5.0",
@@ -2535,7 +2564,7 @@ version = "0.1.5"
 dependencies = [
  "dokime-domain",
  "dokime-tracing",
- "harmos",
+ "harmos 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "tonic",
@@ -2548,7 +2577,7 @@ dependencies = [
  "base64 0.23.1",
  "cargo_metadata 0.23.1",
  "clap",
- "dokime",
+ "dokime-facade",
  "dokime-tracing",
  "handlebars",
  "harmos-packaging",
@@ -2598,7 +2627,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "async-trait",
- "dokime",
+ "dokime-facade",
  "dokime-server",
  "pyo3",
  "pyo3-async-runtimes",
@@ -2635,7 +2664,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "globset",
- "harmos",
+ "harmos 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-packaging",
  "harmos-sdk",
  "harmos-sdk-derive",
@@ -2690,8 +2719,8 @@ dependencies = [
  "async-trait",
  "clap",
  "criterion",
- "dokime",
  "dokime-cli",
+ "dokime-facade",
  "dokime-runtime",
  "dokime-tracing",
  "futures-util",
@@ -3905,13 +3934,33 @@ version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adff9e17fa452a4623d06fa50d735ae6fdb09ce5dfaea134652bd816556620df"
 dependencies = [
- "harmos-domain",
+ "harmos-domain 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-guest",
  "harmos-macros",
- "harmos-operations",
- "harmos-runtime",
+ "harmos-operations 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "harmos-runtime 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-sdk",
  "harmos-sidecar",
+]
+
+[[package]]
+name = "harmos"
+version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6#a7583836e721c8dc8b135af40a78860ea5945ec6"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "harmos-protocol",
+ "harmos-sdk-derive",
+ "prost",
+ "prost-reflect",
+ "prost-types",
+ "semver",
+ "thiserror 2.0.21",
+ "tokio",
+ "tonic",
+ "tracing",
 ]
 
 [[package]]
@@ -3932,13 +3981,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "harmos-domain"
+version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6#a7583836e721c8dc8b135af40a78860ea5945ec6"
+dependencies = [
+ "harmos-protocol",
+ "harmos-sdk-derive",
+ "postcard",
+ "prost",
+ "prost-reflect",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
+ "time",
+]
+
+[[package]]
 name = "harmos-guest"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82a3b0558314f1f26ce4433acafb5bb2a1c155698cbb2d4b082e5e5ff4f83827"
 dependencies = [
- "harmos-domain",
- "harmos-operations",
+ "harmos-domain 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "harmos-operations 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-sdk",
  "thiserror 2.0.21",
  "tracing",
@@ -3964,10 +4030,32 @@ version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b03a6bd177f178d77335a8a26e2419e5cf4d27478042469d11f1c0087ab1e45d"
 dependencies = [
- "harmos-domain",
+ "harmos-domain 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-macros",
  "harmos-sdk",
- "harmos-storage",
+ "harmos-storage 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "harmos-operations"
+version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6#a7583836e721c8dc8b135af40a78860ea5945ec6"
+dependencies = [
+ "harmos-domain 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6)",
+ "harmos-protocol",
+ "harmos-sdk-derive",
+ "harmos-storage 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6)",
+ "memchr",
+ "postcard",
+ "prost",
+ "prost-reflect",
+ "prost-types",
+ "semver",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -3981,7 +4069,7 @@ version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9174c28003e3a749cc02d9ec592cfbabb3f52e1724fd9f9d6c223c8cd24fe1a"
 dependencies = [
- "harmos-domain",
+ "harmos-domain 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "heck 0.5.0",
  "prost-reflect",
  "semver",
@@ -4019,13 +4107,13 @@ dependencies = [
  "futures-core",
  "futures-util",
  "getrandom 0.4.3",
- "harmos-domain",
+ "harmos-domain 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-macros",
- "harmos-operations",
+ "harmos-operations 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-packaging",
  "harmos-sdk",
  "harmos-sidecar",
- "harmos-storage",
+ "harmos-storage 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "http-body",
  "petgraph",
  "prost-reflect",
@@ -4045,12 +4133,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "harmos-runtime"
+version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6#a7583836e721c8dc8b135af40a78860ea5945ec6"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "getrandom 0.4.3",
+ "harmos-domain 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6)",
+ "harmos-operations 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6)",
+ "harmos-protocol",
+ "harmos-sdk-derive",
+ "harmos-storage 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6)",
+ "heck 0.5.0",
+ "http-body",
+ "hyper-util",
+ "prost",
+ "prost-reflect",
+ "prost-types",
+ "rustls",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tar",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls",
+ "tonic",
+ "tonic-reflection",
+ "tower",
+ "tracing",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "harmos-sdk"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bf05385ce44eade428eb26f4d6d8d9254f56fbded30badf4e26a6c82b1494a1"
 dependencies = [
- "harmos-domain",
+ "harmos-domain 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-macros",
  "postcard",
  "prost",
@@ -4081,9 +4206,9 @@ checksum = "3740af894403fbcbd1bca51b125300e1bd2d7047a38e7b275f02b5a0c8cff69d"
 dependencies = [
  "futures-util",
  "getrandom 0.4.3",
- "harmos-domain",
+ "harmos-domain 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-macros",
- "harmos-operations",
+ "harmos-operations 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "harmos-sdk",
  "libc",
  "postcard",
@@ -4113,9 +4238,41 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "globset",
- "harmos-domain",
+ "harmos-domain 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "notify",
  "postcard",
+ "same-file",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "harmos-storage"
+version = "0.1.14"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6#a7583836e721c8dc8b135af40a78860ea5945ec6"
+dependencies = [
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-data",
+ "arrow-ipc",
+ "arrow-schema",
+ "arrow-select",
+ "base64 0.23.1",
+ "flatbuffers",
+ "futures-util",
+ "getrandom 0.4.3",
+ "globset",
+ "harmos-domain 0.1.14 (git+https://github.com/stokker-technologies/harmos?rev=a7583836e721c8dc8b135af40a78860ea5945ec6)",
+ "harmos-protocol",
+ "notify",
+ "postcard",
+ "prost",
  "same-file",
  "serde",
  "serde_json",
@@ -6051,7 +6208,7 @@ dependencies = [
 name = "obc-runtime"
 version = "0.1.5"
 dependencies = [
- "dokime",
+ "dokime-facade",
  "serde",
  "thiserror 2.0.21",
  "tracing",
@@ -7085,8 +7242,8 @@ name = "plugin-host"
 version = "0.1.5"
 dependencies = [
  "criterion",
- "dokime",
  "dokime-domain",
+ "dokime-facade",
  "dokime-tracing",
  "harmos-sdk",
  "libc",
@@ -7107,7 +7264,7 @@ dependencies = [
 name = "plugin-obc"
 version = "0.1.5"
 dependencies = [
- "dokime",
+ "dokime-facade",
  "dokime-tracing",
  "futures-util",
  "harmos-sdk",

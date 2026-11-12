@@ -9,7 +9,7 @@
 # === Package === #
 
 [package]
-name = "dokime"
+name = "dokime-facade"
 edition.workspace = true
 rust-version.workspace = true
 description.workspace = true
@@ -18,6 +18,9 @@ repository.workspace = true
 version = { workspace = true }
 
 # === Package Targets === #
+
+[lib]
+name = "dokime"
 
 # === Features === #
 
