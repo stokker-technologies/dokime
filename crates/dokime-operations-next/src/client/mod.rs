@@ -25,8 +25,8 @@ pub mod catalog_get_telemetry_schema;
 mod catalog_inventory;
 pub mod catalog_list_record_schemas;
 pub mod catalog_list_suites;
-pub mod conversation;
 pub mod catalog_list_telemetry_schemas;
+pub mod conversation;
 pub mod evidence_list_records;
 pub mod execution_append_executions;
 pub mod execution_cancel_execution;
@@ -473,9 +473,9 @@ pub fn status(error: Error) -> tonic::Status {
     match error {
         Error::Deadline(action) => tonic::Status::deadline_exceeded(format!("{action}: Operation Deadline Expired")),
         Error::NotFound(message) => tonic::Status::not_found(message),
-        Error::Conflict(message) => tonic::Status::failed_precondition(message),
+        Error::Precondition(message) => tonic::Status::failed_precondition(message),
         Error::Bound(message) => tonic::Status::resource_exhausted(message),
-        Error::Storage(dokime_storage::Error::Conflict(message)) => tonic::Status::aborted(message),
+        Error::Conflict(message) | Error::Storage(dokime_storage::Error::Conflict(message)) => tonic::Status::aborted(message),
         Error::Unavailable(message) => tonic::Status::unavailable(message),
         Error::Cancelled(message) => tonic::Status::cancelled(message),
         Error::Stale(message) => tonic::Status::failed_precondition(message),

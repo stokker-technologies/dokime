@@ -74,7 +74,7 @@ pub(super) fn selected(context: &Context, supplied: Option<&v1::ExecutionCheckpo
     let supplied = supplied.ok_or_else(|| Error::Invalid("Read Checkpoint: Supply the Token Returned by GetExecutionCheckpoint".into()))?;
     let current = checkpoint(context, &supplied.execution_identifier)?;
     if supplied != &current {
-        return Err(Error::Conflict("Read Checkpoint: Inspect the Current Saved Seal and Use Its Exact Token".into()));
+        return Err(Error::Precondition("Read Checkpoint: Inspect the Current Saved Seal and Use Its Exact Token".into()));
     }
     let cut = context.host.store().cut(&supplied.execution_identifier)?;
     Ok((current, cut))
@@ -100,7 +100,7 @@ pub(super) fn after(checkpoint: &v1::ExecutionCheckpoint, selection: &str, suppl
         .and_then(|(_, position)| position.parse::<u64>().ok())
         .ok_or_else(|| Error::Invalid("Read History: Use the Returned Continuation Token".into()))?;
     if position == 0 || continuation(checkpoint, selection, position) != supplied {
-        return Err(Error::Conflict("Read History: Keep the Same Checkpoint and Selection While Paging".into()));
+        return Err(Error::Precondition("Read History: Keep the Same Checkpoint and Selection While Paging".into()));
     }
     Ok(position)
 }
@@ -331,7 +331,7 @@ pub(super) fn artifacts(context: &Context, cut: &ExecutionCut) -> Result<Vec<v1:
                 )
             });
             if chunk.sequence != value.2 || value.0.filename != chunk.name || value.0.content_type.as_deref() != Some(chunk.mime.as_str()) {
-                return Err(Error::Conflict("Read Checkpoint Artifact: Restore the Valid Ordered Artifact Evidence".into()));
+                return Err(Error::Precondition("Read Checkpoint Artifact: Restore the Valid Ordered Artifact Evidence".into()));
             }
             value.2 += 1;
             value.0.size_bytes += chunk.data.len() as u64;
@@ -353,7 +353,7 @@ pub(super) fn artifact(context: &Context, cut: &ExecutionCut, id: &str) -> Resul
         .find(|metadata| metadata.artifact_id == id)
         .ok_or_else(|| Error::NotFound("Read Checkpoint Artifact: Choose an Artifact from GetCheckpointEvidence".into()))?;
     if metadata.state != v1::ArtifactState::Complete as i32 {
-        return Err(Error::Conflict("Read Checkpoint Artifact: Select a Completed Artifact".into()));
+        return Err(Error::Precondition("Read Checkpoint Artifact: Select a Completed Artifact".into()));
     }
     Ok(metadata)
 }

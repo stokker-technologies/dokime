@@ -57,7 +57,7 @@ pub async fn handle(context: &Context, request: v1::HistoryBrowseCyclesRequest) 
             || request.at.as_ref().is_some_and(|cursor| cursor != &at)
             || (request.after_sequence > 0 && request.at.is_none())
         {
-            return Err(Error::Conflict("Browse Cycles: Restart with the Same Filter and a Fresh Storage Frontier".into()));
+            return Err(Error::Precondition("Browse Cycles: Restart with the Same Filter and a Fresh Storage Frontier".into()));
         }
         let mut rows = Vec::new();
         for (sequence, cycle) in context.host.store().saved_cycles(frontier)? {

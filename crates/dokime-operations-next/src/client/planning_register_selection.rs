@@ -56,7 +56,7 @@ pub async fn handle(context: &Context, request: v1::PlanningRegisterSelectionReq
         }
         let bytes = plan.encode_to_vec();
         if let Some(reply) =
-            context.host.store().registration(&request.idempotency_key, &bytes).map_err(|error| Error::Conflict(error.to_string()))?
+            context.host.store().registration(&request.idempotency_key, &bytes).map_err(|error| Error::Precondition(error.to_string()))?
         {
             return Ok(reply);
         }

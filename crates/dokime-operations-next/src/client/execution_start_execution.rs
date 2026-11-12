@@ -54,7 +54,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionStartExecutionReque
         };
         if controls.can_cancel {
             if controls.mode != mode as i32 {
-                return Err(Error::Conflict("Start Execution: Resolve the Existing Run in Its Original Mode".into()));
+                return Err(Error::Precondition("Start Execution: Resolve the Existing Run in Its Original Mode".into()));
             }
         } else {
             context.host.start_existing(&request.execution_id, mode).await?;

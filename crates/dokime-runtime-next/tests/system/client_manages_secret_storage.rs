@@ -73,7 +73,7 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
                 .as_deref(),
             Some("story-secret-value")
         );
-        assert!(
+        assert_eq!(
             secrets
                 .put(v1::SecretsPutRequest {
                     metadata: saved.entries[0].metadata.clone(),
@@ -81,7 +81,9 @@ async fn client_manages_secret_storage() -> Result<(), Box<dyn std::error::Error
                     generation: initial.generation
                 })
                 .await
-                .is_err()
+                .unwrap_err()
+                .code(),
+            tonic::Code::Aborted
         );
         let archive = secrets
             .export(v1::SecretsExportRequest {

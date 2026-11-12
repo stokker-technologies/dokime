@@ -63,7 +63,7 @@ pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Resu
         return Err(Error::Invalid("Plan Selection: Supply at Least One Selection".into()));
     }
     if !plan.cycle_id.is_empty() && super::execution_state::cycle(context, &plan.cycle_id)?.sealed {
-        return Err(Error::Conflict("Plan Selection: Select an Unsealed Cycle".into()));
+        return Err(Error::Precondition("Plan Selection: Select an Unsealed Cycle".into()));
     }
     let catalog = context.host.plugins()?;
     let catalog_cursor = super::paging::cursor(context, "planning.catalog".into(), catalog.iter().map(super::paging::bytes));
@@ -107,7 +107,7 @@ pub(super) async fn resolve(context: &Context, plan: &v1::SelectionPlan) -> Resu
     }
     let latest = context.host.plugins()?;
     if super::paging::cursor(context, "planning.catalog".into(), latest.iter().map(super::paging::bytes)) != catalog_cursor {
-        return Err(Error::Conflict("Plan Selection: Refresh the Changed Catalog Before Registering".into()));
+        return Err(Error::Precondition("Plan Selection: Refresh the Changed Catalog Before Registering".into()));
     }
     let reply = v1::PreviewSelectionReply {
         cases,

@@ -49,7 +49,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionSealCycleRequest) -
         let mut cycle = super::execution_state::cycle(context, &request.cycle_id)?;
         for row in super::execution_state::snapshots(context, &request.cycle_id)? {
             if row.state != dokime_storage::ExecutionState::Sealed {
-                return Err(Error::Conflict("Seal Cycle: Finish or Cancel Its Executions Before Sealing".into()));
+                return Err(Error::Precondition("Seal Cycle: Finish or Cancel Its Executions Before Sealing".into()));
             }
         }
         cycle.sealed = true;

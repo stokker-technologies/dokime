@@ -151,7 +151,7 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
   Source inventory: root Cargo workspace/lock; SDK git pins, scope adapters and authoritative starters; new CLI crate; new-runtime plugin inspection and C# assertion; fixture producer/mise wiring; affected SDK/host/product guides and this design/tasks list.
   - [x] Add the independent `dokime-cli-next`/`dokime-next` command tree: new for all four languages; executable bundle/dev/inspect; proto export; remote plugin Add/List/Install, catalog List/Get, materialization, cycle create/append/seal/rerun, execution list/show/start/stop/watch, prompt next/show/answer and report download.
   - [x] Prove the currently served Rust/Python remote first hour in `remote_first_hour_runs_rust_and_python`; both executions seal Passed and their reports verify. The four-language scaffold/proto story also passes.
-  - [ ] Prove the managed Rust then remote Python first hour after the service workers converge. In this base, plugin install/remove wait on `Plugins.Install`/`Plugins.Remove`; cycle append/seal/rerun wait on `Execution.AppendExecutions`, `Execution.SealCycle`, `Execution.RerunCycle`; execution start/stop wait on `Execution.StartExecution`, `Execution.StopExecution`. Each command sends the real request and retains the host's operation-naming UNIMPLEMENTED response.
+  - [x] Prove the managed Rust then remote Python first hour against the combined host. The combined host now serves plugin install/remove, cycle append/seal/rerun and execution start/stop; the extended CLI journey owns their end-to-end proof.
   - [ ] Cutover renames the binary/package, replaces old CLI and cargo-dokime, and moves `dokime installer package`; installer packaging stays with the old tool until then.
 - [ ] 4.3 Python: flat public APIs with value composition and explicit close, no required context managers; pure package with the plugin half and the generated client half; rewrite the starter and `dokime new --lang python`.
   - [x] 4.3.1 Replace `sdk/python` PyO3 sources, native stubs, tests, benches and build entries with one pure `dokime` wheel; retain plot/document builders and generate Python messages, stubs and descriptors from `proto/` during builds. SDK-owned replacement and producer/test entries are implemented. Combined integration removes the native Cargo member, refreshes Cargo/uv locks, retires native-only environment dependencies and managed binding declarations, and points versioning at the pure SDK manifest.
@@ -320,16 +320,16 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
 - [x] Pass focused Windows proof: whole-tree format, `client_runs_thermal_suite_over_grpc` three consecutive runs, `python_client_runs_thermal_suite_over_grpc`, both existing host stories, three new-crate check builds, operations package language checking and protocol generation drift. Python evidence decoding loads the frozen descriptor dependency graph before decoding exact payloads.
 - [x] Complete `mise run check -- --language rust --package dokime-runtime-next`: the language worker repaired `clippy::let_and_return` in `sdk/rust/src/stream.rs` and both the SDK lint and new-runtime package check pass on Windows. Native Linux and hosted validation remain integration proof.
 
-- [ ] Integration handoff: serve the following explicitly refused methods when their host features land (the current listener returns named `UNIMPLEMENTED`):
-  - [x] Planning: all three operations and their Run forms are served; the parameter-selection journey proves ordered duplicate selections, bounds, key conflicts and restart resolution.
-  - [x] Execution: all 28 operations and their Run forms are served; the lifecycle journey proves explicit admission, interactive steps, pause/resume, seal, metadata/archive changes, rerun and cancellation.
-  - [x] Observation: all four operations and their Run forms are served; the state journey proves resynchronization, cursor validation, shell counts, progress, watch cancellation and graceful shutdown.
-  - [x] Prompts: all five operations and their Run forms are served; the operator journey proves catalog reads, invalid actions, answer settlement and restart resolution.
-  - [x] History: all eleven operations and their Run forms are served; the history journey proves saved frontiers, exact seal tokens, frozen context/document/evidence, bounded record/sample/file reads, artifact download and durable deletion receipts.
+- [ ] Integration handoff: only these data-group methods remain unserved; unregistered data services return the transport UNIMPLEMENTED response, and registered services name their refused operation:
   - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
   - [ ] Evidence: GetCapturedRecordSchema, RunGetCapturedRecordSchema, RunListRecords, WatchRecords, RunWatchRecords.
   - [ ] Telemetry: RunListSamples, WatchSamples, RunWatchSamples.
-  - [ ] Reports: DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport, RunPublishExecutionReport. Direct PublishExecutionReport is served explicitly; downloading never publishes.
+  - [ ] Plots: ListAnalyses, RunListAnalyses, QuerySnapshots, RunQuerySnapshots, Watch, RunWatch.
+  - [ ] Documents: CaptureCurrentDocument, RunCaptureCurrentDocument, UpdatePlotSettings, RunUpdatePlotSettings.
+  - [ ] Reports: RunPublishExecutionReport, DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport.
+  - [ ] Content: DownloadAppearanceAsset, RunDownloadAppearanceAsset, DownloadArtifact, RunDownloadArtifact, DownloadEvidence, RunDownloadEvidence, DownloadExecutionFile, RunDownloadExecutionFile, FollowExecutionFile, RunFollowExecutionFile, ListArtifacts, RunListArtifacts, ListExecutionFiles, RunListExecutionFiles, ReadExecutionFile, RunReadExecutionFile, UploadArtifact, RunUploadArtifact.
+  - [ ] Media: AudioRecording, RunAudioRecording, CameraRecording, RunCameraRecording, Photo, RunPhoto, ScreenRecording, RunScreenRecording, Screenshot, RunScreenshot.
+  - [ ] Notes: CreateNote, RunCreateNote, EditNote, RunEditNote, ListNotes, RunListNotes.
 
 ## New Host Branch Convergence
 
@@ -400,3 +400,16 @@ Source inventory: assigned Plugins, Catalog, Settings, Secrets, Backend, Appeara
 - [x] Backend diagnostics ZIP, bounded log following and epoch/scope trace reads; all Run transports. Health has content-bound paging and both transports.
 - [x] Required Windows focused proof: whole-tree format; all ten administration stories twice (the final 14-story client selection plus the 25-story host target); all fifteen original stories; check builds and Clippy for all three new crates; repository checking. The final runs have 14/14 and 25/25 passes, with no skipped stories in the complete host target. The native credential publication failure is repaired with read-back confirmation before SQLite publication.
 - [ ] Integration owner: native Linux and hosted proof, with an available OS credential store for protected secret/TLS writes; no push is authorized here.
+
+## Execution, Administration and CLI Convergence
+
+Source inventory: merge conflicts and additive integration repairs in the new runtime,
+operations and storage crates; command-line system stories; SDK/git dependency locks;
+shared registration lists; execution-host/tooling guides and this change. Data service
+implementation files and old-host source remain with their owners.
+
+- [x] Merge administration and pinned-Harmos/CLI branches locally, preserving every service, story and v1 table.
+- [x] Share authenticated local/remote routing for the execution group, including History; combine operation registrations without duplicates.
+- [x] Repair merged enum ownership, preserve precondition versus revision-conflict statuses, match execution admission by described plugin identity and include managed-bundle compatibility metadata.
+- [x] Prove the managed starter first hour and command-line append/start/stop/seal/rerun flows against the combined services.
+- [ ] Pass final format, Rust/Python/repository/supply checks, host fixtures, every host story twice, CLI stories, four SDK checks and Tests build; verify locked offline metadata on the committed head.

@@ -48,6 +48,9 @@ pub enum Error {
     #[error("{0}")]
     Conflict(String),
 
+    #[error("{0}")]
+    Precondition(String),
+
     #[error("{0}: Operation Deadline Expired")]
     Deadline(String),
 
@@ -59,12 +62,6 @@ pub enum Error {
 
     #[error("{0}")]
     Invalid(String),
-
-    #[error("{0}")]
-    NotFound(String),
-
-    #[error("{0}")]
-    Conflict(String),
 
     #[error("{0}")]
     Bound(String),

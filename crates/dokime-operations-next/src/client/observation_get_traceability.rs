@@ -49,7 +49,7 @@ pub async fn handle(context: &Context, request: v1::ObservationGetTraceabilityRe
     super::complete(ID, context.settings.read_timeout, async {
         let scope = request.scope.clone().unwrap_or_default();
         if scope.session_id.as_ref().is_some_and(|session| session != &context.host.identity().epoch) {
-            return Err(Error::Conflict("Get Traceability: Resynchronize with the Current Runtime Epoch".into()));
+            return Err(Error::Precondition("Get Traceability: Resynchronize with the Current Runtime Epoch".into()));
         }
         let mut snapshots = Vec::new();
         let identifiers = if let Some(execution) = &scope.execution_id {
@@ -95,7 +95,7 @@ pub async fn handle(context: &Context, request: v1::ObservationGetTraceabilityRe
         let cursor = super::paging::cursor(context, format!("traceability/{scope:?}"), snapshots.iter().map(super::paging::bytes));
         let fingerprint = format!("{:016x}", cursor.position);
         if !request.host_traceability_fingerprint.is_empty() && request.host_traceability_fingerprint != fingerprint {
-            return Err(Error::Conflict("Get Traceability: Restart Paging with the Current Fingerprint".into()));
+            return Err(Error::Precondition("Get Traceability: Restart Paging with the Current Fingerprint".into()));
         }
         let (snapshots, next) = super::paging::page(
             snapshots,

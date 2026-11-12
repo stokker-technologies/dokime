@@ -57,7 +57,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionListExecutionStepsR
                 || supplied.kind != v1::StepPageKind::Steps as i32
                 || !supplied.step_id.is_empty()
         }) {
-            return Err(Error::Conflict("List Steps: Restart Paging for the Selected Execution".into()));
+            return Err(Error::Precondition("List Steps: Restart Paging for the Selected Execution".into()));
         }
         let start = request.cursor.as_ref().map_or(0, |cursor| cursor.next_ordinal as usize);
         if start > case.steps.len() {

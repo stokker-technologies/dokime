@@ -48,7 +48,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionPauseCycleRequest) 
     super::complete(ID, context.settings.mutation_timeout, async {
         let mut cycle = super::execution_state::cycle(context, &request.cycle_id)?;
         if cycle.sealed {
-            return Err(Error::Conflict("Control Cycle: Select an Unsealed Cycle".into()));
+            return Err(Error::Precondition("Control Cycle: Select an Unsealed Cycle".into()));
         }
         for row in super::execution_state::snapshots(context, &request.cycle_id)? {
             if context.host.controls(&row.execution.identifier)?.can_cancel {

@@ -118,7 +118,7 @@ pub async fn handle(
                 }
             }
             if offset != metadata.size_bytes {
-                return Err(crate::Error::Conflict(
+                return Err(crate::Error::Precondition(
                     "Download Checkpoint Artifact: Restore the Complete Sealed Evidence Before Retrying".into(),
                 ));
             }

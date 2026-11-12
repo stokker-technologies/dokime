@@ -48,7 +48,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionUpdateCyclePolicyRe
     super::complete(ID, context.settings.mutation_timeout, async {
         let mut cycle = super::execution_state::cycle(context, &request.cycle_id)?;
         if cycle.sealed {
-            return Err(Error::Conflict("Update Cycle Policy: Create a New Cycle After Sealing".into()));
+            return Err(Error::Precondition("Update Cycle Policy: Create a New Cycle After Sealing".into()));
         }
         cycle.continue_automatically = request.continue_automatically;
         if request.continue_automatically && cycle.status != v1::CycleStatus::Paused as i32 {

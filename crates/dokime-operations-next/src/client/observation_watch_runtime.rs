@@ -55,7 +55,7 @@ pub async fn handle(context: &Context, request: v1::ObservationWatchRuntimeReque
         .as_ref()
         .is_some_and(|cursor| cursor.epoch != current.epoch || cursor.stream != current.stream || cursor.position > current.position)
     {
-        return Err(Error::Conflict("Watch Runtime: Reconnect Without a Cursor to Resynchronize".into()));
+        return Err(Error::Precondition("Watch Runtime: Reconnect Without a Cursor to Resynchronize".into()));
     }
     let (sender, receiver) = tokio::sync::mpsc::channel(context.settings.stream_buffer.saturating_add(1));
     let terminal =

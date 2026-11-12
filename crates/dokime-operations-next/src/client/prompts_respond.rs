@@ -48,7 +48,7 @@ pub async fn handle(context: &Context, request: v1::PromptsRespondRequest) -> Re
     super::complete(ID, context.settings.mutation_timeout, async {
         let view = super::prompt_catalog::view(context, &request.prompt_id)?;
         if view.response.is_some() {
-            return Err(Error::Conflict("Answer Prompt: Inspect the Already Recorded Answer with GetPrompt".into()));
+            return Err(Error::Precondition("Answer Prompt: Inspect the Already Recorded Answer with GetPrompt".into()));
         }
         let (execution, question) = super::projection::pending(context, &request.prompt_id)?;
         let mut snapshot = super::execution_state::evidence(context, &execution)?;

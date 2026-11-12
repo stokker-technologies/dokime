@@ -19,9 +19,11 @@
 use std::process::Stdio;
 
 // Third Party Imports
+use prost::Message;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 // Local Imports
+use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -141,6 +143,116 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
             let report = directory.path().join("report.html");
             super::run(&["--endpoint", &endpoint, "execution", "report", execution, "--out", report.to_str().unwrap()]).await?;
             assert!(std::fs::read_to_string(report)?.contains(execution));
+
+            // Prepare a Manual Cycle From the Same Frozen Cases
+            let channel = tonic::transport::Endpoint::from_shared(endpoint.clone())?.connect().await?;
+            let mut executions = v1::execution_client::ExecutionClient::new(channel);
+            let frozen = v1::PreviewSelectionReply::decode(std::fs::read(&cases)?.as_slice())?;
+            let manual = executions
+                .create_cycle(v1::ExecutionCreateCycleRequest {
+                    origins: frozen.cases.iter().map(|case| case.origin.clone().unwrap()).collect(),
+                    continue_automatically: false,
+                    ..Default::default()
+                })
+                .await?
+                .into_inner();
+
+            // Append Another Explicit Binding From the Command Line
+            let appended = "019a0000-0000-7000-8000-000000000002";
+            let request = v1::ExecutionAppendExecutionsRequest {
+                cycle_id: manual.cycle_id.clone(),
+                executions: vec![v1::ExecutionBinding {
+                    execution_id: appended.into(),
+                    case_id: frozen.cases[0].case_id.clone(),
+                }],
+            };
+            let path = directory.path().join("append.pb");
+            std::fs::write(&path, request.encode_to_vec())?;
+            let reply: serde_json::Value = serde_json::from_str(
+                &super::run(&["--endpoint", &endpoint, "cycle", "append", "--request", path.to_str().unwrap(), "--json"]).await?,
+            )?;
+            assert_eq!(reply["execution_ids"][0], appended);
+            let queued: serde_json::Value =
+                serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", appended, "--json"]).await?)?;
+            assert!(queued["controls"]["can_start"].as_bool().unwrap());
+
+            // Start the Appended Execution and Complete Its Prompt
+            super::run(&["--endpoint", &endpoint, "execution", "start", appended]).await?;
+            super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", appended, "--json"]).await?;
+            super::run(&[
+                "--endpoint",
+                &endpoint,
+                "execution",
+                "prompt",
+                "answer",
+                appended,
+                "--action",
+                if language == "rust" { "yes" } else { "0" },
+                "--accepted",
+            ])
+            .await?;
+            super::run(&["--endpoint", &endpoint, "execution", "wait", appended]).await?;
+            let completed: serde_json::Value =
+                serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", appended, "--json"]).await?)?;
+            assert_eq!(completed["outcome"]["evaluated"]["status"], "RESULT_STATUS_PASSED");
+
+            // Stop the Other Execution at Its Prompt Boundary
+            let stopped = &manual.execution_ids[0];
+            super::run(&["--endpoint", &endpoint, "execution", "start", stopped]).await?;
+            super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", stopped, "--json"]).await?;
+            super::run(&["--endpoint", &endpoint, "execution", "stop", stopped]).await?;
+            super::run(&[
+                "--endpoint",
+                &endpoint,
+                "execution",
+                "prompt",
+                "answer",
+                stopped,
+                "--action",
+                if language == "rust" { "yes" } else { "0" },
+                "--accepted",
+            ])
+            .await?;
+            super::run(&["--endpoint", &endpoint, "execution", "wait", stopped]).await?;
+            let stopped_detail: serde_json::Value =
+                serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", stopped, "--json"]).await?)?;
+            assert_eq!(stopped_detail["outcome"]["not_evaluated"]["termination"], "TERMINATION_CANCELLED");
+
+            // Seal the Completed Cycle and Rerun Its Frozen Origins
+            super::run(&["--endpoint", &endpoint, "cycle", "seal", &manual.cycle_id]).await?;
+            assert!(executions.get_cycle(v1::ExecutionGetCycleRequest { cycle_id: manual.cycle_id.clone() }).await?.into_inner().sealed);
+            let rerun: serde_json::Value =
+                serde_json::from_str(&super::run(&["--endpoint", &endpoint, "cycle", "rerun", &manual.cycle_id, "--json"]).await?)?;
+            let rerun_id = rerun["cycle_id"].as_str().ok_or("Rerun Cycle: Missing Cycle")?;
+            assert_ne!(rerun_id, manual.cycle_id);
+            let rerun_executions = executions
+                .list_executions(v1::ExecutionListExecutionsRequest {
+                    cycle_id: rerun_id.into(),
+                    ..Default::default()
+                })
+                .await?
+                .into_inner();
+            assert_eq!(rerun_executions.executions.len(), 2);
+            for execution in rerun_executions.executions {
+                let id = execution.execution_id;
+                super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", &id, "--json"]).await?;
+                super::run(&[
+                    "--endpoint",
+                    &endpoint,
+                    "execution",
+                    "prompt",
+                    "answer",
+                    &id,
+                    "--action",
+                    if language == "rust" { "yes" } else { "0" },
+                    "--accepted",
+                ])
+                .await?;
+                super::run(&["--endpoint", &endpoint, "execution", "wait", &id]).await?;
+                let detail: serde_json::Value =
+                    serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", &id, "--json"]).await?)?;
+                assert_eq!(detail["outcome"]["evaluated"]["status"], "RESULT_STATUS_PASSED");
+            }
 
             // Close the Host and Its Independently Owned Remote Process
             drop(host.stdin.take());

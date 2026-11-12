@@ -50,6 +50,12 @@ publication. Local selection still includes every story. Use
 `test --filterset` accepts a nextest expression with a focused Rust package,
 including archived tests.
 
+The candidate CLI stories consume a generated Rust starter built by
+`mise run build:cli-fixtures` and the installed Python wheel. Run every CLI story
+with `mise run test -- --package dokime-cli-next --target system`. They exercise
+managed installation and remote admission, prompts, reports and execution/cycle
+controls through `dokime-next` against the new host.
+
 Focused Rust tests use nextest, compiling only the selected Cargo target and its
 dependencies; no Tests archive or unrelated fixture build is required. `--exact`
 selects one test, `--story` selects an integration module (use `--target` for another

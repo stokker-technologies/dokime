@@ -66,7 +66,7 @@ pub async fn handle(context: &Context, request: v1::PromptsListPendingRequest) -
                     entry.kind == "prompt"
                         && v1::OperatorQuestion::decode(entry.payload.as_slice()).is_ok_and(|stored| stored.prompt == question.prompt)
                 })
-                .ok_or_else(|| Error::Conflict("List Pending Prompts: Resynchronize After the Question Changed".into()))?;
+                .ok_or_else(|| Error::Precondition("List Pending Prompts: Resynchronize After the Question Changed".into()))?;
             prompts.push(v1::PendingPromptIdentity {
                 definition: Some(v1::PromptDefinitionIdentity {
                     prompt_type: question.prompt_type.clone(),

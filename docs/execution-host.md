@@ -140,8 +140,10 @@ planned-case reads), `cycles.rs` (cycle headers, execution presentation, command
 receipts, recovery and evidence times), and `history.rs` (saved frontiers and
 idempotent sealed deletion). `Store::create_executions` admits complete origin
 lists atomically. The added tables are `cases`, `registrations`, `cycles`,
-`bindings`, `commands`, `cycle_history` and `deletions`; integration must combine
-these with other service owners' tables in the v1 root validation.
+`bindings`, `commands`, `cycle_history` and `deletions`, alongside the
+`administration` table. Root validation requires that combined v1 layout and
+refuses incompatible roots with backup and fresh-root/reset guidance; it never
+migrates or deletes existing data.
 
 Materialization returns frozen origins; CreateCycle admits and starts the
 explicit origin list with `continue_automatically`, returning execution IDs.
@@ -182,7 +184,7 @@ generated clients reexported by `sdk/rust`'s `dokime` package. The Python story 
 builds artifacts, polls, or sleeps on the wall clock. The Rust journey also starts
 two executions in one cycle, answers their prompts differently and independently
 reads their records through the client. The system target covers every host story,
-including publication, interrupted recovery and three language-equivalence stories.
+including publication, interrupted recovery and every language-equivalence story.
 Every story uses `SYSTEM_HANG_GUARD` from `tests/support/settings.rs`; operation
 policies retain their own deadlines.
 
@@ -212,7 +214,8 @@ dokime-next --endpoint http://127.0.0.1:7000 execution report EXECUTION --out re
 dokime-next proto export --out proto
 ```
 
-Run each generated project's `mise run build` before bundling its executable.
+Bundles include `dokime.json` with an exact requirement for the bundling tool's
+Dokime version. Run each generated project's `mise run build` before bundling its executable.
 Rust's executable is `dokime-starter` (`.exe` on Windows); C# must be published as
 a self-contained single-file executable for an executable-only bundle. Python
 stays remote. C++ generation retrieves the versioned SDK archive's published
@@ -226,7 +229,7 @@ plugin. Hosting uses the same EOF/interrupt close contract as `dokime-host-next`
 
 `--config PATH` reads explicit TOML settings; endpoint and storage may be supplied
 there or on the command line. Unknown keys, zero bounds and zero deadlines fail.
-`retained_bytes` also bounds CLI case files. The host listener remains loopback.
+`retained_bytes` also bounds CLI case files. The bootstrap host listener remains loopback; Remote manages authenticated TLS access.
 
 ```toml
 endpoint = "http://127.0.0.1:7000"
@@ -247,8 +250,26 @@ page_items = 1000
 Materialized case files contain the authoritative `PreviewSelectionReply`
 protobuf, preserving frozen origins. `--parameters PATH` reads a JSON object
 mapping parameter names to arrays of canonical protobuf `Value` objects. For the
-Python starter, supply `{"limit":[{"number":10}]}`; this base host materializes
-explicit parameter values.
+Python starter, supply `{"limit":[{"number":10}]}`. The host resolves the
+selection and retains each registered case identity with its frozen origin.
+`cycle append --request append.pb` reads an encoded
+`ExecutionAppendExecutionsRequest` with the destination cycle and explicit
+execution/case bindings. Cases come from materialization or registration;
+automatic continuation starts appended executions, while manual cycles leave
+them queued for `execution start EXECUTION`. `execution stop EXECUTION` requests
+stopping at the next step boundary; answer an outstanding prompt so its current
+step can settle. `cycle seal CYCLE` requires every execution to be sealed, and
+`cycle rerun CYCLE` starts a new cycle from its frozen runnable origins.
+
+The CLI system journeys exercise managed Rust installation/removal, remote Rust
+and Python admission, prompt settlement, reports, append/start/stop and
+seal/rerun. Build the generated starter fixture and run every story:
+
+```sh
+mise run build:cli-fixtures
+mise run test -- --package dokime-cli-next --target system
+```
+
 Reports validate metadata, ordered offsets, total bytes, SHA-256 completion and
 terminal status before creating the requested output; existing output is retained.
 Human output is default and inspection/read commands offer `--json` with proto

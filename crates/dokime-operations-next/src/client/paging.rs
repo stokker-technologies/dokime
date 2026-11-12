@@ -67,7 +67,7 @@ pub(super) fn page<T>(
     id: impl Fn(&T) -> &str,
 ) -> Result<(Vec<T>, Option<String>)> {
     if supplied.is_some_and(|cursor| cursor != current) || (!after.is_empty() && supplied.is_none()) {
-        return Err(Error::Conflict("Restart Paging with the Same Selection and a Fresh Cursor".into()));
+        return Err(Error::Precondition("Restart Paging with the Same Selection and a Fresh Cursor".into()));
     }
     let start = if after.is_empty() {
         0

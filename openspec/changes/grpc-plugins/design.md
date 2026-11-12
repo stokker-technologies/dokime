@@ -805,6 +805,8 @@ History artifact reads consume ordered acknowledged PublishArtifact evidence; co
 Prompt IDs include their durable question position, keeping repeated questions in one execution distinct while retaining earlier answers.
 Interactive reruns invalidate effective downstream steps, refuse previously invoked nonrepeatable downstream steps, and leave an exhausted Next waiting for explicit Finish.
 Registry, cycle, binding, command, saved-header and deletion tables remain v1; integration combines the service owners' table inventories before root validation.
+Execution admission matches a frozen PluginRun to the ready entry's described plugin identity; durable managed/URL placement IDs remain administration identities.
+Execution and planning precondition failures retain FAILED_PRECONDITION; administration revision/generation conflicts retain ABORTED.
 Execution detail and execution-service lists join Store::execution_presentation; the Query owner adopts that same case/archive join at integration for explicitly bound executions.
 Sealed execution detail has no boot-scoped observation cursor, preserving exact restart reads; runtime observation and live detail carry process cursors separately.
 - Local and remote listeners share one client-service route composer; the remote listener applies one bearer-key authorization layer to every route.
@@ -839,7 +841,7 @@ The Python starter declares only its consumed host operations and waits one obse
 The additive `dokime-cli-next` package exports `dokime-next` until cutover; it imports only the new runtime, protocol and Rust SDK among Dokime packages.
 Hosting uses the new listener in process with explicit endpoint and TOML settings; remote commands use the Rust SDK client half and preserve host refusals.
 All four starters are embedded from their SDK-owned sources; C++ release URL and SHA-256 come from the published sidecar or explicit paired overrides.
-The CLI owns executable-only tar packaging using the existing schema-1 manifest, native target, per-file SHA-256 and retained description.pb; no legacy registration is fabricated.
+The CLI owns executable-only tar packaging using the existing schema-1 manifest, native target, per-file SHA-256 and retained description.pb; no legacy registration is fabricated. The bundle also declares its exact Dokime product version in dokime.json so managed admission can validate compatibility.
 `build:cli-fixtures` generates and builds the Rust starter through its mise task; system stories compare those exact source bytes and consume the exported executable.
 Installer packaging, old CLI removal and binary renaming remain atomic cutover work; this additive CLI never imports the old host.
 
@@ -866,7 +868,7 @@ Reports download a read-only snapshot or an already published report with ordere
 `Reports.PublishExecutionReport` explicitly renders a selected document from a sealed execution and publishes only after rendering succeeds; downloads never publish.
 Execution detail and listing expose host-owned controls, attributed outcomes and separate evaluated, not-evaluated and declared counts; only evaluated outcomes set the headline verdict.
 Persisted plugin descriptions project their actual entry state after restart, and interrupted executions remain readable over the same services.
-The merged system target has twelve stories, each guarded by the one support-owned `SYSTEM_HANG_GUARD` setting.
+Every story in the merged system target uses the support-owned `SYSTEM_HANG_GUARD` setting.
 
 Executions run concurrently within and across cycles; each unary invocation inherits only its execution's resources and persists operation/attempt evidence.
 Exhausted plugin-operation retries attribute an evaluated Failed outcome after cleanup; cancellation, interruption and empty criterion sets stay not-evaluated.

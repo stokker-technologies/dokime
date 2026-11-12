@@ -84,7 +84,14 @@ async fn client_edits_settings() -> Result<(), Box<dyn std::error::Error>> {
             .into_inner();
         assert_eq!(saved.settings, Some(changed));
         assert!(saved.revision > before.revision);
-        assert!(settings.update_application_settings(v1::SettingsUpdateApplicationSettingsRequest { update: Some(update) }).await.is_err());
+        assert_eq!(
+            settings
+                .update_application_settings(v1::SettingsUpdateApplicationSettingsRequest { update: Some(update) })
+                .await
+                .unwrap_err()
+                .code(),
+            tonic::Code::Aborted
+        );
 
         // Validate Before Committing and Preserve the Previous Revision
         let mut invalid = saved.settings.clone().unwrap();

@@ -86,6 +86,55 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         drop(settings);
         drop(plugins);
 
+        // Execution Services Use the Same Authenticated Route Composer
+        let key = format!("Bearer {}", first.access_key.as_ref().unwrap());
+        let mut executions = v1::execution_client::ExecutionClient::new(channel.clone());
+        assert_eq!(
+            executions.create_cycle(v1::ExecutionCreateCycleRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::ExecutionCreateCycleRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        let cycle = executions.create_cycle(request).await?.into_inner();
+        assert!(!cycle.cycle_id.is_empty());
+
+        let mut planning = v1::planning_client::PlanningClient::new(channel.clone());
+        assert_eq!(
+            planning.preview_selection(v1::PlanningPreviewSelectionRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::PlanningPreviewSelectionRequest { plan: Some(v1::SelectionPlan::default()) });
+        request.metadata_mut().insert("authorization", key.parse()?);
+        assert_eq!(planning.preview_selection(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+
+        let mut observation = v1::observation_client::ObservationClient::new(channel.clone());
+        assert_eq!(
+            observation.get_runtime_shell(v1::ObservationGetRuntimeShellRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::ObservationGetRuntimeShellRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        observation.get_runtime_shell(request).await?;
+
+        let mut prompts = v1::prompts_client::PromptsClient::new(channel.clone());
+        assert_eq!(
+            prompts.list_definitions(v1::PromptsListDefinitionsRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::PromptsListDefinitionsRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        assert!(prompts.list_definitions(request).await?.into_inner().definitions.is_empty());
+
+        let mut history = v1::history_client::HistoryClient::new(channel.clone());
+        assert_eq!(
+            history.browse_cycles(v1::HistoryBrowseCyclesRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::HistoryBrowseCyclesRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        history.browse_cycles(request).await?;
+        drop((executions, planning, observation, prompts, history));
+
         // A New Export Invalidates the Old Key on an Already Open Channel
         let second = remote
             .create_pairing(v1::RemoteCreatePairingRequest { label: "Replacement Desktop".into() })

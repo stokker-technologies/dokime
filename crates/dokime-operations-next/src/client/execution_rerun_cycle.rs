@@ -48,7 +48,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionRerunCycleRequest) 
     super::complete(ID, context.settings.mutation_timeout, async {
         let source = super::execution_state::cycle(context, &request.source_cycle_id)?;
         if source.running_count > 0 || source.queued_count > 0 {
-            return Err(Error::Conflict("Rerun Cycle: Finish the Source Cycle Before Rerunning".into()));
+            return Err(Error::Precondition("Rerun Cycle: Finish the Source Cycle Before Rerunning".into()));
         }
         let mut origins = Vec::new();
         let mut skipped = Vec::new();
@@ -63,7 +63,7 @@ pub async fn handle(context: &Context, request: v1::ExecutionRerunCycleRequest) 
             }
         }
         if origins.is_empty() {
-            return Err(Error::Conflict("Rerun Cycle: Select a Cycle with Runnable PluginRun Origins".into()));
+            return Err(Error::Precondition("Rerun Cycle: Select a Cycle with Runnable PluginRun Origins".into()));
         }
         let mut metadata = source.metadata.unwrap_or_default();
         if let Some(label) = request.label {

@@ -11,8 +11,8 @@
 
 /* === Modules === */
 
-mod cycles;
 mod administration;
+mod cycles;
 mod error;
 mod execution;
 mod history;

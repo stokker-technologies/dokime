@@ -286,7 +286,7 @@ pub(super) fn parameters(
     rows.sort_by(|left, right| left.name.cmp(&right.name));
     let current = super::paging::cursor(context, format!("parameters/{selection:?}"), rows.iter().map(super::paging::bytes));
     if supplied.is_some_and(|cursor| cursor.selection.as_ref() != Some(&selection)) {
-        return Err(Error::Conflict("Read Parameters: Restart Paging with the Same Selection".into()));
+        return Err(Error::Precondition("Read Parameters: Restart Paging with the Same Selection".into()));
     }
     let (rows, next) = super::paging::page(
         rows,

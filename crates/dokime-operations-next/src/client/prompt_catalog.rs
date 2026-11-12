@@ -61,7 +61,7 @@ pub(super) fn definitions(context: &Context) -> Result<Vec<v1::Prompt>> {
                 if let Some(existing) = definitions.insert(id.clone(), definition.clone())
                     && existing != definition
                 {
-                    return Err(Error::Conflict(format!("Read Prompt {id}: Remove the Ambiguous Plugin Definition")));
+                    return Err(Error::Precondition(format!("Read Prompt {id}: Remove the Ambiguous Plugin Definition")));
                 }
             }
         }

@@ -52,7 +52,7 @@ pub(super) fn validate(
     if action.requires_condition
         && !definition.condition.as_ref().map(|condition| condition_met(condition, snapshot)).transpose()?.unwrap_or(false)
     {
-        return Err(Error::Conflict("Answer Prompt: Wait Until the Required Evidence Condition Is Satisfied".into()));
+        return Err(Error::Precondition("Answer Prompt: Wait Until the Required Evidence Condition Is Satisfied".into()));
     }
     if !accepted {
         return Ok(());

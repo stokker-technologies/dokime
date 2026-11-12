@@ -297,7 +297,7 @@ pub(super) fn pending(context: &Context, identifier: &str) -> Result<(String, v1
             return Ok((execution, question));
         }
     }
-    Err(Error::Conflict("Answer Prompt: Select the Current Pending Question".into()))
+    Err(Error::Precondition("Answer Prompt: Select the Current Pending Question".into()))
 }
 pub(super) fn report(snapshot: &ExecutionSnapshot, counts: &v1::ExecutionOutcomeCounts) -> String {
     let identifier = escape(&snapshot.execution.identifier);

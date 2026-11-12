@@ -66,8 +66,11 @@ pub async fn handle(context: &Context, request: v1::ExecutionAppendExecutionsReq
             };
             let plugin = plugins
                 .iter()
-                .find(|plugin| plugin.entry == run.plugin && plugin.state == v1::PluginState::Ready as i32)
-                .ok_or_else(|| Error::Conflict("Append Executions: Reconnect the Case's Plugin Before Admission".into()))?;
+                .find(|plugin| {
+                    plugin.state == v1::PluginState::Ready as i32
+                        && plugin.description.as_ref().is_some_and(|description| description.id == run.plugin)
+                })
+                .ok_or_else(|| Error::Precondition("Append Executions: Reconnect the Case's Plugin Before Admission".into()))?;
             let description = plugin.description.as_ref().unwrap();
             let catalog = description.catalog.as_ref().unwrap();
             let catalog_bytes = catalog.encode_to_vec();
