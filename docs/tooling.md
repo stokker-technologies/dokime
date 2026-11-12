@@ -55,6 +55,16 @@ mise run test -- --language typescript --layer system --select native-desktop
 Remove-Item Env:DOKIME_E2E_JOURNEYS
 ```
 
+The hosted TypeScript system suite runs in two parallel jobs per platform, each
+with the same 600-second lane hang guard. Execution and recovery run separately
+from configuration, appearance, remote access, ownership and two-desktop access.
+Run either selection on current Product artifacts:
+
+```sh
+mise run test -- --language typescript --layer system --select native-desktop
+mise run test -- --language typescript --layer system --select desktop-configuration,desktop-appearance,desktop-remote,desktop-ownership,two-gui-remote
+```
+
 `build --artifact tests` produces the CI archive; it is unnecessary for a focused
 test without archived fixture inputs. `check` includes formatting, lint, repository configuration and
 generated drift; `--language` limits language checks. `--repository`, `--bindings`,

@@ -22,6 +22,35 @@ Linux timing and isolated per-harness linker timing remain unmeasured. Windows p
 still requires repair of unused protocol dependencies (`tonic`, `tonic-prost`), the
 runtime threaded workflow failure under concurrent execution (its standalone rerun
 passes), and legacy Python/TypeScript artifact prerequisites.
+## PR 411 Desktop System Repair
+
+Source inventory: `crates/dokime-gui/e2e/{native-desktop,system}.mjs`, the TypeScript
+system task in `mise.toml`, `.github/workflows/{ci,nightly}.yml`, and `docs/tooling.md`.
+Product changes are limited to a demonstrated cause of the reported regression.
+
+- [x] Read Linux job 131065996838 and Windows job 130993783301, including retained Linux RPC and backend evidence.
+- [x] Run isolated admission and the failing scenes on current Windows artifacts; repair native numeric entry and any demonstrated admission defect without extending deadlines.
+- [x] Measure the Windows system lane before and after; keep the 600-second guard and split hosted work if the legitimate stories exceed it.
+- [x] Run format, TypeScript and repository checks, retain local commits and report native Linux proof as pending hosted CI.
+
+The Linux host plugin initialized in 1.051 s; StartExecution succeeded in 166 ms.
+The failed numeric edit left the preceding execution at its operator prompt, so
+the next execution remained queued behind it. This run does not reproduce the
+separate host-plugin initialization deadline failure.
+Current Windows artifacts also pass isolated `execution-stop` in 14.387 s with
+host-plugin startup taking 3.626 s. The existing 46-test plot integration journey
+passes, including digit retention across presentation refreshes. Bulk numeric
+entry was introduced by `8e45a8216`; six serial system stories by `8f7abf734`.
+The original Windows six-story Node lane passed in 572.718 s; the runner including
+trace processing took 588.76 s (591.284 s including task setup). The split execution
+Node lane passes in 258.855 s (276.75 s with trace processing). With separate native numeric key events,
+`cycle`, `execution-stop` and `containers` pass in 43.715, 17.687 and 23.270 s.
+The five-story Node lane passes in 455.119 s (474.66 s with trace processing),
+so all six stories pass across the two unchanged 600-second guards. Formatting,
+TypeScript and repository checks pass. One successful
+Windows restart's host-plugin start took 45.156 s; its retained trace is separate
+from the Linux prompt-blocked admission and does not establish the cause of the
+earlier initialization-deadline failure. Native Linux proof remains hosted.
 
 ## 1. Contract
 
