@@ -12,7 +12,7 @@ normal dependency on the old domain, runtime, server, client or facade.
 Build the existing shared SDK plugin, then run either story by its full name:
 
 ```powershell
-mise -C sdk/rust run sdk:build
+mise run build:host-fixtures
 mise run test -- --package dokime-runtime-next --target system --exact thermal_suite_survives_host_restart::thermal_suite_survives_host_restart
 mise run test -- --package dokime-runtime-next --target system --exact cancelling_a_thermal_step_runs_cleanup::cancelling_a_thermal_step_runs_cleanup
 ```
@@ -79,7 +79,7 @@ including after restart.
 Build prerequisites and run the client stories through the focused task:
 
 ```powershell
-mise -C sdk/rust run sdk:build
+mise run build:host-fixtures
 mise -C sdk/python run sdk:prepare
 mise -C sdk/python run sdk:build
 mise -C sdk/python run sdk:install
@@ -92,8 +92,8 @@ generated clients reexported by `sdk/rust`'s `dokime` package. The Python story 
 `DOKIME_PYTHON` selects another explicitly prepared interpreter. Neither story
 builds artifacts, polls, or sleeps on the wall clock. The Rust journey also starts
 two executions in one cycle, answers their prompts differently and independently
-reads their records through the client. The system target contains twelve stories,
-including publication and interrupted recovery through real client services.
+reads their records through the client. The system target contains fifteen stories,
+including publication, interrupted recovery and three language-equivalence stories.
 Every story uses `SYSTEM_HANG_GUARD` from `tests/support/settings.rs`; operation
 policies retain their own deadlines.
 
@@ -110,11 +110,13 @@ record-only descriptor through the pinned Harmos API; its named
 `csharp_frozen_record_schema_decodes_door` assertion is pending upstream support,
 tracked under Requests to Harmos in the gRPC change design.
 
-Build the Rust fixture and installed Python wheel above. Build C# with its
-`build`, `package` and `build:system` tasks; the executable needs mise's .NET 10
-runtime (`DOTNET_ROOT` when the system default differs). Configure/build C++ with
-its `configure` and `build` tasks; Windows may supply `--harmos-cache` to reuse
-an existing native dependency build. Tests never compile fixtures.
+Build the shared fixtures and install the Python wheel with the tasks above.
+`build:host-fixtures` invokes each compiled SDK's own tasks and exports the
+fixtures under `target/build/<profile>/<target>/fixtures/host/`. C# includes its
+runtime. C++ builds Harmos's pinned dependencies; `HARMOS_SOURCE` and
+`DOKIME_HARMOS_CACHE` can select existing workstation inputs. Tests never compile
+fixtures. Tests Build includes the same producer; the Linux and Windows pull
+request and Nightly jobs consume its exports and run all fifteen stories.
 
 ```sh
 mise run test -- --package dokime-runtime-next --target system --exact python_plugin_matches_rust_thermal_evidence::python_plugin_matches_rust_thermal_evidence
@@ -124,7 +126,7 @@ mise run test -- --package dokime-runtime-next --target system --exact cpp_plugi
 
 Python runs remote; C# and C++ run remote and managed. Set
 `DOKIME_CSHARP_THERMAL_PLUGIN` or `DOKIME_CPP_THERMAL_PLUGIN` for a prepared
-executable outside the default SDK output path. `DOKIME_PYTHON` selects the
+executable outside the exported fixture path. `DOKIME_PYTHON` selects the
 interpreter with the built wheel installed.
 
 ## Evidence and Recovery

@@ -121,7 +121,11 @@ mise -C sdk/cpp run starter -- --harmos-source C:/path/to/harmos --harmos-cache 
 mise -C sdk/cpp run starter -- --build-dir ../../target/sdk/cpp-archive-proof --sdk-archive ../../target/sdk/cpp/dokime-cpp-0.1.0.tar.gz --harmos-source C:/path/to/harmos --harmos-cache C:/path/to/harmos/target/cpp/dev
 ```
 
-Without `--harmos-cache`, configure uses the CMake package dependencies installed
+`configure --fetch-dependencies` builds the exact Harmos-pinned gRPC dependency
+graph inside the selected build directory; the execution-host fixture producer
+uses this mode on Linux and Windows.
+
+Without `--harmos-cache` or `--fetch-dependencies`, configure uses the CMake package dependencies installed
 by vcpkg, and fetches the exact Harmos revision unless its source is overridden.
 `--harmos-cache` imports the existing Windows Visual Studio Debug gRPC/protobuf
 libraries and code generators read-only. It builds the requested Harmos SDK source

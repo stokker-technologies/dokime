@@ -43,7 +43,6 @@ Pull requests and Nightly each run the execution-host system target on Linux
 and Windows, independently of the existing Rust system lane. Nightly runs all
 fifteen stories, including Python, C# and C++ evidence equivalence.
 
-
 Focused Rust tests use nextest, compiling only the selected Cargo target and its
 dependencies; no Tests archive or unrelated fixture build is required. `--exact`
 selects one test, `--story` selects an integration module (use `--target` for another
