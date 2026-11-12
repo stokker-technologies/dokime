@@ -66,8 +66,8 @@
 - [ ] 4.1 Wave 4, Rust: make `sdk/rust` the `dokime` product crate with `use dokime::prelude::*;`, plugin authoring and the absorbed client half, generated step/criterion operations and derived `materialize`; product dependencies stop at protocol and compile no host. Align Harmos's `sdk/rust` entry point as `harmos`.
 - [ ] 4.2 Move the plugin, installer and proto commands into `dokime`, add `dokime new --lang`, and delete `crates/cargo-dokime`.
 - [ ] 4.3 Python: flat public APIs with value composition and explicit close, no required context managers; pure package with the plugin half and the generated client half; rewrite the starter and `dokime new --lang python`.
-- [ ] 4.4 C#: `sdk/csharp` with both halves, a starter and `dokime new --lang csharp`.
-- [ ] 4.5 C++: `sdk/cpp` with both halves, a starter and `dokime new --lang cpp`.
+- [ ] 4.4 C#: `sdk/csharp` with both halves, a starter and `dokime new --lang csharp`. Generate message code from the proto files during the project build (`Grpc.Tools`) and delete the committed generated sources; the proto files are the only committed source.
+- [ ] 4.5 C++: `sdk/cpp` with both halves, a starter and `dokime new --lang cpp`. Generate message code from the proto files in CMake against the protobuf the build uses and delete the committed generated headers and sources. The generated Rust in `dokime-protocol` stays committed; Python generates when its package is built.
 - [ ] 4.6 Migrate the host telemetry and OBC plugins and the samples.
 - [ ] 4.7 Add `dokime plugin bundle` for any executable and build each SDK's sample plugin in parallel in CI, running one shared story against all of them.
 - [ ] 4.8 Wave 4: redirect CLI hosting and desktop embedding from the server/facade to the runtime library; keep remote commands on the SDK client half and migrate host/distribution facade helpers to their owners.
