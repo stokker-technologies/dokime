@@ -36,14 +36,10 @@ pub struct InstallHostPlugin {
     pub installation: InstalledPlugin,
 }
 
-retained_transaction!(InstallHostPlugin, "dokime.artifact.host.install");
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReconcileProviders {
     pub providers: Vec<ProviderCatalog>,
 }
-
-retained_transaction!(ReconcileProviders, "dokime.providers.reconcile");
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReloadProviderCatalog {
@@ -51,13 +47,35 @@ pub struct ReloadProviderCatalog {
     pub provider: String,
 }
 
-retained_transaction!(ReloadProviderCatalog, "dokime.providers.reload");
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl InstallHostPlugin {
+    pub const ID: &'static str = "dokime.artifact.host.install";
+
+    pub fn definition() -> (harmos::DefinitionId, u32) {
+        (harmos::DefinitionId::new(Self::ID), 1)
+    }
+}
+
+impl ReconcileProviders {
+    pub const ID: &'static str = "dokime.providers.reconcile";
+
+    pub fn definition() -> (harmos::DefinitionId, u32) {
+        (harmos::DefinitionId::new(Self::ID), 1)
+    }
+}
+
+impl ReloadProviderCatalog {
+    pub const ID: &'static str = "dokime.providers.reload";
+
+    pub fn definition() -> (harmos::DefinitionId, u32) {
+        (harmos::DefinitionId::new(Self::ID), 1)
+    }
+}
 
 impl Transaction<RuntimeState> for InstallHostPlugin {
     type Error = String;

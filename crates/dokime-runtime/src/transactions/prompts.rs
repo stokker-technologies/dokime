@@ -49,7 +49,6 @@ use dokime_domain::model::values::ValueType;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.prompts.request")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RequestPrompt {
     pub prompt: PromptRequest,
@@ -57,7 +56,6 @@ pub struct RequestPrompt {
     pub accepted_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.prompts.response.submit")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitPromptResponse {
     pub prompt_id: PromptId,
@@ -87,6 +85,40 @@ pub(crate) enum PromptSettlement {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::Identified for RequestPrompt {
+    const ID: &'static str = "dokime.prompts.request";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for SubmitPromptResponse {
+    const ID: &'static str = "dokime.prompts.response.submit";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl PromptSettlement {
     fn action(self) -> &'static str {

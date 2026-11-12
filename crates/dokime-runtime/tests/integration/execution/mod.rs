@@ -203,3 +203,9 @@ fn execution_seal_report_sync() {
     records::plugin_may_declares();
     records::admission_order_publishers();
 }
+
+#[dokime_tracing::trace_test]
+#[test]
+fn transaction_journal_round_trip() {
+    cycles::transaction_journal_round_trip();
+}

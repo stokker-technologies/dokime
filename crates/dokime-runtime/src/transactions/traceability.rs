@@ -43,7 +43,6 @@ use dokime_domain::model::traceability::TraceabilitySection;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.traceability.phase.update")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateExecutionPhase {
     pub scope: RecordScope,
@@ -53,7 +52,6 @@ pub struct UpdateExecutionPhase {
     pub occurred_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.execution.capture.phase")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SetCapturePhase {
     pub scope: RecordScope,
@@ -61,21 +59,18 @@ pub struct SetCapturePhase {
     pub occurred_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.execution.step.attempt.begin")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct BeginStepAttempt {
     pub scope: RecordScope,
     pub start: dokime_domain::model::execution::result::StepAttemptStart,
 }
 
-#[harmos::transaction(id = "dokime.execution.step.attempt.record")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecordStepAttempt {
     pub scope: RecordScope,
     pub attempt: dokime_domain::model::execution::result::TestStepAttempt,
 }
 
-#[harmos::transaction(id = "dokime.traceability.template.record")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecordExecutionTraceability {
     pub scope: RecordScope,
@@ -88,6 +83,91 @@ pub struct RecordExecutionTraceability {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::Identified for UpdateExecutionPhase {
+    const ID: &'static str = "dokime.traceability.phase.update";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for SetCapturePhase {
+    const ID: &'static str = "dokime.execution.capture.phase";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for BeginStepAttempt {
+    const ID: &'static str = "dokime.execution.step.attempt.begin";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for RecordStepAttempt {
+    const ID: &'static str = "dokime.execution.step.attempt.record";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for RecordExecutionTraceability {
+    const ID: &'static str = "dokime.traceability.template.record";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl Transaction<RuntimeState> for RecordExecutionTraceability {
     type Error = String;

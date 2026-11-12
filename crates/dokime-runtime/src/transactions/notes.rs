@@ -42,19 +42,16 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.evidence.note.add")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct AddOperatorNote {
     pub note: OperatorNote,
 }
 
-#[harmos::transaction(id = "dokime.evidence.note.create")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct CreateOperatorNote {
     pub admission: NoteAdmission,
 }
 
-#[harmos::transaction(id = "dokime.evidence.note.edit")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct EditOperatorNote {
     pub note_id: NoteId,
@@ -68,6 +65,57 @@ pub struct EditOperatorNote {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::Identified for AddOperatorNote {
+    const ID: &'static str = "dokime.evidence.note.add";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for CreateOperatorNote {
+    const ID: &'static str = "dokime.evidence.note.create";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for EditOperatorNote {
+    const ID: &'static str = "dokime.evidence.note.edit";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl Transaction<RuntimeState> for AddOperatorNote {
     type Error = String;

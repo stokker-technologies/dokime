@@ -78,8 +78,6 @@ pub struct FinishProvider {
     pub finished_at: Timestamp,
 }
 
-retained_transaction!(FinishProvider, "dokime.execution.provider.finish");
-
 struct FinishPlan {
     evidence: Drafts,
     terminal: Drafts,
@@ -96,6 +94,14 @@ struct FinishPlan {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl FinishProvider {
+    pub const ID: &'static str = "dokime.execution.provider.finish";
+
+    pub fn definition() -> (harmos::DefinitionId, u32) {
+        (harmos::DefinitionId::new(Self::ID), 1)
+    }
+}
 
 impl Transaction<RuntimeState> for FinishProvider {
     type Error = String;

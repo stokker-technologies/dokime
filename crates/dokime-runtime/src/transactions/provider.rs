@@ -58,7 +58,6 @@ pub(crate) const EXECUTION_NOT_PLANNED: &str = "case has no unstarted execution;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.provider.run")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RunProvider {
     pub mode: dokime_domain::model::execution::ExecutionMode,
@@ -79,6 +78,23 @@ pub(super) struct RunPlan {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::Identified for RunProvider {
+    const ID: &'static str = "dokime.execution.provider.run";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl Transaction<RuntimeState> for RunProvider {
     type Error = String;

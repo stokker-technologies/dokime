@@ -40,7 +40,6 @@ use serde::{Deserialize, Serialize};
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.effect")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecordEffect {
     pub ticket: String,
@@ -61,6 +60,23 @@ pub enum EffectChange {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::Identified for RecordEffect {
+    const ID: &'static str = "dokime.execution.effect";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl Transaction<RuntimeState> for RecordEffect {
     type Error = String;

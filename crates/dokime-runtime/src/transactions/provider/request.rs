@@ -69,7 +69,6 @@ pub struct RunRequest {
     pub continuation_execution_id: Option<TestExecutionId>,
 }
 
-#[harmos::transaction(id = "dokime.execution.request.prepare")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct PrepareAttempt {
     pub request_id: CommandId,
@@ -77,7 +76,6 @@ pub struct PrepareAttempt {
     pub at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.execution.request.dispatch")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct DispatchProvider {
     pub request_id: CommandId,
@@ -89,6 +87,40 @@ pub struct DispatchProvider {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::Identified for PrepareAttempt {
+    const ID: &'static str = "dokime.execution.request.prepare";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for DispatchProvider {
+    const ID: &'static str = "dokime.execution.request.dispatch";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl harmos::MemorySize for RunRequest {
     fn memory_size(&self) -> usize {

@@ -44,9 +44,6 @@ pub struct AddExecutionDocumentParts {
     pub occurred_at: Timestamp,
 }
 
-retained_transaction!(AddExecutionDocumentParts, "dokime.documents.execution.add");
-
-#[harmos::transaction(id = "dokime.documents.plot.settings")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct UpdatePlotSettings {
     pub cycle_id: TestCycleId,
@@ -63,6 +60,31 @@ pub struct UpdatePlotSettings {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl AddExecutionDocumentParts {
+    pub const ID: &'static str = "dokime.documents.execution.add";
+
+    pub fn definition() -> (harmos::DefinitionId, u32) {
+        (harmos::DefinitionId::new(Self::ID), 1)
+    }
+}
+
+impl harmos::Identified for UpdatePlotSettings {
+    const ID: &'static str = "dokime.documents.plot.settings";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl Transaction<RuntimeState> for AddExecutionDocumentParts {
     type Error = String;

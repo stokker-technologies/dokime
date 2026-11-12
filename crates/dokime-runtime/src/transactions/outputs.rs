@@ -41,13 +41,19 @@ pub struct FinalizeExecutionOutputs {
     pub outputs: Vec<AggregateOutput>,
 }
 
-retained_transaction!(FinalizeExecutionOutputs, "dokime.execution.outputs.execution.finalize");
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl FinalizeExecutionOutputs {
+    pub const ID: &'static str = "dokime.execution.outputs.execution.finalize";
+
+    pub fn definition() -> (harmos::DefinitionId, u32) {
+        (harmos::DefinitionId::new(Self::ID), 1)
+    }
+}
 
 impl Transaction<RuntimeState> for FinalizeExecutionOutputs {
     type Error = String;

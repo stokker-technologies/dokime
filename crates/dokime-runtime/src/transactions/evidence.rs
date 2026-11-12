@@ -40,7 +40,6 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.evidence.health.record")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecordHealth {
     pub scope: RecordScope,
@@ -51,14 +50,12 @@ pub struct RecordHealth {
     pub observed_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.evidence.record_subscriptions.close")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct CloseRecordSubscriptions {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub test_execution_id: dokime_domain::model::identity::TestExecutionId,
 }
 
-#[harmos::transaction(id = "dokime.evidence.event.publish")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct PublishRecord {
     pub request: RecordPublishRequest,
@@ -80,6 +77,57 @@ enum PublicationSource {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::Identified for RecordHealth {
+    const ID: &'static str = "dokime.evidence.health.record";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for CloseRecordSubscriptions {
+    const ID: &'static str = "dokime.evidence.record_subscriptions.close";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for PublishRecord {
+    const ID: &'static str = "dokime.evidence.event.publish";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl Transaction<RuntimeState> for RecordHealth {
     type Error = String;

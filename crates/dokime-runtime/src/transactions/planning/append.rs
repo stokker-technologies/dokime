@@ -45,13 +45,19 @@ pub struct AppendExecutions {
     pub settings: BTreeMap<String, BTreeMap<String, Value>>,
 }
 
-retained_transaction!(AppendExecutions, "dokime.execution.executions.append");
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl AppendExecutions {
+    pub const ID: &'static str = "dokime.execution.executions.append";
+
+    pub fn definition() -> (harmos::DefinitionId, u32) {
+        (harmos::DefinitionId::new(Self::ID), 1)
+    }
+}
 
 impl Transaction<RuntimeState> for AppendExecutions {
     type Error = String;

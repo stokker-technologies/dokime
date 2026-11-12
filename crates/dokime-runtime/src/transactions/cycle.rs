@@ -45,7 +45,6 @@ use dokime_domain::model::values::Value;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.cycle.policy")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateCyclePolicy {
     pub test_cycle_id: TestCycleId,
@@ -53,7 +52,6 @@ pub struct UpdateCyclePolicy {
     pub occurred_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.execution.cycle.control")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct ControlCycle {
     pub test_cycle_id: TestCycleId,
@@ -61,7 +59,6 @@ pub struct ControlCycle {
     pub occurred_at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.execution.cycle.reset")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct ResetCycle {
     pub test_cycle_id: TestCycleId,
@@ -94,6 +91,57 @@ pub enum CycleResetAction {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::Identified for UpdateCyclePolicy {
+    const ID: &'static str = "dokime.execution.cycle.policy";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for ControlCycle {
+    const ID: &'static str = "dokime.execution.cycle.control";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for ResetCycle {
+    const ID: &'static str = "dokime.execution.cycle.reset";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl Transaction<RuntimeState> for UpdateCyclePolicy {
     type Error = String;

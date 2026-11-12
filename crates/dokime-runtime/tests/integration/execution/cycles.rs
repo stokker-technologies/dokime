@@ -948,6 +948,74 @@ pub(crate) fn terminal_traceability_history() {
     assert_eq!(projected_status(&state, &cycle_id, failed), Value::from("Failed"));
 }
 
+pub(crate) fn transaction_journal_round_trip() {
+    use dokime_runtime::transactions::{StartShutdown, Transactions};
+    use harmos::state::{CatalogCodec, Prepared, Records, TransactionCatalog};
+
+    // Persist An Explicitly Versioned Append And Recover Its Execution.
+    let (mut state, cycle_id) = planned();
+    let first = &state.executions[&state.cycles[&cycle_id].execution_ids[0]];
+    let execution_id = dokime_runtime::TestExecutionId::from_seed("journal.append");
+    let append = dokime_runtime::transactions::AppendExecutions {
+        max_executions: 1_000,
+        cycle_id: cycle_id.clone(),
+        executions: vec![(execution_id.clone(), first.test_case_id.clone())],
+        settings: BTreeMap::new(),
+        occurred_at: Timestamp::new("2026-11-12T00:00:00Z"),
+    };
+    append.check(&state).unwrap();
+    let transaction = Transactions::from(append);
+    let (prepared, _) = Records::collect(&transaction, &state).unwrap();
+    let catalog = Transactions::catalog();
+    let bytes = serde_json::to_vec(&prepared.payload).unwrap();
+    let restored = (catalog.decode)(&prepared.id, prepared.version, &bytes).unwrap().unwrap();
+    assert_eq!(Prepared::encode(&restored).unwrap(), prepared);
+    restored.replay(&prepared, &mut state).unwrap();
+    assert_eq!(state.cycles[&cycle_id].execution_ids.last(), Some(&execution_id));
+    assert!(state.executions.contains_key(&execution_id));
+
+    // Queue The Recovered Execution And Capture Its Journal Members.
+    let run = RunProvider {
+        mode: Default::default(),
+        test_cycle_id: cycle_id.clone(),
+        test_execution_id: Some(execution_id),
+        context: Default::default(),
+        command_id: CommandId::from_seed("journal.run"),
+        accepted_at: Timestamp::new("2026-11-12T00:00:01Z"),
+    };
+    run.check(&state).unwrap();
+    let transaction = Transactions::from(run.clone());
+    transaction.check(&state).unwrap();
+    let (prepared, records) = Records::collect(&transaction, &state).unwrap();
+    let (typed, typed_records) = Records::collect(&run, &state).unwrap();
+    assert_eq!(prepared, typed);
+    assert_eq!(records, typed_records);
+    assert!(!records.is_empty());
+
+    // Restore The Journal Entry And Replay It Into The Same Initial State.
+    let catalog = Transactions::catalog();
+    let bytes = serde_json::to_vec(&prepared.payload).unwrap();
+    let restored = (catalog.decode)(&prepared.id, prepared.version, &bytes).unwrap().unwrap();
+    assert_eq!(Prepared::encode(&restored).unwrap(), prepared);
+    assert_eq!(restored.identify(), transaction.identify());
+    let mut expected = state.clone();
+    run.apply(&mut expected);
+    let mut replayed = state.clone();
+    Transactions::from(StartShutdown).replay(&prepared, &mut replayed).unwrap();
+    assert_eq!(replayed, expected);
+    assert_eq!(replayed.run_requests[&run.command_id].selected_execution_ids, vec![run.test_execution_id.clone().unwrap()]);
+
+    // Refuse Unknown Revisions And Malformed Payloads Without Changing State.
+    let mut obsolete = prepared.clone();
+    obsolete.version = obsolete.version.wrapping_add(1);
+    assert!((catalog.decode)(&obsolete.id, obsolete.version, &bytes).unwrap().is_none());
+    let before = replayed.clone();
+    assert!(transaction.replay(&obsolete, &mut replayed).is_err());
+    assert_eq!(replayed, before);
+    assert!((catalog.decode)(&prepared.id, prepared.version, b"{}").is_err());
+    assert!((catalog.decode)(&harmos::DefinitionId::new("unregistered.transaction"), prepared.version, &bytes).unwrap().is_none());
+}
+
 pub(crate) fn bounded_cycle_admission() {
     let (mut state, cycle_id) = planned();
     let mut cycle = state.cycle_view(&cycle_id).unwrap();

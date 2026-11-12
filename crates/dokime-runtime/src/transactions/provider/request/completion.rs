@@ -30,7 +30,6 @@ use crate::transactions::records::draft::BuiltinDraft;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.request.complete")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct CompleteRun {
     pub request_id: CommandId,
@@ -46,7 +45,6 @@ pub struct Unsealed {
     pub execution_ids: Vec<TestExecutionId>,
 }
 
-#[harmos::transaction(id = "dokime.execution.request.settle")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SettleRun {
     pub request_id: CommandId,
@@ -58,6 +56,40 @@ pub struct SettleRun {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::Identified for CompleteRun {
+    const ID: &'static str = "dokime.execution.request.complete";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for SettleRun {
+    const ID: &'static str = "dokime.execution.request.settle";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl Transaction<RuntimeState> for CompleteRun {
     type Error = String;

@@ -43,7 +43,6 @@ use dokime_domain::model::time::Timestamp;
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.runtime.started")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct MarkRuntimeStarted {
     pub session_id: SessionId,
@@ -53,17 +52,14 @@ pub struct MarkRuntimeStarted {
     pub record_frontier: u64,
 }
 
-#[harmos::transaction(id = "dokime.runtime.identity.establish")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct EstablishNodeIdentity {
     pub candidate: DokimeNodeIdentity,
 }
 
-#[harmos::transaction(id = "dokime.runtime.shutdown.start")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct StartShutdown;
 
-#[harmos::transaction(id = "dokime.runtime.interrupted.recover")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecoverInterruptedCycles {
     pub at: Timestamp,
@@ -87,14 +83,10 @@ pub struct RequestReportFinalization {
     pub intent: ReportFinalization,
 }
 
-retained_transaction!(RequestReportFinalization, "dokime.report.finalization.request");
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CaptureReportLifecycle {
     pub lifecycle: ReportLifecycle,
 }
-
-retained_transaction!(CaptureReportLifecycle, "dokime.report.lifecycle.capture");
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReportLifecycle {
@@ -109,25 +101,21 @@ pub struct CycleReportFinalization {
     pub evidence_at: harmos::storage::StorageCursor,
 }
 
-#[harmos::transaction(id = "dokime.cycle.report.finalization.request")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RequestCycleReportFinalization {
     pub intent: CycleReportFinalization,
 }
 
-#[harmos::transaction(id = "dokime.cycle.seal")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SealCycle {
     pub sealed_cycle: dokime_domain::model::execution::result::TestCycle,
 }
 
-#[harmos::transaction(id = "dokime.execution.seal")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SealExecution {
     pub seal: dokime_domain::model::execution::saved::ExecutionSeal,
 }
 
-#[harmos::transaction(id = "dokime.cycle.sealing.begin")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct BeginCycleSeal {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
@@ -135,7 +123,6 @@ pub struct BeginCycleSeal {
 }
 
 // Settles A Seal That Could Not Complete: The Cycle Leaves Sealing With Its Cause Recorded.
-#[harmos::transaction(id = "dokime.cycle.sealing.fail")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct FailCycleSeal {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
@@ -143,14 +130,12 @@ pub struct FailCycleSeal {
     pub at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.execution.request.queued.stop")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct StageQueuedStop {
     pub request_id: dokime_domain::model::identity::CommandId,
     pub at: Timestamp,
 }
 
-#[harmos::transaction(id = "dokime.report.failed")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct FailReport {
     pub execution: TestExecutionId,
@@ -162,6 +147,209 @@ pub struct FailReport {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl RequestReportFinalization {
+    pub const ID: &'static str = "dokime.report.finalization.request";
+
+    pub fn definition() -> (harmos::DefinitionId, u32) {
+        (harmos::DefinitionId::new(Self::ID), 1)
+    }
+}
+
+impl CaptureReportLifecycle {
+    pub const ID: &'static str = "dokime.report.lifecycle.capture";
+
+    pub fn definition() -> (harmos::DefinitionId, u32) {
+        (harmos::DefinitionId::new(Self::ID), 1)
+    }
+}
+
+impl harmos::Identified for MarkRuntimeStarted {
+    const ID: &'static str = "dokime.runtime.started";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for EstablishNodeIdentity {
+    const ID: &'static str = "dokime.runtime.identity.establish";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for StartShutdown {
+    const ID: &'static str = "dokime.runtime.shutdown.start";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for RecoverInterruptedCycles {
+    const ID: &'static str = "dokime.runtime.interrupted.recover";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for RequestCycleReportFinalization {
+    const ID: &'static str = "dokime.cycle.report.finalization.request";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for SealCycle {
+    const ID: &'static str = "dokime.cycle.seal";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for SealExecution {
+    const ID: &'static str = "dokime.execution.seal";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for BeginCycleSeal {
+    const ID: &'static str = "dokime.cycle.sealing.begin";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for FailCycleSeal {
+    const ID: &'static str = "dokime.cycle.sealing.fail";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for StageQueuedStop {
+    const ID: &'static str = "dokime.execution.request.queued.stop";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
+
+impl harmos::Identified for FailReport {
+    const ID: &'static str = "dokime.report.failed";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl Transaction<RuntimeState> for BeginCycleSeal {
     type Error = String;

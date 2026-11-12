@@ -42,7 +42,6 @@ const CANCELLED_MESSAGE: &str = "Execution cancelled before it started.";
 
 /* === Structs === */
 
-#[harmos::transaction(id = "dokime.execution.cancel")]
 #[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CancelExecution {
@@ -68,6 +67,23 @@ pub(crate) enum CancelAdmission {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl harmos::Identified for CancelExecution {
+    const ID: &'static str = "dokime.execution.cancel";
+
+    fn definition() -> (harmos::DefinitionId, u32) {
+        static VERSION: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+        let version = *VERSION.get_or_init(|| {
+            let schema = harmos::schema::graph::Schema::from_declaration(
+                <Self as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid stored data schema");
+            harmos::schema::identity::revision(&schema).expect("valid stored data revision")
+        });
+        (harmos::DefinitionId::new(Self::ID), version)
+    }
+}
 
 impl CancelExecution {
     pub(crate) fn admit(&self, state: &RuntimeState) -> Result<CancelAdmission, CancelRefusal> {
