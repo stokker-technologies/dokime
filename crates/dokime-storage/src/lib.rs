@@ -14,11 +14,13 @@
 mod client_reads;
 mod content;
 mod content_name;
+mod document_values;
 mod error;
 mod execution;
 mod notes;
 mod outcome;
 mod plot_kinds;
+mod plot_selection;
 mod plot_windows;
 mod query;
 mod report;
@@ -28,15 +30,16 @@ mod streams;
 
 /* === Re-Exports === */
 
-pub use content::{ArchivedContent,ArchivedContentChunk,CycleArchive,CONTENT_CHUNK_BYTES, ContentEntry};
-pub use content_name::{validate_artifact_name,validate_execution_path};
+pub use content::{ArchivedContent, ArchivedContentChunk, CONTENT_CHUNK_BYTES, ContentEntry, CycleArchive};
+pub use content_name::{validate_artifact_name, validate_execution_path};
 pub use error::Error;
 pub use execution::{Evidence, Execution, ExecutionArchive, ExecutionSnapshot, ExecutionState, Sample, SampleBatch};
 pub use outcome::OutcomeCounts;
 pub use plot_kinds::{CartesianRead, KindWindow};
+pub use plot_selection::{PlotGroup, PlotSelection};
 pub use query::{ExecutionCut, StatisticsRead};
 pub use report::Report;
-pub use store::Store;
+pub use store::{ReadCancellation, Store};
 pub use stream_windows::{NumericBin, NumericWindow, SampleWindow};
 
 /* === Imports === */

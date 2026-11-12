@@ -46,9 +46,16 @@ type StatisticsCache = HashMap<(String, String, String, u64), (u64, crate::Stati
 #[derive(Clone)]
 pub struct Store {
     connection: Arc<Mutex<Connection>>,
+    database: Arc<std::path::PathBuf>,
+    cancelled: Option<Arc<std::sync::atomic::AtomicBool>>,
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub(crate) changed: tokio::sync::watch::Sender<u64>,
+}
+
+pub struct ReadCancellation {
+    cancelled: Arc<std::sync::atomic::AtomicBool>,
+    interrupt: rusqlite::InterruptHandle,
 }
 
 /* === Enums === */
@@ -57,6 +64,12 @@ pub struct Store {
 
 /* === Implementations === */
 
+impl Drop for ReadCancellation {
+    fn drop(&mut self) {
+        self.cancelled.store(true, std::sync::atomic::Ordering::Release);
+        self.interrupt.interrupt();
+    }
+}
 impl Store {
     pub fn open(root: &Path) -> Result<Self> {
         std::fs::create_dir_all(root)?;
@@ -77,7 +90,25 @@ impl Store {
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
             let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-            if tables != ["artifact_calls", "artifact_transfers", "content_chunks", "content_objects", "evidence", "executions", "notes", "plugins", "reports", "sample_batches", "sample_fields", "samples", "streams"] {
+            if tables
+                != [
+                    "artifact_calls",
+                    "artifact_transfers",
+                    "content_chunks",
+                    "content_objects",
+                    "evidence",
+                    "executions",
+                    "notes",
+                    "plot_preferences",
+                    "plugins",
+                    "record_fields",
+                    "reports",
+                    "sample_batches",
+                    "sample_fields",
+                    "samples",
+                    "streams",
+                ]
+            {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -96,6 +127,9 @@ impl Store {
                 CREATE TABLE content_objects(id TEXT PRIMARY KEY, execution TEXT NOT NULL REFERENCES executions(id), path TEXT NOT NULL, artifact INTEGER NOT NULL, metadata BLOB NOT NULL, length INTEGER NOT NULL, sha256 TEXT NOT NULL, phase INTEGER NOT NULL);
                 CREATE TABLE content_chunks(object TEXT NOT NULL REFERENCES content_objects(id), offset INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(object,offset));
                 CREATE INDEX content_path ON content_objects(execution,path);
+                CREATE TABLE record_fields(execution TEXT NOT NULL, record TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,record,field,position));
+                CREATE INDEX record_fields_time ON record_fields(execution,record,field,source_ns,position);
+                CREATE TABLE plot_preferences(execution TEXT NOT NULL REFERENCES executions(id), document TEXT NOT NULL, plot TEXT NOT NULL, points INTEGER, technique INTEGER NOT NULL, PRIMARY KEY(execution,document,plot));
                 CREATE TABLE notes(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, execution TEXT, receipt BLOB NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));"))?;
@@ -103,13 +137,44 @@ impl Store {
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
+            database: Arc::new(database),
+            cancelled: None,
             statistics: Arc::new(Mutex::new(HashMap::new())),
             verified: Arc::new(Mutex::new(HashMap::new())),
             changed: tokio::sync::watch::channel(0).0,
         })
     }
     pub(crate) fn lock(&self) -> Result<MutexGuard<'_, Connection>> {
-        self.connection.lock().map_err(|_| Error::Invalid("Restart the Host After the Evidence Store Lock Failed".into()))
+        if self.cancelled.as_ref().is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Acquire)) {
+            return Err(Error::Invalid("Read Storage: The Query Was Cancelled; Start a New Read".into()));
+        }
+        let connection =
+            self.connection.lock().map_err(|_| Error::Invalid("Restart the Host After the Evidence Store Lock Failed".into()))?;
+        if self.cancelled.as_ref().is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Acquire)) {
+            return Err(Error::Invalid("Read Storage: The Query Was Cancelled; Start a New Read".into()));
+        }
+        Ok(connection)
+    }
+    pub(crate) fn prepare_projection(&self, sql: &str) -> Result<()> {
+        if self.cancelled.is_none() {
+            return Err(Error::Invalid("Read Plot: Open an Isolated Read Session Before Projecting Expressions".into()));
+        }
+        self.lock()?.execute_batch(sql)?;
+        Ok(())
+    }
+    pub fn read_session(&self) -> Result<(Self, ReadCancellation)> {
+        let connection = Connection::open_with_flags(self.database.as_path(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let interrupt = connection.get_interrupt_handle();
+        let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let session = Self {
+            connection: Arc::new(Mutex::new(connection)),
+            database: self.database.clone(),
+            cancelled: Some(cancelled.clone()),
+            statistics: self.statistics.clone(),
+            verified: self.verified.clone(),
+            changed: self.changed.clone(),
+        };
+        Ok((session, ReadCancellation { cancelled, interrupt }))
     }
     pub fn create(&self, execution: &Execution) -> Result<()> {
         if execution.identifier.trim().is_empty() || execution.cycle.trim().is_empty() {
@@ -168,8 +233,8 @@ impl Store {
         Ok(())
     }
     pub fn export(&self, execution: &str) -> Result<Vec<u8>> {
-        let mut bytes=Vec::new();
-        self.write_execution_archive(execution,&mut bytes)?;
+        let mut bytes = Vec::new();
+        self.write_execution_archive(execution, &mut bytes)?;
         Ok(bytes)
     }
 
@@ -190,6 +255,46 @@ impl Store {
         evidence.position = next_position(&transaction, execution)?;
         transaction
             .execute("INSERT INTO evidence VALUES (?1,?2,?3)", params![execution, evidence.position as i64, evidence.encode_to_vec()])?;
+        if let Some(kind) = evidence.kind.strip_prefix("record:") {
+            let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+            let definition = Execution::decode(payload.as_slice())?;
+            let catalog = harmos_protocol::v1::Catalog::decode(definition.catalog.as_slice())?;
+            for section in &catalog.sections {
+                if section.r#type != "dokime.v1.RecordContracts" {
+                    continue;
+                }
+                let contracts = v1::RecordContracts::decode(section.payload.as_slice())?;
+                let Some(contract) = contracts
+                    .records
+                    .iter()
+                    .find(|contract| contract.metadata.as_ref().is_some_and(|metadata| metadata.identifier == kind))
+                else {
+                    continue;
+                };
+                let Some(types) = catalog.types.clone() else {
+                    continue;
+                };
+                let Ok(pool) = prost_reflect::DescriptorPool::from_file_descriptor_set(types) else {
+                    continue;
+                };
+                let Some(descriptor) = pool.get_message_by_name(&contract.message) else {
+                    continue;
+                };
+                let Ok(record) = v1::PublishRecord::decode(evidence.payload.as_slice()) else {
+                    continue;
+                };
+                let Ok(row) = prost_reflect::DynamicMessage::decode(descriptor, record.payload.as_slice()) else {
+                    continue;
+                };
+                for (field, number, label) in crate::stream_windows::indexed_fields(&row, "") {
+                    transaction.execute(
+                        "INSERT INTO record_fields VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                        params![execution, kind, field, evidence.position as i64, evidence.source_ns, number, label],
+                    )?;
+                }
+            }
+        }
+
         transaction.commit()?;
         self.changed.send_modify(|revision| *revision += 1);
         Ok(evidence.position)

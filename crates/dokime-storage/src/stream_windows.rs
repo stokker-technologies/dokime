@@ -129,33 +129,8 @@ impl Store {
                         .get_message_by_name(&stream.row)
                         .ok_or_else(|| Error::Invalid("Publish Samples: Include the Frozen Row Descriptor".into()))?;
                     let row = DynamicMessage::decode(descriptor, sample.row.as_slice())?;
-                    for field in row.descriptor().fields() {
-                        let value = row.get_field(&field);
-                        let number = match value.as_ref() {
-                            Value::F64(value) => Some(*value),
-                            Value::F32(value) => Some(f64::from(*value)),
-                            Value::I64(value) => Some(*value as f64),
-                            Value::U64(value) => Some(*value as f64),
-                            Value::I32(value) => Some(f64::from(*value)),
-                            Value::U32(value) => Some(f64::from(*value)),
-                            Value::Bool(value) => Some(u8::from(*value) as f64),
-                            _ => None,
-                        }
-                        .filter(|value| value.is_finite());
-                        let label = match value.as_ref() {
-                            Value::String(value) => Some(value.clone()),
-                            Value::EnumNumber(value) => Some(value.to_string()),
-                            _ => None,
-                        };
-                        insert_field.execute(params![
-                            execution,
-                            sample.stream,
-                            field.name(),
-                            position as i64,
-                            sample.source_ns,
-                            number,
-                            label
-                        ])?;
+                    for (field, number, label) in indexed_fields(&row, "") {
+                        insert_field.execute(params![execution, sample.stream, field, position as i64, sample.source_ns, number, label])?;
                     }
                 }
                 batches.entry(sample.stream.clone()).or_default().push(sample);
@@ -223,7 +198,7 @@ impl Store {
     }
     pub fn numeric_bounds(&self, execution: &str, stream: &str, field: &str, through: u64) -> Result<Option<(i64, i64)>> {
         let connection = self.lock()?;
-        let (start, end): (Option<i64>, Option<i64>) = connection.query_row("SELECT (SELECT source_ns FROM sample_fields INDEXED BY sample_fields_time WHERE execution=?1 AND stream=?2 AND field=?3 AND position<=?4 AND number IS NOT NULL ORDER BY source_ns LIMIT 1),(SELECT source_ns FROM sample_fields INDEXED BY sample_fields_time WHERE execution=?1 AND stream=?2 AND field=?3 AND position<=?4 AND number IS NOT NULL ORDER BY source_ns DESC LIMIT 1)", params![execution,stream,field,through as i64], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let (start, end): (Option<i64>, Option<i64>) = connection.query_row("SELECT (SELECT source_ns FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND position<=?4 AND number IS NOT NULL ORDER BY source_ns LIMIT 1),(SELECT source_ns FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND position<=?4 AND number IS NOT NULL ORDER BY source_ns DESC LIMIT 1)", params![execution,stream,field,through as i64], |row| Ok((row.get(0)?, row.get(1)?)))?;
         Ok(start.zip(end))
     }
 
@@ -234,7 +209,7 @@ impl Store {
         let span = (i128::from(window.end_ns) - i128::from(window.start_ns) + 1).max(1);
         let width = ((span + window.bins.get() as i128 - 1) / window.bins.get() as i128).max(1);
         let connection = self.lock()?;
-        let mut query=connection.prepare("SELECT position,source_ns,number FROM sample_fields INDEXED BY sample_fields_time WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL ORDER BY source_ns,position")?;
+        let mut query=connection.prepare("SELECT position,source_ns,number FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL ORDER BY source_ns,position")?;
         let rows = query.query_map(
             params![
                 window.execution,
@@ -304,5 +279,38 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+pub(crate) fn indexed_fields(row: &DynamicMessage, prefix: &str) -> Vec<(String, Option<f64>, Option<String>)> {
+    let mut values = Vec::new();
+    for field in row.descriptor().fields() {
+        if field.is_list() || field.is_map() {
+            continue;
+        }
+        let path = if prefix.is_empty() { field.name().to_owned() } else { format!("{prefix}.{}", field.name()) };
+        let value = row.get_field(&field);
+        if let Value::Message(message) = value.as_ref() {
+            values.extend(indexed_fields(message, &path));
+            continue;
+        }
+        let number = match value.as_ref() {
+            Value::F64(value) => Some(*value),
+            Value::F32(value) => Some(*value as f64),
+            Value::I64(value) => Some(*value as f64),
+            Value::U64(value) => Some(*value as f64),
+            Value::I32(value) => Some(*value as f64),
+            Value::U32(value) => Some(*value as f64),
+            Value::Bool(value) => Some(u8::from(*value) as f64),
+            _ => None,
+        }
+        .filter(|value| value.is_finite());
+        let label = match value.as_ref() {
+            Value::String(value) => Some(value.clone()),
+            Value::EnumNumber(value) => Some(value.to_string()),
+            _ => None,
+        };
+        values.push((path, number, label));
+    }
+    values
+}
 
 /* === Tests === */

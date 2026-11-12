@@ -62,9 +62,10 @@ pub async fn handle(context: &Context, request: v1::PlotsWatchRequest) -> Result
                     if let Some(execution) = request.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()) {
                         settled &= context.host.store().metadata(execution)?.state != dokime_storage::ExecutionState::Open;
                     }
-                    let result = tokio::task::spawn_blocking(move || super::plots_query_snapshots::snapshot(&context, &request))
-                        .await
-                        .map_err(|error| Error::Invalid(error.to_string()))?;
+                    let result = tokio::select! {
+                        _=sender.closed()=>return Ok(()),
+                        result=super::plots_query_snapshots::query_one(&context,request)=>result,
+                    };
                     let (kind, envelope) = match result {
                         Ok(envelope) => (v1::PlotStreamKind::Snapshot, envelope),
                         Err(error) => (

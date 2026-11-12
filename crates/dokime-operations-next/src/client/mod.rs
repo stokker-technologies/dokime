@@ -25,6 +25,9 @@ pub mod content_list_execution_files;
 pub mod content_read_execution_file;
 mod content_transfer;
 pub mod content_upload_artifact;
+pub mod document_plot;
+pub mod documents_capture_current_document;
+pub mod documents_update_plot_settings;
 pub mod evidence_get_captured_record_schema;
 pub mod evidence_list_records;
 mod evidence_selection;
@@ -96,6 +99,10 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Content/RunReadExecutionFile",
     "/dokime.v1.Content/RunUploadArtifact",
     "/dokime.v1.Content/UploadArtifact",
+    "/dokime.v1.Documents/CaptureCurrentDocument",
+    "/dokime.v1.Documents/RunCaptureCurrentDocument",
+    "/dokime.v1.Documents/RunUpdatePlotSettings",
+    "/dokime.v1.Documents/UpdatePlotSettings",
     "/dokime.v1.Evidence/GetCapturedRecordSchema",
     "/dokime.v1.Evidence/ListRecords",
     "/dokime.v1.Evidence/RunGetCapturedRecordSchema",
@@ -178,6 +185,10 @@ pub trait Host: Send + Sync {
     fn now_ns(&self) -> i64;
     fn identity(&self) -> v1::BackendIdentity;
     fn controls(&self, execution: &str) -> Result<v1::ExecutionControls>;
+    fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, dokime_storage::ExecutionCut)>;
+    fn render_report(&self, subject: &v1::ReportSubject, at: Option<&v1::StorageCursor>) -> Result<(std::fs::File, v1::ReportMetadata)>;
+    fn retain_report(&self, file: std::fs::File, reference: v1::FileReference) -> Result<()>;
+    fn temporary_report(&self, identifier: &str) -> Result<Option<(std::fs::File, v1::FileReference)>>;
     fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report>;
     async fn add_remote(&self, url: &str) -> Result<v1::Plugin>;
     fn plugins(&self) -> Result<Vec<v1::Plugin>>;

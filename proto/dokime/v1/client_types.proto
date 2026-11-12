@@ -2527,6 +2527,8 @@ message PlotRequest {
   PlotWindow summary_window = 36;
   PlotWindow viewport = 37;
   optional uint32 panel_width = 38;
+  // Optional fixed evidence cut; binds document plots to one captured snapshot.
+  StorageCursor at = 39;
 }
 
 // Source: crates/dokime-domain/src/model/plots/wire.rs

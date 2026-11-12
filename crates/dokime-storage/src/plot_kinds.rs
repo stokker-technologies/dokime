@@ -169,58 +169,166 @@ impl Store {
             keys,
         ))
     }
+    pub fn sigma_window(&self, request: KindWindow<'_>, options: v1::PlotIntervalOptions) -> Result<(v1::PlotSigmaIntervalAnalysis, u64)> {
+        if !options.bin_width.is_finite() || options.bin_width <= 0.0 || !options.sigma.is_finite() || options.sigma <= 0.0 {
+            return Err(Error::Invalid("Query XY Sigma: Supply Positive Finite Bin Width and Sigma".into()));
+        }
+        let connection = self.lock()?;
+        let input = input();
+        let width = options.bin_width;
+        let ratio = format!("x/{width}");
+        let bin = format!("CAST({ratio} AS INTEGER)-CASE WHEN ({ratio})<CAST({ratio} AS INTEGER) THEN 1 ELSE 0 END");
+        let query = format!(
+            "{input}, bucketed AS(SELECT *,{bin} AS b FROM input WHERE typeof(x) IN ('real','integer') AND y IS NOT NULL), means AS(SELECT b,g,AVG(y) AS mean FROM bucketed GROUP BY b,g) SELECT b,g,COUNT(*),mean,AVG((y-mean)*(y-mean)),MIN(y),MAX(y) FROM bucketed JOIN means USING(b,g) GROUP BY b,g ORDER BY g,b LIMIT {}",
+            request.limit + 1
+        );
+        let mut statement = connection.prepare(&query)?;
+        let mut series = BTreeMap::<String, v1::PlotSigmaSeries>::new();
+        let mut count = 0;
+        let mut points = 0;
+        for row in statement.query_map(bind(&request), |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, Value>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, f64>(3)?,
+                row.get::<_, f64>(4)?,
+                row.get::<_, f64>(5)?,
+                row.get::<_, f64>(6)?,
+            ))
+        })? {
+            let (bin, group, n, mean, variance, min, max) = row?;
+            points += 1;
+            if points > request.limit {
+                return Err(Error::Invalid("Query XY Sigma: Increase Bin Width or Narrow the Window".into()));
+            }
+            let spread = options.sigma * variance.max(0.0).sqrt();
+            let mut lower = mean - spread;
+            let mut upper = mean + spread;
+            if options.clip_to_observed {
+                lower = lower.max(min);
+                upper = upper.min(max);
+            }
+            let group = text(group);
+            let output = series.entry(group.clone()).or_insert_with(|| v1::PlotSigmaSeries {
+                key: if group.is_empty() { request.window.field.into() } else { format!("{}/{group}", request.window.field) },
+                ..Default::default()
+            });
+            output.bins.push(v1::PlotSigmaBin {
+                x: (bin as f64 + 0.5) * width,
+                count: n as u64,
+                mean,
+                lower,
+                upper,
+            });
+            output.raw_points += n as u64;
+            count += n as u64;
+        }
+        Ok((v1::PlotSigmaIntervalAnalysis { series: series.into_values().collect() }, count))
+    }
     pub fn contour_window(
         &self, request: KindWindow<'_>, x_view: Option<&v1::PlotWindow>, y_view: Option<&v1::PlotWindow>, reduction: v1::Reduction,
     ) -> Result<(v1::ContourGrid, u64)> {
+        self.contour_scaled_window(request, x_view, y_view, reduction, false, false)
+    }
+    pub fn contour_scaled_window(
+        &self, request: KindWindow<'_>, x_view: Option<&v1::PlotWindow>, y_view: Option<&v1::PlotWindow>, reduction: v1::Reduction,
+        x_log: bool, y_log: bool,
+    ) -> Result<(v1::ContourGrid, u64)> {
         let connection = self.lock()?;
         let input = input();
-        let bounds=connection.query_row(&format!("{input} SELECT MIN(x),MAX(x),MIN(y),MAX(y) FROM input WHERE typeof(x) IN ('real','integer') AND y IS NOT NULL AND z IS NOT NULL"),bind(&request),|row|Ok((row.get::<_,Option<f64>>(0)?,row.get::<_,Option<f64>>(1)?,row.get::<_,Option<f64>>(2)?,row.get::<_,Option<f64>>(3)?)))?;
+        let valid = format!(
+            "typeof(x) IN ('real','integer') AND y IS NOT NULL AND z IS NOT NULL{}{}",
+            if x_log { " AND x>0" } else { "" },
+            if y_log { " AND y>0" } else { "" }
+        );
+        let bounds = connection.query_row(
+            &format!("{input} SELECT MIN(x),MAX(x),MIN(y),MAX(y) FROM input WHERE {valid}"),
+            bind(&request),
+            |row| {
+                Ok((
+                    row.get::<_, Option<f64>>(0)?,
+                    row.get::<_, Option<f64>>(1)?,
+                    row.get::<_, Option<f64>>(2)?,
+                    row.get::<_, Option<f64>>(3)?,
+                ))
+            },
+        )?;
         let (Some(x_min), Some(x_max), Some(y_min), Some(y_max)) = bounds else {
             return Ok((v1::ContourGrid::default(), 0));
         };
-        let (x_min, mut x_max) = x_view.map(|view| (view.from, view.to)).unwrap_or((x_min, x_max));
-        let (y_min, mut y_max) = y_view.map(|view| (view.from, view.to)).unwrap_or((y_min, y_max));
+        let (x_min, mut x_max) = x_view.map_or((x_min, x_max), |view| (view.from, view.to));
+        let (y_min, mut y_max) = y_view.map_or((y_min, y_max), |view| (view.from, view.to));
         if x_min == x_max {
-            x_max = x_min + 1.0;
+            x_max = if x_log { x_min * std::f64::consts::E } else { x_min + 1.0 };
         }
         if y_min == y_max {
-            y_max = y_min + 1.0;
+            y_max = if y_log { y_min * std::f64::consts::E } else { y_min + 1.0 };
         }
-        if !x_min.is_finite() || !x_max.is_finite() || !y_min.is_finite() || !y_max.is_finite() || x_min >= x_max || y_min >= y_max {
-            return Err(Error::Invalid("Read Contour: Choose Finite Increasing Axis Bounds".into()));
+        if !x_min.is_finite()
+            || !x_max.is_finite()
+            || !y_min.is_finite()
+            || !y_max.is_finite()
+            || x_min >= x_max
+            || y_min >= y_max
+            || x_log && x_min <= 0.0
+            || y_log && y_min <= 0.0
+        {
+            return Err(Error::Invalid("Query Contour: Select Finite Increasing Bounds and Positive Logarithmic Axes".into()));
         }
         let columns = request.window.bins.get().min(request.limit).max(1);
         let rows = (request.limit / columns).max(1);
-        let width = (x_max - x_min) / columns as f64;
-        let height = (y_max - y_min) / rows as f64;
-        let reduce = match reduction {
-            v1::Reduction::Min => "MIN(z)",
-            v1::Reduction::Max => "MAX(z)",
-            _ => "AVG(z)",
-        };
-        let query = format!(
-            "{input} SELECT MIN(CAST((x-({x_min}))/{width} AS INTEGER),{}),MIN(CAST((y-({y_min}))/{height} AS INTEGER),{}),{reduce},COUNT(*) FROM input WHERE typeof(x) IN ('real','integer') AND y IS NOT NULL AND z IS NOT NULL AND x>={x_min} AND x<={x_max} AND y>={y_min} AND y<={y_max} GROUP BY 1,2",
-            columns - 1,
-            rows - 1
-        );
+        let x_start = if x_log { x_min.ln() } else { x_min };
+        let x_end = if x_log { x_max.ln() } else { x_max };
+        let y_start = if y_log { y_min.ln() } else { y_min };
+        let y_end = if y_log { y_max.ln() } else { y_max };
+        let width = (x_end - x_start) / columns as f64;
+        let height = (y_end - y_start) / rows as f64;
         let mut grid = v1::ContourGrid {
             columns: columns as u32,
             rows: rows as u32,
-            x_edges: (0..=columns).map(|index| x_min + index as f64 * width).collect(),
-            y_edges: (0..=rows).map(|index| y_min + index as f64 * height).collect(),
-            values: vec![0.0; columns * rows],
-            valid: vec![false; columns * rows],
+            x_edges: (0..=columns)
+                .map(|index| {
+                    let value = x_start + index as f64 * width;
+                    if x_log { value.exp() } else { value }
+                })
+                .collect(),
+            y_edges: (0..=rows)
+                .map(|index| {
+                    let value = y_start + index as f64 * height;
+                    if y_log { value.exp() } else { value }
+                })
+                .collect(),
+            values: vec![0.0; rows * columns],
+            valid: vec![false; rows * columns],
         };
-        let mut statement = connection.prepare(&query)?;
+        let mut counts = vec![0_u64; rows * columns];
         let mut count = 0;
-        for row in statement.query_map(bind(&request), |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, f64>(2)?, row.get::<_, i64>(3)?))
-        })? {
-            let (column, row, value, n) = row?;
-            let index = row as usize * columns + column as usize;
-            grid.values[index] = value;
+        let mut query = connection.prepare(&format!(
+            "{input} SELECT x,y,z FROM input WHERE {valid} AND x>={x_min} AND x<={x_max} AND y>={y_min} AND y<={y_max}"
+        ))?;
+        for row in query.query_map(bind(&request), |row| Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?, row.get::<_, f64>(2)?)))? {
+            let (x, y, z) = row?;
+            if !x.is_finite() || !y.is_finite() || !z.is_finite() {
+                continue;
+            }
+            let x = if x_log { x.ln() } else { x };
+            let y = if y_log { y.ln() } else { y };
+            let column = (((x - x_start) / width) as usize).min(columns - 1);
+            let row = (((y - y_start) / height) as usize).min(rows - 1);
+            let index = row * columns + column;
+            counts[index] += 1;
+            count += 1;
+            grid.values[index] = if !grid.valid[index] {
+                z
+            } else {
+                match reduction {
+                    v1::Reduction::Min => grid.values[index].min(z),
+                    v1::Reduction::Max => grid.values[index].max(z),
+                    _ => grid.values[index] + (z - grid.values[index]) / counts[index] as f64,
+                }
+            };
             grid.valid[index] = true;
-            count += n as u64;
         }
         Ok((grid, count))
     }
@@ -311,6 +419,49 @@ impl Store {
             output.valid[index] = true;
             count += n as u64;
         }
+        for highlight in &definition.highlights {
+            let field = |expression: Option<&v1::DataExpression>| -> Result<String> {
+                match expression.and_then(|expression| expression.kind.as_ref()) {
+                    Some(v1::data_expression::Kind::Stream(reference)) if reference.identifier == request.window.stream => {
+                        Ok(reference.field.clone())
+                    }
+                    _ => Err(Error::Invalid("Query Grid Highlight: Bind Row and Column Expressions to the Selected Stream".into())),
+                }
+            };
+            let row = field(highlight.row.as_ref())?;
+            let column = field(highlight.column.as_ref())?;
+            let binding = KindWindow {
+                window: request.window,
+                x: Some(&row),
+                z: Some(&column),
+                group: request.group,
+                limit: request.limit,
+            };
+            let query = format!(
+                "{} SELECT x,z,CASE WHEN ?10 IS NULL THEN t ELSE g END AS frame,MAX(position) FROM input WHERE x IS NOT NULL AND z IS NOT NULL GROUP BY frame ORDER BY frame LIMIT {}",
+                input,
+                request.limit + 1
+            );
+            let mut statement = connection.prepare(&query)?;
+            for value in statement
+                .query_map(bind(&binding), |row| Ok((row.get::<_, Value>(0)?, row.get::<_, Value>(1)?, row.get::<_, Value>(2)?)))?
+            {
+                let (row, column, frame) = value?;
+                let frame = match frame {
+                    Value::Integer(time) if request.group.is_none() => instant(time),
+                    value => text(value),
+                };
+                let row = rows.iter().position(|axis| axis.key == text(row.clone()));
+                let column = columns.iter().position(|axis| axis.key == text(column.clone()));
+                if let (Some(row), Some(column), Some(frame)) = (row, column, frames.get_mut(&frame)) {
+                    frame.highlights.push(v1::GridCell {
+                        row: row as u32,
+                        column: column as u32,
+                        label: highlight.label.clone(),
+                    });
+                }
+            }
+        }
         Ok((
             v1::GridFrames {
                 rows,
@@ -324,7 +475,7 @@ impl Store {
     pub fn spectrum_window(&self, request: KindWindow<'_>, options: &v1::PlotFftOptions) -> Result<(v1::PlotColumn, u64)> {
         let connection = self.lock()?;
         let window = &request.window;
-        let mut statement=connection.prepare("SELECT source_ns,number FROM sample_fields INDEXED BY sample_fields_time WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL ORDER BY source_ns,position LIMIT ?8")?;
+        let mut statement=connection.prepare("SELECT source_ns,number FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL ORDER BY source_ns,position LIMIT ?8")?;
         let rows = statement
             .query_map(
                 params![
@@ -424,7 +575,7 @@ impl Store {
 /* === Private Functions === */
 
 fn input() -> &'static str {
-    "WITH input AS (SELECT y.position,y.source_ns AS t,COALESCE(x.number,x.label) AS x,y.number AS y,COALESCE(z.number,z.label) AS z,COALESCE(g.label,g.number,'') AS g FROM sample_fields AS y INDEXED BY sample_fields_time LEFT JOIN sample_fields x ON x.execution=y.execution AND x.stream=y.stream AND x.position=y.position AND x.field=?8 LEFT JOIN sample_fields z ON z.execution=y.execution AND z.stream=y.stream AND z.position=y.position AND z.field=?9 LEFT JOIN sample_fields g ON g.execution=y.execution AND g.stream=y.stream AND g.position=y.position AND g.field=?10 WHERE y.execution=?1 AND y.stream=?2 AND y.field=?3 AND y.source_ns>=?4 AND y.source_ns<=?5 AND y.position>?6 AND y.position<=?7)"
+    "WITH input AS (SELECT y.position,y.source_ns AS t,COALESCE(x.number,x.label) AS x,y.number AS y,COALESCE(z.number,z.label) AS z,COALESCE(g.label,g.number,'') AS g FROM sample_fields AS y LEFT JOIN sample_fields x ON x.execution=y.execution AND x.stream=y.stream AND x.position=y.position AND x.field=?8 LEFT JOIN sample_fields z ON z.execution=y.execution AND z.stream=y.stream AND z.position=y.position AND z.field=?9 LEFT JOIN sample_fields g ON g.execution=y.execution AND g.stream=y.stream AND g.position=y.position AND g.field=?10 WHERE y.execution=?1 AND y.stream=?2 AND y.field=?3 AND y.source_ns>=?4 AND y.source_ns<=?5 AND y.position>?6 AND y.position<=?7)"
 }
 fn bind(request: &KindWindow<'_>) -> rusqlite::ParamsFromIter<Vec<Value>> {
     let window = &request.window;

@@ -51,13 +51,17 @@ impl Store {
             window.after as i64,
             window.through as i64
         ];
-        let (count,min,max,mean,squares): (i64,Option<f64>,Option<f64>,Option<f64>,Option<f64>) = connection.query_row(&format!("SELECT COUNT(*),MIN(number),MAX(number),AVG(number),SUM(number*number) FROM sample_fields INDEXED BY sample_fields_time WHERE {condition}"), parameters, |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?)))?;
+        let (count, min, max, mean, squares): (i64, Option<f64>, Option<f64>, Option<f64>, Option<f64>) = connection.query_row(
+            &format!("SELECT COUNT(*),MIN(number),MAX(number),AVG(number),SUM(number*number) FROM sample_fields WHERE {condition}"),
+            parameters,
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+        )?;
         if count == 0 {
             return Ok(v1::Statistics::default());
         }
         let mean = mean.unwrap();
         let variance: f64 = connection.query_row(
-            &format!("SELECT AVG((number-?8)*(number-?8)) FROM sample_fields INDEXED BY sample_fields_time WHERE {condition}"),
+            &format!("SELECT AVG((number-?8)*(number-?8)) FROM sample_fields WHERE {condition}"),
             params![
                 window.execution,
                 window.stream,
@@ -73,9 +77,7 @@ impl Store {
         let percentile = |rank: f64| -> Result<f64> {
             let index = rank * (count - 1) as f64;
             let values = connection
-                .prepare(&format!(
-                    "SELECT number FROM sample_fields INDEXED BY sample_fields_time WHERE {condition} ORDER BY number LIMIT 2 OFFSET ?8"
-                ))?
+                .prepare(&format!("SELECT number FROM sample_fields WHERE {condition} ORDER BY number LIMIT 2 OFFSET ?8"))?
                 .query_map(
                     params![
                         window.execution,
@@ -93,12 +95,12 @@ impl Store {
             Ok(values[0] + (values.get(1).copied().unwrap_or(values[0]) - values[0]) * index.fract())
         };
         let first = connection.query_row(
-            &format!("SELECT number FROM sample_fields INDEXED BY sample_fields_time WHERE {condition} ORDER BY position LIMIT 1"),
+            &format!("SELECT number FROM sample_fields WHERE {condition} ORDER BY position LIMIT 1"),
             parameters,
             |row| row.get(0),
         )?;
         let last = connection.query_row(
-            &format!("SELECT number FROM sample_fields INDEXED BY sample_fields_time WHERE {condition} ORDER BY position DESC LIMIT 1"),
+            &format!("SELECT number FROM sample_fields WHERE {condition} ORDER BY position DESC LIMIT 1"),
             parameters,
             |row| row.get(0),
         )?;
@@ -155,7 +157,7 @@ impl Store {
         }
         let width = if statistics.max == statistics.min { 1.0 } else { (statistics.max - statistics.min) / bins as f64 };
         let connection = self.lock()?;
-        let mut query = connection.prepare("SELECT MIN(CAST((number-?8)/?9 AS INTEGER),?10),COUNT(*) FROM sample_fields INDEXED BY sample_fields_time WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL GROUP BY 1 ORDER BY 1")?;
+        let mut query = connection.prepare("SELECT MIN(CAST((number-?8)/?9 AS INTEGER),?10),COUNT(*) FROM sample_fields WHERE execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL GROUP BY 1 ORDER BY 1")?;
         let mut histogram = (0..bins)
             .map(|index| v1::PlotHistogramBin {
                 lower: statistics.min + index as f64 * width,
@@ -205,9 +207,7 @@ impl Store {
         let quantile = |fraction: f64| -> Result<f64> {
             let index = fraction * (statistics.count - 1) as f64;
             let values = connection
-                .prepare(&format!(
-                    "SELECT number FROM sample_fields INDEXED BY sample_fields_time WHERE {condition} ORDER BY number LIMIT 2 OFFSET ?8"
-                ))?
+                .prepare(&format!("SELECT number FROM sample_fields WHERE {condition} ORDER BY number LIMIT 2 OFFSET ?8"))?
                 .query_map(
                     params![
                         window.execution,
@@ -228,9 +228,39 @@ impl Store {
         let q3 = quantile(0.75)?;
         let lower = q1 - 1.5 * (q3 - q1);
         let upper = q3 + 1.5 * (q3 - q1);
-        let (lower_whisker,upper_whisker) = connection.query_row(&format!("SELECT MIN(number),MAX(number) FROM sample_fields INDEXED BY sample_fields_time WHERE {condition} AND number>=?8 AND number<=?9"), params![window.execution,window.stream,window.field,window.start_ns,window.end_ns,window.after as i64,window.through as i64,lower,upper], |row| Ok((row.get(0)?,row.get(1)?)))?;
-        let outliers = connection.prepare(&format!("SELECT number FROM sample_fields INDEXED BY sample_fields_time WHERE {condition} AND (number<?8 OR number>?9) ORDER BY number LIMIT ?10"))?
-            .query_map(params![window.execution,window.stream,window.field,window.start_ns,window.end_ns,window.after as i64,window.through as i64,lower,upper,maximum_outliers as i64], |row| row.get(0))?.collect::<std::result::Result<_,_>>()?;
+        let (lower_whisker, upper_whisker) = connection.query_row(
+            &format!("SELECT MIN(number),MAX(number) FROM sample_fields WHERE {condition} AND number>=?8 AND number<=?9"),
+            params![
+                window.execution,
+                window.stream,
+                window.field,
+                window.start_ns,
+                window.end_ns,
+                window.after as i64,
+                window.through as i64,
+                lower,
+                upper
+            ],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        let outliers = connection
+            .prepare(&format!("SELECT number FROM sample_fields WHERE {condition} AND (number<?8 OR number>?9) ORDER BY number LIMIT ?10"))?
+            .query_map(
+                params![
+                    window.execution,
+                    window.stream,
+                    window.field,
+                    window.start_ns,
+                    window.end_ns,
+                    window.after as i64,
+                    window.through as i64,
+                    lower,
+                    upper,
+                    maximum_outliers as i64
+                ],
+                |row| row.get(0),
+            )?
+            .collect::<std::result::Result<_, _>>()?;
         Ok(v1::PlotBoxSummary {
             count: statistics.count,
             min: statistics.min,

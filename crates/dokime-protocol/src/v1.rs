@@ -8799,6 +8799,9 @@ pub struct PlotRequest {
     pub viewport: ::core::option::Option<PlotWindow>,
     #[prost(uint32, optional, tag = "38")]
     pub panel_width: ::core::option::Option<u32>,
+    /// Optional fixed evidence cut; binds document plots to one captured snapshot.
+    #[prost(message, optional, tag = "39")]
+    pub at: ::core::option::Option<StorageCursor>,
 }
 /// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]

@@ -45,6 +45,8 @@ pub(super) struct State {
     pub identity: v1::BackendIdentity,
     pub urls: Mutex<HashMap<String, String>>,
     pub progress: Mutex<HashMap<String, watch::Receiver<Progress>>>,
+    pub temporary_reports: Mutex<std::collections::BTreeMap<String, (std::fs::File, v1::FileReference)>>,
+    pub temporary_report_limit: usize,
 }
 
 /* === Enums === */
@@ -74,6 +76,98 @@ impl ClientHost for State {
             can_export: capabilities.export,
             ..Default::default()
         })
+    }
+    fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, dokime_storage::ExecutionCut)> {
+        self.host.current_document(scope, identifier).map_err(convert)
+    }
+    fn render_report(&self, subject: &v1::ReportSubject, at: Option<&v1::StorageCursor>) -> Result<(std::fs::File, v1::ReportMetadata)> {
+        use std::io::{Seek, Write};
+        let (execution, cycle) = match subject.kind.as_ref() {
+            Some(v1::report_subject::Kind::Execution(id)) => (Some(id.as_str()), self.host.inner.store.metadata(id)?.execution.cycle),
+            Some(v1::report_subject::Kind::Cycle(id)) => (None, id.clone()),
+            None => return Err(Error::Invalid("Render Report: Select an Execution or Cycle".into())),
+        };
+        let mut snapshots = Vec::new();
+        for id in self.host.inner.store.identifiers()? {
+            if execution.is_some_and(|selected| selected != id) {
+                continue;
+            }
+            let cut = self.host.inner.store.metadata(&id)?;
+            if cut.execution.cycle != cycle {
+                continue;
+            }
+            let scope = v1::DocumentScope {
+                cycle_id: cycle.clone(),
+                execution_id: id,
+            };
+            let (document, mut cut) = self.host.current_document(&scope, "").map_err(convert)?;
+            if let Some(at) = at {
+                let history = v1::StoreHistory {
+                    store: self.identity.backend_id.clone(),
+                    epoch: scope.execution_id.clone(),
+                };
+                if execution.is_none() || at.history.as_ref() != Some(&history) || at.sequence > cut.frontier {
+                    return Err(Error::Invalid("Render Report: Refresh the Execution's Fixed Evidence Cursor".into()));
+                }
+                cut.frontier = at.sequence;
+            }
+            snapshots.push((document, self.host.snapshot_cut(cut).map_err(convert)?));
+        }
+        if snapshots.is_empty() {
+            return Err(Error::Invalid("Render Report: Select an Existing Execution or Cycle".into()));
+        }
+        let file = if snapshots.len() == 1 {
+            let (document, snapshot) = snapshots.remove(0);
+            self.host.render_document(&snapshot, document, self.render_settings).map_err(convert)?.into_file()
+        } else {
+            let mut output = tempfile::tempfile().map_err(|error| Error::Invalid(error.to_string()))?;
+            output
+                .write_all(b"<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Cycle Report</title><body>")
+                .map_err(|error| Error::Invalid(error.to_string()))?;
+            for (document, snapshot) in snapshots {
+                let rendered = self.host.render_document(&snapshot, document, self.render_settings).map_err(convert)?;
+                let mut file = rendered.into_file();
+                // Each Execution Is an Independent Embedded HTML Document.
+                let mut bytes = String::new();
+                use std::io::Read;
+                file.read_to_string(&mut bytes).map_err(|error| Error::Invalid(error.to_string()))?;
+                let body = bytes.split_once("<body>").map_or(bytes.as_str(), |(_, body)| body).trim_end_matches("</body></html>");
+                output.write_all(b"<article>").map_err(|error| Error::Invalid(error.to_string()))?;
+                output.write_all(body.as_bytes()).map_err(|error| Error::Invalid(error.to_string()))?;
+                output.write_all(b"</article>").map_err(|error| Error::Invalid(error.to_string()))?;
+            }
+            output.write_all(b"</body></html>").map_err(|error| Error::Invalid(error.to_string()))?;
+            output.rewind().map_err(|error| Error::Invalid(error.to_string()))?;
+            output
+        };
+        let metadata = v1::ReportMetadata {
+            test_cycle_id: cycle,
+            test_execution_id: execution.map(str::to_owned),
+            identifier: if execution.is_some() { "execution".into() } else { "cycle".into() },
+            origin: v1::ReportOrigin::Current as i32,
+            ..Default::default()
+        };
+        Ok((file, metadata))
+    }
+    fn retain_report(&self, file: std::fs::File, reference: v1::FileReference) -> Result<()> {
+        let identifier =
+            reference.metadata.as_ref().ok_or_else(|| Error::Invalid("Render Report: Supply Its Temporary Identity".into()))?.id.clone();
+        let mut reports = lock(&self.temporary_reports).map_err(convert)?;
+        if reports.len() >= self.temporary_report_limit && !reports.contains_key(&identifier) {
+            let first = reports.keys().next().cloned();
+            if let Some(first) = first {
+                reports.remove(&first);
+            }
+        }
+        reports.insert(identifier, (file, reference));
+        Ok(())
+    }
+    fn temporary_report(&self, identifier: &str) -> Result<Option<(std::fs::File, v1::FileReference)>> {
+        let reports = lock(&self.temporary_reports).map_err(convert)?;
+        reports
+            .get(identifier)
+            .map(|(file, reference)| Ok((file.try_clone().map_err(|error| Error::Invalid(error.to_string()))?, reference.clone())))
+            .transpose()
     }
     fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report> {
         let snapshot = self.host.snapshot(execution).map_err(convert)?;
