@@ -31,6 +31,8 @@ pub mod prompts_respond;
 pub mod query_list_executions;
 pub mod reports_download_execution_report;
 pub mod reports_publish_execution_report;
+pub mod runtime_get_health;
+pub mod runtime_get_identity;
 pub mod telemetry_list_samples;
 
 /* === Re-Exports === */
@@ -54,6 +56,10 @@ use dokime_storage::Store;
 /* === Constants === */
 
 pub const METHODS: &[&str] = &[
+    "/dokime.v1.Runtime/GetHealth",
+    "/dokime.v1.Runtime/RunGetHealth",
+    "/dokime.v1.Runtime/GetIdentity",
+    "/dokime.v1.Runtime/RunGetIdentity",
     "/dokime.v1.Plugins/List",
     "/dokime.v1.Plugins/Add",
     "/dokime.v1.Catalog/GetSuite",
@@ -81,6 +87,8 @@ pub const METHODS: &[&str] = &[
 /* === Type Aliases === */
 
 pub type Output<T> = tokio_stream::wrappers::ReceiverStream<std::result::Result<T, tonic::Status>>;
+
+pub enum RunFrame<Q> { Request(Q), Finish, Cancel }
 
 /* === Structs === */
 
@@ -163,6 +171,39 @@ pub fn status(error: Error) -> tonic::Status {
         Error::Storage(_) => tonic::Status::failed_precondition(error.to_string()),
         _ => tonic::Status::invalid_argument(error.to_string()),
     }
+}
+
+pub async fn run_unary<Q, I, R, O, F, Fut>(
+    context: Context, mut input: tonic::Streaming<I>, timeout: Duration,
+    decode: fn(I) -> Option<RunFrame<Q>>, encode: fn(R) -> O, handle: F,
+) -> std::result::Result<tonic::Response<Output<O>>, tonic::Status>
+where Q: Send + 'static, I: prost::Message + Default + Send + 'static, R: Send + 'static,
+    O: Send + 'static, F: FnOnce(Context, Q) -> Fut + Send + 'static,
+    Fut: Future<Output = Result<R>> + Send + 'static,
+{
+    let (send, receive) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
+    tokio::spawn(async move {
+        let work = async {
+            let first = input.message().await?.and_then(decode);
+            let Some(RunFrame::Request(request)) = first else {
+                return Err(tonic::Status::invalid_argument("Run Operation: Send One Request First"));
+            };
+            while let Some(frame) = input.message().await? {
+                match decode(frame) {
+                    Some(RunFrame::Finish) => break,
+                    Some(RunFrame::Cancel) => return Err(tonic::Status::cancelled("Run Operation: Cancelled Before Admission")),
+                    _ => return Err(tonic::Status::invalid_argument("Run Operation: Send Finish or Cancel After Its Request")),
+                }
+            }
+            handle(context, request).await.map(encode).map_err(status)
+        };
+        let result = match tokio::time::timeout(timeout, work).await {
+            Ok(result) => result,
+            Err(_) => Err(tonic::Status::deadline_exceeded("Run Operation: Deadline Expired; Retry the Read or Inspect the Committed Mutation")),
+        };
+        let _ = send.send(result).await;
+    });
+    Ok(tonic::Response::new(Output::new(receive)))
 }
 
 /* === Private Functions === */

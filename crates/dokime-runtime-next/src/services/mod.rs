@@ -23,6 +23,7 @@ mod plugins;
 mod prompts;
 mod query;
 mod reports;
+mod runtime;
 mod state;
 mod telemetry;
 
@@ -229,6 +230,7 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
                     .max_decoding_message_size(message_bytes)
                     .max_encoding_message_size(message_bytes),
             )
+            .add_service(v1::runtime_server::RuntimeServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes))
             .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown.cancelled_owned())
             .await
     });

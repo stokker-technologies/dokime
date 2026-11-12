@@ -366,3 +366,17 @@ manifest versions; protocol regeneration; tooling, execution-host and SDK guidan
 
 - [x] Replace native Python release packaging with one pure wheel and source distribution, shared across Release and Nightly, with generated protocol validation and one registry upload.
 - [x] Pass focused release-layout (15), plugin packaging (2), CI gates (25) and supply tooling (16) tests, Python build/package, format, Python and repository checks (128 tooling tests in the final Python check). Local dry publication reuses the integration checkout's native packages, stages the shared Python pair once, and stops at the unchanged git-dependency rejection. Keep commits local; Linux execution proof remains hosted.
+
+## Administration Services
+
+Source inventory: assigned Plugins, Catalog, Settings, Secrets, Backend, Appearance, Runtime, Remote and Health service files; matching operation and story files; additive host/storage support and shared registration lists. Old crates and other service files remain untouched.
+
+- [x] Runtime GetIdentity/GetHealth and their Run transports; real-process restart identity journey.
+- [ ] Appearance.
+- [ ] Remote pairing, key/certificate rotation and listener configuration.
+- [ ] Plugins entries, installation, bundles, removal and states.
+- [ ] Catalog schemas and paging.
+- [ ] Settings read/write and on-demand plugin settings.
+- [ ] Secrets by identifier and archives.
+- [ ] Backend diagnostics, logs and trace; Health paging.
+- [ ] Required final focused proof.
