@@ -103,6 +103,20 @@ message AggregateReply {
 }
 
 // Source: crates/dokime-domain/src/model/plots/wire.rs
+// Unary analysis operations use the analysis metadata identifier as their operation ID.
+// Input is one bounded raw scalar series; output must match every declared output.
+message AnalysisRequest {
+  AnalysisSamples samples = 1;
+  MapValue parameters = 2;
+}
+message AnalysisSamples {
+  repeated double axis = 1;
+  repeated double values = 2;
+  string axis_unit = 3;
+  string unit = 4;
+}
+message AnalysisResponse { repeated AnalysisValues outputs = 1; }
+
 message AnalysisComputation {
   Analysis definition = 1;
   AnalysisSelection selection = 2;
@@ -2438,6 +2452,10 @@ message PlotPayload {
 
 // Source: crates/dokime-domain/src/model/plots/wire.rs
 message PlotPayloadDiagnostics {
+  // Number of retained source rows consumed by this window reduction.
+  uint64 examined_rows = 7;
+  // Actual temporal bucket resolution, in nanoseconds; zero for raw points.
+  uint64 resolution_nanos = 8;
   uint64 series_count = 1;
   uint64 point_count = 2;
   uint64 raw_point_count = 3;
@@ -2524,6 +2542,8 @@ message PlotRequest {
   PlotWindow summary_window = 36;
   PlotWindow viewport = 37;
   optional uint32 panel_width = 38;
+  // Optional fixed evidence cut; binds document plots to one captured snapshot.
+  StorageCursor at = 39;
 }
 
 // Source: crates/dokime-domain/src/model/plots/wire.rs

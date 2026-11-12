@@ -17,14 +17,19 @@ mod bundle_permissions;
 mod bundles;
 mod catalog;
 mod clock;
+mod content;
 mod diagnostics;
+mod documents;
 mod evidence;
 mod execution;
 mod health;
 mod history;
 mod managed_plugins;
+mod media;
+mod notes;
 mod observation;
 mod planning;
+mod plots;
 mod plugin_entries;
 mod plugins;
 mod prompts;
@@ -196,6 +201,8 @@ pub async fn serve_with_diagnostics(
         },
         identity,
         progress: Mutex::new(std::collections::HashMap::new()),
+        temporary_reports: Mutex::new(std::collections::BTreeMap::new()),
+        temporary_report_limit: settings.max_cases,
     };
     let close_timeout = settings.mutation_timeout;
     let context = dokime_operations_next::client::Context {
@@ -241,6 +248,31 @@ fn routes<L: Clone>(mut builder: tonic::transport::Server<L>, services: Services
         )
         .add_service(
             v1::catalog_server::CatalogServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::content_server::ContentServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::documents_server::DocumentsServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::media_server::MediaServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::notes_server::NotesServer::new(services.clone())
+                .max_decoding_message_size(message_bytes)
+                .max_encoding_message_size(message_bytes),
+        )
+        .add_service(
+            v1::plots_server::PlotsServer::new(services.clone())
                 .max_decoding_message_size(message_bytes)
                 .max_encoding_message_size(message_bytes),
         )

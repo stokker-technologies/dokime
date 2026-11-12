@@ -1059,6 +1059,21 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.AggregateReply").expect("generated protocol descriptor")
 }
 }
+impl prost_reflect::ReflectMessage for crate::v1::AnalysisRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.AnalysisRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::AnalysisSamples {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.AnalysisSamples").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::v1::AnalysisResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.v1.AnalysisResponse").expect("generated protocol descriptor")
+}
+}
 impl prost_reflect::ReflectMessage for crate::v1::AnalysisComputation {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.v1.AnalysisComputation").expect("generated protocol descriptor")

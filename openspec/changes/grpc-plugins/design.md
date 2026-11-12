@@ -10,7 +10,8 @@ The `feat/gp-host-new` worktree owns new storage, operations and runtime crates,
 additive workspace membership, their guide and this change. It returns local commits.
 
 Integrate the gRPC-wave changes under `openspec/changes/` together on `feat/grpc-plugins`.
-`storage-interface` starts separately after wave 5, not in this integration.
+The owner’s combined delivery includes the locked storage and plot changes under
+the single `grpc-plugins` marker; feature workers do not start or retire separate markers.
 Feature worktrees hand back local commits; the integration checkout is `feat/grpc-plugins`.
 Use the single `grpc-plugins` implementation marker for the combined work.
 The Implementation Waves table below owns ordering and current completion.
@@ -790,6 +791,46 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+- Explicit plot Y expressions select the columns; unsupported mixed or non-category reducers refuse before returning raw values. Evidence-card filters produce a capture binding failure and refuse HTML rendering until their evaluator is connected.
+
+- Published report seals bind exact stored protobuf document bytes; verification excludes only the derived ID/seal fields and never re-encodes decoded maps.
+
+- Analysis operations use their metadata ID and unary `AnalysisRequest`/`AnalysisResponse`; inputs are bounded raw columns with typed parameters, and outputs must match declared axes, units and aggregate limits.
+- Raw windows refuse excess samples; LTTB ranks candidates inside SQLite and returns only selected vertices. Encoded snapshot budgets coarsen complete buckets and retain the original selection identity.
+- Document repeat pages use bounded distinct-value reads, typed-value hashes for instance IDs and epoch/document/selection/frontier-bound continuations; changed preferences require restarting the capture.
+- Repeated plot requests use the concrete card ID; saved preferences use the authored plot ID across its repeat instances. Cycle captures are cacheable only when every retained member is sealed.
+- Cycle capture uses the default records/artifacts/media document; authored execution documents stay scoped to their frozen origins. Summary/plot selections inherit repeat filters; report bands use masked marching-square cells with nonuniform edge mapping.
+
+- Report and archive capture hold one SQLite read transaction across metadata, notes and data reads; cycle members use scoped pages rather than a whole-store identifier inventory.
+- Evidence exports use the development v1 protobuf archive shape, including separately chunked artifact/file content; no old-root migration or compatibility layer is introduced.
+
+- Document plot requests carry `PlotRequest.at` (field 39); its history binds backend and execution, and its sequence fixes the evidence frontier.
+- Plot expression projections run in an isolated read connection; source-time joins select the latest retained row at or before the base row in the same execution. Dropping its cancellation guard interrupts only that connection.
+- Record field indexes are derived: unreadable payloads or absent frozen descriptors remain raw evidence and are excluded from the index; typed readers still report their decoding/schema failure.
+- Materialized reports are temporary files; their returned ID downloads through Content.DownloadArtifact, never enters artifact inventory, and expires on restart or bounded cache eviction. Publication alone stores a sealed report.
+- Execution files expose additive storage registration/append/finish methods for the producer group. Replacing a logical path retains old identities for existing followers.
+- Planned-case note ownership is obsolete because origins replaced planned cases; shared proto variants remain while old consumers use them. No RPC is retired.
+
+- Content stages client uploads until explicit size/digest completion and input finish; cancellation removes only staged bytes. Unary plugin transfers preserve ordered sequence, exact replay, in-transfer replacement and explicit abort.
+- Execution files use retained SQLite chunk identities; replacing a logical name starts a new identity, and resumed follows retain the original production.
+- Evidence exports stream v1 protobuf execution archives (cycle exports repeat execution archives at field 1), including content metadata and 64 KiB chunks; rendering does not publish.
+
+- Notes use the backend’s single `local-client` principal; the shared route composer authenticates every remote data operation. Notes bind to execution or cycle, since planned cases were replaced by frozen origins.
+- Notes persist in the v1 baseline and refuse closed owners; incompatible roots require backup and explicit reset, with no migration.
+
+
+Bulk sample ingestion retains one Arrow IPC batch per supplied stream batch and atomically indexes exact protobuf rows and numeric fields; all remain sealed together at storage v1.
+Time-series windows consume an indexed source-time range once and retain only first/minimum/maximum/last buckets at the requested resolution; diagnostics count consumed rows and return resolution nanoseconds.
+Plot snapshot batches have only the configured transport bound, while watches deliver one plot in request order and isolate per-plot failures; all ten kind base paths use storage-owned bounded reducers.
+Frequency transforms refuse windows exceeding the configured input bound rather than silently resampling the signal; histogram and box summaries compute exact ranks in storage.
+Immutable execution cuts cache seals verified at startup or sealing; complete evidence reads still verify their full digest, and client metadata reads do not rehash retained streams.
+
+Telemetry pages use indexed source-time and durable-position bounds; per-stream continuations advance only delivered rows, while event-driven watches drain pages before waiting.
+Scoped evidence frontiers stop at the selected execution or cycle so unrelated writes and host restart do not change a sealed page.
+Numeric stream fields are indexed atomically with retained Arrow evidence for storage-owned plot reduction; the changed development table shape remains v1 and rejects older roots.
+
+Evidence cursors bind the storage-root backend identity and encoded selection; captured structured records remain the default and persisted logs are selected as `dokime.log`.
+Storage notifications wake evidence watches after committed writes; query metadata reads avoid rehashing streams already verified at host startup.
 Prompt answers are durably acknowledged before releasing the waiting plugin; GetPrompt resolves the frozen question and answer after settlement or restart.
 Prompt catalogs come from admitted plugin catalogs; pending pages bind epoch, selected cycle/execution and content, rejecting stale or changed continuations.
 Planning freezes selected file values as opaque text parameters in the new TestCase; no client path grants filesystem access.
@@ -1102,3 +1143,9 @@ not serve new operations or migrate the existing catalog readers.
 construction. `imported-executions` depends on it; import admission, bulk staging,
 SDK builders and draft/report publication follow the SDK wave and
 `storage-interface` after wave 5.
+
+The combined data/execution/administration host uses one v1 storage table inventory and refuses incompatible existing roots with backup and explicit reset guidance. The CLI consumes served report streams without publication; remote bearer authentication covers data services through the same route composer as administration and execution. Query ListExecutions joins the shared case/archive presentation; held Query and Media operations and unfinished plot/document variants remain explicit in tasks.md.
+
+Duplicate note mutation identities retain ALREADY_EXISTS; optimistic administration revision conflicts retain ABORTED. The storage errors distinguish these meanings before transport projection. History deletion removes chunked content, derived data indexes, plot preferences and execution notes atomically with the sealed execution.
+
+Plot analysis dispatch resolves the ready provider by its frozen Description.id; the administration entry UUID identifies placement and is never passed to the native invocation registry.

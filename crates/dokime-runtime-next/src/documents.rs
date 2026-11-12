@@ -21,13 +21,13 @@ use std::{io::Write, num::NonZeroUsize, path::Path};
 // Third Party Imports
 use harmos_protocol::v1 as h;
 use prost::Message;
-use prost_reflect::{DescriptorPool, DynamicMessage, FieldDescriptor, MessageDescriptor, Value};
+
 use tempfile::NamedTempFile;
 
 // Local Imports
 use crate::{Error, Host, Result};
 use dokime_protocol::v1;
-use dokime_storage::{Execution, ExecutionCut, ExecutionState, Report, Sample, Store};
+use dokime_storage::{Execution, ExecutionCut, Report, Store};
 
 /* === Constants === */
 
@@ -41,6 +41,7 @@ pub struct FixedSnapshot {
     store: Store,
     cut: ExecutionCut,
     counts: dokime_storage::OutcomeCounts,
+    _read_cancellation: Option<dokime_storage::ReadCancellation>,
 }
 
 #[derive(Clone, Copy)]
@@ -74,22 +75,131 @@ impl RenderedDocument {
     pub fn path(&self) -> &Path {
         self.output.path()
     }
+    pub fn into_file(self) -> std::fs::File {
+        self.output.into_file()
+    }
     pub fn html(&self) -> Result<Vec<u8>> {
         Ok(std::fs::read(self.path())?)
     }
 }
 impl Host {
+    pub fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, ExecutionCut)> {
+        self.current_document_in(&self.inner.store, scope, identifier)
+    }
+    pub(crate) fn current_document_in(
+        &self, store: &Store, scope: &v1::DocumentScope, identifier: &str,
+    ) -> Result<(v1::Document, ExecutionCut)> {
+        if scope.execution_id.is_empty() {
+            if !identifier.is_empty() && identifier != "default" {
+                return Err(Error::Invalid("Capture Cycle Document: Select the Default Document".into()));
+            }
+            let execution = store
+                .cycle_execution_page(&scope.cycle_id, "", NonZeroUsize::new(1).unwrap())?
+                .into_iter()
+                .next()
+                .ok_or_else(|| Error::Invalid("Capture Cycle Document: Create or Import an Execution in This Cycle First".into()))?;
+            let mut cut = store.cut(&execution)?;
+            cut.frontier = store.cycle_evidence_frontier(&scope.cycle_id)?;
+            let sections = [
+                ("events", "Records", v1::EvidenceCard::Records),
+                ("artifacts", "Artifacts", v1::EvidenceCard::Artifacts),
+                ("media", "Media", v1::EvidenceCard::Media),
+            ]
+            .into_iter()
+            .map(|(id, label, kind)| v1::Section {
+                metadata: Some(v1::Metadata {
+                    identifier: format!("cycle.{id}"),
+                    label: label.into(),
+                    ..Default::default()
+                }),
+                cards: vec![v1::Card {
+                    metadata: Some(v1::Metadata {
+                        identifier: format!("cycle.{id}.list"),
+                        label: label.into(),
+                        ..Default::default()
+                    }),
+                    body: Some(v1::card::Body::Evidence(kind as i32)),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            })
+            .collect();
+            return Ok((
+                v1::Document {
+                    metadata: Some(v1::Metadata {
+                        identifier: "default".into(),
+                        label: "Cycle Report".into(),
+                        ..Default::default()
+                    }),
+                    sections,
+                },
+                cut,
+            ));
+        }
+        let cut = store.cut(&scope.execution_id)?;
+        if cut.execution.cycle != scope.cycle_id {
+            return Err(Error::Invalid("Capture Document: Select the Execution in Its Own Cycle".into()));
+        }
+        let catalog = h::Catalog::decode(cut.execution.catalog.as_slice())?;
+        let mut documents = Vec::new();
+        for section in &catalog.sections {
+            if section.r#type != "dokime.v1.Suites" {
+                continue;
+            }
+            let suites = v1::Suites::decode(section.payload.as_slice())?;
+            for suite in suites.suites {
+                for template in suite.templates {
+                    let matched = match cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
+                        Some(v1::origin::Kind::PluginRun(run)) => {
+                            template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == run.template)
+                        }
+                        _ => true,
+                    };
+                    if matched {
+                        documents.extend(template.documents.into_iter().filter(|document| {
+                            identifier.is_empty() || document.metadata.as_ref().is_some_and(|metadata| metadata.identifier == identifier)
+                        }));
+                    }
+                }
+            }
+        }
+        if documents.is_empty() && identifier.is_empty() {
+            documents.push(v1::Document {
+                metadata: Some(v1::Metadata {
+                    identifier: "execution".into(),
+                    label: "Execution Report".into(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+        }
+        if documents.len() != 1 {
+            return Err(Error::Invalid("Capture Document: Select One Document ID from the Frozen Execution Catalog".into()));
+        }
+        let mut document = documents.remove(0);
+        let id = document.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
+        apply_preferences(store, &cut.execution.identifier, id, &mut document.sections)?;
+        Ok((document, cut))
+    }
+
     pub fn snapshot(&self, execution: &str) -> Result<FixedSnapshot> {
         let cut = self.inner.store.cut(execution)?;
-        if cut.state != ExecutionState::Sealed {
-            return Err(Error::Invalid("Render Document: Select a Sealed Execution for Its Fixed Snapshot".into()));
-        }
-        let outcomes = self.inner.store.cycle_outcomes(&cut.execution.cycle)?;
+        self.snapshot_cut(cut)
+    }
+    pub fn snapshot_cut(&self, cut: ExecutionCut) -> Result<FixedSnapshot> {
+        let (store, guard) = self.inner.store.read_session()?;
+        let mut snapshot = self.snapshot_in(store, cut)?;
+        snapshot._read_cancellation = Some(guard);
+        Ok(snapshot)
+    }
+    pub(crate) fn snapshot_in(&self, store: Store, cut: ExecutionCut) -> Result<FixedSnapshot> {
+        let outcomes = store.cycle_outcomes(&cut.execution.cycle)?;
         let counts = dokime_storage::OutcomeCounts::from_outcomes(&outcomes);
         Ok(FixedSnapshot {
-            store: self.inner.store.clone(),
+            store,
             cut,
             counts,
+            _read_cancellation: None,
         })
     }
     pub fn render_document(&self, snapshot: &FixedSnapshot, document: v1::Document, settings: RenderSettings) -> Result<RenderedDocument> {
@@ -101,6 +211,12 @@ impl Host {
             escape(title),
             escape(title)
         )?;
+        write!(
+            output,
+            "<dl><dt>Execution</dt><dd>{}</dd><dt>Cycle</dt><dd>{}</dd></dl>",
+            escape(&snapshot.cut.execution.identifier),
+            escape(&snapshot.cut.execution.cycle)
+        )?;
         let counts = &snapshot.counts;
         write!(
             output,
@@ -108,12 +224,23 @@ impl Host {
             counts.evaluated, counts.not_evaluated, counts.declared
         )?;
         let catalog = h::Catalog::decode(snapshot.cut.execution.catalog.as_slice())?;
-        let pool = DescriptorPool::from_file_descriptor_set(
-            catalog.types.clone().ok_or_else(|| Error::Invalid("Render Document: Supply the Frozen Row Descriptors".into()))?,
-        )
-        .map_err(|error| Error::Invalid(format!("Render Document: {error}")))?;
-        for section in &document.sections {
-            render_section(&mut output, snapshot, section, &catalog, &pool, settings)?;
+        let mut offset = 0;
+        loop {
+            let expansion = dokime_operations_next::client::document_expansion::expand(
+                &snapshot.store,
+                &snapshot.cut,
+                &document,
+                offset,
+                settings.page_size.get(),
+            )
+            .map_err(|error| Error::Invalid(error.to_string()))?;
+            for section in &expansion.document.sections {
+                render_section(&mut output, snapshot, section, &catalog, settings)?;
+            }
+            match expansion.next {
+                Some(next) => offset = next,
+                None => break,
+            }
         }
         write!(output, "</body></html>")?;
         output.flush()?;
@@ -137,8 +264,7 @@ impl Host {
 /* === Private Functions === */
 
 fn render_section(
-    output: &mut NamedTempFile, snapshot: &FixedSnapshot, section: &v1::Section, catalog: &h::Catalog, pool: &DescriptorPool,
-    settings: RenderSettings,
+    output: &mut NamedTempFile, snapshot: &FixedSnapshot, section: &v1::Section, catalog: &h::Catalog, settings: RenderSettings,
 ) -> Result<()> {
     if section.repeat.is_some() {
         return Err(Error::Invalid("Render Document: Expand Repeated Sections Before Rendering".into()));
@@ -146,117 +272,230 @@ fn render_section(
     let label = section.metadata.as_ref().map_or("", |metadata| metadata.label.as_str());
     write!(output, "<section><h2>{}</h2>", escape(label))?;
     for card in &section.cards {
-        if !card.filters.is_empty() {
-            return Err(Error::Invalid("Render Document: Use Unfiltered Cards in This Renderer".into()));
-        }
+        let filters = card
+            .filters
+            .iter()
+            .map(|filter| v1::PlotFilter {
+                expression: filter.expression.clone(),
+                operator: filter.operator,
+                value: filter.value.clone(),
+            })
+            .collect::<Vec<_>>();
         match card.body.as_ref() {
             Some(v1::card::Body::Markdown(text)) => write!(output, "<pre>{}</pre>", escape(text))?,
-            Some(v1::card::Body::Plot(plot)) => render_plot(output, snapshot, plot, catalog, pool, settings)?,
-            _ => return Err(Error::Invalid("Render Document: Select Markdown or Time Series Cards".into())),
+            Some(v1::card::Body::Plot(plot)) => render_plot(output, snapshot, plot, &filters, catalog, settings)?,
+            Some(v1::card::Body::Table(table)) => {
+                write!(output, "<table>")?;
+                for row in &table.rows {
+                    write!(output, "<tr>")?;
+                    let mut cells = row.cells.iter().collect::<Vec<_>>();
+                    cells.sort_by_key(|(key, _)| *key);
+                    for (key, value) in cells {
+                        write!(output, "<td data-column=\"{}\">{}</td>", escape(key), escape(&crate::plot_html::display(value)))?;
+                    }
+                    write!(output, "</tr>")?;
+                }
+                write!(output, "</table>")?;
+            }
+            Some(v1::card::Body::Summary(summary)) => {
+                write!(output, "<dl>")?;
+                for tile in &summary.tiles {
+                    let value =
+                        tile.value.as_ref().ok_or_else(|| Error::Invalid("Render Summary: Supply Each Tile's Expression".into()))?;
+                    let value = snapshot.store.document_value_filtered(&snapshot.cut, value, &filters)?;
+                    write!(
+                        output,
+                        "<dt>{}</dt><dd>{}</dd>",
+                        escape(tile.metadata.as_ref().map_or("", |metadata| metadata.label.as_str())),
+                        escape(&crate::plot_html::display(&value))
+                    )?;
+                }
+                write!(output, "</dl>")?;
+            }
+            Some(v1::card::Body::Evidence(kind)) => {
+                if !filters.is_empty() {
+                    return Err(Error::Invalid("Render Evidence Card: Clear Its Filters Until Evidence-Card Filtering Is Served".into()));
+                }
+                render_evidence(output, snapshot, *kind, settings)?;
+            }
+            None => return Err(Error::Invalid("Render Document: Supply Each Card's Body".into())),
         }
     }
     for child in &section.sections {
-        render_section(output, snapshot, child, catalog, pool, settings)?;
+        render_section(output, snapshot, child, catalog, settings)?;
     }
     write!(output, "</section>")?;
     Ok(())
 }
 
 fn render_plot(
-    output: &mut NamedTempFile, snapshot: &FixedSnapshot, plot: &v1::Plot, catalog: &h::Catalog, pool: &DescriptorPool,
+    output: &mut NamedTempFile, snapshot: &FixedSnapshot, plot: &v1::Plot, filters: &[v1::PlotFilter], _catalog: &h::Catalog,
     settings: RenderSettings,
 ) -> Result<()> {
-    if plot.kind != v1::PlotKind::TimeSeries as i32
-        || plot.x.is_some()
-        || plot.y.is_empty()
-        || !plot.filters.is_empty()
-        || plot.series_by.is_some()
-    {
-        return Err(Error::Invalid("Render Document Plot: Select an Unfiltered Time Series with Stream Value Columns".into()));
-    }
-    let label = plot.metadata.as_ref().map_or("", |metadata| metadata.label.as_str());
-    write!(output, "<figure><figcaption>{}</figcaption>", escape(label))?;
-    for expression in &plot.y {
-        let Some(v1::data_expression::Kind::Stream(reference)) = expression.kind.as_ref() else {
-            return Err(Error::Invalid("Render Document Plot: Select a Numeric Stored Stream Field".into()));
-        };
-        let stream = catalog
-            .streams
-            .iter()
-            .find(|stream| stream.id == reference.identifier)
-            .ok_or_else(|| Error::Invalid(format!("Render Document Plot: Declare Stream {}", reference.identifier)))?;
-        let descriptor = pool
-            .get_message_by_name(&stream.row)
-            .ok_or_else(|| Error::Invalid("Render Document Plot: Restore the Stream Row Descriptor".into()))?;
-        let field = descriptor.get_field_by_name(&reference.field).ok_or_else(|| {
-            Error::Invalid(format!("Render Document Plot: Select a Declared Field {}.{}", reference.identifier, reference.field))
-        })?;
-        let mut count = 0_u64;
-        let mut min_time = i64::MAX;
-        let mut max_time = i64::MIN;
-        let mut min = f64::INFINITY;
-        let mut max = f64::NEG_INFINITY;
-        scan(snapshot, &stream.id, &descriptor, &field, settings.page_size, |sample, value| {
-            count += 1;
-            min_time = min_time.min(sample.source_ns);
-            max_time = max_time.max(sample.source_ns);
-            min = min.min(value);
-            max = max.max(value);
-            Ok(())
-        })?;
-        write!(
-            output,
-            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 640 240\" role=\"img\" data-stream=\"{}\" data-count=\"{count}\"><path d=\"M20 10V220H630\" fill=\"none\" stroke=\"currentColor\"/><polyline fill=\"none\" stroke=\"#4477aa\" points=\"",
-            escape(&stream.id)
-        )?;
-        let stride = count.div_ceil(settings.display_points.get() as u64).max(1);
-        let mut index = 0_u64;
-        scan(snapshot, &stream.id, &descriptor, &field, settings.page_size, |sample, value| {
-            if index.is_multiple_of(stride) {
-                let x = 20.0
-                    + 610.0 * ((sample.source_ns as i128 - min_time as i128) as f64 / (max_time as i128 - min_time as i128).max(1) as f64);
-                let y = if max == min { 115.0 } else { 220.0 - 210.0 * (value - min) / (max - min) };
-                write!(output, "{x:.3},{y:.3} ")?;
+    let scope = v1::EvidenceScope {
+        execution_id: Some(snapshot.cut.execution.identifier.clone()),
+        cycle_id: Some(snapshot.cut.execution.cycle.clone()),
+        ..Default::default()
+    };
+    let mut request =
+        dokime_operations_next::client::document_plot::request(plot, scope).map_err(|error| Error::Invalid(error.to_string()))?;
+    request.filters.extend_from_slice(filters);
+    request.max_points = Some(plot.display_points.unwrap_or(settings.display_points.get() as u32) as u64);
+    let (store, _cancel_on_drop) = snapshot.store.read_session()?;
+    let envelope = dokime_operations_next::client::plots_query_snapshots::snapshot_at(
+        &store,
+        &snapshot.cut,
+        &request,
+        settings.display_points.get().max(4),
+        0,
+        "v1",
+    )
+    .map_err(|error| Error::Invalid(error.to_string()))?;
+    let presentation = dokime_operations_next::client::document_plot::presentation(&store, &snapshot.cut, plot)?;
+    crate::plot_html::render(output, plot, &envelope, &presentation)
+}
+fn render_evidence(output: &mut NamedTempFile, snapshot: &FixedSnapshot, kind: i32, settings: RenderSettings) -> Result<()> {
+    let kind = v1::EvidenceCard::try_from(kind).map_err(|_| Error::Invalid("Render Evidence: Select a Declared Card Kind".into()))?;
+    write!(output, "<ol>")?;
+    if kind == v1::EvidenceCard::Notes {
+        let mut after = String::new();
+        loop {
+            let page = snapshot.store.notes_page(
+                Some(&snapshot.cut.execution.cycle),
+                Some(&snapshot.cut.execution.identifier),
+                true,
+                &after,
+                settings.page_size.get(),
+            )?;
+            if page.is_empty() {
+                break;
             }
-            index += 1;
-            Ok(())
-        })?;
-        write!(output, "\"></polyline></svg>")?;
+            for note in page {
+                after = note.note_id.clone();
+                write!(output, "<li data-note=\"{}\">{}</li>", escape(&note.note_id), escape(&note.message))?;
+            }
+        }
+    } else if matches!(kind, v1::EvidenceCard::Artifacts | v1::EvidenceCard::Media) {
+        let mut after = String::new();
+        loop {
+            let page = snapshot.store.artifacts_page(&after, settings.page_size.get())?;
+            if page.is_empty() {
+                break;
+            }
+            for artifact in page {
+                after = artifact.artifact_id.clone();
+                if artifact.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()) != Some(&snapshot.cut.execution.identifier) {
+                    continue;
+                }
+                let media = artifact
+                    .content_type
+                    .as_ref()
+                    .is_some_and(|mime| mime.starts_with("image/") || mime.starts_with("audio/") || mime.starts_with("video/"));
+                if kind == v1::EvidenceCard::Media && !media {
+                    continue;
+                }
+                write!(
+                    output,
+                    "<li data-artifact=\"{}\">{} ({} bytes)</li>",
+                    escape(&artifact.artifact_id),
+                    escape(&artifact.filename),
+                    artifact.size_bytes
+                )?;
+            }
+        }
+    } else if kind == v1::EvidenceCard::StreamContext {
+        let catalog = h::Catalog::decode(snapshot.cut.execution.catalog.as_slice())?;
+        for stream in catalog.streams {
+            write!(output, "<li>{}</li>", escape(&stream.id))?;
+        }
+    } else {
+        let mut after = 0;
+        loop {
+            let page =
+                snapshot.store.evidence_page(&snapshot.cut.execution.identifier, after, snapshot.cut.frontier, settings.page_size)?;
+            if page.is_empty() {
+                break;
+            }
+            for evidence in page {
+                after = evidence.position;
+                let selected = match kind {
+                    v1::EvidenceCard::Steps => evidence.kind.starts_with("step:"),
+                    v1::EvidenceCard::Criteria => evidence.kind.starts_with("criterion:"),
+                    v1::EvidenceCard::Traceability => evidence.kind.starts_with("traceability"),
+                    v1::EvidenceCard::Records => evidence.kind.starts_with("record:"),
+                    v1::EvidenceCard::Health => evidence.kind.starts_with("health:"),
+                    _ => return Err(Error::Invalid("Render Evidence: Select a Declared Card Kind".into())),
+                };
+                if !selected {
+                    continue;
+                }
+                if kind == v1::EvidenceCard::Records {
+                    let record = v1::PublishRecord::decode(evidence.payload.as_slice())?;
+                    let catalog = h::Catalog::decode(snapshot.cut.execution.catalog.as_slice())?;
+                    let mut message = None;
+                    for section in &catalog.sections {
+                        if section.r#type == "dokime.v1.RecordContracts" {
+                            let records = v1::RecordContracts::decode(section.payload.as_slice())?;
+                            message = records
+                                .records
+                                .into_iter()
+                                .find(|contract| contract.metadata.as_ref().is_some_and(|metadata| metadata.identifier == record.kind))
+                                .map(|contract| contract.message);
+                        }
+                    }
+                    let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(
+                        catalog.types.ok_or_else(|| Error::Invalid("Render Records: Restore Frozen Descriptors".into()))?,
+                    )
+                    .map_err(|error| Error::Invalid(error.to_string()))?;
+                    let descriptor = message
+                        .and_then(|message| pool.get_message_by_name(&message))
+                        .ok_or_else(|| Error::Invalid("Render Records: Restore This Record's Frozen Descriptor".into()))?;
+                    let row = prost_reflect::DynamicMessage::decode(descriptor, record.payload.as_slice())?;
+                    write!(output, "<li>{}<dl>", escape(&record.kind))?;
+                    for (field, value) in row.fields() {
+                        let value = match value {
+                            prost_reflect::Value::String(value) => value.clone(),
+                            prost_reflect::Value::Bool(value) => value.to_string(),
+                            prost_reflect::Value::I32(value) => value.to_string(),
+                            prost_reflect::Value::I64(value) => value.to_string(),
+                            prost_reflect::Value::U32(value) => value.to_string(),
+                            prost_reflect::Value::U64(value) => value.to_string(),
+                            prost_reflect::Value::F32(value) => value.to_string(),
+                            prost_reflect::Value::F64(value) => value.to_string(),
+                            _ => continue,
+                        };
+                        write!(output, "<dt>{}</dt><dd>{}</dd>", escape(field.name()), escape(&value))?;
+                    }
+                    write!(output, "</dl></li>")?;
+                } else {
+                    write!(
+                        output,
+                        "<li data-position=\"{}\">{} {}</li>",
+                        evidence.position,
+                        escape(&evidence.kind),
+                        escape(&evidence.step)
+                    )?;
+                }
+            }
+        }
     }
-    write!(output, "</figure>")?;
+    write!(output, "</ol>")?;
     Ok(())
 }
-
-fn scan(
-    snapshot: &FixedSnapshot, stream: &str, descriptor: &MessageDescriptor, field: &FieldDescriptor, page_size: NonZeroUsize,
-    mut visit: impl FnMut(&Sample, f64) -> Result<()>,
-) -> Result<()> {
-    let mut after = 0;
-    loop {
-        let page = snapshot.store.sample_page(&snapshot.cut.execution.identifier, stream, after, snapshot.cut.frontier, page_size)?;
-        if page.is_empty() {
-            return Ok(());
-        }
-        for sample in page {
-            after = sample.position;
-            let row = DynamicMessage::decode(descriptor.clone(), sample.row.as_slice())?;
-            let value = match row.get_field(field).as_ref() {
-                Value::F64(value) => *value,
-                Value::F32(value) => *value as f64,
-                Value::I64(value) => *value as f64,
-                Value::U64(value) => *value as f64,
-                Value::I32(value) => *value as f64,
-                Value::U32(value) => *value as f64,
-                _ => return Err(Error::Invalid("Render Document Plot: Select a Numeric Stream Field".into())),
-            };
-            if !value.is_finite() {
-                return Err(Error::Invalid("Render Document Plot: Use Finite Stored Values".into()));
+fn apply_preferences(store: &Store, execution: &str, document: &str, sections: &mut [v1::Section]) -> Result<()> {
+    for section in sections {
+        for card in &mut section.cards {
+            if let Some(v1::card::Body::Plot(plot)) = &mut card.body {
+                let id = plot.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
+                if let Some((points, _)) = store.plot_preferences(execution, document, id)? {
+                    plot.display_points = points;
+                }
             }
-            visit(&sample, value)?;
         }
+        apply_preferences(store, execution, document, &mut section.sections)?;
     }
+    Ok(())
 }
-
 fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
 }

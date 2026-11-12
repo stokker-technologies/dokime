@@ -19,6 +19,8 @@ mod documents;
 mod error;
 mod execution;
 mod host;
+mod plot_analysis;
+mod plot_html;
 mod plugin;
 pub mod process;
 mod run_control;

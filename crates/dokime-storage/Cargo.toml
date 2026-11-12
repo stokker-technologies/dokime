@@ -30,6 +30,7 @@ publish.workspace = true
 dokime-protocol = { workspace = true }
 
 # Git
+harmos-protocol = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -45,6 +46,7 @@ arrow-ipc = { workspace = true }
 arrow-schema = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
+prost-reflect = { workspace = true }
 
 # Configuration
 
@@ -55,6 +57,7 @@ prost-types = { workspace = true }
 # Concurrency
 
 # Async
+tokio = { workspace = true, features = ["sync"] }
 
 # Networking
 
@@ -85,6 +88,7 @@ rusqlite = { workspace = true }
 # Configuration
 
 # Filesystem
+tempfile = { workspace = true }
 
 # Parsing
 

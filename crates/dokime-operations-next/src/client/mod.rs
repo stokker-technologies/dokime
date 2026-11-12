@@ -26,8 +26,24 @@ mod catalog_inventory;
 pub mod catalog_list_record_schemas;
 pub mod catalog_list_suites;
 pub mod catalog_list_telemetry_schemas;
+pub mod content_download_artifact;
+pub mod content_download_evidence;
+pub mod content_download_execution_file;
+pub mod content_follow_execution_file;
+pub mod content_list_artifacts;
+pub mod content_list_execution_files;
+pub mod content_read_execution_file;
+mod content_transfer;
+pub mod content_upload_artifact;
 pub mod conversation;
+pub mod document_expansion;
+pub mod document_plot;
+pub mod documents_capture_current_document;
+pub mod documents_update_plot_settings;
+pub mod evidence_get_captured_record_schema;
 pub mod evidence_list_records;
+mod evidence_selection;
+pub mod evidence_watch_records;
 pub mod execution_append_executions;
 pub mod execution_cancel_execution;
 pub mod execution_create_cycle;
@@ -70,6 +86,10 @@ pub mod history_get_execution_checkpoint;
 pub mod history_list_checkpoint_records;
 pub mod history_list_checkpoint_telemetry;
 pub mod history_read_checkpoint_output;
+pub mod notes_create_note;
+pub mod notes_edit_note;
+pub mod notes_list_notes;
+mod notes_selection;
 pub mod observation_get_runtime_shell;
 pub mod observation_get_traceability;
 pub mod observation_watch_execution_progress;
@@ -79,6 +99,10 @@ mod planning;
 pub mod planning_materialize_template;
 pub mod planning_preview_selection;
 pub mod planning_register_selection;
+pub mod plot_analysis;
+pub mod plots_list_analyses;
+pub mod plots_query_snapshots;
+pub mod plots_watch;
 pub mod plugins_add;
 pub mod plugins_get_installation;
 pub mod plugins_install;
@@ -101,8 +125,11 @@ pub mod remote_create_pairing;
 pub mod remote_read_listener;
 pub mod remote_regenerate_certificate;
 pub mod remote_update_listener;
+pub mod reports_download_cycle_report;
 pub mod reports_download_execution_report;
+pub mod reports_materialize_report;
 pub mod reports_publish_execution_report;
+pub mod run_call;
 pub mod runtime_get_health;
 pub mod runtime_get_identity;
 pub mod secrets_export;
@@ -123,6 +150,7 @@ pub mod settings_set_storage_source_enabled;
 pub mod settings_update_application_settings;
 pub mod settings_update_plugin_settings;
 pub mod telemetry_list_samples;
+pub mod telemetry_watch_samples;
 
 /* === Re-Exports === */
 
@@ -174,7 +202,32 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Catalog/RunListRecordSchemas",
     "/dokime.v1.Catalog/RunListSuites",
     "/dokime.v1.Catalog/RunListTelemetrySchemas",
+    "/dokime.v1.Content/DownloadArtifact",
+    "/dokime.v1.Content/DownloadEvidence",
+    "/dokime.v1.Content/DownloadExecutionFile",
+    "/dokime.v1.Content/FollowExecutionFile",
+    "/dokime.v1.Content/ListArtifacts",
+    "/dokime.v1.Content/ListExecutionFiles",
+    "/dokime.v1.Content/ReadExecutionFile",
+    "/dokime.v1.Content/RunDownloadArtifact",
+    "/dokime.v1.Content/RunDownloadEvidence",
+    "/dokime.v1.Content/RunDownloadExecutionFile",
+    "/dokime.v1.Content/RunFollowExecutionFile",
+    "/dokime.v1.Content/RunListArtifacts",
+    "/dokime.v1.Content/RunListExecutionFiles",
+    "/dokime.v1.Content/RunReadExecutionFile",
+    "/dokime.v1.Content/RunUploadArtifact",
+    "/dokime.v1.Content/UploadArtifact",
+    "/dokime.v1.Documents/CaptureCurrentDocument",
+    "/dokime.v1.Documents/RunCaptureCurrentDocument",
+    "/dokime.v1.Documents/RunUpdatePlotSettings",
+    "/dokime.v1.Documents/UpdatePlotSettings",
+    "/dokime.v1.Evidence/GetCapturedRecordSchema",
     "/dokime.v1.Evidence/ListRecords",
+    "/dokime.v1.Evidence/RunGetCapturedRecordSchema",
+    "/dokime.v1.Evidence/RunListRecords",
+    "/dokime.v1.Evidence/RunWatchRecords",
+    "/dokime.v1.Evidence/WatchRecords",
     "/dokime.v1.Execution/AppendExecutions",
     "/dokime.v1.Execution/CancelExecution",
     "/dokime.v1.Execution/CreateCycle",
@@ -255,6 +308,12 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.History/RunListCheckpointRecords",
     "/dokime.v1.History/RunListCheckpointTelemetry",
     "/dokime.v1.History/RunReadCheckpointOutput",
+    "/dokime.v1.Notes/CreateNote",
+    "/dokime.v1.Notes/EditNote",
+    "/dokime.v1.Notes/ListNotes",
+    "/dokime.v1.Notes/RunCreateNote",
+    "/dokime.v1.Notes/RunEditNote",
+    "/dokime.v1.Notes/RunListNotes",
     "/dokime.v1.Observation/GetRuntimeShell",
     "/dokime.v1.Observation/GetTraceability",
     "/dokime.v1.Observation/RunGetRuntimeShell",
@@ -269,6 +328,12 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Planning/RunMaterializeTemplate",
     "/dokime.v1.Planning/RunPreviewSelection",
     "/dokime.v1.Planning/RunRegisterSelection",
+    "/dokime.v1.Plots/ListAnalyses",
+    "/dokime.v1.Plots/QuerySnapshots",
+    "/dokime.v1.Plots/RunListAnalyses",
+    "/dokime.v1.Plots/RunQuerySnapshots",
+    "/dokime.v1.Plots/RunWatch",
+    "/dokime.v1.Plots/Watch",
     "/dokime.v1.Plugins/Add",
     "/dokime.v1.Plugins/GetInstallation",
     "/dokime.v1.Plugins/Install",
@@ -306,8 +371,14 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Remote/RunRegenerateCertificate",
     "/dokime.v1.Remote/RunUpdateListener",
     "/dokime.v1.Remote/UpdateListener",
+    "/dokime.v1.Reports/DownloadCycleReport",
     "/dokime.v1.Reports/DownloadExecutionReport",
+    "/dokime.v1.Reports/MaterializeReport",
     "/dokime.v1.Reports/PublishExecutionReport",
+    "/dokime.v1.Reports/RunDownloadCycleReport",
+    "/dokime.v1.Reports/RunDownloadExecutionReport",
+    "/dokime.v1.Reports/RunMaterializeReport",
+    "/dokime.v1.Reports/RunPublishExecutionReport",
     "/dokime.v1.Runtime/GetHealth",
     "/dokime.v1.Runtime/GetIdentity",
     "/dokime.v1.Runtime/RunGetHealth",
@@ -343,6 +414,9 @@ pub const METHODS: &[&str] = &[
     "/dokime.v1.Settings/UpdateApplicationSettings",
     "/dokime.v1.Settings/UpdatePluginSettings",
     "/dokime.v1.Telemetry/ListSamples",
+    "/dokime.v1.Telemetry/RunListSamples",
+    "/dokime.v1.Telemetry/RunWatchSamples",
+    "/dokime.v1.Telemetry/WatchSamples",
 ];
 
 /* === Macros === */
@@ -417,7 +491,12 @@ pub trait Host: Send + Sync {
     async fn create_pairing(&self, label: String) -> Result<v1::CreatedPairing>;
     async fn regenerate_certificate(&self, names: Vec<String>) -> Result<v1::RemoteListenerStatus>;
     fn controls(&self, execution: &str) -> Result<v1::ExecutionControls>;
+    fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, dokime_storage::ExecutionCut)>;
+    fn render_report(&self, subject: &v1::ReportSubject, at: Option<&v1::StorageCursor>) -> Result<(std::fs::File, v1::ReportMetadata)>;
+    fn retain_report(&self, file: std::fs::File, reference: v1::FileReference) -> Result<()>;
+    fn temporary_report(&self, identifier: &str) -> Result<Option<(std::fs::File, v1::FileReference)>>;
     fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report>;
+    async fn analyze(&self, plugin: &str, operation: &str, request: v1::AnalysisRequest) -> Result<v1::AnalysisResponse>;
     async fn add_remote(&self, url: &str) -> Result<v1::Plugin>;
     fn plugins(&self) -> Result<Vec<v1::Plugin>>;
     async fn refresh_plugin_states(&self) -> Result<()>;
@@ -479,6 +558,9 @@ pub fn status(error: Error) -> tonic::Status {
         Error::Unavailable(message) => tonic::Status::unavailable(message),
         Error::Cancelled(message) => tonic::Status::cancelled(message),
         Error::Stale(message) => tonic::Status::failed_precondition(message),
+        Error::Storage(dokime_storage::Error::NotFound(message)) => tonic::Status::not_found(message),
+        Error::Storage(dokime_storage::Error::AlreadyExists(message)) => tonic::Status::already_exists(message),
+        Error::Storage(dokime_storage::Error::Permission(message)) => tonic::Status::permission_denied(message),
         Error::Storage(_) => tonic::Status::failed_precondition(error.to_string()),
         _ => tonic::Status::invalid_argument(error.to_string()),
     }

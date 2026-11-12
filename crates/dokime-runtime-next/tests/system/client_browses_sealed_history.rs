@@ -86,6 +86,19 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
                 },
             )?;
         }
+        // Retain Chunked Content Alongside the History Artifact Evidence
+        store.register_execution_file(
+            "history-file",
+            "imported-capture",
+            v1::ExecutionFileMetadata {
+                relative_path: "capture.txt".into(),
+                kind: v1::ExecutionFileKind::Text as i32,
+                state: v1::ExecutionFileState::Streaming as i32,
+                ..Default::default()
+            },
+        )?;
+        store.append_content("history-file", 0, b"abcdef")?;
+        store.finish_execution_file("history-file", false)?;
         store.close_streams("imported-capture")?;
         store.close(
             "imported-capture",
@@ -323,6 +336,9 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn std::error::Error
             tonic::Code::NotFound
         );
         process.close().await?;
+        // Deleted Execution Content Does Not Survive the History Deletion
+        let store = Store::open(root.path())?;
+        assert!(matches!(store.content("history-file"), Err(dokime_storage::Error::NotFound(_))));
         plugin.close().await?;
         Ok::<_, Box<dyn std::error::Error>>(())
     })

@@ -30,7 +30,7 @@ mise run test -- --changed crates/dokime-runtime-next/tests/system/client_runs_t
 ```
 
 Local Tests Build runs `build:host-fixtures`, which uses the available Rust, C#
-and C++ SDK tasks and exports the compiled thermal and execution fixtures under
+and C++ SDK tasks and exports the compiled thermal, execution and content fixtures under
 `target/build/<profile>/<target>/fixtures/host/`. C# carries its runtime; C++ uses
 the Harmos-pinned native dependencies. On a workstation, `HARMOS_SOURCE` and
 `DOKIME_HARMOS_CACHE` may select an existing Harmos source and read-only Windows

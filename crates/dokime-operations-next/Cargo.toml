@@ -59,6 +59,7 @@ sha2 = { workspace = true }
 # Configuration
 
 # Filesystem
+tempfile = { workspace = true }
 
 # Parsing
 regex = { workspace = true }

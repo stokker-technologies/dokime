@@ -18,13 +18,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-use sha2::Digest;
 
 // Local Imports
-use crate::{
-    Result,
-    client::{Context, Output},
-};
+use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
 
 /* === Constants === */
@@ -50,64 +46,79 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(
     context: &Context, request: v1::ReportsDownloadExecutionReportRequest,
-) -> Result<Output<v1::ReportsDownloadExecutionReportOutput>> {
-    super::complete(ID, context.settings.read_timeout, async {
-        let snapshot = context.host.store().read(&request.execution_id)?;
-        let published = context.host.store().reports(&request.execution_id)?.into_iter().next();
-        let (bytes, identifier, origin, metadata) = if let Some(report) = published {
-            (report.html, report.identifier, v1::ReportOrigin::Sealed, report.document.and_then(|document| document.metadata))
-        } else {
-            if snapshot.state != dokime_storage::ExecutionState::Sealed {
-                return Err(crate::Error::Invalid("Render Report: Select a Sealed Execution Snapshot".into()));
-            }
-            let outcomes = context.host.store().cycle_outcomes(&snapshot.execution.cycle)?;
-            let counts = super::projection::counts(&outcomes);
-            (super::projection::report(&snapshot, &counts).into_bytes(), request.execution_id.clone(), v1::ReportOrigin::Current, None)
-        };
-        let digest = sha2::Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-        let size_bytes = bytes.len() as u64;
-        let metadata = v1::ReportMetadata {
-            test_cycle_id: snapshot.execution.cycle.clone(),
-            test_execution_id: Some(request.execution_id.clone()),
-            identifier,
-            origin: origin as i32,
-            metadata,
-            ..Default::default()
-        };
-        let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
-        let chunk_bytes = context.settings.message_bytes / 2;
-        let timeout = context.settings.read_timeout;
-        tokio::spawn(async move {
-            let work = async {
-                let frame = super::projection::report_frame(v1::report_html_frame_payload::Kind::Report(metadata));
-                if sender.send(Ok(frame)).await.is_err() {
-                    return;
-                }
-                for (index, data) in bytes.chunks(chunk_bytes).enumerate() {
-                    let chunk = v1::ReportHtmlChunk {
-                        offset: (index * chunk_bytes) as u64,
-                        data: data.to_vec(),
-                    };
-                    let frame = super::projection::report_frame(v1::report_html_frame_payload::Kind::Chunk(chunk));
-                    if sender.send(Ok(frame)).await.is_err() {
-                        return;
-                    }
-                }
-                let complete = v1::ReportHtmlCompletion { size_bytes, sha256: digest };
-                let frame = super::projection::report_frame(v1::report_html_frame_payload::Kind::Complete(complete));
-                if sender.send(Ok(frame)).await.is_err() {
-                    return;
-                }
-                let frame = v1::ReportsDownloadExecutionReportOutput {
-                    value: Some(v1::reports_download_execution_report_output::Value::Response(v1::ClientEmpty {})),
-                };
-                let _ = sender.send(Ok(frame)).await;
+) -> Result<super::Output<v1::ReportsDownloadExecutionReportOutput>> {
+    let context = context.clone();
+    super::complete(ID, context.settings.read_timeout, async move {
+        tokio::task::spawn_blocking(move || {
+            let context = &context;
+
+            let cut = context.host.store().metadata(&request.execution_id)?;
+            let published = context.host.store().reports(&request.execution_id)?.into_iter().next();
+            let (file, metadata) = if let Some(report) = published {
+                use std::io::Write;
+                let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(error.to_string()))?;
+                file.write_all(&report.html).map_err(|error| Error::Invalid(error.to_string()))?;
+                (
+                    file,
+                    v1::ReportMetadata {
+                        test_cycle_id: cut.execution.cycle,
+                        test_execution_id: Some(request.execution_id.clone()),
+                        identifier: report.identifier,
+                        metadata: report.document.and_then(|document| document.metadata),
+                        origin: v1::ReportOrigin::Sealed as i32,
+                        ..Default::default()
+                    },
+                )
+            } else {
+                context.host.render_report(
+                    &v1::ReportSubject {
+                        kind: Some(v1::report_subject::Kind::Execution(request.execution_id)),
+                    },
+                    None,
+                )?
             };
-            if tokio::time::timeout(timeout, work).await.is_err() {
-                let _ = sender.try_send(Err(tonic::Status::deadline_exceeded("DownloadExecutionReport: Operation Deadline Expired")));
-            }
-        });
-        Ok(tokio_stream::wrappers::ReceiverStream::new(output))
+            let (file, length, digest) = super::content_transfer::temporary(file)?;
+            super::content_transfer::download(
+                context,
+                super::content_transfer::Download {
+                    source: super::content_transfer::Source::Temporary(file),
+                    length,
+                    expected_digest: Some(digest),
+                },
+                v1::ReportsDownloadExecutionReportOutput {
+                    value: Some(v1::reports_download_execution_report_output::Value::Item(v1::ReportHtmlFrame {
+                        payload: Some(v1::ReportHtmlFramePayload {
+                            kind: Some(v1::report_html_frame_payload::Kind::Report(metadata)),
+                        }),
+                    })),
+                },
+                |chunk| v1::ReportsDownloadExecutionReportOutput {
+                    value: Some(v1::reports_download_execution_report_output::Value::Item(v1::ReportHtmlFrame {
+                        payload: Some(v1::ReportHtmlFramePayload {
+                            kind: Some(v1::report_html_frame_payload::Kind::Chunk(v1::ReportHtmlChunk {
+                                offset: chunk.offset,
+                                data: chunk.data,
+                            })),
+                        }),
+                    })),
+                },
+                |complete| v1::ReportsDownloadExecutionReportOutput {
+                    value: Some(v1::reports_download_execution_report_output::Value::Item(v1::ReportHtmlFrame {
+                        payload: Some(v1::ReportHtmlFramePayload {
+                            kind: Some(v1::report_html_frame_payload::Kind::Complete(v1::ReportHtmlCompletion {
+                                size_bytes: complete.size_bytes,
+                                sha256: complete.sha256,
+                            })),
+                        }),
+                    })),
+                },
+                || v1::ReportsDownloadExecutionReportOutput {
+                    value: Some(v1::reports_download_execution_report_output::Value::Response(v1::ClientEmpty {})),
+                },
+            )
+        })
+        .await
+        .map_err(|error| Error::Invalid(format!("Render Report: Retry After the Rendering Worker Failed: {error}")))?
     })
     .await
 }

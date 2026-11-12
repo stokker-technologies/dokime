@@ -58,6 +58,26 @@ def build(profile: str, language: str = "auto") -> None:
         for name in ("dokime-rust-thermal", "dokime-rust-execution"):
             shutil.copy2(root / "target/debug" / f"{name}{extension}", output / f"{name}{extension}")
 
+        subprocess.run(
+            [
+                "mise",
+                "run",
+                "build",
+                "--",
+                "--cargo",
+                "build",
+                "--locked",
+                "--package",
+                "dokime-runtime-next",
+                "--example",
+                "content_fixture",
+            ],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+        )
+        shutil.copy2(root / "target/debug/examples" / f"content_fixture{extension}", output / f"content_fixture{extension}")
+
     # Publish The C# Fixture With Its Runtime And Local SDK Package.
     if "csharp" in languages:
         subprocess.run(["mise", "-C", "sdk/csharp", "run", "build"], cwd=root, check=True, creationflags=spawn_flags())

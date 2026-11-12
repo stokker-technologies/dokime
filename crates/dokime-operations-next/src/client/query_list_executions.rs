@@ -49,8 +49,9 @@ pub async fn handle(context: &Context, request: v1::QueryListExecutionsRequest) 
         if request.page.is_some() || request.at.is_some() { return Err(Error::Invalid("ListExecutions Paging and Snapshot Selection Are Not Yet Served by the New Host".into())); }
         let mut rows = Vec::new();
         for identifier in context.host.store().identifiers()? {
-            let snapshot = context.host.store().read(&identifier)?;
-            let row = super::projection::summary(&snapshot, context.host.controls(&identifier)?);
+            let cut = context.host.store().metadata(&identifier)?;
+            let snapshot = dokime_storage::ExecutionSnapshot {execution:cut.execution,state:cut.state,seal:cut.seal,evidence:Vec::new(),samples:Vec::new()};
+            let row = super::execution_state::summary(context, &snapshot)?;
             if let Some(selection) = &request.selection {
                 if selection.started_at.is_some() || selection.archive.is_some() { return Err(Error::Invalid("ListExecutions Time and Archive Filters Are Not Yet Served by the New Host".into())); }
                 if !selection.cycle_ids.is_empty() && !selection.cycle_ids.contains(&snapshot.execution.cycle) { continue; }

@@ -5315,6 +5315,34 @@ pub struct AggregateReply {
     pub complete: bool,
 }
 /// Source: crates/dokime-domain/src/model/plots/wire.rs
+/// Unary analysis operations use the analysis metadata identifier as their operation ID.
+/// Input is one bounded raw scalar series; output must match every declared output.
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AnalysisRequest {
+    #[prost(message, optional, tag = "1")]
+    pub samples: ::core::option::Option<AnalysisSamples>,
+    #[prost(message, optional, tag = "2")]
+    pub parameters: ::core::option::Option<MapValue>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AnalysisSamples {
+    #[prost(double, repeated, tag = "1")]
+    pub axis: ::prost::alloc::vec::Vec<f64>,
+    #[prost(double, repeated, tag = "2")]
+    pub values: ::prost::alloc::vec::Vec<f64>,
+    #[prost(string, tag = "3")]
+    pub axis_unit: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub unit: ::prost::alloc::string::String,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AnalysisResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub outputs: ::prost::alloc::vec::Vec<AnalysisValues>,
+}
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AnalysisComputation {
@@ -8638,6 +8666,12 @@ pub struct PlotPayload {
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct PlotPayloadDiagnostics {
+    /// Number of retained source rows consumed by this window reduction.
+    #[prost(uint64, tag = "7")]
+    pub examined_rows: u64,
+    /// Actual temporal bucket resolution, in nanoseconds; zero for raw points.
+    #[prost(uint64, tag = "8")]
+    pub resolution_nanos: u64,
     #[prost(uint64, tag = "1")]
     pub series_count: u64,
     #[prost(uint64, tag = "2")]
@@ -8795,6 +8829,9 @@ pub struct PlotRequest {
     pub viewport: ::core::option::Option<PlotWindow>,
     #[prost(uint32, optional, tag = "38")]
     pub panel_width: ::core::option::Option<u32>,
+    /// Optional fixed evidence cut; binds document plots to one captured snapshot.
+    #[prost(message, optional, tag = "39")]
+    pub at: ::core::option::Option<StorageCursor>,
 }
 /// Source: crates/dokime-domain/src/model/plots/wire.rs
 #[allow(clippy::all)]
@@ -32656,8 +32693,9 @@ pub mod plots_client {
             self.inner.streaming(req, path, codec).await
         }
         /// Public. dokime.plots.query_snapshots. Cancelling this call does not undo committed mutations or cancel an
-        /// admitted execution. The native bridge and server reject a request with more than 32 plots. The reply contains
+        /// admitted execution. The reply contains
         /// repeated envelopes in one bounded message; callers must lower max_points or split a batch on exhaustion.
+        /// There is no fixed plot-count limit; Watch delivers each requested plot independently in request order.
         pub async fn query_snapshots(
             &mut self,
             request: impl tonic::IntoRequest<super::PlotsQuerySnapshotsRequest>,
@@ -32806,8 +32844,9 @@ pub mod plots_server {
             tonic::Status,
         >;
         /// Public. dokime.plots.query_snapshots. Cancelling this call does not undo committed mutations or cancel an
-        /// admitted execution. The native bridge and server reject a request with more than 32 plots. The reply contains
+        /// admitted execution. The reply contains
         /// repeated envelopes in one bounded message; callers must lower max_points or split a batch on exhaustion.
+        /// There is no fixed plot-count limit; Watch delivers each requested plot independently in request order.
         async fn query_snapshots(
             &self,
             request: tonic::Request<super::PlotsQuerySnapshotsRequest>,

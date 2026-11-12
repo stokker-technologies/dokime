@@ -84,11 +84,28 @@ streams a verifiable ZIP containing backend identity and a bounded tracing tail;
 log/trace follows await events and redact secret-looking structured fields.
 
 Planning, Execution, Observation, Prompts and History serve every declared
-operation and its Run form. Query ListExecutions, Evidence ListRecords, Telemetry
-ListSamples and Reports DownloadExecutionReport/PublishExecutionReport retain their
-existing serving. Backend availability advertises every served method. Other methods
-return `UNIMPLEMENTED` naming the action; the owning OpenSpec task lists them.
+operation and its Run form. Evidence, Telemetry, Reports and Notes also serve
+every direct and Run method. Content serves artifact, evidence archive and
+execution-file methods; its appearance asset download remains refused. Query
+ListExecutions is served; its remaining operations and Media are held for the
+owner’s API decision. Backend availability advertises every served method.
+Refused methods return `UNIMPLEMENTED` naming the action; the owning OpenSpec
+task lists them. The same authenticated route composer registers all services
+on both the loopback and remote listeners.
 Requests using unserved filter/cursor variants are explicitly refused.
+Evidence additionally serves captured-schema lookup and record watches, with
+selection-bound cursors, explicit `dokime.log` reads and Run envelopes. Telemetry
+serves bounded forward/tail pages, source-time windows and event-driven watches,
+including Run envelopes. Plots serves ListAnalyses, QuerySnapshots and Watch with
+Run envelopes. Its ten kinds reduce in storage, including row filters, scale/offset/detail
+expressions, source-time joins, grouped time series/distributions, logarithmic
+contours, sigma intervals, grid highlights, bounded record markers and separate
+summary windows. Raw reads refuse oversized selections; LTTB selects bounded
+vertices in SQLite. Snapshot batches coarsen complete buckets to the encoded
+message budget. Unary plugin analyses resolve one ready provider by ID/version,
+read bounded raw columns and validate typed parameters, output axes and units.
+Incremental watch buckets, live deltas, higher-order/non-category plot aggregates and
+derived analysis defaults remain open; watches currently emit snapshots.
 
 Prompts serves all five operations and their bidirectional Run forms. Catalog
 definitions page by prompt type; pending prompts page by ID with cycle and
@@ -337,6 +354,33 @@ Python runs remote; C# and C++ run remote and managed. Set
 executable outside the exported fixture path. `DOKIME_PYTHON` selects the
 interpreter with the built wheel installed.
 
+## Bounded Client Reads
+
+`Store::metadata`, `evidence_frontier`, `execution_evidence_frontier`,
+`cycle_evidence_frontier`, `evidence_entries` and `subscribe` supply
+metadata and committed evidence pages without decoding streams. Evidence cursors
+bind the storage-root backend identity and exact selection; sealed scoped pages survive restart unchanged. Structured records remain the default;
+select `dokime.log` explicitly for retained execution logs. Captured schema lookup
+uses frozen descriptors even when the producing plugin is disconnected.
+
+`Store::sample_batch` commits Arrow batches, exact protobuf row indexes and numeric
+field indexes together. `stream_names` and `sample_window` read bounded pages;
+`numeric_bounds`, `numeric_bins`, `time_series_window`, `numeric_statistics`,
+`histogram_window`, `box_window`, `cartesian_window`, `category_window`,
+`contour_window`, `grid_window` and `spectrum_window` own plot reductions.
+Time-series windows examine each matching indexed row once and retain only the
+requested buckets. The reply states `examined_rows` and `resolution_nanos`.
+Frequency transforms require a source-time window within the configured input
+bound. Snapshot batches fit one configured message; Watch emits one plot per
+frame in request order, with no fixed plot-count ceiling.
+
+`client_browses_execution_evidence`, `client_reads_bounded_telemetry`,
+`client_queries_plot_kinds` and `client_queries_plot_windows` are focused Rust SDK
+journeys against the real host process. The plot-window fixture retains 2,000,003
+samples and requests forty plots. Each selected window consumes 1,000 source rows,
+for a counted 40,000 rows per snapshot batch; zoom requests report their finer
+resolution. These assertions measure work rather than elapsed time.
+
 ## Evidence and Recovery
 
 Each execution freezes the complete PluginRun origin and catalog descriptors.
@@ -357,6 +401,80 @@ interrupted and sealed; import origins are never run-recovery targets.
 Storage remains at v1. An unrecognized nonempty root is refused with instructions
 to back it up and choose fresh storage or explicitly reset it. No migration,
 implicit reset or deletion occurs.
+
+## Content and Notes
+
+Content serves ordered artifact transfers, execution/cycle evidence exports and
+registered execution-file inventory, bounded windows, downloads and follows.
+Client uploads require an explicit SHA-256 completion before input finish;
+cancelling a staged upload publishes nothing. Plugin artifact calls are unary
+and preserve sequence, exact retry, prefix replacement and terminal abort.
+File names select retained content identities, never arbitrary filesystem paths.
+A resumed follow requires the original identity and committed offset.
+Evidence downloads use v1 protobuf `ExecutionArchive` bytes defined in
+`crates/dokime-storage/src/execution.rs`; cycle archives repeat that message at
+field 1. Content metadata and bounded chunks travel in fields 7 and 8 of each
+execution archive. The shape stays at v1 under the development storage policy.
+Notes support create/edit/list and Run envelopes, durable idempotent creation,
+selection-bound paging and closed-owner refusal. The loopback listener uses one
+local client principal until remote authentication lands.
+
+Build the content-story fixture before its client journey:
+
+```sh
+mise run build -- --cargo build --package dokime-runtime-next --example content_fixture
+mise run test -- --package dokime-runtime-next --target system --exact client_transfers_execution_content::client_transfers_execution_content
+mise run test -- --package dokime-runtime-next --target system --exact client_keeps_execution_notes::client_keeps_execution_notes
+```
+
+Appearance asset downloads and Media capture return named refusals pending their
+owning API/storage decisions. Query remains at its previously served surface.
+
+## Document Snapshots and Reports
+
+Documents serves capture and plot-preference updates with direct and Run calls.
+Captures stream structure, complete authored table rows, summary tiles and plot
+bindings. Each plot request carries an execution-qualified fixed storage cursor;
+the Plots service evaluates it with the same bounded reducers used by HTML.
+`Host::current_document` reads the frozen catalog and stored preferences;
+`Host::snapshot_cut` renders an explicit evidence cut. Storage adds
+`read_session`, `plot_selection`, `plot_group_values`, `sigma_window`,
+`contour_scaled_window`, `document_value` and plot-preference reads/writes.
+
+Reports serves execution/cycle downloads, materialization and explicit execution
+publication, including every Run envelope. Materialization returns a temporary
+file reference; download its `metadata.id` with Content.DownloadArtifact.
+The temporary output is excluded from artifact inventory and expires on restart
+or when the bounded cache evicts it. Cycle downloads use identifier `cycle`.
+Publication freezes the selected document, execution seal and independent HTML;
+changing plot preferences cannot alter already published HTML. Report verification
+hashes the retained document bytes rather than re-encoding decoded maps.
+
+Repeated sections use bounded distinct-value pages and propagate selection
+filters to summaries and plots. Continuations bind the backend epoch, document,
+selection and evidence frontier. Cycle capture serves the default records,
+artifacts and media document. Summaries support record/stream scalars, nested
+aggregates, exact percentiles and scalar transforms. HTML contour cells and bands
+preserve nonuniform edges and validity masks. Evidence-card filter evaluation,
+cross-execution aggregate expressions, artifact expressions and complete
+trajectory/grid playback remain in the owning task inventory.
+
+The focused journeys are `client_renders_fixed_documents` and
+`client_queries_advanced_plots` in the runtime’s system target. The protocol crate’s
+generation task owns the additive `PlotRequest.at` field, unary
+`AnalysisRequest`/`AnalysisSamples`/`AnalysisResponse` contracts and generated output.
+An analysis operation uses its metadata identifier, accepts one bounded raw
+series plus typed parameters and returns its declared `AnalysisValues`.
+
+### Host and Storage Additions
+
+| Owner | Added Methods |
+| --- | --- |
+| Host | `current_document`, `snapshot_cut`, `analyze`; service adapters also provide `render_report`, `retain_report` and `temporary_report` |
+| Storage Content | `publish_artifact_chunk`, `begin_artifact`, `abort_artifact`, `append_content`, `finish_artifact`, `register_execution_file`, `finish_execution_file`, `content`, `execution_file`, `content_window`, `artifacts_page`, `files_page`, `write_execution_archive`, `content_fingerprint` |
+| Storage Notes | `create_note`, `edit_note`, `note_owner`, `notes_page`, `notes_fingerprint` |
+| Storage Documents | `plot_preferences`, `save_plot_preferences`, `document_value`, `document_value_filtered`, `document_distinct` |
+| Storage Queries | `read_session`, `cycle_execution_page`, `cycle_is_sealed`, `plot_selection`, `plot_group_values`, `select_plot_group`, `sigma_window`, `contour_scaled_window`, `sampled_time_series_window` |
 
 ## Cutover
 

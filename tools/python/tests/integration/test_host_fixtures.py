@@ -46,7 +46,10 @@ class HostFixtureTests(unittest.TestCase):
                 ):
                     host_fixtures.build("release", language)
                     commands = [call.args[0] for call in run.call_args_list]
-                    self.assertEqual({command[2] for command in commands}, set() if language in ("none", "python") else {f"sdk/{language}"})
+                    self.assertEqual(
+                        {command[2] for command in commands if command[1] == "-C"},
+                        set() if language in ("none", "python") else {f"sdk/{language}"},
+                    )
                     self.assertEqual(wheel.call_count, int(language == "python"))
                     stamp.assert_not_called()
                     if language == "cpp":
@@ -71,12 +74,12 @@ class HostFixtureTests(unittest.TestCase):
                 patch.object(host_fixtures.archive, "stamp") as inventory,
             ):
                 host_fixtures.build("dev")
-                self.assertEqual({call.args[0][2] for call in run.call_args_list}, {"sdk/rust", "sdk/csharp"})
+                self.assertEqual({call.args[0][2] for call in run.call_args_list if call.args[0][1] == "-C"}, {"sdk/rust", "sdk/csharp"})
                 self.assertEqual(inventory.call_args.args[2], ["existing", (output / "fixture").relative_to(root).as_posix()])
                 self.assertEqual(inventory.call_args.args[3], {"owner": "tests"})
                 run.reset_mock()
                 host_fixtures.build("dev", "rust")
-                self.assertEqual({call.args[0][2] for call in run.call_args_list}, {"sdk/rust"})
+                self.assertEqual({call.args[0][2] for call in run.call_args_list if call.args[0][1] == "-C"}, {"sdk/rust"})
                 self.assertEqual(inventory.call_args.args[2], ["existing", (output / "fixture").relative_to(root).as_posix()])
 
     def test_explicit_producer_failure_is_not_skipped(self):

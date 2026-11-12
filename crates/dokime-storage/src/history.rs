@@ -83,6 +83,16 @@ impl Store {
         if state != 2 || seal != expected || crate::store::digest(&transaction, execution)? != seal {
             return Err(Error::Invalid("Delete Execution: Inspect Its Current Sealed Checkpoint Before Deleting".into()));
         }
+        transaction.execute("DELETE FROM artifact_calls WHERE execution=?1", [execution])?;
+        transaction.execute("DELETE FROM artifact_transfers WHERE execution=?1", [execution])?;
+        transaction
+            .execute("DELETE FROM content_chunks WHERE object IN (SELECT id FROM content_objects WHERE execution=?1)", [execution])?;
+        transaction.execute("DELETE FROM content_objects WHERE execution=?1", [execution])?;
+        transaction.execute("DELETE FROM notes WHERE execution=?1", [execution])?;
+        transaction.execute("DELETE FROM plot_preferences WHERE execution=?1", [execution])?;
+        transaction.execute("DELETE FROM record_fields WHERE execution=?1", [execution])?;
+        transaction.execute("DELETE FROM sample_fields WHERE execution=?1", [execution])?;
+        transaction.execute("DELETE FROM sample_batches WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM reports WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM evidence WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM samples WHERE execution=?1", [execution])?;

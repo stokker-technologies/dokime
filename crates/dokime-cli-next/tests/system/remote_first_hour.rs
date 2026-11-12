@@ -218,6 +218,12 @@ async fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::err
                 serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", stopped, "--json"]).await?)?;
             assert_eq!(stopped_detail["outcome"]["not_evaluated"]["termination"], "TERMINATION_CANCELLED");
 
+            // Read a Rendered Report Through the Served Data Operation
+            let report = directory.path().join("completed.html");
+            super::run(&["--endpoint", &endpoint, "execution", "report", appended, "--out", report.to_str().unwrap()]).await?;
+            let html = std::fs::read_to_string(&report)?;
+            assert!(html.contains("<!doctype html>"));
+
             // Seal the Completed Cycle and Rerun Its Frozen Origins
             super::run(&["--endpoint", &endpoint, "cycle", "seal", &manual.cycle_id]).await?;
             assert!(executions.get_cycle(v1::ExecutionGetCycleRequest { cycle_id: manual.cycle_id.clone() }).await?.into_inner().sealed);

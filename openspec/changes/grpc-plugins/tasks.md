@@ -298,6 +298,30 @@ SDK export lists in `sdk/python/python/dokime/{plot.py,v1/__init__.py}`, shared
 
 ## Client-Driven New Host Serving
 
+### Query and Content Service Completion
+
+Source inventory (data-service worker; continuation adds Content, Notes, Documents/Reports and advanced plot variants, with Query and Media held): owned Query, Evidence, Telemetry, Plots, Documents, Reports, Content, Media and Notes service files; their operation files and client stories; additive storage and Host methods; alphabetical registration lines; required protocol additions and generated bindings; this inventory and implementation decisions. Old crates remain read-only.
+
+- [x] Serve Evidence schema lookup, filtered cursor pages including logs, and event-driven watches with real-process client proof.
+- [x] Retire Evidence selector variants for sessions, planned cases and opaque attempt IDs because the new model owns execution/cycle scopes and frozen step/criterion identifiers. Keep shared proto fields while other consumers use them; no RPC is retired.
+- [x] Serve bounded Telemetry pages and watches, including Run envelopes, with real-process client proof.
+- [x] Serve base paths for the ten landed plot kinds through QuerySnapshots/Watch and their Run envelopes; use storage reduction, explicit resolution and a counted two-million-sample, forty-plot story.
+- [x] Add isolated cancellable storage read sessions for blocking plot workers, row filters, scale/offset/detail projections and source-time stream/record joins without loading whole streams.
+- [x] Serve grouped time series, histograms and boxes, logarithmic contour bins, XY sigma intervals, grid highlights, bounded record markers and separate summary windows; prove the variants through `client_queries_advanced_plots`.
+- [x] Serve bounded Raw/LTTB time-series windows, encoded-budget bucket coarsening and unary plugin analyses with typed defaults, bounded raw input and output validation; prove endpoint retention, batch fitting and malformed-output refusal through the advanced plot story.
+- [ ] Complete incremental bucket reads and live deltas, higher-order category aggregates, non-category aggregate plots and derived analysis-parameter defaults. QuerySnapshots and Watch are routed; unsupported variants refuse with corrective actions and Watch still emits snapshots. Retired RPCs: none.
+- [x] Route Documents CaptureCurrentDocument/UpdatePlotSettings and all Run envelopes, persist plot preferences, stream structure/table/summary/plot bindings, and bind document plot requests to a captured execution frontier.
+- [x] Route all Reports direct/Run methods: fixed-snapshot materialization, explicit execution publication and execution/cycle HTML downloads; prove temporary download, publication independence and bounded plot data through `client_renders_fixed_documents`.
+- [x] Expand repeated sections in bounded pages with stable identities, inherit filters in plot and summary queries, serve cycle-scoped default capture, evaluate record/scalar summary expressions and exact percentiles, and render masked contour bands against nonuniform edges.
+- [ ] Complete evidence-card filter evaluation, cross-execution/higher-order category and artifact expressions, and complete trajectory/grid report playback. These remaining variants are not covered by the served-route checks.
+- [x] Export `content_fixture` through the shared Tests fixture producer; the story consumes its archived path or `DOKIME_CONTENT_PLUGIN`.
+- [ ] Add the client-driven live execution-file producer/follow journey when the producer group connects `register_execution_file`, `append_content` and `finish_execution_file`; the present real-process journey proves saved files, windows, identity-bound resume and replacement.
+- [x] Serve Content artifact uploads/downloads, evidence archives and execution-file list/window/download/follow with durable chunk storage and client proof; unary plugin artifacts enforce sequences, replay fingerprints, explicit terminal, abort and replacement.
+- [x] Serve Notes create/edit/list and Run envelopes, idempotent mutations, ownership and cursor validation, restart durability and sealed-owner refusal.
+- [x] Pass Windows continuation proof: format; each of the four new stories twice by name; every host system story without skips; three new-crate check builds; all eight protocol stories including generation drift; repository and all three package language checks. The focused report integrity test also passes, including map persistence and tamper rejection.
+- [x] Pass combined integration proof on Windows; native Linux and hosted proof remain with integration. The existing `clippy.toml:14` unreachable-method warning remains; checking exits successfully. No push is authorized.
+
+Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/manifest and client-driven `tests/system/` plus test support; the single `Host::pending_prompts` accessor in `src/host.rs` and public visibility for the existing console-free `src/process/` constructor; `crates/dokime-operations-next/src/client/`, its library/error/manifest; additive fields in `proto/dokime/v1/{client_execution,client_types}.proto` and regenerated `crates/dokime-protocol/src/{v1.rs,descriptors.bin,sources.rs}`; Cargo lock, the execution-host guide and its README link. Existing runtime execution/dispatch/stream sources remain outside this serving slice; the data-service inventory above owns storage additions.
 Execution service worktree inventory (`feat/gp-svc-execution`): owned service files
 `execution.rs`, `planning.rs`, `observation.rs`, `prompts.rs` and new `history.rs`;
 their operation declarations/handlers and client stories; additive host/storage
@@ -320,16 +344,14 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
 - [x] Pass focused Windows proof: whole-tree format, `client_runs_thermal_suite_over_grpc` three consecutive runs, `python_client_runs_thermal_suite_over_grpc`, both existing host stories, three new-crate check builds, operations package language checking and protocol generation drift. Python evidence decoding loads the frozen descriptor dependency graph before decoding exact payloads.
 - [x] Complete `mise run check -- --language rust --package dokime-runtime-next`: the language worker repaired `clippy::let_and_return` in `sdk/rust/src/stream.rs` and both the SDK lint and new-runtime package check pass on Windows. Native Linux and hosted validation remain integration proof.
 
-- [ ] Integration handoff: only these data-group methods remain unserved; unregistered data services return the transport UNIMPLEMENTED response, and registered services name their refused operation:
-  - [ ] Query: Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples, RunListSamples.
-  - [ ] Evidence: GetCapturedRecordSchema, RunGetCapturedRecordSchema, RunListRecords, WatchRecords, RunWatchRecords.
-  - [ ] Telemetry: RunListSamples, WatchSamples, RunWatchSamples.
-  - [ ] Plots: ListAnalyses, RunListAnalyses, QuerySnapshots, RunQuerySnapshots, Watch, RunWatch.
-  - [ ] Documents: CaptureCurrentDocument, RunCaptureCurrentDocument, UpdatePlotSettings, RunUpdatePlotSettings.
-  - [ ] Reports: RunPublishExecutionReport, DownloadCycleReport, RunDownloadCycleReport, RunDownloadExecutionReport, MaterializeReport, RunMaterializeReport.
-  - [ ] Content: DownloadAppearanceAsset, RunDownloadAppearanceAsset, DownloadArtifact, RunDownloadArtifact, DownloadEvidence, RunDownloadEvidence, DownloadExecutionFile, RunDownloadExecutionFile, FollowExecutionFile, RunFollowExecutionFile, ListArtifacts, RunListArtifacts, ListExecutionFiles, RunListExecutionFiles, ReadExecutionFile, RunReadExecutionFile, UploadArtifact, RunUploadArtifact.
-  - [ ] Media: AudioRecording, RunAudioRecording, CameraRecording, RunCameraRecording, Photo, RunPhoto, ScreenRecording, RunScreenRecording, Screenshot, RunScreenshot.
-  - [ ] Notes: CreateNote, RunCreateNote, EditNote, RunEditNote, ListNotes, RunListNotes.
+- [ ] Remaining client refusals and unfinished variants (all services are registered through the shared authenticated route composer):
+  - [ ] Query: held for the owner's client API overlap decision; Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples and RunListSamples remain named refusals. ListExecutions is served with the shared execution case/archive presentation.
+  - [ ] Media: held for the owner's API decision; AudioRecording, RunAudioRecording, CameraRecording, RunCameraRecording, Photo, RunPhoto, ScreenRecording, RunScreenRecording, Screenshot and RunScreenshot remain named refusals.
+  - [ ] Content: DownloadAppearanceAsset and RunDownloadAppearanceAsset remain named refusals. Every artifact, evidence archive and execution-file method is served through direct and Run transports.
+  - [ ] Plots: every RPC is routed; incremental bucket reads/live deltas, higher-order category aggregates, non-category aggregate plots and derived analysis-parameter defaults remain unfinished as listed above.
+  - [ ] Documents: every RPC is routed; evidence-card filters, cross-execution/higher-order category and artifact expressions, and complete trajectory/grid report playback remain unfinished as listed above.
+  - [x] Evidence, Telemetry, Reports and Notes: all direct and Run methods are served; no named refusals remain.
+  - [x] Execution, Planning, Observation, Prompts, History and administration: all direct and Run methods are served; no named refusals remain.
 
 ## New Host Branch Convergence
 
@@ -414,3 +436,12 @@ implementation files and old-host source remain with their owners.
 - [x] Pass final Rust language checking and Tests artifact build on Windows. The Tests producer passes after closing the owned starter left by an earlier failed CLI journey; every compile contract passes. Untouched `clippy.toml:14` still emits an unreachable-method warning; the required check returns success.
 - [x] Build every host fixture, pass every host story twice and rerun every CLI story against the pinned fixtures on Windows, with no skipped stories. The C# Door assertion passes in both placements; runtime observation wakes after plugin admission.
 - [x] Verify locked offline Cargo metadata on the committed source head; retain local commits without pushing. Native Linux and hosted proof remain with the integration owner.
+
+## Data Service Branch Convergence
+
+Source inventory: the local integration merge; shared host routes/state, operation registrations/errors/projections, storage tables and fixtures; authoritative client protos and regenerated protocol output; CLI and remote-access stories; execution-host/tooling guides and this change's design/tasks. Old-host source remains read-only.
+
+- [x] Merge the local integration branch, retain both complete service/story sets and regenerate protocol output through its mise task.
+- [x] Register every data service through the shared authenticated route composer, join Query execution presentation, and retain the pinned Harmos generic scope and client settings contracts.
+- [x] Extend the CLI journey with a served report read and cover remote data routes under bearer authentication.
+- [x] Pass final Windows format, Rust/Python/repository/supply checks, host fixture build, every host story twice without skips, CLI stories, protocol drift, complete Tests artifact build and committed locked/offline metadata. The final complete host runs use `NEXTEST_TEST_THREADS=4`; default parallelism previously exceeded the managed installation operation deadline. Deadlines and project test configuration remain unchanged. The Tests producer also passes its compile contracts. Native Linux and hosted validation remain with integration; no push is authorized.

@@ -139,6 +139,71 @@ async fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn std::err
         history.browse_cycles(request).await?;
         drop((executions, planning, observation, prompts, history));
 
+        // Every Data Service Uses the Same Authenticated Route Composer
+        let mut evidence = v1::evidence_client::EvidenceClient::new(channel.clone());
+        assert_eq!(
+            evidence.list_records(v1::EvidenceListRecordsRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::EvidenceListRecordsRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        evidence.list_records(request).await?;
+        drop(evidence);
+
+        let mut telemetry = v1::telemetry_client::TelemetryClient::new(channel.clone());
+        assert_eq!(
+            telemetry.list_samples(v1::TelemetryListSamplesRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::TelemetryListSamplesRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        assert_eq!(telemetry.list_samples(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+        drop(telemetry);
+
+        let mut plots = v1::plots_client::PlotsClient::new(channel.clone());
+        assert_eq!(plots.list_analyses(v1::PlotsListAnalysesRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let mut request = tonic::Request::new(v1::PlotsListAnalysesRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        plots.list_analyses(request).await?;
+        drop(plots);
+
+        let mut documents = v1::documents_client::DocumentsClient::new(channel.clone());
+        assert_eq!(
+            documents.update_plot_settings(v1::DocumentsUpdatePlotSettingsRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::DocumentsUpdatePlotSettingsRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        assert_eq!(documents.update_plot_settings(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+        drop(documents);
+
+        let mut reports = v1::reports_client::ReportsClient::new(channel.clone());
+        assert_eq!(
+            reports.materialize_report(v1::ReportsMaterializeReportRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::ReportsMaterializeReportRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        assert_eq!(reports.materialize_report(request).await.unwrap_err().code(), tonic::Code::InvalidArgument);
+        drop(reports);
+
+        let mut content = v1::content_client::ContentClient::new(channel.clone());
+        assert_eq!(
+            content.list_artifacts(v1::ContentListArtifactsRequest::default()).await.unwrap_err().code(),
+            tonic::Code::Unauthenticated
+        );
+        let mut request = tonic::Request::new(v1::ContentListArtifactsRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        assert!(content.list_artifacts(request).await?.into_inner().artifacts.is_empty());
+        drop(content);
+
+        let mut notes = v1::notes_client::NotesClient::new(channel.clone());
+        assert_eq!(notes.list_notes(v1::NotesListNotesRequest::default()).await.unwrap_err().code(), tonic::Code::Unauthenticated);
+        let mut request = tonic::Request::new(v1::NotesListNotesRequest::default());
+        request.metadata_mut().insert("authorization", key.parse()?);
+        notes.list_notes(request).await?;
+        drop(notes);
+
         // A New Export Invalidates the Old Key on an Already Open Channel
         let second = remote
             .create_pairing(v1::RemoteCreatePairingRequest { label: "Replacement Desktop".into() })
