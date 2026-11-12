@@ -1,0 +1,86 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/client_types.proto";
+
+message PlanningMaterializeTemplateRequest {
+  RegisteredSelection selection = 1;
+}
+
+message PlanningMaterializeTemplateRunInput {
+  oneof value {
+    PlanningMaterializeTemplateRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PlanningMaterializeTemplateRunOutput {
+  oneof value {
+    PreviewSelectionReply response = 2;
+  }
+}
+
+message PlanningPreviewSelectionRequest {
+  SelectionPlan plan = 1;
+}
+
+message PlanningPreviewSelectionRunInput {
+  oneof value {
+    PlanningPreviewSelectionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PlanningPreviewSelectionRunOutput {
+  oneof value {
+    PreviewSelectionReply response = 2;
+  }
+}
+
+message PlanningRegisterSelectionRequest {
+  SelectionPlan plan = 1;
+  string idempotency_key = 2;
+}
+
+message PlanningRegisterSelectionRunInput {
+  oneof value {
+    PlanningRegisterSelectionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PlanningRegisterSelectionRunOutput {
+  oneof value {
+    PreviewSelectionReply response = 2;
+  }
+}
+
+service Planning {
+  // Public. dokime.planning.materialize_template. Cancelling this call does not undo committed mutations or cancel
+  // an admitted execution.
+  // Expand one selection through the host and pure plugin materialization, then register the resulting cases.
+  // Returned order follows parameter expansion. An absent selection is invalid.
+  rpc MaterializeTemplate (.dokime.v1.PlanningMaterializeTemplateRequest) returns (.dokime.v1.PreviewSelectionReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunMaterializeTemplate (stream .dokime.v1.PlanningMaterializeTemplateRunInput)
+      returns (stream .dokime.v1.PlanningMaterializeTemplateRunOutput);
+  // Public. dokime.planning.preview_selection. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  // Expand without registering or starting executions. Preserve selection order and duplicates; the reply is
+  // bounded by the plan case cap.
+  rpc PreviewSelection (.dokime.v1.PlanningPreviewSelectionRequest) returns (.dokime.v1.PreviewSelectionReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunPreviewSelection (stream .dokime.v1.PlanningPreviewSelectionRunInput)
+      returns (stream .dokime.v1.PlanningPreviewSelectionRunOutput);
+  // Public. dokime.planning.register_selection. Cancelling this call does not undo committed mutations or cancel
+  // an admitted execution.
+  // Expand and register atomically against the captured catalog. Reuse the idempotency_key to resolve an uncertain
+  // acknowledgement; no execution starts here.
+  rpc RegisterSelection (.dokime.v1.PlanningRegisterSelectionRequest) returns (.dokime.v1.PreviewSelectionReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunRegisterSelection (stream .dokime.v1.PlanningRegisterSelectionRunInput)
+      returns (stream .dokime.v1.PlanningRegisterSelectionRunOutput);
+}

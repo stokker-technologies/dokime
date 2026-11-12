@@ -18,8 +18,8 @@ import "google/protobuf/timestamp.proto";
 // dokime.execution.effect.prepare: PrepareEffect -> Ticket
 // dokime.execution.effect.applied: ConfirmEffect -> ConfirmEffectResponse
 // Sleep and clock reads use harmos.clock.sleep / harmos.clock.now; no Dokime copy.
-// Client-facing Prompts, Secrets, Content and other existing gRPC services keep
-// their current contracts and generation; these definitions do not relocate them.
+// Client-facing services are declared in client_*.proto. Their Public operations
+// reuse these messages when they expose the same context operation vocabulary.
 message OperatorQuestion {
   string prompt = 1;
   string prompt_type = 2;
@@ -28,7 +28,8 @@ message OperatorQuestion {
   // absent uses the catalog definition named by prompt_type.
   Prompt definition = 4;
 }
-message Prompts { repeated Prompt prompts = 1; }
+// Catalog payload name avoids the dokime.v1.Prompts service namespace.
+message PromptCatalog { repeated Prompt prompts = 1; }
 message Prompt {
   Metadata metadata = 1;
   string message = 2;

@@ -1,0 +1,222 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/client_types.proto";
+import "dokime/v1/plugins.proto";
+
+message PluginsGetInstallationRequest {
+  string install_id = 1;
+}
+
+message PluginsGetInstallationRunInput {
+  oneof value {
+    PluginsGetInstallationRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PluginsGetInstallationRunOutput {
+  oneof value {
+    PluginInstallation response = 2;
+  }
+}
+
+message PluginsInstallRequest {
+
+}
+
+message PluginsInstallInput {
+  oneof value {
+    PluginsInstallRequest request = 1;
+    InstallPluginFrame item = 2;
+  }
+}
+
+message PluginsInstallRunInput {
+  oneof value {
+    PluginsInstallRequest request = 1;
+    InstallPluginFrame item = 2;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PluginsInstallRunOutput {
+  oneof value {
+    PluginInstallation response = 2;
+  }
+}
+
+message PluginsListAdmittedPluginsRequest {
+  uint32 page_size = 1;
+  AdmittedPluginCursor after = 2;
+}
+
+message PluginsListAdmittedPluginsRunInput {
+  oneof value {
+    PluginsListAdmittedPluginsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PluginsListAdmittedPluginsRunOutput {
+  oneof value {
+    AdmittedPluginPage response = 2;
+  }
+}
+
+message PluginsListInstallationsRequest {
+  uint32 page_size = 1;
+  InstallationCursor after = 2;
+}
+
+message PluginsListInstallationsRunInput {
+  oneof value {
+    PluginsListInstallationsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PluginsListInstallationsRunOutput {
+  oneof value {
+    InstallationPage response = 2;
+  }
+}
+
+message PluginsReloadRequest {
+  optional string install_id = 1;
+  optional string plugin_id = 2;
+}
+
+message PluginsReloadRunInput {
+  oneof value {
+    PluginsReloadRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PluginsReloadRunOutput {
+  oneof value {
+    ClientEmpty response = 2;
+  }
+}
+
+message PluginsRemoveRunInput {
+  oneof value {
+    RemovePlugin request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PluginsRemoveRunOutput {
+  oneof value {
+    RemovePluginResponse response = 2;
+  }
+}
+
+message PluginsSetEnabledRequest {
+  string install_id = 1;
+  bool enabled = 2;
+}
+
+message PluginsSetEnabledRunInput {
+  oneof value {
+    PluginsSetEnabledRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PluginsSetEnabledRunOutput {
+  oneof value {
+    PluginInstallation response = 2;
+  }
+}
+
+message PluginsListRunInput {
+  oneof value {
+    ListPlugins request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PluginsListRunOutput {
+  oneof value {
+    PluginEntries response = 2;
+  }
+}
+
+message PluginsAddRunInput {
+  oneof value {
+    AddRemotePlugin request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message PluginsAddRunOutput {
+  oneof value {
+    Plugin response = 2;
+  }
+}
+
+service Plugins {
+  // Public. dokime.plugins.get_installation. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc GetInstallation (.dokime.v1.PluginsGetInstallationRequest) returns (.dokime.v1.PluginInstallation);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetInstallation (stream .dokime.v1.PluginsGetInstallationRunInput) returns (stream .dokime.v1.PluginsGetInstallationRunOutput);
+  // Public. dokime.plugins.install. Send one request first, then input items in order; half-close to finish input.
+  // Cancelling this call does not undo committed mutations or cancel an admitted execution.
+  rpc Install (stream .dokime.v1.PluginsInstallInput) returns (.dokime.v1.PluginInstallation);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunInstall (stream .dokime.v1.PluginsInstallRunInput) returns (stream .dokime.v1.PluginsInstallRunOutput);
+  // Public. dokime.plugins.list_admitted_plugins. Follow the returned continuation with unchanged filters/order
+  // and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
+  // mutations or cancel an admitted execution.
+  // Plugin identifier order within one admission revision; retain the returned epoch/revision cursor.
+  rpc ListAdmittedPlugins (.dokime.v1.PluginsListAdmittedPluginsRequest) returns (.dokime.v1.AdmittedPluginPage);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListAdmittedPlugins (stream .dokime.v1.PluginsListAdmittedPluginsRunInput)
+      returns (stream .dokime.v1.PluginsListAdmittedPluginsRunOutput);
+  // Public. dokime.plugins.list_installations. Follow the returned continuation with unchanged filters/order and
+  // its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
+  // mutations or cancel an admitted execution.
+  // Installation UUID order; default page size 50, maximum 500. Keep the manifest-bound cursor unchanged across
+  // pages.
+  rpc ListInstallations (.dokime.v1.PluginsListInstallationsRequest) returns (.dokime.v1.InstallationPage);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListInstallations (stream .dokime.v1.PluginsListInstallationsRunInput)
+      returns (stream .dokime.v1.PluginsListInstallationsRunOutput);
+  // Public. dokime.plugins.reload. Cancelling this call does not undo committed mutations or cancel an admitted
+  // execution.
+  rpc Reload (.dokime.v1.PluginsReloadRequest) returns (.dokime.v1.ClientEmpty);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunReload (stream .dokime.v1.PluginsReloadRunInput) returns (stream .dokime.v1.PluginsReloadRunOutput);
+  // Public. dokime.plugins.remove. Cancelling this call does not undo committed mutations or cancel an admitted
+  // execution.
+  // Removes the canonical entry, managed or remote; entry identity replaces the former install_id-only request.
+  // Removal does not silently discard execution evidence.
+  rpc Remove (.dokime.v1.RemovePlugin) returns (.dokime.v1.RemovePluginResponse);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunRemove (stream .dokime.v1.PluginsRemoveRunInput) returns (stream .dokime.v1.PluginsRemoveRunOutput);
+  // Public. dokime.plugins.set_enabled. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc SetEnabled (.dokime.v1.PluginsSetEnabledRequest) returns (.dokime.v1.PluginInstallation);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunSetEnabled (stream .dokime.v1.PluginsSetEnabledRunInput) returns (stream .dokime.v1.PluginsSetEnabledRunOutput);
+  // Public. dokime.plugins.list. Complete plugin entries ordered by entry identifier, including unavailable entries; no paging.
+  rpc List (.dokime.v1.ListPlugins) returns (.dokime.v1.PluginEntries);
+  // Public. Same operation as List; request first, then finish or cancel; await settlement and final status.
+  rpc RunList (stream .dokime.v1.PluginsListRunInput) returns (stream .dokime.v1.PluginsListRunOutput);
+  // Public. dokime.plugins.add. Add a remote URL; identity is stable before connection. Cancellation does not remove an admitted entry.
+  rpc Add (.dokime.v1.AddRemotePlugin) returns (.dokime.v1.Plugin);
+  // Public. Same operation as Add; request first, then finish or cancel; await settlement and final status.
+  rpc RunAdd (stream .dokime.v1.PluginsAddRunInput) returns (stream .dokime.v1.PluginsAddRunOutput);
+}

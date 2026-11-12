@@ -1,0 +1,745 @@
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/client_types.proto";
+import "dokime/v1/values.proto";
+
+message ExecutionAppendExecutionsRequest {
+  string cycle_id = 1;
+  repeated ExecutionBinding executions = 2;
+}
+
+message ExecutionAppendExecutionsRunInput {
+  oneof value {
+    ExecutionAppendExecutionsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionAppendExecutionsRunOutput {
+  oneof value {
+    AppendCasesReply response = 2;
+  }
+}
+
+message ExecutionCancelExecutionRequest {
+  string execution_id = 1;
+  MutationContext context = 2;
+}
+
+message ExecutionCancelExecutionRunInput {
+  oneof value {
+    ExecutionCancelExecutionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionCancelExecutionRunOutput {
+  oneof value {
+    ControlReply response = 2;
+  }
+}
+
+message ExecutionCreateCycleRequest {
+  Metadata metadata = 1;
+  bool continue_automatically = 2;
+  MutationContext context = 3;
+}
+
+message ExecutionCreateCycleRunInput {
+  oneof value {
+    ExecutionCreateCycleRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionCreateCycleRunOutput {
+  oneof value {
+    CreateCycleReply response = 2;
+  }
+}
+
+message ExecutionDeleteCaseRequest {
+  string cycle_id = 1;
+  string case_id = 2;
+  MutationContext context = 3;
+}
+
+message ExecutionDeleteCaseRunInput {
+  oneof value {
+    ExecutionDeleteCaseRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionDeleteCaseRunOutput {
+  oneof value {
+    ControlReply response = 2;
+  }
+}
+
+message ExecutionGetCaseRequest {
+  string cycle_id = 1;
+  string case_id = 2;
+}
+
+message ExecutionGetCaseRunInput {
+  oneof value {
+    ExecutionGetCaseRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionGetCaseRunOutput {
+  oneof value {
+    CaseDetail response = 2;
+  }
+}
+
+message ExecutionGetCycleRequest {
+  string cycle_id = 1;
+}
+
+message ExecutionGetCycleRunInput {
+  oneof value {
+    ExecutionGetCycleRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionGetCycleRunOutput {
+  oneof value {
+    CycleSummary response = 2;
+  }
+}
+
+message ExecutionGetExecutionRequest {
+  string execution_id = 1;
+}
+
+message ExecutionGetExecutionRunInput {
+  oneof value {
+    ExecutionGetExecutionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionGetExecutionRunOutput {
+  oneof value {
+    ExecutionDetail response = 2;
+  }
+}
+
+message ExecutionGetExecutionCommandRequest {
+  string request_id = 1;
+  string command_id = 2;
+}
+
+message ExecutionGetExecutionCommandRunInput {
+  oneof value {
+    ExecutionGetExecutionCommandRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionGetExecutionCommandRunOutput {
+  oneof value {
+    ExecutionCommandReceipt response = 2;
+  }
+}
+
+message ExecutionListCaseParametersRequest {
+  string cycle_id = 1;
+  string case_id = 2;
+  uint32 limit = 3;
+  string after_name = 4;
+  ParameterCursor cursor = 5;
+}
+
+message ExecutionListCaseParametersRunInput {
+  oneof value {
+    ExecutionListCaseParametersRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionListCaseParametersRunOutput {
+  oneof value {
+    ListCaseParametersReply response = 2;
+  }
+}
+
+message ExecutionListCasesRequest {
+  string cycle_id = 1;
+  uint32 limit = 2;
+  string after_case_id = 3;
+  Cursor cursor = 4;
+}
+
+message ExecutionListCasesRunInput {
+  oneof value {
+    ExecutionListCasesRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionListCasesRunOutput {
+  oneof value {
+    ListCasesReply response = 2;
+  }
+}
+
+message ExecutionListCyclesRequest {
+  uint32 limit = 1;
+  string after_cycle_id = 2;
+  Cursor cursor = 3;
+  CycleFilter filter = 4;
+  CycleOrder order = 5;
+}
+
+message ExecutionListCyclesRunInput {
+  oneof value {
+    ExecutionListCyclesRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionListCyclesRunOutput {
+  oneof value {
+    ListCyclesReply response = 2;
+  }
+}
+
+message ExecutionListExecutionParametersRequest {
+  string execution_id = 1;
+  ExecutionParameterSet set = 2;
+  uint32 limit = 3;
+  string after_name = 4;
+  ParameterCursor cursor = 5;
+}
+
+message ExecutionListExecutionParametersRunInput {
+  oneof value {
+    ExecutionListExecutionParametersRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionListExecutionParametersRunOutput {
+  oneof value {
+    ListMaterializedParametersReply response = 2;
+  }
+}
+
+message ExecutionListExecutionStepsRequest {
+  string execution_id = 1;
+  uint32 limit = 2;
+  StepPageCursor cursor = 3;
+}
+
+message ExecutionListExecutionStepsRunInput {
+  oneof value {
+    ExecutionListExecutionStepsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionListExecutionStepsRunOutput {
+  oneof value {
+    ListExecutionStepsReply response = 2;
+  }
+}
+
+message ExecutionListExecutionsRequest {
+  string cycle_id = 1;
+  uint32 limit = 2;
+  string after_execution_id = 3;
+  Cursor cursor = 4;
+}
+
+message ExecutionListExecutionsRunInput {
+  oneof value {
+    ExecutionListExecutionsRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionListExecutionsRunOutput {
+  oneof value {
+    ListExecutionsReply response = 2;
+  }
+}
+
+message ExecutionPauseCycleRequest {
+  string cycle_id = 1;
+  MutationContext context = 2;
+}
+
+message ExecutionPauseCycleRunInput {
+  oneof value {
+    ExecutionPauseCycleRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionPauseCycleRunOutput {
+  oneof value {
+    ControlReply response = 2;
+  }
+}
+
+message ExecutionPauseExecutionRequest {
+  string execution_id = 1;
+  MutationContext context = 2;
+}
+
+message ExecutionPauseExecutionRunInput {
+  oneof value {
+    ExecutionPauseExecutionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionPauseExecutionRunOutput {
+  oneof value {
+    ControlReply response = 2;
+  }
+}
+
+message ExecutionRenameCycleRequest {
+  string cycle_id = 1;
+  string label = 2;
+  MutationContext context = 3;
+}
+
+message ExecutionRenameCycleRunInput {
+  oneof value {
+    ExecutionRenameCycleRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionRenameCycleRunOutput {
+  oneof value {
+    RenameReply response = 2;
+  }
+}
+
+message ExecutionRenameExecutionRequest {
+  string execution_id = 1;
+  string label = 2;
+  MutationContext context = 3;
+}
+
+message ExecutionRenameExecutionRunInput {
+  oneof value {
+    ExecutionRenameExecutionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionRenameExecutionRunOutput {
+  oneof value {
+    RenameReply response = 2;
+  }
+}
+
+message ExecutionRerunCycleRequest {
+  string source_cycle_id = 1;
+  optional string label = 2;
+  MutationContext context = 3;
+}
+
+message ExecutionRerunCycleRunInput {
+  oneof value {
+    ExecutionRerunCycleRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionRerunCycleRunOutput {
+  oneof value {
+    RerunCycleReply response = 2;
+  }
+}
+
+message ExecutionResumeCycleRequest {
+  string cycle_id = 1;
+  MutationContext context = 2;
+}
+
+message ExecutionResumeCycleRunInput {
+  oneof value {
+    ExecutionResumeCycleRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionResumeCycleRunOutput {
+  oneof value {
+    ControlReply response = 2;
+  }
+}
+
+message ExecutionResumeExecutionRequest {
+  string execution_id = 1;
+  MutationContext context = 2;
+}
+
+message ExecutionResumeExecutionRunInput {
+  oneof value {
+    ExecutionResumeExecutionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionResumeExecutionRunOutput {
+  oneof value {
+    ControlReply response = 2;
+  }
+}
+
+message ExecutionSealCycleRequest {
+  string cycle_id = 1;
+  MutationContext context = 2;
+}
+
+message ExecutionSealCycleRunInput {
+  oneof value {
+    ExecutionSealCycleRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionSealCycleRunOutput {
+  oneof value {
+    ControlReply response = 2;
+  }
+}
+
+message ExecutionSetCycleArchivedRequest {
+  string cycle_id = 1;
+  bool archived = 2;
+  MutationContext context = 3;
+}
+
+message ExecutionSetCycleArchivedRunInput {
+  oneof value {
+    ExecutionSetCycleArchivedRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionSetCycleArchivedRunOutput {
+  oneof value {
+    ArchiveReply response = 2;
+  }
+}
+
+message ExecutionSetExecutionArchivedRequest {
+  string execution_id = 1;
+  bool archived = 2;
+  MutationContext context = 3;
+}
+
+message ExecutionSetExecutionArchivedRunInput {
+  oneof value {
+    ExecutionSetExecutionArchivedRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionSetExecutionArchivedRunOutput {
+  oneof value {
+    ArchiveReply response = 2;
+  }
+}
+
+message ExecutionStartExecutionRequest {
+  string execution_id = 1;
+  ExecutionMode mode = 2;
+}
+
+message ExecutionStartExecutionRunInput {
+  oneof value {
+    ExecutionStartExecutionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionStartExecutionRunOutput {
+  oneof value {
+    StartExecutionReply response = 2;
+  }
+}
+
+message ExecutionStopExecutionRequest {
+  string execution_id = 1;
+  MutationContext context = 2;
+}
+
+message ExecutionStopExecutionRunInput {
+  oneof value {
+    ExecutionStopExecutionRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionStopExecutionRunOutput {
+  oneof value {
+    ControlReply response = 2;
+  }
+}
+
+message ExecutionSubmitExecutionCommandRequest {
+  string request_id = 1;
+  string command_id = 2;
+  string execution_id = 3;
+  ExecutionCommandAction action = 4;
+  optional string step_id = 5;
+}
+
+message ExecutionSubmitExecutionCommandRunInput {
+  oneof value {
+    ExecutionSubmitExecutionCommandRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionSubmitExecutionCommandRunOutput {
+  oneof value {
+    ExecutionCommandReceipt response = 2;
+  }
+}
+
+message ExecutionUpdateCyclePolicyRequest {
+  string cycle_id = 1;
+  bool continue_automatically = 2;
+  MutationContext context = 3;
+}
+
+message ExecutionUpdateCyclePolicyRunInput {
+  oneof value {
+    ExecutionUpdateCyclePolicyRequest request = 1;
+    ClientEmpty cancel = 3;
+    ClientEmpty finish = 4;
+  }
+}
+
+message ExecutionUpdateCyclePolicyRunOutput {
+  oneof value {
+    ControlReply response = 2;
+  }
+}
+
+service Execution {
+  // Public. dokime.execution.append_executions. Cancelling this call does not undo committed mutations or cancel
+  // an admitted execution. Append cases generated from the current registered catalog to an existing mutable
+  // cycle. The plan is resolved and validated against one captured registry snapshot before the existing append
+  // transaction is committed.
+  // Preserve the supplied binding order. Reply identities belong only to this append, independently of concurrent
+  // appends.
+  rpc AppendExecutions (.dokime.v1.ExecutionAppendExecutionsRequest) returns (.dokime.v1.AppendCasesReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunAppendExecutions (stream .dokime.v1.ExecutionAppendExecutionsRunInput)
+      returns (stream .dokime.v1.ExecutionAppendExecutionsRunOutput);
+  // Public. dokime.execution.cancel_execution. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  // Only valid while a live run drives this execution. Import drafts and completed executions are refused. Cleanup
+  // remains required after successful initialization.
+  rpc CancelExecution (.dokime.v1.ExecutionCancelExecutionRequest) returns (.dokime.v1.ControlReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunCancelExecution (stream .dokime.v1.ExecutionCancelExecutionRunInput) returns (stream .dokime.v1.ExecutionCancelExecutionRunOutput);
+  // Public. dokime.execution.create_cycle. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  // Creates an empty cycle. Append explicit execution/case identities separately; continue_automatically controls
+  // admission after append.
+  rpc CreateCycle (.dokime.v1.ExecutionCreateCycleRequest) returns (.dokime.v1.CreateCycleReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunCreateCycle (stream .dokime.v1.ExecutionCreateCycleRunInput) returns (stream .dokime.v1.ExecutionCreateCycleRunOutput);
+  // Public. dokime.execution.delete_case. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. DeleteCase Only Removes An Unexecuted Case. Reruns Bind A New Explicit Execution Identity.
+  rpc DeleteCase (.dokime.v1.ExecutionDeleteCaseRequest) returns (.dokime.v1.ControlReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunDeleteCase (stream .dokime.v1.ExecutionDeleteCaseRunInput) returns (stream .dokime.v1.ExecutionDeleteCaseRunOutput);
+  // Public. dokime.execution.get_case. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc GetCase (.dokime.v1.ExecutionGetCaseRequest) returns (.dokime.v1.CaseDetail);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetCase (stream .dokime.v1.ExecutionGetCaseRunInput) returns (stream .dokime.v1.ExecutionGetCaseRunOutput);
+  // Public. dokime.execution.get_cycle. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc GetCycle (.dokime.v1.ExecutionGetCycleRequest) returns (.dokime.v1.CycleSummary);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetCycle (stream .dokime.v1.ExecutionGetCycleRunInput) returns (stream .dokime.v1.ExecutionGetCycleRunOutput);
+  // Public. dokime.execution.get_execution. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc GetExecution (.dokime.v1.ExecutionGetExecutionRequest) returns (.dokime.v1.ExecutionDetail);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetExecution (stream .dokime.v1.ExecutionGetExecutionRunInput) returns (stream .dokime.v1.ExecutionGetExecutionRunOutput);
+  // Public. dokime.execution.get_execution_command. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc GetExecutionCommand (.dokime.v1.ExecutionGetExecutionCommandRequest) returns (.dokime.v1.ExecutionCommandReceipt);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunGetExecutionCommand (stream .dokime.v1.ExecutionGetExecutionCommandRunInput)
+      returns (stream .dokime.v1.ExecutionGetExecutionCommandRunOutput);
+  // Public. dokime.execution.list_case_parameters. Follow the returned continuation with unchanged filters/order
+  // and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
+  // mutations or cancel an admitted execution.
+  rpc ListCaseParameters (.dokime.v1.ExecutionListCaseParametersRequest) returns (.dokime.v1.ListCaseParametersReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListCaseParameters (stream .dokime.v1.ExecutionListCaseParametersRunInput)
+      returns (stream .dokime.v1.ExecutionListCaseParametersRunOutput);
+  // Public. dokime.execution.list_cases. Follow the returned continuation with unchanged filters/order and its
+  // captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution.
+  rpc ListCases (.dokime.v1.ExecutionListCasesRequest) returns (.dokime.v1.ListCasesReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListCases (stream .dokime.v1.ExecutionListCasesRunInput) returns (stream .dokime.v1.ExecutionListCasesRunOutput);
+  // Public. dokime.execution.list_cycles. Follow the returned continuation with unchanged filters/order and its
+  // captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution. `filter` and `order` must be repeated unchanged on every continuation, and
+  // `after_cycle_id` must still be a member of the filtered result. A changed selection, a changed order, or a
+  // continuation ID the filter excludes is rejected rather than silently restarted.
+  rpc ListCycles (.dokime.v1.ExecutionListCyclesRequest) returns (.dokime.v1.ListCyclesReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListCycles (stream .dokime.v1.ExecutionListCyclesRunInput) returns (stream .dokime.v1.ExecutionListCyclesRunOutput);
+  // Public. dokime.execution.list_execution_parameters. Follow the returned continuation with unchanged
+  // filters/order and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo
+  // committed mutations or cancel an admitted execution.
+  rpc ListExecutionParameters (.dokime.v1.ExecutionListExecutionParametersRequest) returns (.dokime.v1.ListMaterializedParametersReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListExecutionParameters (stream .dokime.v1.ExecutionListExecutionParametersRunInput)
+      returns (stream .dokime.v1.ExecutionListExecutionParametersRunOutput);
+  // Public. dokime.execution.list_execution_steps. Follow the returned continuation with unchanged filters/order
+  // and its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
+  // mutations or cancel an admitted execution.
+  rpc ListExecutionSteps (.dokime.v1.ExecutionListExecutionStepsRequest) returns (.dokime.v1.ListExecutionStepsReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListExecutionSteps (stream .dokime.v1.ExecutionListExecutionStepsRunInput)
+      returns (stream .dokime.v1.ExecutionListExecutionStepsRunOutput);
+  // Public. dokime.execution.list_executions. Follow the returned continuation with unchanged filters/order and
+  // its captured cursor; an absent continuation ends paging. Cancelling this call does not undo committed
+  // mutations or cancel an admitted execution.
+  rpc ListExecutions (.dokime.v1.ExecutionListExecutionsRequest) returns (.dokime.v1.ListExecutionsReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunListExecutions (stream .dokime.v1.ExecutionListExecutionsRunInput) returns (stream .dokime.v1.ExecutionListExecutionsRunOutput);
+  // Public. dokime.execution.pause_cycle. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc PauseCycle (.dokime.v1.ExecutionPauseCycleRequest) returns (.dokime.v1.ControlReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunPauseCycle (stream .dokime.v1.ExecutionPauseCycleRunInput) returns (stream .dokime.v1.ExecutionPauseCycleRunOutput);
+  // Public. dokime.execution.pause_execution. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. Controls require that execution's active execution-addressed request.
+  rpc PauseExecution (.dokime.v1.ExecutionPauseExecutionRequest) returns (.dokime.v1.ControlReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunPauseExecution (stream .dokime.v1.ExecutionPauseExecutionRunInput) returns (stream .dokime.v1.ExecutionPauseExecutionRunOutput);
+  // Public. dokime.execution.rename_cycle. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. Renames one live cycle until it seals or is archived. A rename is admitted until the
+  // subject seals: a sealed, archived or History cycle and an execution whose case has a sealed attempt refuse it
+  // with FailedPrecondition, since the sealed report froze the label. An execution's label is its case's label, so
+  // every attempt of that case is renamed together.
+  rpc RenameCycle (.dokime.v1.ExecutionRenameCycleRequest) returns (.dokime.v1.RenameReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunRenameCycle (stream .dokime.v1.ExecutionRenameCycleRunInput) returns (stream .dokime.v1.ExecutionRenameCycleRunOutput);
+  // Public. dokime.execution.rename_execution. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. Renames one live execution's case until an attempt of it seals. A rename is admitted until
+  // the subject seals: a sealed, archived or History cycle and an execution whose case has a sealed attempt refuse
+  // it with FailedPrecondition, since the sealed report froze the label. An execution's label is its case's label,
+  // so every attempt of that case is renamed together.
+  rpc RenameExecution (.dokime.v1.ExecutionRenameExecutionRequest) returns (.dokime.v1.RenameReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunRenameExecution (stream .dokime.v1.ExecutionRenameExecutionRunInput) returns (stream .dokime.v1.ExecutionRenameExecutionRunOutput);
+  // Public. dokime.execution.rerun_cycle. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. Reruns a cycle as a new planned, unrun cycle resolved against the installed plugin.
+  // Missing cases are skipped and dropped parameters reported; the source stays untouched. A label replaces the
+  // source label when given.
+  rpc RerunCycle (.dokime.v1.ExecutionRerunCycleRequest) returns (.dokime.v1.RerunCycleReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunRerunCycle (stream .dokime.v1.ExecutionRerunCycleRunInput) returns (stream .dokime.v1.ExecutionRerunCycleRunOutput);
+  // Public. dokime.execution.resume_cycle. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc ResumeCycle (.dokime.v1.ExecutionResumeCycleRequest) returns (.dokime.v1.ControlReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunResumeCycle (stream .dokime.v1.ExecutionResumeCycleRunInput) returns (stream .dokime.v1.ExecutionResumeCycleRunOutput);
+  // Public. dokime.execution.resume_execution. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc ResumeExecution (.dokime.v1.ExecutionResumeExecutionRequest) returns (.dokime.v1.ControlReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunResumeExecution (stream .dokime.v1.ExecutionResumeExecutionRunInput) returns (stream .dokime.v1.ExecutionResumeExecutionRunOutput);
+  // Public. dokime.execution.seal_cycle. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  // Idempotent publication/seal boundary. A failed report render publishes nothing; inspect the retained seal
+  // failure before retrying.
+  rpc SealCycle (.dokime.v1.ExecutionSealCycleRequest) returns (.dokime.v1.ControlReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunSealCycle (stream .dokime.v1.ExecutionSealCycleRunInput) returns (stream .dokime.v1.ExecutionSealCycleRunOutput);
+  // Public. dokime.execution.set_cycle_archived. Cancelling this call does not undo committed mutations or cancel
+  // an admitted execution. Archives or unarchives one terminal cycle, live or retired to history. Archiving is
+  // orthogonal to the lifecycle and admitted only on a terminal cycle or execution: it hides the row from lists
+  // that do not ask for archived rows and changes nothing else.
+  rpc SetCycleArchived (.dokime.v1.ExecutionSetCycleArchivedRequest) returns (.dokime.v1.ArchiveReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunSetCycleArchived (stream .dokime.v1.ExecutionSetCycleArchivedRunInput)
+      returns (stream .dokime.v1.ExecutionSetCycleArchivedRunOutput);
+  // Public. dokime.execution.set_execution_archived. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution. Archives or unarchives one terminal execution, live or retired to history.
+  // Archiving is orthogonal to the lifecycle and admitted only on a terminal cycle or execution: it hides the row
+  // from lists that do not ask for archived rows and changes nothing else.
+  rpc SetExecutionArchived (.dokime.v1.ExecutionSetExecutionArchivedRequest) returns (.dokime.v1.ArchiveReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunSetExecutionArchived (stream .dokime.v1.ExecutionSetExecutionArchivedRunInput)
+      returns (stream .dokime.v1.ExecutionSetExecutionArchivedRunOutput);
+  // Public. dokime.execution.start_execution. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution. Admit one existing, unstarted execution. Never reopens a finished attempt.
+  // Starts an existing unstarted execution; never reopens a completed execution. Acceptance is not completion. Use
+  // CancelExecution to cancel admitted work.
+  rpc StartExecution (.dokime.v1.ExecutionStartExecutionRequest) returns (.dokime.v1.StartExecutionReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunStartExecution (stream .dokime.v1.ExecutionStartExecutionRunInput) returns (stream .dokime.v1.ExecutionStartExecutionRunOutput);
+  // Public. dokime.execution.stop_execution. Cancelling this call does not undo committed mutations or cancel an
+  // admitted execution.
+  rpc StopExecution (.dokime.v1.ExecutionStopExecutionRequest) returns (.dokime.v1.ControlReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunStopExecution (stream .dokime.v1.ExecutionStopExecutionRunInput) returns (stream .dokime.v1.ExecutionStopExecutionRunOutput);
+  // Public. dokime.execution.submit_execution_command. Cancelling this call does not undo committed mutations or
+  // cancel an admitted execution. Commands belong to an admitted interactive run. Reuse the same command UUID and
+  // identical action to recover admission; a transport failure is uncertain.
+  rpc SubmitExecutionCommand (.dokime.v1.ExecutionSubmitExecutionCommandRequest) returns (.dokime.v1.ExecutionCommandReceipt);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunSubmitExecutionCommand (stream .dokime.v1.ExecutionSubmitExecutionCommandRunInput)
+      returns (stream .dokime.v1.ExecutionSubmitExecutionCommandRunOutput);
+  // Public. dokime.execution.update_cycle_policy. Cancelling this call does not undo committed mutations or cancel
+  // an admitted execution.
+  rpc UpdateCyclePolicy (.dokime.v1.ExecutionUpdateCyclePolicyRequest) returns (.dokime.v1.ControlReply);
+  // Public. Request first; ordered items, then finish or cancel; await settlement and final status.
+  rpc RunUpdateCyclePolicy (stream .dokime.v1.ExecutionUpdateCyclePolicyRunInput)
+      returns (stream .dokime.v1.ExecutionUpdateCyclePolicyRunOutput);
+}

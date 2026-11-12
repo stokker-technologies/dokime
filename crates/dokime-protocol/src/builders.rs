@@ -432,6 +432,7 @@ fn metadata(label: String) -> Metadata {
         identifier,
         label,
         description: String::new(),
+        ..Default::default()
     }
 }
 
