@@ -147,6 +147,9 @@ pub async fn handle(context: &Context, request: v1::TelemetryListSamplesRequest)
         let mut samples = super::projection::samples(&snapshot, &[], None)?;
         for sample in &mut samples {
             sample.source = source.clone();
+            if let Some(scope) = &mut sample.scope {
+                scope.step_id = request.scope.as_ref().and_then(|selected| selected.step_id.clone());
+            }
             if !request.signals.is_empty()
                 && let Some(values) = &mut sample.values
             {
