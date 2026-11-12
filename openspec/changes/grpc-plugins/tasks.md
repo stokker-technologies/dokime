@@ -303,7 +303,6 @@ Source inventory: `crates/dokime-runtime-next/src/{services,bin}/`, its library/
 
 - [ ] Integration handoff: serve the following explicitly refused methods when their host features land (the current listener returns named `UNIMPLEMENTED`):
   - [ ] Plugins: GetInstallation, RunGetInstallation, Install, RunInstall, ListAdmittedPlugins, RunListAdmittedPlugins, ListInstallations, RunListInstallations, Reload, RunReload, Remove, RunRemove, SetEnabled, RunSetEnabled, RunList, RunAdd.
-  - [ ] Catalog: GetRecordSchema, RunGetRecordSchema, RunGetSuite, GetTelemetrySchema, RunGetTelemetrySchema, ListRecordSchemas, RunListRecordSchemas, RunListSuites, ListTelemetrySchemas, RunListTelemetrySchemas.
   - [ ] Planning: RunMaterializeTemplate, PreviewSelection, RunPreviewSelection, RegisterSelection, RunRegisterSelection.
   - [ ] Execution: AppendExecutions, RunAppendExecutions, CancelExecution, RunCancelExecution, RunCreateCycle, DeleteCase, RunDeleteCase, GetCase, RunGetCase, GetCycle, RunGetCycle, RunGetExecution, GetExecutionCommand, RunGetExecutionCommand, ListCaseParameters, RunListCaseParameters, ListCases, RunListCases, ListCycles, RunListCycles, ListExecutionParameters, RunListExecutionParameters, ListExecutionSteps, RunListExecutionSteps, ListExecutions, RunListExecutions, PauseCycle, RunPauseCycle, PauseExecution, RunPauseExecution, RenameCycle, RunRenameCycle, RenameExecution, RunRenameExecution, RerunCycle, RunRerunCycle, ResumeCycle, RunResumeCycle, ResumeExecution, RunResumeExecution, SealCycle, RunSealCycle, SetCycleArchived, RunSetCycleArchived, SetExecutionArchived, RunSetExecutionArchived, StartExecution, RunStartExecution, StopExecution, RunStopExecution, SubmitExecutionCommand, RunSubmitExecutionCommand, UpdateCyclePolicy, RunUpdateCyclePolicy.
   - [ ] Observation: GetRuntimeShell, RunGetRuntimeShell, GetTraceability, RunGetTraceability, RunWatchExecutionProgress, WatchRuntime, RunWatchRuntime.
@@ -375,7 +374,7 @@ Source inventory: assigned Plugins, Catalog, Settings, Secrets, Backend, Appeara
 - [ ] Appearance.
 - [ ] Remote pairing, key/certificate rotation and listener configuration.
 - [ ] Plugins entries, installation, bundles, removal and states.
-- [ ] Catalog schemas and paging.
+- [x] Catalog six direct methods and six Run methods: schema projections from admitted descriptors, epoch/content-bound cursor paging and the real-process catalog journey.
 - [ ] Settings read/write and on-demand plugin settings.
 - [ ] Secrets by identifier and archives.
 - [ ] Backend diagnostics, logs and trace; Health paging.

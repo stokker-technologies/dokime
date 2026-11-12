@@ -14,8 +14,13 @@
 pub mod backend_get_availability;
 pub mod backend_get_health;
 pub mod backend_get_identity;
+pub mod catalog_get_record_schema;
 pub mod catalog_get_suite;
+pub mod catalog_get_telemetry_schema;
+mod catalog_inventory;
+pub mod catalog_list_record_schemas;
 pub mod catalog_list_suites;
+pub mod catalog_list_telemetry_schemas;
 pub mod evidence_list_records;
 pub mod execution_create_cycle;
 pub mod execution_get_execution;
@@ -56,6 +61,16 @@ use dokime_storage::Store;
 /* === Constants === */
 
 pub const METHODS: &[&str] = &[
+    "/dokime.v1.Catalog/RunListTelemetrySchemas",
+    "/dokime.v1.Catalog/ListTelemetrySchemas",
+    "/dokime.v1.Catalog/RunListSuites",
+    "/dokime.v1.Catalog/RunListRecordSchemas",
+    "/dokime.v1.Catalog/ListRecordSchemas",
+    "/dokime.v1.Catalog/RunGetTelemetrySchema",
+    "/dokime.v1.Catalog/GetTelemetrySchema",
+    "/dokime.v1.Catalog/RunGetSuite",
+    "/dokime.v1.Catalog/RunGetRecordSchema",
+    "/dokime.v1.Catalog/GetRecordSchema",
     "/dokime.v1.Runtime/GetHealth",
     "/dokime.v1.Runtime/RunGetHealth",
     "/dokime.v1.Runtime/GetIdentity",

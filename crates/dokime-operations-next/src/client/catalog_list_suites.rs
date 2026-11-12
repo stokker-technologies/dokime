@@ -19,8 +19,10 @@
 
 // Third Party Imports
 
+
 // Local Imports
 use crate::{Error, Result, client::Context};
+
 use dokime_protocol::v1;
 
 /* === Constants === */
@@ -46,37 +48,17 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 }
 pub async fn handle(context: &Context, request: v1::CatalogListSuitesRequest) -> Result<v1::ListSuitesReply> {
     super::complete(ID, context.settings.read_timeout, async {
-        if request.cursor.is_some() {
-            return Err(Error::Invalid("ListSuites Cursor Is Not Yet Served by the New Host".into()));
-        }
-        let mut suites: Vec<_> = context
-            .host
-            .suites()?
-            .into_iter()
-            .filter_map(|(plugin, suite)| {
-                let metadata = suite.metadata?;
-                if metadata.identifier <= request.after_suite_id {
-                    return None;
-                }
-                Some(v1::SuiteIdentity {
-                    suite_id: metadata.identifier.clone(),
-                    source: plugin,
-                    metadata: Some(metadata),
-                })
-            })
-            .collect();
+        let inventory = super::catalog_inventory::Inventory::read(context)?;
+        inventory.check(request.cursor.as_ref())?;
+        if !request.after_suite_id.is_empty() && !inventory.suites.iter().any(|(_, suite)| suite.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.after_suite_id)) { return Err(Error::Invalid("Continue Suites: Select an Existing Suite Identifier".into())); }
         let limit = super::projection::limit(request.limit, context.settings.page_items);
-        let next_after_suite_id = if suites.len() > limit {
-            suites.truncate(limit);
-            suites.last().map(|suite| suite.suite_id.clone())
-        } else {
-            None
-        };
-        Ok(v1::ListSuitesReply {
-            suites,
-            next_after_suite_id,
-            ..Default::default()
-        })
+        let mut entries = inventory.suites.into_iter().filter_map(|(source, suite)| {
+            let metadata = suite.metadata?;
+            (metadata.identifier > request.after_suite_id).then(|| v1::SuiteIdentity { suite_id: metadata.identifier.clone(), source, metadata: Some(metadata) })
+        });
+        let suites: Vec<_> = entries.by_ref().take(limit).collect();
+        let next_after_suite_id = entries.next().and_then(|_| suites.last().map(|item| item.suite_id.clone()));
+        Ok(v1::ListSuitesReply { suites, next_after_suite_id, cursor: Some(inventory.cursor) })
     })
     .await
 }

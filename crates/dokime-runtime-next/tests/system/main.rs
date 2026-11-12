@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod cancelling_a_thermal_step_runs_cleanup;
+mod client_browses_catalog;
 mod client_publishes_execution_report;
 mod client_reads_interrupted_execution;
 mod client_reads_runtime;

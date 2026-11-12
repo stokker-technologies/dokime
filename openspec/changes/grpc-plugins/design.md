@@ -790,6 +790,8 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+- Catalog returns only admitted ready plugin contracts, projecting protobuf row fields into v1 schemas; cursors bind the process epoch and complete admitted catalog digest, and complete descriptions retain original sections/descriptors.
+
 - Administration Runtime identity and health share the Backend identity/readiness owner; unary Run calls validate request/finish ordering before admission, then use the operation deadline.
 
 Every SDK generates private step and criterion operation names by declaration position; stable evidence identifiers remain independent of handler names.
