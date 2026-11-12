@@ -47,55 +47,62 @@ pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::
 pub async fn handle(
     context: &Context, request: v1::ReportsDownloadCycleReportRequest,
 ) -> Result<super::Output<v1::ReportsDownloadCycleReportOutput>> {
-    super::complete(ID, context.settings.read_timeout, async {
-        if !request.identifier.is_empty() && request.identifier != "cycle" {
-            return Err(Error::Invalid("Download Cycle Report: Select the Cycle Report Identifier".into()));
-        }
-        let (file, metadata) = context.host.render_report(
-            &v1::ReportSubject {
-                kind: Some(v1::report_subject::Kind::Cycle(request.cycle_id)),
-            },
-            None,
-        )?;
-        let (file, length, digest) = super::content_transfer::temporary(file)?;
-        super::content_transfer::download(
-            context,
-            super::content_transfer::Download {
-                source: super::content_transfer::Source::Temporary(file),
-                length,
-                expected_digest: Some(digest),
-            },
-            v1::ReportsDownloadCycleReportOutput {
-                value: Some(v1::reports_download_cycle_report_output::Value::Item(v1::ReportHtmlFrame {
-                    payload: Some(v1::ReportHtmlFramePayload {
-                        kind: Some(v1::report_html_frame_payload::Kind::Report(metadata)),
-                    }),
-                })),
-            },
-            |chunk| v1::ReportsDownloadCycleReportOutput {
-                value: Some(v1::reports_download_cycle_report_output::Value::Item(v1::ReportHtmlFrame {
-                    payload: Some(v1::ReportHtmlFramePayload {
-                        kind: Some(v1::report_html_frame_payload::Kind::Chunk(v1::ReportHtmlChunk {
-                            offset: chunk.offset,
-                            data: chunk.data,
-                        })),
-                    }),
-                })),
-            },
-            |complete| v1::ReportsDownloadCycleReportOutput {
-                value: Some(v1::reports_download_cycle_report_output::Value::Item(v1::ReportHtmlFrame {
-                    payload: Some(v1::ReportHtmlFramePayload {
-                        kind: Some(v1::report_html_frame_payload::Kind::Complete(v1::ReportHtmlCompletion {
-                            size_bytes: complete.size_bytes,
-                            sha256: complete.sha256,
-                        })),
-                    }),
-                })),
-            },
-            || v1::ReportsDownloadCycleReportOutput {
-                value: Some(v1::reports_download_cycle_report_output::Value::Response(v1::ClientEmpty {})),
-            },
-        )
+    let context = context.clone();
+    super::complete(ID, context.settings.read_timeout, async move {
+        tokio::task::spawn_blocking(move || {
+            let context = &context;
+
+            if !request.identifier.is_empty() && request.identifier != "cycle" {
+                return Err(Error::Invalid("Download Cycle Report: Select the Cycle Report Identifier".into()));
+            }
+            let (file, metadata) = context.host.render_report(
+                &v1::ReportSubject {
+                    kind: Some(v1::report_subject::Kind::Cycle(request.cycle_id)),
+                },
+                None,
+            )?;
+            let (file, length, digest) = super::content_transfer::temporary(file)?;
+            super::content_transfer::download(
+                context,
+                super::content_transfer::Download {
+                    source: super::content_transfer::Source::Temporary(file),
+                    length,
+                    expected_digest: Some(digest),
+                },
+                v1::ReportsDownloadCycleReportOutput {
+                    value: Some(v1::reports_download_cycle_report_output::Value::Item(v1::ReportHtmlFrame {
+                        payload: Some(v1::ReportHtmlFramePayload {
+                            kind: Some(v1::report_html_frame_payload::Kind::Report(metadata)),
+                        }),
+                    })),
+                },
+                |chunk| v1::ReportsDownloadCycleReportOutput {
+                    value: Some(v1::reports_download_cycle_report_output::Value::Item(v1::ReportHtmlFrame {
+                        payload: Some(v1::ReportHtmlFramePayload {
+                            kind: Some(v1::report_html_frame_payload::Kind::Chunk(v1::ReportHtmlChunk {
+                                offset: chunk.offset,
+                                data: chunk.data,
+                            })),
+                        }),
+                    })),
+                },
+                |complete| v1::ReportsDownloadCycleReportOutput {
+                    value: Some(v1::reports_download_cycle_report_output::Value::Item(v1::ReportHtmlFrame {
+                        payload: Some(v1::ReportHtmlFramePayload {
+                            kind: Some(v1::report_html_frame_payload::Kind::Complete(v1::ReportHtmlCompletion {
+                                size_bytes: complete.size_bytes,
+                                sha256: complete.sha256,
+                            })),
+                        }),
+                    })),
+                },
+                || v1::ReportsDownloadCycleReportOutput {
+                    value: Some(v1::reports_download_cycle_report_output::Value::Response(v1::ClientEmpty {})),
+                },
+            )
+        })
+        .await
+        .map_err(|error| Error::Invalid(format!("Render Report: Retry After the Rendering Worker Failed: {error}")))?
     })
     .await
 }

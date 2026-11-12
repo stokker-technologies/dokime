@@ -114,6 +114,7 @@ impl Store {
         } else {
             connection.execute_batch(&format!("PRAGMA application_id={APPLICATION_ID}; PRAGMA user_version=1;
                 CREATE TABLE executions(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, state INTEGER NOT NULL, payload BLOB NOT NULL, seal BLOB NOT NULL);
+                CREATE INDEX executions_cycle ON executions(cycle,id);
                 CREATE TABLE evidence(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE samples(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, stream TEXT NOT NULL, payload BLOB NOT NULL, source_ns INTEGER NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
@@ -164,6 +165,7 @@ impl Store {
     }
     pub fn read_session(&self) -> Result<(Self, ReadCancellation)> {
         let connection = Connection::open_with_flags(self.database.as_path(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        connection.execute_batch("BEGIN")?;
         let interrupt = connection.get_interrupt_handle();
         let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let session = Self {
@@ -196,6 +198,11 @@ impl Store {
             params![execution.identifier, execution.cycle, execution.encode_to_vec()],
         )?;
         Ok(())
+    }
+    pub fn cycle_execution_page(&self, cycle: &str, after: &str, limit: std::num::NonZeroUsize) -> Result<Vec<String>> {
+        let connection = self.lock()?;
+        let mut query = connection.prepare("SELECT id FROM executions WHERE cycle=?1 AND id>?2 ORDER BY id LIMIT ?3")?;
+        Ok(query.query_map(params![cycle, after, limit.get() as i64], |row| row.get(0))?.collect::<std::result::Result<_, _>>()?)
     }
     pub fn identifiers(&self) -> Result<Vec<String>> {
         let connection = self.lock()?;

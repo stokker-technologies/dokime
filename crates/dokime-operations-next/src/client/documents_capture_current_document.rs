@@ -247,7 +247,13 @@ pub async fn handle(
                                 .value
                                 .as_ref()
                                 .ok_or_else(|| Error::Invalid("Capture Summary: Supply Each Tile's Value Expression".into()))?;
-                            let result = context.host.store().document_value(&cut, expression);
+                            let (store, _cancel_on_drop) = context.host.store().read_session()?;
+                            let cut = cut.clone();
+                            let expression = expression.clone();
+                            let result =
+                                tokio::task::spawn_blocking(move || store.document_value(&cut, &expression)).await.map_err(|error| {
+                                    Error::Invalid(format!("Capture Summary: Retry After the Query Worker Failed: {error}"))
+                                })?;
                             let (value, unavailable) = match result {
                                 Ok(value) => (Some(value), None),
                                 Err(error) => (None, Some(error.to_string())),
@@ -270,27 +276,52 @@ pub async fn handle(
                         }
                     }
                     Some(v1::card::Body::Plot(plot)) => {
-                        let mut plot_request = super::document_plot::request(plot, evidence_scope.clone())?;
-                        plot_request.at = Some(v1::StorageCursor {
-                            history: Some(v1::StoreHistory {
-                                store: context.host.identity().backend_id,
-                                epoch: cut.execution.identifier.clone(),
-                            }),
-                            sequence: cut.frontier,
-                        });
-                        if let Some((points, technique)) = context.host.store().plot_preferences(
-                            &cut.execution.identifier,
-                            &request.document_id,
-                            plot.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str()),
-                        )? {
-                            plot_request.max_points = points.map(u64::from);
-                            plot_request.technique = technique;
+                        let prepared = async {
+                            let mut plot_request = super::document_plot::request(plot, evidence_scope.clone())?;
+                            plot_request.filters.extend(card.filters.iter().map(|filter| v1::PlotFilter {
+                                expression: filter.expression.clone(),
+                                operator: filter.operator,
+                                value: filter.value.clone(),
+                            }));
+                            plot_request.at = Some(v1::StorageCursor {
+                                history: Some(v1::StoreHistory {
+                                    store: context.host.identity().backend_id,
+                                    epoch: cut.execution.identifier.clone(),
+                                }),
+                                sequence: cut.frontier,
+                            });
+                            if let Some((points, technique)) = context.host.store().plot_preferences(
+                                &cut.execution.identifier,
+                                &request.document_id,
+                                plot.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str()),
+                            )? {
+                                plot_request.max_points = points.map(u64::from);
+                                plot_request.technique = technique;
+                            }
+                            let (store, _cancel_on_drop) = context.host.store().read_session()?;
+                            let query_cut = cut.clone();
+                            let query_plot = plot.clone();
+                            let presentation =
+                                tokio::task::spawn_blocking(move || super::document_plot::presentation(&store, &query_cut, &query_plot))
+                                    .await
+                                    .map_err(|error| {
+                                        Error::Invalid(format!("Capture Plot: Retry After the Binding Worker Failed: {error}"))
+                                    })??;
+                            Ok::<_, Error>(v1::DocumentPlotDefinition {
+                                metadata: plot.metadata.clone(),
+                                request: Some(plot_request),
+                                presentation: Some(presentation),
+                                z_expression: plot.z.clone(),
+                            })
                         }
-                        let definition = v1::DocumentPlotDefinition {
-                            metadata: plot.metadata.clone(),
-                            request: Some(plot_request),
-                            presentation: Some(v1::PlotPresentation { style: plot.style, ..Default::default() }),
-                            z_expression: plot.z.clone(),
+                        .await;
+                        let result = match prepared {
+                            Ok(definition) => v1::document_binding_result::Kind::Plot(definition),
+                            Err(error) => v1::document_binding_result::Kind::Failure(v1::DocumentCardFailure {
+                                code: "plot_binding_failed".into(),
+                                message: error.to_string(),
+                                budget: None,
+                            }),
                         };
                         send(
                             &sender,
@@ -298,9 +329,7 @@ pub async fn handle(
                             Kind::Binding(v1::DocumentBinding {
                                 source_id: id.clone(),
                                 metadata: None,
-                                result: Some(v1::DocumentBindingResult {
-                                    kind: Some(v1::document_binding_result::Kind::Plot(definition)),
-                                }),
+                                result: Some(v1::DocumentBindingResult { kind: Some(result) }),
                             }),
                         )
                         .await?;

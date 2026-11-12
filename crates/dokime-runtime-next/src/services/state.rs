@@ -82,36 +82,45 @@ impl ClientHost for State {
     }
     fn render_report(&self, subject: &v1::ReportSubject, at: Option<&v1::StorageCursor>) -> Result<(std::fs::File, v1::ReportMetadata)> {
         use std::io::{Seek, Write};
+        let (store, _read_cancellation) = self.host.inner.store.read_session()?;
         let (execution, cycle) = match subject.kind.as_ref() {
-            Some(v1::report_subject::Kind::Execution(id)) => (Some(id.as_str()), self.host.inner.store.metadata(id)?.execution.cycle),
+            Some(v1::report_subject::Kind::Execution(id)) => (Some(id.as_str()), store.metadata(id)?.execution.cycle),
             Some(v1::report_subject::Kind::Cycle(id)) => (None, id.clone()),
             None => return Err(Error::Invalid("Render Report: Select an Execution or Cycle".into())),
         };
         let mut snapshots = Vec::new();
-        for id in self.host.inner.store.identifiers()? {
-            if execution.is_some_and(|selected| selected != id) {
-                continue;
+        let mut after = String::new();
+        loop {
+            let page = store.cycle_execution_page(&cycle, &after, self.render_settings.page_size)?;
+            if page.is_empty() {
+                break;
             }
-            let cut = self.host.inner.store.metadata(&id)?;
-            if cut.execution.cycle != cycle {
-                continue;
-            }
-            let scope = v1::DocumentScope {
-                cycle_id: cycle.clone(),
-                execution_id: id,
-            };
-            let (document, mut cut) = self.host.current_document(&scope, "").map_err(convert)?;
-            if let Some(at) = at {
-                let history = v1::StoreHistory {
-                    store: self.identity.backend_id.clone(),
-                    epoch: scope.execution_id.clone(),
-                };
-                if execution.is_none() || at.history.as_ref() != Some(&history) || at.sequence > cut.frontier {
-                    return Err(Error::Invalid("Render Report: Refresh the Execution's Fixed Evidence Cursor".into()));
+            for id in page {
+                after = id.clone();
+                if execution.is_some_and(|selected| selected != id) {
+                    continue;
                 }
-                cut.frontier = at.sequence;
+                let cut = store.metadata(&id)?;
+                if cut.execution.cycle != cycle {
+                    continue;
+                }
+                let scope = v1::DocumentScope {
+                    cycle_id: cycle.clone(),
+                    execution_id: id,
+                };
+                let (document, mut cut) = self.host.current_document_in(&store, &scope, "").map_err(convert)?;
+                if let Some(at) = at {
+                    let history = v1::StoreHistory {
+                        store: self.identity.backend_id.clone(),
+                        epoch: scope.execution_id.clone(),
+                    };
+                    if execution.is_none() || at.history.as_ref() != Some(&history) || at.sequence > cut.frontier {
+                        return Err(Error::Invalid("Render Report: Refresh the Execution's Fixed Evidence Cursor".into()));
+                    }
+                    cut.frontier = at.sequence;
+                }
+                snapshots.push((document, self.host.snapshot_in(store.clone(), cut).map_err(convert)?));
             }
-            snapshots.push((document, self.host.snapshot_cut(cut).map_err(convert)?));
         }
         if snapshots.is_empty() {
             return Err(Error::Invalid("Render Report: Select an Existing Execution or Cycle".into()));
@@ -170,7 +179,12 @@ impl ClientHost for State {
             .transpose()
     }
     fn publish_report(&self, execution: &str, document: v1::Document) -> Result<dokime_storage::Report> {
-        let snapshot = self.host.snapshot(execution).map_err(convert)?;
+        let (store, _read_cancellation) = self.host.inner.store.read_session()?;
+        let cut = store.cut(execution)?;
+        if cut.state != ExecutionState::Sealed {
+            return Err(Error::Invalid("Publish Report: Seal the Execution Before Selecting Its Fixed Snapshot".into()));
+        }
+        let snapshot = self.host.snapshot_in(store, cut).map_err(convert)?;
         let output = self.host.render_document(&snapshot, document, self.render_settings).map_err(convert)?;
         self.host.publish_report(&output).map_err(convert)
     }

@@ -41,6 +41,7 @@ pub struct FixedSnapshot {
     store: Store,
     cut: ExecutionCut,
     counts: dokime_storage::OutcomeCounts,
+    _read_cancellation: Option<dokime_storage::ReadCancellation>,
 }
 
 #[derive(Clone, Copy)]
@@ -83,7 +84,12 @@ impl RenderedDocument {
 }
 impl Host {
     pub fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, ExecutionCut)> {
-        let cut = self.inner.store.cut(&scope.execution_id)?;
+        self.current_document_in(&self.inner.store, scope, identifier)
+    }
+    pub(crate) fn current_document_in(
+        &self, store: &Store, scope: &v1::DocumentScope, identifier: &str,
+    ) -> Result<(v1::Document, ExecutionCut)> {
+        let cut = store.cut(&scope.execution_id)?;
         if cut.execution.cycle != scope.cycle_id {
             return Err(Error::Invalid("Capture Document: Select the Execution in Its Own Cycle".into()));
         }
@@ -125,7 +131,7 @@ impl Host {
         }
         let mut document = documents.remove(0);
         let id = document.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
-        apply_preferences(&self.inner.store, &cut.execution.identifier, id, &mut document.sections)?;
+        apply_preferences(store, &cut.execution.identifier, id, &mut document.sections)?;
         Ok((document, cut))
     }
 
@@ -134,12 +140,19 @@ impl Host {
         self.snapshot_cut(cut)
     }
     pub fn snapshot_cut(&self, cut: ExecutionCut) -> Result<FixedSnapshot> {
-        let outcomes = self.inner.store.cycle_outcomes(&cut.execution.cycle)?;
+        let (store, guard) = self.inner.store.read_session()?;
+        let mut snapshot = self.snapshot_in(store, cut)?;
+        snapshot._read_cancellation = Some(guard);
+        Ok(snapshot)
+    }
+    pub(crate) fn snapshot_in(&self, store: Store, cut: ExecutionCut) -> Result<FixedSnapshot> {
+        let outcomes = store.cycle_outcomes(&cut.execution.cycle)?;
         let counts = dokime_storage::OutcomeCounts::from_outcomes(&outcomes);
         Ok(FixedSnapshot {
-            store: self.inner.store.clone(),
+            store,
             cut,
             counts,
+            _read_cancellation: None,
         })
     }
     pub fn render_document(&self, snapshot: &FixedSnapshot, document: v1::Document, settings: RenderSettings) -> Result<RenderedDocument> {
