@@ -32,7 +32,7 @@ use crate::model::identity::NoteId;
 
 /* === Structs === */
 
-#[derive(harmos::Described, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TestRecordSet {
     health: Vec<HealthItem>,
     notes: Vec<OperatorNote>,

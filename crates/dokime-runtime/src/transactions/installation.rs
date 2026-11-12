@@ -39,7 +39,7 @@ pub struct InstallPlugin {
 retained_transaction!(InstallPlugin, "dokime.artifact.install");
 
 #[harmos::transaction(id = "dokime.artifact.remove")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RemovePlugin {
     pub source: String,
 }

@@ -50,7 +50,7 @@ use dokime_domain::model::values::ValueType;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.prompts.request")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RequestPrompt {
     pub prompt: PromptRequest,
     pub command_id: CommandId,
@@ -58,7 +58,7 @@ pub struct RequestPrompt {
 }
 
 #[harmos::transaction(id = "dokime.prompts.response.submit")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitPromptResponse {
     pub prompt_id: PromptId,
     pub action: String,

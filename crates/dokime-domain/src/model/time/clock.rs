@@ -33,7 +33,7 @@ use serde::Serialize;
 
 /* === Structs === */
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Timestamp(String);
 

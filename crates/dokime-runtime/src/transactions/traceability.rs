@@ -44,7 +44,7 @@ use dokime_domain::model::traceability::TraceabilitySection;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.traceability.phase.update")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct UpdateExecutionPhase {
     pub scope: RecordScope,
     pub identifier: Identifier,
@@ -54,7 +54,7 @@ pub struct UpdateExecutionPhase {
 }
 
 #[harmos::transaction(id = "dokime.execution.capture.phase")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SetCapturePhase {
     pub scope: RecordScope,
     pub phase: dokime_domain::model::execution::CapturePhase,
@@ -62,21 +62,21 @@ pub struct SetCapturePhase {
 }
 
 #[harmos::transaction(id = "dokime.execution.step.attempt.begin")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct BeginStepAttempt {
     pub scope: RecordScope,
     pub start: dokime_domain::model::execution::result::StepAttemptStart,
 }
 
 #[harmos::transaction(id = "dokime.execution.step.attempt.record")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecordStepAttempt {
     pub scope: RecordScope,
     pub attempt: dokime_domain::model::execution::result::TestStepAttempt,
 }
 
 #[harmos::transaction(id = "dokime.traceability.template.record")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecordExecutionTraceability {
     pub scope: RecordScope,
     pub sections: Vec<TraceabilitySection>,

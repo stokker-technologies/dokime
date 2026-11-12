@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 /* === Structs === */
 
 // Pending External Changes Live In The Backend Journal Until Their Inverse Succeeds.
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PendingEffect {
     pub ticket: String,
     pub scope: RecordScope,
@@ -46,7 +46,7 @@ pub struct PendingEffect {
 }
 
 // Later Calls Keep Their Own Confirmation Metadata, Never Another Inverse.
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EffectPreparation {
     pub ticket: String,
     pub source: String,

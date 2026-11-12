@@ -34,7 +34,7 @@ pub const NOTE_OWNER_SEALED: &str = "note owner is sealed; its report keeps the 
 
 /* === Structs === */
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OperatorNote {
     pub note_id: NoteId,
     pub scope: RecordScope,
@@ -50,7 +50,7 @@ pub struct OperatorNoteRequest {
     pub message: String,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NoteAdmission {
     pub mutation_id: crate::model::identity::CommandId,
     pub owner: NoteOwner,
@@ -60,7 +60,7 @@ pub struct NoteAdmission {
 
 /* === Enums === */
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum NoteOwner {
     Cycle { cycle_id: crate::model::identity::TestCycleId },

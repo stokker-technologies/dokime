@@ -40,7 +40,7 @@ pub struct SetSuiteSet {
 retained_transaction!(SetSuiteSet, "dokime.execution.catalog.set");
 
 #[harmos::transaction(id = "dokime.execution.catalog.unregister-source")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RemoveSuiteSet {
     pub source: String,
 }

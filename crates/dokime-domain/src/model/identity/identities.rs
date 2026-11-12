@@ -38,7 +38,7 @@ pub struct DokimeIdentity {
     pub actor: Option<DokimeActorIdentity>,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DokimeNodeIdentity {
     pub node_id: NodeId,
     pub hostname_label: Option<String>,

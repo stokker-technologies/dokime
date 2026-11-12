@@ -35,13 +35,13 @@ use crate::model::{
 /* === Structs === */
 
 #[harmos::record(id = "dokime.history.work")]
-#[derive(harmos::Described, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Work {
     pub executions: Vec<Execution>,
     pub cycles: Vec<Cycle>,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Execution {
     pub id: TestExecutionId,
     pub status: result::ExecutionStatus,
@@ -50,7 +50,7 @@ pub struct Execution {
     pub result: Option<result::ResultSummary>,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Cycle {
     pub id: TestCycleId,
     pub status: result::CycleStatus,

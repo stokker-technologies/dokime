@@ -41,7 +41,7 @@ use serde::{Deserialize, Serialize};
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.effect")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecordEffect {
     pub ticket: String,
     pub change: EffectChange,
@@ -50,7 +50,7 @@ pub struct RecordEffect {
 
 /* === Enums === */
 
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub enum EffectChange {
     Prepared(Box<PendingEffect>),
     Applied,

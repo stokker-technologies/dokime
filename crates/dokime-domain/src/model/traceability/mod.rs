@@ -55,7 +55,7 @@ pub const DERIVED_TRACEABILITY_GROUPS: &[DerivedTraceabilityGroup] =
 
 /* === Structs === */
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TraceabilitySection {
     pub identifier: Identifier,
     pub label: String,
@@ -64,7 +64,7 @@ pub struct TraceabilitySection {
     pub rows: Vec<TraceabilityRow>,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TraceabilityRow {
     pub identifier: Identifier,
     pub label: String,

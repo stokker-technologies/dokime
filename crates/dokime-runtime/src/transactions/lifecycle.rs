@@ -44,7 +44,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.runtime.started")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct MarkRuntimeStarted {
     pub session_id: SessionId,
     pub record_namespace: SessionId,
@@ -54,17 +54,17 @@ pub struct MarkRuntimeStarted {
 }
 
 #[harmos::transaction(id = "dokime.runtime.identity.establish")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct EstablishNodeIdentity {
     pub candidate: DokimeNodeIdentity,
 }
 
 #[harmos::transaction(id = "dokime.runtime.shutdown.start")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct StartShutdown;
 
 #[harmos::transaction(id = "dokime.runtime.interrupted.recover")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecoverInterruptedCycles {
     pub at: Timestamp,
 
@@ -103,32 +103,32 @@ pub struct ReportLifecycle {
     pub context: Option<harmos::storage::FileReference>,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CycleReportFinalization {
     pub source: dokime_domain::model::execution::result::TestCycle,
     pub evidence_at: harmos::storage::StorageCursor,
 }
 
 #[harmos::transaction(id = "dokime.cycle.report.finalization.request")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RequestCycleReportFinalization {
     pub intent: CycleReportFinalization,
 }
 
 #[harmos::transaction(id = "dokime.cycle.seal")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SealCycle {
     pub sealed_cycle: dokime_domain::model::execution::result::TestCycle,
 }
 
 #[harmos::transaction(id = "dokime.execution.seal")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct SealExecution {
     pub seal: dokime_domain::model::execution::saved::ExecutionSeal,
 }
 
 #[harmos::transaction(id = "dokime.cycle.sealing.begin")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct BeginCycleSeal {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub at: Timestamp,
@@ -136,7 +136,7 @@ pub struct BeginCycleSeal {
 
 // Settles A Seal That Could Not Complete: The Cycle Leaves Sealing With Its Cause Recorded.
 #[harmos::transaction(id = "dokime.cycle.sealing.fail")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct FailCycleSeal {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub cause: String,
@@ -144,14 +144,14 @@ pub struct FailCycleSeal {
 }
 
 #[harmos::transaction(id = "dokime.execution.request.queued.stop")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct StageQueuedStop {
     pub request_id: dokime_domain::model::identity::CommandId,
     pub at: Timestamp,
 }
 
 #[harmos::transaction(id = "dokime.report.failed")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct FailReport {
     pub execution: TestExecutionId,
     pub cause: String,

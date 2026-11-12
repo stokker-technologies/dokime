@@ -60,7 +60,7 @@ macro_rules! typed_uuid {
         }
     };
     (@shape $name:ident, $format:ident, $wire:ident) => {
-        #[derive(harmos::Described, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+        #[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
         #[serde(transparent)]
         pub struct $name(String);
 

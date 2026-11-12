@@ -53,7 +53,7 @@ pub struct RecordDetailError {
     pub reason: String,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordErrorDetail {
     pub message: String,
     pub code: Option<String>,

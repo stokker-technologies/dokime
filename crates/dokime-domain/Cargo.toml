@@ -32,6 +32,7 @@ diagnostics = ["dep:tracing-error"]
 # Local
 
 # Git
+harmos-sdk-derive = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }

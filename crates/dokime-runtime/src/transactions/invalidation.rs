@@ -39,7 +39,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.execution.invalidate")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct InvalidateExecutions {
     pub previous: ExecutionPluginIdentity,
     pub current: Option<ExecutionPluginIdentity>,

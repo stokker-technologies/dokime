@@ -29,7 +29,7 @@
 
 /* === Enums === */
 
-#[derive(harmos::Described, Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TerminationReason {
     Completed,

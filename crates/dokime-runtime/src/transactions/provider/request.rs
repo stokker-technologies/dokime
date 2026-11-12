@@ -70,7 +70,7 @@ pub struct RunRequest {
 }
 
 #[harmos::transaction(id = "dokime.execution.request.prepare")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct PrepareAttempt {
     pub request_id: CommandId,
     pub ordinal: u64,
@@ -78,7 +78,7 @@ pub struct PrepareAttempt {
 }
 
 #[harmos::transaction(id = "dokime.execution.request.dispatch")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct DispatchProvider {
     pub request_id: CommandId,
     pub at: Timestamp,

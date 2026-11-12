@@ -48,7 +48,7 @@ use dokime_domain::state::records::set::TestRecordSet;
 
 /* === Structs === */
 
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct CycleDefinition {
     pub metadata: Metadata,
     pub continue_automatically: bool,
@@ -66,7 +66,7 @@ retained_transaction!(RegisterCases, "dokime.suite.cases.register");
 
 // A Cycle Opens Empty; Explicit Execution Identities Join Through AppendExecutions.
 #[harmos::transaction(id = "dokime.execution.cycle.create")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct CreateCycle {
     pub definition: CycleDefinition,
     pub test_cycle_id: TestCycleId,

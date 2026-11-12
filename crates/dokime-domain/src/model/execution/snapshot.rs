@@ -43,7 +43,7 @@ pub struct SnapshotError {
     pub reason: String,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ExecutionPluginIdentity {
     pub source: String,
 
@@ -73,7 +73,7 @@ pub struct ExecutionSnapshot {
 
 /* === Enums === */
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ExecutionImplementation {
     Bundle { content_digest: String },

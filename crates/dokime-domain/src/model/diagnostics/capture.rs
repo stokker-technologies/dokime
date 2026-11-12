@@ -55,7 +55,7 @@ executable";
 
 /* === Structs === */
 
-#[derive(harmos::Described, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Diagnostic {
     pub message: String,
 

@@ -41,7 +41,7 @@ use dokime_domain::model::time::Timestamp;
 /* === Structs === */
 
 #[harmos::transaction(id = "dokime.evidence.health.record")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct RecordHealth {
     pub scope: RecordScope,
     pub severity: HealthSeverity,
@@ -52,14 +52,14 @@ pub struct RecordHealth {
 }
 
 #[harmos::transaction(id = "dokime.evidence.record_subscriptions.close")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct CloseRecordSubscriptions {
     pub test_cycle_id: dokime_domain::model::identity::TestCycleId,
     pub test_execution_id: dokime_domain::model::identity::TestExecutionId,
 }
 
 #[harmos::transaction(id = "dokime.evidence.event.publish")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct PublishRecord {
     pub request: RecordPublishRequest,
     pub occurred_at: Timestamp,
@@ -69,7 +69,7 @@ pub struct PublishRecord {
 
 /* === Enums === */
 
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum PublicationSource {
     Host,

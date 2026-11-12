@@ -34,7 +34,7 @@ use crate::model::time::Timestamp;
 
 /* === Structs === */
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArtifactRecord {
     pub artifact_id: ArtifactId,
     pub upload_id: UploadId,
@@ -67,7 +67,7 @@ pub enum MediaKind {
     Audio,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactStatus {
     Staged,

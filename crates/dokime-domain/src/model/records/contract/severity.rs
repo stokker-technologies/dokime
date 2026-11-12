@@ -31,7 +31,7 @@ use serde::Serialize;
 
 /* === Enums === */
 
-#[derive(harmos::Described, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RecordSeverity {
     Debug,

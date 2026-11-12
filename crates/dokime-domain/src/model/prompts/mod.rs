@@ -100,7 +100,7 @@ pub struct PromptField {
     pub validation: FieldValidation,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PromptRequest {
     pub prompt_id: PromptId,

@@ -47,7 +47,7 @@ pub struct AddExecutionDocumentParts {
 retained_transaction!(AddExecutionDocumentParts, "dokime.documents.execution.add");
 
 #[harmos::transaction(id = "dokime.documents.plot.settings")]
-#[derive(harmos::Described, Clone, Debug, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, Serialize, Deserialize)]
 pub struct UpdatePlotSettings {
     pub cycle_id: TestCycleId,
     pub execution_id: TestExecutionId,

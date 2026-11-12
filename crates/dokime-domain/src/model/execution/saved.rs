@@ -78,7 +78,7 @@ pub type Result<T> = std::result::Result<T, SavedEvidenceError>;
 
 /* === Structs === */
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionRevision {
     pub execution_id: TestExecutionId,
@@ -86,7 +86,7 @@ pub struct ExecutionRevision {
     pub version: ObjectVersionToken,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionSource {
     pub owner_node_id: NodeId,
@@ -96,7 +96,7 @@ pub struct ExecutionSource {
     pub outputs: Vec<ExecutionOutput>,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionOutput {
     pub relative_path: String,
@@ -106,7 +106,7 @@ pub struct ExecutionOutput {
     pub content: ExecutionOutputContent,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionSeal {
     pub source: ExecutionSource,
@@ -121,7 +121,7 @@ pub struct VerifiedReplicaFile {
     pub local: FileReference,
 }
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CycleSeal {
     pub owner_node_id: NodeId,
@@ -134,14 +134,14 @@ pub struct CycleSeal {
 
 /* === Enums === */
 
-#[derive(harmos::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExecutionOutputContent {
     File,
     Artifact { record: Box<ArtifactRecord>, metadata: Metadata },
 }
 
-#[derive(harmos::Described, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(harmos_sdk_derive::Described, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SavedStreamState {
     Finalized,

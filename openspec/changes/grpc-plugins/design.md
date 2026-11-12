@@ -834,7 +834,9 @@ normal product dependency is `harmos-protocol`.
 The protocol owner is adopted directly at the selected exact revision. Dokime
 uses its generated Harmos types and verifies the vendored descriptor against
 them; the duplicate Rust transport module and its generator output are removed.
-Native host, SDK and tool adoption remains open.
+Native stored-data `Described` derives are consumed directly from the same
+revision's `harmos-sdk-derive` owner. This does not turn native stored shapes into
+wire contracts. Native host, SDK and tool adoption remains open.
 
 Adoption follows Harmos's Crate Structure contract: native stored semantics stay
 in `harmos-domain`; declarations, dispatch and guest support use their explicit
