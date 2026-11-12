@@ -75,6 +75,7 @@ pub async fn handle(context: &Context, request: v1::EvidenceGetCapturedRecordSch
             });
         }
         let mut found = None;
+        let mut frozen_shape = None;
         for id in context.host.store().identifiers()? {
             let cut = context.host.store().metadata(&id)?;
             let catalog = harmos_protocol::v1::Catalog::decode(cut.execution.catalog.as_slice())?;
@@ -96,6 +97,14 @@ pub async fn handle(context: &Context, request: v1::EvidenceGetCapturedRecordSch
                     let descriptor = pool
                         .get_message_by_name(&record.message)
                         .ok_or_else(|| Error::Invalid("Get Captured Schema: Restore Its Frozen Record Descriptor".into()))?;
+                    let shape = shape(&descriptor);
+                    if frozen_shape.as_ref().is_some_and(|existing| existing != &shape) {
+                        return Err(Error::Invalid(
+                            "Get Captured Schema: Inspect Each Execution's Frozen Catalog to Resolve Conflicting Captured Wire Shapes"
+                                .into(),
+                        ));
+                    }
+                    frozen_shape = Some(shape);
                     let fields = fields(descriptor);
                     let candidate = v1::RecordSchema {
                         record_type: request.record_type.clone(),
@@ -119,6 +128,35 @@ pub async fn handle(context: &Context, request: v1::EvidenceGetCapturedRecordSch
 }
 
 /* === Private Functions === */
+
+fn shape(descriptor: &prost_reflect::MessageDescriptor) -> Vec<u8> {
+    let mut pending = vec![descriptor.clone()];
+    let mut messages = std::collections::BTreeMap::new();
+    let mut enums = std::collections::BTreeMap::new();
+    while let Some(message) = pending.pop() {
+        if messages.contains_key(message.full_name()) {
+            continue;
+        }
+        messages.insert(message.full_name().to_owned(), message.descriptor_proto().encode_to_vec());
+        for field in message.fields() {
+            match field.kind() {
+                prost_reflect::Kind::Message(message) => pending.push(message),
+                prost_reflect::Kind::Enum(enumeration) => {
+                    enums.insert(enumeration.full_name().to_owned(), enumeration.enum_descriptor_proto().encode_to_vec());
+                }
+                _ => (),
+            }
+        }
+    }
+    let mut shape = Vec::new();
+    for (name, bytes) in messages.into_iter().chain(enums) {
+        shape.extend((name.len() as u64).to_le_bytes());
+        shape.extend(name.as_bytes());
+        shape.extend((bytes.len() as u64).to_le_bytes());
+        shape.extend(bytes);
+    }
+    shape
+}
 
 fn fields(descriptor: prost_reflect::MessageDescriptor) -> Vec<v1::RecordField> {
     descriptor

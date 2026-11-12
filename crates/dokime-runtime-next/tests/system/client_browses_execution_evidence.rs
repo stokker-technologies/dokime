@@ -278,6 +278,43 @@ async fn client_browses_execution_evidence() -> Result<(), Box<dyn std::error::E
             terminal |= matches!(frame.value, Some(v1::evidence_watch_records_run_output::Value::Response(_)));
         }
         assert!(terminal);
+
+        // Refuse Ambiguous Wire Shapes Even When Names and Field Types Match
+        let mut changed = catalog.clone();
+        for file in &mut changed.types.as_mut().unwrap().file {
+            if file.package.as_deref() != Some("dokime.v1") {
+                continue;
+            }
+            for message in &mut file.message_type {
+                if message.name.as_deref() != Some("WriteLog") {
+                    continue;
+                }
+                for field in &mut message.field {
+                    if field.name.as_deref() == Some("message") {
+                        field.number = Some(17);
+                    }
+                }
+            }
+        }
+        store.create(&Execution {
+            identifier: "evidence-conflict".into(),
+            cycle: "evidence-cycle".into(),
+            origin: Some(v1::Origin {
+                kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+            }),
+            catalog: changed.encode_to_vec(),
+            ..Default::default()
+        })?;
+        assert!(
+            evidence
+                .get_captured_record_schema(v1::EvidenceGetCapturedRecordSchemaRequest {
+                    record_type: "reading".into(),
+                    schema_version: 1,
+                    ..Default::default()
+                })
+                .await
+                .is_err()
+        );
         client.close();
         process.close().await?;
         Ok::<(), Box<dyn std::error::Error>>(())
