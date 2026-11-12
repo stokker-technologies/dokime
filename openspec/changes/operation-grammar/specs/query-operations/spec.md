@@ -21,7 +21,7 @@ latest reads SHALL select already durable data without a flush barrier.
 
 - **WHEN** an authorized caller discovers the operation catalog
 - **THEN** each operation has a mechanically derived namespaced ID, one request schema, response wrapper and declared shared policy
-- **AND** native, gRPC, generated clients and generic CLI calls use that same declaration
+- **AND** native, gRPC, generated clients and generic CLI calls use that same declaration and the amended service-resource naming grammar
 
 ### Requirement: Cheap CLI Parity
 

@@ -4,23 +4,65 @@
 
 Give product callers one predictable operation grammar and consistent resource,
 position, mutation and upload behavior across clients and plugins.
-Status: locked by the owner on 2026-11-12. These are target requirements,
-not implemented behavior.
+Status: locked by the owner on 2026-11-12
+Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
+
+These are target requirements, not implemented behavior.
 
 ## ADDED Requirements
 
 ### Requirement: Predictable Operation Names
 
-Operations SHALL use symmetric `VerbResource` names, `<Method>Request` requests
-and `<Method>Response` wrappers. Ordinary verbs SHALL be limited to Get, List,
-Watch, Set, Create, Delete and Append. A domain verb SHALL document one side
-effect that an ordinary verb would hide. Clock waiting SHALL be named Sleep.
+Services SHALL name their resource with a plural noun, or a singular noun for
+one thing. Methods acting on that resource SHALL be bare verbs and SHALL NOT
+repeat its noun. Mixed-resource services SHALL keep distinguishing resource nouns,
+without repeating the service name, and SHALL NOT be split merely to shorten names.
+
+#### Scenario: Mixed-Resource Service
+
+- **WHEN** Content exposes uploads, artifacts, execution files and content bytes
+- **THEN** its methods distinguish those resources and Content.Get reads bytes without repeating the service name
+
+### Requirement: Resource Part Names
+
+A part read in exactly one way SHALL use its noun alone. Only parts with multiple
+read or change paths SHALL use verb plus part. A small service with bare Get/Set
+SHALL be preferred where it makes that exact pair clearer.
+
+#### Scenario: Single-Mode Part and Revisioned Settings
+
+- **WHEN** execution parameters and steps are paged, and plugin settings are read and changed
+- **THEN** the methods are Executions.Parameters, Executions.Steps and PluginSettings.Get/Set, with no automatic parameter or step watches
+- **AND** each settings Get returns the exact writable value and revision expected by Set
+
+#### Scenario: Progress Has Both Writable State and Observation
+
+- **WHEN** execution progress has the locked whole-value revisioned Get/Set and a stream
+- **THEN** its methods are Executions.GetProgress, Executions.SetProgress and Executions.WatchProgress under the multiple-path part rule
+- **AND** no redundant Progress stream or hand-written client alias is added
+
+### Requirement: Generated Method Messages and Clients
+
+Messages SHALL follow the service-prefixed method naming rule in the shared grammar.
+Responses SHALL always be wrappers. Generated clients SHALL take their short names
+directly from proto declarations without a hand-written naming layer.
 
 #### Scenario: Contract Review
 
-- **WHEN** a public method and its operation declaration are reviewed
-- **THEN** the resource name and verb agree across interfaces, the request and response use the method name, and the response is a wrapper even for a single resource
-- **AND** Update, Read, Browse, Put, Edit, Add, Remove, Follow, Scan, Inspect and Register are absent as ordinary operation verbs
+- **WHEN** Executions.Start and Plugins.Get are generated
+- **THEN** their request messages are ExecutionsStartRequest and PluginsGetRequest, and their responses are method-specific wrappers
+- **AND** the clients expose executions.start(request) and plugins.get(request) directly
+
+### Requirement: Closed Ordinary Verb Vocabulary
+
+Ordinary verbs SHALL be limited to Get, List, Watch, Set, Create, Delete and Append.
+A domain verb SHALL document one side effect that an ordinary verb would hide.
+Clock waiting SHALL be named Sleep.
+
+#### Scenario: Ordinary Verb Review
+
+- **WHEN** a method uses an ordinary verb
+- **THEN** Update, Read, Browse, Put, Edit, Add, Remove, Follow, Scan, Inspect and Register are absent as ordinary operation verbs
 
 #### Scenario: Domain Action
 
@@ -139,7 +181,7 @@ with its own Get, Set and revision. Read-only fields SHALL remain runtime-owned.
 
 - **WHEN** a caller Gets an execution and Sets its whole small writable value with that revision, changing only the label
 - **THEN** label, pause and archive values are replaced together under that revision guard and runtime-owned facts remain unchanged
-- **AND** the response is a SetExecutionResponse wrapper with the new writable value, revision and receipt
+- **AND** the response is an ExecutionsSetResponse wrapper with the new writable value, revision and receipt
 
 #### Scenario: Revision Conflict
 
@@ -172,17 +214,16 @@ the original outcome; changed payload SHALL conflict.
 
 ### Requirement: Explicit Streaming Contracts
 
-The protocol SHALL NOT automatically generate streaming twins. Durable work SHALL
-use unary operations with resource Get/Watch. Only a method promising a cooperative
-final result after cancellation SHALL use a canonical managed stream replacing
-its ordinary gRPC method. Ordinary server streaming SHALL be reserved for Watch;
-the plugin protocol SHALL retain its own carriers. Content transfers SHALL use
-bounded unary ranges, never streaming download gRPC methods.
+The protocol SHALL NOT generate streaming twins. Durable work SHALL use unary
+operations with resource Get/Watch. Only a cooperative final-result promise after
+cancellation SHALL use a managed stream replacing the ordinary method. Ordinary
+server streaming SHALL serve Watch semantics, including noun-only streamed parts.
+Plugin carriers SHALL remain. Content transfers SHALL use bounded unary ranges.
 
 #### Scenario: Getter Projection
 
-- **WHEN** contracts for GetExecution or ListRecords are generated
-- **THEN** no RunGetExecution or RunListRecords gRPC method is generated
+- **WHEN** contracts for Executions.Get or ListRecords are generated
+- **THEN** no Executions.RunGet or Evidence.RunListRecords gRPC method is generated
 
 #### Scenario: Promised Cooperative Settlement
 
@@ -192,21 +233,21 @@ bounded unary ranges, never streaming download gRPC methods.
 
 ### Requirement: Execution Stop and Cancel
 
-CancelExecution SHALL interrupt only an execution with a running invocation.
+Executions.Cancel SHALL interrupt only an execution with a running invocation.
 Queued cancellation SHALL be refused with an error naming the action.
-StopExecution SHALL finish at a safe scheduling boundary. Both SHALL preserve
+Executions.Stop SHALL finish at a safe scheduling boundary. Both SHALL preserve
 required cleanup and evidence; cancelling observation SHALL be separate.
 
 #### Scenario: Queued Cancellation
 
-- **WHEN** CancelExecution targets an execution that has not started
+- **WHEN** Executions.Cancel targets an execution that has not started
 - **THEN** it fails with an action-named refusal and does not skip or cancel that queued execution
 
 #### Scenario: Active Invocation
 
-- **WHEN** CancelExecution targets a running invocation
+- **WHEN** Executions.Cancel targets a running invocation
 - **THEN** interruption reaches that invocation and required cleanup remains scheduled
-- **AND** StopExecution instead prevents further scheduling at a safe boundary
+- **AND** Executions.Stop instead prevents further scheduling at a safe boundary
 
 ### Requirement: One-Execution Rename
 
@@ -221,8 +262,8 @@ scope consistently.
 
 ### Requirement: Shared Unary Resumable Uploads
 
-Clients and plugins SHALL share unary CreateUpload, AppendUploadBytes, GetUpload,
-PublishUpload and DeleteUpload. Append SHALL accept ordered chunks at stated
+Clients and plugins SHALL share unary Content.CreateUpload, Content.AppendUploadBytes, Content.GetUpload,
+Content.PublishUpload and Content.DeleteUpload. Append SHALL accept ordered chunks at stated
 offsets; identical replay SHALL succeed and different bytes at an accepted offset
 SHALL conflict. Configuration SHALL bound chunk sizes. Publish SHALL verify
 complete bytes, length and digest before visibility; Delete SHALL abandon.
@@ -230,7 +271,7 @@ complete bytes, length and digest before visibility; Delete SHALL abandon.
 #### Scenario: Resume After Lost Reply
 
 - **WHEN** an upload chunk reply is lost and the caller reconnects
-- **THEN** GetUpload reports the accepted offset and an identical AppendUploadBytes replays safely
+- **THEN** Content.GetUpload reports the accepted offset and an identical Content.AppendUploadBytes replays safely
 - **AND** different bytes at an accepted offset conflict without changing content
 
 #### Scenario: Partial Upload and Expiry
@@ -241,12 +282,12 @@ complete bytes, length and digest before visibility; Delete SHALL abandon.
 #### Scenario: Ordered and Bounded Chunks
 
 - **WHEN** a new chunk starts after the next accepted offset or exceeds the configured chunk bound
-- **THEN** AppendUploadBytes refuses it without changing session data
-- **AND** GetUpload exposes the accepted offset, length, digest and session state to resume
+- **THEN** Content.AppendUploadBytes refuses it without changing session data
+- **AND** Content.GetUpload exposes the accepted offset, length, digest and session state to resume
 
 ### Requirement: Shared Unary Ranged Downloads
 
-Clients and plugins SHALL download through repeated unary GetContent calls with
+Clients and plugins SHALL download through repeated unary Content.Get calls with
 offset and maximum bytes. Each reply SHALL state total length, content digest
 and resolved_at. Configuration SHALL bound range sizes. Streaming download gRPC methods
 SHALL be removed in favor of ranged Get reads.
@@ -286,3 +327,9 @@ explicit replay safety; invocation correlation alone SHALL NOT deduplicate.
 
 - **WHEN** a mutation is accepted but not saved
 - **THEN** its receipt cannot claim a durable position and a transport failure cannot be reported as proof that the mutation was not applied
+
+#### Scenario: Lost Client Call
+
+- **WHEN** a call fails on the client and its outcome is unknown
+- **THEN** resending is the client's responsibility, and the same request identifier and unchanged payload return the original receipt
+- **AND** a changed payload under that same identifier is a conflict

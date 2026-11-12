@@ -1,4 +1,5 @@
 Status: locked by the owner on 2026-11-12
+Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
 
 # Operation Grammar
 
@@ -13,12 +14,14 @@ moves to the new host, so consumers migrate once.
 
 This documentation records the owner's lock on 2026-11-12. No protocol,
 source, test, workflow or specification lifecycle activation is authorized here.
-Every decision below is Owner. Requirement deltas describe the locked target,
-not landed behavior.
+The amended target has 21 services, 118 operations/gRPC methods, 118 request
+messages and 118 response messages (236 method messages). Every decision below is
+Owner. Requirement deltas describe the locked target, not landed behavior.
 
 | Decision | Status | Direction |
 | --- | --- | --- |
-| Naming grammar | Owner | Symmetric, predictable `VerbResource`; `<Method>Request` and `<Method>Response`. |
+| Naming grammar | Owner | Bare verbs on the service resource; noun-only single-mode parts, verb-plus-part for multiple paths; mixed-resource methods retain distinguishing nouns. Service-prefixed method request/response wrappers follow the shared grammar. |
+| Lost calls | Owner | Resending after a client-side failure is the client's responsibility; the same request identifier returns the original receipt, and a changed payload under it conflicts. |
 | Response representation | Owner | Always a response wrapper, never a bare resource. |
 | Ordinary verbs | Owner | Closed set: Get, List, Watch, Set, Create, Delete, Append; Append replaces Create for ordered immutable records, samples, log lines and upload bytes in both repositories. Update, Read, Browse, Put, Edit, Add, Remove, Follow, Scan, Inspect and Register are not ordinary verbs. |
 | Set | Owner | Whole writable value and expected revision from the matching Get; Get returns that same value and revision. Stale revisions conflict with the action: get again and retry. Split large writable parts into separately revisioned Get/Set sub-resources. |
@@ -28,8 +31,8 @@ not landed behavior.
 | Latest and durability | Owner | Resolve latest durable without waiting; durable lag must meet a payload-size-independent 250 ms p95 bound. Use durable receipts for read-your-write. Benchmark small, multi-megabyte and mixed loads; first reduce flush pieces and flush at a size threshold; accepted-data snapshots are the named fallback if that is insufficient and are not built now. |
 | Execution cancellation | Owner | Cancel only running executions; refuse queued cancellation with an error naming the action. Stop finishes at a safe boundary; Cancel interrupts. |
 | Execution rename | Owner | Rename one execution, never every attempt of its case. |
-| Transfers | Owner | One unary, ranged, resumable mechanism for clients and plugins: CreateUpload, AppendUploadBytes at ordered offsets, GetUpload, PublishUpload and DeleteUpload; bounded GetContent ranges return total length and digest. Identical chunk replay succeeds; different bytes at an accepted offset conflict. Configuration bounds chunks and ranges. Benchmark large-file throughput in Nightly before deleting streaming transfers. |
-| Streaming twins | Owner | Never generate automatically; server streaming is reserved for Watch and the plugin protocol retains its own carriers. A managed stream replaces the ordinary gRPC method only where a cooperative final result after cancellation is promised. |
+| Transfers | Owner | One unary, ranged, resumable mechanism for clients and plugins: Content.CreateUpload, Content.AppendUploadBytes at ordered offsets, Content.GetUpload, Content.PublishUpload and Content.DeleteUpload; bounded Content.Get ranges return total length and digest. Identical chunk replay succeeds; different bytes at an accepted offset conflict. Configuration bounds chunks and ranges. Benchmark large-file throughput in Nightly before deleting streaming transfers. |
+| Streaming twins | Owner | Never generate automatically; server streaming is reserved for Watch semantics (including noun-only streamed parts) and the plugin protocol retains its own carriers. A managed stream replaces the ordinary gRPC method only where a cooperative final result after cancellation is promised. |
 | Shared primitives | Owner | One bounded paging shape, `(history, sequence)` positions, protobuf Timestamp/Duration, Failure, retry policy, and accepted/durable receipts. |
 | SDK ownership | Owner | Other products will host plugins on the library: it retains language SDKs, and product SDKs build on them. Protocol, SDKs and conformance remain self-sufficient and free of product vocabulary. Only four-language plugin parity and generic managed-client coverage remain open under SDKs. |
 
