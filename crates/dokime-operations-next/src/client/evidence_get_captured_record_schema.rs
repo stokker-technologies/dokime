@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Captured Record Schema
 
 /* === Modules === */
@@ -25,8 +24,9 @@ use crate::{Error, Result, client::Context};
 use dokime_protocol::v1;
 use prost::Message;
 
-
 /* === Constants === */
+
+pub const ID: &str = "dokime.evidence.get_captured_record_schema";
 
 /* === Macros === */
 
@@ -42,40 +42,123 @@ use prost::Message;
 
 /* === Public Functions === */
 
-
-pub const ID: &str = "dokime.evidence.get_captured_record_schema";
 pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
     super::declaration::<v1::EvidenceGetCapturedRecordSchemaRequest, v1::RecordSchema>(ID, settings.read_timeout)
 }
 pub async fn handle(context: &Context, request: v1::EvidenceGetCapturedRecordSchemaRequest) -> Result<v1::RecordSchema> {
     super::complete(ID, context.settings.read_timeout, async {
-        if !request.epoch.is_empty() && request.epoch != context.host.identity().epoch {
-            return Err(Error::Invalid("Get Captured Schema: Refresh the Backend Epoch".into()));
+        if !request.epoch.is_empty() && request.epoch != context.host.identity().backend_id {
+            return Err(Error::Invalid("Get Captured Schema: Refresh the Storage Root Identity".into()));
         }
         if request.schema_version != 0 && request.schema_version != 1 {
             return Err(Error::Invalid("Get Captured Schema: Select Captured Schema Version 1".into()));
+        }
+        if request.record_type == "dokime.log" {
+            let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(prost_types::FileDescriptorSet::decode(
+                dokime_protocol::FILE_DESCRIPTOR_SET,
+            )?)
+            .map_err(|error| Error::Invalid(error.to_string()))?;
+            let descriptor = pool
+                .get_message_by_name("dokime.v1.WriteLog")
+                .ok_or_else(|| Error::Invalid("Get Captured Log Schema: Rebuild the Host Protocol".into()))?;
+            return Ok(v1::RecordSchema {
+                record_type: request.record_type,
+                schema_version: 1,
+                metadata: Some(v1::Metadata {
+                    identifier: "dokime.log".into(),
+                    label: "Execution Log".into(),
+                    ..Default::default()
+                }),
+                fields: fields(descriptor),
+                default_severity: v1::Severity::Info as i32,
+                ..Default::default()
+            });
         }
         let mut found = None;
         for id in context.host.store().identifiers()? {
             let cut = context.host.store().metadata(&id)?;
             let catalog = harmos_protocol::v1::Catalog::decode(cut.execution.catalog.as_slice())?;
             for section in &catalog.sections {
-                if section.r#type != "dokime.v1.RecordContracts" { continue; }
+                if section.r#type != "dokime.v1.RecordContracts" {
+                    continue;
+                }
                 for record in v1::RecordContracts::decode(section.payload.as_slice())?.records {
-                    if record.metadata.as_ref().is_none_or(|metadata| metadata.identifier != request.record_type) { continue; }
-                    let candidate = v1::RecordSchema { record_type: request.record_type.clone(), schema_version: 1, metadata: record.metadata, ..Default::default() };
+                    if record.metadata.as_ref().is_none_or(|metadata| metadata.identifier != request.record_type) {
+                        continue;
+                    }
+                    let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(
+                        catalog
+                            .types
+                            .clone()
+                            .ok_or_else(|| Error::Invalid("Get Captured Schema: Restore Its Frozen Descriptors".into()))?,
+                    )
+                    .map_err(|error| Error::Invalid(error.to_string()))?;
+                    let descriptor = pool
+                        .get_message_by_name(&record.message)
+                        .ok_or_else(|| Error::Invalid("Get Captured Schema: Restore Its Frozen Record Descriptor".into()))?;
+                    let fields = fields(descriptor);
+                    let candidate = v1::RecordSchema {
+                        record_type: request.record_type.clone(),
+                        schema_version: 1,
+                        metadata: record.metadata,
+                        fields,
+                        ..Default::default()
+                    };
                     if found.as_ref().is_some_and(|existing| existing != &candidate) {
-                        return Err(Error::Invalid("Get Captured Schema: Inspect the Execution's Frozen Catalog to Resolve Conflicting Captured Types".into()));
+                        return Err(Error::Invalid(
+                            "Get Captured Schema: Inspect the Execution's Frozen Catalog to Resolve Conflicting Captured Types".into(),
+                        ));
                     }
                     found = Some(candidate);
                 }
             }
         }
         found.ok_or_else(|| Error::Invalid(format!("Get Captured Schema: Select a Captured Record Type {}", request.record_type)))
-    }).await
+    })
+    .await
 }
 
-
 /* === Private Functions === */
+
+fn fields(descriptor: prost_reflect::MessageDescriptor) -> Vec<v1::RecordField> {
+    descriptor
+        .fields()
+        .map(|field| {
+            let value_type = if field.is_list() || field.is_map() {
+                v1::ValueType::List
+            } else {
+                match field.kind() {
+                    prost_reflect::Kind::Bool => v1::ValueType::Boolean,
+                    prost_reflect::Kind::Double | prost_reflect::Kind::Float => v1::ValueType::Number,
+                    prost_reflect::Kind::Uint32
+                    | prost_reflect::Kind::Fixed32
+                    | prost_reflect::Kind::Uint64
+                    | prost_reflect::Kind::Fixed64 => v1::ValueType::UnsignedInteger,
+                    prost_reflect::Kind::Int32
+                    | prost_reflect::Kind::Sint32
+                    | prost_reflect::Kind::Sfixed32
+                    | prost_reflect::Kind::Int64
+                    | prost_reflect::Kind::Sint64
+                    | prost_reflect::Kind::Sfixed64
+                    | prost_reflect::Kind::Enum(_) => v1::ValueType::Integer,
+                    prost_reflect::Kind::String => v1::ValueType::Text,
+                    prost_reflect::Kind::Message(message) if message.full_name() == "google.protobuf.Timestamp" => v1::ValueType::Datetime,
+                    _ => v1::ValueType::Bytes,
+                }
+            };
+            v1::RecordField {
+                metadata: Some(v1::Metadata {
+                    identifier: field.name().into(),
+                    label: field.name().into(),
+                    ..Default::default()
+                }),
+                value_type: value_type as i32,
+                required: field.is_required(),
+                nullable: field.supports_presence(),
+                ..Default::default()
+            }
+        })
+        .collect()
+}
 
 /* === Tests === */

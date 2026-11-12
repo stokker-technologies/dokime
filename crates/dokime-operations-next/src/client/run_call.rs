@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Client Invocation Envelopes
 
 /* === Modules === */
@@ -21,9 +20,11 @@
 // Third Party Imports
 
 // Local Imports
-use crate::{Error, Result, client::{Context, Output}};
+use crate::{
+    Error, Result,
+    client::{Context, Output},
+};
 use tokio_stream::StreamExt;
-
 
 /* === Constants === */
 
@@ -48,8 +49,7 @@ pub enum Input<Q> {
 /* === Public Functions === */
 
 pub async fn unary<Q, I, R, O, F, W>(
-    context: &Context, mut input: tonic::Streaming<I>, decode: fn(I) -> Option<Input<Q>>,
-    work: F, response: fn(R) -> O,
+    context: &Context, mut input: tonic::Streaming<I>, decode: fn(I) -> Option<Input<Q>>, work: F, response: fn(R) -> O,
 ) -> Result<Output<O>>
 where
     Q: Send + 'static,
@@ -59,7 +59,10 @@ where
     F: FnOnce(Context, Q) -> W + Send + 'static,
     W: std::future::Future<Output = Result<R>> + Send,
 {
-    let first = input.message().await.map_err(|error| Error::Invalid(error.to_string()))?;
+    let first = super::complete("Run Operation Request", context.settings.read_timeout, async {
+        input.message().await.map_err(|error| Error::Invalid(error.to_string()))
+    })
+    .await?;
     let Some(Input::Request(request)) = first.and_then(decode) else {
         return Err(Error::Invalid("Run Operation: Send Exactly One Request First".into()));
     };
@@ -68,24 +71,22 @@ where
     tokio::spawn(async move {
         let future = work(context, request);
         tokio::pin!(future);
-        loop {
-            tokio::select! {
-                biased;
-                result = &mut future => {
-                    let result = result.map(response).map_err(super::status);
-                    let _ = sender.send(result).await;
-                    break;
-                }
-                _ = sender.closed() => break,
-                next = input.message() => match next {
-                    Ok(Some(value)) => match decode(value) {
-                        Some(Input::Cancel) => { let _ = sender.send(Err(tonic::Status::cancelled("Run Operation: Cancelled by the Client"))).await; break; }
-                        Some(Input::Finish) => { let result = future.await.map(response).map_err(super::status); let _ = sender.send(result).await; break; }
-                        _ => { let _ = sender.send(Err(tonic::Status::invalid_argument("Run Operation: Send Only Finish or Cancel After the Request"))).await; break; }
-                    },
-                    Ok(None) => { let result = future.await.map(response).map_err(super::status); let _ = sender.send(result).await; break; }
-                    Err(error) => { let _ = sender.send(Err(error)).await; break; }
-                }
+        tokio::select! {
+            biased;
+            result = &mut future => {
+                let result = result.map(response).map_err(super::status);
+                let _ = sender.send(result).await;
+
+            }
+            _ = sender.closed() => (),
+            next = input.message() => match next {
+                Ok(Some(value)) => match decode(value) {
+                    Some(Input::Cancel) => { let _ = sender.send(Err(tonic::Status::cancelled("Run Operation: Cancelled by the Client"))).await;  }
+                    Some(Input::Finish) => { let result = future.await.map(response).map_err(super::status); let _ = sender.send(result).await;  }
+                    _ => { let _ = sender.send(Err(tonic::Status::invalid_argument("Run Operation: Send Only Finish or Cancel After the Request"))).await;  }
+                },
+                Ok(None) => { let result = future.await.map(response).map_err(super::status); let _ = sender.send(result).await;  }
+                Err(error) => { let _ = sender.send(Err(error)).await;  }
             }
         }
     });
@@ -93,8 +94,7 @@ where
 }
 
 pub async fn streaming<Q, I, R, O, F, W>(
-    context: &Context, mut input: tonic::Streaming<I>, decode: fn(I) -> Option<Input<Q>>,
-    work: F, frame: fn(R) -> O, terminal: fn() -> O,
+    context: &Context, mut input: tonic::Streaming<I>, decode: fn(I) -> Option<Input<Q>>, work: F, frame: fn(R) -> O, terminal: fn() -> O,
 ) -> Result<Output<O>>
 where
     Q: Send + 'static,
@@ -104,7 +104,10 @@ where
     F: FnOnce(Context, Q) -> W + Send + 'static,
     W: std::future::Future<Output = Result<Output<R>>> + Send,
 {
-    let first = input.message().await.map_err(|error| Error::Invalid(error.to_string()))?;
+    let first = super::complete("Run Operation Request", context.settings.read_timeout, async {
+        input.message().await.map_err(|error| Error::Invalid(error.to_string()))
+    })
+    .await?;
     let Some(Input::Request(request)) = first.and_then(decode) else {
         return Err(Error::Invalid("Run Operation: Send Exactly One Request First".into()));
     };
