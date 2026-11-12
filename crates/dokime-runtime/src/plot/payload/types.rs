@@ -180,6 +180,9 @@ pub struct PlotPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub analysis: Option<super::analyses::PlotAnalysis>,
 
+    #[serde(skip)]
+    pub contour_counts: Vec<u64>,
+
     pub markers: Vec<PlotMarker>,
     pub max_points: usize,
     pub window_s: Option<f64>,

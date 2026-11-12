@@ -826,6 +826,38 @@ already provides protobuf declarations, descriptor-backed admission and bounded
 gRPC codecs. Adoption must migrate Dokime's old facade consumers to the explicit
 SDK/runtime/operations/storage owners; no compatibility facade is introduced.
 
+### Protobuf Consumer Cutover Dependency
+
+The current `harmos = 0.1.14` operation declarations require `Portable` for
+requests, replies and stream items. Checked-in generated Dokime messages implement
+protobuf encoding/reflection instead. The requested Harmos revision supplies
+`ProtobufOperation` and `OperationFactory::protobuf` under its explicit operations
+owner, and removes the old SDK facade. Replacing the wire mirrors therefore
+couples protocol declarations to that dependency adoption and their operation/SDK
+consumers. The listed task order places 2.8.3 before that adoption in 3.1/3.8.2.
+Task 2.8.3 includes the necessary dependency and directly coupled operation/SDK
+consumer adoption in one buildable atomic cutover. This is an implementation
+prerequisite within the authorized clean replacement; it introduces no temporary
+codec bridge and does not close the remaining behavior in later tasks.
+
+### Plot Transport Fitting
+
+Panel dimensions are upper bounds for contour display. Construction bounds the
+initial cell lattice by the existing display budget. Encoded transport fitting
+then merges adjacent whole cells, retaining native sample counts for weighted
+means, min/max and validity. Returned dimensions and edges describe that lattice;
+the renderer positions cells, bands and validity masks from those edges, including
+short final bins. No interpolation fills missing evidence. Counts are internal construction state,
+not a second wire shape. Grid charts keep their declared discrete axes and select
+complete playback frames; trajectory fitting includes timestamp columns. Fitting
+rechecks the complete encoded candidate, including its reduction warning, until
+it fits or its irreducible metadata produces an actionable refresh error.
+Watch plots retain their existing shared allocation and one atomic dirty-set
+message; transport fitting includes that outer message envelope.
+Repeated identical background failures remain in the plot but produce one
+notification until that plot recovers. The existing integration-plots benchmark
+has no contour case, so no contour benchmark or new benchmark case is added.
+
 ## Initial Protocol Slice Decisions
 
 The definitions and host-source export are implemented. The

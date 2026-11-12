@@ -15,6 +15,20 @@ mise run check -- --repository
 `build` and `test` accept `--features "feature-a,feature-b"` (or a space-separated list)
 with `--package`, forwarding the list unchanged to Cargo with defaults enabled.
 
+For a focused GUI integration story with already prepared, unchanged protocol
+modules, `mise run test:typescript:integration -- --prepared --select tests/integration/plots/nominal.test.ts`
+uses those inputs without compiling the generator. Omit `--prepared` when
+contracts changed so the task regenerates and checks them first.
+
+To run only the desktop cycle journey and its startup/library prerequisites on
+current Product artifacts, select the native story and its existing journey filter:
+
+```powershell
+$env:DOKIME_E2E_JOURNEYS = "cycle"
+mise run test -- --language typescript --layer system --select native-desktop
+Remove-Item Env:DOKIME_E2E_JOURNEYS
+```
+
 `build --artifact tests` produces the CI archive; focused tests compile one Cargo
 target directly. `check` includes formatting, lint, repository configuration and
 generated drift; `--language` limits language checks. `--repository`, `--bindings`,

@@ -2765,6 +2765,14 @@ async function cycleJourney(session, cycleId) {
     "",
     "A closed overflow menu must leave the page interactive",
   );
+
+  // The Loaded Plots Must Leave No Refresh Failures In Notification History.
+  const returnTo = await session.location();
+  await session.goto("/notifications");
+  await session.waitForDom("loaded notification history", `return document.querySelector('ol[aria-busy=false]') !== null;`);
+  const notifications = await session.text();
+  assert.ok(!hasText(notifications, "Plot Refresh Failed"), `Plot refreshes must succeed: ${notifications}`);
+  await session.goto(`${returnTo.pathname}${returnTo.search}`);
   return { ...selection, executionIds: [rerunId], reports: [measuringExecutionId, selection.executionId, rerunId] };
 }
 

@@ -1336,8 +1336,11 @@ are exported from `dokime::plot` and Python's `dokime.plot`; a builder's `messag
 is its canonical protobuf message. Summaries are document cards, built with
 `Summary` and `Section::summary`, rather than plot kinds.
 
-Contour binning happens on the backend at the requested viewport and panel
-resolution. Duplicate points reduce within each bin (mean by default). Empty bins
+Contour binning happens on the backend at the requested viewport, with panel
+resolution as an upper bound. The backend merges whole cells until the grid fits
+the display and transport limits, retaining sample counts for exact mean reduction.
+The returned dimensions and edges state the resolution actually drawn.
+Duplicate points reduce within each bin (mean by default). Empty bins
 remain gaps, including in filled bands and isolines; no interpolation fills missing
 evidence. A valid zero remains a drawn value. Grid charts carry row/column order,
 grouping, labels, highlights and summary wording in the document; the renderer
@@ -1347,6 +1350,8 @@ Trajectory and grid charts each own a slider with Play, Pause and Replay beneath
 the plot. Seeking and playback use only loaded instants, issue no requests and
 never move another plot. Reaching the loaded end stops playback. Returning to
 Latest resumes live following. Empty and single-instant captures cannot play.
+Transport fitting selects complete grid frames and bounds trajectory points;
+the response reports reduction and playback uses only the returned instants.
 Frozen HTML reports use the same controls over their bounded captured data,
 without networking.
 

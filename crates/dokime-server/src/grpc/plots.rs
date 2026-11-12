@@ -100,29 +100,32 @@ impl Resources {
         &self, requests: &mut Vec<PlotPayloadRequest>, current: &PlotPayloadRequest, value: ReadBatch<PlotPayloadEnvelope>,
         frame: &FrameContext<'_>,
     ) -> Result<Response<dokime::domain::model::plots::wire::PlotStreamUpdate>, Status> {
-        let served = stream_frame(frame.kind.clone(), ReadBatch::new((*value).clone()), frame.epoch, frame.selection, self.maximum)
-            .and_then(|frame| {
-                ensure_message_budget(&*frame, self.maximum, "plot response")?;
-                Ok(Response::from_owner(frame.owner()))
-            });
-        let error = match served {
-            Ok(response) => return Ok(response),
-            Err(FrameError::TooManyPoints { maximum }) if reduce(requests, current, maximum) => {
-                let mut reduced = current.clone();
-                reduced.max_points = Some(maximum);
-                let value = reduce_plot_payload(value, &reduced, maximum).map_err(|error| Status::internal(error.to_string()))?;
-                let value = add_reduction_warning(value, current, &reduced)?;
-                let frame =
-                    stream_frame(frame.kind.clone(), value, frame.epoch, frame.selection, self.maximum).map_err(|error| match error {
-                        FrameError::Status(error) => error,
-                        FrameError::TooManyPoints { .. } => Status::invalid_argument("plot points do not fit one message"),
-                    })?;
-                return Ok(Response::from_owner(frame.owner()));
+        let mut value = value;
+        let mut reduced = current.clone();
+        let error = loop {
+            let candidate = ReadBatch::new((*value).clone());
+            let candidate =
+                if reduced.max_points != current.max_points { add_reduction_warning(candidate, current, &reduced)? } else { candidate };
+            let served = stream_frame(frame.kind.clone(), candidate, frame.epoch, frame.selection, self.maximum);
+            match served {
+                Ok(frame) => {
+                    ensure_message_budget(&*frame, self.maximum, "plot response")?;
+                    return Ok(Response::from_owner(frame.owner()));
+                }
+                Err(FrameError::TooManyPoints { maximum }) if reduce(requests, current, maximum) => {
+                    reduced.max_points = Some(maximum);
+                    value = reduce_plot_payload(value, &reduced, maximum).map_err(|error| Status::internal(error.to_string()))?;
+                }
+                Err(FrameError::TooManyPoints { .. }) => {
+                    break Status::resource_exhausted(format!(
+                        "Refresh plot {}: reduced payload cannot fit one message",
+                        plot_key(current)
+                    ));
+                }
+                Err(FrameError::Status(error)) => break error,
             }
-            Err(FrameError::TooManyPoints { .. }) => Status::invalid_argument("plot points do not fit one message"),
-            Err(FrameError::Status(error)) => error,
         };
-        if error.code() == tonic::Code::InvalidArgument {
+        if matches!(error.code(), tonic::Code::InvalidArgument | tonic::Code::ResourceExhausted) {
             requests.retain(|request| plot_key(request) != plot_key(current));
         }
         self.produce(|| Ok(plot_error_frame(current, error.message().to_owned(), frame.epoch, frame.selection)))
@@ -262,7 +265,7 @@ impl Resources {
             updates: updates.into_iter().map(Response::into_owned).collect(),
         };
         if crate::grpc::content::output_frame_len(&frame)? > self.maximum {
-            return Err(Status::resource_exhausted("plot revision exceeds transport limit"));
+            return Err(Status::resource_exhausted("Refresh plots: revision exceeds the transport limit"));
         }
         output.send_owned(frame.into()).await.map_err(crate::grpc::chunked::output_failure)
     }
@@ -326,7 +329,7 @@ impl Serve<contract::QuerySnapshots> for Resources {
             for value in native {
                 let selection = selection_for_plot(&requests, &selections, &value.plot_id)
                     .ok_or_else(|| Status::internal("plot response does not match a request"))?;
-                let envelope = self.fitted_envelope(&requests, value, &epoch, selection)?;
+                let envelope = self.fitted_envelope(&requests, value, &epoch, selection, self.maximum / count.max(1))?;
                 reply = Some(match reply {
                     None => envelope
                         .try_map(|envelope| {
@@ -548,24 +551,26 @@ impl Serve<contract::Watch> for Resources {
 
 impl Resources {
     fn fitted_envelope(
-        &self, requests: &[PlotPayloadRequest], value: ReadBatch<PlotPayloadEnvelope>, epoch: &str, selection: &str,
+        &self, requests: &[PlotPayloadRequest], value: ReadBatch<PlotPayloadEnvelope>, epoch: &str, selection: &str, maximum: usize,
     ) -> Result<ReadBatch<dokime::domain::model::plots::wire::PlotEnvelope>, Status> {
         let plot_id = value.plot_id.clone();
-        let maximum = match envelope(ReadBatch::new((*value).clone()), epoch, selection, self.maximum) {
-            Ok(envelope) => return Ok(envelope),
-            Err(FrameError::Status(error)) => return Err(error),
-            Err(FrameError::TooManyPoints { maximum }) => maximum,
-        };
         let original =
             matching_plot_payload_request(requests, &plot_id).ok_or_else(|| Status::internal("plot response does not match a request"))?;
         let mut current = original.clone();
-        current.max_points = Some(maximum);
-        let value = reduce_plot_payload(value, &current, maximum).map_err(|error| Status::internal(error.to_string()))?;
-        let value = add_reduction_warning(value, original, &current)?;
-        envelope(value, epoch, selection, self.maximum).map_err(|error| match error {
-            FrameError::Status(error) => error,
-            FrameError::TooManyPoints { .. } => Status::invalid_argument(format!("plot {plot_id} points do not fit one message")),
-        })
+        let mut value = value;
+        loop {
+            let candidate = ReadBatch::new((*value).clone());
+            let candidate =
+                if current.max_points != original.max_points { add_reduction_warning(candidate, original, &current)? } else { candidate };
+            match envelope(candidate, epoch, selection, maximum) {
+                Ok(envelope) => return Ok(envelope),
+                Err(FrameError::Status(error)) => return Err(error),
+                Err(FrameError::TooManyPoints { maximum }) => {
+                    current.max_points = Some(maximum);
+                    value = reduce_plot_payload(value, &current, maximum).map_err(|error| Status::internal(error.to_string()))?;
+                }
+            }
+        }
     }
 }
 

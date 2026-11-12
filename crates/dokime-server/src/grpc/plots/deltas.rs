@@ -142,6 +142,7 @@ mod tests {
                 }],
                 cartesian: None,
                 analysis: None,
+                contour_counts: Vec::new(),
                 markers: Vec::new(),
                 max_points: 100,
                 window_s: Some(30.0),

@@ -155,21 +155,23 @@ impl Contour {
         }
     }
 
-    pub(super) fn grid(&self, request: &PlotPayloadRequest) -> ContourGrid {
+    pub(super) fn grid(&self, request: &PlotPayloadRequest) -> (ContourGrid, Vec<u64>) {
         let [x0, x1, y0, y1] = self.extent().unwrap_or([0, 0, 0, 0]);
         let width = self.width.unwrap_or([1.0, 1.0]);
         let columns = (i128::from(x1) - i128::from(x0) + 1) as u32;
         let rows = (i128::from(y1) - i128::from(y0) + 1) as u32;
         let mut values = vec![0.0; columns as usize * rows as usize];
         let mut valid = vec![false; values.len()];
+        let mut counts = vec![0; values.len()];
         for (x, entries) in &self.cells {
             for (y, cell) in entries {
                 let index = (*y - y0) as usize * columns as usize + (*x - x0) as usize;
                 values[index] = cell.value;
                 valid[index] = true;
+                counts[index] = cell.count;
             }
         }
-        ContourGrid {
+        let grid = ContourGrid {
             columns,
             rows,
             values,
@@ -184,7 +186,8 @@ impl Contour {
             } else {
                 (0..=rows).map(|index| edge((y0 as f64 + f64::from(index)) * width[1], &request.y_scale)).collect()
             },
-        }
+        };
+        (grid, counts)
     }
 }
 
@@ -249,14 +252,14 @@ mod tests {
         left.merge(right, &request, limits);
         let checkpoint = serde_json::to_vec(&left).unwrap();
         let reopened: Contour = serde_json::from_slice(&checkpoint).unwrap();
-        let grid = reopened.grid(&request);
+        let (grid, _) = reopened.grid(&request);
         assert!(grid.columns <= 4 && grid.rows <= 4);
         assert_eq!(grid.valid.iter().filter(|valid| **valid).count(), 2);
         assert!(grid.valid.iter().any(|valid| !valid));
         assert!(grid.values.iter().zip(&grid.valid).any(|(value, valid)| *valid && *value == 0.0));
         assert!(grid.values.contains(&4.0));
         left.push(&point(-20.0, -30.0, 8.0), &request, limits);
-        let grid = left.grid(&request);
+        let (grid, _) = left.grid(&request);
         assert!(grid.columns <= 4 && grid.rows <= 4);
         assert!(grid.x_edges.windows(2).all(|edge| edge[0] < edge[1]));
         let single = Limits { grid_columns: 1, grid_rows: 1, ..limits };
@@ -264,7 +267,7 @@ mod tests {
         for (x, value) in [(-10.0, 2.0), (100.0, 6.0)] {
             capture.push(&point(x, x, value), &request, single);
         }
-        let grid = capture.grid(&request);
+        let (grid, _) = capture.grid(&request);
         assert_eq!((grid.columns, grid.rows), (1, 1));
         assert_eq!(grid.values, [4.0]);
         assert_eq!(grid.valid, [true]);

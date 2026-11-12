@@ -40,7 +40,7 @@ Grouped and stacked BAR SHALL require series bindings. Pareto SHALL reject arran
 
 ### Requirement: Numeric Contour Grid
 
-CONTOUR SHALL accept numeric x, y and z expressions. The backend SHALL bin scattered samples to the panel resolution and send a grid with explicit empty bins. Cells and d3 filled contour bands with isolines SHALL show gaps for empty bins without interpolation.
+CONTOUR SHALL accept numeric x, y and z expressions. The backend SHALL bin scattered samples with panel resolution as an upper bound and send actual grid dimensions and edges with explicit empty bins. Cells and d3 filled contour bands with isolines SHALL show gaps for empty bins without interpolation.
 
 #### Scenario: Scattered Samples Leave Gaps
 
@@ -52,9 +52,28 @@ CONTOUR SHALL accept numeric x, y and z expressions. The backend SHALL bin scatt
 - **WHEN** one populated bin reduces to zero and an adjacent bin has no samples
 - **THEN** zero has a value color and the absent bin remains a gap
 
+### Requirement: Bounded Plot Frames
+
+The backend SHALL fit encoded contour, grid and trajectory payloads to unchanged display and transport budgets. Contours SHALL merge whole cells with exact reducers and counts for weighted means. Playback SHALL retain complete selected grid frames or bounded trajectory points and report reduction. Irreducible failures SHALL name the refresh action and a correction; repeated background failures SHALL NOT repeat persistent notifications.
+
+#### Scenario: Large Panel Fits the Transport
+
+- **WHEN** a dense contour at a large panel resolution exceeds the encoded response budget
+- **THEN** the backend returns a coarser grid with its actual dimensions and edges, exact reduced values and explicit validity without raising budgets or truncating cells
+
+#### Scenario: Playback Fits the Transport
+
+- **WHEN** grid or trajectory playback exceeds the encoded response budget
+- **THEN** the backend returns complete selected grid frames or bounded trajectory points, reports reduction and preserves the returned instants for playback
+
+#### Scenario: Irreducible Refresh Failure
+
+- **WHEN** a refresh cannot fit even its minimum payload and required metadata
+- **THEN** it fails with an error naming the refresh action and a corrective selection or aggregation, and repeated background ticks do not add the same persistent notification
+
 ### Requirement: Contour Reduction and Masking
 
-CONTOUR SHALL default to mean z per bin and support explicit min/max reduction. Bin geometry SHALL follow declared axis scales and visible bounds at panel resolution, or report capture resolution. Invalid numeric x/y/z SHALL contribute no sample. The payload SHALL include extents, dimensions, values and validity. Both modes SHALL mask gaps; d3 smoothing SHALL be disabled and bands/isolines clipped to valid cells.
+CONTOUR SHALL default to mean z per bin and support explicit min/max reduction. Bin geometry SHALL follow declared axis scales and visible bounds no finer than panel or report capture resolution. Invalid numeric x/y/z SHALL contribute no sample. The payload SHALL include extents, dimensions, values and validity. Both modes SHALL mask gaps; d3 smoothing SHALL be disabled and bands/isolines clipped to valid cells.
 
 #### Scenario: Duplicate and Invalid Samples
 

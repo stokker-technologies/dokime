@@ -65,7 +65,7 @@ impl Frames {
         columns.sort_by_key(|entry| entry.order);
         let cells = rows.len().checked_mul(columns.len()).ok_or("GRID_CHART dimensions overflow")?;
         if maximum > 0 && cells > maximum {
-            return Err("GRID_CHART declared cells exceed the display budget".into());
+            return Err("Refresh GRID_CHART: declared cells exceed the display budget; aggregate the declared rows or columns".into());
         }
         Ok(Self {
             definition: definition.clone(),

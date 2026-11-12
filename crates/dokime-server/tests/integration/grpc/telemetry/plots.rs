@@ -33,6 +33,14 @@ const STORED: u64 = 300;
 
 /* === Structs === */
 
+#[dokime::harmos::message(harmos_path = dokime::harmos)]
+#[derive(Clone, PartialEq)]
+struct MapRow {
+    x: f64,
+    y: f64,
+    z: f64,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -339,6 +347,271 @@ pub(crate) async fn saved_frontier_refreshes_affected_plots() {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[dokime_tracing::trace_test]
+#[tokio::test]
+async fn fitted_maps_and_playback() {
+    use crate::grpc::transcode::Transcode;
+    use dokime::domain::model::plots::wire::{self, PlotAnalysisResult};
+    use dokime::harmos::{Message, schema::Described};
+    use dokime::telemetry::{TelemetryBatch, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetrySample};
+
+    // Start A Host With A Small Transport And The Ordinary Query Budget.
+    let root = tempfile::tempdir().unwrap();
+    let transport = 8_192;
+    let prepared = dokime_server::grpc::Service::prepare(Config::local().with_max_message_bytes(transport)).unwrap();
+    let schema = dokime::harmos::schema::graph::Schema::from_declaration(MapRow::DEFINITION, &Default::default()).unwrap();
+    let contracts = ["fixture.map", "fixture.grid"].map(|stream| TelemetryContract {
+        stream: Identifier::new(stream).unwrap(),
+        schema_version: dokime::harmos::domain::streams::revision(&schema, 1).unwrap(),
+        storage_schema: Some(schema.clone()),
+        metadata: support::metadata(stream, "Map"),
+        template_id: None,
+        owner: None,
+        columns: ["x", "y", "z"]
+            .map(|field| TelemetryColumn::new(support::metadata(field, field), dokime::ValueType::Number, TelemetryRole::Value))
+            .to_vec(),
+        default_x: Some("x".into()),
+        interval: None,
+        allow_extra_fields: false,
+        scalar: false,
+        validation_mode: None,
+        foreign: false,
+    });
+    let config =
+        support::budgets::runtime_config(root.path(), support::metadata("plots.fitting", "Plot Fitting")).with_installed_plugins([
+            dokime::InstalledPlugin {
+                source: "fixture".into(),
+                enabled: true,
+                telemetry_contracts: contracts.to_vec(),
+                ..Default::default()
+            },
+        ]);
+    let mut owner = dokime::Runtime::start(prepared.configuration(config)).await.unwrap();
+    let handle = owner.handle();
+
+    // Save A Dense Numeric Map With Unequally Populated Cells.
+    let mut observed = Vec::new();
+    for y in 0..32 {
+        for x in 0..32 {
+            observed.push((x as f64 * 2.0 + 1.0, y as f64 * 2.0 + 1.0, f64::from(x + y * 2)));
+        }
+    }
+    observed.extend([(1.0, 1.0, 100.0), (1.0, 1.0, 200.0)]);
+    let stream = Identifier::new("fixture.map").unwrap();
+    let samples = observed
+        .iter()
+        .enumerate()
+        .map(|(index, &(x, y, z))| {
+            let timestamp = dokime::Timestamp::new(format!("2026-01-01T00:00:{:02}.{:03}Z", index / 1000, index % 1000));
+            let mut sample = TelemetrySample::new(dokime::model::identity::new_id(), stream.clone(), index as u64, timestamp, "fixture");
+            sample.values.extend([("x".into(), x.into()), ("y".into(), y.into()), ("z".into(), z.into())]);
+            sample.with_storage_payload(MapRow { x, y, z }.encode())
+        })
+        .collect();
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), stream, samples)).await.unwrap();
+
+    // Save Playback Frames With Duplicate Values, Zero And One Missing Cell.
+    let stream = Identifier::new("fixture.grid").unwrap();
+    let mut samples = Vec::new();
+    let frame_count = 16;
+    for frame in 0..frame_count {
+        for y in 0..8 {
+            for x in 0..8 {
+                if (x, y) == (7, 7) {
+                    continue;
+                }
+                let base = if (frame, x, y) == (0, 0, 0) { -1.0 } else { f64::from(frame * 100 + x * 10 + y) };
+                for z in [base, base + 2.0] {
+                    let timestamp = dokime::Timestamp::new(format!("2026-01-01T00:00:{frame:02}Z"));
+                    let mut sample =
+                        TelemetrySample::new(dokime::model::identity::new_id(), stream.clone(), samples.len() as u64, timestamp, "fixture");
+                    sample.values.extend([("x".into(), f64::from(x).into()), ("y".into(), f64::from(y).into()), ("z".into(), z.into())]);
+                    samples.push(sample.with_storage_payload(MapRow { x: f64::from(x), y: f64::from(y), z }.encode()));
+                }
+            }
+        }
+    }
+    handle.publish_telemetry_batch(TelemetryBatch::new(dokime::model::identity::new_id(), stream, samples)).await.unwrap();
+    handle.storage().flush().await.unwrap();
+    let server = prepared.ready().await.unwrap().listen().await.unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+
+    // Fit The Large Panel Without Changing Bounds Or Averaging Bin Means.
+    let contour = wire::PlotRequest {
+        plot_id: Some("map".into()),
+        plot_type: wire::PlotType::Contour,
+        stream: "fixture.map".into(),
+        x_key: Some("x".into()),
+        y_keys: vec!["y".into()],
+        z_field: Some("z".into()),
+        panel_width: Some(2048),
+        panel_height: Some(512),
+        viewport: Some(wire::PlotWindow { from: 0.0, to: 64.0 }),
+        y_viewport: Some(wire::PlotWindow { from: 0.0, to: 64.0 }),
+        max_points: Some(100_000),
+        ..request(100_000)
+    };
+    let reply = client
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![contour.clone()] })
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(reply.wire_len().unwrap() <= transport);
+    let payload = reply.envelopes[0].payload.as_ref().unwrap();
+    let Some(PlotAnalysisResult::Contour(grid)) = payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()) else {
+        panic!("fitted contour missing")
+    };
+    assert!(grid.columns < 2048 && grid.rows < 512);
+    assert_eq!((grid.x_edges.first(), grid.x_edges.last()), (Some(&0.0), Some(&64.0)));
+    assert_eq!((grid.y_edges.first(), grid.y_edges.last()), (Some(&0.0), Some(&64.0)));
+    assert_eq!(grid.values.len(), grid.columns as usize * grid.rows as usize);
+    for row in 0..grid.rows as usize {
+        for column in 0..grid.columns as usize {
+            let values = observed
+                .iter()
+                .filter(|(x, y, _)| {
+                    grid.x_edges[column] <= *x && *x < grid.x_edges[column + 1] && grid.y_edges[row] <= *y && *y < grid.y_edges[row + 1]
+                })
+                .map(|(_, _, z)| *z)
+                .collect::<Vec<_>>();
+            let cell = row * grid.columns as usize + column;
+            assert_eq!(grid.valid[cell], !values.is_empty());
+            if !values.is_empty() {
+                let expected = values.iter().sum::<f64>() / values.len() as f64;
+                assert!((grid.values[cell] - expected).abs() < 1e-10, "cell {cell}");
+            }
+        }
+    }
+    assert!(!reply.envelopes[0].warnings.is_empty());
+
+    // The Same Map Fits A Stream Frame Including Its Transport Envelope.
+    let mut watch =
+        client.download::<contracts::plots::Watch>(contracts::plots::Watch { requests: vec![contour.clone()] }).await.unwrap().into_inner();
+    let frame = data_frame(&mut watch).await;
+    assert_eq!(frame.kind, wire::PlotStreamKind::Snapshot);
+    assert!(dokime::harmos::grpc::output_item_len(&wire::PlotStreamFrame { updates: vec![frame] }).unwrap() <= transport);
+    drop(watch);
+
+    // Fit Complete Playback Frames And Preserve Their Declared Cell Identities.
+    let expression = |field: &str| wire::DataExpression {
+        source: Some(wire::DataExpressionSource::Telemetry(wire::TelemetryDataSource {
+            stream: "fixture.grid".into(),
+            field: field.into(),
+        })),
+        ..Default::default()
+    };
+    let entries = (0..8)
+        .map(|key| dokime::document::GridAxisEntry {
+            key: key.to_string(),
+            label: key.to_string(),
+            order: key,
+            group: None,
+        })
+        .collect::<Vec<_>>();
+    let grid_request = wire::PlotRequest {
+        plot_id: Some("grid".into()),
+        plot_type: wire::PlotType::GridChart,
+        stream: "fixture.grid".into(),
+        y_keys: vec!["z".into()],
+        reduction: Some(dokime::document::Reduction::Mean),
+        grid: Some(wire::GridDefinition {
+            row: Some(expression("y")),
+            column: Some(expression("x")),
+            frame: Some(expression("timestamp")),
+            rows: entries.clone(),
+            columns: entries.clone(),
+            highlights: Vec::new(),
+            summary_label: "Readings".into(),
+        }),
+        ..request(100_000)
+    };
+    let reply = client
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![grid_request.clone()] })
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(reply.wire_len().unwrap() <= transport);
+    let payload = reply.envelopes[0].payload.as_ref().unwrap();
+    let Some(PlotAnalysisResult::GridChart(data)) = payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()) else {
+        panic!("fitted playback missing")
+    };
+    assert!(!data.frames.is_empty() && data.frames.len() < frame_count as usize);
+    assert_eq!((&data.rows, &data.columns), (&entries, &entries));
+    assert_eq!(data.frames.first().unwrap().instant, "2026-01-01T00:00:00Z");
+    assert_eq!(data.frames.last().unwrap().instant, format!("2026-01-01T00:00:{:02}Z", frame_count - 1));
+    for frame in &data.frames {
+        let second = frame.instant[17..19].parse::<u32>().unwrap();
+        assert_eq!(frame.values.len(), 64);
+        assert!(!frame.valid[63]);
+        for y in 0..8 {
+            for x in 0..8 {
+                if (x, y) == (7, 7) {
+                    continue;
+                }
+                let cell = y * 8 + x;
+                assert!(frame.valid[cell]);
+                let expected = if (second, x, y) == (0, 0, 0) { 0.0 } else { f64::from(second * 100) + (x * 10 + y) as f64 + 1.0 };
+                assert_eq!(frame.values[cell], expected);
+            }
+        }
+    }
+    assert!(!reply.envelopes[0].warnings.is_empty());
+
+    // Several Plots Share One Bounded Atomic Revision.
+    let mut watch = client
+        .download::<contracts::plots::Watch>(contracts::plots::Watch {
+            requests: vec![contour, grid_request.clone()],
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let updates = plots::data_frames(&mut watch).await;
+    assert_eq!(updates.len(), 2);
+    assert!(updates.iter().all(|update| update.kind == wire::PlotStreamKind::Snapshot));
+    assert_eq!(updates[0].envelope.as_ref().unwrap().revision, updates[1].envelope.as_ref().unwrap().revision);
+    let message = wire::PlotStreamFrame { updates };
+    assert!(dokime::harmos::grpc::output_item_len(&message).unwrap() <= transport);
+    drop(watch);
+
+    let mut minimal = reply.clone();
+    minimal.envelopes[0].warnings.clear();
+    minimal.envelopes[0].payload.as_mut().unwrap().max_points = 1;
+    minimal.envelopes[0].payload.as_mut().unwrap().generated_at.clear();
+    let analysis = minimal.envelopes[0].payload.as_mut().unwrap().analysis.as_mut().unwrap();
+    let Some(PlotAnalysisResult::GridChart(data)) = &mut analysis.result else { panic!("grid playback missing") };
+    data.frames.truncate(1);
+    let excess_label = transport - minimal.wire_len().unwrap() + "Readings".len() + 1;
+
+    // Trajectory Timestamp Columns Fit The Same Limit And Retain Endpoints.
+    let trajectory = wire::PlotRequest {
+        plot_id: Some("path".into()),
+        plot_type: wire::PlotType::Trajectory,
+        stream: "fixture.map".into(),
+        x_key: Some("x".into()),
+        y_keys: vec!["y".into()],
+        ..request(100_000)
+    };
+    let reply = client
+        .unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![trajectory] })
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(reply.wire_len().unwrap() <= transport);
+    let columns = &reply.envelopes[0].payload.as_ref().unwrap().frame.as_ref().unwrap().series[0];
+    assert!(columns.instants.len() > 1 && columns.instants.len() < observed.len());
+    assert_eq!(columns.instants.len(), columns.y.len());
+
+    // An Irreducible Frame Names The Refresh Action.
+    let mut refused = grid_request;
+    refused.grid.as_mut().unwrap().summary_label = "x".repeat(excess_label);
+    let error =
+        client.unary::<contracts::plots::QuerySnapshots>(contracts::plots::QuerySnapshots { requests: vec![refused] }).await.unwrap_err();
+    assert!(error.message().contains("Refresh plot grid"), "{error}");
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
 
 #[dokime_tracing::trace_test]
 #[tokio::test]

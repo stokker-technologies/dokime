@@ -121,6 +121,7 @@ export function useLivePlotPayloads({
 
   const dataKeyRef = useRef<string | null>(null);
   const viewKeyRef = useRef<string | null>(null);
+  const refreshFailuresRef = useRef(new Set<string>());
   const flushFrameRef = useRef<number | null>(null);
   const flushTimerRef = useRef<number | null>(null);
   const renderActiveRef = useRef(renderActive);
@@ -137,6 +138,7 @@ export function useLivePlotPayloads({
     clearScheduledFlush(flushFrameRef, flushTimerRef);
     const { plots: activePlots, requestedSummaryWindows, requestedWidths, dataKey, scopeWindowKey } = requestInputs;
     const dataChanged = dataKeyRef.current !== dataKey;
+    if (dataChanged) refreshFailuresRef.current.clear();
     dataKeyRef.current = dataKey;
     const viewChanged = viewKeyRef.current !== scopeWindowKey;
     viewKeyRef.current = scopeWindowKey;
@@ -194,11 +196,15 @@ export function useLivePlotPayloads({
     let awaitingRefresh = true;
     onRefreshChange?.({ refreshing: true, ...(viewChanged ? { updatedAt: null } : {}) });
 
-    const reportRefreshFailure = (error: unknown) => {
+    const reportRefreshFailure = (error: unknown, plotId = "stream") => {
       received.clear();
       awaitingRefresh = false;
       onRefreshChange?.({ refreshing: false });
-      toast.error(failureOf(error, "Plot Refresh Failed"), { context: "background" });
+      const failure = failureOf(error, "Plot Refresh Failed");
+      if (!refreshFailuresRef.current.has(plotId)) {
+        refreshFailuresRef.current.add(plotId);
+        toast.error(failure, { context: "background" });
+      }
       failed = true;
     };
 
@@ -243,12 +249,10 @@ export function useLivePlotPayloads({
         queued[message.plot_id] = plotState;
         if (plotState.status === "error") {
           const error = plotState.failure ?? failureOf(plotState.error, "Plot Refresh Failed");
-          if (automatic) reportRefreshFailure(error);
-          else {
-            toast.error(failureOf(error, "Plot Refresh Failed"), { context: "background" });
-            failed = true;
-          }
+          reportRefreshFailure(error, message.plot_id);
         } else {
+          refreshFailuresRef.current.delete(message.plot_id);
+          refreshFailuresRef.current.delete("stream");
           received.add(message.plot_id);
           if (activePlots.every((plot) => received.has(plot.plot_id))) {
             awaitingRefresh = false;
@@ -393,8 +397,7 @@ export function useLivePlotPayloads({
             enqueue([{ ...envelopes[0], kind: "snapshot" }]);
           } catch (error) {
             if (!active || isAbortError(error) || !nativeSession.identity.isCurrent()) return;
-            toast.error(failureOf(error, "Plot Refresh Failed"), { context: "background" });
-            failed = true;
+            reportRefreshFailure(error, plotId);
             commit((current) => ({
               ...current,
               [plotId]: {

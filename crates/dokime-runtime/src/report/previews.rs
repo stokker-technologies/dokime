@@ -146,6 +146,7 @@ pub(crate) fn plot(
         bucket_counts: BTreeMap::new(),
         cartesian: None,
         analysis: None,
+        contour_counts: Vec::new(),
         markers: Vec::new(),
         max_points: maximum,
         window_s: request.window_s,

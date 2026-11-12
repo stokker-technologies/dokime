@@ -529,6 +529,23 @@ test("Timed Refresh", async () => {
   });
   assert.equal(view.button().disabled, false);
   assert.equal(refreshFixture.notify.mock.calls.length, 1);
+  // Repeated Ticks Retain The Failure Without Adding Notifications.
+  await act(async () => {
+    view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
+  });
+  await view.advance();
+  assert.equal(refreshFixture.notify.mock.calls.length, 1);
+  assert.equal(view.states().pulse.status, "error");
+  // A Successful Revision Allows A Later Failure To Be Reported Again.
+  await act(async () => {
+    view.streams[2].push({ ...initial[0], kind: "snapshot" });
+  });
+  await view.advance();
+  await act(async () => {
+    view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
+  });
+  await view.advance();
+  assert.equal(refreshFixture.notify.mock.calls.length, 2);
 });
 
 test("Refresh Failure", async () => {
@@ -2093,7 +2110,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
     generated_at: "2026-01-01T00:00:00Z",
     analysis: {
       kind: "contour",
-      grid: { columns: 2, rows: 2, x_edges: [0, 1, 2], y_edges: [0, 1, 2], values: [0, 0, 0, 4], valid: [true, false, false, true] },
+      grid: { columns: 2, rows: 2, x_edges: [0, 2, 3], y_edges: [0, 1, 4], values: [0, 0, 0, 4], valid: [true, false, false, true] },
     },
   };
   const plot = documentPlotSpec({ plot: declaration, payload });
@@ -2102,10 +2119,24 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
   assert.equal(host.querySelectorAll("rect[data-bin]").length, 2);
   assert.ok(host.querySelector('rect[data-bin="0"]')?.getAttribute("fill"));
   assert.equal(host.querySelector('rect[data-bin="1"]'), null);
+  const first = host.querySelector('rect[data-bin="0"]') as SVGRectElement;
+  const last = host.querySelector('rect[data-bin="3"]') as SVGRectElement;
+  assert.ok(Math.abs(Number(first.getAttribute("width")) / Number(last.getAttribute("width")) - 2) < 1e-12);
+  assert.ok(Math.abs(Number(last.getAttribute("height")) / Number(first.getAttribute("height")) - 3) < 1e-12);
   host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, { plot: { ...plot, render: "bands" } }));
   assert.ok(host.querySelectorAll("[data-contour-mask] path").length > 0);
   assert.equal(host.querySelectorAll("clipPath rect").length, 2);
   assert.equal(host.querySelector('clipPath rect[data-valid-bin="1"]'), null);
+  const mask = host.querySelector('clipPath rect[data-valid-bin="3"]') as SVGRectElement;
+  const cell = host.querySelector('rect[data-bin="3"]') as SVGRectElement;
+  for (const attribute of ["x", "y", "width", "height"]) assert.equal(mask.getAttribute(attribute), cell.getAttribute(attribute));
+  const points = [...host.querySelectorAll("[data-contour-mask] path")].flatMap((path) =>
+    [...(path.getAttribute("d") ?? "").matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map((match) => [Number(match[1]), Number(match[2])]),
+  );
+  const centerX = Number(cell.getAttribute("x")) + Number(cell.getAttribute("width")) / 2;
+  const centerY = Number(cell.getAttribute("y")) + Number(cell.getAttribute("height")) / 2;
+  assert.ok(points.some(([x]) => Math.abs(x - centerX) < 1e-3));
+  assert.ok(points.some(([, y]) => Math.abs(y - centerY) < 1e-3));
 
   const grid: PlotPayload = {
     ...payload,

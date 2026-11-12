@@ -129,12 +129,36 @@ pub(crate) fn frame_owned(mut payload: PlotPayload, request: &PlotPayloadRequest
         });
     }
     if request.plot_type == Some(PlotType::Contour) {
-        payload.analysis = Some(match super::contour::bin(&payload.series, request) {
-            Ok(grid) => super::PlotAnalysis::Contour { grid },
-            Err(message) => super::PlotAnalysis::Error { message },
-        });
+        if let Some(super::PlotAnalysis::Contour { grid }) = &mut payload.analysis {
+            super::contour::fit(grid, &mut payload.contour_counts, request.reduction.unwrap_or_default(), payload.max_points);
+        } else if !matches!(payload.analysis, Some(super::PlotAnalysis::Error { .. })) {
+            payload.analysis = Some(match super::contour::bin(&payload.series, request, payload.max_points) {
+                Ok((grid, counts)) => {
+                    payload.contour_counts = counts;
+                    super::PlotAnalysis::Contour { grid }
+                }
+                Err(message) => super::PlotAnalysis::Error { message },
+            });
+        }
         payload.series.clear();
         payload.cartesian = None;
+        return Ok(payload);
+    }
+    if let Some(super::PlotAnalysis::GridChart { data }) = &mut payload.analysis {
+        let cells = data.rows.len().saturating_mul(data.columns.len()).max(1);
+        let maximum = if payload.max_points == 0 { data.frames.len() } else { (payload.max_points / cells).max(1) };
+        if data.frames.len() > maximum {
+            let mut selected = super::marker_indices(data.frames.len(), maximum).into_iter().peekable();
+            let mut index = 0;
+            data.frames.retain(|_| {
+                let keep = selected.peek() == Some(&index);
+                if keep {
+                    selected.next();
+                }
+                index += 1;
+                keep
+            });
+        }
         return Ok(payload);
     }
     let spectrum = matches!(request.plot_type, Some(PlotType::FrequencySeries));

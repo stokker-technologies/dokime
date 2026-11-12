@@ -10,7 +10,7 @@
 /* === External Imports === */
 
 import { contours } from "d3-contour";
-import { geoPath } from "d3-geo";
+import { geoPath, geoTransform } from "d3-geo";
 import { scaleLinear, scaleLog, scaleSequential } from "d3-scale";
 import { interpolateYlOrRd } from "d3-scale-chromatic";
 import { useEffect, useId, useRef } from "react";
@@ -76,16 +76,36 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
     [MARGIN.left, MARGIN.left + width],
   );
   const y = (plot.yScale === "log" ? scaleLog : scaleLinear)([grid.y_edges[0], grid.y_edges[grid.rows]], [MARGIN.top + height, MARGIN.top]);
-  const path = geoPath();
+  const path = geoPath(
+    geoTransform({
+      point(column, row) {
+        this.stream.point(gridCoordinate(column, grid.x_edges, x), gridCoordinate(row, grid.y_edges, y));
+      },
+    }),
+  );
   const shapes =
     plot.render === "bands"
       ? contours().size([grid.columns, grid.rows]).smooth(false).thresholds(8)(
           grid.values.map((value, index) => (grid.valid[index] ? value : Number.NaN)),
         )
       : [];
-  const cells = grid.values.flatMap((value, index) =>
-    grid.valid[index] ? [{ value, index, column: index % grid.columns, row: Math.floor(index / grid.columns) }] : [],
-  );
+  const cells = grid.values.flatMap((value, index) => {
+    if (!grid.valid[index]) return [];
+    const column = index % grid.columns;
+    const row = Math.floor(index / grid.columns);
+    return [
+      {
+        value,
+        index,
+        column,
+        row,
+        left: x(grid.x_edges[column]),
+        right: x(grid.x_edges[column + 1]),
+        top: y(grid.y_edges[row + 1]),
+        bottom: y(grid.y_edges[row]),
+      },
+    ];
+  });
 
   return (
     <article className="plot-card grid min-w-0 gap-3 overflow-hidden rounded-lg bg-muted/20 p-3" data-testid="contour-plot">
@@ -102,13 +122,28 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
         <defs>
           <clipPath id={clip} clipPathUnits="userSpaceOnUse">
             {cells.map((cell) => (
-              <rect key={cell.index} data-valid-bin={cell.index} x={cell.column} y={cell.row} width={1} height={1} />
+              <rect
+                key={cell.index}
+                data-valid-bin={cell.index}
+                x={cell.left}
+                y={cell.top}
+                width={cell.right - cell.left}
+                height={cell.bottom - cell.top}
+              />
             ))}
           </clipPath>
         </defs>
-        <g transform={`translate(${MARGIN.left},${MARGIN.top + height}) scale(${width / grid.columns},${-height / grid.rows})`}>
+        <g>
           {cells.map((cell) => (
-            <rect key={cell.index} data-bin={cell.index} x={cell.column} y={cell.row} width={1} height={1} fill={color(cell.value)}>
+            <rect
+              key={cell.index}
+              data-bin={cell.index}
+              x={cell.left}
+              y={cell.top}
+              width={cell.right - cell.left}
+              height={cell.bottom - cell.top}
+              fill={color(cell.value)}
+            >
               <title>{`${formatNumber(grid.x_edges[cell.column], plot.xFormat ?? null)}–${formatNumber(grid.x_edges[cell.column + 1], plot.xFormat ?? null)}, ${formatNumber(grid.y_edges[cell.row], plot.yFormat ?? null)}–${formatNumber(grid.y_edges[cell.row + 1], plot.yFormat ?? null)}: ${formatUnitLabel(formatNumber(cell.value, null), plot.unit)}`}</title>
             </rect>
           ))}
@@ -130,14 +165,14 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
           <g clipPath={`url(#${clip})`}>
             {plot.referenceBands.map((band) => {
               if (typeof band.min !== "number" || typeof band.max !== "number") return null;
-              const bottom = ((MARGIN.top + height - y(band.min)) * grid.rows) / height;
-              const top = ((MARGIN.top + height - y(band.max)) * grid.rows) / height;
+              const bottom = y(band.min);
+              const top = y(band.max);
               if (!Number.isFinite(bottom) || !Number.isFinite(top)) return null;
               return (
                 <rect
                   key={JSON.stringify([band.label, band.min, band.max, band.color])}
-                  x={0}
-                  width={grid.columns}
+                  x={MARGIN.left}
+                  width={width}
                   y={Math.min(bottom, top)}
                   height={Math.abs(top - bottom)}
                   fill={band.color}
@@ -147,12 +182,12 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
             })}
             {plot.referenceLines.map((line) => {
               if (typeof line.value !== "number") return null;
-              const row = ((MARGIN.top + height - y(line.value)) * grid.rows) / height;
+              const row = y(line.value);
               return Number.isFinite(row) ? (
                 <line
                   key={JSON.stringify([line.label, line.value, line.color])}
-                  x1={0}
-                  x2={grid.columns}
+                  x1={MARGIN.left}
+                  x2={MARGIN.left + width}
                   y1={row}
                   y2={row}
                   stroke={line.color}
@@ -204,3 +239,11 @@ export function validContourGrid(grid: ContourGrid): boolean {
 }
 
 /* === Private Functions === */
+
+function gridCoordinate(position: number, edges: number[], scale: (value: number) => number): number {
+  const bounded = Math.max(0, Math.min(position, edges.length - 1));
+  const cell = Math.min(Math.floor(bounded), edges.length - 2);
+  const from = scale(edges[cell]);
+  const to = scale(edges[cell + 1]);
+  return from + (to - from) * (bounded - cell);
+}

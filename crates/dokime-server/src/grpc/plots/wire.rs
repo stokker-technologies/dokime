@@ -119,12 +119,13 @@ pub(super) fn stream_frame(
 ) -> Result<dokime::harmos::storage::ReadBatch<dokime::domain::model::plots::wire::PlotStreamUpdate>, FrameError> {
     value.try_map(|value| {
         let envelope = plot_envelope(value, epoch, selection)?;
-        let mut frame = dokime::domain::model::plots::wire::PlotStreamUpdate {
+        let frame = dokime::domain::model::plots::wire::PlotStreamUpdate {
             kind: plot_stream_kind(kind),
             envelope: Some(envelope),
         };
-        fit_message(&mut frame, |value| value.envelope.as_mut().expect("constructed plot frame has envelope"), limit, true)?;
-        Ok(frame)
+        let mut message = dokime::domain::model::plots::wire::PlotStreamFrame { updates: vec![frame] };
+        fit_message(&mut message, |value| value.updates[0].envelope.as_mut().expect("constructed plot frame has envelope"), limit, true)?;
+        Ok(message.updates.pop().expect("constructed message has one update"))
     })
 }
 
@@ -238,21 +239,38 @@ fn fit_message<T: Portable>(
     if encoded <= encoded_budget {
         return Ok(());
     }
-    let exhausted = || Status::resource_exhausted("plot response exceeds transport limit");
     let envelope = select(message);
+    let action = format!(
+        "Refresh plot {}: response cannot fit the transport limit; narrow the selection or aggregate the declared cells and metadata",
+        envelope.plot_id
+    );
+    let exhausted = || Status::resource_exhausted(action.clone());
     let Some(payload) = &envelope.payload else {
         return Err(exhausted().into());
     };
-    let count = payload
-        .frame
-        .as_ref()
-        .map_or(Some(0), |frame| frame.series.iter().try_fold(0usize, |count, series| count.checked_add(series.y.len())))
-        .ok_or_else(exhausted)?;
-    let series = payload.series.len().max(1);
+    use dokime::domain::model::plots::wire::PlotAnalysisResult;
+    let grid_count = match payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()) {
+        Some(PlotAnalysisResult::Contour(grid)) => Some(grid.values.len()),
+        Some(PlotAnalysisResult::GridChart(data)) => {
+            Some(data.frames.iter().try_fold(0usize, |count, frame| count.checked_add(frame.values.len())).ok_or_else(exhausted)?)
+        }
+        _ => None,
+    };
+    let count = grid_count.unwrap_or(
+        payload
+            .frame
+            .as_ref()
+            .map_or(Some(0), |frame| frame.series.iter().try_fold(0usize, |count, series| count.checked_add(series.y.len())))
+            .ok_or_else(exhausted)?,
+    );
+    let series = if grid_count.is_some() { 1 } else { payload.series.len().max(1) };
     // Charge Metadata Separately From The Single Columnar Frame.
     // A Failing Projection Is Never Delivered; Release Its Columns In Place.
     if let Some(payload) = &mut envelope.payload {
         payload.frame = None;
+        if grid_count.is_some() {
+            payload.analysis = None;
+        }
         let generated = payload.generated_at.len().max(GENERATED_AT_BYTES);
         payload.generated_at = "0".repeat(generated);
     }
@@ -260,13 +278,15 @@ fn fit_message<T: Portable>(
     let fits = |total: usize, fixed: usize, budget: usize| {
         (count > 0 && fixed < budget).then(|| {
             let per_point = total.saturating_sub(fixed).div_ceil(count).max(1);
-            (budget - fixed) / per_point / series
+            let estimated = (budget - fixed) / per_point / series;
+            let maximum = estimated.min(count / 2);
+            if requested == 0 { maximum } else { maximum.min(requested as usize / 2) }
         })
     };
     let Some(maximum) = fits(encoded, size(message)?, encoded_budget) else {
         return Err(exhausted().into());
     };
-    if maximum == 0 || (requested != 0 && maximum as u64 >= requested) {
+    if maximum == 0 {
         return Err(exhausted().into());
     }
     Err(FrameError::TooManyPoints { maximum })

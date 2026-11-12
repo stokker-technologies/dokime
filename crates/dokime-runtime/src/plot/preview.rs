@@ -636,13 +636,15 @@ impl Preview {
             payload.analysis = Some(if let Some(reason) = &self.reason {
                 super::PlotAnalysis::Error { message: reason.clone() }
             } else if request.plot_type == Some(PlotType::Contour) {
-                super::PlotAnalysis::Contour { grid: self.contour.grid(request) }
+                let (grid, counts) = self.contour.grid(request);
+                payload.contour_counts = counts;
+                super::PlotAnalysis::Contour { grid }
             } else if let Some(frames) = &self.grid_frames {
                 super::PlotAnalysis::GridChart { data: frames.finish() }
             } else {
                 return Ok(payload);
             });
-            return Ok(payload);
+            return super::finish_plot_frame(payload, request);
         }
         let mut markers = self.marker_records.clone();
         if let Some(last) = &self.last_marker

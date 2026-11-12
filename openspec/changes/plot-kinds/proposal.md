@@ -15,8 +15,10 @@ are locked for implementation.
 
 - Retain `TIME_SERIES`, `FREQUENCY_SERIES`, `XY` and `TRAJECTORY`; name the
   numeric three-dimensional map `CONTOUR` and the discrete cell view `GRID_CHART`.
-- `CONTOUR` takes numeric x, y and z. The backend bins scattered samples to
-  panel resolution, like time buckets, and sends a grid. Empty bins stay
+- `CONTOUR` takes numeric x, y and z. The backend bins scattered samples with
+  panel resolution as an upper bound, like time buckets, and sends a grid with
+  its actual dimensions and edges. Whole cells merge with exact reducers to fit
+  unchanged display and transport limits. Empty bins stay
   empty and visible as gaps; never interpolate missing samples. Use the
   existing d3 contour and scale modules for cells or filled bands with isolines.
 - `GRID_CHART` draws values in rows and columns. It replaces channel occupancy;

@@ -545,6 +545,7 @@ fn payload_from_series(
         bucket_counts: BTreeMap::new(),
         cartesian: None,
         analysis: None,
+        contour_counts: Vec::new(),
         markers: plot_markers(
             records,
             &request.marker_record_types,
