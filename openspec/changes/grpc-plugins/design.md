@@ -784,7 +784,7 @@ Client access and its security are the separate change
 ## Implementation Decisions
 
 The requested Harmos adoption revision is
-`e2c76608c597643d3a92127d45ec612c38239163`. The vendored plugin proto already
+`a7583836e721c8dc8b135af40a78860ea5945ec6`. The vendored plugin proto already
 matches it byte for byte. Dependency adoption is still open; the old host
 facade and macro consumers must move to the explicit owners in the same cutover.
 
@@ -823,34 +823,58 @@ operation, plugin, stream or catalog wire mirrors in its domain crate.
 
 #### Generated Protobuf Managed Client
 
-At exact revision `e2c76608c597643d3a92127d45ec612c38239163`, server registration
-and internal invocation support generated messages through `ProtobufOperation`
-and `OperationFactory::protobuf`. The managed remote client does not:
+Answered at the owner-selected, published exact revision
+`a7583836e721c8dc8b135af40a78860ea5945ec6`. The `harmos` package at `sdk/rust`
+provides `Client`, `ClientSettings`, descriptor-bound `client::Method` and managed
+call handles for generated requests, replies and stream items without `Portable`.
+The API supports unary calls, input/output/duplex envelopes, explicit input finish,
+independent input ownership, cancellation and typed settlement. The SDK's only
+normal product dependency is `harmos-protocol`.
 
-- `crates/harmos-domain/src/operations/specification.rs`: `RequestShape` requires
-  `Portable` requests and responses.
-- `crates/harmos-domain/src/operations/direction.rs`: stream items require
-  `Portable` through `Direction`.
-- `crates/harmos-runtime/src/grpc/client.rs`: `start` and `Running` require that
-  request shape and select the `Transcoded` codec.
-- `crates/harmos-runtime/src/grpc/codec.rs`: `Transcoded` implements `Wire<T>`
-  only for `T: Portable`. The public dynamic codec is descriptor-aware but
-  exposes JSON values rather than a generated-message managed client.
+Adoption follows Harmos's Crate Structure contract: native stored semantics stay
+in `harmos-domain`; declarations, dispatch and guest support use their explicit
+operations/runtime owners; field-reading derives live at `sdk/rust/derive`;
+conformance and packaging are tools. The removed declaring macros and SDK facade
+are not restored locally. The remaining admission gap is a separate request below.
 
-Request to Harmos: supply generated-message client declarations/codecs and managed
-call handles under the intended host-free client owner. They must accept generated
-protobuf request, response and native stream-item types without `Portable`
-projections, retain descriptor-backed memory admission before decoding/encoding,
-and preserve service paths, typed completion, cancellation/settlement, input
-finish, backpressure and request/response/duplex stream envelopes. Native
-`ProtobufOperation` registration and internal invocation alone do not satisfy it.
-Prove unary and streamed generated-message round trips, admission refusal and
-controlled cancellation against the real host; return the published exact revision.
+Windows proof: the exact revision's focused
+`harmos-runtime` integration test
+`operations::wire::sdk_client::generated_sdk_client_invokes_streams_and_settles_cancellation`
+passes against a launched runtime and real gRPC listener. It covers unary, upload,
+download and duplex, input finish, concurrent input, typed cancellation settlement,
+descriptor/fingerprint refusal and an oversized encoded request. The vendored
+plugin proto matches this revision byte for byte. This test does not prove the
+missing client allocation admission described below.
 
-The requested pin remains `e2c76608`; no newer checkout state or substitute
-revision is adopted. The owner must select the revision supplying this capability
-before the dependent cutover. Dokime will not add local `Portable` adapters,
-JSON round trips, handwritten protobuf client codecs or compatibility facades.
+#### Generated Client Memory Admission
+
+At the selected revision, `sdk/rust/src/client.rs::ClientSettings` provides only
+wire-message bytes and outgoing queue item/byte bounds. `Client::transport` sets
+Tonic's encoded-message limits. `client/codec.rs::Decode::decode` calls
+`R::decode`/`O::decode` directly and accumulates envelope payloads in a `Vec`;
+it never prepares a descriptor-backed allocation claim before decoding.
+`Method::new` validates schemas and fingerprints, but does not carry an allocation
+budget into the codec. `client.rs::frame` admits encoded bytes before encoding,
+not the generated value's descriptor-backed memory. The real-host client journey's
+admission refusal covers an oversized encoded request only. This does not establish
+the original request's descriptor-backed decoding/encoding memory admission.
+
+Request to Harmos: expose caller-owned decoded-memory admission in the host-free
+generated client, and carry the bound/claim through unary replies, discovery pages,
+stream items, final responses and managed envelopes before Prost allocation.
+Account for repeated/map/nested values, retained envelope scratch and outgoing
+encoding scratch; reject exhausted claims before allocating and release claims
+with their owning value/frame. Preserve the existing wire/queue limits, service
+paths, half-close, concurrent input, cancellation and typed settlement. Supply
+deterministic admission/refusal coverage against the real host, including compact
+wire values whose generated representation exceeds the allocation bound, and
+return a published exact revision. Do not use sampled process-memory assertions.
+
+The dependent wire-mirror/dependency cutover remains open until that admission
+contract is supplied. Dokime will not add local `Portable` adapters, JSON round
+trips, handwritten protobuf client codecs or compatibility facades. The selected
+revision above replaces the previous requested pin; the workspace still uses its
+registry dependencies until the complete, buildable consumer cutover.
 
 ### Protobuf Consumer Cutover Dependency
 
@@ -865,7 +889,7 @@ Task 2.8.3 includes the necessary dependency and directly coupled operation/SDK
 consumer adoption in one buildable atomic cutover. This is an implementation
 prerequisite within the authorized clean replacement; it introduces no temporary
 codec bridge and does not close the remaining behavior in later tasks. The
-managed-client request above blocks that adoption; independent protocol inventory
+generated-client memory-admission request above blocks that adoption; independent protocol inventory
 work does not establish completed wire-mirror or handler migration.
 
 Appearance and backend diagnostics now have canonical protobuf definitions.
