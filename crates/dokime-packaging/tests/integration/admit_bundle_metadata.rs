@@ -14,6 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos_packaging::bundle::{Bundle, Executable, Identity, Limits, Source};
@@ -113,7 +114,8 @@ fn package(binary: &[u8], settings: &dokime::harmos::config::SchemaSettings) -> 
 
 #[dokime_tracing::trace_test]
 #[tokio::test]
-async fn large_metadata_admitted() {
+async fn admit_bundle_metadata() {
+    // Build One Declaration For Admission, Refusal And File Round Trips.
     let binary = metadata();
     assert!(Declaration::inspect(&binary, Facility::Sidecar).is_err());
     let settings = dokime::config::schema_defaults();
@@ -132,27 +134,10 @@ async fn large_metadata_admitted() {
     assert_eq!(installed.metadata.unwrap().owners, ["fixture"]);
     drop(store);
     database.close().await.unwrap();
-}
 
-#[cfg(unix)]
-fn links(root: &std::path::Path, file: &std::path::Path) {
-    let link = root.join("link.dokime");
-    std::os::unix::fs::symlink(file, &link).unwrap();
-    assert!(dokime_packaging::bundle::read(&link).is_err());
-    std::fs::remove_file(file).unwrap();
-    assert!(dokime_packaging::bundle::read(&link).is_err());
-}
-
-/* === Tests === */
-
-#[dokime_tracing::trace_test]
-#[test]
-fn metadata_budget_refused() {
-    use std::num::NonZeroUsize;
-    let binary = metadata();
+    // Refuse Each Preparation Budget Through Packaging And Admission.
     let defaults = dokime::config::schema_defaults();
     let previous = dokime::harmos::config::SchemaSettings::default();
-    let bundle = package(&binary, &defaults).unwrap();
     for budget in ["memory bytes", "work"] {
         let mut settings = defaults;
         let previous_limit = if budget == "work" { previous.preparation_work } else { previous.preparation_bytes };
@@ -171,16 +156,20 @@ fn metadata_budget_refused() {
             assert!(used > allowance.get(), "{error}");
         }
     }
-}
 
-#[dokime_tracing::trace_test]
-#[test]
-fn bundle() {
-    let root = tempfile::tempdir().unwrap();
+    // Read The Same Bundle And Refuse Directories And Symbolic Links.
     let file = root.path().join("plugin.dokime");
-    std::fs::write(&file, b"bundle").unwrap();
-    assert_eq!(dokime_packaging::bundle::read(&file).unwrap(), b"bundle");
+    std::fs::write(&file, bundle.bytes()).unwrap();
+    assert_eq!(dokime_packaging::bundle::read(&file).unwrap(), bundle.bytes());
     assert!(dokime_packaging::bundle::read(root.path()).is_err());
     #[cfg(unix)]
-    links(root.path(), &file);
+    {
+        let link = root.path().join("link.dokime");
+        std::os::unix::fs::symlink(&file, &link).unwrap();
+        assert!(dokime_packaging::bundle::read(&link).is_err());
+        std::fs::remove_file(&file).unwrap();
+        assert!(dokime_packaging::bundle::read(&link).is_err());
+    }
 }
+
+/* === Tests === */

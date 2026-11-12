@@ -13,6 +13,7 @@
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -84,12 +85,12 @@ def binaries(directory: Path, profile: str, extracted: Path | None = None) -> di
         return binaries(directory, profile, listing)
 
 
-def extract(directory: Path, profile: str, destination: Path, *, category: str | None = None) -> None:
+def extract(directory: Path, profile: str, destination: Path, *, category: str | None = None, arguments: Sequence[str] = ()) -> None:
     """Extract Once For Read-Only Reuse By Listing And Independent Test Lanes."""
     path = require(directory, profile)
     destination.mkdir(parents=True, exist_ok=True)
     if category in LAYERS:
-        _extract_layer(path, destination, category)
+        _extract_layer(path, destination, category, arguments)
     else:
         command = [
             "cargo",
@@ -222,7 +223,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
 # === Private Functions === #
 
 
-def _extract_layer(path: Path, destination: Path, category: str) -> None:
+def _extract_layer(path: Path, destination: Path, category: str, arguments: Sequence[str] = ()) -> None:
     """Keep One Layer's Binaries And All Runtime Inputs Without Unpacking Other Test Layers."""
     metadata_name = "target/nextest/binaries-metadata.json"
     with tarfile.open(path, "r|zst") as source:
@@ -234,12 +235,36 @@ def _extract_layer(path: Path, destination: Path, category: str) -> None:
             document = json.load(metadata)
         target = Path(document["rust-build-meta"]["target-directory"])
         binaries = document["rust-binaries"]
+        # An Exact Positive Conjunct Safely Narrows Extraction; Nextest Still Evaluates Every Filter.
+        selection = None
+        values = iter(arguments)
+        for argument in values:
+            flag, _, inline = argument.partition("=")
+            if flag not in ("-E", "--filterset", "--filter-expr"):
+                continue
+            expression = inline or next(values, "")
+            matched = re.fullmatch(r"(binary_id|package)\(=([A-Za-z0-9_:\-]+)\)", expression)
+            if matched:
+                selection = matched.groups()
+                break
+        included = {
+            identity: entry
+            for identity, entry in binaries.items()
+            if _in_layer(category, entry)
+            and (
+                selection is None
+                or selection[0] == "binary_id"
+                and identity == selection[1]
+                or selection[0] == "package"
+                and identity.split("::", 1)[0] == selection[1]
+            )
+        }
         omitted = {
             (Path("target") / Path(entry["binary-path"]).relative_to(target)).as_posix()
-            for entry in binaries.values()
-            if not _in_layer(category, entry)
+            for identity, entry in binaries.items()
+            if identity not in included
         }
-        document["rust-binaries"] = {identity: entry for identity, entry in binaries.items() if _in_layer(category, entry)}
+        document["rust-binaries"] = included
         if not document["rust-binaries"]:
             raise policy.TestError(f"nextest archive has no {category} binaries")
 

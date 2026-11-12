@@ -155,8 +155,8 @@ run = [
   "{{vars.python}} ruff check sdk/python",
   "{{vars.python}} ruff check tools/python",
   "{{vars.python}} ty check --project tools/python",
-  "{{vars.python}} ruff check --no-force-exclude tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/wheel.py",
-  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py',
+  "{{vars.python}} ruff check --no-force-exclude tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/focused.py tools/python/src/dokime_tools/test/wheel.py tools/python/src/dokime_tools/test/arrow_archive.py",
+  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/focused.py',
 
 ]
 

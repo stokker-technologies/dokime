@@ -138,12 +138,10 @@ class FocusedCargoTests(unittest.TestCase):
 
     def test_dispatches_only_requested_operation(self):
         directory = Path.cwd()
-        operations = ("build", "check", "test", "clippy", "run", "bench")
+        operations = ("build", "check", "clippy", "run", "bench")
         for operation in operations:
             with self.subTest(operation=operation):
                 arguments = ["--locked", "-p", "example"]
-                if operation == "test":
-                    arguments += ["--no-run", "--no-fail-fast"]
                 events = []
                 with (
                     patch.object(

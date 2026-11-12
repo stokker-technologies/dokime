@@ -44,11 +44,7 @@ def build(profile: str, *, extended: bool = False) -> list[str]:
     """Compile The Independent Canonical Test Archive And Its Metadata."""
     if profile not in configuration.PROFILES:
         raise ValueError("test archives require dev or release")
-    features = [
-        *configuration.features(profile, desktop=False, extended=extended),
-        "--features",
-        "dokime-runtime/testing,dokime-gui/testing",
-    ]
+    features = configuration.test_features(profile, extended=extended)
 
     # Compile Test Targets Through The Shared Archive Owner.
     started = perf_counter()
