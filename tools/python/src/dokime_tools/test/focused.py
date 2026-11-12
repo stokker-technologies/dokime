@@ -12,7 +12,6 @@
 
 # Standard Library Imports
 import json
-import os
 import shlex
 import subprocess
 import sys
@@ -111,7 +110,7 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
         result = subprocess.run(
             command,
             cwd=directory,
-            env=dict(os.environ, CARGO_BUILD_WARNINGS="deny", TEST_PROFILE="dev"),
+            env=dict(cargo.compiler_environment("test"), CARGO_BUILD_WARNINGS="deny", TEST_PROFILE="dev"),
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,

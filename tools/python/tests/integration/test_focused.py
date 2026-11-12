@@ -153,13 +153,21 @@ class ChangedPathsTests(unittest.TestCase):
                 junit.write_text('<testsuite><testcase name="save"/></testsuite>')
                 return SimpleNamespace(returncode=7)
 
-            with patch.object(focused.subprocess, "run", side_effect=execute):
+            with (
+                patch.object(focused.subprocess, "run", side_effect=execute),
+                patch.object(
+                    focused.cargo, "compiler_environment", return_value={"CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER": "custom-linker"}
+                ) as compiler,
+            ):
                 self.assertEqual(focused.run(root, ["--package", "example", "--test", "integration", "save", "--", "--exact"]), 7)
                 self.assertEqual(focused.run(root, ["--package", "example", "--tests", "--no-run"]), 7)
+            self.assertEqual(compiler.call_count, 2)
+            compiler.assert_called_with("test")
             command, options, profile = observed[0]
             self.assertEqual(command[-3:], ["--", "--exact", "save"])
             self.assertEqual(command[command.index("--no-tests") + 1], "fail")
             self.assertEqual(options["env"]["CARGO_BUILD_WARNINGS"], "deny")
+            self.assertEqual(options["env"]["CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER"], "custom-linker")
             self.assertFalse(profile["fail-fast"])
             guards = profile["overrides"]
             self.assertTrue(

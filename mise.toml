@@ -57,8 +57,8 @@ minisign = "0.12"
 
 [env]
 RUSTC_WRAPPER = "{{ get_env(name='RUSTC_WRAPPER', default='') if get_env(name='CI', default='') else get_env(name='RUSTC_WRAPPER', default='sccache') }}"
-SCCACHE_DIR = "{{ get_env(name='SCCACHE_DIR', default='') if get_env(name='CI', default='') else (get_env(name='LOCALAPPDATA', default=env.HOME ~ '/AppData/Local') if os() == 'windows' else get_env(name='XDG_CACHE_HOME', default=env.HOME ~ '/.cache')) ~ '/sccache' }}"
-SCCACHE_CACHE_SIZE = "{{ get_env(name='SCCACHE_CACHE_SIZE', default='') if get_env(name='CI', default='') else '20G' }}"
+SCCACHE_DIR = "{{ get_env(name='SCCACHE_DIR', default='') if get_env(name='CI', default='') else get_env(name='SCCACHE_DIR', default=(get_env(name='LOCALAPPDATA', default=env.HOME ~ '/AppData/Local') if os() == 'windows' else get_env(name='XDG_CACHE_HOME', default=env.HOME ~ '/.cache')) ~ '/sccache') }}"
+SCCACHE_CACHE_SIZE = "{{ get_env(name='SCCACHE_CACHE_SIZE', default='') if get_env(name='CI', default='') else get_env(name='SCCACHE_CACHE_SIZE', default='20G') }}"
 PYTHONDONTWRITEBYTECODE = "1"
 
 # === Variables === #
@@ -97,7 +97,7 @@ run = """
 {% if usage.protocol and usage.check %}
 mise run test -- --package dokime-protocol --target integration
 {% elif usage.protocol %}
-cargo run --locked --package dokime-protocol --example generate
+{{vars.tools}} dokime_tools.build.cargo focused run --locked --package dokime-protocol --example generate
 {% else %}
 {{vars.tools}} dokime_tools.prepare.generated --generate{% if usage.check %} --check{% endif %}
 {% endif %}
@@ -283,9 +283,9 @@ run = "{{vars.tools}} dokime_tools.release.sbom --auditable {{usage.profile}} --
 [tasks."build:rust:tests"]
 hide = true
 description = "Build Independent Test Archive and Compile Contracts"
-usage = 'flag "--profile <profile>" default="dev"'
+usage = 'flag "--profile <profile>" default="dev"; flag "--timings"'
 run = [
-  "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}}{% if usage.timings %} --timings{% endif %}",
   { task = "build:rust:contracts --profile {{usage.profile}}" },
 ]
 

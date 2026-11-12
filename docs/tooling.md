@@ -63,7 +63,10 @@ generated drift; `--language` limits language checks. `--repository`, `--binding
 `mise run lint -- --language rust` owns Clippy with warnings denied.
 `mise run check -- --language rust` includes it. Build, test, bench and focused
 compilation do not run Clippy or scan compiler output. For custom compiler
-arguments use `mise exec -- cargo <operation> <arguments>`.
+arguments use the focused pass-through, for example
+`mise run build -- --cargo rustc --locked --package dokime-cli --bin dokime --timings -- -C linker=rust-lld`.
+It accepts Cargo `build`, `check` and `rustc` with an explicit package, preserves
+canonical profiles and never dispatches Clippy.
 
 `.stkr/project.toml` contains only company source policy. Project recipes read
 `tools/project.toml` for release metadata, packaging, language roots and test policy.
@@ -375,22 +378,71 @@ Focused package builds and tests start one Python interpreter, validate the sele
 and launch Cargo directly. They do not inspect or delete compiler output, acquire
 an output lock, create an archive or manage a compiler-cache server.
 
-For local builds, `mise.toml` selects `RUSTC_WRAPPER=sccache`,
-`SCCACHE_DIR=<OS user cache>/sccache` and `SCCACHE_CACHE_SIZE=20G`.
+Use `--timings` on focused package builds/checks/tests or on `build --artifact tests`
+to retain Cargo's native HTML report under `target/cargo-timings/`. Copy the report
+before the next invocation replaces `cargo-timing.html`. Keep the command's package,
+features, compiler profile and environment fixed when comparing an edit loop.
+A check produces metadata; a subsequent build still needs machine code. Product,
+Tests and focused selections can need different dependency feature variants.
+Run the focused test directly when that is the proof the edit needs.
+
+Windows development and test compilation uses Rust's bundled `rust-lld` through
+`build/cargo.py`; focused compilation, generators, native producers, archives and
+lint share that setting. An explicit `CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER`
+remains authoritative. Release and bench defaults and Linux linker selection stay
+unchanged. Existing line-table debug information, incremental compilation and the
+SHA-256 dependency optimization remain in place.
+
+The GUI build script tracks the embedded frontend directory through Cargo,
+including added and removed files. Default development desktop builds reuse that
+freshness instead of cleaning the GUI package on every invocation. Release builds
+and custom `TAURI_CONFIG` overrides retain their clean build path. Icon generation
+copies only changed bytes so unchanged compiler inputs keep their timestamps.
+Compiler records publish only after successful compilation; failed desktop output
+remains in `desktop-compiler.pending.json`.
+
+For local builds, `mise.toml` defaults to `RUSTC_WRAPPER=sccache`,
+`SCCACHE_DIR=<OS user cache>/sccache` and `SCCACHE_CACHE_SIZE=20G`, respecting
+explicit values for all three.
 sccache owns its persistent background server. Incremental compilation stays enabled;
 only CI sets `CARGO_INCREMENTAL=0`. Each checkout keeps its own `target/`.
 Contract generation keeps each invocation's compiler record in a private temporary
 folder, so overlapping checks cannot overwrite the record another invocation reads.
 The session running compilation monitors free disk space outside project tooling.
-If allocation failures recur, disable it for one run by setting
-`RUSTC_WRAPPER` to an empty value:
+If allocation failures recur, lower Cargo parallelism for the next invocation
+while retaining the compiler cache. Keep machine-specific job budgets in the
+shell or local mise configuration, rather than the repository:
 
-```sh
-RUSTC_WRAPPER= mise run build -- --language rust
+```powershell
+$env:CARGO_BUILD_JOBS = "8"
+mise run build -- --package dokime-cli
+Remove-Item Env:CARGO_BUILD_JOBS
 ```
 
-In PowerShell use `$env:RUSTC_WRAPPER = ''; mise run build -- --language rust`, then remove
-the override with `Remove-Item Env:RUSTC_WRAPPER`.
+Coalesce compatible package checks into one Cargo invocation when working in a
+shared checkout:
+
+```sh
+mise run build -- --cargo check --locked -p dokime-cli -p dokime-packaging --timings
+```
+
+Each long-lived worktree keeps its own warm target and shares the compiler cache.
+A shared target serializes Cargo processes and changing checkout paths can
+invalidate workspace units. Incremental workspace crates and linker invocations
+are not sccache hits; sharing a cache does not share their incremental state.
+`SCCACHE_BASEDIRS` in the pinned sccache version does not normalize Rust working
+directories. These limits are visible in the [Rust cache implementation](https://github.com/mozilla/sccache/blob/v0.19.0/src/compiler/rust.rs).
+Read `mise exec -- sccache --show-stats` before and after a trial; the persistent
+server's counters include other clients, so isolate a trial's server when attributing
+hits. Cache comparisons must retain the compiler version, feature selection and
+compiler flags. Avoid different `CARGO_TARGET_DIR` environment values when comparing
+cross-worktree hits: the pinned Rust cache also hashes Cargo environment variables.
+
+Use two concurrent focused builders with eight Cargo jobs each as a starting
+budget on this workstation, each with a separate long-lived build directory and
+the shared compiler cache. Serialize the combined Tests artifact producer and
+coalesce compatible selections in a shared checkout. Build measurements and
+their limits live in `openspec/changes/tooling-streamline/tasks.md`.
 
 ## Validation
 

@@ -13,6 +13,7 @@
 
 # Standard Library Imports
 import argparse
+import os
 import subprocess
 import sys
 import tomllib
@@ -22,7 +23,7 @@ from time import perf_counter
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import frontend, paths
+from dokime_tools.build import cargo, frontend, paths
 from dokime_tools.test import policy
 
 # Type Checking Imports
@@ -75,6 +76,7 @@ def invoke(operation: Callable[[str], object]) -> int:
     parser = argparse.ArgumentParser(description=operation.__doc__)
     parser.add_argument("--profile", choices=PROFILES, default="dev")
     options = parser.parse_args()
+    os.environ.update(cargo.compiler_environment(options.profile))
     started = perf_counter()
     print(f"[build] {operation.__doc__} Started profile={options.profile}", flush=True)
     try:

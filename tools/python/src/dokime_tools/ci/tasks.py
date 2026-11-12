@@ -69,7 +69,46 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--artifacts")
     parser.add_argument("--binary")
     parser.add_argument("--refresh-baseline", action="store_true")
+    parser.add_argument("--cargo", nargs=argparse.REMAINDER, help="Run A Focused Cargo Build, Check Or Rustc With Native Arguments")
     args = parser.parse_args(arguments)
+    if args.cargo is not None:
+        if args.operation != "build" or args.package or not args.cargo or args.cargo[0] not in ("build", "check", "rustc"):
+            parser.error("--cargo requires build and a native build, check or rustc command")
+        if not any(
+            argument in ("-p", "--package") or argument.startswith("--package=") or argument.startswith("-p") and len(argument) > 2
+            for argument in args.cargo[1:]
+        ):
+            parser.error("--cargo requires an explicit Cargo package")
+        if (
+            args.profile != "dev"
+            or args.check
+            or args.features
+            or args.target
+            or args.exact
+            or args.story
+            or args.changed
+            or args.plan
+            or args.no_run
+            or args.artifact != "product"
+            or args.language not in (None, "rust")
+        ):
+            parser.error("pass compiler selectors after --cargo")
+        transport.receive()
+        command = args.cargo[1:]
+        if "--locked" not in command:
+            command = ["--locked", *command]
+        if args.timings and not any(argument == "--timings" or argument.startswith("--timings=") for argument in command):
+            command = ["--timings", *command]
+        return cargo.focused(Path.cwd(), args.cargo[0], command)
+    if args.timings and not (
+        args.changed
+        and args.operation == "test"
+        or args.package
+        and args.operation in ("build", "test")
+        or args.operation == "build"
+        and args.artifact == "tests"
+    ):
+        parser.error("--timings requires a focused build/test or the Tests artifact")
     transport.receive()
     if args.operation == "screenshots":
         from ..screenshots.run import main as screenshots
@@ -104,8 +143,8 @@ def main(arguments: list[str] | None = None) -> int:
         parser.error("--story requires a focused test package and cannot combine with --exact or --select")
     if args.package and args.operation == "test" and args.exact and args.select:
         parser.error("choose either --exact or --select")
-    if (args.plan or args.no_run or args.timings) and not args.package:
-        parser.error("--plan, --no-run and --timings require a focused package or --changed")
+    if (args.plan or args.no_run) and not args.package:
+        parser.error("--plan and --no-run require a focused package or --changed")
     if (args.plan or args.timings) and args.operation not in ("build", "test"):
         parser.error("--plan and --timings require build or test")
     if args.no_run and args.operation != "test":
@@ -172,7 +211,7 @@ def main(arguments: list[str] | None = None) -> int:
         operation = "check" if args.operation == "build" and args.check else args.operation
         command = ["--locked", "--package", args.package]
         if args.timings:
-            command += ["--timings"]
+            command.insert(0, "--timings")
         if args.features:
             command += ["--features", args.features]
         if operation == "test":
@@ -235,7 +274,7 @@ def main(arguments: list[str] | None = None) -> int:
         elif args.artifact == "bench":
             tasks = [("build:rust:bench", ["--binary", args.binary] if args.binary else [])]
         elif args.artifact == "tests":
-            tasks = [("build:rust:tests", profile)]
+            tasks = [("build:rust:tests", profile + (["--timings"] if args.timings else []))]
         elif args.language:
             tasks = [(f"build:{args.language}", profile)]
         else:

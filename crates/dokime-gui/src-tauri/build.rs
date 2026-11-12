@@ -46,6 +46,11 @@ fn main() {
     let contracts =
         dokime::harmos::operations::Contracts::of::<dokime::operations::Operations>().expect("canonical desktop transfer contracts");
     harmos_packaging::proto::generate(&contracts, &output.join("grpc").join("operations")).expect("desktop transfer descriptors");
+    // Track Added and Removed Files When the Frontend Is Embedded.
+    if !tauri_build::is_dev() {
+        let frontend = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../dist");
+        println!("cargo:rerun-if-changed={}", frontend.display());
+    }
     tauri_build::build();
 
     // Tauri embeds its manifest in binaries only. Library test executables also

@@ -38,9 +38,24 @@ from . import outputs, paths
 # === Public Functions === #
 
 
+def compiler_environment(profile: str, *, source: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Select the Development Linker and Preserve Explicit Overrides."""
+    selected = dict(os.environ if source is None else source)
+    if os.name == "nt" and profile in ("dev", "test"):
+        selected.setdefault("CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER", "rust-lld")
+    return selected
+
+
 def clippy(directory: Path, arguments: Sequence[str], *, environment: Mapping[str, str] | None = None) -> None:
 
-    selected = dict(os.environ if environment is None else environment, CARGO_BUILD_WARNINGS="deny")
+    profile = "release" if "--release" in arguments else "dev"
+    for index, argument in enumerate(arguments):
+        if argument == "--profile" and index + 1 < len(arguments):
+            profile = arguments[index + 1]
+        elif argument.startswith("--profile="):
+            profile = argument.partition("=")[2]
+    selected = compiler_environment(profile, source=environment)
+    selected["CARGO_BUILD_WARNINGS"] = "deny"
     with summary.phase("Clippy"):
         subprocess.run(
             ["cargo", "clippy", *arguments],
@@ -72,7 +87,7 @@ def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         "--locked",
         "--workspace",
         "--tests",
-        "--timings",
+        *([] if any(argument == "--timings" or argument.startswith("--timings=") for argument in extra) else ["--timings"]),
         "--cargo-profile",
         compiler_profile,
         "--cargo-message-format",
@@ -84,6 +99,7 @@ def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
     with summary.phase("Compilation And Archive"), path.with_name(reader.MESSAGES).open("w", encoding="utf-8") as output:
         result = subprocess.run(
             command,
+            env=compiler_environment(compiler_profile),
             stdin=sys.stdin,
             stderr=sys.stderr,
             creationflags=spawn_flags(),
@@ -105,8 +121,8 @@ def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
 
 
 def focused(directory: Path, operation: str, arguments: Sequence[str]) -> int:
-    if operation not in ("build", "check", "test", "clippy", "run", "bench"):
-        raise ValueError("focused compilation requires build, check, test, clippy, run or bench")
+    if operation not in ("build", "check", "test", "clippy", "run", "bench", "rustc"):
+        raise ValueError("focused compilation requires build, check, test, clippy, run, bench or rustc")
     profile = None
     compiler_arguments = list(arguments[: arguments.index("--")]) if "--" in arguments else list(arguments)
     if any(argument == "--target-dir" or argument.startswith("--target-dir=") for argument in compiler_arguments):
@@ -125,10 +141,12 @@ def focused(directory: Path, operation: str, arguments: Sequence[str]) -> int:
 
         return focused.run(directory, arguments)
 
+    selected = compiler_environment(profile or ("release" if "--release" in compiler_arguments else "dev"))
+    selected["CARGO_BUILD_WARNINGS"] = "deny"
     return subprocess.run(
         ["cargo", operation, *arguments],
         cwd=directory,
-        env=dict(os.environ, CARGO_BUILD_WARNINGS="deny"),
+        env=selected,
         stdin=sys.stdin,
         stdout=sys.stdout,
         stderr=sys.stderr,
@@ -178,7 +196,7 @@ def artifacts(directory: Path, messages: Path) -> Iterator[dict[str, Any]]:
 def main() -> None:
     if sys.argv[1:2] == ["focused"]:
         parser = argparse.ArgumentParser(description="Compile An Explicit Local Rust Selection")
-        parser.add_argument("operation", choices=("build", "check", "test", "clippy", "run", "bench"))
+        parser.add_argument("operation", choices=("build", "check", "test", "clippy", "run", "bench", "rustc"))
         parser.add_argument("arguments", nargs=argparse.REMAINDER)
         options = parser.parse_args(sys.argv[2:])
         raise SystemExit(focused(Path.cwd(), options.operation, options.arguments))
