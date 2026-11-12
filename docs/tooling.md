@@ -261,8 +261,10 @@ descriptor against that dependency as well. `mise run generate -- --protocol --c
 same drift check without regenerating committed source. Existing GUI/client
 contract generation continues separately through the ordinary `generate` task.
 
-Document protocol generation also refreshes the Python descriptor and C#/C++
-message sources. Their focused builder checks are:
+Document protocol generation refreshes the Python descriptor and C++ message
+sources. C# builds its messages and declared service stubs from the proto files
+with Grpc.Tools; see [C# SDK](sdk-csharp.md) for its scoped build, check, package
+and focused test tasks. The focused builder checks are:
 
 ```sh
 mise -C sdk/csharp run test:builders

@@ -19,9 +19,97 @@ dotnet = "10.0.403"
 
 # === Generate === #
 
+[tasks."prepare:harmos"]
+description = "Prepare the Pinned Harmos SDK Source"
+run = 'python tools/prepare_harmos.py'
+
+[tasks.restore]
+description = "Restore SDK Dependencies"
+depends = ["prepare:harmos"]
+run = '"{{tools.dotnet.path}}/dotnet" restore Dokime.csproj --configfile NuGet.Config'
+
+[tasks.build]
+description = "Build the SDK from Protocol Sources"
+depends = ["restore"]
+run = '"{{tools.dotnet.path}}/dotnet" build Dokime.csproj --configuration Release --no-restore'
+
+[tasks.check]
+description = "Check C# Formatting and Compiler Diagnostics"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" format Dokime.slnx --no-restore --exclude obj --verify-no-changes',
+  'uv run --no-sync --project ../../tools/python ruff check --select I,F401,E9 tools',
+  'uv run --no-sync --project ../../tools/python ruff format --line-length 140 --check tools',
+  'python tools/check_clients.py',
+]
+
+[tasks.format]
+description = "Format the C# SDK"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" format Dokime.slnx --no-restore --exclude obj',
+  'uv run --no-sync --project ../../tools/python ruff check --select I --fix tools',
+  'uv run --no-sync --project ../../tools/python ruff format --line-length 140 tools',
+]
+
+[tasks.package]
+description = "Pack the SDK"
+env = { NUGET_PACKAGES = "{{config_root}}/obj/consumer-packages" }
+run = [
+  '"{{tools.dotnet.path}}/dotnet" pack Dokime.csproj --configuration Release --no-build --output obj/packages',
+  '"{{tools.dotnet.path}}/dotnet" nuget locals global-packages --clear',
+]
+
 [tasks."test:builders"]
 description = "Test Canonical Document Builders"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" restore tests/Builders/Builders.csproj --locked-mode',
+  '"{{tools.dotnet.path}}/dotnet" restore tests/Builders/Builders.csproj --configfile NuGet.Config',
   '"{{tools.dotnet.path}}/dotnet" run --project tests/Builders/Builders.csproj --configuration Release --no-restore',
 ]
+
+
+[tasks."build:reference"]
+description = "Build the Pinned Harmos Reference Host"
+run = [
+  'python tools/prepare_reference.py',
+  'cargo build --manifest-path ../../target/csharp-reference/Cargo.toml --locked --package harmos-conformance --bin harmos-conformance --jobs 1 --target-dir ../../target/csharp-reference/target',
+]
+
+[tasks."build:tests"]
+description = "Build the Focused SDK Stories and Conformance Plugin"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" restore tests/Stories/Stories.csproj --configfile NuGet.Config',
+  '"{{tools.dotnet.path}}/dotnet" build tests/Stories/Stories.csproj --configuration Release --no-restore',
+  '"{{tools.dotnet.path}}/dotnet" restore tests/Conformance/Conformance.csproj --configfile NuGet.Config',
+  '"{{tools.dotnet.path}}/dotnet" build tests/Conformance/Conformance.csproj --configuration Release --no-restore',
+]
+
+[tasks.test]
+description = "Run Focused SDK Journeys"
+run = '"{{tools.dotnet.path}}/dotnet" test tests/Stories/Stories.csproj --configuration Release --no-build --no-restore --filter "Layer!=Conformance&Layer!=Starter"'
+
+[tasks."build:starter"]
+description = "Build the Starter Against the Local NuGet Package"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" restore starter/Starter.csproj --configfile NuGet.Config --force-evaluate --packages obj/consumer-packages',
+  '"{{tools.dotnet.path}}/dotnet" build starter/Starter.csproj --configuration Release --no-restore',
+]
+
+[tasks."test:conformance"]
+description = "Run Harmos Conformance in Both Placements"
+run = 'python tools/run_stories.py "{{tools.dotnet.path}}/dotnet" "Layer=Conformance"'
+
+[tasks."test:starter"]
+description = "Run the Packaged Starter as a Managed Executable"
+run = 'python tools/run_stories.py "{{tools.dotnet.path}}/dotnet" "Layer=Starter"'
+
+
+[tasks."build:system"]
+description = "Build the Shared System Story Suite Against the Package"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" restore tests/SystemPlugin/SystemPlugin.csproj --configfile NuGet.Config --force-evaluate --packages obj/consumer-packages',
+  '"{{tools.dotnet.path}}/dotnet" build tests/SystemPlugin/SystemPlugin.csproj --configuration Release --no-restore',
+]
+
+
+[tasks.clean]
+description = "Clean C# Compiler Outputs with MSBuild"
+run = '"{{tools.dotnet.path}}/dotnet" clean Dokime.slnx --configuration Release'
