@@ -34,6 +34,8 @@ use dokime_protocol::v1;
 
 /* === Constants === */
 
+const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -139,7 +141,7 @@ impl PluginProcess {
                 if self.child.0.try_wait()?.is_some() {
                     return Ok::<(), std::io::Error>(());
                 }
-                tokio::time::sleep(self.settings.reconnect_delay).await;
+                tokio::time::sleep(PROCESS_POLL_INTERVAL).await;
             }
         };
         match tokio::time::timeout(self.settings.stop_grace, exited).await {
