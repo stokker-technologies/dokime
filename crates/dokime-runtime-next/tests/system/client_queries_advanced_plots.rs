@@ -69,6 +69,19 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         let mut plots=v1::plots_client::PlotsClient::new(channel);
         let scope=Some(v1::EvidenceScope {execution_id:Some("advanced".into()),..Default::default()});
 
+        // Preserve Raw Samples or Select Bounded LTTB Vertices Without Truncation
+        for (technique, limit, expected) in [(v1::Downsample::Raw, 64, 32), (v1::Downsample::Lttb, 8, 8)] {
+            let request=v1::PlotRequest {stream:"cells".into(),scope:scope.clone(),y_keys:vec!["max".into()],technique:technique as i32,max_points:Some(limit),..Default::default()};
+            let reply=plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![request]}).await?.into_inner();
+            let column=&reply.envelopes[0].payload.as_ref().unwrap().frame.as_ref().unwrap().series[0];
+            assert_eq!(column.y.len(),expected);
+            assert_eq!(column.y.first().unwrap().value,Some(1.0));
+            assert_eq!(column.y.last().unwrap().value,Some(32.0));
+            assert!(column.instants.windows(2).all(|pair|pair[0]<pair[1]));
+        }
+        let request=v1::PlotRequest {stream:"cells".into(),scope:scope.clone(),y_keys:vec!["max".into()],technique:v1::Downsample::Raw as i32,max_points:Some(8),..Default::default()};
+        assert_eq!(plots.query_snapshots(v1::PlotsQuerySnapshotsRequest {requests:vec![request]}).await.unwrap_err().code(),tonic::Code::FailedPrecondition);
+
         // Filter Stored Units Before Scaling the Selected Value
         let scaled=v1::DataExpression {label:"Adjusted".into(),kind:Some(v1::data_expression::Kind::Transform(Box::new(v1::TransformExpression {input:Some(Box::new(v1::FieldReference::new("cells").field("max"))),kind:Some(v1::transform_expression::Kind::Scale(2.0))})))};
         let request=v1::PlotRequest {stream:"cells".into(),scope:scope.clone(),plot_type:v1::PlotKind::TimeSeries as i32,y_expressions:vec![scaled],filters:vec![v1::PlotFilter {expression:Some(v1::FieldReference::new("cells").field("max")),operator:v1::FilterOperator::Ge as i32,value:Some(v1::Value {kind:Some(v1::value::Kind::Number(17.0))})}],max_points:Some(128),..Default::default()};

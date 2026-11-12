@@ -39,6 +39,87 @@ use rusqlite::params;
 /* === Implementations === */
 
 impl Store {
+    pub fn sampled_time_series_window(
+        &self, window: NumericWindow<'_>, technique: v1::Downsample, limit: usize,
+    ) -> Result<(v1::PlotColumn, v1::PlotSeriesSummary, u64)> {
+        if !matches!(technique, v1::Downsample::Raw | v1::Downsample::Lttb) {
+            return self.time_series_window(window);
+        }
+        let (_, summary, count) = self.time_series_window(window)?;
+        if technique == v1::Downsample::Raw && count > limit as u64 {
+            return Err(crate::Error::Invalid(
+                "Query Raw Plot: Narrow the Viewport, Raise Display Points or Select a Downsampling Technique".into(),
+            ));
+        }
+        let connection = self.lock()?;
+        let condition = "execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL";
+        let parameters = params![
+            window.execution,
+            window.stream,
+            window.field,
+            window.start_ns,
+            window.end_ns,
+            window.after as i64,
+            window.through as i64
+        ];
+        let mut points = Vec::<(i64, f64)>::with_capacity(limit);
+        if count <= limit as u64 {
+            let mut query = connection
+                .prepare(&format!("SELECT source_ns,number FROM sample_fields WHERE {condition} ORDER BY source_ns,position LIMIT ?8"))?;
+            points = query
+                .query_map(
+                    params![
+                        window.execution,
+                        window.stream,
+                        window.field,
+                        window.start_ns,
+                        window.end_ns,
+                        window.after as i64,
+                        window.through as i64,
+                        limit as i64
+                    ],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+        } else {
+            // Rank and reduce inside SQLite; only one candidate and two averages cross each bucket boundary.
+            connection.execute_batch("DROP TABLE IF EXISTS temp.plot_lttb")?;
+            connection.execute(&format!("CREATE TEMP TABLE plot_lttb AS SELECT ROW_NUMBER() OVER (ORDER BY source_ns,position)-1 ordinal,source_ns,number FROM sample_fields WHERE {condition}"), parameters)?;
+            connection.execute_batch("CREATE UNIQUE INDEX temp.plot_lttb_ordinal ON plot_lttb(ordinal)")?;
+            let mut previous: (i64, f64) =
+                connection.query_row("SELECT source_ns,number FROM plot_lttb WHERE ordinal=0", [], |row| Ok((row.get(0)?, row.get(1)?)))?;
+            points.push(previous);
+            let width = (count - 2) as f64 / (limit - 2) as f64;
+            for bucket in 0..limit - 2 {
+                let average_start = (((bucket + 1) as f64 * width).floor() as i64 + 1).min(count as i64 - 1);
+                let average_end = (((bucket + 2) as f64 * width).floor() as i64 + 1).min(count as i64);
+                let (average_x, average_y): (f64, f64) = connection.query_row(
+                    "SELECT AVG((source_ns-?3)/1000000000.0),AVG(number) FROM plot_lttb WHERE ordinal>=?1 AND ordinal<?2",
+                    params![average_start, average_end, window.start_ns],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?;
+                let start = (bucket as f64 * width).floor() as i64 + 1;
+                let end = (((bucket + 1) as f64 * width).floor() as i64 + 1).min(count as i64 - 1);
+                let previous_x = (previous.0 as i128 - window.start_ns as i128) as f64 / 1e9;
+                previous = connection.query_row("SELECT source_ns,number FROM plot_lttb WHERE ordinal>=?1 AND ordinal<?2 ORDER BY ABS((?3-?4)*(number-?5)-(?3-(source_ns-?7)/1000000000.0)*(?6-?5)) DESC,ordinal LIMIT 1", params![start,end,previous_x,average_x,previous.1,average_y,window.start_ns], |row| Ok((row.get(0)?,row.get(1)?)))?;
+                points.push(previous);
+            }
+            points.push(connection.query_row("SELECT source_ns,number FROM plot_lttb WHERE ordinal=?1", [count as i64 - 1], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })?);
+            connection.execute_batch("DROP TABLE temp.plot_lttb")?;
+        }
+        Ok((
+            v1::PlotColumn {
+                x: points.iter().map(|(at, _)| number(*at as f64 / 1e9)).collect(),
+                instants: points.iter().map(|(at, _)| instant(*at)).collect(),
+                y: points.iter().map(|(_, value)| v1::NullableNumber { value: Some(*value) }).collect(),
+                ..Default::default()
+            },
+            summary,
+            count,
+        ))
+    }
     pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<v1::Statistics> {
         let connection = self.lock()?;
         let condition = "execution=?1 AND stream=?2 AND field=?3 AND source_ns>=?4 AND source_ns<=?5 AND position>?6 AND position<=?7 AND number IS NOT NULL";

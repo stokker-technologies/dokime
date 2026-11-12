@@ -142,9 +142,6 @@ pub fn snapshot_at(
 
     let technique = v1::Downsample::try_from(request.technique)
         .map_err(|_| Error::Invalid("Query Plot: Select a Declared Downsampling Technique".into()))?;
-    if matches!(technique, v1::Downsample::Raw | v1::Downsample::Lttb) {
-        return Err(Error::Invalid("Query Plot: Select Auto or MinMax Until Raw and LTTB Windows Are Connected".into()));
-    }
     if request.max_points == Some(0) {
         return Err(Error::Invalid("Query Plot: Select a Positive Display Resolution".into()));
     }
@@ -284,7 +281,7 @@ pub fn snapshot_at(
                     boxes.push(summary);
                     count
                 } else {
-                    let (column, mut summary, count) = store.time_series_window(group_window)?;
+                    let (column, mut summary, count) = store.sampled_time_series_window(group_window, technique, group_display)?;
                     summary.series_id = format!("{field}/{label}");
                     summary.window = payload.bucket_window;
                     payload.summaries.push(summary);
@@ -432,7 +429,7 @@ pub fn snapshot_at(
             payload.bucket_width_s = None;
             count
         } else {
-            let (column, mut summary, count) = store.time_series_window(window)?;
+            let (column, mut summary, count) = store.sampled_time_series_window(window, technique, display)?;
             summary.series_id = field.clone();
             summary.window = payload.bucket_window;
             payload.summaries.push(summary);

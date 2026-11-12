@@ -53,11 +53,8 @@ pub async fn handle(context: &Context, request: v1::DocumentsUpdatePlotSettingsR
         if request.display_points == Some(0) {
             return Err(Error::Invalid("Update Plot Settings: Supply a Positive Display Resolution".into()));
         }
-        let technique = v1::Downsample::try_from(request.downsample)
+        v1::Downsample::try_from(request.downsample)
             .map_err(|_| Error::Invalid("Update Plot Settings: Select a Declared Downsampling Technique".into()))?;
-        if matches!(technique, v1::Downsample::Raw | v1::Downsample::Lttb) {
-            return Err(Error::Invalid("Update Plot Settings: Select Auto or MinMax Until Raw and LTTB Windows Are Connected".into()));
-        }
         let (document, _) = context.host.current_document(&scope, &request.document_id)?;
         let mut sections = document.sections.iter().collect::<Vec<_>>();
         let mut found = false;
