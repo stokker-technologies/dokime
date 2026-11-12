@@ -58,6 +58,15 @@ def messages(profile: str) -> Path:
     return paths.output(ROOT, "build", profile) / "product/compiler.json"
 
 
+def test_features(profile: str, *, extended: bool = False) -> list[str]:
+    """Resolve The Canonical Tests Configuration For Producers And Focused Consumers."""
+    return [
+        *features(profile, desktop=False, extended=extended),
+        "--features",
+        "dokime-runtime/testing,dokime-gui/testing",
+    ]
+
+
 def relative(paths: list[Path]) -> list[str]:
     return sorted(path.resolve().relative_to(ROOT.resolve()).as_posix() for path in paths)
 

@@ -66,7 +66,11 @@ class ScheduleTests(unittest.TestCase):
                 directory = Path(temporary).resolve()
                 target = directory / "producer/target"
                 binaries = {
-                    name: {"binary-name": name, "kind": kind, "binary-path": str(target / "debug/deps" / name)}
+                    f"fixture::{name}" if kind == "test" else name: {
+                        "binary-name": name,
+                        "kind": kind,
+                        "binary-path": str(target / "debug/deps" / name),
+                    }
                     for name, kind in kinds.items()
                 }
                 metadata = {
@@ -76,7 +80,7 @@ class ScheduleTests(unittest.TestCase):
                 files = {
                     "target/nextest/binaries-metadata.json": json.dumps(metadata).encode(),
                     "target/nextest/cargo-metadata.json": b"{}",
-                    **{f"target/debug/deps/{name}": name.encode() for name in binaries},
+                    **{f"target/debug/deps/{name}": name.encode() for name in kinds},
                     "target/debug/dokime": b"cli",
                     "target/debug/build/schema/output": b"generated schema",
                     "target/nextest/libdirs/host/runtime.dll": b"runtime library",
@@ -89,15 +93,23 @@ class ScheduleTests(unittest.TestCase):
                         member.size = len(data)
                         output.addfile(member, io.BytesIO(data))
 
-                extracted = directory / "extracted"
-                archive.extract(directory, "dev", extracted, category=category)
-                self.assertEqual(set(archive.binaries(directory, "dev", extracted)), expected)
-                for name, data in files.items():
-                    path = extracted / name
-                    if name.startswith("target/debug/deps/") and Path(name).name not in expected:
-                        self.assertFalse(path.exists())
-                    elif name != "target/nextest/binaries-metadata.json":
-                        self.assertEqual(path.read_bytes(), data)
+                expected_ids = {identity for identity, entry in binaries.items() if entry["binary-name"] in expected}
+                selected = min(expected_ids)
+                package = selected.split("::", 1)[0]
+                for index, arguments in enumerate(
+                    ([], ["-E", f"binary_id(={selected})"], ["--filterset", f"package(={package})"], ["-E", "test(save) | all()"])
+                ):
+                    extracted = directory / f"extracted-{index}"
+                    archive.extract(directory, "dev", extracted, category=category, arguments=arguments)
+                    included = {selected} if index == 1 or index == 2 and package != "fixture" else expected_ids
+                    self.assertEqual(set(archive.binaries(directory, "dev", extracted)), included)
+                    included_names = {binaries[identity]["binary-name"] for identity in included}
+                    for name, data in files.items():
+                        path = extracted / name
+                        if name.startswith("target/debug/deps/") and Path(name).name not in included_names:
+                            self.assertFalse(path.exists())
+                        elif name != "target/nextest/binaries-metadata.json":
+                            self.assertEqual(path.read_bytes(), data)
 
     def test_archive_dispatch(self):
         with tempfile.TemporaryDirectory() as temporary:

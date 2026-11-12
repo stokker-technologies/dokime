@@ -77,7 +77,7 @@ def test(
             archive.require(directory, profile)
             extracted = archive_directory or scratch / "extract"
             if archive_directory is None:
-                archive.extract(directory, profile, extracted, category=category)
+                archive.extract(directory, profile, extracted, category=category, arguments=extra)
             binaries = archive.binaries(directory, profile, extracted)
             names = sorted(set(binaries.values()))
             expression, rest = nextest.selection(category, extra, names)

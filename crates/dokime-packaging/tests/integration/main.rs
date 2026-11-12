@@ -16,8 +16,7 @@ pub mod build;
 #[path = "../../src/bundle/mod.rs"]
 pub mod bundle;
 
-#[path = "bundle.rs"]
-mod bundle_stories;
+mod admit_bundle_metadata;
 pub mod installer;
 mod release;
 

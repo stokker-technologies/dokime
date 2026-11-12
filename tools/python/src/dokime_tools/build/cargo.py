@@ -74,6 +74,7 @@ def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         "--exclude",
         "dokime-python",
         "--tests",
+        "--timings",
         "--cargo-profile",
         compiler_profile,
         "--cargo-message-format",
@@ -121,6 +122,10 @@ def focused(directory: Path, operation: str, arguments: Sequence[str]) -> int:
         raise ValueError("focused compilation requires a canonical Cargo profile")
     if operation == "test" and ("--release" in compiler_arguments or profile not in (None, "test")):
         raise ValueError("focused tests use Cargo's default test profile")
+    if operation == "test":
+        from ..test import focused
+
+        return focused.run(directory, arguments)
 
     return subprocess.run(
         ["cargo", operation, *arguments],

@@ -1,5 +1,28 @@
 # gRPC Plugins Tasks
 
+## Focused Test Feedback
+
+Source inventory: `tools/python/src/dokime_tools/{ci/tasks.py,build/{cargo,configuration,rust/tests}.py,test/{focused,archive,run}.py}`,
+their tooling integration stories, `mise.toml`, retained packaging integration stories,
+`crates/dokime-server/tests/support/artifacts.rs` (the Tests-owned host fixture path), and
+`docs/tooling.md`. Product code and suites being replaced by waves 4–5 remain
+with their implementation owners.
+
+- [x] Measure Windows focused compilation, harness inventory, run costs and compiler contention; distinguish cold, warm and unmeasured native Linux results.
+- [x] Route focused tests through nextest with canonical guards, story and changed-path selection, native compiler timings and explicit plans.
+- [x] Consolidate retained test fixtures where measured duplication dominates, preserving all distinct refusal and round-trip branches.
+- [x] Run each touched suite, format, Rust/repository checks and the Tests artifact task; retain local commits without pushing.
+- [ ] Close the Windows validation failures below and obtain native Linux proof in the combined delivery.
+
+Retain the existing harness boundaries: the workspace already groups integration stories
+by package. Keep runtime workflow/recovery, embedded SDK and macro-consumer rewrites with
+waves 4–5; their measured costs do not justify rebuilding superseded suites here. Focused
+selection preserves deadlines, required target features and stamped fixture checks.
+Linux timing and isolated per-harness linker timing remain unmeasured. Windows proof
+still requires repair of unused protocol dependencies (`tonic`, `tonic-prost`), the
+runtime threaded workflow failure under concurrent execution (its standalone rerun
+passes), and legacy Python/TypeScript artifact prerequisites.
+
 ## 1. Contract
 
 - [x] 1.1 Settle the open points in `design.md` with the owner and record each outcome there.

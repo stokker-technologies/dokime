@@ -8,12 +8,35 @@ mise run prepare
 mise run build -- --package dokime-domain --check
 mise run test -- --package dokime-domain --target lib --exact state::records::set::tests::capture_snapshot_retains_only_owner_and_frontier
 mise run test -- --package dokime-runtime --features testing --target integration --exact config::settings_backends
+mise run test -- --package dokime-runtime --features testing --story config::
+mise run test -- --changed crates/dokime-runtime/tests/integration/config.rs
+mise run test -- --changed crates/dokime-protocol/src/lib.rs --layer integration --plan
 mise run format -- --check --language python
 mise run check -- --repository
 ```
 
 `build` and `test` accept `--features "feature-a,feature-b"` (or a space-separated list)
 with `--package`, forwarding the list unchanged to Cargo with defaults enabled.
+Focused Rust tests use nextest, compiling only the selected Cargo target and its
+dependencies; no Tests archive or unrelated fixture build is required. `--exact`
+selects one test, `--story` selects an integration module (use `--target` for another
+layer), and `--package` alone selects that package's tests. An empty match fails.
+`--changed` accepts Rust package paths, including deleted files: test edits select
+their harness, shared support selects the package, and source edits include
+transitive workspace consumers. Required target features are enabled. Add `--layer`
+to narrow the proof; compatible targets share one Cargo invocation with qualified
+features so each package does not rebuild a different dependency graph. Use `--plan`
+to inspect it; paths outside Rust packages require
+their language's explicit selection. `--no-run --timings` measures compilation
+without running tests; Cargo retains its HTML under `target/cargo-timings/`.
+Focused execution uses the canonical deadlines and writes
+`target/test-reports/focused/junit.xml`; nextest schedules independent tests across
+the available cores. Stories needing native fixtures still consume their explicit
+prepared inputs; a focused run never substitutes stale or missing artifacts.
+With an existing matching Tests build, add `--artifact tests --target integration`
+to reuse its compiled harness without Cargo compilation. Archived exact package
+and binary selections unpack only the matching test harnesses and keep runtime
+inputs. Frontend and wheel inputs remain necessary for stories that use them.
 
 For a focused GUI integration story with already prepared, unchanged protocol
 modules, `mise run test:typescript:integration -- --prepared --select tests/integration/plots/nominal.test.ts`
@@ -29,8 +52,8 @@ mise run test -- --language typescript --layer system --select native-desktop
 Remove-Item Env:DOKIME_E2E_JOURNEYS
 ```
 
-`build --artifact tests` produces the CI archive; focused tests compile one Cargo
-target directly. `check` includes formatting, lint, repository configuration and
+`build --artifact tests` produces the CI archive; it is unnecessary for a focused
+test without archived fixture inputs. `check` includes formatting, lint, repository configuration and
 generated drift; `--language` limits language checks. `--repository`, `--bindings`,
 `--supply` and `--wasm` select individual checks.
 
