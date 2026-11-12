@@ -93,11 +93,15 @@ impl Store {
             html,
             ..Default::default()
         };
-        report.seal = report_digest(&report);
+        // Seal the exact serialized document, including map entry order, once.
+        let mut payload = report.encode_to_vec();
+        report.seal = report_digest(&payload)?;
         report.identifier = report.seal.iter().map(|byte| format!("{byte:02x}")).collect();
+        prost::encoding::string::encode(2, &report.identifier, &mut payload);
+        prost::encoding::bytes::encode(6, &report.seal, &mut payload);
         transaction.execute(
             "INSERT INTO reports VALUES (?1,?2,?3) ON CONFLICT(execution,id) DO NOTHING",
-            params![execution, report.identifier, report.encode_to_vec()],
+            params![execution, report.identifier, payload],
         )?;
         transaction.commit()?;
         Ok(report)
@@ -111,7 +115,7 @@ impl Store {
             .map(|bytes| {
                 let report = Report::decode(bytes.as_slice())?;
                 let identifier: String = report.seal.iter().map(|byte| format!("{byte:02x}")).collect();
-                if report.execution != execution || report.seal != report_digest(&report) || report.identifier != identifier {
+                if report.execution != execution || report.seal != report_digest(bytes)? || report.identifier != identifier {
                     return Err(Error::Invalid("Read Report: Restore a Valid Backup of the Published Report".into()));
                 }
                 let seal: Vec<u8> = connection.query_row("SELECT seal FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
@@ -128,11 +132,64 @@ impl Store {
 
 /* === Private Functions === */
 
-fn report_digest(report: &Report) -> Vec<u8> {
-    let mut content = report.clone();
-    content.identifier.clear();
-    content.seal.clear();
-    Sha256::digest(content.encode_to_vec()).to_vec()
+fn report_digest(bytes: &[u8]) -> Result<Vec<u8>> {
+    let mut hash = Sha256::new();
+    let mut remaining = bytes;
+    while !remaining.is_empty() {
+        let start = bytes.len() - remaining.len();
+        let (tag, wire) = prost::encoding::decode_key(&mut remaining)?;
+        prost::encoding::skip_field(wire, tag, &mut remaining, prost::encoding::DecodeContext::default())?;
+        if tag != 2 && tag != 6 {
+            hash.update(&bytes[start..bytes.len() - remaining.len()]);
+        }
+    }
+    Ok(hash.finalize().to_vec())
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn report_seal_retains_stored_document_bytes() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        store.create(&crate::Execution {
+            identifier: "report".into(),
+            cycle: "report".into(),
+            origin: Some(v1::Origin {
+                kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+            }),
+            ..Default::default()
+        })?;
+        store.close("report", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
+        store.seal("report")?;
+        let seal = store.cut("report")?.seal;
+        let document = v1::Document {
+            metadata: Some(v1::Metadata {
+                attributes: (0..7)
+                    .map(|index| {
+                        (
+                            format!("field-{index}"),
+                            v1::Value {
+                                kind: Some(v1::value::Kind::Integer(index)),
+                            },
+                        )
+                    })
+                    .collect(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let report = store.publish_report("report", &seal, document, b"<html></html>".to_vec())?;
+        drop(store);
+        let store = Store::open(root.path())?;
+        assert_eq!(store.reports("report")?, vec![report.clone()]);
+        let mut altered = report;
+        altered.html.push(b'X');
+        store.lock()?.execute("UPDATE reports SET payload=?1 WHERE execution='report'", [altered.encode_to_vec()])?;
+        assert!(store.reports("report").is_err());
+        Ok(())
+    }
+}

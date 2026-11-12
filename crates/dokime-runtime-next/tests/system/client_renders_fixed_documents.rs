@@ -534,6 +534,9 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         }
         assert_eq!(cacheable, Some(false));
         process.close().await?;
+        drop(store);
+        let reopened = Store::open(root.path())?;
+        assert_eq!(reopened.reports("documents-a")?.len(), 1);
         Ok::<_, Box<dyn std::error::Error>>(())
     })
     .await?

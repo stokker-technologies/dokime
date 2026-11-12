@@ -88,6 +88,7 @@ rusqlite = { workspace = true }
 # Configuration
 
 # Filesystem
+tempfile = { workspace = true }
 
 # Parsing
 
