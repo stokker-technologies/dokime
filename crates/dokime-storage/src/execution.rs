@@ -81,13 +81,24 @@ pub struct Evidence {
     pub attempt: u32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq, Message)]
 pub struct Sample {
+    #[prost(string, tag = "1")]
     pub stream: String,
+
+    #[prost(uint64, tag = "2")]
     pub position: u64,
+
+    #[prost(int64, tag = "3")]
     pub source_ns: i64,
+
+    #[prost(int64, tag = "4")]
     pub receipt_ns: i64,
+
+    #[prost(uint64, tag = "5")]
     pub sequence: u64,
+
+    #[prost(bytes = "vec", tag = "6")]
     pub row: Vec<u8>,
 }
 
@@ -98,6 +109,24 @@ pub struct ExecutionSnapshot {
     pub evidence: Vec<Evidence>,
     pub samples: Vec<Sample>,
     pub seal: Vec<u8>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct ExecutionArchive {
+    #[prost(message, optional, tag = "1")]
+    pub execution: Option<Execution>,
+
+    #[prost(message, repeated, tag = "2")]
+    pub evidence: Vec<Evidence>,
+
+    #[prost(message, repeated, tag = "3")]
+    pub samples: Vec<Sample>,
+
+    #[prost(bytes = "vec", tag = "4")]
+    pub seal: Vec<u8>,
+
+    #[prost(bytes = "vec", repeated, tag = "5")]
+    pub reports: Vec<Vec<u8>>,
 }
 
 /* === Enums === */

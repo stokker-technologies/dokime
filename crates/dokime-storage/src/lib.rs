@@ -14,14 +14,18 @@
 mod error;
 mod execution;
 mod outcome;
+mod query;
+mod report;
 mod store;
 mod streams;
 
 /* === Re-Exports === */
 
 pub use error::Error;
-pub use execution::{Evidence, Execution, ExecutionSnapshot, ExecutionState, Sample};
+pub use execution::{Evidence, Execution, ExecutionArchive, ExecutionSnapshot, ExecutionState, Sample};
 pub use outcome::OutcomeCounts;
+pub use query::{ExecutionCut, StatisticsRead};
+pub use report::Report;
 pub use store::Store;
 
 /* === Imports === */

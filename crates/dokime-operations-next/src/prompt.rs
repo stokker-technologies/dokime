@@ -50,6 +50,7 @@ pub fn declaration() -> Result<h::OperationContract> {
     )
 }
 pub async fn handle(resources: &Resources, request: v1::OperatorQuestion) -> Result<v1::OperatorAnswer> {
+    resources.check_action_scope(&resources.execution, ID)?;
     resources.evidence("prompt", request.encode_to_vec(), None)?;
     let answer = resources.prompts.ask(&resources.execution, request).await?;
     resources.evidence("answer", answer.encode_to_vec(), None)?;

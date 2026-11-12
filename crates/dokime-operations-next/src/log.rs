@@ -50,7 +50,7 @@ pub fn declaration() -> Result<h::OperationContract> {
     )
 }
 pub async fn handle(resources: &Resources, request: v1::WriteLog) -> Result<v1::WriteLogResponse> {
-    resources.check_scope(&request.execution)?;
+    resources.check_action_scope(&request.execution, ID)?;
     let source = request.at.as_ref().map(crate::resources::timestamp_ns).transpose()?;
     resources.evidence("log", request.encode_to_vec(), source)?;
     Ok(v1::WriteLogResponse {})

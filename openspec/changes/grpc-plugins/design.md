@@ -790,6 +790,16 @@ Client access and its security are the separate change
 
 ## Implementation Decisions
 
+Executions run concurrently within and across cycles; each unary invocation inherits only its execution's resources and persists operation/attempt evidence.
+Exhausted plugin-operation retries attribute an evaluated Failed outcome after cleanup; cancellation, interruption and empty criterion sets stay not-evaluated.
+Statistics use bounded sample pages and step evidence-position bounds, cache each column/range, and retain the request, exact positions and returned statistics as criterion-read evidence.
+Saved plugin descriptions survive shutdown and restart as Unavailable entries; explicit reattachment restores Ready without replaying execution calls or samples.
+HTML rendering accepts a sealed fixed snapshot and returns an owned temporary file; explicit publication stores its frozen document, execution seal and independently sealed report bytes.
+The minimal renderer handles escaped text and numeric stored-stream time series with bounded pages and point reduction; unsupported cards or expressions fail before publication.
+Execution capabilities allow starting only untouched open PluginRun evidence, rerunning sealed PluginRun evidence into a new execution, and cancelling only an active run; sealed imports support inspect/export and import drafts never recover as runs.
+Storage remains v1 with plugin descriptions, indexed sample pages and immutable report rows; a prior incompatible table shape is refused with backup/reset guidance, without migration or reset.
+The execution sample lives at `sdk/rust/examples/execution.rs`; its only supporting SDK edit is a one-line auto-discovered consumer binary entrypoint, and existing SDK sources and the shared thermal suite remain unchanged.
+
 The new host uses `dokime-storage`, `dokime-operations-next` and
 `dokime-runtime-next` until the later atomic consumer cutover renames the latter
 crates. Only the console-free process constructor is copied from

@@ -47,7 +47,7 @@ pub fn declaration() -> Result<h::OperationContract> {
     crate::declaration::<v1::RecordsRequest, v1::Records>(ID, prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?)
 }
 pub async fn handle(resources: &Resources, request: v1::RecordsRequest) -> Result<v1::Records> {
-    resources.check_scope(&request.execution)?;
+    resources.check_action_scope(&request.execution, ID)?;
     let snapshot = resources.store.read(&resources.execution)?;
     let mut records = Vec::new();
     for (ordinal, evidence) in snapshot.records(&request.kind).into_iter().enumerate() {

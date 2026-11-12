@@ -83,6 +83,7 @@ pub async fn dispatch(resources: &Resources, request: &h::ChildRequest) -> Resul
     if declaration.fingerprint != request.fingerprint {
         return Err(Error::Invalid(format!("Rebuild the Plugin Against the Host Contract for {}", request.operation)));
     }
+    resources.check_action_scope(&resources.execution, &request.operation)?;
     let payload = request.payload.as_slice();
     match request.operation.as_str() {
         log::ID => Ok(log::handle(resources, v1::WriteLog::decode(payload)?).await?.encode_to_vec()),
