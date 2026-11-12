@@ -75,7 +75,7 @@ structure, so you can use any instrument library.
 
 | | Dokime | OpenHTF | OpenTAP / PathWave | NI TestStand |
 | --- | --- | --- | --- | --- |
-| **Authoring Language** | Rust and Python (embedded); C++ planned | Python | C#, Python | Several |
+| **Authoring Language** | Rust, Python and a C++ source SDK | Python | C#, Python | Several |
 | **Licence** | Apache-2.0 | Apache-2.0 | MPL-2.0, Keysight GUI bundle | Commercial |
 | **Maturity** | Young | Established | Established | Industry standard |
 
@@ -219,6 +219,24 @@ install on startup without replacing newer installed versions. An optional
 Apache-2.0 license. See the
 [installer guide](docs/product-guide.md#native-installers)
 for packaging options.
+
+### C++
+
+The [C++ source SDK](docs/sdk-cpp.md) composes managed or remote plugins with
+ordinary C++20 values and provides generated protocol types, a thin client layer,
+and plot/document builders. The authoritative host-service declarations are still
+pending; the client guide records that integration dependency.
+
+#### Examples
+
+The [CMake starter](sdk/cpp/starter/) builds a plugin executable using a
+versioned SDK source archive and vcpkg dependencies:
+
+```cpp
+dokime::Plugin plugin("sample", "0.1.0");
+plugin.suite({dokime::metadata("sample", "Sample"), {std::move(test_template)}});
+plugin.serve();
+```
 
 ## Quick Start
 

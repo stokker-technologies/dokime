@@ -1,23 +1,30 @@
 cmake_minimum_required(VERSION 3.24)
-project(DokimeDocuments LANGUAGES CXX)
-
+project(DokimeCpp VERSION 0.1.0 LANGUAGES C CXX)
 include(FetchContent)
-set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
-set(protobuf_BUILD_LIBPROTOC OFF CACHE BOOL "" FORCE)
-set(protobuf_MSVC_STATIC_RUNTIME OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(protobuf
-  URL https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protobuf-36.2.tar.gz
-  URL_HASH SHA256=3d9642a662d10e68ebae5e53f14dcce5105684212d5078f8e0d47d1ab3ae6b64
-  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
-FetchContent_MakeAvailable(protobuf)
-
-add_library(dokime-documents src/dokime/v1/documents.pb.cc src/dokime/v1/values.pb.cc)
-target_compile_features(dokime-documents PUBLIC cxx_std_17)
-target_include_directories(dokime-documents PUBLIC include)
-target_link_libraries(dokime-documents PUBLIC protobuf::libprotobuf)
-
-enable_testing()
-add_executable(dokime-plot-builders tests/builders.cpp)
-target_link_libraries(dokime-plot-builders PRIVATE dokime-documents)
-add_test(NAME plot-builders COMMAND dokime-plot-builders)
+include(cmake/Dependencies.cmake)
+FetchContent_Declare(harmos
+  GIT_REPOSITORY https://github.com/stokker-technologies/harmos.git
+  GIT_TAG a7583836e721c8dc8b135af40a78860ea5945ec6
+  SOURCE_SUBDIR sdk/cpp)
+FetchContent_MakeAvailable(harmos)
+set(DOKIME_PROTO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../proto" CACHE PATH "Authoritative Dokime Protocol Sources")
+set(DOKIME_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${DOKIME_GENERATED}")
+add_subdirectory(cmake/protocol)
+target_include_directories(dokime_protocol SYSTEM PUBLIC "${DOKIME_GENERATED}")
+target_link_libraries(dokime_protocol PUBLIC Harmos::Cpp)
+add_library(dokime_cpp STATIC src/plugin.cpp src/context.cpp src/client.cpp)
+add_library(Dokime::Cpp ALIAS dokime_cpp)
+target_compile_features(dokime_cpp PUBLIC cxx_std_20)
+target_include_directories(dokime_cpp PUBLIC include)
+target_link_libraries(dokime_cpp PUBLIC dokime_protocol)
+if(MSVC)
+  target_compile_options(dokime_cpp PRIVATE /W4 /WX /EHsc /Zc:preprocessor)
+else()
+  target_compile_options(dokime_cpp PRIVATE -Wall -Wextra -Werror)
+endif()
+option(DOKIME_BUILD_TESTS "Build Focused SDK Stories" ${PROJECT_IS_TOP_LEVEL})
+if(DOKIME_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()

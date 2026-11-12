@@ -1,0 +1,21 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Tools === #
+
+[tools]
+cmake = "4.1.2"
+
+# === Entry Points === #
+
+[tasks.build]
+description = "Build the Managed Plugin Executable"
+run = [
+  'cmake --preset release',
+  'cmake --build --preset release',
+]
