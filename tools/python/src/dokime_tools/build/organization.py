@@ -17,7 +17,6 @@ import base64
 import hashlib
 import json
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -25,8 +24,8 @@ import tomllib
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
+from dokime_tools.package.staging import stage_file
 
 # Type Checking Imports
 
@@ -100,7 +99,7 @@ def generate_icons() -> None:
         )
         outputs = sorted(path for path in Path(directory).iterdir() if path.is_file())
         for path in outputs:
-            shutil.copyfile(path, destination / path.name)
+            stage_file(path, destination / path.name)
         _write_json(
             destination / "icon-integrity.json",
             {

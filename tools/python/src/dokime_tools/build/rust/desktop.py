@@ -12,6 +12,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import os
 import subprocess
 import sys
 
@@ -44,19 +45,20 @@ def build(profile: str) -> list[str]:
     sync_output(output / "web", frontend.WEB_ROOT / "dist")
     messages = output / "product/desktop-compiler.json"
     arguments = ["--locked", "--workspace", "--exclude", "dokime-python", "--profile", profile, *configuration.features(profile)]
-    # generate_context! does not track the frontend, so only a clean desktop unit picks up the real one.
-    subprocess.run(
-        ["cargo", "clean", "--locked", "--package", "dokime-gui", "--profile", profile],
-        cwd=ROOT,
-        check=True,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        stdin=sys.stdin,
-        stdout=sys.stderr,
-        stderr=sys.stderr,
-    )
-
+    # Cargo Tracks the Default Frontend; Preserve Clean Builds for Custom Inputs and Release.
+    if profile != "dev" or os.environ.get("TAURI_CONFIG"):
+        subprocess.run(
+            ["cargo", "clean", "--locked", "--package", "dokime-gui", "--profile", profile],
+            cwd=ROOT,
+            check=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=sys.stdin,
+            stdout=sys.stderr,
+            stderr=sys.stderr,
+        )
     command = ["cargo", "build", *arguments, "--message-format=json-render-diagnostics"]
-    with messages.open("w", encoding="utf-8") as written:
+    pending = messages.with_name("desktop-compiler.pending.json")
+    with pending.open("w", encoding="utf-8") as written:
         subprocess.run(
             command,
             cwd=ROOT,
@@ -66,6 +68,7 @@ def build(profile: str) -> list[str]:
             stdin=sys.stdin,
             stderr=sys.stderr,
         )
+    pending.replace(messages)
     source = outputs.executables(messages, ("dokime-gui",))["dokime-gui"]
     destination = output / "bin" / source.name
     stage_file(source, destination)

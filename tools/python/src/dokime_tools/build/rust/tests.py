@@ -40,7 +40,7 @@ ROOT = frontend.ROOT
 # === Public Functions === #
 
 
-def build(profile: str, *, extended: bool = False) -> list[str]:
+def build(profile: str, *, extended: bool = False, timings: bool = False) -> list[str]:
     """Compile The Independent Canonical Test Archive And Its Metadata."""
     if profile not in configuration.PROFILES:
         raise ValueError("test archives require dev or release")
@@ -53,7 +53,7 @@ def build(profile: str, *, extended: bool = False) -> list[str]:
     # Compile Test Targets Through The Shared Archive Owner.
     started = perf_counter()
     print(f"[build:tests] Archive started profile={profile} features={features}", flush=True)
-    built = cargo.archive(ROOT, profile, extra=features)
+    built = cargo.archive(ROOT, profile, extra=[*features, *(["--timings"] if timings else [])])
     print(f"[build:tests] Archive finished in {perf_counter() - started:.2f}s", flush=True)
 
     metadata = built.with_name("metadata.json")
@@ -92,9 +92,10 @@ def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=configuration.PROFILES, default="dev")
     parser.add_argument("--extended", action="store_true", help="include local-only fault-injection stories")
+    parser.add_argument("--timings", action="store_true")
     options = parser.parse_args(arguments)
     try:
-        build(options.profile, extended=options.extended)
+        build(options.profile, extended=options.extended, timings=options.timings)
     except (policy.TestError, OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"build tests: {error}", file=sys.stderr)
         return 1

@@ -37,7 +37,10 @@ generated drift; `--language` limits language checks. `--repository`, `--binding
 `mise run lint -- --language rust` owns Clippy with warnings denied.
 `mise run check -- --language rust` includes it. Build, test, bench and focused
 compilation do not run Clippy or scan compiler output. For custom compiler
-arguments use `mise exec -- cargo <operation> <arguments>`.
+arguments use the focused pass-through, for example
+`mise run build -- --cargo rustc --locked --package dokime-cli --bin dokime --timings -- -C linker=rust-lld`.
+It accepts Cargo `build`, `check` and `rustc` with an explicit package, preserves
+canonical profiles and never dispatches Clippy.
 
 `.stkr/project.toml` contains only company source policy. Project recipes read
 `tools/project.toml` for release metadata, packaging, language roots and test policy.
@@ -349,22 +352,156 @@ Focused package builds and tests start one Python interpreter, validate the sele
 and launch Cargo directly. They do not inspect or delete compiler output, acquire
 an output lock, create an archive or manage a compiler-cache server.
 
-For local builds, `mise.toml` selects `RUSTC_WRAPPER=sccache`,
-`SCCACHE_DIR=<OS user cache>/sccache` and `SCCACHE_CACHE_SIZE=20G`.
+Use `--timings` on focused package builds/checks/tests or on `build --artifact tests`
+to retain Cargo's native HTML report under `target/cargo-timings/`. Copy the report
+before the next invocation replaces `cargo-timing.html`. Keep the command's package,
+features, compiler profile and environment fixed when comparing an edit loop.
+A check produces metadata; a subsequent build still needs machine code. Product,
+Tests and focused selections can need different dependency feature variants.
+Run the focused test directly when that is the proof the edit needs.
+
+Windows development and test compilation uses Rust's bundled `rust-lld` through
+`build/cargo.py`; focused compilation, generators, native producers, archives and
+lint share that setting. An explicit `CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER`
+remains authoritative. Release and bench defaults and Linux linker selection stay
+unchanged. Existing line-table debug information, incremental compilation and the
+SHA-256 dependency optimization remain in place.
+
+The GUI build script tracks the embedded frontend directory through Cargo,
+including added and removed files. Default development desktop builds reuse that
+freshness instead of cleaning the GUI package on every invocation. Release builds
+and custom `TAURI_CONFIG` overrides retain their clean build path. Icon generation
+copies only changed bytes so unchanged compiler inputs keep their timestamps.
+Compiler records publish only after successful compilation; failed desktop output
+remains in `desktop-compiler.pending.json`.
+
+For local builds, `mise.toml` defaults to `RUSTC_WRAPPER=sccache`,
+`SCCACHE_DIR=<OS user cache>/sccache` and `SCCACHE_CACHE_SIZE=20G`, respecting
+explicit values for all three.
 sccache owns its persistent background server. Incremental compilation stays enabled;
 only CI sets `CARGO_INCREMENTAL=0`. Each checkout keeps its own `target/`.
 Contract generation keeps each invocation's compiler record in a private temporary
 folder, so overlapping checks cannot overwrite the record another invocation reads.
 The session running compilation monitors free disk space outside project tooling.
-If allocation failures recur, disable it for one run by setting
-`RUSTC_WRAPPER` to an empty value:
+If allocation failures recur, lower Cargo parallelism for the next invocation
+while retaining the compiler cache. Keep machine-specific job budgets in the
+shell or local mise configuration, rather than the repository:
 
-```sh
-RUSTC_WRAPPER= mise run build -- --language rust
+```powershell
+$env:CARGO_BUILD_JOBS = "8"
+mise run build -- --package dokime-cli
+Remove-Item Env:CARGO_BUILD_JOBS
 ```
 
-In PowerShell use `$env:RUSTC_WRAPPER = ''; mise run build -- --language rust`, then remove
-the override with `Remove-Item Env:RUSTC_WRAPPER`.
+Coalesce compatible package checks into one Cargo invocation when working in a
+shared checkout:
+
+```sh
+mise run build -- --cargo check --locked -p dokime-cli -p dokime-packaging --timings
+```
+
+Each long-lived worktree keeps its own warm target and shares the compiler cache.
+A shared target serializes Cargo processes and changing checkout paths can
+invalidate workspace units. Incremental workspace crates and linker invocations
+are not sccache hits; sharing a cache does not share their incremental state.
+`SCCACHE_BASEDIRS` in the pinned sccache version does not normalize Rust working
+directories. These limits are visible in the [Rust cache implementation](https://github.com/mozilla/sccache/blob/v0.19.0/src/compiler/rust.rs).
+Read `mise exec -- sccache --show-stats` before and after a trial; the persistent
+server's counters include other clients, so isolate a trial's server when attributing
+hits. Cache comparisons must retain the compiler version, feature selection and
+compiler flags. Avoid different `CARGO_TARGET_DIR` environment values when comparing
+cross-worktree hits: the pinned Rust cache also hashes Cargo environment variables.
+
+### Development Build Costs
+
+Windows measurements on 2026-11-12 used 16 physical cores, 32 logical processors
+and 80 GB of memory. Other repositories were compiling concurrently: these are
+single wall-clock observations, not isolated speedup estimates. Cold means an
+empty Cargo target with the shared compiler cache retained; the same ordered
+selections were used before and after the development-linker change. Changing
+linkers also creates a new Cargo fingerprint/cache namespace on the first run.
+
+The following edit loops compile the CLI consumer after adding one public constant
+to `dokime-cli` (leaf), `dokime-runtime` (middle), or `dokime-domain` (lowest).
+Each selection makes its own one-line edit and restores the original source.
+Checks use `build --package dokime-cli --check`, builds omit `--check`, and tests
+use `test --package dokime-cli --target integration --exact
+commands::id_file::truncates_before_mutation_and_writes_one_identity_per_line`.
+All are `mise run` tasks with `--timings`.
+
+| Selection | Before (s) | After (s) |
+| --- | ---: | ---: |
+| Cold Domain Check | 139.87 | 134.18 |
+| Cold CLI Check | 485.85 | 1039.17 |
+| Cold CLI Build | 613.44 | 632.83 |
+| Cold Tests Artifact | 1338.27 | 1517.80 |
+| Leaf Check | 10.09 | 6.55 |
+| Leaf Build | 17.67 | 31.02 |
+| Leaf Test | 31.25 | 46.38 |
+| Middle Check | 26.43 | 52.80 |
+| Middle Build | 98.03 | 76.62 |
+| Middle Test | 152.70 | 63.26 |
+| Lowest Check | 84.98 | 108.87 |
+| Lowest Build | 75.08 | 135.39 |
+| Lowest Test | 80.97 | 93.27 |
+| Unchanged Desktop Build | 67.85 | 7.24 |
+
+The biggest observed costs and the implications for the edit loop are:
+
+- The cold runtime compile took 231 seconds: 164 before code generation and
+  66 in code generation. Domain compiled twice (117 and 81 seconds) with the same
+  top-level features but different dependency closures. Server and GUI build
+  scripts depend on the SDK, bringing host-side domain/runtime compilation into
+  the graph. A future host redesign should narrow those build dependencies;
+  adding jobs cannot parallelize one crate's serial front end. No crate boundaries
+  or product features were changed in this build-tuning work.
+  Dependency-tree duplicates also include incompatible major versions; forcing
+  one version or globally unifying host features would change dependency contracts.
+  The runtime integration test target alone took 290 seconds before and 272
+  after; splitting that target is a source-ownership follow-up, not a linker fix.
+- A Tests artifact builds 45 binaries and then proves 16 compile contracts. It is
+  an integration artifact, not the prerequisite for every focused test. Build it
+  once for the combined candidate; workers should use the exact focused proof.
+- Default desktop builds previously cleaned the GUI unconditionally. Native
+  directory tracking and stable icon inputs remove that repeated invalidation.
+  The unchanged desktop task fell from 67.85 to 7.24 seconds (60.61 saved).
+  Adding/removing an embedded file rebuilt both native GUI targets in 36.53/40.24
+  seconds; the next unchanged run marked both fresh and took 7.89 seconds.
+  Release and custom-configuration builds keep their previous clean path.
+- In alternating same-source CLI binary trials, the final compile/link unit's
+  median fell from 18.95 seconds with MSVC to 11.70 with LLD (7.25 seconds).
+  This includes the final rustc invocation, not just time inside the linker.
+
+Use two concurrent focused builders with eight Cargo jobs each as a starting
+budget on this machine, each with a long-lived target and the shared cache.
+One/two/four concurrent public-API macro edits took 26/37/64 seconds to finish
+all selected builds; individual four-way builds took 36–64 seconds. This small
+probe used mixed drives, differently warmed targets and external load, so it
+supports a conservative latency budget, not a universal concurrency ceiling.
+Serialize the combined Tests artifact producer rather than queueing every agent
+on a shared target's Cargo lock. Coalesce compatible selections in a shared checkout.
+
+An isolated cache-counter probe restored all 14 cacheable registry dependencies
+for the macro package on both drives (18.85 and 15.66 seconds); it does not prove
+whole-workspace reuse. The shared 20 GB cache stayed at its capacity during the
+trials; respect a larger workstation-local cache override when sizing the shared
+cache for concurrent products. A new-root CLI check still took 888 seconds with a warm
+shared cache. Equivalent registry procedural-macro DLLs differed in linker bytes
+while retaining identical Rust metadata; sccache 0.19 hashes their complete bytes.
+Upstream [metadata-based proc-macro hashing](https://github.com/mozilla/sccache/pull/2882)
+is merged but was absent from the latest published 0.19.0 release at measurement
+time. Re-evaluate it when released rather than pinning an unreleased cache tool.
+A deterministic-linker probe did not produce identical workspace macro binaries,
+so no reproducibility flag was adopted as a purported cache fix.
+
+Existing dependency debug suppression, line-table workspace debug information,
+incremental compilation, SHA-256 optimization and code-generation defaults were
+retained. Optimizing build dependencies and changing sccache jobserver mode did
+not show a consistent improvement in the probes. Windows supports only packed
+split debug information here. Vite builds took about one to three seconds; generated
+TypeScript checks took about sixteen, so neither explains the multi-minute Rust
+waits. Linux, wheel/C#/C++ builds, actual branch switches and isolated full-graph
+concurrency remain unmeasured. Release and Nightly optimization was not changed.
 
 ## Validation
 
